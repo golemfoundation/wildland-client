@@ -64,7 +64,6 @@ enable=*
 disable=
     bad-continuation,
     fixme,
-    missing-docstring,
     wrong-import-position,
 
 
@@ -308,6 +307,7 @@ function-naming-style=snake_case
 good-names=i,
            j,
            k,
+           p,
            ex,
            Run,
            _
