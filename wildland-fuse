@@ -1,0 +1,489 @@
+#!/usr/bin/env python3
+
+#
+# (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
+#
+
+'''FUSE implementation
+
+.. code-block:: sh
+
+    apt install python3-fuse
+'''
+
+import errno
+import functools
+import itertools
+import logging
+import logging.handlers
+import os
+import pathlib
+import stat
+import sys
+import urllib.parse
+
+import fuse
+fuse.fuse_python_api = (0, 2)
+import voluptuous
+import yaml
+
+# XXX do not use
+DEBUG_COLLECTIONS = False
+
+class LocalStorage:
+    SCHEMA = voluptuous.Schema({
+        'type': 'local',
+        'path': voluptuous.All(
+            voluptuous.Coerce(pathlib.Path), voluptuous.IsDir()),
+    }, required=True)
+
+    @classmethod
+    def fromdict(cls, data):
+        logging.debug('LocalStorage.fromdict(%r)', data)
+        data = cls.SCHEMA(data)
+        logging.debug('data=%r', data)
+        return cls(data['path'])
+
+    def __init__(self, root):
+        self.root = pathlib.Path(root)
+
+    def _path(self, path):
+        ret = (self.root / path).resolve()
+        ret.relative_to(self.root) # this will throw ValueError if not relative
+        return ret
+
+#   def open(self, path):
+#       return open(self._path(path))
+
+    def getattr(self, path):
+        return os.lstat(self._path(path))
+
+    def readdir(self, path):
+        for i in os.listdir(self._path(path)):
+            yield fuse.Direntry(i)
+
+
+class _DataLoader:
+    def __call__(self, url, *, keystore=None, **kwds):
+        if keystore is not None:
+            # TODO
+            raise NotImplementedError()
+
+        try:
+            method = getattr(self, f'load_{url.scheme}')
+        except AttributeError:
+            raise ValueError(f'unsupported URL scheme: {url.scheme!r}')
+
+        return method(url, **kwds)
+
+    @staticmethod
+    def load_file(url, *, relative_to=None, **_kwds):
+        path = pathlib.Path(url.path)
+        if relative_to is not None:
+            path = relative_to / path
+        return open(path)
+
+class Container:
+    STORAGE = {
+        'local': LocalStorage,
+        'webdav': None,
+    }
+
+    SCHEMA = voluptuous.Schema({
+        'paths': voluptuous.All(list, voluptuous.Length(min=1)),
+        'storage': [str],
+    }, required=True)
+    SCHEMA_STORAGE = voluptuous.Schema({
+        'type': voluptuous.Any(*STORAGE),
+    }, required=True, extra=True)
+
+    _load = _DataLoader()
+
+    def __init__(self, paths, storage):
+        self.paths = paths
+        self.storage = storage
+
+    @staticmethod
+    def verify_signature(file):
+        # TODO: signature verification
+        return file
+
+    @classmethod
+    def fromyaml(cls, file):
+        data = cls.SCHEMA(yaml.load(cls.verify_signature(file)))
+
+        for smurl in data['storage']:
+            smurl = urllib.parse.urlsplit(smurl, scheme='file')
+            with cls._load(smurl,
+                    relative_to=pathlib.Path(file.name).parent) as smfile:
+                smdata = cls.SCHEMA_STORAGE(yaml.load(smfile))
+            storage_type = cls.STORAGE[smdata['type']]
+            if storage_type is not None:
+                storage = storage_type.fromdict(smdata)
+                break
+
+        return cls(paths=data['paths'], storage=storage)
+
+def _is_iterable(value):
+    try:
+        iter(value)
+    except TypeError:
+        return False
+    return True
+
+def handler(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwds):
+        try:
+            logging.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
+                (repr(i) for i in args[1:]), (f'{k}={v!r}' for k, v in kwds))))
+            ret = func(*args, **kwds)
+            if isinstance(ret, int):
+                try:
+                    ret_repr = '-' + errno.errorcode.get(-ret)
+                except KeyError:
+                    ret_repr = str(ret)
+            elif DEBUG_COLLECTIONS and _is_iterable(ret) and not isinstance(ret,
+                    (os.stat_result, os.statvfs_result)):
+                ret_repr = ret = list(ret)
+            else:
+                ret_repr = repr(ret)
+            logging.debug('%s → %s', func.__name__, ret_repr)
+            return ret
+        except OSError:
+            raise
+        except:
+            logging.exception('error while handling %s', func.__name__)
+            raise
+    return wrapper
+
+class WildlandFS(fuse.Fuse):
+    # pylint: disable=no-self-use,too-many-public-methods
+#   file_class = WildlandFile
+
+    def __init__(self, *args, **kwds):
+        # this is before cmdline parsing
+
+        super().__init__(*args, **kwds)
+
+        self.parser.add_option(mountopt='manifest', metavar='PATH',
+            action='append',
+            help='paths to the container manifests')
+
+        self.paths = {}
+        self.containers = []
+        self._uid = None
+        self._gid = None
+
+        self.fds = set()
+
+    def main(self, *args, **kwds): # pylint: disable=arguments-differ
+        # this is after cmdline parsing
+
+        for path in self.cmdline[0].manifest:
+            path = pathlib.Path(path)
+            logging.info('loading manifest %s', path)
+
+            try:
+                with open(path) as file:
+                    self.containers.append(Container.fromyaml(file))
+            except: # pylint: disable=bare-except
+                logging.exception('error loading manifest %s', path)
+                sys.exit(1)
+
+        for container in self.containers:
+            cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
+            intersection = set(self.paths).intersection(cpaths)
+            if intersection:
+                logging.error('path collision: %r', intersection)
+                sys.exit(1)
+
+            for path in cpaths:
+                self.paths[path] = container
+
+        super().main(*args, **kwds)
+
+    def get_container_for_path(self, path):
+        # check
+        for cpath in sorted(self.paths, key=lambda x: len(str(x)), reverse=True):
+            try:
+                relpath = path.relative_to(cpath)
+            except ValueError:
+                continue
+            else:
+                manifest = self.paths[cpath]
+                logging.debug(' path=%r manifest=%r relpath=%r', path, manifest, relpath)
+                return manifest, relpath
+        return None, None
+
+
+    def is_on_path(self, path):
+        for cpath in self.paths:
+            try:
+                cpath.relative_to(path)
+                logging.debug(' path=%r manifest=None', path)
+                return True
+            except ValueError:
+                continue
+
+
+    #
+    # FUSE API
+    #
+
+    @handler
+    def fsinit(self):
+        logging.info('mounting wildland')
+        self._uid, self._gid = os.getuid(), os.getgid()
+
+    @handler
+    def fsdestroy(self):
+        logging.info('unmounting wildland')
+
+    @handler
+    def getattr(self, path):
+        path = pathlib.PurePosixPath(path)
+        manifest, relpath = self.get_container_for_path(path)
+
+        if manifest is not None:
+            try:
+                return manifest.storage.getattr(relpath)
+            except FileNotFoundError:
+                # maybe this is on path to next container, so we have to
+                # check is on path; if that would not be the case, we'll
+                # raise -ENOENT later anyway
+                pass
+
+        if self.is_on_path(path):
+            return fuse.Stat(
+                st_mode=0o755 | stat.S_IFDIR,
+                st_nlink=0, # XXX is this OK?
+                st_uid=self._uid,
+                st_gid=self._gid,
+            )
+
+        return -errno.ENOENT
+
+    # XXX this looks unneeded
+#   @handler
+#   def opendir(self, path):
+#       logging.debug('opendir(%r)', path)
+#       path = pathlib.PurePosixPath(path)
+#       manifest, relpath = self.get_container_for_path(path)
+#       if manifest is not None:
+#           try:
+#               return manifest.storage.opendir(relpath)
+#           except FileNotFoundError:
+#               pass
+#
+#       if self.is_on_path(path):
+#           return FIXME
+#
+#       return -errno.ENOENT
+
+    @handler
+    def readdir(self, path, offset):
+        path = pathlib.PurePosixPath(path)
+
+        ret = set()
+        exists = False
+
+        manifest, relpath = self.get_container_for_path(path)
+
+        if manifest is not None:
+            try:
+                ret.update(manifest.storage.readdir(relpath))
+                exists = True
+            except FileNotFoundError:
+                pass
+
+        for p in self.paths:
+            try:
+                suffix = p.relative_to(path)
+            except ValueError:
+                continue
+            else:
+                ret.add(suffix.parts[0])
+                exists = True
+
+        if exists:
+            logging.debug(' → %r', ret)
+            return (fuse.Direntry(i) for i in ret)
+
+        assert not ret
+        raise OSError(errno.ENOENT, '')
+
+    @handler
+    def access(self, *args):
+        logging.debug('access%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def bmap(self, *args):
+        logging.debug('bmap%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def chmod(self, *args):
+        logging.debug('chmod%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def chown(self, *args):
+        logging.debug('chown%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def create(self, *args):
+        logging.debug('create%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def fgetattr(self, *args):
+        logging.debug('fgetattr%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def flush(self, *args):
+        logging.debug('flush%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def fsync(self, *args):
+        logging.debug('fsync%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def fsyncdir(self, *args):
+        logging.debug('fsyncdir%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def ftruncate(self, *args):
+        logging.debug('ftruncate%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def getxattr(self, *args):
+        logging.debug('getxattr%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def ioctl(self, *args):
+        logging.debug('ioctl%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def link(self, *args):
+        logging.debug('link%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def listxattr(self, *args):
+        logging.debug('listxattr%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def lock(self, *args):
+        logging.debug('lock%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def mkdir(self, *args):
+        logging.debug('mkdir%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def mknod(self, *args):
+        logging.debug('mknod%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def open(self, *args):
+        logging.debug('open%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def read(self, *args):
+        logging.debug('read%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def readlink(self, *args):
+        logging.debug('readlink%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def release(self, *args):
+        logging.debug('release%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+#   @handler
+#   def releasedir(self, *args):
+#       logging.debug('releasedir%r (ENOSYS)', args)
+#       return -errno.ENOSYS
+
+    @handler
+    def removexattr(self, *args):
+        logging.debug('removexattr%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def rename(self, *args):
+        logging.debug('rename%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def rmdir(self, *args):
+        logging.debug('rmdir%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def setxattr(self, *args):
+        logging.debug('setxattr%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def statfs(self, *args):
+        logging.debug('statfs%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def symlink(self, *args):
+        logging.debug('symlink%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def truncate(self, *args):
+        logging.debug('truncate%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def unlink(self, *args):
+        logging.debug('unlink%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def utime(self, *args):
+        logging.debug('utime%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def utimens(self, *args):
+        logging.debug('utimens%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+    @handler
+    def write(self, *args):
+        logging.debug('write%r (ENOSYS)', args)
+        return -errno.ENOSYS
+
+def main():
+    logging.basicConfig(format='%(asctime)s %(message)s',
+        filename='/tmp/wlfuse.log', level=logging.NOTSET)
+    server = WildlandFS()
+    server.parse(errex=1)
+    server.main()
+
+if __name__ == '__main__':
+    sys.exit(main())
