@@ -25,7 +25,7 @@ class LocalStorage(storage.AbstractStorage):
             path = relative_to / path
         path = path.resolve()
         if not path.is_dir():
-            raise NotADirectoryError(errno.NOTDIR,
+            raise NotADirectoryError(errno.ENOENT,
                 f'LocalStorage root does not exist: {path}')
         self.root = path
 
