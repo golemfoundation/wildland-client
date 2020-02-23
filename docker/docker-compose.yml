@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  wildland-fuse:
+    container_name: wildland-fuse
+    build: .
+    image: wildland-fuse
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - ..:/wildland-fuse:ro
+      - ../examples/storage:/wildland-fuse/examples/storage:rw
+

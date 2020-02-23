@@ -27,3 +27,19 @@ Unmount
 .. code-block:: sh
 
    fusermount -u ./mnt
+
+Docker
+------
+
+There is also docker image to conveniently test it in non-Debian environment.
+Because of FUSE usage, it still may require Linux environment though.
+
+Usage:
+
+.. code-block:: sh
+
+   cd docker
+   docker-compose build
+   docker-compose run wildland-fuse
+
+wildland-fuse is mounted in `/mnt` and the log is in `/tmp/wlfuse.log`
