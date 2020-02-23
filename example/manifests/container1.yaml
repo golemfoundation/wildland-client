@@ -2,8 +2,9 @@ paths:
   - /container1
   - /test/a1
 
-storage:
-  - storage11.yaml
-  - storage12.yaml
+backends:
+  storage:
+    - storage11.yaml
+    - storage12.yaml
 
 # vim: ts=2 sts=2 sw=2 et

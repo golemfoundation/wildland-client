@@ -62,7 +62,7 @@ class Container:
 
     SCHEMA = Schema({
         'paths': All(list, Length(min=1)),
-        'storage': [str],
+        'backends': {'storage': [str]},
     }, required=True)
     SCHEMA_STORAGE = Schema({
         'type': Any(*STORAGE),
@@ -93,7 +93,7 @@ class Container:
         data = cls.SCHEMA(yaml.load(cls.verify_signature(file)))
         dirpath = pathlib.Path(file.name).parent
 
-        for smurl in data['storage']:
+        for smurl in data['backends']['storage']:
             smurl = urllib.parse.urlsplit(smurl, scheme='file')
             try:
                 with cls._load(smurl, relative_to=dirpath) as smfile:
