@@ -232,6 +232,8 @@ class WildlandFS(fuse.Fuse):
         assert not ret
         raise OSError(errno.ENOENT, '')
 
+    # pylint: disable=unused-argument
+
     @handler
     def access(self, *args):
         return -errno.ENOSYS

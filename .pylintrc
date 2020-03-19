@@ -64,6 +64,7 @@ enable=*
 disable=
     bad-continuation,
     fixme,
+    keyword-arg-before-vararg,
     wrong-import-position,
 
 
@@ -310,6 +311,7 @@ good-names=i,
            p,
            ex,
            Run,
+           fs,
            _
 
 # Include a hint for the correct naming format with invalid-name.
@@ -445,7 +447,7 @@ valid-metaclass-classmethod-first-arg=cls
 [DESIGN]
 
 # Maximum number of arguments for function / method.
-max-args=5
+max-args=6
 
 # Maximum number of attributes for a class (see R0902).
 max-attributes=7
