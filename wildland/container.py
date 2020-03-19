@@ -70,7 +70,9 @@ class Container:
 
     _load = _DataLoader()
 
-    def __init__(self, paths, storage):
+    def __init__(self, fs, paths, storage):
+        self.fs = fs
+
         #: list of paths, under which this container should be mounted
         self.paths = paths
 
@@ -87,7 +89,7 @@ class Container:
         return file
 
     @classmethod
-    def fromyaml(cls, file):
+    def fromyaml(cls, fs, file):
         '''Load from file-like object with container manifest (a YAML document).
         '''
         data = cls.SCHEMA(yaml.load(cls.verify_signature(file)))
@@ -108,7 +110,9 @@ class Container:
                 continue
 
             return cls(
+                fs=fs,
                 paths=data['paths'],
-                storage=storage_type.fromdict(smdata, relative_to=dirpath))
+                storage=storage_type.fromdict(smdata,
+                    fs=fs, relative_to=dirpath))
 
         raise TypeError('no supported storage manifest URL scheme')

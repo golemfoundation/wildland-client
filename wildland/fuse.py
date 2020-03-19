@@ -3,8 +3,6 @@
 #
 
 import errno
-import functools
-import itertools
 import logging
 import os
 import pathlib
@@ -14,53 +12,34 @@ import sys
 import fuse
 fuse.fuse_python_api = 0, 2
 
-from .container import Container
+from . import (
+    container as _container,
+    storage as _storage,
+)
+from .fuse_utils import handler, Tracer
+from .storage_control import ControlStorage, control
 
-# XXX do not use
-DEBUG_COLLECTIONS = False
+class _WildlandFSResolverMixin:
+    # pylint: disable=too-few-public-methods
+    def __new__(cls, path, flags, *args):
+        path = pathlib.PurePosixPath(path)
 
-def _is_iterable(value):
-    try:
-        iter(value)
-    except TypeError:
-        return False
-    return True
+        container, relpath = cls.fs.get_container_for_path(path)
+        if container is None:
+            raise OSError(errno.ENOENT, 'not in a container')
+        storage = container.storage
+        file_class = storage.file_class
 
-def handler(func):
-    '''A decorator for wrapping FUSE API.
+        self = super().__new__(file_class)
+        # __init__ will not be called, because .file_class is not our
+        # descendant; that's good, we'd like to modify arguments:
+        self.__init__(cls.fs, container, storage, relpath, flags, *args)
 
-    Helpful for debugging.
-    '''
-    @functools.wraps(func)
-    def wrapper(*args, **kwds):
-        try:
-            logging.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
-                (repr(i) for i in args[1:]),
-                (f'{k}={v!r}' for k, v in kwds.items()))))
-            ret = func(*args, **kwds)
-            if isinstance(ret, int):
-                try:
-                    ret_repr = '-' + errno.errorcode.get(-ret)
-                except KeyError:
-                    ret_repr = str(ret)
-            elif DEBUG_COLLECTIONS and _is_iterable(ret) and not isinstance(ret,
-                    (os.stat_result, os.statvfs_result)):
-                ret_repr = ret = list(ret)
-            else:
-                ret_repr = repr(ret)
-            logging.debug('%s → %s', func.__name__, ret_repr)
-            return ret
-        except OSError:
-            raise
-        except:
-            logging.exception('error while handling %s', func.__name__)
-            raise
-    return wrapper
+        return self
 
 class WildlandFS(fuse.Fuse):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
-#   file_class = WildlandFile
 
     def __init__(self, *args, **kwds):
         # this is before cmdline parsing
@@ -73,10 +52,23 @@ class WildlandFS(fuse.Fuse):
 
         self.paths = {}
         self.containers = []
-        self._uid = None
-        self._gid = None
+        self.uid = None
+        self.gid = None
 
         self.fds = set()
+
+        # NOTE: here self refers to WildlandFS instance
+        class WildlandFSFile(_WildlandFSResolverMixin, _storage.AbstractFile):
+            # pylint: disable=abstract-method
+            fs = self
+        # TODO
+#       class WildlandFSDirectory(_WildlandFSResolverMixin,
+#               _storage.AbstractDirectory):
+#           fs = self
+
+        self.file_class = WildlandFSFile
+        #self.dir_class = WildlandFSDirectory
+
 
     def main(self, *args, **kwds): # pylint: disable=arguments-differ
         # this is after cmdline parsing
@@ -87,7 +79,8 @@ class WildlandFS(fuse.Fuse):
 
             try:
                 with open(path) as file:
-                    self.containers.append(Container.fromyaml(file))
+                    self.containers.append(
+                        _container.Container.fromyaml(self, file))
             except: # pylint: disable=bare-except
                 logging.exception('error loading manifest %s', path)
                 sys.exit(1)
@@ -104,6 +97,7 @@ class WildlandFS(fuse.Fuse):
 
         super().main(*args, **kwds)
 
+
     def get_container_for_path(self, path):
         '''Given path inside Wildland mount, return which container is
         responsible, and a path relative to the container root.
@@ -119,9 +113,9 @@ class WildlandFS(fuse.Fuse):
             except ValueError:
                 continue
             else:
-                manifest = self.paths[cpath]
-                logging.debug(' path=%r manifest=%r relpath=%r', path, manifest, relpath)
-                return manifest, relpath
+                container = self.paths[cpath]
+                logging.debug(' path=%r container=%r relpath=%r', path, container, relpath)
+                return container, relpath
         return None, None
 
 
@@ -132,7 +126,7 @@ class WildlandFS(fuse.Fuse):
         for cpath in self.paths:
             try:
                 cpath.relative_to(path)
-                logging.debug(' path=%r manifest=None', path)
+                logging.debug(' path=%r container=None', path)
                 return True
             except ValueError:
                 continue
@@ -147,7 +141,7 @@ class WildlandFS(fuse.Fuse):
     @handler
     def fsinit(self):
         logging.info('mounting wildland')
-        self._uid, self._gid = os.getuid(), os.getgid()
+        self.uid, self.gid = os.getuid(), os.getgid()
 
     @handler
     def fsdestroy(self):
@@ -156,11 +150,17 @@ class WildlandFS(fuse.Fuse):
     @handler
     def getattr(self, path):
         path = pathlib.PurePosixPath(path)
-        manifest, relpath = self.get_container_for_path(path)
 
-        if manifest is not None:
+        # XXX there is a problem, when the path exists, but is also on_path
+        #   - it can be not a directory
+        #   - it can have conflicting permissions (might it be possible to deny
+        #     access to other container?)
+
+        container, relpath = self.get_container_for_path(path)
+
+        if container is not None:
             try:
-                return manifest.storage.getattr(relpath)
+                return container.storage.getattr(relpath)
             except FileNotFoundError:
                 # maybe this is on path to next container, so we have to
                 # check is on path; if that would not be the case, we'll
@@ -171,8 +171,8 @@ class WildlandFS(fuse.Fuse):
             return fuse.Stat(
                 st_mode=0o755 | stat.S_IFDIR,
                 st_nlink=0, # XXX is this OK?
-                st_uid=self._uid,
-                st_gid=self._gid,
+                st_uid=self.uid,
+                st_gid=self.gid,
             )
 
         return -errno.ENOENT
@@ -182,10 +182,10 @@ class WildlandFS(fuse.Fuse):
 #   def opendir(self, path):
 #       logging.debug('opendir(%r)', path)
 #       path = pathlib.PurePosixPath(path)
-#       manifest, relpath = self.get_container_for_path(path)
-#       if manifest is not None:
+#       container, relpath = self.get_container_for_path(path)
+#       if container is not None:
 #           try:
-#               return manifest.storage.opendir(relpath)
+#               return container.storage.opendir(relpath)
 #           except FileNotFoundError:
 #               pass
 #
@@ -198,14 +198,17 @@ class WildlandFS(fuse.Fuse):
     def readdir(self, path, offset):
         path = pathlib.PurePosixPath(path)
 
+        # TODO missing . and ..
+        # TODO disallow .control in all containers, or disallow mounting /
+
         ret = set()
         exists = False
 
-        manifest, relpath = self.get_container_for_path(path)
+        container, relpath = self.get_container_for_path(path)
 
-        if manifest is not None:
+        if container is not None:
             try:
-                ret.update(manifest.storage.readdir(relpath))
+                ret.update(container.storage.readdir(relpath))
                 exists = True
             except FileNotFoundError:
                 pass
@@ -250,26 +253,6 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     @handler
-    def fgetattr(self, *args):
-        return -errno.ENOSYS
-
-    @handler
-    def flush(self, *args):
-        return -errno.ENOSYS
-
-    @handler
-    def fsync(self, *args):
-        return -errno.ENOSYS
-
-    @handler
-    def fsyncdir(self, *args):
-        return -errno.ENOSYS
-
-    @handler
-    def ftruncate(self, *args):
-        return -errno.ENOSYS
-
-    @handler
     def getxattr(self, *args):
         return -errno.ENOSYS
 
@@ -286,10 +269,6 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     @handler
-    def lock(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    @handler
     def mkdir(self, *args):
         return -errno.ENOSYS
 
@@ -298,24 +277,8 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     @handler
-    def open(self, *args):
-        return -errno.ENOSYS
-
-    @handler
-    def read(self, *args):
-        return -errno.ENOSYS
-
-    @handler
     def readlink(self, *args):
         return -errno.ENOSYS
-
-    @handler
-    def release(self, *args):
-        return -errno.ENOSYS
-
-#   @handler
-#   def releasedir(self, *args):
-#       return -errno.ENOSYS
 
     @handler
     def removexattr(self, *args):
@@ -342,8 +305,14 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     @handler
-    def truncate(self, *args):
-        return -errno.ENOSYS
+    def truncate(self, path, length):
+        path = pathlib.PurePosixPath(path)
+        container, relpath = self.get_container_for_path(path)
+
+        if container is None:
+            return -errno.ENOENT
+
+        return container.storage.truncate(relpath, length)
 
     @handler
     def unlink(self, *args):
@@ -357,14 +326,11 @@ class WildlandFS(fuse.Fuse):
     def utimens(self, *args):
         return -errno.ENOSYS
 
-    @handler
-    def write(self, *args):
-        return -errno.ENOSYS
-
 def main():
     # pylint: disable=missing-docstring
     logging.basicConfig(format='%(asctime)s %(message)s',
         filename='/tmp/wlfuse.log', level=logging.NOTSET)
+    sys.breakpointhook = Tracer.breakpointhook
     server = WildlandFS()
     server.parse(errex=1)
     server.main()
