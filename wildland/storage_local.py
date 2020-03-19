@@ -7,9 +7,11 @@ import os
 import pathlib
 
 from voluptuous import Schema, All, Coerce
+import yaml
 
 from . import storage as _storage
 from .fuse_utils import flags_to_mode, handler
+from .storage_control import control
 
 __all__ = ['LocalStorage']
 
@@ -88,3 +90,8 @@ class LocalStorage(_storage.AbstractStorage):
     def truncate(self, path, length):
         with open(self._path(path), 'ab') as file:
             file.truncate(length)
+
+    @control('manifest.yaml', read=True)
+    def control_manifest_read(self):
+        return yaml.dump({'type': 'local', 'path': os.fspath(self.root)},
+            default_flow_style=False).encode()

@@ -73,6 +73,9 @@ class WildlandFS(fuse.Fuse):
     def main(self, *args, **kwds): # pylint: disable=arguments-differ
         # this is after cmdline parsing
 
+        self.containers.append(
+            _container.Container(self, ['/.control'], ControlStorage(fs=self)))
+
         for path in self.cmdline[0].manifest:
             path = pathlib.Path(path)
             logging.info('loading manifest %s', path)
@@ -130,6 +133,22 @@ class WildlandFS(fuse.Fuse):
                 return True
             except ValueError:
                 continue
+
+
+    @control('cmd', write=True)
+    def control_cmd(self, data):
+        logging.debug('command: %r', data)
+
+    @control('paths', read=True)
+    def control_paths(self):
+        return ''.join(f'{key} {value!r}\n'
+            for key, value in self.paths.items()).encode()
+
+    @control('containers', directory=True)
+    def control_containers(self):
+        for i, container in enumerate(self.containers):
+            # TODO container identifier
+            yield str(i), container
 
 
     #
@@ -224,6 +243,10 @@ class WildlandFS(fuse.Fuse):
                 if suffix.parts:
                     ret.add(suffix.parts[0])
                 exists = True
+
+        if path == pathlib.PurePosixPath('/'):
+            exists = True
+            ret.add('.control')
 
         if exists:
             logging.debug(' → %r', ret)
