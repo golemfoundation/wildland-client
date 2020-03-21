@@ -41,7 +41,6 @@ def handler(func):
 # stolen from python-fuse/example/xmp.py
 _FLAGS_TO_MODE = {os.O_RDONLY: 'rb', os.O_WRONLY: 'wb', os.O_RDWR: 'wb+'}
 
-@staticmethod
 def flags_to_mode(flags):
     mode = _FLAGS_TO_MODE[flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR)]
     if flags | os.O_APPEND:
