@@ -8,6 +8,7 @@ RUN apt-get install -y \
       python3-fuse \
       python3-voluptuous \
       python3-yaml \
+      strace \
       fish
 
 ADD init.sh /
