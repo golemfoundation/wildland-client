@@ -274,10 +274,6 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     @handler
-    def create(self, *args):
-        return -errno.ENOSYS
-
-    @handler
     def getxattr(self, *args):
         return -errno.ENOSYS
 
