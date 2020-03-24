@@ -336,8 +336,14 @@ class WildlandFS(fuse.Fuse):
         return container.storage.truncate(relpath, length)
 
     @handler
-    def unlink(self, *args):
-        return -errno.ENOSYS
+    def unlink(self, path):
+        path = pathlib.PurePosixPath(path)
+        container, relpath = self.get_container_for_path(path)
+
+        if container is None:
+            return -errno.ENOENT
+
+        return container.storage.unlink(relpath)
 
     @handler
     def utime(self, *args):

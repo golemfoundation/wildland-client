@@ -91,6 +91,9 @@ class LocalStorage(_storage.AbstractStorage):
         with open(self._path(path), 'ab') as file:
             file.truncate(length)
 
+    def unlink(self, path):
+        return os.unlink(self._path(path))
+
     @control('manifest.yaml', read=True)
     def control_manifest_read(self):
         return yaml.dump({'type': 'local', 'path': os.fspath(self.root)},

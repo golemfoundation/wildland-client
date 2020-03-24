@@ -94,3 +94,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def truncate(self, path, length):
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def unlink(self, path):
+        raise NotImplementedError()

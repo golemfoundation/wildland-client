@@ -168,3 +168,6 @@ class ControlStorage(_storage.AbstractStorage):
 
     def truncate(self, path, length):
         pass
+
+    def unlink(self, path):
+        raise OSError(errno.EPERM, '')
