@@ -1,8 +1,8 @@
 wildland in FUSE
 ================
 
-Requirements
-------------
+Requirements (Debian)
+---------------------
 
 .. code-block:: sh
 
@@ -10,7 +10,22 @@ Requirements
       python3-fuse \
       python3-voluptuous \
       python3-yaml \
+      python3-pytest
+   
+Requirements (Fedora)
+---------------------
 
+.. code-block:: sh
+
+   dnf install \
+      python3-voluptuous \
+      python3-yaml \
+      python3-pytest \
+      fuse-devel
+
+   git clone git@github.com:libfuse/python-fuse.git                
+   pip3 install --user .
+                
 Mount
 -----
 
