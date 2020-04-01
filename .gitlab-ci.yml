@@ -1,0 +1,12 @@
+stages:
+  - test
+
+pytest:
+  stage: test
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  script:
+    - cd docker
+    - docker-compose build
+    - docker-compose run wildland-fuse test.sh -v
