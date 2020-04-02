@@ -93,7 +93,7 @@ class Container:
     def fromyaml(cls, fs, file):
         '''Load from file-like object with container manifest (a YAML document).
         '''
-        data = cls.SCHEMA(yaml.load(cls.verify_signature(file)))
+        data = cls.SCHEMA(yaml.safe_load(cls.verify_signature(file)))
         dirpath = pathlib.Path(file.name).parent
 
         for smurl in data['backends']['storage']:
@@ -101,7 +101,7 @@ class Container:
             try:
                 with cls._load(smurl, relative_to=dirpath) as smfile:
                     smdata = cls.SCHEMA_STORAGE(
-                        yaml.load(cls.verify_signature(smfile)))
+                        yaml.safe_load(cls.verify_signature(smfile)))
             except UnsupportedURLSchemeError:
                 continue
 

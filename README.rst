@@ -1,8 +1,10 @@
 wildland in FUSE
 ================
 
-Requirements (Debian)
----------------------
+Requirements
+------------
+
+Debian:
 
 .. code-block:: sh
 
@@ -12,8 +14,7 @@ Requirements (Debian)
       python3-yaml \
       python3-pytest
    
-Requirements (Fedora)
----------------------
+Fedora:
 
 .. code-block:: sh
 
@@ -26,7 +27,11 @@ Requirements (Fedora)
 
    git clone git@github.com:libfuse/python-fuse.git                
    pip3 install --user python-fuse
-                
+
+Make sure to use a `python-fuse` 1.0.0 or newer, the old version has
+`compatibility issues with Python 3
+<https://github.com/libfuse/python-fuse/issues/13>`_.
+
 Mount
 -----
 
@@ -49,7 +54,14 @@ Run tests
 
 .. code-block:: sh
 
-   pytest
+   pytest -v
+
+Tips & Tricks:
+
+* `pytest -s`: don't capture output.
+* `pytest -k test_name`
+* Use `breakpoint()` in code to drop into debugger (you might need to run
+  `pytest -s`)
 
 Docker
 ------
