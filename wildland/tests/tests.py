@@ -6,7 +6,7 @@ import pytest
 from .fuse_env import FuseEnv
 
 # For Pytest fixtures
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name, missing-function-docstring, invalid-name
 
 
 @pytest.fixture
@@ -72,3 +72,25 @@ def test_container_stat_file(env):
     env.create_file('storage/storage1/file1', mode=0o644)
     st = os.stat(env.mnt_dir / 'container1/file1')
     assert st.st_mode == 0o644 | stat.S_IFREG
+
+
+def test_container_read_file(env):
+    env.create_file('storage/storage1/file1', 'hello world')
+    with open(env.mnt_dir / 'container1/file1', 'r') as f:
+        content = f.read()
+    assert content == 'hello world'
+
+
+def test_container_create_file(env):
+    with open(env.mnt_dir / 'container1/file1', 'w') as f:
+        f.write('hello world')
+    os.sync()
+    with open(env.test_dir / 'storage/storage1/file1', 'r') as f:
+        content = f.read()
+    assert content == 'hello world'
+
+
+def test_container_delete_file(env):
+    env.create_file('storage/storage1/file1', 'hello world')
+    os.unlink(env.mnt_dir / 'container1/file1')
+    assert not (env.test_dir / 'storage/storage1/file1').exists()
