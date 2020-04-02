@@ -5,6 +5,7 @@ import sys
 import shutil
 from pathlib import Path
 import traceback
+import time
 
 import pytest
 import yaml
@@ -35,13 +36,11 @@ class FuseEnv:
     def __init__(self):
         self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse'))
         self.mnt_dir = self.test_dir / 'mnt'
-        self.log_file = self.test_dir / 'wlfuse.log'
         self.mounted = False
+        self.proc = None
 
         os.mkdir(self.test_dir / 'mnt')
         os.mkdir(self.test_dir / 'storage')
-        with open(self.log_file, 'w'):
-            pass
 
     def mount(self, manifests):
         assert not self.mounted, 'only one mount() at a time'
@@ -51,19 +50,31 @@ class FuseEnv:
                    for manifest in manifests]
 
         env = os.environ.copy()
-        env['WLFUSE_LOG'] = self.log_file
+        env['WLFUSE_LOG_STDERR'] = '1'
+        self.proc = subprocess.Popen([
+            ENTRY_POINT, mnt_dir,
+            '-f', '-d',
+            '-o', ','.join(options),
+        ], env=env, cwd=PROJECT_PATH)
         try:
-            subprocess.run(['/sbin/mount.fuse', ENTRY_POINT, mnt_dir,
-                            '-o', ','.join(options)],
-                           env=env,
-                           cwd=PROJECT_PATH,
-                           check=True)
-        except subprocess.CalledProcessError:
-            with open(self.log_file, 'r') as f:
-                log = f.read()
-            pytest.fail('mount failed:\n' + log, pytrace=False)
-
+            self.wait_for_mount()
+        except Exception:
+            self.unmount()
+            raise
         self.mounted = True
+
+    def wait_for_mount(self, timeout=1):
+        start = time.time()
+        now = start
+        while now - start < timeout:
+            with open('/etc/mtab') as f:
+                for line in f.readlines():
+                    if 'wildland-fuse {} '.format(self.mnt_dir) in line:
+                        return
+
+            time.sleep(0.05)
+            now = time.time()
+        pytest.fail('Timed out waiting for mount', pytrace=False)
 
     def create_manifest(self, name, data):
         with open(self.test_dir / name, 'w') as f:
@@ -82,17 +93,12 @@ class FuseEnv:
     def unmount(self):
         assert self.mounted
 
-        subprocess.run(['fusermount', '-u', self.mnt_dir], check=True)
+        subprocess.run(['fusermount', '-u', self.mnt_dir], check=False)
+        self.proc.wait()
+        self.proc = False
         self.mounted = False
 
-    def dump_log(self):
-        with open(self.log_file) as f:
-            log = f.read()
-        if log:
-            sys.stderr.write('log:\n' + log)
-
     def destroy(self):
-        self.dump_log()
         if self.mounted:
             try:
                 self.unmount()

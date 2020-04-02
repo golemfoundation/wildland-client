@@ -356,9 +356,14 @@ class WildlandFS(fuse.Fuse):
 def main():
     # pylint: disable=missing-docstring
     log_path = os.environ.get('WLFUSE_LOG', '/tmp/wlfuse.log')
-    logging.basicConfig(format='%(asctime)s %(message)s',
-        filename=log_path, level=logging.NOTSET)
+    if os.environ.get('WLFUSE_LOG_STDERR'):
+        logging.basicConfig(format='%(asctime)s %(message)s',
+                            stream=sys.stderr, level=logging.NOTSET)
+    else:
+        logging.basicConfig(format='%(asctime)s %(message)s',
+                            filename=log_path, level=logging.NOTSET)
     sys.breakpointhook = Tracer.breakpointhook
+
     server = WildlandFS()
     server.parse(errex=1)
     server.main()
