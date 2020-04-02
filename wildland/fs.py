@@ -19,25 +19,8 @@ from . import (
 from .fuse_utils import handler, Tracer
 from .storage_control import ControlStorage, control
 
-class _WildlandFSResolverMixin:
-    # pylint: disable=too-few-public-methods
-    def __new__(cls, path, flags, *args):
-        path = pathlib.PurePosixPath(path)
 
-        container, relpath = cls.fs.get_container_for_path(path)
-        if container is None:
-            raise OSError(errno.ENOENT, 'not in a container')
-        storage = container.storage
-        file_class = storage.file_class
-
-        self = super().__new__(file_class)
-        # __init__ will not be called, because .file_class is not our
-        # descendant; that's good, we'd like to modify arguments:
-        self.__init__(cls.fs, container, storage, relpath, flags, *args)
-
-        return self
-
-class WildlandFS(fuse.Fuse):
+class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
 
@@ -54,21 +37,6 @@ class WildlandFS(fuse.Fuse):
         self.containers = []
         self.uid = None
         self.gid = None
-
-        self.fds = set()
-
-        # NOTE: here self refers to WildlandFS instance
-        class WildlandFSFile(_WildlandFSResolverMixin, _storage.AbstractFile):
-            # pylint: disable=abstract-method
-            fs = self
-        # TODO
-#       class WildlandFSDirectory(_WildlandFSResolverMixin,
-#               _storage.AbstractDirectory):
-#           fs = self
-
-        self.file_class = WildlandFSFile
-        #self.dir_class = WildlandFSDirectory
-
 
     def main(self, *args, **kwds): # pylint: disable=arguments-differ
         # this is after cmdline parsing
@@ -171,6 +139,26 @@ class WildlandFS(fuse.Fuse):
     @handler
     def fsdestroy(self):
         logging.info('unmounting wildland')
+
+    @handler
+    def open(self, path, flags):
+        path = pathlib.PurePosixPath(path)
+        container, relpath = self.get_container_for_path(path)
+
+        if container is None:
+            return -errno.ENOENT
+
+        return container.storage.open(relpath, flags)
+
+    @handler
+    def create(self, path, flags, mode):
+        path = pathlib.PurePosixPath(path)
+        container, relpath = self.get_container_for_path(path)
+
+        if container is None:
+            return -errno.ENOENT
+
+        return container.storage.create(relpath, flags, mode)
 
     @handler
     def getattr(self, path):

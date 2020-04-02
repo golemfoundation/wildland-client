@@ -8,52 +8,6 @@ import logging
 
 from voluptuous import Schema
 
-class AbstractFile(metaclass=abc.ABCMeta):
-    # to be set in IntermediateFile (see fuse.py)
-    fs = None
-
-    # to be set in __new__ (see below)
-    container = None
-    storage = None
-
-    @abc.abstractmethod
-    def __init__(self, fs, container, storage, path, flags, *args):
-        self.fs = fs
-        self.container = container
-        self.storage = storage
-        self.log = logging.getLogger(type(self).__name__)
-
-    # NOTE: due to hasattr() logic in python-fuse, all used methods need to be
-    # defined here! therefore we can't make them abstract
-    # XXX or can we? every implementer will have to make concious decision about
-    # each one
-
-    # pylint: disable=no-self-use,unused-argument
-
-    def read(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def write(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def fsync(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def release(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def flush(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def fgetattr(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def ftruncate(self, *args, **kwds):
-        return -errno.ENOSYS
-
-    def lock(self, *args, **kwds):
-        return -errno.ENOSYS
-
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -65,13 +19,8 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     '''
     SCHEMA = Schema({})
 
-    def __init__(self, *, fs, **_kwds):
-        self.fs = fs
-
-    @property
-    @abc.abstractmethod
-    def file_class(self):
-        raise NotImplementedError()
+    def __init__(self, type=None):
+        pass
 
     @classmethod
     def fromdict(cls, data, **kwds):
@@ -82,6 +31,14 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         return cls(**data, **kwds)
 
     # pylint: disable=missing-docstring
+
+    @abc.abstractmethod
+    def open(self, path, flags):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def create(self, path, flags, mode):
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def getattr(self, path):
@@ -98,3 +55,46 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def unlink(self, path):
         raise NotImplementedError()
+
+
+def proxy(method_name):
+    def method(_self, *args, **_kwargs):
+        _path, rest, fileobj = args[0], args[1:-1], args[-1]
+        if not hasattr(fileobj, method_name):
+            return -errno.ENOSYS
+        return getattr(fileobj, method_name)(*rest)
+
+    return method
+
+
+class FileProxyMixin:
+    '''
+    A mixin to use if you want to work with object-based files.
+    Make sure that your open() and create() methods return objects.
+
+    Example:
+
+        class MyFile:
+            def __init__(self, path, flags, mode=0, ...):
+                ...
+
+            def read(self, length, offset):
+                ...
+
+
+        class MyStorage(AbstractStorage, FileProxyMixin):
+            def open(self, path, flags):
+                return MyFile(path, flags, ...)
+
+            def create(self, path, flags, mode):
+                return MyFile(path, flags, ...)
+    '''
+
+    read = proxy('read')
+    write = proxy('write')
+    fsync = proxy('fsync')
+    release = proxy('release')
+    flush = proxy('flush')
+    fgetattr = proxy('fgetattr')
+    ftruncate = proxy('ftruncate')
+    lock = proxy('lock')
