@@ -15,18 +15,15 @@ from .storage_control import control
 
 __all__ = ['LocalStorage']
 
-class LocalFile(_storage.AbstractFile):
-    def __repr__(self):
-        return f'<LocalFile storage={self.storage!r} relpath={self.path!r}>'
-
+class LocalFile:
     @handler
-    def __init__(self, fs, container, storage, path, flags, *args):
-        super().__init__(fs, container, storage, path, flags, *args)
+    def __init__(self, path, realpath, flags, mode=0):
         self.path = path
+        self.realpath = realpath
 
         # pylint: disable=protected-access
         self.file = os.fdopen(
-            os.open(self.storage._path(path), flags, *args),
+            os.open(realpath, flags, mode),
             flags_to_mode(flags))
 
     @handler
@@ -55,15 +52,14 @@ class LocalFile(_storage.AbstractFile):
     def ftruncate(self, length):
         return self.file.truncate(length)
 
-class LocalStorage(_storage.AbstractStorage):
+
+class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     '''Local, file-based storage'''
     SCHEMA = Schema({
         # pylint: disable=no-value-for-parameter
         'type': 'local',
         'path': All(Coerce(pathlib.Path)),
     }, required=True)
-
-    file_class = LocalFile
 
     def __init__(self, *, path, relative_to=None, **kwds):
         super().__init__(**kwds)
@@ -75,6 +71,12 @@ class LocalStorage(_storage.AbstractStorage):
             raise OSError(errno.ENOENT,
                 f'LocalStorage root does not exist: {path}')
         self.root = path
+
+    def open(self, path, flags):
+        return LocalFile(path, self._path(path), flags)
+
+    def create(self, path, flags, mode):
+        return LocalFile(path, self._path(path), flags, mode)
 
     def _path(self, path):
         ret = (self.root / path).resolve()

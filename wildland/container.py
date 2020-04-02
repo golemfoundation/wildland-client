@@ -113,8 +113,7 @@ class Container:
             return cls(
                 fs=fs,
                 paths=data['paths'],
-                storage=storage_type.fromdict(smdata,
-                    fs=fs, relative_to=dirpath))
+                storage=storage_type.fromdict(smdata, relative_to=dirpath))
 
         raise TypeError('no supported storage manifest URL scheme')
 

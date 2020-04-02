@@ -31,20 +31,14 @@ def control(name, *, read=False, write=False, directory=False):
 
     return decorator
 
-class ControlFile(_storage.AbstractFile):
-    def __repr__(self):
-        return f'<ControlFile relpath={self.path!r}>'
-
+class ControlFile:
     @handler
-    def __init__(self, fs, container, storage, path, flags, *args):
-        super().__init__(fs, container, storage, path, flags, *args)
-        self.path = path
-        read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
-        write = bool((flags & os.O_ACCMODE) in (os.O_WRONLY, os.O_RDWR))
-        self.node = storage.get_node_for_path(path, need_file=True,
-            need_read=read, need_write=write)
+    def __init__(self, node, *, uid, gid, need_read, need_write):
+        self.node = node
+        self.uid = uid
+        self.gid = gid
 
-        self.buffer = self.node() if read else None
+        self.buffer = self.node() if need_read else None
         if self.buffer is not None:
             assert len(self.buffer) <= CONTROL_FILE_MAX_SIZE
 
@@ -59,8 +53,8 @@ class ControlFile(_storage.AbstractFile):
         return fuse.Stat(
             st_mode=0o644 | stat.S_IFREG,
             st_nlink=1,
-            st_uid=self.fs.uid,
-            st_gid=self.fs.gid,
+            st_uid=self.uid,
+            st_gid=self.gid,
             st_size=CONTROL_FILE_MAX_SIZE,
         )
 
@@ -73,7 +67,6 @@ class ControlFile(_storage.AbstractFile):
     @handler
     def write(self, buf, offset):
         assert offset == 0
-        logging.debug('%s: written %r', self.path, buf)
         self.node(buf)
         return len(buf)
 
@@ -81,9 +74,28 @@ class ControlFile(_storage.AbstractFile):
     def ftruncate(self, length):
         pass
 
-class ControlStorage(_storage.AbstractStorage):
+
+class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     '''Control pseudo-storage'''
     file_class = ControlFile
+
+    def __init__(self, fs):
+        super().__init__(self)
+        self.fs = fs
+
+    def open(self, path, flags):
+        read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
+        write = bool((flags & os.O_ACCMODE) in (os.O_WRONLY, os.O_RDWR))
+
+        node = self.get_node_for_path(
+            path, need_file=True,
+            need_read=read, need_write=write)
+        return ControlFile(node, uid=self.fs.uid, gid=self.fs.gid,
+                           need_read=read,
+                           need_write=write)
+
+    def create(self, path, flags, mode):
+        return -errno.ENOSYS
 
     def get_node_for_path(self, path, *, need_directory=False, need_file=False,
             need_read=False, need_write=False):
