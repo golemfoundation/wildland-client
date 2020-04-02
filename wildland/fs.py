@@ -141,8 +141,14 @@ class WildlandFS(fuse.Fuse):
 
     @control('paths', read=True)
     def control_paths(self):
-        return ''.join(f'{key} {value!r}\n'
-            for key, value in self.paths.items()).encode()
+        result = ''
+
+        for i, container in enumerate(self.containers):
+            for path in container.paths:
+                # TODO container identifiers
+                result += f'{path} {i}\n'
+
+        return result.encode()
 
     @control('containers', directory=True)
     def control_containers(self):

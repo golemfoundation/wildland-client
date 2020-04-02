@@ -94,3 +94,18 @@ def test_container_delete_file(env):
     env.create_file('storage/storage1/file1', 'hello world')
     os.unlink(env.mnt_dir / 'container1/file1')
     assert not (env.test_dir / 'storage/storage1/file1').exists()
+
+
+def test_control_paths(env):
+    text = (env.mnt_dir / '.control/paths').read_text()
+    assert text.splitlines() == ['/.control 0', '/container1 1']
+
+
+def test_control_containers(env):
+    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == ['0', '1']
+
+
+def test_control_cmd(env):
+    # For now, just check if we can write without errors
+    with open(env.mnt_dir / '.control/cmd', 'w') as f:
+        f.write('test')
