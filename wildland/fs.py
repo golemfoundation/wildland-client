@@ -362,7 +362,6 @@ def main():
     else:
         logging.basicConfig(format='%(asctime)s %(message)s',
                             filename=log_path, level=logging.NOTSET)
-    sys.breakpointhook = Tracer.breakpointhook
 
     server = WildlandFS()
     server.parse(errex=1)

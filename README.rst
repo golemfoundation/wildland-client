@@ -54,7 +54,14 @@ Run tests
 
 .. code-block:: sh
 
-   pytest
+   pytest -v
+
+Tips & Tricks:
+
+* `pytest -s`: don't capture output.
+* `pytest -k test_name`
+* Use `breakpoint()` in code to drop into debugger (you might need to run
+  `pytest -s`)
 
 Docker
 ------
