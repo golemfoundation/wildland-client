@@ -98,11 +98,11 @@ def test_container_delete_file(env):
 
 def test_control_paths(env):
     text = (env.mnt_dir / '.control/paths').read_text()
-    assert text.splitlines() == ['/.control 0', '/container1 1']
+    assert text.splitlines() == ['/container1 0']
 
 
 def test_control_containers(env):
-    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == ['0', '1']
+    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == ['0']
 
 
 def test_control_cmd(env):
