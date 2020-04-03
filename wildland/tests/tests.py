@@ -2,6 +2,7 @@ import os
 import stat
 import errno
 
+import yaml
 import pytest
 
 from .fuse_env import FuseEnv
@@ -120,7 +121,7 @@ def cmd(env, data):
 
 def container_manifest(*, ident=TEST_UUID_2, paths=None, storage=None):
     if paths is None:
-        paths =  ['/container2']
+        paths = ['/container2']
     if storage is None:
         storage = ['storage1.yaml']
 
@@ -143,6 +144,23 @@ def storage_manifest(*, path):
 def test_cmd_mount(env):
     env.create_manifest('manifest2.yaml', container_manifest())
     cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
+        TEST_UUID,
+        TEST_UUID_2,
+    ]
+    assert sorted(os.listdir(env.mnt_dir)) == [
+        '.control',
+        'container1',
+        'container2',
+    ]
+
+
+def test_cmd_mount_direct(env):
+    manifest = yaml.dump(container_manifest(storage=[
+        str(env.test_dir / 'storage1.yaml')
+    ]))
+    with open(env.mnt_dir / '.control/mount', 'w') as f:
+        f.write(manifest)
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
         TEST_UUID,
         TEST_UUID_2,

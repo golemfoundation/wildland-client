@@ -66,10 +66,17 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         logging.info('loading manifest %s', path)
 
         try:
-            with open(path) as file:
-                return Container.fromyaml(self, file)
+            return Container.from_yaml_file(self, path)
         except Exception: # pylint: disable=broad-except
             raise WildlandError('error loading manifest %s' % path)
+
+    def load_container_direct(self, content: bytes) -> Container:
+        logging.info('loading manifest directly')
+
+        try:
+            return Container.from_yaml_content(self, content)
+        except Exception: # pylint: disable=broad-except
+            raise WildlandError('error loading manifest')
 
     def mount_container(self, container: Container):
         if container.ident in self.containers:
@@ -133,7 +140,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
 
     @control_file('cmd', read=False, write=True)
-    def control_cmd(self, data):
+    def control_cmd(self, data: bytes):
         logging.debug('command: %r', data)
 
         # TODO encoding?
@@ -151,6 +158,12 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             self.unmount_container(ident)
         else:
             raise WildlandError('unknown command: %s' % data)
+
+    @control_file('mount', read=False, write=True)
+    def control_mount_direct(self, content: bytes):
+        logging.debug('mount')
+        container = self.load_container_direct(content)
+        self.mount_container(container)
 
     @control_file('paths')
     def control_paths(self):

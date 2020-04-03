@@ -86,3 +86,26 @@ Running tests:
    cd docker
    docker-compose build
    docker-compose run wildland-fuse test.sh -v
+
+Control interface
+-----------------
+
+There is a procfs-like interface under `.control/`:
+
+* `.control/paths` - list of paths and corresponding containers, by UUID:
+
+  ..code-block::
+
+      /container1 UUID1
+      /container2 UUID2
+      /path/for/container1 UUID1
+
+* `.control/containers/<UUID>` - container directories:
+    * `/storage/0/manifest.yaml`
+
+* `.control/cmd` - commands (write-only file):
+   * `mount MANIFEST_FILE`
+   * `unmount MANIFEST_FILE`
+
+* `.control/mount` - mount a manifest provided directly (`cat manifest.yaml >
+  .control/mount`); note: absolute paths are required
