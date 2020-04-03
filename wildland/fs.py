@@ -47,9 +47,10 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
     def main(self, *args, **kwds): # pylint: disable=arguments-differ
         # this is after cmdline parsing
+        self.uid, self.gid = os.getuid(), os.getgid()
 
         self.paths[pathlib.PurePosixPath('/.control')] = \
-            ControlStorage(fs=self)
+            ControlStorage(fs=self, uid=self.uid, gid=self.gid)
 
         for path in self.cmdline[0].manifest:
             path = pathlib.Path(path)
@@ -144,7 +145,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
     def fsinit(self):
         logging.info('mounting wildland')
-        self.uid, self.gid = os.getuid(), os.getgid()
 
     def fsdestroy(self):
         logging.info('unmounting wildland')

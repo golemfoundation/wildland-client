@@ -72,9 +72,11 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     '''Control pseudo-storage'''
     file_class = ControlFile
 
-    def __init__(self, fs):
+    def __init__(self, fs, uid, gid):
         super().__init__(self)
         self.fs = fs
+        self.uid = uid
+        self.gid = gid
 
     def open(self, path, flags):
         read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
@@ -83,7 +85,7 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
         node = self.get_node_for_path(
             path, need_file=True,
             need_read=read, need_write=write)
-        return ControlFile(node, uid=self.fs.uid, gid=self.fs.gid,
+        return ControlFile(node, uid=self.uid, gid=self.gid,
                            need_read=read,
                            need_write=write)
 
@@ -148,8 +150,8 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
             return fuse.Stat(
                 st_mode=stat.S_IFDIR | 0o755,
                 st_nlink=2, # XXX +number of subdirectories
-                st_uid=self.fs.uid,
-                st_gid=self.fs.gid,
+                st_uid=self.uid,
+                st_gid=self.gid,
             )
 
         st_mode = stat.S_IFREG
@@ -161,8 +163,8 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
         return fuse.Stat(
             st_mode=st_mode,
             st_nlink=1,
-            st_uid=self.fs.uid,
-            st_gid=self.fs.gid,
+            st_uid=self.uid,
+            st_gid=self.gid,
             st_size=CONTROL_FILE_MAX_SIZE,
         )
 
