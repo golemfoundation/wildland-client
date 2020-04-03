@@ -13,26 +13,36 @@ import stat
 import fuse
 
 from . import storage as _storage
-from .fuse_utils import handler
+from .exc import WildlandError
 
 CONTROL_FILE_MAX_SIZE = 4096
 
-def control(name, *, read=False, write=False, directory=False):
+def control_directory(name):
     assert '/' not in name
-    if directory:
-        assert not read and not write
+
+    def decorator(func):
+        func._control_name = name
+        func._control_read = False
+        func._control_write = False
+        func._control_directory = True
+        return func
+
+    return decorator
+
+def control_file(name, *, read=True, write=False):
+    assert '/' not in name
+    assert read or write
 
     def decorator(func):
         func._control_name = name
         func._control_read = read
         func._control_write = write
-        func._control_directory = directory
+        func._control_directory = False
         return func
 
     return decorator
 
 class ControlFile:
-    @handler
     def __init__(self, node, *, uid, gid, need_read, need_write):
         self.node = node
         self.uid = uid
@@ -42,11 +52,9 @@ class ControlFile:
         if self.buffer is not None:
             assert len(self.buffer) <= CONTROL_FILE_MAX_SIZE
 
-    @handler
     def release(self, flags):
         pass
 
-    @handler
     def fgetattr(self):
 #       st_size = len(self.buffer) if self.buffer is not None else 0
 
@@ -58,19 +66,21 @@ class ControlFile:
             st_size=CONTROL_FILE_MAX_SIZE,
         )
 
-    @handler
     def read(self, length, offset):
         if self.buffer is None:
             return -errno.EINVAL
         return self.buffer[offset:offset+length]
 
-    @handler
     def write(self, buf, offset):
         assert offset == 0
-        self.node(buf)
+        try:
+            self.node(buf)
+        except WildlandError:
+            # libfuse will return EINVAL anyway, but make it explicit here.
+            logging.exception('control write error')
+            return -errno.EINVAL
         return len(buf)
 
-    @handler
     def ftruncate(self, length):
         pass
 
@@ -79,9 +89,11 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     '''Control pseudo-storage'''
     file_class = ControlFile
 
-    def __init__(self, fs):
+    def __init__(self, fs, uid, gid):
         super().__init__(self)
         self.fs = fs
+        self.uid = uid
+        self.gid = gid
 
     def open(self, path, flags):
         read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
@@ -90,7 +102,7 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
         node = self.get_node_for_path(
             path, need_file=True,
             need_read=read, need_write=write)
-        return ControlFile(node, uid=self.fs.uid, gid=self.fs.gid,
+        return ControlFile(node, uid=self.uid, gid=self.gid,
                            need_read=read,
                            need_write=write)
 
@@ -155,8 +167,8 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
             return fuse.Stat(
                 st_mode=stat.S_IFDIR | 0o755,
                 st_nlink=2, # XXX +number of subdirectories
-                st_uid=self.fs.uid,
-                st_gid=self.fs.gid,
+                st_uid=self.uid,
+                st_gid=self.gid,
             )
 
         st_mode = stat.S_IFREG
@@ -168,8 +180,8 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
         return fuse.Stat(
             st_mode=st_mode,
             st_nlink=1,
-            st_uid=self.fs.uid,
-            st_gid=self.fs.gid,
+            st_uid=self.uid,
+            st_gid=self.gid,
             st_size=CONTROL_FILE_MAX_SIZE,
         )
 

@@ -64,6 +64,8 @@ def proxy(method_name):
             return -errno.ENOSYS
         return getattr(fileobj, method_name)(*rest)
 
+    method.__name__ = method_name
+
     return method
 
 

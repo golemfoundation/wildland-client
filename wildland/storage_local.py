@@ -2,21 +2,20 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
-import errno
 import os
 import pathlib
+import logging
 
 from voluptuous import Schema, All, Coerce
 import yaml
 
 from . import storage as _storage
-from .fuse_utils import flags_to_mode, handler
-from .storage_control import control
+from .fuse_utils import flags_to_mode
+from .storage_control import control_file
 
 __all__ = ['LocalStorage']
 
 class LocalFile:
-    @handler
     def __init__(self, path, realpath, flags, mode=0):
         self.path = path
         self.realpath = realpath
@@ -26,11 +25,9 @@ class LocalFile:
             os.open(realpath, flags, mode),
             flags_to_mode(flags))
 
-    @handler
     def release(self, _flags):
         return self.file.close()
 
-    @handler
     def fgetattr(self):
         '''...
 
@@ -38,17 +35,14 @@ class LocalFile:
         '''
         return os.fstat(self.file.fileno())
 
-    @handler
     def read(self, length, offset):
         self.file.seek(offset)
         return self.file.read(length)
 
-    @handler
     def write(self, buf, offset):
         self.file.seek(offset)
         return self.file.write(buf)
 
-    @handler
     def ftruncate(self, length):
         return self.file.truncate(length)
 
@@ -68,8 +62,7 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
             path = relative_to / path
         path = path.resolve()
         if not path.is_dir():
-            raise OSError(errno.ENOENT,
-                f'LocalStorage root does not exist: {path}')
+            logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
 
     def open(self, path, flags):
@@ -96,7 +89,7 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     def unlink(self, path):
         return os.unlink(self._path(path))
 
-    @control('manifest.yaml', read=True)
+    @control_file('manifest.yaml')
     def control_manifest_read(self):
         return yaml.dump({'type': 'local', 'path': os.fspath(self.root)},
             default_flow_style=False).encode()

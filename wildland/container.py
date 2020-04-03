@@ -5,12 +5,14 @@
 import pathlib
 import urllib.parse
 import urllib.request
+import uuid
 
 import yaml
 
-from voluptuous import Schema, All, Any, Length
+from voluptuous import Schema, All, Any, Length, Coerce
 
-from .storage_control import control
+from .storage import AbstractStorage
+from .storage_control import control_directory
 from .storage_local import LocalStorage
 
 class UnsupportedURLSchemeError(Exception):
@@ -62,6 +64,7 @@ class Container:
     }
 
     SCHEMA = Schema({
+        'uuid': All(Coerce(uuid.UUID)),
         'paths': All(list, Length(min=1)),
         'backends': {'storage': [str]},
     }, required=True)
@@ -71,8 +74,9 @@ class Container:
 
     _load = _DataLoader()
 
-    def __init__(self, fs, paths, storage):
+    def __init__(self, *, fs, ident: uuid.UUID, paths, storage: AbstractStorage):
         self.fs = fs
+        self.ident = ident
 
         #: list of paths, under which this container should be mounted
         self.paths = paths
@@ -110,13 +114,16 @@ class Container:
             except KeyError:
                 continue
 
+            storage = storage_type.fromdict(smdata, relative_to=dirpath)
+
             return cls(
                 fs=fs,
+                ident=data['uuid'],
                 paths=data['paths'],
-                storage=storage_type.fromdict(smdata, relative_to=dirpath))
+                storage=storage)
 
         raise TypeError('no supported storage manifest URL scheme')
 
-    @control('storage', directory=True)
+    @control_directory('storage')
     def control_storage(self):
         yield '0', self.storage

@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 
-def handler(func):
+def debug_handler(func, bound=False):
     '''A decorator for wrapping FUSE API.
 
     Helpful for debugging.
@@ -17,9 +17,12 @@ def handler(func):
     @functools.wraps(func)
     def wrapper(*args, **kwds):
         try:
+            args_to_display = args if bound else args[1:]
+
             logging.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
-                (repr(i) for i in args[1:]),
+                (repr(i) for i in args_to_display),
                 (f'{k}={v!r}' for k, v in kwds.items()))))
+
             ret = func(*args, **kwds)
             if isinstance(ret, int):
                 try:
@@ -33,7 +36,7 @@ def handler(func):
         except OSError as err:
             logging.debug('%s !→ %s', func.__name__, err)
             raise
-        except:
+        except Exception:
             logging.exception('error while handling %s', func.__name__)
             raise
     return wrapper

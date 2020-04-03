@@ -8,19 +8,19 @@ import os
 import pathlib
 import stat
 import sys
+import uuid
 
 import fuse
 fuse.fuse_python_api = 0, 2
 
-from . import (
-    container as _container,
-    storage as _storage,
-)
-from .fuse_utils import handler, Tracer
-from .storage_control import ControlStorage, control
+from .container import Container
+from .storage import FileProxyMixin
+from .fuse_utils import debug_handler
+from .storage_control import ControlStorage, control_directory, control_file
+from .exc import WildlandError
 
 
-class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
+class WildlandFS(fuse.Fuse, FileProxyMixin):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
 
@@ -33,49 +33,78 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
             action='append',
             help='paths to the container manifests')
 
+        # path -> Storage
         self.paths = {}
-        self.containers = []
+        # ident -> Container
+        self.containers = {}
         self.uid = None
         self.gid = None
+        self.install_debug_handler()
+
+    def install_debug_handler(self):
+        '''Decorate all python-fuse entry points'''
+        for name in fuse.Fuse._attrs:
+            if hasattr(self, name):
+                method = getattr(self, name)
+                setattr(self, name, debug_handler(method, bound=True))
 
     def main(self, *args, **kwds): # pylint: disable=arguments-differ
         # this is after cmdline parsing
+        self.uid, self.gid = os.getuid(), os.getgid()
 
-        self.containers.append(
-            _container.Container(self, ['/.control'], ControlStorage(fs=self)))
+        self.paths[pathlib.PurePosixPath('/.control')] = \
+            ControlStorage(fs=self, uid=self.uid, gid=self.gid)
 
         for path in self.cmdline[0].manifest:
             path = pathlib.Path(path)
-            logging.info('loading manifest %s', path)
-
-            try:
-                with open(path) as file:
-                    self.containers.append(
-                        _container.Container.fromyaml(self, file))
-            except: # pylint: disable=bare-except
-                logging.exception('error loading manifest %s', path)
-                sys.exit(1)
-
-        for container in self.containers:
-            cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
-            intersection = set(self.paths).intersection(cpaths)
-            if intersection:
-                logging.error('path collision: %r', intersection)
-                sys.exit(1)
-
-            for path in cpaths:
-                self.paths[path] = container
+            container = self.load_container(path)
+            self.mount_container(container)
 
         super().main(*args, **kwds)
 
+    def load_container(self, path: pathlib.Path) -> Container:
+        logging.info('loading manifest %s', path)
 
-    def get_container_for_path(self, path):
-        '''Given path inside Wildland mount, return which container is
+        try:
+            with open(path) as file:
+                return Container.fromyaml(self, file)
+        except Exception: # pylint: disable=broad-except
+            raise WildlandError('error loading manifest %s' % path)
+
+    def mount_container(self, container: Container):
+        if container.ident in self.containers:
+            raise WildlandError('container with already mounted: %s' %
+                                container.ident)
+
+        cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
+        intersection = set(self.paths).intersection(cpaths)
+        if intersection:
+            raise WildlandError('path collision: %r' % intersection)
+
+        for path in cpaths:
+            self.paths[path] = container.storage
+
+        self.containers[container.ident] = container
+
+    def unmount_container(self, ident):
+        container = self.containers.get(ident)
+        if not container:
+            raise WildlandError('container not mounted: %s')
+        # TODO don't unmount if for open files?
+        cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
+        for path in cpaths:
+            assert path in self.paths
+            del self.paths[path]
+
+        del self.containers[container.ident]
+
+    def resolve_path(self, path: pathlib.Path):
+        '''Given path inside Wildland mount, return which storage is
         responsible, and a path relative to the container root.
 
-        The container with longest prefix is returned.
+        The storage with longest prefix is returned.
 
-        :obj:`None`, :obj:`None` is returned if in no particular container.
+        :obj:`None`, :obj:`None` is returned if in no particular storage.
         '''
 
         for cpath in sorted(self.paths, key=lambda x: len(str(x)), reverse=True):
@@ -84,9 +113,9 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
             except ValueError:
                 continue
             else:
-                container = self.paths[cpath]
-                logging.debug(' path=%r container=%r relpath=%r', path, container, relpath)
-                return container, relpath
+                storage = self.paths[cpath]
+                logging.debug(' path=%r storage=%r relpath=%r', path, storage, relpath)
+                return storage, relpath
         return None, None
 
 
@@ -103,26 +132,40 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
                 continue
 
 
-    @control('cmd', write=True)
+    @control_file('cmd', read=False, write=True)
     def control_cmd(self, data):
         logging.debug('command: %r', data)
 
-    @control('paths', read=True)
+        # TODO encoding?
+        command, _sep, arg = data.decode().rstrip().partition(' ')
+
+        if command == 'mount':
+            path = pathlib.Path(arg)
+            container = self.load_container(path)
+            self.mount_container(container)
+        elif command == 'unmount':
+            try:
+                ident = uuid.UUID(arg)
+            except ValueError:
+                raise WildlandError('wrong UUID: %s' % arg)
+            self.unmount_container(ident)
+        else:
+            raise WildlandError('unknown command: %s' % data)
+
+    @control_file('paths')
     def control_paths(self):
         result = ''
 
-        for i, container in enumerate(self.containers):
+        for ident, container in self.containers.items():
             for path in container.paths:
-                # TODO container identifiers
-                result += f'{path} {i}\n'
+                result += f'{path} {ident}\n'
 
         return result.encode()
 
-    @control('containers', directory=True)
+    @control_directory('containers')
     def control_containers(self):
-        for i, container in enumerate(self.containers):
-            # TODO container identifier
-            yield str(i), container
+        for ident, container in self.containers.items():
+            yield str(ident), container
 
 
     #
@@ -131,36 +174,30 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
     # pylint: disable=missing-docstring
 
-    @handler
     def fsinit(self):
         logging.info('mounting wildland')
-        self.uid, self.gid = os.getuid(), os.getgid()
 
-    @handler
     def fsdestroy(self):
         logging.info('unmounting wildland')
 
-    @handler
+    def proxy(self, method_name, path, *args, **kwargs):
+        '''
+        Proxy a call to corresponding Storage.
+        '''
+
+        path = pathlib.PurePosixPath(path)
+        storage, relpath = self.resolve_path(path)
+        if storage is None:
+            return -errno.ENOENT
+
+        return getattr(storage, method_name)(relpath, *args, **kwargs)
+
     def open(self, path, flags):
-        path = pathlib.PurePosixPath(path)
-        container, relpath = self.get_container_for_path(path)
+        return self.proxy('open', path, flags)
 
-        if container is None:
-            return -errno.ENOENT
-
-        return container.storage.open(relpath, flags)
-
-    @handler
     def create(self, path, flags, mode):
-        path = pathlib.PurePosixPath(path)
-        container, relpath = self.get_container_for_path(path)
+        return self.proxy('create', path, flags, mode)
 
-        if container is None:
-            return -errno.ENOENT
-
-        return container.storage.create(relpath, flags, mode)
-
-    @handler
     def getattr(self, path):
         path = pathlib.PurePosixPath(path)
 
@@ -169,11 +206,11 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
         #   - it can have conflicting permissions (might it be possible to deny
         #     access to other container?)
 
-        container, relpath = self.get_container_for_path(path)
+        storage, relpath = self.resolve_path(path)
 
-        if container is not None:
+        if storage is not None:
             try:
-                return container.storage.getattr(relpath)
+                return storage.getattr(relpath)
             except FileNotFoundError:
                 # maybe this is on path to next container, so we have to
                 # check is on path; if that would not be the case, we'll
@@ -191,7 +228,6 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
         return -errno.ENOENT
 
     # XXX this looks unneeded
-#   @handler
 #   def opendir(self, path):
 #       logging.debug('opendir(%r)', path)
 #       path = pathlib.PurePosixPath(path)
@@ -207,8 +243,7 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 #
 #       return -errno.ENOENT
 
-    @handler
-    def readdir(self, path, offset):
+    def readdir(self, path, _offset):
         path = pathlib.PurePosixPath(path)
 
         # TODO missing . and ..
@@ -217,11 +252,11 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
         ret = set()
         exists = False
 
-        container, relpath = self.get_container_for_path(path)
+        storage, relpath = self.resolve_path(path)
 
-        if container is not None:
+        if storage is not None:
             try:
-                ret.update(container.storage.readdir(relpath))
+                ret.update(storage.readdir(relpath))
                 exists = True
             except FileNotFoundError:
                 pass
@@ -251,99 +286,66 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
     # pylint: disable=unused-argument
 
-    @handler
     def access(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def bmap(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def chmod(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def chown(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def getxattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def ioctl(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def link(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def listxattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def mkdir(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def mknod(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def readlink(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def removexattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def rename(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def rmdir(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def setxattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def statfs(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def symlink(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def truncate(self, path, length):
-        path = pathlib.PurePosixPath(path)
-        container, relpath = self.get_container_for_path(path)
+        return self.proxy('truncate', path, length)
 
-        if container is None:
-            return -errno.ENOENT
-
-        return container.storage.truncate(relpath, length)
-
-    @handler
     def unlink(self, path):
-        path = pathlib.PurePosixPath(path)
-        container, relpath = self.get_container_for_path(path)
+        return self.proxy('unlink', path)
 
-        if container is None:
-            return -errno.ENOENT
-
-        return container.storage.unlink(relpath)
-
-    @handler
     def utime(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def utimens(self, *args):
         return -errno.ENOSYS
 
