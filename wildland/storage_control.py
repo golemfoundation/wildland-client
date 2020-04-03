@@ -13,7 +13,6 @@ import stat
 import fuse
 
 from . import storage as _storage
-from .fuse_utils import handler
 
 CONTROL_FILE_MAX_SIZE = 4096
 
@@ -32,7 +31,6 @@ def control(name, *, read=False, write=False, directory=False):
     return decorator
 
 class ControlFile:
-    @handler
     def __init__(self, node, *, uid, gid, need_read, need_write):
         self.node = node
         self.uid = uid
@@ -42,11 +40,9 @@ class ControlFile:
         if self.buffer is not None:
             assert len(self.buffer) <= CONTROL_FILE_MAX_SIZE
 
-    @handler
     def release(self, flags):
         pass
 
-    @handler
     def fgetattr(self):
 #       st_size = len(self.buffer) if self.buffer is not None else 0
 
@@ -58,19 +54,16 @@ class ControlFile:
             st_size=CONTROL_FILE_MAX_SIZE,
         )
 
-    @handler
     def read(self, length, offset):
         if self.buffer is None:
             return -errno.EINVAL
         return self.buffer[offset:offset+length]
 
-    @handler
     def write(self, buf, offset):
         assert offset == 0
         self.node(buf)
         return len(buf)
 
-    @handler
     def ftruncate(self, length):
         pass
 

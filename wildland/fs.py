@@ -16,7 +16,7 @@ from . import (
     container as _container,
     storage as _storage,
 )
-from .fuse_utils import handler, Tracer
+from .fuse_utils import debug_handler
 from .storage_control import ControlStorage, control
 
 
@@ -37,6 +37,14 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
         self.containers = []
         self.uid = None
         self.gid = None
+        self.install_debug_handler()
+
+    def install_debug_handler(self):
+        '''Decorate all python-fuse entry points'''
+        for name in fuse.Fuse._attrs:
+            if hasattr(self, name):
+                method = getattr(self, name)
+                setattr(self, name, debug_handler(method, bound=True))
 
     def main(self, *args, **kwds): # pylint: disable=arguments-differ
         # this is after cmdline parsing
@@ -131,16 +139,13 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
     # pylint: disable=missing-docstring
 
-    @handler
     def fsinit(self):
         logging.info('mounting wildland')
         self.uid, self.gid = os.getuid(), os.getgid()
 
-    @handler
     def fsdestroy(self):
         logging.info('unmounting wildland')
 
-    @handler
     def open(self, path, flags):
         path = pathlib.PurePosixPath(path)
         container, relpath = self.get_container_for_path(path)
@@ -150,7 +155,6 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
         return container.storage.open(relpath, flags)
 
-    @handler
     def create(self, path, flags, mode):
         path = pathlib.PurePosixPath(path)
         container, relpath = self.get_container_for_path(path)
@@ -160,7 +164,6 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
         return container.storage.create(relpath, flags, mode)
 
-    @handler
     def getattr(self, path):
         path = pathlib.PurePosixPath(path)
 
@@ -191,7 +194,6 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
         return -errno.ENOENT
 
     # XXX this looks unneeded
-#   @handler
 #   def opendir(self, path):
 #       logging.debug('opendir(%r)', path)
 #       path = pathlib.PurePosixPath(path)
@@ -207,7 +209,6 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 #
 #       return -errno.ENOENT
 
-    @handler
     def readdir(self, path, offset):
         path = pathlib.PurePosixPath(path)
 
@@ -251,75 +252,57 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
     # pylint: disable=unused-argument
 
-    @handler
     def access(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def bmap(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def chmod(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def chown(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def getxattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def ioctl(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def link(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def listxattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def mkdir(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def mknod(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def readlink(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def removexattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def rename(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def rmdir(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def setxattr(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def statfs(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def symlink(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def truncate(self, path, length):
         path = pathlib.PurePosixPath(path)
         container, relpath = self.get_container_for_path(path)
@@ -329,7 +312,6 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
         return container.storage.truncate(relpath, length)
 
-    @handler
     def unlink(self, path):
         path = pathlib.PurePosixPath(path)
         container, relpath = self.get_container_for_path(path)
@@ -339,11 +321,9 @@ class WildlandFS(fuse.Fuse, _storage.FileProxyMixin):
 
         return container.storage.unlink(relpath)
 
-    @handler
     def utime(self, *args):
         return -errno.ENOSYS
 
-    @handler
     def utimens(self, *args):
         return -errno.ENOSYS
 

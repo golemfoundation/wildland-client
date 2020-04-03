@@ -10,13 +10,12 @@ from voluptuous import Schema, All, Coerce
 import yaml
 
 from . import storage as _storage
-from .fuse_utils import flags_to_mode, handler
+from .fuse_utils import flags_to_mode
 from .storage_control import control
 
 __all__ = ['LocalStorage']
 
 class LocalFile:
-    @handler
     def __init__(self, path, realpath, flags, mode=0):
         self.path = path
         self.realpath = realpath
@@ -26,11 +25,9 @@ class LocalFile:
             os.open(realpath, flags, mode),
             flags_to_mode(flags))
 
-    @handler
     def release(self, _flags):
         return self.file.close()
 
-    @handler
     def fgetattr(self):
         '''...
 
@@ -38,17 +35,14 @@ class LocalFile:
         '''
         return os.fstat(self.file.fileno())
 
-    @handler
     def read(self, length, offset):
         self.file.seek(offset)
         return self.file.read(length)
 
-    @handler
     def write(self, buf, offset):
         self.file.seek(offset)
         return self.file.write(buf)
 
-    @handler
     def ftruncate(self, length):
         return self.file.truncate(length)
 
