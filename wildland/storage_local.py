@@ -11,7 +11,7 @@ import yaml
 
 from . import storage as _storage
 from .fuse_utils import flags_to_mode
-from .storage_control import control
+from .storage_control import control_file
 
 __all__ = ['LocalStorage']
 
@@ -90,7 +90,7 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     def unlink(self, path):
         return os.unlink(self._path(path))
 
-    @control('manifest.yaml', read=True)
+    @control_file('manifest.yaml')
     def control_manifest_read(self):
         return yaml.dump({'type': 'local', 'path': os.fspath(self.root)},
             default_flow_style=False).encode()

@@ -16,16 +16,27 @@ from . import storage as _storage
 
 CONTROL_FILE_MAX_SIZE = 4096
 
-def control(name, *, read=False, write=False, directory=False):
+def control_directory(name):
     assert '/' not in name
-    if directory:
-        assert not read and not write
+
+    def decorator(func):
+        func._control_name = name
+        func._control_read = False
+        func._control_write = False
+        func._control_directory = True
+        return func
+
+    return decorator
+
+def control_file(name, *, read=True, write=False):
+    assert '/' not in name
+    assert read or write
 
     def decorator(func):
         func._control_name = name
         func._control_read = read
         func._control_write = write
-        func._control_directory = directory
+        func._control_directory = False
         return func
 
     return decorator

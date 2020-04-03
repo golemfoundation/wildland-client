@@ -15,7 +15,7 @@ fuse.fuse_python_api = 0, 2
 from .container import Container
 from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
-from .storage_control import ControlStorage, control
+from .storage_control import ControlStorage, control_directory, control_file
 
 
 class WildlandFS(fuse.Fuse, FileProxyMixin):
@@ -115,11 +115,11 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
                 continue
 
 
-    @control('cmd', write=True)
+    @control_file('cmd', read=False, write=True)
     def control_cmd(self, data):
         logging.debug('command: %r', data)
 
-    @control('paths', read=True)
+    @control_file('paths')
     def control_paths(self):
         result = ''
 
@@ -130,7 +130,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         return result.encode()
 
-    @control('containers', directory=True)
+    @control_directory('containers')
     def control_containers(self):
         for i, container in enumerate(self.containers):
             # TODO container identifier

@@ -10,7 +10,7 @@ import yaml
 
 from voluptuous import Schema, All, Any, Length
 
-from .storage_control import control
+from .storage_control import control_directory
 from .storage_local import LocalStorage
 
 class UnsupportedURLSchemeError(Exception):
@@ -117,6 +117,6 @@ class Container:
 
         raise TypeError('no supported storage manifest URL scheme')
 
-    @control('storage', directory=True)
+    @control_directory('storage')
     def control_storage(self):
         yield '0', self.storage
