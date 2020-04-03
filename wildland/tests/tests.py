@@ -118,21 +118,30 @@ def cmd(env, data):
         f.write(data)
 
 
-def manifest(*, ident=TEST_UUID_2, paths=None):
+def container_manifest(*, ident=TEST_UUID_2, paths=None, storage=None):
     if paths is None:
         paths =  ['/container2']
+    if storage is None:
+        storage = ['storage1.yaml']
+
     return {
         'uuid': ident,
         'paths': paths,
         'backends': {
-            'storage': [
-                'storage1.yaml',
-            ]
+            'storage': storage
         }
     }
 
+
+def storage_manifest(*, path):
+    return {
+        'type': 'local',
+        'path': path,
+    }
+
+
 def test_cmd_mount(env):
-    env.create_manifest('manifest2.yaml', manifest())
+    env.create_manifest('manifest2.yaml', container_manifest())
     cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
         TEST_UUID,
@@ -146,12 +155,12 @@ def test_cmd_mount(env):
 
 
 def test_cmd_mount_error(env):
-    env.create_manifest('manifest2.yaml', manifest(ident=TEST_UUID))
+    env.create_manifest('manifest2.yaml', container_manifest(ident=TEST_UUID))
     with pytest.raises(IOError) as e:
         cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
     assert e.value.errno == errno.EINVAL
 
-    env.create_manifest('manifest3.yaml', manifest(paths=['/container1']))
+    env.create_manifest('manifest3.yaml', container_manifest(paths=['/container1']))
     with pytest.raises(IOError) as e:
         cmd(env, 'mount ' + str(env.test_dir / 'manifest3.yaml'))
     assert e.value.errno == errno.EINVAL
@@ -171,3 +180,34 @@ def test_cmd_unmount_error(env):
     with pytest.raises(IOError) as e:
         cmd(env, 'unmount XXX')
     assert e.value.errno == errno.EINVAL
+
+
+def test_mount_no_directory(env):
+    # Mount should still work if them backing directory does not exist
+    env.create_manifest(
+        'manifest2.yaml', container_manifest(storage=['storage2.yaml']))
+
+    env.create_manifest(
+        'storage2.yaml', storage_manifest(path='./storage/storage2'))
+
+    # The container should mount, with the directory visible but empty
+    cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    assert sorted(os.listdir(env.mnt_dir)) == [
+        '.control',
+        'container1',
+        'container2',
+    ]
+    assert os.listdir(env.mnt_dir / 'container2') == []
+
+    # It's not possible to create a file...
+    with pytest.raises(IOError):
+        open(env.mnt_dir / 'container2/file1', 'w')
+
+    # ... until you create the backing directory
+    os.mkdir(env.test_dir / 'storage/storage2')
+    with open(env.mnt_dir / 'container2/file1', 'w') as f:
+        f.write('hello world')
+    os.sync()
+
+    with open(env.test_dir / 'storage/storage2/file1') as f:
+        assert f.read() == 'hello world'

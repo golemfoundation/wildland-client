@@ -2,9 +2,9 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
-import errno
 import os
 import pathlib
+import logging
 
 from voluptuous import Schema, All, Coerce
 import yaml
@@ -62,8 +62,7 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
             path = relative_to / path
         path = path.resolve()
         if not path.is_dir():
-            raise OSError(errno.ENOENT,
-                f'LocalStorage root does not exist: {path}')
+            logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
 
     def open(self, path, flags):
