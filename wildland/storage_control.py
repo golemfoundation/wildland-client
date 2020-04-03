@@ -13,6 +13,7 @@ import stat
 import fuse
 
 from . import storage as _storage
+from .exc import WildlandError
 
 CONTROL_FILE_MAX_SIZE = 4096
 
@@ -72,7 +73,12 @@ class ControlFile:
 
     def write(self, buf, offset):
         assert offset == 0
-        self.node(buf)
+        try:
+            self.node(buf)
+        except WildlandError:
+            # libfuse will return EINVAL anyway, but make it explicit here.
+            logging.exception('control write error')
+            return -errno.EINVAL
         return len(buf)
 
     def ftruncate(self, length):

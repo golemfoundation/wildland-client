@@ -1,0 +1,3 @@
+
+class WildlandError(Exception):
+    pass

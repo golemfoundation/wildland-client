@@ -8,6 +8,7 @@ import os
 import pathlib
 import stat
 import sys
+import uuid
 
 import fuse
 fuse.fuse_python_api = 0, 2
@@ -16,10 +17,7 @@ from .container import Container
 from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
 from .storage_control import ControlStorage, control_directory, control_file
-
-
-class WildlandError(Exception):
-    pass
+from .exc import WildlandError
 
 
 class WildlandFS(fuse.Fuse, FileProxyMixin):
@@ -137,6 +135,22 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     @control_file('cmd', read=False, write=True)
     def control_cmd(self, data):
         logging.debug('command: %r', data)
+
+        # TODO encoding?
+        command, _sep, arg = data.decode().rstrip().partition(' ')
+
+        if command == 'mount':
+            path = pathlib.Path(arg)
+            container = self.load_container(path)
+            self.mount_container(container)
+        elif command == 'unmount':
+            try:
+                ident = uuid.UUID(arg)
+            except ValueError:
+                raise WildlandError('wrong UUID: %s' % arg)
+            self.unmount_container(ident)
+        else:
+            raise WildlandError('unknown command: %s' % data)
 
     @control_file('paths')
     def control_paths(self):

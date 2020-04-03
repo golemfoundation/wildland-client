@@ -1,5 +1,6 @@
 import os
 import stat
+import errno
 
 import pytest
 
@@ -9,7 +10,8 @@ from .fuse_env import FuseEnv
 # pylint: disable=redefined-outer-name, missing-function-docstring, invalid-name
 
 
-TEST_UUID = 'd8d3ed8a-75a6-11ea-b5d2-00163e5e6c00'
+TEST_UUID = '85ab42ce-c087-4c80-8bf1-197b44235287'
+TEST_UUID_2 = 'd8d3ed8a-75a6-11ea-b5d2-00163e5e6c00'
 
 
 @pytest.fixture
@@ -111,7 +113,61 @@ def test_control_containers(env):
     ]
 
 
-def test_control_cmd(env):
-    # For now, just check if we can write without errors
+def cmd(env, data):
     with open(env.mnt_dir / '.control/cmd', 'w') as f:
-        f.write('test')
+        f.write(data)
+
+
+def manifest(*, ident=TEST_UUID_2, paths=None):
+    if paths is None:
+        paths =  ['/container2']
+    return {
+        'uuid': ident,
+        'paths': paths,
+        'backends': {
+            'storage': [
+                'storage1.yaml',
+            ]
+        }
+    }
+
+def test_cmd_mount(env):
+    env.create_manifest('manifest2.yaml', manifest())
+    cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
+        TEST_UUID,
+        TEST_UUID_2,
+    ]
+    assert sorted(os.listdir(env.mnt_dir)) == [
+        '.control',
+        'container1',
+        'container2',
+    ]
+
+
+def test_cmd_mount_error(env):
+    env.create_manifest('manifest2.yaml', manifest(ident=TEST_UUID))
+    with pytest.raises(IOError) as e:
+        cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    assert e.value.errno == errno.EINVAL
+
+    env.create_manifest('manifest3.yaml', manifest(paths=['/container1']))
+    with pytest.raises(IOError) as e:
+        cmd(env, 'mount ' + str(env.test_dir / 'manifest3.yaml'))
+    assert e.value.errno == errno.EINVAL
+
+
+def test_cmd_unmount(env):
+    cmd(env, 'unmount ' + TEST_UUID)
+    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == []
+    assert sorted(os.listdir(env.mnt_dir)) == ['.control']
+
+
+def test_cmd_unmount_error(env):
+    with pytest.raises(IOError) as e:
+        cmd(env, 'unmount ' + TEST_UUID_2)
+    assert e.value.errno == errno.EINVAL
+
+    with pytest.raises(IOError) as e:
+        cmd(env, 'unmount XXX')
+    assert e.value.errno == errno.EINVAL
