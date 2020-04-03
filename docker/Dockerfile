@@ -9,11 +9,11 @@ RUN apt-get install -y \
       python3-voluptuous \
       python3-yaml \
       python3-pytest \
+      pylint3 \
       strace \
       fish
 
-ADD init.sh /usr/local/bin/
-ADD test.sh /usr/local/bin/
+ADD *.sh /usr/local/bin/
 
 RUN useradd -s /usr/bin/fish -m user
 

@@ -1,7 +1,6 @@
 import subprocess
 import tempfile
 import os
-import sys
 import shutil
 from pathlib import Path
 import traceback

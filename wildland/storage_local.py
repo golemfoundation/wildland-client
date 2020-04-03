@@ -20,7 +20,6 @@ class LocalFile:
         self.path = path
         self.realpath = realpath
 
-        # pylint: disable=protected-access
         self.file = os.fdopen(
             os.open(realpath, flags, mode),
             flags_to_mode(flags))

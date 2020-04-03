@@ -64,8 +64,13 @@ enable=*
 disable=
     bad-continuation,
     fixme,
-    keyword-arg-before-vararg,
     wrong-import-position,
+    missing-docstring,
+    protected-access,
+    invalid-name,
+    broad-except,
+    design,
+    similarities
 
 
 [REPORTS]

@@ -42,8 +42,6 @@ class _DataLoader:
 
         return method(url, **kwds)
 
-    # pylint: disable=missing-docstring
-
     @staticmethod
     def load_file(url, *, relative_to=None, **_kwds):
         assert not url.netloc
@@ -84,28 +82,27 @@ class Container:
         #: the chosen storage instance
         self.storage = storage
 
-    @staticmethod
-    def verify_signature(file):
-        '''Verify a signature
-
-        This method currently does nothing.
-        '''
-        # TODO: signature verification
-        return file
-
     @classmethod
-    def fromyaml(cls, fs, file):
+    def from_yaml_file(cls, fs, path: pathlib.Path):
         '''Load from file-like object with container manifest (a YAML document).
         '''
-        data = cls.SCHEMA(yaml.safe_load(cls.verify_signature(file)))
-        dirpath = pathlib.Path(file.name).parent
+        with open(path, 'rb') as f:
+            content = f.read()
+
+        return cls.from_yaml_content(fs, content, path.parent)
+
+    @classmethod
+    def from_yaml_content(cls, fs, content: bytes, dirpath: pathlib.Path = None):
+        # TODO verify signature
+        data = cls.SCHEMA(yaml.safe_load(content))
 
         for smurl in data['backends']['storage']:
             smurl = urllib.parse.urlsplit(smurl, scheme='file')
             try:
                 with cls._load(smurl, relative_to=dirpath) as smfile:
+                    # TODO verify signature
                     smdata = cls.SCHEMA_STORAGE(
-                        yaml.safe_load(cls.verify_signature(smfile)))
+                        yaml.safe_load(smfile))
             except UnsupportedURLSchemeError:
                 continue
 

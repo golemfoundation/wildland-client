@@ -57,7 +57,6 @@ class Tracer:
 
     @classmethod
     def breakpointhook(cls):
-        # pylint: disable=protected-access
         sys.settrace(cls(sys._getframe(1)))
 
     def __call__(self, frame, event, arg):

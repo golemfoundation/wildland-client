@@ -2,8 +2,6 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
-# pylint: disable=protected-access
-
 import errno
 import logging
 import os
@@ -44,6 +42,7 @@ def control_file(name, *, read=True, write=False):
 
 class ControlFile:
     def __init__(self, node, *, uid, gid, need_read, need_write):
+        # pylint: disable=unused-argument
         self.node = node
         self.uid = uid
         self.gid = gid
@@ -113,7 +112,6 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
             need_read=False, need_write=False):
         logging.debug('get_node_for_path(path=%r)', path)
         path = pathlib.PurePosixPath(path)
-        # pylint: disable=no-value-for-parameter
         node = self.query_object_for_node(self.fs, *path.parts)
 
         if need_directory and not self.node_isdir(node):
@@ -151,6 +149,7 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
         yield from obj()
 
     def query_object_for_node(self, obj, part0=None, *parts):
+        # pylint: disable=keyword-arg-before-vararg
         if part0 is None:
             return obj
 
