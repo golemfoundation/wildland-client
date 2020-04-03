@@ -9,6 +9,9 @@ from .fuse_env import FuseEnv
 # pylint: disable=redefined-outer-name, missing-function-docstring, invalid-name
 
 
+TEST_UUID = 'd8d3ed8a-75a6-11ea-b5d2-00163e5e6c00'
+
+
 @pytest.fixture
 def env():
     env = FuseEnv()
@@ -24,6 +27,7 @@ def create_test_data(env):
     # TODO: instead of creating a single fixture, we should define them on the
     # fly.
     env.create_manifest('manifest1.yaml', {
+        'uuid': TEST_UUID,
         'paths': ['/container1'],
         'backends': {
             'storage': [
@@ -98,11 +102,13 @@ def test_container_delete_file(env):
 
 def test_control_paths(env):
     text = (env.mnt_dir / '.control/paths').read_text()
-    assert text.splitlines() == ['/container1 0']
+    assert text.splitlines() == [f'/container1 {TEST_UUID}']
 
 
 def test_control_containers(env):
-    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == ['0']
+    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
+        TEST_UUID
+    ]
 
 
 def test_control_cmd(env):

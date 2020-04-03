@@ -18,6 +18,10 @@ from .fuse_utils import debug_handler
 from .storage_control import ControlStorage, control_directory, control_file
 
 
+class WildlandError(Exception):
+    pass
+
+
 class WildlandFS(fuse.Fuse, FileProxyMixin):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
@@ -31,9 +35,10 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             action='append',
             help='paths to the container manifests')
 
-        # Map path -> Storage
+        # path -> Storage
         self.paths = {}
-        self.containers = []
+        # ident -> Container
+        self.containers = {}
         self.uid = None
         self.gid = None
         self.install_debug_handler()
@@ -65,21 +70,35 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         try:
             with open(path) as file:
                 return Container.fromyaml(self, file)
-        except: # pylint: disable=bare-except
-            logging.exception('error loading manifest %s', path)
-            sys.exit(1)
+        except Exception: # pylint: disable=broad-except
+            raise WildlandError('error loading manifest %s' % path)
 
     def mount_container(self, container: Container):
+        if container.ident in self.containers:
+            raise WildlandError('container with already mounted: %s' %
+                                container.ident)
+
         cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
         intersection = set(self.paths).intersection(cpaths)
         if intersection:
-            logging.error('path collision: %r', intersection)
-            sys.exit(1)
+            raise WildlandError('path collision: %r' % intersection)
 
         for path in cpaths:
             self.paths[path] = container.storage
 
-        self.containers.append(container)
+        self.containers[container.ident] = container
+
+    def unmount_container(self, ident):
+        container = self.containers.get(ident)
+        if not container:
+            raise WildlandError('container not mounted: %s')
+        # TODO don't unmount if for open files?
+        cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
+        for path in cpaths:
+            assert path in self.paths
+            del self.paths[path]
+
+        del self.containers[container.ident]
 
     def resolve_path(self, path: pathlib.Path):
         '''Given path inside Wildland mount, return which storage is
@@ -123,18 +142,16 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     def control_paths(self):
         result = ''
 
-        for i, container in enumerate(self.containers):
+        for ident, container in self.containers.items():
             for path in container.paths:
-                # TODO container identifiers
-                result += f'{path} {i}\n'
+                result += f'{path} {ident}\n'
 
         return result.encode()
 
     @control_directory('containers')
     def control_containers(self):
-        for i, container in enumerate(self.containers):
-            # TODO container identifier
-            yield str(i), container
+        for ident, container in self.containers.items():
+            yield str(ident), container
 
 
     #
