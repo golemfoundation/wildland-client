@@ -67,7 +67,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         try:
             return Container.from_yaml_file(self, path)
-        except Exception: # pylint: disable=broad-except
+        except Exception:
             raise WildlandError('error loading manifest %s' % path)
 
     def load_container_direct(self, content: bytes) -> Container:
@@ -75,7 +75,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         try:
             return Container.from_yaml_content(self, content)
-        except Exception: # pylint: disable=broad-except
+        except Exception:
             raise WildlandError('error loading manifest')
 
     def mount_container(self, container: Container):
@@ -184,8 +184,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     #
     # FUSE API
     #
-
-    # pylint: disable=missing-docstring
 
     def fsinit(self):
         logging.info('mounting wildland')
@@ -363,7 +361,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         return -errno.ENOSYS
 
 def main():
-    # pylint: disable=missing-docstring
     log_path = os.environ.get('WLFUSE_LOG', '/tmp/wlfuse.log')
     if os.environ.get('WLFUSE_LOG_STDERR'):
         logging.basicConfig(format='%(asctime)s %(message)s',

@@ -20,6 +20,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     SCHEMA = Schema({})
 
     def __init__(self, type=None):
+        # pylint: disable=redefined-builtin
         pass
 
     @classmethod
@@ -29,8 +30,6 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         data = cls.SCHEMA(data)
         logging.debug('data=%r', data)
         return cls(**data, **kwds)
-
-    # pylint: disable=missing-docstring
 
     @abc.abstractmethod
     def open(self, path, flags):

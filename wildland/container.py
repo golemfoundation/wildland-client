@@ -42,8 +42,6 @@ class _DataLoader:
 
         return method(url, **kwds)
 
-    # pylint: disable=missing-docstring
-
     @staticmethod
     def load_file(url, *, relative_to=None, **_kwds):
         assert not url.netloc

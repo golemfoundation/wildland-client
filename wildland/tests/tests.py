@@ -8,7 +8,7 @@ import pytest
 from .fuse_env import FuseEnv
 
 # For Pytest fixtures
-# pylint: disable=redefined-outer-name, missing-function-docstring, invalid-name
+# pylint: disable=redefined-outer-name
 
 
 TEST_UUID = '85ab42ce-c087-4c80-8bf1-197b44235287'
