@@ -13,6 +13,6 @@ services:
       - SYS_ADMIN
     volumes:
       - ..:/wildland-fuse:ro
-      - ../examples/storage:/wildland-fuse/examples/storage:rw
+      - ../example/storage:/wildland-fuse/example/storage:rw
     privileged: true
 
