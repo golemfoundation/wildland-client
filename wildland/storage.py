@@ -4,10 +4,11 @@
 
 import abc
 import errno
-import logging
+from typing import Optional
 
 from voluptuous import Schema
 
+from .manifest import Manifest
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -18,18 +19,13 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     This implementation detail might change in the future.
     '''
     SCHEMA = Schema({})
+    type = 'local'
 
-    def __init__(self, type=None):
-        # pylint: disable=redefined-builtin
-        pass
-
-    @classmethod
-    def fromdict(cls, data, **kwds):
-        '''Load storage manifest from :class:`dict`'''
-        logging.debug('%s.fromdict(%r)', cls.__name__, data)
-        data = cls.SCHEMA(data)
-        logging.debug('data=%r', data)
-        return cls(**data, **kwds)
+    def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
+        # pylint: disable=redefined-builtin, unused-argument
+        if manifest:
+            assert manifest.fields['type'] == self.type
+            self.manifest = manifest
 
     @abc.abstractmethod
     def open(self, path, flags):

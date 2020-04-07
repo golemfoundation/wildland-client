@@ -16,7 +16,7 @@ key1: value1
 key2: "value2"
 '''.encode()
 
-    data = make_header(gpg_sig, signer, test_data) + b'\n--\n' + test_data
+    data = make_header(gpg_sig, signer, test_data) + b'\n---\n' + test_data
     manifest = Manifest.from_bytes(data, gpg_sig)
     assert manifest.fields['signer'] == signer
     assert manifest.fields['key1'] == 'value1'
@@ -29,7 +29,7 @@ signer: other signer
 key1: value1
 key2: "value2"
 '''.encode()
-    data = make_header(gpg_sig, signer, test_data) + b'\n--\n' + test_data
+    data = make_header(gpg_sig, signer, test_data) + b'\n---\n' + test_data
 
     with pytest.raises(ManifestError, match='Signer field mismatch'):
         Manifest.from_bytes(data, gpg_sig)

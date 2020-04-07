@@ -6,10 +6,11 @@ import yaml
 import pytest
 
 from .fuse_env import FuseEnv
+from ..manifest import Manifest
+from ..sig import DummySigContext
 
 # For Pytest fixtures
 # pylint: disable=redefined-outer-name
-
 
 TEST_UUID = '85ab42ce-c087-4c80-8bf1-197b44235287'
 TEST_UUID_2 = 'd8d3ed8a-75a6-11ea-b5d2-00163e5e6c00'
@@ -119,13 +120,15 @@ def cmd(env, data):
         f.write(data)
 
 
-def container_manifest(*, ident=TEST_UUID_2, paths=None, storage=None):
+def container_manifest(*, signer='signer',
+                       ident=TEST_UUID_2, paths=None, storage=None):
     if paths is None:
         paths = ['/container2']
     if storage is None:
         storage = ['storage1.yaml']
 
     return {
+        'signer': signer,
         'uuid': ident,
         'paths': paths,
         'backends': {
@@ -134,8 +137,9 @@ def container_manifest(*, ident=TEST_UUID_2, paths=None, storage=None):
     }
 
 
-def storage_manifest(*, path):
+def storage_manifest(*, signer='signer', path):
     return {
+        'signer': signer,
         'type': 'local',
         'path': path,
     }
@@ -156,11 +160,11 @@ def test_cmd_mount(env):
 
 
 def test_cmd_mount_direct(env):
-    manifest = yaml.dump(container_manifest(storage=[
+    manifest = Manifest.from_fields(container_manifest(storage=[
         str(env.test_dir / 'storage1.yaml')
-    ]))
-    with open(env.mnt_dir / '.control/mount', 'w') as f:
-        f.write(manifest)
+    ]), DummySigContext())
+    with open(env.mnt_dir / '.control/mount', 'wb') as f:
+        f.write(manifest.to_bytes())
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
         TEST_UUID,
         TEST_UUID_2,

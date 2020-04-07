@@ -7,13 +7,15 @@ import urllib.parse
 import urllib.request
 import uuid
 
-import yaml
-
 from voluptuous import Schema, All, Any, Length, Coerce
 
 from .storage import AbstractStorage
-from .storage_control import control_directory
+from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
+
+from .manifest import Manifest
+from .sig import DummySigContext
+
 
 class UnsupportedURLSchemeError(Exception):
     '''Raised when URL scheme is unsupported by loader'''
@@ -48,7 +50,7 @@ class _DataLoader:
         path = pathlib.Path(url.path)
         if relative_to is not None:
             path = relative_to / path
-        return open(path)
+        return open(path, 'rb')
 
     @staticmethod
     def load_http(url, **_kwds):
@@ -62,6 +64,7 @@ class Container:
     }
 
     SCHEMA = Schema({
+        'signer': All(str),
         'uuid': All(Coerce(uuid.UUID)),
         'paths': All(list, Length(min=1)),
         'backends': {'storage': [str]},
@@ -72,55 +75,60 @@ class Container:
 
     _load = _DataLoader()
 
-    def __init__(self, *, fs, ident: uuid.UUID, paths, storage: AbstractStorage):
-        self.fs = fs
-        self.ident = ident
-
+    def __init__(self, *, manifest: Manifest, storage: AbstractStorage):
+        self.manifest = manifest
+        self.ident = manifest.fields['uuid']
         #: list of paths, under which this container should be mounted
-        self.paths = paths
+        self.paths = manifest.fields['paths']
 
         #: the chosen storage instance
         self.storage = storage
 
     @classmethod
-    def from_yaml_file(cls, fs, path: pathlib.Path):
+    def from_yaml_file(cls, path: pathlib.Path):
         '''Load from file-like object with container manifest (a YAML document).
         '''
         with open(path, 'rb') as f:
             content = f.read()
 
-        return cls.from_yaml_content(fs, content, path.parent)
+        return cls.from_yaml_content(content, path.parent)
 
     @classmethod
-    def from_yaml_content(cls, fs, content: bytes, dirpath: pathlib.Path = None):
-        # TODO verify signature
-        data = cls.SCHEMA(yaml.safe_load(content))
+    def from_yaml_content(cls, content: bytes, dirpath: pathlib.Path = None):
+        # TODO verify real signatures
+        sig_context = DummySigContext()
 
-        for smurl in data['backends']['storage']:
+        manifest = Manifest.from_bytes(content, sig_context, schema=cls.SCHEMA)
+
+        for smurl in manifest.fields['backends']['storage']:
             smurl = urllib.parse.urlsplit(smurl, scheme='file')
             try:
                 with cls._load(smurl, relative_to=dirpath) as smfile:
                     # TODO verify signature
-                    smdata = cls.SCHEMA_STORAGE(
-                        yaml.safe_load(smfile))
+                    storage_manifest_content = smfile.read()
             except UnsupportedURLSchemeError:
                 continue
 
+            storage_manifest = Manifest.from_bytes(
+                storage_manifest_content, sig_context)
+
             try:
-                storage_type = cls.STORAGE[smdata['type']]
+                storage_cls = cls.STORAGE[storage_manifest.fields['type']]
             except KeyError:
                 continue
 
-            storage = storage_type.fromdict(smdata, relative_to=dirpath)
+            storage_manifest.apply_schema(storage_cls.SCHEMA)
 
-            return cls(
-                fs=fs,
-                ident=data['uuid'],
-                paths=data['paths'],
-                storage=storage)
+            storage = storage_cls(manifest=storage_manifest, relative_to=dirpath)
+
+            return cls(manifest=manifest, storage=storage)
 
         raise TypeError('no supported storage manifest URL scheme')
 
     @control_directory('storage')
     def control_storage(self):
         yield '0', self.storage
+
+    @control_file('manifest.yaml')
+    def control_manifest_read(self):
+        return self.manifest.to_bytes()

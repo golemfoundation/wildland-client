@@ -9,21 +9,25 @@ Debian:
 .. code-block:: sh
 
    apt install \
+      gnupg2 \
       python3-fuse \
       python3-voluptuous \
       python3-yaml \
-      python3-pytest
+      python3-pytest \
+      python3-gnupg
    
 Fedora:
 
 .. code-block:: sh
 
    dnf install \
+      gnupg2 \
       python3-voluptuous \
       python3-yaml \
       python3-pytest \
       fuse-devel \
-      python3-devel
+      python3-devel \
+      python3-gnupg
 
    git clone git@github.com:libfuse/python-fuse.git                
    pip3 install --user python-fuse

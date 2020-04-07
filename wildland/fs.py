@@ -66,7 +66,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         logging.info('loading manifest %s', path)
 
         try:
-            return Container.from_yaml_file(self, path)
+            return Container.from_yaml_file(path)
         except Exception:
             raise WildlandError('error loading manifest %s' % path)
 
@@ -74,7 +74,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         logging.info('loading manifest directly')
 
         try:
-            return Container.from_yaml_content(self, content)
+            return Container.from_yaml_content(content)
         except Exception:
             raise WildlandError('error loading manifest')
 

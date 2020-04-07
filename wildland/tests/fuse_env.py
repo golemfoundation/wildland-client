@@ -7,8 +7,9 @@ import traceback
 import time
 
 import pytest
-import yaml
 
+from ..manifest import Manifest
+from ..sig import DummySigContext
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
@@ -75,9 +76,12 @@ class FuseEnv:
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
 
-    def create_manifest(self, name, data):
-        with open(self.test_dir / name, 'w') as f:
-            yaml.dump(data, f)
+    def create_manifest(self, name, fields):
+        if 'signer' not in fields:
+            fields['signer'] = 'signer'
+        manifest = Manifest.from_fields(fields, DummySigContext())
+        with open(self.test_dir / name, 'wb') as f:
+            f.write(manifest.to_bytes())
 
     def create_dir(self, name):
         os.mkdir(self.test_dir / name)

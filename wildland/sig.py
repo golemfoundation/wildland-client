@@ -3,9 +3,9 @@ import tempfile
 
 import gnupg
 
+from .exc import WildlandError
 
-# TODO move to exc?
-class SigError(Exception):
+class SigError(WildlandError):
     pass
 
 
@@ -24,14 +24,17 @@ class SigContext:
 
 class DummySigContext(SigContext):
     '''
-    A SigContext that does not require a valid signature, for testing purposes.
+    A SigContext that requires a dummy signature, for testing purposes.
     '''
     def sign(self, data: bytes, signer: str) -> bytes:
-        raise NotImplementedError()
+        return f'dummy.{signer}'
 
     def verify(self, signer: str, signature: str, data: bytes):
-        pass
-
+        expected_signature = f'dummy.{signer}'
+        if signature != expected_signature:
+            raise SigError(
+                'Expected {!r}, got {!r}'.format(
+                    expected_signature, signature))
 
 
 class GpgSigContext:

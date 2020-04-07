@@ -2,25 +2,49 @@ from typing import Tuple, Optional
 import re
 
 import yaml
+from voluptuous import Schema
 
 from .sig import SigContext, SigError
+from .exc import WildlandError
 
 
-HEADER_SEPARATOR = b'\n--\n'
+HEADER_SEPARATOR = b'\n---\n'
 
 
-class ManifestError(Exception):
+class ManifestError(WildlandError):
     pass
 
 
 class Manifest:
+    '''
+    Represents a loaded manifest.
+
+    The data (fields) should not be modified, because it needs to match the
+    return '\n.join(parsed_lines)signature.
+    '''
+
     def __init__(self, header: 'Header', fields, original_data: bytes):
         self.header = header
         self.fields = fields
         self.original_data = original_data
 
     @classmethod
-    def from_bytes(cls, data: bytes, sig_context: SigContext):
+    def from_fields(cls, fields, sig_context: SigContext) -> 'Manifest':
+        signer = fields['signer']
+        data = yaml.dump(fields, encoding='utf-8')
+        signature = sig_context.sign(data, signer)
+        header = Header(signer, signature)
+        return cls(header, fields, data)
+
+    @classmethod
+    def from_bytes(cls, data: bytes, sig_context: SigContext,
+                   schema: Optional[Schema] = None) -> 'Manifest':
+        '''
+        Create a manifest from YAML, performing necessary validation.
+
+        Throws ManifestError on failure.
+        '''
+
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
@@ -31,17 +55,28 @@ class Manifest:
                 'Signature verification failed: {}'.format(e))
 
         try:
-            fields = yaml.safe_load(rest_data)
+            rest_str = rest_data.decode('utf-8')
+            fields = yaml.safe_load(rest_str)
         except ValueError as e:
             raise ManifestError('Manifest parse error: {}'.format(e))
 
         if fields.get('signer') != header.signer:
             raise ManifestError('Signer field mismatch')
 
-        return Manifest(header, fields, data)
+        manifest = cls(header, fields, rest_data)
+        if schema:
+            manifest.apply_schema(schema)
+
+        return manifest
 
     def to_bytes(self):
         return self.header.to_bytes() + HEADER_SEPARATOR + self.original_data
+
+    def apply_schema(self, schema: Schema):
+        try:
+            self.fields = schema(self.fields)
+        except ValueError as e:
+            raise ManifestError('Schema validation error: {}'.format(e))
 
 
 class Header:
@@ -93,7 +128,7 @@ def split_header(data: bytes) -> Tuple[bytes, bytes]:
 
 
 class HeaderParser:
-    SIMPLE_FIELD_RE = re.compile(r'([a-z]+): "([a-zA-Z0-9_ -]+)"$')
+    SIMPLE_FIELD_RE = re.compile(r'([a-z]+): "([a-zA-Z0-9_ .-]+)"$')
     BLOCK_FIELD_RE = re.compile(r'([a-z]+): \|$')
     BLOCK_LINE_RE = re.compile('^ {0,2}$|^  (.*)')
 
