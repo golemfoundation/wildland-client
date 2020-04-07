@@ -18,8 +18,20 @@ class SigContext:
     def sign(self, data: bytes, signer: str) -> bytes:
         raise NotImplementedError()
 
-    def verify(self, data: bytes, signer: str):
+    def verify(self, signer: str, signature: str, data: bytes):
         raise NotImplementedError()
+
+
+class DummySigContext(SigContext):
+    '''
+    A SigContext that does not require a valid signature, for testing purposes.
+    '''
+    def sign(self, data: bytes, signer: str) -> bytes:
+        raise NotImplementedError()
+
+    def verify(self, signer: str, signature: str, data: bytes):
+        pass
+
 
 
 class GpgSigContext:
