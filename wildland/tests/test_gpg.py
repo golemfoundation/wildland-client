@@ -10,6 +10,8 @@ def test_verify(gpg_sig, signer):
     test_data = b'hello world'
     signature = gpg_sig.sign(signer, test_data, passphrase='secret')
 
+    print(signature)
+
     gpg_sig.verify(signer, signature, test_data)
 
 

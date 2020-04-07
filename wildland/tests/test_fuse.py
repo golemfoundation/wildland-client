@@ -2,7 +2,6 @@ import os
 import stat
 import errno
 
-import yaml
 import pytest
 
 from .fuse_env import FuseEnv

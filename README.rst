@@ -99,16 +99,15 @@ Control interface
 
 There is a procfs-like interface under `.control/`:
 
-* `.control/paths` - list of paths and corresponding containers, by UUID:
-
-  ..code-block::
+* `.control/paths` - list of paths and corresponding containers, by UUID::
 
       /container1 UUID1
       /container2 UUID2
       /path/for/container1 UUID1
 
 * `.control/containers/<UUID>` - container directories:
-    * `/storage/0/manifest.yaml`
+    * `manifest.yaml`
+    * `/storage/<NUM>/manifest.yaml`
 
 * `.control/cmd` - commands (write-only file):
    * `mount MANIFEST_FILE`
@@ -116,3 +115,59 @@ There is a procfs-like interface under `.control/`:
 
 * `.control/mount` - mount a manifest provided directly (`cat manifest.yaml >
   .control/mount`); note: absolute paths are required
+
+Signed manifests
+----------------
+
+The manifests have to be signed. The driver does not yet verify real
+signatures, but this will come soon.  (For now, the signature is of the form
+``"dummy.<signer>"``).
+
+A manifest has to begin with a **header**, which is a simple YAML document with
+two fields: ``signer`` and ``signature``. Here is an example of a signed
+manifest:
+
+.. code-block:: yaml
+
+   signer: "user"
+   signature: "dummy.user"
+   ---
+
+   signer: user
+   uuid: 85ab42ce-c087-4c80-8bf1-197b44235287
+
+   # the rest of the manifest follows
+
+Here is another example, using GPG signatures (not supported yet):
+
+.. code-block:: yaml
+
+   signer: "0xb6ddcc11f5818361b4ab7fc96ecfa72aa270e421"
+   signature: |
+     -----BEGIN PGP SIGNATURE-----
+
+     iLMEAAEIAB0WIQTN5mjRHoGC6gDA3uxiDPaaIicROgUCXoyB/gAKCRBiDPaaIicR
+     Os58A/4oWmZXGJzecUdgZ1kCw7bKO+tyz5kMRBslFhbwyBE8XA4zZUYm9x5enhvT
+     6tA3PFFr7S/3w978evGchie6KBip9UjhxAq69iGVa+JEz2Wc8wHYW7sJGsBxO+tY
+     IAJM5o5o2OuEaDMqS3fFmOVUJvuWEjmMjQ6dCF9vuE5E+BjWAA==
+     =OO/K
+     -----END PGP SIGNATURE-----
+   ---
+
+   signer: "0xb6ddcc11f5818361b4ab7fc96ecfa72aa270e421"
+   uuid: 85ab42ce-c087-4c80-8bf1-197b44235287
+
+   # the rest of the manifest follows
+
+
+Note that we recognize an **extremely limited YAML subset** in the header:
+
+* there have to be only ``signer`` and ``signature`` fields, in that order
+* fields have to be either double quoted (``"foo"``), with exact character
+  subset to be determined, or
+* multi-line fields have to use a block format with `|` as in the example
+  above.
+
+The reason for that is because we want to use a simple parser with smaller
+attack surface. At the same time, the format should remain compatible with
+YAML, i.e. should be parsed by YAML parsers in the same way.
