@@ -7,7 +7,6 @@ import pathlib
 import logging
 
 from voluptuous import Schema, All, Coerce
-import yaml
 
 from . import storage as _storage
 from .fuse_utils import flags_to_mode
