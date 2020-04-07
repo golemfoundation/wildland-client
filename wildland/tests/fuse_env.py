@@ -33,7 +33,7 @@ class FuseEnv:
     '''
 
     def __init__(self):
-        self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse'))
+        self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
         self.mnt_dir = self.test_dir / 'mnt'
         self.mounted = False
         self.proc = None
