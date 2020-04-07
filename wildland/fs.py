@@ -138,16 +138,18 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
 
     def is_on_path(self, path):
-        ''':obj:`True` if the given path contains at least one container
-        (possibly indirectly).
+        '''
+        Check if the given path is inside (but not a root) of at least one
+        container.
         '''
         for cpath in self.paths:
             try:
-                cpath.relative_to(path)
-                return True
+                relpath = cpath.relative_to(path)
+                if relpath.parts:
+                    return True
             except ValueError:
                 continue
-
+        return False
 
     @control_file('cmd', read=False, write=True)
     def control_cmd(self, data: bytes):
@@ -290,7 +292,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             else:
                 if suffix.parts:
                     ret.add(suffix.parts[0])
-                exists = True
+                    exists = True
 
         if path == pathlib.PurePosixPath('/'):
             exists = True

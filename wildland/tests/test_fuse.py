@@ -236,9 +236,10 @@ def test_mount_no_directory(env):
         'container1',
         'container2',
     ]
-    assert os.listdir(env.mnt_dir / 'container2') == []
 
-    # It's not possible to create a file...
+    # It's not possible to list the directory, or create a file...
+    with pytest.raises(IOError):
+        assert os.listdir(env.mnt_dir / 'container2') == []
     with pytest.raises(IOError):
         open(env.mnt_dir / 'container2/file1', 'w')
 
