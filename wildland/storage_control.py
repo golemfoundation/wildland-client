@@ -89,7 +89,7 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     file_class = ControlFile
 
     def __init__(self, fs, uid, gid):
-        super().__init__(self)
+        super().__init__(manifest=None)
         self.fs = fs
         self.uid = uid
         self.gid = gid

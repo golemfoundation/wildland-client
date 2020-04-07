@@ -7,7 +7,6 @@ import pathlib
 import logging
 
 from voluptuous import Schema, All, Coerce
-import yaml
 
 from . import storage as _storage
 from .fuse_utils import flags_to_mode
@@ -50,13 +49,15 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     '''Local, file-based storage'''
     SCHEMA = Schema({
         # pylint: disable=no-value-for-parameter
+        'signer': All(str),
         'type': 'local',
         'path': All(Coerce(pathlib.Path)),
     }, required=True)
+    type = 'local'
 
-    def __init__(self, *, path, relative_to=None, **kwds):
-        super().__init__(**kwds)
-        path = pathlib.Path(path)
+    def __init__(self, *, manifest, relative_to=None, **kwds):
+        super().__init__(manifest=manifest, **kwds)
+        path = pathlib.Path(manifest.fields['path'])
         if relative_to is not None:
             path = relative_to / path
         path = path.resolve()
@@ -90,5 +91,4 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
 
     @control_file('manifest.yaml')
     def control_manifest_read(self):
-        return yaml.dump({'type': 'local', 'path': os.fspath(self.root)},
-            default_flow_style=False).encode()
+        return self.manifest.to_bytes()

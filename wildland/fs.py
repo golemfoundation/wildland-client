@@ -33,6 +33,9 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             action='append',
             help='paths to the container manifests')
 
+        self.parser.add_option(mountopt='log', metavar='PATH',
+            help='path to log file, use - for stderr')
+
         # path -> Storage
         self.paths = {}
         # ident -> Container
@@ -52,13 +55,22 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         # this is after cmdline parsing
         self.uid, self.gid = os.getuid(), os.getgid()
 
+        log_path = self.cmdline[0].log or '/tmp/wlfuse.log'
+        if log_path == '-':
+            logging.basicConfig(format='%(asctime)s %(message)s',
+                                stream=sys.stderr, level=logging.NOTSET)
+        else:
+            logging.basicConfig(format='%(asctime)s %(message)s',
+                                filename=log_path, level=logging.NOTSET)
+
         self.paths[pathlib.PurePosixPath('/.control')] = \
             ControlStorage(fs=self, uid=self.uid, gid=self.gid)
 
-        for path in self.cmdline[0].manifest:
-            path = pathlib.Path(path)
-            container = self.load_container(path)
-            self.mount_container(container)
+        if self.cmdline[0].manifest:
+            for path in self.cmdline[0].manifest:
+                path = pathlib.Path(path)
+                container = self.load_container(path)
+                self.mount_container(container)
 
         super().main(*args, **kwds)
 
@@ -66,7 +78,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         logging.info('loading manifest %s', path)
 
         try:
-            return Container.from_yaml_file(self, path)
+            return Container.from_yaml_file(path)
         except Exception:
             raise WildlandError('error loading manifest %s' % path)
 
@@ -74,7 +86,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         logging.info('loading manifest directly')
 
         try:
-            return Container.from_yaml_content(self, content)
+            return Container.from_yaml_content(content)
         except Exception:
             raise WildlandError('error loading manifest')
 
@@ -121,7 +133,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
                 continue
             else:
                 storage = self.paths[cpath]
-                logging.debug(' path=%r storage=%r relpath=%r', path, storage, relpath)
                 return storage, relpath
         return None, None
 
@@ -133,7 +144,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         for cpath in self.paths:
             try:
                 cpath.relative_to(path)
-                logging.debug(' path=%r container=None', path)
                 return True
             except ValueError:
                 continue
@@ -273,13 +283,11 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
                 pass
 
         for p in self.paths:
-            logging.debug('p=%r', p)
             try:
                 suffix = p.relative_to(path)
             except ValueError:
                 continue
             else:
-                logging.debug('suffix.parts=%r', suffix.parts)
                 if suffix.parts:
                     ret.add(suffix.parts[0])
                 exists = True
@@ -289,7 +297,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             ret.add('.control')
 
         if exists:
-            logging.debug(' → %r', ret)
             return (fuse.Direntry(i) for i in ret)
 
         assert not ret
@@ -361,14 +368,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         return -errno.ENOSYS
 
 def main():
-    log_path = os.environ.get('WLFUSE_LOG', '/tmp/wlfuse.log')
-    if os.environ.get('WLFUSE_LOG_STDERR'):
-        logging.basicConfig(format='%(asctime)s %(message)s',
-                            stream=sys.stderr, level=logging.NOTSET)
-    else:
-        logging.basicConfig(format='%(asctime)s %(message)s',
-                            filename=log_path, level=logging.NOTSET)
-
     server = WildlandFS()
     server.parse(errex=1)
     server.main()

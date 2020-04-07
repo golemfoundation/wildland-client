@@ -7,8 +7,9 @@ import traceback
 import time
 
 import pytest
-import yaml
 
+from ..manifest import Manifest
+from ..sig import DummySigContext
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
@@ -33,7 +34,7 @@ class FuseEnv:
     '''
 
     def __init__(self):
-        self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse'))
+        self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
         self.mnt_dir = self.test_dir / 'mnt'
         self.mounted = False
         self.proc = None
@@ -47,14 +48,13 @@ class FuseEnv:
 
         options = ['manifest={}'.format(self.test_dir / manifest)
                    for manifest in manifests]
+        options.append('log=-')
 
-        env = os.environ.copy()
-        env['WLFUSE_LOG_STDERR'] = '1'
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
             '-f', '-d',
             '-o', ','.join(options),
-        ], env=env, cwd=PROJECT_PATH)
+        ], cwd=PROJECT_PATH)
         try:
             self.wait_for_mount()
         except Exception:
@@ -75,9 +75,12 @@ class FuseEnv:
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
 
-    def create_manifest(self, name, data):
-        with open(self.test_dir / name, 'w') as f:
-            yaml.dump(data, f)
+    def create_manifest(self, name, fields):
+        if 'signer' not in fields:
+            fields['signer'] = 'signer'
+        manifest = Manifest.from_fields(fields, DummySigContext())
+        with open(self.test_dir / name, 'wb') as f:
+            f.write(manifest.to_bytes())
 
     def create_dir(self, name):
         os.mkdir(self.test_dir / name)

@@ -1,2 +1,7 @@
+signer: "user"
+signature: "dummy.user"
+---
+
+signer: user
 type: local
 path: ../storage/storage12
