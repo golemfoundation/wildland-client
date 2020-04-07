@@ -257,10 +257,9 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     def readdir(self, path, _offset):
         path = pathlib.PurePosixPath(path)
 
-        # TODO missing . and ..
         # TODO disallow .control in all containers, or disallow mounting /
 
-        ret = set()
+        ret = {'.', '..'}
         exists = False
 
         storage, relpath = self.resolve_path(path)
@@ -292,7 +291,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             logging.debug(' → %r', ret)
             return (fuse.Direntry(i) for i in ret)
 
-        assert not ret
         raise OSError(errno.ENOENT, '')
 
     # pylint: disable=unused-argument
