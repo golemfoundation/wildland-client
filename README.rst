@@ -32,7 +32,7 @@ Fedora:
    git clone git@github.com:libfuse/python-fuse.git                
    pip3 install --user python-fuse
 
-Make sure to use a `python-fuse` 1.0.0 or newer, the old version has
+Make sure to use a ``python-fuse`` 1.0.0 or newer, the old version has
 `compatibility issues with Python 3
 <https://github.com/libfuse/python-fuse/issues/13>`_.
 
@@ -93,7 +93,7 @@ Usage:
    docker-compose build
    docker-compose run wildland-fuse
 
-wildland-fuse is mounted in `/mnt` and the log is in `/tmp/wlfuse.log`
+wildland-fuse is mounted in ``/mnt`` and the log is in ``/tmp/wlfuse.log``
 
 Running tests:
 
@@ -106,7 +106,7 @@ Running tests:
 Control interface
 -----------------
 
-There is a procfs-like interface under `.control/`:
+There is a procfs-like interface under ``.control/``:
 
 * ``.control/paths`` - list of paths and corresponding containers, by UUID::
 
@@ -119,7 +119,7 @@ There is a procfs-like interface under `.control/`:
   * ``manifest.yaml``
   * ``/storage/<NUM>/manifest.yaml``
 
-* `.control/cmd` - commands (write-only file):
+* ``.control/cmd`` - commands (write-only file):
 
   * ``mount MANIFEST_FILE``
   * ``unmount MANIFEST_FILE``
@@ -176,7 +176,7 @@ Note that we recognize an **extremely limited YAML subset** in the header:
 * there have to be only ``signer`` and ``signature`` fields, in that order
 * fields have to be either double quoted (``"foo"``), with exact character
   subset to be determined, or
-* multi-line fields have to use a block format with `|` as in the example
+* multi-line fields have to use a block format with ``|`` as in the example
   above.
 
 The reason for that is because we want to use a simple parser with smaller
