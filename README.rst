@@ -62,10 +62,13 @@ Run tests
 
 Tips & Tricks:
 
-* `pytest -s`: don't capture output.
-* `pytest -k test_name`
-* Use `breakpoint()` in code to drop into debugger (you might need to run
-  `pytest -s`)
+* ``pytest -s``: don't capture output.
+* ``pytest -k test_name``
+* Use ``breakpoint()`` in code to drop into debugger (you might need to run
+  ``pytest -s``)
+  * WARNING: Use with care. This will cause a FUSE process to pause, which
+    means that any application trying to read from the user directory will hang
+    in uninterruptible sleep.
 
 Docker
 ------
