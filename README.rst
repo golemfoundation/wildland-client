@@ -74,6 +74,7 @@ Tips & Tricks:
 * ``pytest -k test_name``
 * Use ``breakpoint()`` in code to drop into debugger (you might need to run
   ``pytest -s``)
+
   * WARNING: Use with care. This will cause a FUSE process to pause, which
     means that any application trying to read from the user directory will hang
     in uninterruptible sleep.
@@ -107,22 +108,24 @@ Control interface
 
 There is a procfs-like interface under `.control/`:
 
-* `.control/paths` - list of paths and corresponding containers, by UUID::
+* ``.control/paths`` - list of paths and corresponding containers, by UUID::
 
       /container1 UUID1
       /container2 UUID2
       /path/for/container1 UUID1
 
-* `.control/containers/<UUID>` - container directories:
-    * `manifest.yaml`
-    * `/storage/<NUM>/manifest.yaml`
+* ``.control/containers/<UUID>`` - container directories:
+
+  * ``manifest.yaml``
+  * ``/storage/<NUM>/manifest.yaml``
 
 * `.control/cmd` - commands (write-only file):
-   * `mount MANIFEST_FILE`
-   * `unmount MANIFEST_FILE`
 
-* `.control/mount` - mount a manifest provided directly (`cat manifest.yaml >
-  .control/mount`); note: absolute paths are required
+  * ``mount MANIFEST_FILE``
+  * ``unmount MANIFEST_FILE``
+
+* ``.control/mount`` - mount a manifest provided directly (``cat manifest.yaml >
+  .control/mount``); note: absolute paths are required
 
 Signed manifests
 ----------------
@@ -162,7 +165,7 @@ Here is another example, using GPG signatures (not supported yet):
      -----END PGP SIGNATURE-----
    ---
 
-   signer: "0xb6ddcc11f5818361b4ab7fc96ecfa72aa270e421"
+   signer: 0xb6ddcc11f5818361b4ab7fc96ecfa72aa270e421
    uuid: 85ab42ce-c087-4c80-8bf1-197b44235287
 
    # the rest of the manifest follows
