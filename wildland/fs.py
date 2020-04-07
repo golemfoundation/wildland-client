@@ -133,7 +133,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
                 continue
             else:
                 storage = self.paths[cpath]
-                logging.debug(' path=%r storage=%r relpath=%r', path, storage, relpath)
                 return storage, relpath
         return None, None
 
@@ -145,7 +144,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         for cpath in self.paths:
             try:
                 cpath.relative_to(path)
-                logging.debug(' path=%r container=None', path)
                 return True
             except ValueError:
                 continue
@@ -285,13 +283,11 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
                 pass
 
         for p in self.paths:
-            logging.debug('p=%r', p)
             try:
                 suffix = p.relative_to(path)
             except ValueError:
                 continue
             else:
-                logging.debug('suffix.parts=%r', suffix.parts)
                 if suffix.parts:
                     ret.add(suffix.parts[0])
                 exists = True
@@ -301,7 +297,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             ret.add('.control')
 
         if exists:
-            logging.debug(' → %r', ret)
             return (fuse.Direntry(i) for i in ret)
 
         assert not ret
