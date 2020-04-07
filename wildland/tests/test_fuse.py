@@ -1,6 +1,7 @@
 import os
 import stat
 import errno
+import shutil
 
 import pytest
 
@@ -249,3 +250,69 @@ def test_mount_no_directory(env):
 
     with open(env.test_dir / 'storage/storage2/file1') as f:
         assert f.read() == 'hello world'
+
+
+def test_nested_mounts(env):
+    # Test setup:
+    #
+    # CONTAINER 1            CONTAINER 2
+    #
+    # /container1
+    #   file-c1
+    #   nested1/             nested1/ (shadows container 1)
+    #     file-c1-nested       file-c2-nested
+    #                        nested2/
+    #                          file-c2-nested
+
+    env.create_file('storage/storage1/file-c1')
+    env.create_dir('storage/storage1/nested1')
+    env.create_file('storage/storage1/nested1/file-c1-nested')
+
+    env.create_dir('storage/storage2/')
+    env.create_file('storage/storage2/file-c2-nested')
+
+    env.create_manifest(
+        'storage2.yaml', storage_manifest(path='./storage/storage2'))
+    env.create_manifest(
+        'manifest2.yaml', container_manifest(storage=['storage2.yaml'],
+                                             paths=['/container1/nested1',
+                                                    '/container1/nested2']))
+
+    # Before mounting container2:
+    assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
+        'file-c1',
+        'nested1',
+    ]
+    assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
+        'file-c1-nested',
+    ]
+
+
+    # Mount container2: nested1 and nested2 should be shadowed
+    cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
+        'file-c1',
+        'nested1',
+        'nested2',
+    ]
+    assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
+        'file-c2-nested',
+    ]
+    assert os.path.isdir(env.mnt_dir / 'container1/nested2')
+    assert sorted(os.listdir(env.mnt_dir / 'container1/nested2')) == [
+        'file-c2-nested',
+    ]
+
+    # Delete backing storage of container1: we can only see the mounts
+    shutil.rmtree(env.test_dir / 'storage/storage1')
+    assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
+        'nested1',
+        'nested2',
+    ]
+
+    # Unmount container1
+    cmd(env, 'unmount ' + TEST_UUID)
+    assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
+        'nested1',
+        'nested2',
+    ]
