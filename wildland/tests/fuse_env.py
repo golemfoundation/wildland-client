@@ -48,14 +48,13 @@ class FuseEnv:
 
         options = ['manifest={}'.format(self.test_dir / manifest)
                    for manifest in manifests]
+        options.append('log=-')
 
-        env = os.environ.copy()
-        env['WLFUSE_LOG_STDERR'] = '1'
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
             '-f', '-d',
             '-o', ','.join(options),
-        ], env=env, cwd=PROJECT_PATH)
+        ], cwd=PROJECT_PATH)
         try:
             self.wait_for_mount()
         except Exception:

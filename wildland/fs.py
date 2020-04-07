@@ -33,6 +33,9 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             action='append',
             help='paths to the container manifests')
 
+        self.parser.add_option(mountopt='log', metavar='PATH',
+            help='path to log file, use - for stderr')
+
         # path -> Storage
         self.paths = {}
         # ident -> Container
@@ -52,13 +55,22 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         # this is after cmdline parsing
         self.uid, self.gid = os.getuid(), os.getgid()
 
+        log_path = self.cmdline[0].log or '/tmp/wlfuse.log'
+        if log_path == '-':
+            logging.basicConfig(format='%(asctime)s %(message)s',
+                                stream=sys.stderr, level=logging.NOTSET)
+        else:
+            logging.basicConfig(format='%(asctime)s %(message)s',
+                                filename=log_path, level=logging.NOTSET)
+
         self.paths[pathlib.PurePosixPath('/.control')] = \
             ControlStorage(fs=self, uid=self.uid, gid=self.gid)
 
-        for path in self.cmdline[0].manifest:
-            path = pathlib.Path(path)
-            container = self.load_container(path)
-            self.mount_container(container)
+        if self.cmdline[0].manifest:
+            for path in self.cmdline[0].manifest:
+                path = pathlib.Path(path)
+                container = self.load_container(path)
+                self.mount_container(container)
 
         super().main(*args, **kwds)
 
@@ -361,14 +373,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         return -errno.ENOSYS
 
 def main():
-    log_path = os.environ.get('WLFUSE_LOG', '/tmp/wlfuse.log')
-    if os.environ.get('WLFUSE_LOG_STDERR'):
-        logging.basicConfig(format='%(asctime)s %(message)s',
-                            stream=sys.stderr, level=logging.NOTSET)
-    else:
-        logging.basicConfig(format='%(asctime)s %(message)s',
-                            filename=log_path, level=logging.NOTSET)
-
     server = WildlandFS()
     server.parse(errex=1)
     server.main()

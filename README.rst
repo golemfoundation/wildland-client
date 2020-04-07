@@ -42,9 +42,17 @@ Mount
 .. code-block:: sh
 
    mkdir mnt
-   /sbin/mount.fuse ./wildland-fuse ./mnt \
-      -o manifest=./example/manifests/container1.yaml,manifest=./example/manifests/container2.yaml
-   tail -F /tmp/wlfuse.log
+   ./wildland-fuse ./mnt -f \
+      -o log=-,manifest=./example/manifests/container1.yaml,manifest=./example/manifests/container2.yaml
+
+Options:
+
+* ``-f`` will make the driver run in foreground (you can't Ctrl-C it, though, you
+  have to unmount)
+* ``log=-`` will log to stderr (you can also log to a file)
+* ``manifest=...`` (can be repeated) will mount a container with given manifest
+  (this is optional, you can also add containers afterwards using the
+  ``.control`` system)
 
 Unmount
 -------
