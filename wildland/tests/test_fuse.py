@@ -110,9 +110,26 @@ def test_control_paths(env):
 
 
 def test_control_containers(env):
-    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
+    containers_dir = env.mnt_dir / '.control/containers'
+    assert sorted(os.listdir(containers_dir)) == [
         TEST_UUID
     ]
+
+    with open(containers_dir / TEST_UUID / 'manifest.yaml') as f:
+        manifest_content = f.read()
+    assert 'signer: "signer"' in manifest_content
+    assert '/container1' in manifest_content
+
+
+def test_control_storage(env):
+    storage_dir = (env.mnt_dir / '.control/containers' /
+                    TEST_UUID / 'storage')
+    assert sorted(os.listdir(storage_dir)) == ['0']
+
+    with open(storage_dir / '0/manifest.yaml') as f:
+        manifest_content = f.read()
+    assert 'signer: "signer"' in manifest_content
+    assert '/storage1' in manifest_content
 
 
 def cmd(env, data):
