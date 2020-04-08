@@ -32,15 +32,41 @@ class Manifest:
 
     @classmethod
     def from_fields(cls, fields, sig_context: SigContext) -> 'Manifest':
+        if not isinstance(fields, dict) or 'signer' not in fields:
+            raise ManifestError('signer field not found')
         signer = fields['signer']
         data = yaml.dump(fields, encoding='utf-8')
-        signature = sig_context.sign(data, signer)
+        signature = sig_context.sign(signer, data)
         header = Header(signer, signature)
         return cls(header, fields, data)
 
     @classmethod
+    def from_unsigned_bytes(cls, data: bytes,
+                            sig_context: SigContext) -> 'Manifest':
+        if HEADER_SEPARATOR in data:
+            _, data = split_header(data)
+
+        rest_str = data.decode('utf-8')
+        fields = yaml.safe_load(rest_str)
+        if not isinstance(fields, dict) or 'signer' not in fields:
+            raise ManifestError('signer field not found')
+        signer = fields['signer']
+        signature = sig_context.sign(signer, data)
+        header = Header(signer, signature)
+        return cls(header, fields, data)
+
+    @classmethod
+    def from_file(cls, path, sig_context: SigContext,
+                  schema: Optional[Schema] = None,
+                  self_signed=False) -> 'Manifest':
+        with open(path, 'rb') as f:
+            data = f.read()
+        return cls.from_bytes(data, sig_context, schema, self_signed)
+
+    @classmethod
     def from_bytes(cls, data: bytes, sig_context: SigContext,
-                   schema: Optional[Schema] = None) -> 'Manifest':
+                   schema: Optional[Schema] = None,
+                   self_signed=False) -> 'Manifest':
         '''
         Create a manifest from YAML, performing necessary validation.
 
@@ -51,7 +77,7 @@ class Manifest:
         header = Header.from_bytes(header_data)
 
         try:
-            header.verify_rest(rest_data, sig_context)
+            header.verify_rest(rest_data, sig_context, self_signed)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e))
@@ -81,10 +107,11 @@ class Manifest:
 class Header:
     def __init__(self, signer: str, signature: str):
         self.signer = signer
-        self.signature = signature
+        self.signature = signature.rstrip('\n')
 
-    def verify_rest(self, rest_data: bytes, sig_context: SigContext):
-        sig_context.verify(self.signer, self.signature, rest_data)
+    def verify_rest(self, rest_data: bytes, sig_context: SigContext,
+                    self_signed):
+        sig_context.verify(self.signer, self.signature, rest_data, self_signed)
 
     @classmethod
     def from_bytes(cls, data: bytes):
@@ -116,6 +143,8 @@ class Header:
         except ManifestError:
             raise Exception('Header serialization error')
         if header.signer != self.signer or header.signature != self.signature:
+            print(header.signer, self.signer)
+            print(repr(header.signature), repr(self.signature))
             raise Exception('Header serialization error')
 
 

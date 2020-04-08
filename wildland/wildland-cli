@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+
+import pathlib
+import sys
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
+from wildland.cli import main
+main()

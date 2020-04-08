@@ -25,5 +25,10 @@
             { "$ref": "#/rel_path" },
             { "$ref": "#/http_url" }
         ]
+    },
+    "pubkey": {
+        "type": "string",
+        "description": "Public key fingerprint",
+        "pattern": "^[a-zA-Z0-9_]+$"
     }
 }
