@@ -1,0 +1,33 @@
+{
+    "user": {
+        "type": "string",
+        "description": "User identifier (TODO)",
+        "pattern": "^[a-zA-Z0-9_]+$"
+    },
+    "uuid": {
+        "type": "string",
+        "pattern": "^[0-9a-f-]+$"
+    },
+    "abs_path": {
+        "type": "string",
+        "description": "Absolute path",
+        "pattern": "^/.*$"
+    },
+    "rel_path": {
+        "type": "string",
+        "description": "Relative path",
+        "pattern": "^[^/].*$"
+    },
+    "http_url": {
+        "type": "string",
+        "description": "HTTP(S) address",
+        "pattern": "^https?://.*$"
+    },
+    "url": {
+        "oneOf": [
+            { "$ref": "#/abs_path" },
+            { "$ref": "#/rel_path" },
+            { "$ref": "#/http_url" }
+        ]
+    }
+}

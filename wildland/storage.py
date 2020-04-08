@@ -6,8 +6,7 @@ import abc
 import errno
 from typing import Optional
 
-from voluptuous import Schema
-
+from .schema import Schema
 from .manifest import Manifest
 
 class AbstractStorage(metaclass=abc.ABCMeta):
@@ -18,13 +17,13 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     Currently the storage should implement an interface similar to FUSE.
     This implementation detail might change in the future.
     '''
-    SCHEMA = Schema({})
-    type = 'local'
+    SCHEMA = Schema('storage')
+    TYPE = None
 
     def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
         # pylint: disable=redefined-builtin, unused-argument
         if manifest:
-            assert manifest.fields['type'] == self.type
+            assert manifest.fields['type'] == self.TYPE
             self.manifest = manifest
 
     @abc.abstractmethod

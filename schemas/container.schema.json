@@ -1,0 +1,27 @@
+{
+    "title": "Container manifest",
+    "type": "object",
+    "required": ["signer", "uuid", "paths", "backends"],
+    "properties": {
+        "signer": { "$ref": "types.json#user" },
+        "uuid":  { "$ref": "types.json#uuid" },
+        "paths": {
+            "type": "array",
+            "items": { "$ref": "types.json#abs_path" },
+            "minItems": 1
+        },
+        "backends": {
+            "type": "object",
+            "required": ["storage"],
+            "properties": {
+                "storage": {
+                    "type": "array",
+                    "items": { "$ref": "types.json#url" },
+                    "minItems": 1
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

@@ -6,11 +6,10 @@ import os
 import pathlib
 import logging
 
-from voluptuous import Schema, All, Coerce
-
 from . import storage as _storage
 from .fuse_utils import flags_to_mode
 from .storage_control import control_file
+from .schema import Schema
 
 __all__ = ['LocalStorage']
 
@@ -47,13 +46,8 @@ class LocalFile:
 
 class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
     '''Local, file-based storage'''
-    SCHEMA = Schema({
-        # pylint: disable=no-value-for-parameter
-        'signer': All(str),
-        'type': 'local',
-        'path': All(Coerce(pathlib.Path)),
-    }, required=True)
-    type = 'local'
+    SCHEMA = Schema('storage-local')
+    TYPE = 'local'
 
     def __init__(self, *, manifest, relative_to=None, **kwds):
         super().__init__(manifest=manifest, **kwds)

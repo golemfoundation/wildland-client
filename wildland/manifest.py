@@ -2,8 +2,8 @@ from typing import Tuple, Optional
 import re
 
 import yaml
-from voluptuous import Schema
 
+from .schema import Schema
 from .sig import SigContext, SigError
 from .exc import WildlandError
 
@@ -73,10 +73,7 @@ class Manifest:
         return self.header.to_bytes() + HEADER_SEPARATOR + self.original_data
 
     def apply_schema(self, schema: Schema):
-        try:
-            self.fields = schema(self.fields)
-        except ValueError as e:
-            raise ManifestError('Schema validation error: {}'.format(e))
+        schema.validate(self.fields)
 
 
 class Header:

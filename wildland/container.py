@@ -7,14 +7,13 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from voluptuous import Schema, All, Any, Length, Coerce
-
 from .storage import AbstractStorage
 from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
 
 from .manifest import Manifest
 from .sig import DummySigContext
+from .schema import Schema
 
 
 class UnsupportedURLSchemeError(Exception):
@@ -63,21 +62,13 @@ class Container:
         'local': LocalStorage,
     }
 
-    SCHEMA = Schema({
-        'signer': All(str),
-        'uuid': All(Coerce(uuid.UUID)),
-        'paths': All(list, Length(min=1)),
-        'backends': {'storage': [str]},
-    }, required=True)
-    SCHEMA_STORAGE = Schema({
-        'type': Any(*STORAGE),
-    }, required=True, extra=True)
+    SCHEMA = Schema('container')
 
     _load = _DataLoader()
 
     def __init__(self, *, manifest: Manifest, storage: AbstractStorage):
         self.manifest = manifest
-        self.ident = manifest.fields['uuid']
+        self.ident = uuid.UUID(manifest.fields['uuid'])
         #: list of paths, under which this container should be mounted
         self.paths = manifest.fields['paths']
 
@@ -110,10 +101,12 @@ class Container:
                 continue
 
             storage_manifest = Manifest.from_bytes(
-                storage_manifest_content, sig_context)
+                storage_manifest_content, sig_context,
+                schema=AbstractStorage.SCHEMA)
+            storage_type = storage_manifest.fields['type']
 
             try:
-                storage_cls = cls.STORAGE[storage_manifest.fields['type']]
+                storage_cls = cls.STORAGE[storage_type]
             except KeyError:
                 continue
 

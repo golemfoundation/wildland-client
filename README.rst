@@ -11,7 +11,7 @@ Debian:
    apt install \
       gnupg2 \
       python3-fuse \
-      python3-voluptuous \
+      python3-jsonschema \
       python3-yaml \
       python3-pytest \
       python3-gnupg
@@ -22,7 +22,7 @@ Fedora:
 
    dnf install \
       gnupg2 \
-      python3-voluptuous \
+      python3-jsonschema \
       python3-yaml \
       python3-pytest \
       fuse-devel \

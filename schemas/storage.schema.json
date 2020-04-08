@@ -1,0 +1,8 @@
+{
+    "title": "Storage manifest (common schema)",
+    "type": "object",
+    "required": ["type"],
+    "properties": {
+        "type": { "type": "string" }
+    }
+}

@@ -1,0 +1,17 @@
+{
+    "title": "Storage manifest (local)",
+    "type": "object",
+    "required": ["signer", "type", "path"],
+    "properties": {
+        "signer": { "$ref": "types.json#user" },
+        "type": { "const": "local" },
+        "path": {
+            "oneOf": [
+                {"$ref": "types.json#abs_path"},
+                {"$ref": "types.json#rel_path"}
+            ],
+            "description": "Path in the local filesystem (can be relative to manifest document)"
+        }
+    },
+    "additionalProperties": false
+}
