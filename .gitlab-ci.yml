@@ -1,5 +1,6 @@
 stages:
   - test
+  - docs
 
 pylint:
   stage: test
@@ -20,3 +21,13 @@ pytest:
     - cd docker
     - docker-compose build
     - docker-compose run wildland-fuse test.sh -v
+
+sphinx:
+  stage: docs
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  script:
+    - cd docker
+    - docker-compose build
+    - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W
