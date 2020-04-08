@@ -15,7 +15,7 @@ class SigContext:
     identifiers.
     '''
 
-    def sign(self, data: bytes, signer: str) -> bytes:
+    def sign(self, data: bytes, signer: str) -> str:
         raise NotImplementedError()
 
     def verify(self, signer: str, signature: str, data: bytes):
@@ -26,7 +26,7 @@ class DummySigContext(SigContext):
     '''
     A SigContext that requires a dummy signature, for testing purposes.
     '''
-    def sign(self, data: bytes, signer: str) -> bytes:
+    def sign(self, data: bytes, signer: str) -> str:
         return f'dummy.{signer}'
 
     def verify(self, signer: str, signature: str, data: bytes):
@@ -95,7 +95,7 @@ class GpgSigContext:
             raise SigError('Wrong key for signature ({}, expected {})'.format(
                            verified.fingerprint, fingerprint))
 
-    def sign(self, signer: str, data: bytes, passphrase: str = None) -> bytes:
+    def sign(self, signer: str, data: bytes, passphrase: str = None) -> str:
         if signer not in self.signers:
             raise SigError('Unknown signer: {!r}'.format(signer))
 

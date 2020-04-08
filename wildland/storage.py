@@ -18,7 +18,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     This implementation detail might change in the future.
     '''
     SCHEMA = Schema('storage')
-    TYPE = None
+    TYPE = ''
 
     def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
         # pylint: disable=redefined-builtin, unused-argument

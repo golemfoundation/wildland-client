@@ -169,7 +169,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
                 raise WildlandError('wrong UUID: %s' % arg)
             self.unmount_container(ident)
         else:
-            raise WildlandError('unknown command: %s' % data)
+            raise WildlandError('unknown command: %r' % data)
 
     @control_file('mount', read=False, write=True)
     def control_mount_direct(self, content: bytes):
