@@ -3,7 +3,6 @@ signature: "dummy.user"
 ---
 
 signer: user
-uuid: "fbc4d1a0-75a7-11ea-8e21-00163e5e6c00"
 
 paths:
   - /container1

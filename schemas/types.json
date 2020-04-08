@@ -4,10 +4,6 @@
         "description": "User identifier (TODO)",
         "pattern": "^[a-zA-Z0-9_]+$"
     },
-    "uuid": {
-        "type": "string",
-        "pattern": "^[0-9a-f-]+$"
-    },
     "abs_path": {
         "type": "string",
         "description": "Absolute path",

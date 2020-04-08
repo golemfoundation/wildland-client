@@ -10,7 +10,6 @@ The container
 import pathlib
 import urllib.parse
 import urllib.request
-import uuid
 
 from .storage import AbstractStorage
 from .storage_control import control_directory, control_file
@@ -75,7 +74,6 @@ class Container:
 
     def __init__(self, *, manifest: Manifest, storage: AbstractStorage):
         self.manifest = manifest
-        self.ident = uuid.UUID(manifest.fields['uuid'])
         #: list of paths, under which this container should be mounted
         self.paths = manifest.fields['paths']
 

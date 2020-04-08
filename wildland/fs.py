@@ -12,7 +12,6 @@ import os
 import pathlib
 import stat
 import sys
-import uuid
 
 import fuse
 fuse.fuse_python_api = 0, 2
@@ -98,10 +97,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
     def mount_container(self, container: Container):
         '''Mount a container'''
-        if container.ident in self.containers:
-            raise WildlandError('container with already mounted: %s' %
-                                container.ident)
-
         cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
         intersection = set(self.paths).intersection(cpaths)
         if intersection:
@@ -110,7 +105,11 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         for path in cpaths:
             self.paths[path] = container.storage
 
-        self.containers[container.ident] = container
+        ident = 0
+        while ident in self.containers:
+            ident += 1
+
+        self.containers[ident] = container
 
     def unmount_container(self, ident):
         '''Unmount a container'''
@@ -123,7 +122,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             assert path in self.paths
             del self.paths[path]
 
-        del self.containers[container.ident]
+        del self.containers[ident]
 
     def resolve_path(self, path: pathlib.Path):
         '''Given path inside Wildland mount, return which storage is
@@ -180,9 +179,9 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             self.mount_container(container)
         elif command == 'unmount':
             try:
-                ident = uuid.UUID(arg)
+                ident = int(arg)
             except ValueError:
-                raise WildlandError('wrong UUID: %s' % arg)
+                raise WildlandError('wrong number: %s' % arg)
             self.unmount_container(ident)
         else:
             raise WildlandError('unknown command: %r' % data)

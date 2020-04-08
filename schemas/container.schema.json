@@ -1,10 +1,9 @@
 {
     "title": "Container manifest",
     "type": "object",
-    "required": ["signer", "uuid", "paths", "backends"],
+    "required": ["signer", "paths", "backends"],
     "properties": {
         "signer": { "$ref": "types.json#user" },
-        "uuid":  { "$ref": "types.json#uuid" },
         "paths": {
             "type": "array",
             "items": { "$ref": "types.json#abs_path" },

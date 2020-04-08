@@ -108,13 +108,13 @@ Control interface
 
 There is a procfs-like interface under ``.control/``:
 
-* ``.control/paths`` - list of paths and corresponding containers, by UUID::
+* ``.control/paths`` - list of paths and corresponding containers, by number::
 
-      /container1 UUID1
-      /container2 UUID2
-      /path/for/container1 UUID1
+      /container1 0
+      /container2 1
+      /path/for/container1 0
 
-* ``.control/containers/<UUID>`` - container directories:
+* ``.control/containers/<NUM>`` - container directories:
 
   * ``manifest.yaml``
   * ``/storage/<NUM>/manifest.yaml``
@@ -145,7 +145,6 @@ manifest:
    ---
 
    signer: user
-   uuid: 85ab42ce-c087-4c80-8bf1-197b44235287
 
    # the rest of the manifest follows
 
@@ -166,7 +165,6 @@ Here is another example, using GPG signatures (not supported yet):
    ---
 
    signer: 0xb6ddcc11f5818361b4ab7fc96ecfa72aa270e421
-   uuid: 85ab42ce-c087-4c80-8bf1-197b44235287
 
    # the rest of the manifest follows
 

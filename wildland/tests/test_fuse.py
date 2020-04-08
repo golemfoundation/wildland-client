@@ -12,9 +12,6 @@ from .fuse_env import FuseEnv
 from ..manifest import Manifest
 from ..sig import DummySigContext
 
-TEST_UUID = '85ab42ce-c087-4c80-8bf1-197b44235287'
-TEST_UUID_2 = 'd8d3ed8a-75a6-11ea-b5d2-00163e5e6c00'
-
 
 @pytest.fixture
 def env():
@@ -31,7 +28,6 @@ def create_test_data(env):
     # TODO: instead of creating a single fixture, we should define them on the
     # fly.
     env.create_manifest('manifest1.yaml', {
-        'uuid': TEST_UUID,
         'paths': ['/container1'],
         'backends': {
             'storage': [
@@ -117,24 +113,21 @@ def test_container_delete_file(env):
 
 def test_control_paths(env):
     text = (env.mnt_dir / '.control/paths').read_text()
-    assert text.splitlines() == [f'/container1 {TEST_UUID}']
+    assert text.splitlines() == [f'/container1 0']
 
 
 def test_control_containers(env):
     containers_dir = env.mnt_dir / '.control/containers'
-    assert sorted(os.listdir(containers_dir)) == [
-        TEST_UUID
-    ]
+    assert sorted(os.listdir(containers_dir)) == ['0']
 
-    with open(containers_dir / TEST_UUID / 'manifest.yaml') as f:
+    with open(containers_dir / '0/manifest.yaml') as f:
         manifest_content = f.read()
     assert 'signer: "signer"' in manifest_content
     assert '/container1' in manifest_content
 
 
 def test_control_storage(env):
-    storage_dir = (env.mnt_dir / '.control/containers' /
-                    TEST_UUID / 'storage')
+    storage_dir = env.mnt_dir / '.control/containers/0/storage'
     assert sorted(os.listdir(storage_dir)) == ['0']
 
     with open(storage_dir / '0/manifest.yaml') as f:
@@ -149,7 +142,7 @@ def cmd(env, data):
 
 
 def container_manifest(*, signer='signer',
-                       ident=TEST_UUID_2, paths=None, storage=None):
+                       paths=None, storage=None):
     if paths is None:
         paths = ['/container2']
     if storage is None:
@@ -157,7 +150,6 @@ def container_manifest(*, signer='signer',
 
     return {
         'signer': signer,
-        'uuid': ident,
         'paths': paths,
         'backends': {
             'storage': storage
@@ -177,8 +169,7 @@ def test_cmd_mount(env):
     env.create_manifest('manifest2.yaml', container_manifest())
     cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
-        TEST_UUID,
-        TEST_UUID_2,
+        '0', '1'
     ]
     assert sorted(os.listdir(env.mnt_dir)) == [
         '.control',
@@ -194,8 +185,7 @@ def test_cmd_mount_direct(env):
     with open(env.mnt_dir / '.control/mount', 'wb') as f:
         f.write(manifest.to_bytes())
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
-        TEST_UUID,
-        TEST_UUID_2,
+        '0', '1'
     ]
     assert sorted(os.listdir(env.mnt_dir)) == [
         '.control',
@@ -205,11 +195,6 @@ def test_cmd_mount_direct(env):
 
 
 def test_cmd_mount_error(env):
-    env.create_manifest('manifest2.yaml', container_manifest(ident=TEST_UUID))
-    with pytest.raises(IOError) as e:
-        cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
-    assert e.value.errno == errno.EINVAL
-
     env.create_manifest('manifest3.yaml', container_manifest(paths=['/container1']))
     with pytest.raises(IOError) as e:
         cmd(env, 'mount ' + str(env.test_dir / 'manifest3.yaml'))
@@ -217,14 +202,14 @@ def test_cmd_mount_error(env):
 
 
 def test_cmd_unmount(env):
-    cmd(env, 'unmount ' + TEST_UUID)
+    cmd(env, 'unmount 0')
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == []
     assert sorted(os.listdir(env.mnt_dir)) == ['.control']
 
 
 def test_cmd_unmount_error(env):
     with pytest.raises(IOError) as e:
-        cmd(env, 'unmount ' + TEST_UUID_2)
+        cmd(env, 'unmount 1')
     assert e.value.errno == errno.EINVAL
 
     with pytest.raises(IOError) as e:
@@ -323,7 +308,7 @@ def test_nested_mounts(env):
     ]
 
     # Unmount container1
-    cmd(env, 'unmount ' + TEST_UUID)
+    cmd(env, 'unmount 0')
     assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
         'nested1',
         'nested2',
