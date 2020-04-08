@@ -8,7 +8,7 @@ from ..schema import Schema, SchemaError
 
 def container():
     return {
-        'signer': 'user',
+        'signer': '0x3333',
         'paths': [
             '/home/photos',
         ],

@@ -89,7 +89,9 @@ class Manifest:
             raise ManifestError('Manifest parse error: {}'.format(e))
 
         if fields.get('signer') != header.signer:
-            raise ManifestError('Signer field mismatch')
+            raise ManifestError(
+                'Signer field mismatch: header {!r}, manifest {!r}'.format(
+                    header.signer, fields.get('signer')))
 
         manifest = cls(header, fields, rest_data)
         if schema:

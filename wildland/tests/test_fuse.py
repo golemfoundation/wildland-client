@@ -122,7 +122,7 @@ def test_control_containers(env):
 
     with open(containers_dir / '0/manifest.yaml') as f:
         manifest_content = f.read()
-    assert 'signer: "signer"' in manifest_content
+    assert 'signer: "0x3333"' in manifest_content
     assert '/container1' in manifest_content
 
 
@@ -132,7 +132,7 @@ def test_control_storage(env):
 
     with open(storage_dir / '0/manifest.yaml') as f:
         manifest_content = f.read()
-    assert 'signer: "signer"' in manifest_content
+    assert 'signer: "0x3333"' in manifest_content
     assert '/storage1' in manifest_content
 
 
@@ -141,7 +141,7 @@ def cmd(env, data):
         f.write(data)
 
 
-def container_manifest(*, signer='signer',
+def container_manifest(*, signer='0x3333',
                        paths=None, storage=None):
     if paths is None:
         paths = ['/container2']
@@ -157,7 +157,7 @@ def container_manifest(*, signer='signer',
     }
 
 
-def storage_manifest(*, signer='signer', path):
+def storage_manifest(*, signer='0x3333', path):
     return {
         'signer': signer,
         'type': 'local',

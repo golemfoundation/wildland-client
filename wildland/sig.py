@@ -82,8 +82,19 @@ class GpgSigContext(SigContext):
         self.gnupghome = gnupghome
         self.gpg = gnupg.GPG(gnupghome=gnupghome)
 
+    @staticmethod
+    def convert_fingerprint(fingerprint):
+        '''
+        Convert GPG fingerprint to an unambiguous '0xcoffee' format.
+        '''
+        fingerprint = fingerprint.lower()
+        if not fingerprint.startswith('0x'):
+            fingerprint = '0x' + fingerprint
+        return fingerprint
+
     def find(self, key_id: str) -> str:
-        keys = [k['fingerprint'] for k in self.gpg.list_keys(keys=key_id)]
+        keys = [self.convert_fingerprint(k['fingerprint'])
+                for k in self.gpg.list_keys(keys=key_id)]
         if len(keys) > 1:
             raise SigError('Multiple keys found for {}: {}'.format(
                 key_id, keys))
@@ -104,7 +115,7 @@ class GpgSigContext(SigContext):
         key = self.gpg.gen_key(input_data)
         if not key:
             raise Exception('gen_key failed')
-        return key.fingerprint
+        return self.convert_fingerprint(key.fingerprint)
 
     def verify(self, signer: str, signature: str, data: bytes,
                self_signed=False):
@@ -127,7 +138,7 @@ class GpgSigContext(SigContext):
         if not verified.valid:
             raise SigError('Could not verify signature')
 
-        if verified.fingerprint != signer:
+        if self.convert_fingerprint(verified.fingerprint) != signer:
             raise SigError('Wrong key for signature ({}, expected {})'.format(
                            verified.fingerprint, signer))
 

@@ -1,8 +1,8 @@
-signer: "user"
-signature: "dummy.user"
+signer: "0x4444"
+signature: "dummy.0x4444"
 ---
 
-signer: user
+signer: "0x4444"
 
 paths:
   - /container2

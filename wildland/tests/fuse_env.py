@@ -79,7 +79,7 @@ class FuseEnv:
 
     def create_manifest(self, name, fields):
         if 'signer' not in fields:
-            fields['signer'] = 'signer'
+            fields['signer'] = '0x3333'
         manifest = Manifest.from_fields(fields, DummySigContext())
         with open(self.test_dir / name, 'wb') as f:
             f.write(manifest.to_bytes())
