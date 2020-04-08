@@ -10,6 +10,7 @@ Welcome to Wildland's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   wildland-fs
 
 
 Indices and tables
