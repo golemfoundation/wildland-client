@@ -2,6 +2,10 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
+'''
+Wildland Filesystem
+'''
+
 import errno
 import logging
 import os
@@ -75,6 +79,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         super().main(*args, **kwds)
 
     def load_container(self, path: pathlib.Path) -> Container:
+        '''Load a container from the manifest given by file path'''
         logging.info('loading manifest %s', path)
 
         try:
@@ -83,6 +88,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             raise WildlandError('error loading manifest %s' % path)
 
     def load_container_direct(self, content: bytes) -> Container:
+        '''Load a container from the manifest given by file contents'''
         logging.info('loading manifest directly')
 
         try:
@@ -91,6 +97,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             raise WildlandError('error loading manifest')
 
     def mount_container(self, container: Container):
+        '''Mount a container'''
         if container.ident in self.containers:
             raise WildlandError('container with already mounted: %s' %
                                 container.ident)
@@ -106,6 +113,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.containers[container.ident] = container
 
     def unmount_container(self, ident):
+        '''Unmount a container'''
         container = self.containers.get(ident)
         if not container:
             raise WildlandError('container not mounted: %s')
@@ -150,6 +158,14 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             except ValueError:
                 continue
         return False
+
+
+    # pylint: disable=missing-docstring
+
+
+    #
+    # .control API
+    #
 
     @control_file('cmd', read=False, write=True)
     def control_cmd(self, data: bytes):
@@ -370,6 +386,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         return -errno.ENOSYS
 
 def main():
+    # pylint: disable=missing-docstring
     server = WildlandFS()
     server.parse(errex=1)
     server.main()

@@ -1,3 +1,5 @@
+# pylint: disable=missing-docstring,redefined-outer-name
+
 import os
 import stat
 import errno
@@ -8,9 +10,6 @@ import pytest
 from .fuse_env import FuseEnv
 from ..manifest import Manifest
 from ..sig import DummySigContext
-
-# For Pytest fixtures
-# pylint: disable=redefined-outer-name
 
 TEST_UUID = '85ab42ce-c087-4c80-8bf1-197b44235287'
 TEST_UUID_2 = 'd8d3ed8a-75a6-11ea-b5d2-00163e5e6c00'

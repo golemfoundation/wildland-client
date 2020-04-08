@@ -2,6 +2,11 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
+'''
+The container
+'''
+
+
 import pathlib
 import urllib.parse
 import urllib.request
@@ -42,6 +47,8 @@ class _DataLoader:
                 f'unsupported URL scheme: {url.scheme!r}')
 
         return method(url, **kwds)
+
+    # pylint: disable=missing-docstring
 
     @staticmethod
     def load_file(url, *, relative_to=None, **_kwds):
@@ -86,6 +93,7 @@ class Container:
 
     @classmethod
     def from_yaml_content(cls, content: bytes, dirpath: pathlib.Path = None):
+        '''Load from YAML-formatted data'''
         # TODO verify real signatures
         sig_context = DummySigContext()
 
@@ -117,6 +125,8 @@ class Container:
             return cls(manifest=manifest, storage=storage)
 
         raise TypeError('no supported storage manifest URL scheme')
+
+    # pylint: disable=missing-docstring
 
     @control_directory('storage')
     def control_storage(self):

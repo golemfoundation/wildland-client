@@ -1,9 +1,8 @@
+# pylint: disable=missing-docstring,redefined-outer-name
 
 import pytest
 
 from ..sig import SigError
-
-# pylint: disable=redefined-outer-name
 
 
 def test_verify(gpg_sig, signer):

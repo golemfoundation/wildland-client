@@ -65,7 +65,6 @@ disable=
     bad-continuation,
     fixme,
     wrong-import-position,
-    missing-docstring,
     protected-access,
     invalid-name,
     broad-except,

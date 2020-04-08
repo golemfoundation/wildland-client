@@ -2,6 +2,10 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
+'''
+Assorted helpers for handling FUSE API
+'''
+
 import errno
 import functools
 import itertools
@@ -45,12 +49,21 @@ def debug_handler(func, bound=False):
 _FLAGS_TO_MODE = {os.O_RDONLY: 'rb', os.O_WRONLY: 'wb', os.O_RDWR: 'wb+'}
 
 def flags_to_mode(flags):
+    '''Convert binary flags for ``open(2)`` to *mode* in python's
+    :func:`open`
+
+    Args:
+        flags (int): the flags
+    Returns:
+        str: the appropriate mode
+    '''
     mode = _FLAGS_TO_MODE[flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR)]
     if flags | os.O_APPEND:
         mode = mode.replace('w', 'a', 1)
     return mode
 
 class Tracer:
+    # pylint: disable=missing-docstring
     def __init__(self, current_frame):
         self.current_frame = current_frame
         self.run = True
