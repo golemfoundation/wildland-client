@@ -38,7 +38,7 @@ class Schema:
         path = SCHEMA_PATH / f'{name}.schema.json'
         with open(path) as f:
             self.schema = json.load(f)
-        jsonschema.Draft7Validator.check_schema(self.schema)
+        jsonschema.Draft4Validator.check_schema(self.schema)
         self.validator = jsonschema.Draft4Validator(self.schema)
         self.validator.resolver.store.update(load_common_files())
 
