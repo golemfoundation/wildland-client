@@ -1,3 +1,6 @@
+'''
+Wildland command-line interface.
+'''
 
 import argparse
 from pathlib import Path
@@ -55,6 +58,10 @@ parser_sign.add_argument(
 
 
 def main():
+    '''
+    Wildland CLI entry point
+    '''
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()

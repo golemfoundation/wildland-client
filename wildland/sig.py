@@ -1,4 +1,7 @@
-# TODO pylint: disable=missing-docstring
+'''
+Module for handling signatures. Currently provides two backends: GPG, and a
+"dummy" one.
+'''
 
 import tempfile
 
@@ -8,7 +11,9 @@ from .exc import WildlandError
 
 
 class SigError(WildlandError):
-    pass
+    '''
+    Exception class for problems during the signing or verification process.
+    '''
 
 
 class SigContext:
@@ -49,7 +54,8 @@ class SigContext:
 
 class DummySigContext(SigContext):
     '''
-    A SigContext that requires a dummy signature, for testing purposes.
+    A SigContext that requires a dummy signature (of the form "dummy.{signer}"),
+    for testing purposes.
     '''
 
     def find(self, key_id: str) -> str:
