@@ -1,3 +1,5 @@
+# TODO pylint: disable=missing-docstring
+
 from typing import Tuple, Optional
 import re
 

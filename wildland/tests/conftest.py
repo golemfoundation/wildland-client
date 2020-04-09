@@ -1,4 +1,4 @@
-
+# pylint: disable=missing-docstring,redefined-outer-name
 
 import tempfile
 import shutil
@@ -6,8 +6,6 @@ import shutil
 import pytest
 
 from ..sig import GpgSigContext
-
-# pylint: disable=redefined-outer-name
 
 # The following fixtures are session-scoped for performance reasons (generating
 # keys takes time).

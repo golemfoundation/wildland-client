@@ -1,3 +1,5 @@
+# TODO pylint: disable=missing-docstring
+
 import json
 from pathlib import Path
 

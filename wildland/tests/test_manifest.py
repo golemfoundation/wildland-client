@@ -1,3 +1,5 @@
+# pylint: disable=missing-docstring
+
 import pytest
 
 from ..manifest import Manifest, Header, ManifestError

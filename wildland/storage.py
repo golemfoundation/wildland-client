@@ -2,6 +2,10 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
+'''
+Abstract classes for storage
+'''
+
 import abc
 import errno
 from typing import Optional
@@ -25,6 +29,8 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         if manifest:
             assert manifest.fields['type'] == self.TYPE
             self.manifest = manifest
+
+    # pylint: disable=missing-docstring
 
     @abc.abstractmethod
     def open(self, path, flags):
@@ -51,7 +57,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
 
-def proxy(method_name):
+def _proxy(method_name):
     def method(_self, *args, **_kwargs):
         _path, rest, fileobj = args[0], args[1:-1], args[-1]
         if not hasattr(fileobj, method_name):
@@ -86,11 +92,11 @@ class FileProxyMixin:
                 return MyFile(path, flags, ...)
     '''
 
-    read = proxy('read')
-    write = proxy('write')
-    fsync = proxy('fsync')
-    release = proxy('release')
-    flush = proxy('flush')
-    fgetattr = proxy('fgetattr')
-    ftruncate = proxy('ftruncate')
-    lock = proxy('lock')
+    read = _proxy('read')
+    write = _proxy('write')
+    fsync = _proxy('fsync')
+    release = _proxy('release')
+    flush = _proxy('flush')
+    fgetattr = _proxy('fgetattr')
+    ftruncate = _proxy('ftruncate')
+    lock = _proxy('lock')

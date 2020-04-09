@@ -11,6 +11,7 @@ RUN apt-get install -y \
       python3-yaml \
       python3-pytest \
       python3-gnupg \
+      python3-sphinx \
       pylint3 \
       strace \
       fish

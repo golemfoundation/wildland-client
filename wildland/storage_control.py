@@ -2,6 +2,10 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
+'''
+Synthetic storage, which services :path:`/.control` directory
+'''
+
 import errno
 import logging
 import os
@@ -16,6 +20,13 @@ from .exc import WildlandError
 CONTROL_FILE_MAX_SIZE = 4096
 
 def control_directory(name):
+    '''Decorator for creating control directories
+
+    Decorated generator should yield 2-tuples: name (a string) and object which
+    represents the directory contents. That object's class should have further
+    attributes decorated with either :func:`control_file` or
+    :func:`control_directory`.
+    '''
     assert '/' not in name
 
     def decorator(func):
@@ -28,6 +39,18 @@ def control_directory(name):
     return decorator
 
 def control_file(name, *, read=True, write=False):
+    '''Decorator for creating control files
+
+    When the file is *read*, decorated function will be called without argument
+    and should return the director contents (:class:`bytes`). When the file is
+    *written*, the function will be called with the argument to ``write()``
+    (also :class:`bytes`).
+
+    Args:
+        name (str): file name
+        read (bool): if :obj:`True`, the file is writable
+        write (bool): if :obj:`True`, the file is readable
+    '''
     assert '/' not in name
     assert read or write
 
@@ -41,6 +64,7 @@ def control_file(name, *, read=True, write=False):
     return decorator
 
 class ControlFile:
+    '''Control file handler'''
     def __init__(self, node, *, uid, gid, need_read, need_write):
         # pylint: disable=unused-argument
         self.node = node
@@ -50,6 +74,8 @@ class ControlFile:
         self.buffer = self.node() if need_read else None
         if self.buffer is not None:
             assert len(self.buffer) <= CONTROL_FILE_MAX_SIZE
+
+    # pylint: disable=missing-docstring
 
     def release(self, flags):
         pass
@@ -94,25 +120,28 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
         self.uid = uid
         self.gid = gid
 
-    def open(self, path, flags):
-        read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
-        write = bool((flags & os.O_ACCMODE) in (os.O_WRONLY, os.O_RDWR))
-
-        node = self.get_node_for_path(
-            path, need_file=True,
-            need_read=read, need_write=write)
-        return ControlFile(node, uid=self.uid, gid=self.gid,
-                           need_read=read,
-                           need_write=write)
-
-    def create(self, path, flags, mode):
-        return -errno.ENOSYS
-
     def get_node_for_path(self, path, *, need_directory=False, need_file=False,
             need_read=False, need_write=False):
+        '''Return a python object, which represents particular inode
+
+        This can be three different things:
+
+        - a callable with `_control_directory` attribute set to :obj:`False`;
+          this means the inode in question looks like regular file; depeding on
+          `_control_read` and `_control_write`, the file can be read from and/or
+          written to by calling the function
+        - a callable with `_control_directory` attribute set to :obj:`True`; the
+          inode is a directory, and to list it, one should call that callable,
+          which will return an iterable which yields 2-tuples: child name and an
+          object representing the child
+        - an object without `_control_directory` attribute; the inode is
+          a directory and the nodes inside it are those attributes that in turn
+          have their attribute `_control_directory` (either :obj:`True` or
+          :obj:`False)
+        '''
         logging.debug('get_node_for_path(path=%r)', path)
         path = pathlib.PurePosixPath(path)
-        node = self.query_object_for_node(self.fs, *path.parts)
+        node = self._query_object_for_node(self.fs, *path.parts)
 
         if need_directory and not self.node_isdir(node):
             raise OSError(errno.ENOTDIR, '')
@@ -124,12 +153,31 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
 
         return node
 
+    def _query_object_for_node(self, obj, part0=None, *parts):
+        # pylint: disable=keyword-arg-before-vararg
+        if part0 is None:
+            return obj
+
+        for name, attr in self.node_list(obj):
+            if name == part0:
+                return self._query_object_for_node(attr, *parts)
+
+        raise OSError(errno.ENOENT, '')
+
     @staticmethod
     def node_isdir(node):
+        ''':obj:`True` if the node is a directory
+
+        The result is undefined on invalid nodes
+        '''
         return getattr(node, '_control_directory', True)
 
     @staticmethod
     def node_list(obj):
+        '''List a node which is a directory
+
+        The result is undefined if the node is not an actual control node
+        '''
         try:
             obj._control_directory
 
@@ -148,16 +196,21 @@ class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
 
         yield from obj()
 
-    def query_object_for_node(self, obj, part0=None, *parts):
-        # pylint: disable=keyword-arg-before-vararg
-        if part0 is None:
-            return obj
+    # pylint: disable=missing-docstring
 
-        for name, attr in self.node_list(obj):
-            if name == part0:
-                return self.query_object_for_node(attr, *parts)
+    def open(self, path, flags):
+        read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
+        write = bool((flags & os.O_ACCMODE) in (os.O_WRONLY, os.O_RDWR))
 
-        raise OSError(errno.ENOENT, '')
+        node = self.get_node_for_path(
+            path, need_file=True,
+            need_read=read, need_write=write)
+        return ControlFile(node, uid=self.uid, gid=self.gid,
+                           need_read=read,
+                           need_write=write)
+
+    def create(self, path, flags, mode):
+        return -errno.ENOSYS
 
     def getattr(self, path):
         node = self.get_node_for_path(path)

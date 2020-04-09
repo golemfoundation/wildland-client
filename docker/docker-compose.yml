@@ -14,5 +14,6 @@ services:
     volumes:
       - ..:/wildland-fuse:ro
       - ../example/storage:/wildland-fuse/example/storage:rw
+      - ../Documentation/_build:/wildland-fuse/Documentation/_build:rw
     privileged: true
 

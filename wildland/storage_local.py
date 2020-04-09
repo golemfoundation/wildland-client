@@ -2,6 +2,10 @@
 # (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 
+'''
+Local storage, similar to :command:`mount --bind`
+'''
+
 import os
 import pathlib
 import logging
@@ -14,6 +18,10 @@ from .schema import Schema
 __all__ = ['LocalStorage']
 
 class LocalFile:
+    '''A file on disk
+
+    (does not need to be a regular file)
+    '''
     def __init__(self, path, realpath, flags, mode=0):
         self.path = path
         self.realpath = realpath
@@ -21,6 +29,8 @@ class LocalFile:
         self.file = os.fdopen(
             os.open(realpath, flags, mode),
             flags_to_mode(flags))
+
+    # pylint: disable=missing-docstring
 
     def release(self, _flags):
         return self.file.close()
@@ -59,16 +69,26 @@ class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
             logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
 
+    def _path(self, path):
+        '''Given path inside filesystem, calculate path on disk, relative to
+        :attr:`self.root`
+
+        Args:
+            path (pathlib.PurePosixPath): the path
+        Returns:
+            pathlib.Path: path relative to :attr:`self.root`
+        '''
+        ret = (self.root / path).resolve()
+        ret.relative_to(self.root) # this will throw ValueError if not relative
+        return ret
+
+    # pylint: disable=missing-docstring
+
     def open(self, path, flags):
         return LocalFile(path, self._path(path), flags)
 
     def create(self, path, flags, mode):
         return LocalFile(path, self._path(path), flags, mode)
-
-    def _path(self, path):
-        ret = (self.root / path).resolve()
-        ret.relative_to(self.root) # this will throw ValueError if not relative
-        return ret
 
     def getattr(self, path):
         return os.lstat(self._path(path))
