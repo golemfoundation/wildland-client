@@ -86,9 +86,9 @@ class Manifest:
         Args:
             path: path to the file
             sig_context: a SigContext to use for signature verification
-            schema (optional): a Schema to validate the fields with
-            self_signed (optional): ignore that a signer is unknown to the
-            SigContext (useful for bootstrapping)
+            schema: a Schema to validate the fields with
+            self_signed: ignore that a signer is unknown to the SigContext
+                (useful for bootstrapping)
         '''
 
         with open(path, 'rb') as f:
@@ -105,9 +105,9 @@ class Manifest:
         Args:
             data: existing manifest content
             sig_context: a SigContext to use for signature verification
-            schema (optional): a Schema to validate the fields with
-            self_signed (optional): ignore that a signer is unknown to the
-            SigContext (useful for bootstrapping)
+            schema: a Schema to validate the fields with
+            self_signed: ignore that a signer is unknown to the SigContext
+                (useful for bootstrapping)
         '''
 
         header_data, rest_data = split_header(data)

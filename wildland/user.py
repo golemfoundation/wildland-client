@@ -82,7 +82,7 @@ def create_user(user_dir: Path, pubkey, sig_context: SigContext, name=None) -> P
         user_dir: directory to write the manifest to
         pubkey: user's public key
         sig_context: a SigContext used for signing the manifest
-        name (optional): file name to save the manifest under
+        name: file name to save the manifest under
 
     Returns:
         pathlib.Path: path to the saved manifest file
