@@ -54,8 +54,8 @@ There is a procfs-like interface under ``.control/``:
 
 * ``.control/cmd`` - commands (write-only file):
 
-  * ``mount MANIFEST_FILE``
-  * ``unmount MANIFEST_FILE``
+  * ``mount <MANIFEST_FILE>``
+  * ``unmount <NUM>``
 
 * ``.control/mount`` - mount a manifest provided directly (``cat manifest.yaml >
   .control/mount``); note: absolute paths are required
