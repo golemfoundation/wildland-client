@@ -66,6 +66,8 @@ class UserRepository:
         Load all users from the YAML manifests under provided path.
         '''
 
+        if not os.path.exists(user_dir):
+            return
         for name in os.listdir(user_dir):
             path = user_dir / name
             user = User.from_file(path, self.sig_context)

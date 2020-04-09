@@ -16,7 +16,7 @@ from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
 
 from .manifest import Manifest
-from .sig import DummySigContext
+from .sig import SigContext
 from .schema import Schema
 
 
@@ -81,19 +81,19 @@ class Container:
         self.storage = storage
 
     @classmethod
-    def from_yaml_file(cls, path: pathlib.Path):
+    def from_yaml_file(cls, path: pathlib.Path, sig_context: SigContext):
         '''Load from file-like object with container manifest (a YAML document).
         '''
         with open(path, 'rb') as f:
             content = f.read()
 
-        return cls.from_yaml_content(content, path.parent)
+        return cls.from_yaml_content(content, sig_context, path.parent)
 
     @classmethod
-    def from_yaml_content(cls, content: bytes, dirpath: pathlib.Path = None):
+    def from_yaml_content(cls, content: bytes, sig_context: SigContext,
+                          dirpath: pathlib.Path = None):
         '''Load from YAML-formatted data'''
         # TODO verify real signatures
-        sig_context = DummySigContext()
 
         manifest = Manifest.from_bytes(content, sig_context, schema=cls.SCHEMA)
 

@@ -51,6 +51,10 @@ class FuseEnv:
         options = ['manifest={}'.format(self.test_dir / manifest)
                    for manifest in manifests]
         options.append('log=-')
+        options.append('dummy_sig')
+        # No users necessary for now with dummy signatures, but make sure
+        # wildland-fuse won't try to load anything from outside.
+        options.append('user_dir={}'.format(self.test_dir / 'users'))
 
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
