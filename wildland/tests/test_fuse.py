@@ -2,6 +2,7 @@ import os
 import stat
 import errno
 import shutil
+import subprocess
 
 import pytest
 
@@ -50,6 +51,17 @@ def create_test_data(env):
 
 def test_list(env):
     assert sorted(os.listdir(env.mnt_dir)) == [
+        '.control',
+        'container1',
+    ]
+
+
+def test_list_contains_dots(env):
+    # Python's directory list functions filter out '.' and '..', so we use ls.
+    ls_output = subprocess.check_output(['ls', '-a', env.mnt_dir])
+    assert sorted(ls_output.decode().split()) == [
+        '.',
+        '..',
         '.control',
         'container1',
     ]
