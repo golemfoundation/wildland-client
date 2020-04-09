@@ -26,7 +26,7 @@ class Manifest:
     Represents a loaded manifest.
 
     The data (fields) should not be modified, because it needs to match the
-    return '\n.join(parsed_lines)signature.
+    return signature.
     '''
 
     def __init__(self, header: 'Header', fields, original_data: bytes):
@@ -88,7 +88,7 @@ class Manifest:
             sig_context: a SigContext to use for signature verification
             schema (optional): a Schema to validate the fields with
             self_signed (optional): ignore that a signer is unknown to the
-               SigContext (useful for bootstrapping)
+            SigContext (useful for bootstrapping)
         '''
 
         with open(path, 'rb') as f:
@@ -107,7 +107,7 @@ class Manifest:
             sig_context: a SigContext to use for signature verification
             schema (optional): a Schema to validate the fields with
             self_signed (optional): ignore that a signer is unknown to the
-               SigContext (useful for bootstrapping)
+            SigContext (useful for bootstrapping)
         '''
 
         header_data, rest_data = split_header(data)

@@ -14,7 +14,7 @@ Welcome to Wildland's documentation!
    fuse-driver
    manifests
    cli
-   wildland-fs
+   internals
 
 
 Indices and tables
