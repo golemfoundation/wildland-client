@@ -13,7 +13,7 @@ def make_header(gpg_sig, signer, test_data):
 
 def test_parse(gpg_sig, signer):
     test_data = f'''
-signer: {signer}
+signer: "{signer}"
 key1: value1
 key2: "value2"
 '''.encode()

@@ -1,0 +1,10 @@
+{
+    "title": "User manifest",
+    "type": "object",
+    "required": ["signer", "pubkey"],
+    "properties": {
+        "signer": { "$ref": "types.json#fingerprint" },
+        "pubkey": { "$ref": "types.json#fingerprint" }
+    },
+    "additionalProperties": false
+}

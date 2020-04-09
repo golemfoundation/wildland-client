@@ -20,13 +20,13 @@ def gpg_sig():
 
 @pytest.fixture(scope='session')
 def signer(gpg_sig):
-    keyid = gpg_sig.gen_test_key(passphrase='secret')
-    gpg_sig.add_signer('signer', keyid)
-    return 'signer'
+    keyid = gpg_sig.gen_test_key(name='Test 1', passphrase='secret')
+    gpg_sig.add_signer(keyid)
+    return keyid
 
 
 @pytest.fixture(scope='session')
 def other_signer(gpg_sig):
-    keyid = gpg_sig.gen_test_key(passphrase='secret')
-    gpg_sig.add_signer('other_signer', keyid)
-    return 'other_signer'
+    keyid = gpg_sig.gen_test_key(name='Test 2', passphrase='secret')
+    gpg_sig.add_signer(keyid)
+    return keyid

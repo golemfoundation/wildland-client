@@ -1,9 +1,4 @@
 {
-    "user": {
-        "type": "string",
-        "description": "User identifier (TODO)",
-        "pattern": "^[a-zA-Z0-9_]+$"
-    },
     "abs_path": {
         "type": "string",
         "description": "Absolute path",
@@ -25,5 +20,10 @@
             { "$ref": "#/rel_path" },
             { "$ref": "#/http_url" }
         ]
+    },
+    "fingerprint": {
+        "type": "string",
+        "description": "Public key fingerprint (in '0xcoffee' format)",
+        "pattern": "^0x[0-9a-f]+$"
     }
 }

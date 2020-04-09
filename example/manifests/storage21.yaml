@@ -1,7 +1,18 @@
-signer: "user"
-signature: "dummy.user"
+signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+signature: |
+  -----BEGIN PGP SIGNATURE-----
+  
+  iQEzBAABCAAdFiEEIlVKgqyYrufhjpvjLAOOQqK65gEFAl6PHaIACgkQLAOOQqK6
+  5gEgGgf/WZtprCh1MlZL8HvHh2GkMZieAKfOP7VIYAi3Ui8spz72aRUSSdU4c1RI
+  /s4mrTZkogfHorENnzW4clu1P9mJAoM1G3ORCwSzA4OQMP9SJs8mmAzu5eU1wZoP
+  OCaQaQ7XH/HQ8AGze1eRhAW02VuQcLXkfTijHbcD4HhRJt30z31Fg1loJtuvfLeB
+  qHTLBXAQm4rkhVXq0OvDflIO36/ZzQg2sFEGjy1qLCc02Xdo43uMIjeOgjK6nE6N
+  8fSTW0UvCAvu51xeUtwy1SJnfUO8/7/F3aRr7aT+SeJM4Fl7wkK8eer9iOgxncFB
+  KAaiZk64aJRh9Rvi8ti+/RUoNCueuw==
+  =M+U3
+  -----END PGP SIGNATURE-----
 ---
 
-signer: user
+signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
 type: local
 path: ../storage/storage21

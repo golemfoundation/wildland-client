@@ -21,6 +21,8 @@ from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
 from .storage_control import ControlStorage, control_directory, control_file
 from .exc import WildlandError
+from .user import UserRepository, default_user_dir
+from .sig import SigContext, DummySigContext, GpgSigContext
 
 
 class WildlandFS(fuse.Fuse, FileProxyMixin):
@@ -39,6 +41,12 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.parser.add_option(mountopt='log', metavar='PATH',
             help='path to log file, use - for stderr')
 
+        self.parser.add_option(mountopt='user_dir', metavar='PATH',
+            help='path to directory with user manifests')
+
+        self.parser.add_option(mountopt='dummy_sig', action='store_true',
+            help='use dummy signatures')
+
         # path -> Storage
         self.paths = {}
         # ident -> Container
@@ -46,6 +54,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.uid = None
         self.gid = None
         self.install_debug_handler()
+        self.users: UserRepository = None
+        self.sig_context: SigContext = None
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
@@ -66,6 +76,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             logging.basicConfig(format='%(asctime)s %(message)s',
                                 filename=log_path, level=logging.NOTSET)
 
+        self.init_users(self.cmdline[0])
+
         self.paths[pathlib.PurePosixPath('/.control')] = \
             ControlStorage(fs=self, uid=self.uid, gid=self.gid)
 
@@ -77,12 +89,29 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         super().main(*args, **kwds)
 
+    def init_users(self, args):
+        '''
+        Initialize user repository and signature context.
+        '''
+
+        if args.dummy_sig:
+            logging.info('using dummy signatures')
+            self.sig_context = DummySigContext()
+        else:
+            logging.info('using GPG signatures')
+            self.sig_context = GpgSigContext()
+
+        user_dir = args.user_dir or default_user_dir()
+        logging.info('loading users from %s', user_dir)
+        self.users = UserRepository(self.sig_context)
+        self.users.load_users(user_dir)
+
     def load_container(self, path: pathlib.Path) -> Container:
         '''Load a container from the manifest given by file path'''
         logging.info('loading manifest %s', path)
 
         try:
-            return Container.from_yaml_file(path)
+            return Container.from_yaml_file(path, self.sig_context)
         except Exception:
             raise WildlandError('error loading manifest %s' % path)
 
@@ -91,7 +120,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         logging.info('loading manifest directly')
 
         try:
-            return Container.from_yaml_content(content)
+            return Container.from_yaml_content(content, self.sig_context)
         except Exception:
             raise WildlandError('error loading manifest')
 

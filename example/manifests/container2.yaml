@@ -1,8 +1,19 @@
-signer: "user"
-signature: "dummy.user"
+signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+signature: |
+  -----BEGIN PGP SIGNATURE-----
+  
+  iQEzBAABCAAdFiEEIlVKgqyYrufhjpvjLAOOQqK65gEFAl6PHaIACgkQLAOOQqK6
+  5gGxmQf/RjecBkDReTAsUYjm032USesZKsBOwxuanHVJFSQa1J4j+or6zW6+ylf8
+  Jowfwd0JG8WdadweCddOD9ewEegxVdX1xCA4alFtNWB6vwf4RQ19F7ZKJ60gKN/T
+  SiBP0QKYGLLry9GZngJi5UuaX3giJbL8on2jqIziQD9OxdoSVwdqfPTtCNe3mNyk
+  PaEblIjgOWGTXrjKaIASBcxUfcb0btviBN/D/PVGlePFYBrdgUy/57jH39vg979X
+  TglYd59SUNJJy5wR7t6veZJMscSbbR4GQY8SLlXT+3hOjm9XESfpzML/g/Dz4Q4l
+  f/oKvrPn6q7r7dWK424FmablZlcy7g==
+  =OtOD
+  -----END PGP SIGNATURE-----
 ---
 
-signer: user
+signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
 
 paths:
   - /container2

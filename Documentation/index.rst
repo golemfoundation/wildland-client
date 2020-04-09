@@ -10,7 +10,11 @@ Welcome to Wildland's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   wildland-fs
+   setup
+   fuse-driver
+   manifests
+   cli
+   internals
 
 
 Indices and tables
