@@ -28,6 +28,7 @@ sphinx:
   services:
     - docker:dind
   script:
+    - mkdir --mode=0777 Documentation/_build
     - cd docker
     - docker-compose build
     - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W
