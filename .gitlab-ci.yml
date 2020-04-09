@@ -10,7 +10,7 @@ pylint:
   script:
     - cd docker
     - docker-compose build
-    - docker-compose run wildland-fuse lint.sh wildland -v
+    - docker-compose run wildland-fuse ./lint.sh wildland -v
 
 pytest:
   stage: test
@@ -20,7 +20,7 @@ pytest:
   script:
     - cd docker
     - docker-compose build
-    - docker-compose run wildland-fuse test.sh -v
+    - docker-compose run wildland-fuse ./test.sh -v
 
 sphinx:
   stage: docs

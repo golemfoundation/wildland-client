@@ -14,10 +14,13 @@ RUN apt-get install -y \
       python3-sphinx \
       pylint3 \
       strace \
+      sudo \
       fish
 
-ADD *.sh /usr/local/bin/
+RUN useradd -G sudo -s /usr/bin/fish -m user
 
-RUN useradd -s /usr/bin/fish -m user
+USER user
 
-CMD ["init.sh"]
+WORKDIR /wildland-fuse/docker
+
+CMD ["./init.sh"]
