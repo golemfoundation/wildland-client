@@ -22,8 +22,10 @@ pytest:
     - docker-compose build
     - docker-compose run wildland-fuse ./test.sh -v
 
-sphinx:
+pages-test:
   stage: docs
+  except:
+    - master
   image: docker/compose:latest
   services:
     - docker:dind
@@ -32,3 +34,20 @@ sphinx:
     - cd docker
     - docker-compose build
     - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W
+
+pages:
+  stage: docs
+  only:
+    - master
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  script:
+    - mkdir --mode=0777 Documentation/_build
+    - cd docker
+    - docker-compose build
+    - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W
+    - cp -r ../Documentation/_build/html ../public
+  artifacts:
+    paths:
+      - public/
