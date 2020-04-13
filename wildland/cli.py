@@ -5,9 +5,12 @@ Wildland command-line interface.
 import argparse
 import sys
 from typing import Optional
+import os
+import tempfile
+import subprocess
 
 from .manifest_loader import ManifestLoader
-from .manifest import Manifest, ManifestError
+from .manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .user import User
 from .schema import Schema
 
@@ -163,6 +166,54 @@ class VerifyCommand(Command):
         return sys.stdin.buffer.read()
 
 
+class EditCommand(Command):
+    '''Edit and sign a manifest'''
+    cmd = 'edit'
+    schema: Optional[Schema] = None
+    manifest_type: Optional[str] = None
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'input_file', metavar='FILE',
+            help='File to edit')
+
+        parser.add_argument(
+            '--editor', metavar='EDITOR',
+            help='Editor to use')
+
+    def handle(self, loader, args):
+        if args.editor is None:
+            args.editor = os.getenv('EDITOR')
+            if args.editor is None:
+                print('No editor specified and EDITOR not set')
+                sys.exit(1)
+
+        path = loader.find_manifest(args.input_file, self.manifest_type)
+        with open(path, 'rb') as f:
+            data = f.read()
+
+        if HEADER_SEPARATOR in data:
+            _, data = split_header(data)
+
+        with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
+            f.write(data)
+            f.flush()
+
+            subprocess.run([args.editor, f.name], check=True)
+
+            f.seek(0)
+            data = f.read()
+
+        loader.load_users()
+        manifest = Manifest.from_unsigned_bytes(data, loader.sig)
+        if self.schema:
+            manifest.apply_schema(self.schema)
+        signed_data = manifest.to_bytes()
+        with open(path, 'wb') as f:
+            f.write(signed_data)
+        print(f'Saved: {path}')
+
+
 class UserSignCommand(SignCommand):
     '''Verify a user manifest'''
     cmd = 'user-sign'
@@ -190,6 +241,7 @@ class MainCommand:
 
         SignCommand,
         VerifyCommand,
+        EditCommand,
     ]
 
     def __init__(self):
