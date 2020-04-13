@@ -16,7 +16,7 @@ from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
 
 from .manifest import Manifest
-from .sig import SigContext
+from .manifest_loader import ManifestLoader
 from .schema import Schema
 
 
@@ -81,33 +81,32 @@ class Container:
         self.storage = storage
 
     @classmethod
-    def from_yaml_file(cls, path: pathlib.Path, sig_context: SigContext):
+    def from_yaml_file(cls, path: pathlib.Path, loader: ManifestLoader):
         '''Load from file-like object with container manifest (a YAML document).
         '''
         with open(path, 'rb') as f:
             content = f.read()
 
-        return cls.from_yaml_content(content, sig_context, path.parent)
+        return cls.from_yaml_content(content, loader, path.parent)
 
     @classmethod
-    def from_yaml_content(cls, content: bytes, sig_context: SigContext,
+    def from_yaml_content(cls, content: bytes, loader: ManifestLoader,
                           dirpath: pathlib.Path = None):
         '''Load from YAML-formatted data'''
         # TODO verify real signatures
 
-        manifest = Manifest.from_bytes(content, sig_context, schema=cls.SCHEMA)
+        manifest = loader.parse_manifest(content, schema=cls.SCHEMA)
 
         for smurl in manifest.fields['backends']['storage']:
             smurl = urllib.parse.urlsplit(smurl, scheme='file')
             try:
                 with cls._load(smurl, relative_to=dirpath) as smfile:
-                    # TODO verify signature
                     storage_manifest_content = smfile.read()
             except UnsupportedURLSchemeError:
                 continue
 
-            storage_manifest = Manifest.from_bytes(
-                storage_manifest_content, sig_context,
+            storage_manifest = loader.parse_manifest(
+                storage_manifest_content,
                 schema=AbstractStorage.SCHEMA)
             storage_type = storage_manifest.fields['type']
 

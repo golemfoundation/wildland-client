@@ -55,7 +55,7 @@ class Manifest:
     def from_unsigned_bytes(cls, data: bytes,
                             sig_context: SigContext) -> 'Manifest':
         '''
-        Create (and sign) a new Mmanifest based on existing YAML-serialized
+        Create (and sign) a new Manifest based on existing YAML-serialized
         content. The content can include an existing header, it will be ignored
         and replaced.
 

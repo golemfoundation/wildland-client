@@ -31,7 +31,8 @@ Mount options (passed with ``-o``):
 
 * ``log=PATH``: log to a file (`-` means stderr)
 * ``dummy``: use dummy signature verification instead of GPG (for testing)
-* ``user_dir=PATH``: load user manifests from a specific directory
+* ``base_dir=PATH``: load configuration from a specific directory (default
+  is ``~/.wildland``)
 * ``manifest=...`` (can be repeated): mount a container with given manifest
   (this is optional, you can also add containers afterwards using the
   ``.control`` system)

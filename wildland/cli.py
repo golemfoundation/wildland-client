@@ -3,91 +3,84 @@ Wildland command-line interface.
 '''
 
 import argparse
-from pathlib import Path
 import sys
 
-from .user import create_user, default_user_dir, UserRepository
-from .sig import DummySigContext, GpgSigContext
+from .manifest_loader import ManifestLoader
 from .manifest import Manifest, ManifestError
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    '--user-dir', default=default_user_dir(),
-    help='Directory for user manifests')
-parser.add_argument(
-    '--dummy', action='store_true',
-    help='Use dummy signatures')
-parser.add_argument(
-    '--gpg-home',
-    help='Use a different GPG home directory')
-subparsers = parser.add_subparsers(dest='command', title='Commands')
+# pylint: disable=no-self-use
 
-parser_create_user = subparsers.add_parser(
-    'create-user',
-    help='Create a new user (needs a GPG key)')
-parser_create_user.add_argument(
-    'key',
-    help='GPG key identifier')
-parser_create_user.add_argument(
-    '--name',
-    help='Name for file')
+class Command:
+    '''Base command'''
 
-parser_list_users = subparsers.add_parser(
-    'list-users',
-    help='List users')
+    cmd: str = ''
 
-parser_sign = subparsers.add_parser(
-    'sign',
-    help='Add a signature to a manifest')
-parser_sign.add_argument(
-    'input_file', metavar='FILE', nargs='?',
-    help='File to sign (default is stdin)')
-parser_sign.add_argument(
-    '-o', dest='output_file', metavar='FILE',
-    help='Output file (default is stdout)')
-parser_sign.add_argument(
-    '-i', dest='in_place', action='store_true',
-    help='Modify the file in place')
+    def __init__(self, subparsers):
+        self.parser = subparsers.add_parser(self.cmd,
+                                            help=self.__class__.__doc__)
+        self.add_arguments(self.parser)
 
-parser_sign = subparsers.add_parser(
-    'verify',
-    help='Verify manifest signature')
-parser_sign.add_argument(
-    'input_file', metavar='FILE', nargs='?',
-    help='File to verify (default is stdin)')
+    def add_arguments(self, parser):
+        '''
+        Add arguments supported by this command.
+        '''
+
+    def handle(self, loader: ManifestLoader, args):
+        '''
+        Run the command based on parsed arguments.
+        '''
+
+        raise NotImplementedError()
 
 
-def main():
-    '''
-    Wildland CLI entry point
-    '''
+class UserCreateCommand(Command):
+    '''Create a new user'''
 
-    args = parser.parse_args()
-    if not args.command:
-        parser.print_help()
-        return
+    cmd = 'user-create'
 
-    user_dir = Path(args.user_dir)
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'key',
+            help='GPG key identifier')
+        parser.add_argument(
+            '--name',
+            help='Name for file')
 
-    if args.dummy:
-        sig = DummySigContext()
-    else:
-        sig = GpgSigContext(args.gpg_home)
-    user_repository = UserRepository(sig)
-    user_repository.load_users(user_dir)
-
-    if args.command == 'create-user':
-        pubkey = sig.find(args.key)
+    def handle(self, loader, args):
+        pubkey = loader.sig.find(args.key)
         print('Using key: {}'.format(pubkey))
-        sig.add_signer(pubkey)
-        path = create_user(user_dir, pubkey, sig, args.name)
+
+        path = loader.create_user(pubkey, args.name)
         print('Created: {}'.format(path))
 
-    if args.command == 'list-users':
-        for user in user_repository.users.values():
+
+class UserListCommand(Command):
+    '''List users'''
+
+    cmd = 'user-list'
+
+    def handle(self, loader, args):
+        loader.load_users()
+        for user in loader.users:
             print('{} {}'.format(user.pubkey, user.manifest_path))
 
-    if args.command == 'sign':
+
+class SignCommand(Command):
+    '''Sign a manifest'''
+    cmd = 'sign'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'input_file', metavar='FILE', nargs='?',
+            help='File to sign (default is stdin)')
+        parser.add_argument(
+            '-o', dest='output_file', metavar='FILE',
+            help='Output file (default is stdout)')
+        parser.add_argument(
+            '-i', dest='in_place', action='store_true',
+            help='Modify the file in place')
+
+    def handle(self, loader, args):
         if args.in_place:
             if not args.input_file:
                 print('Cannot -i without a file')
@@ -97,34 +90,125 @@ def main():
                 sys.exit(1)
             args.output_file = args.input_file
 
+        loader.load_users()
+        data = self.load(args)
+        manifest = Manifest.from_unsigned_bytes(data, loader.sig)
+        signed_data = manifest.to_bytes()
+        self.save(args, signed_data)
+
+    def load(self, args) -> bytes:
+        '''
+        Load from file or stdin.
+        '''
         if args.input_file:
             with open(args.input_file, 'rb') as f:
-                data = f.read()
-        else:
-            data = sys.stdin.buffer.read()
+                return f.read()
+        return sys.stdin.buffer.read()
 
-        manifest = Manifest.from_unsigned_bytes(data, sig)
-        signed_data = manifest.to_bytes()
+    def save(self, args, data: bytes):
+        '''
+        Save to file or stdout.
+        '''
 
         if args.output_file:
             with open(args.output_file, 'wb') as f:
-                f.write(signed_data)
+                f.write(data)
         else:
-            sys.stdout.buffer.write(signed_data)
+            sys.stdout.buffer.write(data)
 
-    if args.command == 'verify':
-        if args.input_file:
-            with open(args.input_file, 'rb') as f:
-                data = f.read()
-        else:
-            data = sys.stdin.buffer.read()
 
+class VerifyCommand(Command):
+    '''Verify a manifest'''
+    cmd = 'verify'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'input_file', metavar='FILE', nargs='?',
+            help='File to verify (default is stdin)')
+
+    def handle(self, loader, args):
+        loader.load_users()
+        data = self.load(args)
         try:
-            manifest = Manifest.from_bytes(data, sig)
+            Manifest.from_bytes(data, loader.sig)
         except ManifestError as e:
             print(e)
             sys.exit(1)
-        print('Manifest is OK')
+        print('Signature is OK')
+
+    def load(self, args) -> bytes:
+        '''
+        Load from file or stdin.
+        '''
+
+        if args.input_file:
+            with open(args.input_file, 'rb') as f:
+                return f.read()
+        return sys.stdin.buffer.read()
+
+
+class MainCommand:
+    '''
+    Main Wildland CLI command that defers to sub-commands.
+    '''
+
+    command_classes = [
+        UserCreateCommand,
+        UserListCommand,
+        SignCommand,
+        VerifyCommand,
+    ]
+
+    def __init__(self):
+        self.parser = argparse.ArgumentParser()
+        self.add_arguments(self.parser)
+        subparsers = self.parser.add_subparsers(dest='cmd')
+        self.commands = []
+        for command_cls in self.command_classes:
+            command = command_cls(subparsers)
+            self.commands.append(command)
+
+    def add_arguments(self, parser):
+        '''
+        Add common arguments.
+        '''
+
+        parser.add_argument(
+            '--base-dir',
+            help='Base directory for configuration')
+        parser.add_argument(
+            '--dummy', action='store_true',
+            help='Use dummy signatures')
+        parser.add_argument(
+            '--gpg-home',
+            help='Use a different GPG home directory')
+
+    def run(self, cmdline):
+        '''
+        Entry point.
+        '''
+        args = self.parser.parse_args(cmdline)
+
+        loader = ManifestLoader(
+            dummy=args.dummy, base_dir=args.base_dir, gpg_home=args.gpg_home)
+
+        for command in self.commands:
+            if args.cmd == command.cmd:
+                command.handle(loader, args)
+                return
+        self.parser.print_help()
+
+
+def main(cmdline=None):
+    '''
+    Wildland CLI entry point.
+    '''
+
+    if cmdline is None:
+        cmdline = sys.argv[1:]
+
+    MainCommand().run(cmdline)
+
 
 if __name__ == '__main__':
     main()
