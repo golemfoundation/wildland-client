@@ -181,7 +181,8 @@ def test_cmd_mount(env):
 def test_cmd_mount_direct(env):
     manifest = Manifest.from_fields(container_manifest(storage=[
         str(env.test_dir / 'storage1.yaml')
-    ]), DummySigContext())
+    ]))
+    manifest.sign(DummySigContext())
     with open(env.mnt_dir / '.control/mount', 'wb') as f:
         f.write(manifest.to_bytes())
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [

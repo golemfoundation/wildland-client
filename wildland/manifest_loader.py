@@ -90,7 +90,8 @@ class ManifestLoader:
         manifest = Manifest.from_fields({
             'signer': pubkey,
             'pubkey': pubkey,
-        }, self.sig)
+        })
+        manifest.sign(self.sig)
         manifest_data = manifest.to_bytes()
         if name is None:
             name = pubkey
