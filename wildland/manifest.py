@@ -29,39 +29,48 @@ class Manifest:
     return signature.
     '''
 
-    def __init__(self, header: 'Header', fields, original_data: bytes):
+    def __init__(self, header: Optional['Header'], fields,
+                 original_data: bytes):
+
+        # If header is set, that means we have verified the signature.
         self.header = header
-        self.fields = fields
+
+        # Accessible as 'fields' only if there is a header.
+        self._fields = fields
+
+        # Original data that has been signed.
         self.original_data = original_data
 
-    @classmethod
-    def from_fields(cls, fields: dict, sig_context: SigContext) -> 'Manifest':
+    @property
+    def fields(self):
         '''
-        Create (and sign) a new manifest based on a dict of fields.
+        A wrapper for manifest fields that makes sure the manifest is signed.
+        '''
 
-        Args:
-            fields: data to be used for the manifest
-            sig_context: a SigContext to use for signing
+        if not self.header:
+            raise ManifestError('Trying to read an unsigned manifest')
+        return self._fields
+
+    @classmethod
+    def from_fields(cls, fields: dict) -> 'Manifest':
         '''
+        Create a manifest based on a dict of fields.
+
+        Has to be signed separately.
+        '''
+
         if not isinstance(fields, dict) or 'signer' not in fields:
             raise ManifestError('signer field not found')
-        signer = fields['signer']
         data = yaml.dump(fields, encoding='utf-8')
-        signature = sig_context.sign(signer, data)
-        header = Header(signer, signature)
-        return cls(header, fields, data)
+        return Manifest(None, fields, data)
 
     @classmethod
-    def from_unsigned_bytes(cls, data: bytes,
-                            sig_context: SigContext) -> 'Manifest':
+    def from_unsigned_bytes(cls, data: bytes) -> 'Manifest':
         '''
-        Create (and sign) a new Mmanifest based on existing YAML-serialized
-        content. The content can include an existing header, it will be ignored
-        and replaced.
+        Create a new Manifest based on existing YAML-serialized
+        content. The content can include an existing header, it will be ignored.
 
-        Args:
-            data: existing manifest content
-            sig_context: a SigContext to use for signing
+        Has to be signed separately.
         '''
 
         if HEADER_SEPARATOR in data:
@@ -71,20 +80,28 @@ class Manifest:
         fields = yaml.safe_load(rest_str)
         if not isinstance(fields, dict) or 'signer' not in fields:
             raise ManifestError('signer field not found')
-        signer = fields['signer']
-        signature = sig_context.sign(signer, data)
-        header = Header(signer, signature)
-        return cls(header, fields, data)
+        return cls(None, fields, data)
+
+    def sign(self, sig_context: SigContext):
+        '''
+        Sign a previously unsigned manifest.
+        '''
+        if self.header is not None:
+            raise ManifestError('Manifest already signed')
+
+        signer = self._fields['signer']
+        signature = sig_context.sign(signer, self.original_data)
+        self.header = Header(signer, signature)
 
     @classmethod
     def from_file(cls, path, sig_context: SigContext,
-                  schema: Optional[Schema] = None,
-                  self_signed=False) -> 'Manifest':
+                   schema: Optional[Schema] = None,
+                   self_signed=False) -> 'Manifest':
         '''
-        Load a manifest from a file, verifying it.
+        Load a manifest from YAML file, verifying it.
 
         Args:
-            path: path to the file
+            path: path to YAML file
             sig_context: a SigContext to use for signature verification
             schema: a Schema to validate the fields with
             self_signed: ignore that a signer is unknown to the SigContext
@@ -141,6 +158,9 @@ class Manifest:
         Serialize the manifest, including the signature.
         '''
 
+        if self.header is None:
+            raise ManifestError('Manifest not signed')
+
         return self.header.to_bytes() + HEADER_SEPARATOR + self.original_data
 
     def apply_schema(self, schema: Schema):
@@ -148,7 +168,7 @@ class Manifest:
         Validate the manifest using a provided schema.
         '''
 
-        schema.validate(self.fields)
+        schema.validate(self._fields)
 
 
 class Header:

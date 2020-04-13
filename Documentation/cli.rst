@@ -18,13 +18,13 @@ Generate a GPG key::
 
 Create a user::
 
-   $ ./wl add-user "Wildland Test"
+   $ ./wl user-create "Wildland Test"
    Using key: 0xfd56724c5a712815390bbda63dba761d9e757f15
    Created: /home/user/.wildland/users/wltest.yaml
 
 List users::
 
-   $ ./wl list-users
+   $ ./wl user-list
    0xfd56724c5a712815390bbda63dba761d9e757f15 /home/user/.wildland/users/wltest.yaml
 
 Create and sign a manifest::
@@ -44,11 +44,11 @@ Verify the signature::
 Global options
 --------------
 
-* ``--user-dir PATH``: specify directory for user manifests
+* ``--base-dir PATH``: base config directory (default is ~/.wildland)
 * ``--dummy``: use dummy signatures instead of GPG
 * ``--gpg-home PATH``: use different GPG home directory
 
-``wl create-user KEY``
+``wl user-create KEY``
 ----------------------
 
 Create a new user manifest. You need to have access to corresponding secret
@@ -57,7 +57,7 @@ key.
 * ``KEY``: GPG key identifier
 * ``--name NAME``: name to use for the manifest
 
-``wl list-users``
+``wl user-list``
 -----------------
 
 List found user manifests.

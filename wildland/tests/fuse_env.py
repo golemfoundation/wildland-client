@@ -54,7 +54,7 @@ class FuseEnv:
         options.append('dummy_sig')
         # No users necessary for now with dummy signatures, but make sure
         # wildland-fuse won't try to load anything from outside.
-        options.append('user_dir={}'.format(self.test_dir / 'users'))
+        options.append('base_dir={}'.format(self.test_dir))
 
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
@@ -84,7 +84,8 @@ class FuseEnv:
     def create_manifest(self, name, fields):
         if 'signer' not in fields:
             fields['signer'] = '0x3333'
-        manifest = Manifest.from_fields(fields, DummySigContext())
+        manifest = Manifest.from_fields(fields)
+        manifest.sign(DummySigContext())
         with open(self.test_dir / name, 'wb') as f:
             f.write(manifest.to_bytes())
 
