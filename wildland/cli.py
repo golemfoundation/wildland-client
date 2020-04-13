@@ -13,8 +13,6 @@ from pathlib import Path
 
 from .manifest_loader import ManifestLoader
 from .manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
-from .user import User
-from .schema import Schema
 from .exc import WildlandError
 
 class CliError(WildlandError):
@@ -68,6 +66,57 @@ class UserCreateCommand(Command):
         print('Created: {}'.format(path))
 
 
+class StorageCreateCommand(Command):
+    '''Create a new storage'''
+
+    cmd = 'storage-create'
+
+    supported_types = [
+        'local'
+    ]
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--type',
+            required=True,
+            choices=self.supported_types,
+            help='Storage type')
+        parser.add_argument(
+            '--user', required=True,
+            help='User for signing')
+        parser.add_argument(
+            '--name',
+            help='Name for file')
+
+        parser.add_argument(
+            '--path',
+            help='Path (for local storage)')
+
+    def handle(self, loader, args):
+        if args.type == 'local':
+            fields = self.get_fields(args, 'path')
+        else:
+            assert False, args.type
+
+        user = loader.find_user(args.user)
+        print('Using user: {}'.format(user.pubkey))
+
+        path = loader.create_storage(user.pubkey, args.type, fields, args.name)
+        print('Created: {}'.format(path))
+
+    def get_fields(self, args, *names) -> dict:
+        '''
+        Create a dict of fields from required arguments.
+        '''
+        fields = {}
+        for name in names:
+            if not getattr(args, name):
+                raise CliError('Expecting the following fields: {}'.format(
+                    ', '.join(names)))
+            fields[name] = getattr(args, name)
+        return fields
+
+
 class UserListCommand(Command):
     '''List users'''
 
@@ -82,7 +131,6 @@ class UserListCommand(Command):
 class SignCommand(Command):
     '''Sign a manifest'''
     cmd = 'sign'
-    schema: Optional[Schema] = None
     manifest_type: Optional[str] = None
 
     def add_arguments(self, parser):
@@ -100,8 +148,7 @@ class SignCommand(Command):
         loader.load_users()
         data = self.load(loader, args)
         manifest = Manifest.from_unsigned_bytes(data)
-        if self.schema:
-            manifest.apply_schema(self.schema)
+        loader.validate_manifest(manifest, self.manifest_type)
         manifest.sign(loader.sig)
         signed_data = manifest.to_bytes()
         self.save(args, signed_data)
@@ -140,7 +187,6 @@ class SignCommand(Command):
 class VerifyCommand(Command):
     '''Verify a manifest'''
     cmd = 'verify'
-    schema: Optional[Schema] = None
     manifest_type: Optional[str] = None
 
     def add_arguments(self, parser):
@@ -152,13 +198,11 @@ class VerifyCommand(Command):
         loader.load_users()
         data = self.load(loader, args)
         try:
-            Manifest.from_bytes(data, loader.sig, schema=self.schema)
+            manifest = Manifest.from_bytes(data, loader.sig)
+            loader.validate_manifest(manifest, self.manifest_type)
         except ManifestError as e:
             raise CliError(f'Error verifying manifest: {e}')
-        if self.schema:
-            print('Manifest is correctly signed and valid according to schema')
-        else:
-            print('Manifest is correctly signed')
+        print('Manifest is valid')
 
     def load(self, loader, args) -> bytes:
         '''
@@ -175,7 +219,6 @@ class VerifyCommand(Command):
 class EditCommand(Command):
     '''Edit and sign a manifest'''
     cmd = 'edit'
-    schema: Optional[Schema] = None
     manifest_type: Optional[str] = None
 
     def add_arguments(self, parser):
@@ -220,8 +263,7 @@ class EditCommand(Command):
 
         loader.load_users()
         manifest = Manifest.from_unsigned_bytes(data)
-        if self.schema:
-            manifest.apply_schema(self.schema)
+        loader.validate_manifest(manifest, self.manifest_type)
         manifest.sign(loader.sig)
         signed_data = manifest.to_bytes()
         with open(path, 'wb') as f:
@@ -232,22 +274,37 @@ class EditCommand(Command):
 class UserSignCommand(SignCommand):
     '''Verify a user manifest'''
     cmd = 'user-sign'
-    schema = User.SCHEMA
     manifest_type = 'user'
 
 
 class UserVerifyCommand(VerifyCommand):
     '''Verify a user manifest'''
     cmd = 'user-verify'
-    schema = User.SCHEMA
     manifest_type = 'user'
 
 
 class UserEditCommand(EditCommand):
     '''Edit a user manifest'''
     cmd = 'user-edit'
-    schema = User.SCHEMA
     manifest_type = 'user'
+
+
+class StorageSignCommand(SignCommand):
+    '''Sign a storage manifest'''
+    cmd = 'storage-sign'
+    manifest_type = 'storage'
+
+
+class StorageVerifyCommand(VerifyCommand):
+    '''Verify a storage manifest'''
+    cmd = 'storage-verify'
+    manifest_type = 'storage'
+
+
+class StorageEditCommand(EditCommand):
+    '''Edit a storage manifest'''
+    cmd = 'storage-edit'
+    manifest_type = 'storage'
 
 
 class MainCommand:
@@ -261,6 +318,11 @@ class MainCommand:
         UserSignCommand,
         UserVerifyCommand,
         UserEditCommand,
+
+        StorageCreateCommand,
+        StorageSignCommand,
+        StorageVerifyCommand,
+        StorageEditCommand,
 
         SignCommand,
         VerifyCommand,

@@ -30,6 +30,7 @@ class ManifestLoader:
             self.base_dir = Path(base_dir)
 
         self.user_dir = self.base_dir / 'users'
+        self.storage_dir = self.base_dir / 'storage'
 
         if dummy:
             self.sig = DummySigContext()
@@ -62,6 +63,13 @@ class ManifestLoader:
         self.sig.add_signer(user.pubkey)
         return user
 
+    def find_user(self, name) -> User:
+        '''
+        CLI helper: find (and load) user by name.
+        '''
+        path = self.find_manifest(name, 'user')
+        return self.load_user(path)
+
     def find_manifest(self, name, manifest_type=None) -> Path:
         '''
         CLI helper: find manifest by name.
@@ -70,6 +78,8 @@ class ManifestLoader:
         if not name.endswith('.yaml') and manifest_type is not None:
             if manifest_type == 'user':
                 path = self.user_dir / f'{name}.yaml'
+            elif manifest_type == 'storage':
+                path = self.storage_dir / f'{name}.yaml'
             else:
                 assert False, manifest_type
             if os.path.exists(path):
@@ -79,6 +89,21 @@ class ManifestLoader:
             return Path(name)
 
         raise WildlandError(f'File not found: {name}')
+
+    @classmethod
+    def validate_manifest(cls, manifest, manifest_type=None):
+        '''
+        Validate a (possibly unsigned) manifest by type.
+        '''
+
+        if manifest_type == 'user':
+            manifest.apply_schema(User.SCHEMA)
+        elif manifest_type == 'storage':
+            manifest.apply_schema(Schema('storage'))
+            manifest.apply_schema(Schema('storage-{}'.format(
+                manifest._fields['type'])))
+        else:
+            assert False, manifest_type
 
     def create_user(self, pubkey, name=None) -> Path:
         '''
@@ -98,6 +123,26 @@ class ManifestLoader:
         if not os.path.exists(self.user_dir):
             os.makedirs(self.user_dir)
         path = self.user_dir / f'{name}.yaml'
+        with open(path, 'wb') as f:
+            f.write(manifest_data)
+        return path
+
+    def create_storage(self, pubkey, storage_type, fields, name=None) -> Path:
+        '''
+        Create a new storage.
+        '''
+        manifest = Manifest.from_fields({
+            'signer': pubkey,
+            'type': storage_type,
+            **fields
+        })
+        schema = Schema(f'storage-{storage_type}')
+        manifest.apply_schema(schema)
+        manifest.sign(self.sig)
+        manifest_data = manifest.to_bytes()
+        if not os.path.exists(self.storage_dir):
+            os.makedirs(self.storage_dir)
+        path = self.storage_dir / f'{name}.yaml'
         with open(path, 'wb') as f:
             f.write(manifest_data)
         return path
