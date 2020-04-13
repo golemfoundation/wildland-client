@@ -10,6 +10,7 @@ from .schema import Schema
 from .sig import DummySigContext, GpgSigContext
 from .manifest import Manifest
 from .user import User
+from .exc import WildlandError
 
 DEFAULT_BASE_DIR = '.wildland'
 
@@ -60,6 +61,24 @@ class ManifestLoader:
         self.users.append(user)
         self.sig.add_signer(user.pubkey)
         return user
+
+    def find_manifest(self, name, manifest_type=None) -> Path:
+        '''
+        CLI helper: find manifest by name.
+        '''
+
+        if not name.endswith('.yaml') and manifest_type is not None:
+            if manifest_type == 'user':
+                path = self.user_dir / f'{name}.yaml'
+            else:
+                assert False, manifest_type
+            if os.path.exists(path):
+                return path
+
+        if os.path.exists(name):
+            return Path(name)
+
+        raise WildlandError(f'File not found: {name}')
 
     def create_user(self, pubkey, name=None) -> Path:
         '''

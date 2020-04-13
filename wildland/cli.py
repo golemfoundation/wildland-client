@@ -4,9 +4,12 @@ Wildland command-line interface.
 
 import argparse
 import sys
+from typing import Optional
 
 from .manifest_loader import ManifestLoader
 from .manifest import Manifest, ManifestError
+from .user import User
+from .schema import Schema
 
 # pylint: disable=no-self-use
 
@@ -68,6 +71,8 @@ class UserListCommand(Command):
 class SignCommand(Command):
     '''Sign a manifest'''
     cmd = 'sign'
+    schema: Optional[Schema] = None
+    manifest_type: Optional[str] = None
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -81,28 +86,32 @@ class SignCommand(Command):
             help='Modify the file in place')
 
     def handle(self, loader, args):
-        if args.in_place:
-            if not args.input_file:
-                print('Cannot -i without a file')
-                sys.exit(1)
-            if args.output_file:
-                print('Cannot use both -i and -o')
-                sys.exit(1)
-            args.output_file = args.input_file
-
         loader.load_users()
-        data = self.load(args)
+        data = self.load(loader, args)
         manifest = Manifest.from_unsigned_bytes(data, loader.sig)
+        if self.schema:
+            manifest.apply_schema(self.schema)
         signed_data = manifest.to_bytes()
         self.save(args, signed_data)
 
-    def load(self, args) -> bytes:
+    def load(self, loader, args) -> bytes:
         '''
         Load from file or stdin.
         '''
         if args.input_file:
-            with open(args.input_file, 'rb') as f:
+            path = loader.find_manifest(args.input_file, self.manifest_type)
+            if args.in_place:
+                if args.output_file:
+                    print('Cannot use both -i and -o')
+                    sys.exit(1)
+                args.output_file = path
+            with open(path, 'rb') as f:
                 return f.read()
+
+        if args.in_place:
+            if not args.input_file:
+                print('Cannot -i without a file')
+                sys.exit(1)
         return sys.stdin.buffer.read()
 
     def save(self, args, data: bytes):
@@ -113,6 +122,7 @@ class SignCommand(Command):
         if args.output_file:
             with open(args.output_file, 'wb') as f:
                 f.write(data)
+            print(f'Saved: {args.output_file}')
         else:
             sys.stdout.buffer.write(data)
 
@@ -120,6 +130,8 @@ class SignCommand(Command):
 class VerifyCommand(Command):
     '''Verify a manifest'''
     cmd = 'verify'
+    schema: Optional[Schema] = None
+    manifest_type: Optional[str] = None
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -128,23 +140,41 @@ class VerifyCommand(Command):
 
     def handle(self, loader, args):
         loader.load_users()
-        data = self.load(args)
+        data = self.load(loader, args)
         try:
-            Manifest.from_bytes(data, loader.sig)
+            Manifest.from_bytes(data, loader.sig, schema=self.schema)
         except ManifestError as e:
             print(e)
             sys.exit(1)
-        print('Signature is OK')
+        if self.schema:
+            print('Manifest is correctly signed and valid according to schema')
+        else:
+            print('Manifest is correctly signed')
 
-    def load(self, args) -> bytes:
+    def load(self, loader, args) -> bytes:
         '''
         Load from file or stdin.
         '''
 
         if args.input_file:
-            with open(args.input_file, 'rb') as f:
+            path = loader.find_manifest(args.input_file, self.manifest_type)
+            with open(path, 'rb') as f:
                 return f.read()
         return sys.stdin.buffer.read()
+
+
+class UserSignCommand(SignCommand):
+    '''Verify a user manifest'''
+    cmd = 'user-sign'
+    schema = User.SCHEMA
+    manifest_type = 'user'
+
+
+class UserVerifyCommand(VerifyCommand):
+    '''Verify a user manifest'''
+    cmd = 'user-verify'
+    schema = User.SCHEMA
+    manifest_type = 'user'
 
 
 class MainCommand:
@@ -155,6 +185,9 @@ class MainCommand:
     command_classes = [
         UserCreateCommand,
         UserListCommand,
+        UserSignCommand,
+        UserVerifyCommand,
+
         SignCommand,
         VerifyCommand,
     ]
