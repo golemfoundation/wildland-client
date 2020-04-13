@@ -8,11 +8,19 @@ from typing import Optional
 import os
 import tempfile
 import subprocess
+import shlex
+from pathlib import Path
 
 from .manifest_loader import ManifestLoader
 from .manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .user import User
 from .schema import Schema
+from .exc import WildlandError
+
+class CliError(WildlandError):
+    '''
+    User error during CLI command execution
+    '''
 
 # pylint: disable=no-self-use
 
@@ -106,16 +114,14 @@ class SignCommand(Command):
             path = loader.find_manifest(args.input_file, self.manifest_type)
             if args.in_place:
                 if args.output_file:
-                    print('Cannot use both -i and -o')
-                    sys.exit(1)
+                    raise CliError('Cannot use both -i and -o')
                 args.output_file = path
             with open(path, 'rb') as f:
                 return f.read()
 
         if args.in_place:
             if not args.input_file:
-                print('Cannot -i without a file')
-                sys.exit(1)
+                raise CliError('Cannot -i without a file')
         return sys.stdin.buffer.read()
 
     def save(self, args, data: bytes):
@@ -148,8 +154,7 @@ class VerifyCommand(Command):
         try:
             Manifest.from_bytes(data, loader.sig, schema=self.schema)
         except ManifestError as e:
-            print(e)
-            sys.exit(1)
+            raise CliError(f'Error verifying manifest: {e}')
         if self.schema:
             print('Manifest is correctly signed and valid according to schema')
         else:
@@ -186,8 +191,7 @@ class EditCommand(Command):
         if args.editor is None:
             args.editor = os.getenv('EDITOR')
             if args.editor is None:
-                print('No editor specified and EDITOR not set')
-                sys.exit(1)
+                raise CliError('No editor specified and EDITOR not set')
 
         path = loader.find_manifest(args.input_file, self.manifest_type)
         with open(path, 'rb') as f:
@@ -196,14 +200,23 @@ class EditCommand(Command):
         if HEADER_SEPARATOR in data:
             _, data = split_header(data)
 
-        with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
-            f.write(data)
-            f.flush()
+        # Do not use NamedTemporaryFile, because the editor might create a new
+        # file instead modifying the existing one.
+        with tempfile.TemporaryDirectory(prefix='wledit.') as temp_dir:
+            temp_path = Path(temp_dir) / path.name
+            with open(temp_path, 'wb') as f:
+                f.write(data)
 
-            subprocess.run([args.editor, f.name], check=True)
+            command = '{} {}'.format(
+                args.editor, shlex.quote(f.name))
+            print(f'Running editor: {command}')
+            try:
+                subprocess.run(command, shell=True, check=True)
+            except subprocess.CalledProcessError:
+                raise CliError('Running editor failed')
 
-            f.seek(0)
-            data = f.read()
+            with open(temp_path, 'rb') as f:
+                data = f.read()
 
         loader.load_users()
         manifest = Manifest.from_unsigned_bytes(data)
@@ -302,7 +315,11 @@ def main(cmdline=None):
     if cmdline is None:
         cmdline = sys.argv[1:]
 
-    MainCommand().run(cmdline)
+    try:
+        MainCommand().run(cmdline)
+    except CliError as e:
+        print(f'error: {e}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

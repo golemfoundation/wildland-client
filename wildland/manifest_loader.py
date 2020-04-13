@@ -45,7 +45,7 @@ class ManifestLoader:
 
         if not os.path.exists(self.user_dir):
             return
-        for name in os.listdir(self.user_dir):
+        for name in sorted(os.listdir(self.user_dir)):
             path = self.user_dir / name
             self.load_user(path)
 
