@@ -4,15 +4,14 @@ Manifest handling according to user configuration.
 
 from pathlib import Path
 import os
-from typing import Optional
+from typing import Optional, Dict, Any
+import yaml
 
 from .schema import Schema
 from .sig import DummySigContext, GpgSigContext
 from .manifest import Manifest
 from .user import User
 from .exc import WildlandError
-
-DEFAULT_BASE_DIR = '.wildland'
 
 
 class ManifestLoader:
@@ -21,21 +20,17 @@ class ManifestLoader:
     to user configuration.
     '''
 
-    def __init__(self, *, dummy=False, base_dir=None, gpg_home=None):
-        if base_dir is None:
-            home_dir = os.getenv('HOME')
-            assert home_dir
-            self.base_dir = Path(home_dir) / DEFAULT_BASE_DIR
-        else:
-            self.base_dir = Path(base_dir)
+    def __init__(self, base_dir=None, **config_kwargs):
+        self.config = Config.load(base_dir)
+        self.config.override(**config_kwargs)
 
-        self.user_dir = self.base_dir / 'users'
-        self.storage_dir = self.base_dir / 'storage'
+        self.user_dir = Path(self.config.get('user_dir'))
+        self.storage_dir = Path(self.config.get('storage_dir'))
 
-        if dummy:
+        if self.config.get('dummy'):
             self.sig = DummySigContext()
         else:
-            self.sig = GpgSigContext(gpg_home)
+            self.sig = GpgSigContext(self.config.get('gpg_home'))
 
         self.users = []
 
@@ -153,3 +148,89 @@ class ManifestLoader:
         Parse a user manifest, verifying it.
         '''
         return Manifest.from_bytes(data, self.sig, schema)
+
+
+class Config:
+    '''
+    Wildland configuration, by default loaded from ~/.wildland/config.yaml.
+
+    Consists of three layers:
+    - default_fields (set here)
+    - file_fields (loaded from file)
+    - override_fields (provided from command line)
+    '''
+
+    filename = 'config.yaml'
+    default_base_dir = '.wildland'
+
+    def __init__(self,
+                 path: Path,
+                 default_fields: Dict[str, Any],
+                 file_fields: Dict[str, Any]):
+        self.path = path
+        self.default_fields = default_fields
+        self.file_fields = file_fields
+        self.override_fields: Dict[str, Any] = {}
+
+    def get(self, name: str):
+        '''
+        Get a configuration value for given name. The name has to be known,
+        i.e. exist in defaults.
+        '''
+
+        assert name in self.default_fields, f'unknown config name: {name}'
+
+        if name in self.override_fields:
+            return self.override_fields[name]
+        if name in self.file_fields:
+            return self.file_fields[name]
+        return self.default_fields[name]
+
+    def override(self, *, gpg_home=None, dummy=False):
+        '''
+        Override configuration based on command line arguments.
+        '''
+        if gpg_home:
+            self.override_fields['gpg_home'] = gpg_home
+        if dummy:
+            self.override_fields['dummy'] = True
+
+    @classmethod
+    def load(cls, base_dir=None):
+        '''
+        Load a configuration file from base directory, if it exists; use
+        defaults if not.
+        '''
+
+        home_dir = os.getenv('HOME')
+        assert home_dir
+        home_dir = Path(home_dir)
+
+        if base_dir is None:
+            base_dir = home_dir / cls.default_base_dir
+        else:
+            base_dir = Path(base_dir)
+
+        default_fields = cls.get_default_fields(home_dir, base_dir)
+
+        path = base_dir / cls.filename
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                file_fields = yaml.safe_load(f)
+        else:
+            file_fields = {}
+        return cls(path, default_fields, file_fields)
+
+    @classmethod
+    def get_default_fields(cls, home_dir, base_dir) -> dict:
+        '''
+        Compute the default values for all the unspecified fields.
+        '''
+
+        return {
+            'user_dir': base_dir / 'users',
+            'storage_dir': base_dir / 'storage',
+            'mount_dir': home_dir / 'wildland',
+            'dummy': False,
+            'gpg_home': None,
+        }
