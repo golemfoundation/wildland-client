@@ -27,12 +27,15 @@ class CliError(WildlandError):
 class Command:
     '''Base command'''
 
-    cmd: str = ''
+    def __init__(self, cmd):
+        self.cmd = cmd
 
-    def __init__(self, subparsers):
-        self.parser = subparsers.add_parser(self.cmd,
-                                            help=self.__class__.__doc__)
-        self.add_arguments(self.parser)
+    @property
+    def help(self):
+        '''
+        Help text for this command.
+        '''
+        return self.__class__.__doc__
 
     def add_arguments(self, parser):
         '''
@@ -185,8 +188,16 @@ class UserListCommand(Command):
 
 class SignCommand(Command):
     '''Sign a manifest'''
-    cmd = 'sign'
-    manifest_type: Optional[str] = None
+
+    def __init__(self, cmd, manifest_type=None):
+        super().__init__(cmd)
+        self.manifest_type = manifest_type
+
+    @property
+    def help(self):
+        if self.manifest_type:
+            return f'Sign a {self.manifest_type} manifest'
+        return f'Sign a manifest'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -229,8 +240,16 @@ class SignCommand(Command):
 
 class VerifyCommand(Command):
     '''Verify a manifest'''
-    cmd = 'verify'
-    manifest_type: Optional[str] = None
+
+    def __init__(self, cmd, manifest_type=None):
+        super().__init__(cmd)
+        self.manifest_type = manifest_type
+
+    @property
+    def help(self):
+        if self.manifest_type:
+            return f'Verify a {self.manifest_type} manifest'
+        return f'Verify a manifest (signature only, no schema)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -251,8 +270,16 @@ class VerifyCommand(Command):
 
 class EditCommand(Command):
     '''Edit and sign a manifest'''
-    cmd = 'edit'
-    manifest_type: Optional[str] = None
+
+    def __init__(self, cmd, manifest_type=None):
+        super().__init__(cmd)
+        self.manifest_type = manifest_type
+
+    @property
+    def help(self):
+        if self.manifest_type:
+            return f'Edit, validate and sign a {self.manifest_type} manifest'
+        return f'Edit and sign a manifest'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -303,72 +330,36 @@ class EditCommand(Command):
         print(f'Saved: {path}')
 
 
-class UserSignCommand(SignCommand):
-    '''Verify a user manifest'''
-    cmd = 'user-sign'
-    manifest_type = 'user'
-
-
-class UserVerifyCommand(VerifyCommand):
-    '''Verify a user manifest'''
-    cmd = 'user-verify'
-    manifest_type = 'user'
-
-
-class UserEditCommand(EditCommand):
-    '''Edit a user manifest'''
-    cmd = 'user-edit'
-    manifest_type = 'user'
-
-
-class StorageSignCommand(SignCommand):
-    '''Sign a storage manifest'''
-    cmd = 'storage-sign'
-    manifest_type = 'storage'
-
-
-class StorageVerifyCommand(VerifyCommand):
-    '''Verify a storage manifest'''
-    cmd = 'storage-verify'
-    manifest_type = 'storage'
-
-
-class StorageEditCommand(EditCommand):
-    '''Edit a storage manifest'''
-    cmd = 'storage-edit'
-    manifest_type = 'storage'
-
-
 class MainCommand:
     '''
     Main Wildland CLI command that defers to sub-commands.
     '''
 
-    command_classes = [
-        UserCreateCommand,
-        UserListCommand,
-        UserSignCommand,
-        UserVerifyCommand,
-        UserEditCommand,
+    commands = [
+        UserCreateCommand('user-create'),
+        UserListCommand('user-list'),
+        SignCommand('user-sign', 'user'),
+        VerifyCommand('user-verify', 'user'),
+        EditCommand('user-edit', 'user'),
 
-        StorageCreateCommand,
-        StorageSignCommand,
-        StorageVerifyCommand,
-        StorageEditCommand,
+        StorageCreateCommand('storage-create'),
+        SignCommand('storage-sign', 'storage'),
+        VerifyCommand('storage-verify', 'storage'),
+        EditCommand('storage-edit', 'storage'),
 
-        SignCommand,
-        VerifyCommand,
-        EditCommand,
+        SignCommand('sign'),
+        VerifyCommand('verify'),
+        EditCommand('edit'),
     ]
 
     def __init__(self):
         self.parser = argparse.ArgumentParser()
         self.add_arguments(self.parser)
         subparsers = self.parser.add_subparsers(dest='cmd')
-        self.commands = []
-        for command_cls in self.command_classes:
-            command = command_cls(subparsers)
-            self.commands.append(command)
+        for command in self.commands:
+            command_parser = subparsers.add_parser(command.cmd,
+                                                   help=command.help)
+            command.add_arguments(command_parser)
 
     def add_arguments(self, parser):
         '''
