@@ -95,6 +95,19 @@ class ManifestLoader:
 
         return None
 
+    def load_manifest(self, name, manifest_type=None) \
+        -> Tuple[Optional[Path], Optional[Manifest]]:
+        '''
+        CLI helper: find manifest by name, and load it.
+        '''
+
+        path = self.find_manifest(name, manifest_type)
+        if not path:
+            return None, None
+        manifest = Manifest.from_file(path, self.sig)
+        self.validate_manifest(manifest, manifest_type)
+        return (path, manifest)
+
     def manifest_dir(self, manifest_type) -> Path:
         '''
         Return default path for a given manifest type.

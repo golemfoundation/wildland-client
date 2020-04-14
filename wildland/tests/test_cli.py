@@ -3,6 +3,8 @@
 import tempfile
 import shutil
 from pathlib import Path
+import os
+import yaml
 
 import pytest
 
@@ -13,8 +15,15 @@ from ..exc import WildlandError
 @pytest.fixture
 def base_dir():
     base_dir = tempfile.mkdtemp(prefix='wlcli.')
+    base_dir = Path(base_dir)
     try:
-        yield Path(base_dir)
+        os.mkdir(base_dir / 'mnt')
+        os.mkdir(base_dir / 'mnt/.control')
+        with open(base_dir / 'config.yaml', 'w') as f:
+            yaml.dump({
+                'mount_dir': str(base_dir / 'mnt')
+            }, f)
+        yield base_dir
     finally:
         shutil.rmtree(base_dir)
 
@@ -182,3 +191,51 @@ def test_container_list(cli, base_dir, capsys):
         str(base_dir / 'containers/Container.yaml'),
         '  path: /PATH',
     ]
+
+
+def test_container_mount(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+
+    cli('container-mount', 'Container')
+
+    # The command should write container manifest to .control/mount.
+    with open(base_dir / 'mnt/.control/mount') as f:
+        data = f.read()
+    assert "signer: '0xaaa'" in data
+    assert "- /PATH" in data
+
+
+def test_container_unmount(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        f.write('''\
+/PATH 101
+/PATH2 102
+''')
+    cli('container-unmount', 'Container')
+
+    with open(base_dir / 'mnt/.control/cmd') as f:
+        data = f.read()
+    assert data == 'unmount 101'
+
+def test_container_unmount_by_path(cli, base_dir):
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        f.write('''\
+/PATH 101
+/PATH2 102
+''')
+    cli('container-unmount', '--path', '/PATH2')
+
+    with open(base_dir / 'mnt/.control/cmd') as f:
+        data = f.read()
+    assert data == 'unmount 102'

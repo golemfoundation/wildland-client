@@ -95,6 +95,41 @@ class Command:
         print(f'Using default user: {user.pubkey}')
         return user
 
+    def ensure_mounted(self, loader):
+        '''
+        Check that Wildland is mounted, and raise an exception otherwise.
+        '''
+
+        mount_dir = Path(loader.config.get('mount_dir'))
+        if not os.path.isdir(mount_dir / '.control'):
+            raise CliError(f'Wildland not mounted at {mount_dir}')
+
+    def write_control(self, loader, name: str, data: bytes):
+        '''
+        Write to a .control file.
+        '''
+
+        mount_dir = Path(loader.config.get('mount_dir'))
+        control_path = mount_dir / '.control' / name
+        try:
+            with open(control_path, 'wb') as f:
+                f.write(data)
+        except IOError as e:
+            raise CliError(f'Control command failed: {control_path}: {e}')
+
+    def read_control(self, loader, name: str) -> bytes:
+        '''
+        Read a .control file.
+        '''
+
+        mount_dir = Path(loader.config.get('mount_dir'))
+        control_path = mount_dir / '.control' / name
+        try:
+            with open(control_path, 'rb') as f:
+                return f.read()
+        except IOError as e:
+            raise CliError(f'Reading control file failed: {control_path}: {e}')
+
 
 class UserCreateCommand(Command):
     '''Create a new user'''
@@ -410,6 +445,94 @@ class UnmountCommand(Command):
             raise CliError(f'Failed to unmount: {e}')
 
 
+class ContainerMountCommand(Command):
+    '''Mount a container'''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'container', metavar='CONTAINER',
+            help='File to edit')
+
+    def handle(self, loader, args):
+        self.ensure_mounted(loader)
+        loader.load_users()
+        path, manifest = loader.load_manifest(args.container, 'container')
+        if not manifest:
+            raise CliError(f'Not found: {args.container}')
+        print(f'Mounting: {path}')
+        self.write_control(loader, 'mount', manifest.to_bytes())
+
+
+class ContainerUnmountCommand(Command):
+    '''Unmount a container'''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'container', metavar='CONTAINER', nargs='?',
+            help='File to edit')
+        parser.add_argument(
+            '--path', metavar='PATH',
+            help='Mount path to search for')
+
+    def handle(self, loader, args):
+        self.ensure_mounted(loader)
+        loader.load_users()
+
+        if bool(args.container) + bool(args.path) != 1:
+            raise CliError('Specify either container or --path')
+
+        if args.container:
+            num = self.find_by_manifest(loader, args.container)
+        else:
+            num = self.find_by_path(loader, args.path)
+        print(f'Unmounting container {num}')
+        self.write_control(loader, 'cmd', f'unmount {num}'.encode())
+
+    def find_by_manifest(self, loader, container_name):
+        '''
+        Find container ID by reading the manifest and matching paths.
+        '''
+
+        path, manifest = loader.load_manifest(container_name, 'container')
+        if not manifest:
+            raise CliError(f'Not found: {container_name}')
+        print(f'Using manifest: {path}')
+        nums = set()
+        for path, num in self.read_paths(loader):
+            if path in manifest.fields['paths']:
+                nums.add(num)
+
+        if len(nums) == 0:
+            raise CliError(
+                'Container with a given list of paths not found. '
+                'Is it mounted?')
+        if len(nums) > 1:
+            raise CliError(
+                'More than one container found: {}. '
+                'Consider unmounting by path instead.'.format(
+                    ', '.join(map(str, nums))))
+
+        return list(nums)[0]
+
+    def find_by_path(self, loader, container_path):
+        '''
+        Find container ID by one of mount paths.
+        '''
+
+        for path, num in self.read_paths(loader):
+            print(path)
+            if container_path == path:
+                return num
+        raise CliError(f'No container found: {container_path}')
+
+    def read_paths(self, loader):
+        '''Read and parse .control/paths.'''
+
+        for line in self.read_control(loader, 'paths').decode().splitlines():
+            path, _sep, num = line.rpartition(' ')
+            yield path, num
+
+
 class MainCommand:
     '''
     Main Wildland CLI command that defers to sub-commands.
@@ -433,6 +556,8 @@ class MainCommand:
         SignCommand('container-sign', 'container'),
         VerifyCommand('container-verify', 'container'),
         EditCommand('container-edit', 'container'),
+        ContainerMountCommand('container-mount'),
+        ContainerUnmountCommand('container-unmount'),
 
         SignCommand('sign'),
         VerifyCommand('verify'),
