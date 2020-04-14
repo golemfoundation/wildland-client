@@ -74,10 +74,11 @@ class ManifestLoader:
         Find and load the default configured user (if any).
         '''
 
-        name = self.config.get('default_user')
-        if not name:
-            return None
-        return self.find_user(name)
+        pubkey = self.config.get('default_user')
+        for user in self.users:
+            if user.pubkey == pubkey:
+                return user
+        return None
 
     def find_manifest(self, name, manifest_type=None) -> Optional[Path]:
         '''

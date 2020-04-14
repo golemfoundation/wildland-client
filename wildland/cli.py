@@ -149,6 +149,7 @@ class StorageCreateCommand(Command):
         else:
             assert False, args.type
 
+        loader.load_users()
         user = self.find_user(loader, args.user)
 
         path = loader.create_storage(user.pubkey, args.type, fields, args.name)
@@ -186,6 +187,7 @@ class ContainerCreateCommand(Command):
 
 
     def handle(self, loader, args):
+        loader.load_users()
         user = self.find_user(loader, args.user)
         storages = []
         for storage_name in args.storage:
