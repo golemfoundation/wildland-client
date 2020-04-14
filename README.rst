@@ -1,6 +1,11 @@
 wildland in FUSE
 ================
 
+|Coverage|
+
+.. |Coverage| image:: https://gitlab.com/wild-land/wildland-fuse/badges/master/coverage.svg?job=pytest
+   :target: https://wild-land.gitlab.io/wildland-fuse/coverage/
+
 `Documentation <https://wild-land.gitlab.io/wildland-fuse/>`_
 
 Quick start
