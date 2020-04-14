@@ -309,6 +309,8 @@ class Config:
         if os.path.exists(path):
             with open(path, 'r') as f:
                 file_fields = yaml.safe_load(f)
+                if not file_fields:
+                    file_fields = {}
         else:
             file_fields = {}
         return cls(base_dir, path, default_fields, file_fields)
