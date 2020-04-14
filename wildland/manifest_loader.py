@@ -11,7 +11,6 @@ from .schema import Schema
 from .sig import DummySigContext, GpgSigContext
 from .manifest import Manifest
 from .user import User
-from .exc import WildlandError
 
 
 class ManifestLoader:
@@ -58,14 +57,27 @@ class ManifestLoader:
         self.sig.add_signer(user.pubkey)
         return user
 
-    def find_user(self, name) -> User:
+    def find_user(self, name) -> Optional[User]:
         '''
         CLI helper: find (and load) user by name.
         '''
+
         path = self.find_manifest(name, 'user')
+        if not path:
+            return None
         return self.load_user(path)
 
-    def find_manifest(self, name, manifest_type=None) -> Path:
+    def find_default_user(self) -> Optional[User]:
+        '''
+        Find and load the default configured user (if any).
+        '''
+
+        name = self.config.get('default_user')
+        if not name:
+            return None
+        return self.find_user(name)
+
+    def find_manifest(self, name, manifest_type=None) -> Optional[Path]:
         '''
         CLI helper: find manifest by name.
         '''
@@ -83,7 +95,7 @@ class ManifestLoader:
         if os.path.exists(name):
             return Path(name)
 
-        raise WildlandError(f'File not found: {name}')
+        return None
 
     @classmethod
     def validate_manifest(cls, manifest, manifest_type=None):
@@ -195,6 +207,15 @@ class Config:
         if dummy:
             self.override_fields['dummy'] = True
 
+    def update_and_save(self, **kwargs):
+        '''
+        Set new values and save to a file.
+        '''
+
+        self.file_fields.update(kwargs)
+        with open(self.path, 'w') as f:
+            yaml.dump(self.file_fields, f)
+
     @classmethod
     def load(cls, base_dir=None):
         '''
@@ -233,4 +254,5 @@ class Config:
             'mount_dir': home_dir / 'wildland',
             'dummy': False,
             'gpg_home': None,
+            'default_user': None,
         }

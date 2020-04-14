@@ -3,8 +3,6 @@
 import tempfile
 import shutil
 from pathlib import Path
-from io import StringIO
-import sys
 
 import pytest
 
@@ -27,16 +25,7 @@ def cli(base_dir):
         cmdline = ['--dummy', '--base-dir', base_dir] + list(args)
         # Convert Path to str
         cmdline = [str(arg) for arg in cmdline]
-
-        out = StringIO()
-        stdout = sys.stdout
-        sys.stdout = out
-        try:
-            MainCommand().run(cmdline)
-        finally:
-            sys.stdout = stdout
-        # print(out.getvalue())
-        return out.getvalue()
+        MainCommand().run(cmdline)
 
     return cli
 
@@ -58,11 +47,19 @@ def test_user_create(cli, base_dir):
     assert "pubkey: '0xaaa'" in data
     assert "signer: '0xaaa'" in data
 
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+    assert "default_user: '0xaaa'" in config
 
-def test_user_list(cli, base_dir):
+
+
+def test_user_list(cli, base_dir, capsys):
     cli('user-create', '0xaaa', '--name', 'User1')
     cli('user-create', '0xbbb', '--name', 'User2')
-    out = cli('user-list')
+    capsys.readouterr()
+
+    cli('user-list')
+    out, _err = capsys.readouterr()
     assert out.splitlines() == [
         '0xaaa {}'.format(base_dir / 'users/User1.yaml'),
         '0xbbb {}'.format(base_dir / 'users/User2.yaml'),
@@ -100,6 +97,7 @@ def test_user_sign(cli, base_dir):
     cli('user-sign', '-i', tmp_file)
     cli('user-verify', tmp_file)
 
+
 def test_user_edit(cli, base_dir):
     cli('user-create', '0xaaa', '--name', 'User')
     editor = 'sed -i s,\'0xaaa\',"0xaaa",g'
@@ -108,14 +106,15 @@ def test_user_edit(cli, base_dir):
         data = f.read()
     assert '"0xaaa"' in data
 
-def test_user_editor_bad_fields(cli):
+
+def test_user_edit_bad_fields(cli):
     cli('user-create', '0xaaa', '--name', 'User')
     editor = 'sed -i s,pubkey,pk,g'
     with pytest.raises(WildlandError, match="'pubkey' is a required property"):
         cli('user-edit', 'User', '--editor', editor)
 
 
-def test_user_editor_failed(cli):
+def test_user_edit_editor_failed(cli):
     cli('user-create', '0xaaa', '--name', 'User')
     editor = 'false'
     with pytest.raises(WildlandError, match='Running editor failed'):

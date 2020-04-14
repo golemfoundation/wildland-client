@@ -4,7 +4,7 @@ Wildland command-line interface.
 
 import argparse
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 import os
 import tempfile
 import subprocess
@@ -14,6 +14,8 @@ from pathlib import Path
 from .manifest_loader import ManifestLoader
 from .manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .exc import WildlandError
+from .user import User
+
 
 class CliError(WildlandError):
     '''
@@ -44,6 +46,48 @@ class Command:
 
         raise NotImplementedError()
 
+    def read_manifest_file(self,
+                           loader: ManifestLoader,
+                           name: Optional[str],
+                           manifest_type: Optional[str]) \
+                           -> Tuple[bytes, Optional[Path]]:
+        '''
+        Read a manifest file specified by name. Recognize None as stdin.
+
+        Returns (data, file_path).
+        '''
+
+        if name is None:
+            return (sys.stdin.buffer.read(), None)
+
+        path = loader.find_manifest(name, manifest_type)
+        if not path:
+            if manifest_type:
+                raise CliError(
+                    f'{manifest_type.title()} manifest not found: {name}')
+            raise CliError(f'Manifest not found: {name}')
+        print(f'Loading: {path}')
+        with open(path, 'rb') as f:
+            return (f.read(), path)
+
+    def find_user(self, loader: ManifestLoader, name: Optional[str]) -> User:
+        '''
+        Find a user specified by name, using default if there is none.
+        '''
+
+        if name:
+            user = loader.find_user(name)
+            if not user:
+                raise CliError(f'User not found: {name}')
+            print(f'Using user: {user.pubkey}')
+            return user
+        user = loader.find_default_user()
+        if user is None:
+            raise CliError(
+                'Default user not set, you need to provide --user')
+        print(f'Using default user: {user.pubkey}')
+        return user
+
 
 class UserCreateCommand(Command):
     '''Create a new user'''
@@ -60,10 +104,14 @@ class UserCreateCommand(Command):
 
     def handle(self, loader, args):
         pubkey = loader.sig.find(args.key)
-        print('Using key: {}'.format(pubkey))
+        print(f'Using key: {pubkey}')
 
         path = loader.create_user(pubkey, args.name)
-        print('Created: {}'.format(path))
+        print(f'Created: {path}')
+
+        if loader.config.get('default_user') is None:
+            print(f'Using {pubkey} as default user')
+            loader.config.update_and_save(default_user=pubkey)
 
 
 class StorageCreateCommand(Command):
@@ -82,7 +130,7 @@ class StorageCreateCommand(Command):
             choices=self.supported_types,
             help='Storage type')
         parser.add_argument(
-            '--user', required=True,
+            '--user',
             help='User for signing')
         parser.add_argument(
             '--name',
@@ -98,8 +146,15 @@ class StorageCreateCommand(Command):
         else:
             assert False, args.type
 
-        user = loader.find_user(args.user)
-        print('Using user: {}'.format(user.pubkey))
+        if args.user:
+            user = loader.find_user(args.user)
+            print('Using user: {}'.format(user.pubkey))
+        else:
+            user = loader.find_default_user()
+            if user is None:
+                raise CliError(
+                    'Default user not set, you need to provide --user')
+            print('Using default user: {}'.format(user.pubkey))
 
         path = loader.create_storage(user.pubkey, args.type, fields, args.name)
         print('Created: {}'.format(path))
@@ -145,43 +200,31 @@ class SignCommand(Command):
             help='Modify the file in place')
 
     def handle(self, loader, args):
+        if args.in_place:
+            if not args.input_file:
+                raise CliError('Cannot -i without a file')
+            if args.output_file:
+                raise CliError('Cannot use both -i and -o')
+
         loader.load_users()
-        data = self.load(loader, args)
+        data, path = self.read_manifest_file(loader, args.input_file,
+                                             self.manifest_type)
+
         manifest = Manifest.from_unsigned_bytes(data)
         loader.validate_manifest(manifest, self.manifest_type)
         manifest.sign(loader.sig)
         signed_data = manifest.to_bytes()
-        self.save(args, signed_data)
-
-    def load(self, loader, args) -> bytes:
-        '''
-        Load from file or stdin.
-        '''
-        if args.input_file:
-            path = loader.find_manifest(args.input_file, self.manifest_type)
-            if args.in_place:
-                if args.output_file:
-                    raise CliError('Cannot use both -i and -o')
-                args.output_file = path
-            with open(path, 'rb') as f:
-                return f.read()
 
         if args.in_place:
-            if not args.input_file:
-                raise CliError('Cannot -i without a file')
-        return sys.stdin.buffer.read()
-
-    def save(self, args, data: bytes):
-        '''
-        Save to file or stdout.
-        '''
-
-        if args.output_file:
+            print(f'Saving: {path}')
+            with open(path, 'wb') as f:
+                f.write(signed_data)
+        elif args.output_file:
+            print(f'Saving: {args.output_file}')
             with open(args.output_file, 'wb') as f:
-                f.write(data)
-            print(f'Saved: {args.output_file}')
+                f.write(signed_data)
         else:
-            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.write(signed_data)
 
 
 class VerifyCommand(Command):
@@ -196,24 +239,14 @@ class VerifyCommand(Command):
 
     def handle(self, loader, args):
         loader.load_users()
-        data = self.load(loader, args)
+        data, _path = self.read_manifest_file(loader, args.input_file,
+                                              self.manifest_type)
         try:
             manifest = Manifest.from_bytes(data, loader.sig)
             loader.validate_manifest(manifest, self.manifest_type)
         except ManifestError as e:
             raise CliError(f'Error verifying manifest: {e}')
         print('Manifest is valid')
-
-    def load(self, loader, args) -> bytes:
-        '''
-        Load from file or stdin.
-        '''
-
-        if args.input_file:
-            path = loader.find_manifest(args.input_file, self.manifest_type)
-            with open(path, 'rb') as f:
-                return f.read()
-        return sys.stdin.buffer.read()
 
 
 class EditCommand(Command):
@@ -236,9 +269,8 @@ class EditCommand(Command):
             if args.editor is None:
                 raise CliError('No editor specified and EDITOR not set')
 
-        path = loader.find_manifest(args.input_file, self.manifest_type)
-        with open(path, 'rb') as f:
-            data = f.read()
+        data, path = self.read_manifest_file(loader, args.input_file,
+                                              self.manifest_type)
 
         if HEADER_SEPARATOR in data:
             _, data = split_header(data)
