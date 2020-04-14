@@ -39,6 +39,8 @@ def modify_file(path, pattern, replacement):
         f.write(data)
 
 
+## Users
+
 def test_user_create(cli, base_dir):
     cli('user-create', '0xaaa', '--name', 'User')
     with open(base_dir / 'users/User.yaml') as f:
@@ -50,7 +52,6 @@ def test_user_create(cli, base_dir):
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "default_user: '0xaaa'" in config
-
 
 
 def test_user_list(cli, base_dir, capsys):
@@ -119,3 +120,65 @@ def test_user_edit_editor_failed(cli):
     editor = 'false'
     with pytest.raises(WildlandError, match='Running editor failed'):
         cli('user-edit', 'User', '--editor', editor)
+
+
+## Storage
+
+def test_storage_create(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    with open(base_dir / 'storage/Storage.yaml') as f:
+        data = f.read()
+
+    assert "signer: '0xaaa'" in data
+    assert "path: PATH" in data
+
+
+def test_storage_list(cli, base_dir, capsys):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    capsys.readouterr()
+
+    cli('storage-list')
+    out, _err = capsys.readouterr()
+    assert out.splitlines() == [
+        str(base_dir / 'storage/Storage.yaml'),
+        '  type: local',
+        '  path: PATH',
+    ]
+
+
+## Container
+
+
+def test_container_create(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+    with open(base_dir / 'containers/Container.yaml') as f:
+        data = f.read()
+
+    assert "signer: '0xaaa'" in data
+    assert "- /PATH" in data
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert f"- {storage_path}" in data
+
+
+def test_container_list(cli, base_dir, capsys):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+    capsys.readouterr()
+
+    cli('container-list')
+    out, _err = capsys.readouterr()
+    assert out.splitlines() == [
+        str(base_dir / 'containers/Container.yaml'),
+        '  path: /PATH',
+    ]
