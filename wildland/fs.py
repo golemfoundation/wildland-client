@@ -55,6 +55,12 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.install_debug_handler()
         self.loader: ManifestLoader = None
 
+        # Run FUSE in single-threaded mode.
+        # (TODO: verify what is needed for multi-threaded, what guarantees FUSE
+        # gives us, etc.)
+        # (TODO: make code coverage work in multi-threaded mode)
+        self.multithreaded = False
+
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
         for name in fuse.Fuse._attrs:
