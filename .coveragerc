@@ -1,0 +1,3 @@
+[run]
+# Store coverage data outside of project tree (mounted as read-only)
+data_file = /tmp/.coverage.wildland

@@ -18,9 +18,14 @@ pytest:
   services:
     - docker:dind
   script:
+    - mkdir --mode=0777 htmlcov
     - cd docker
     - docker-compose build
-    - docker-compose run wildland-fuse ./test.sh -v
+    - docker-compose run wildland-fuse ./test.sh -v --cov=wildland --cov-report term --cov-report html
+  artifacts:
+    paths:
+      - htmlcov/
+  coverage: '/TOTAL.*\s(\d+)%/'
 
 pages-test:
   stage: docs
@@ -37,6 +42,8 @@ pages-test:
 
 pages:
   stage: docs
+  dependencies:
+    - pytest
   only:
     - master
   image: docker/compose:latest
@@ -48,6 +55,7 @@ pages:
     - docker-compose build
     - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W
     - cp -r ../Documentation/_build/html ../public
+    - cp -r ../htmlcov ../public/coverage
   artifacts:
     paths:
       - public/

@@ -12,6 +12,7 @@ RUN apt-get install -y \
       python3-pytest \
       python3-gnupg \
       python3-sphinx \
+      python3-pytest-cov \
       pylint3 \
       strace \
       sudo \

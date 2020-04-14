@@ -15,4 +15,5 @@ services:
       - ..:/wildland-fuse:ro
       - ../example/storage:/wildland-fuse/example/storage:rw
       - ../Documentation/_build:/wildland-fuse/Documentation/_build:rw
+      - ../htmlcov:/wildland-fuse/htmlcov:rw
     privileged: true
