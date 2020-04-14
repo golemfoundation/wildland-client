@@ -30,7 +30,7 @@ class SchemaError(WildlandError):
         for error in self.errors:
             prefix = ''
             if error.absolute_path:
-                prefix = '.'.join(error.absolute_path) + ': '
+                prefix = '.'.join(map(str, error.absolute_path)) + ': '
             messages.append('{}{}'.format(prefix, error.message))
         return '\n'.join(messages)
 

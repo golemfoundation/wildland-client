@@ -4,13 +4,14 @@ Manifest handling according to user configuration.
 
 from pathlib import Path
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 import yaml
 
-from .schema import Schema
+from .schema import Schema, SchemaError
 from .sig import DummySigContext, GpgSigContext
 from .manifest import Manifest
 from .user import User
+from .manifest import ManifestError
 
 
 class ManifestLoader:
@@ -25,6 +26,7 @@ class ManifestLoader:
 
         self.user_dir = Path(self.config.get('user_dir'))
         self.storage_dir = Path(self.config.get('storage_dir'))
+        self.container_dir = Path(self.config.get('container_dir'))
 
         if self.config.get('dummy'):
             self.sig = DummySigContext()
@@ -83,12 +85,7 @@ class ManifestLoader:
         '''
 
         if not name.endswith('.yaml') and manifest_type is not None:
-            if manifest_type == 'user':
-                path = self.user_dir / f'{name}.yaml'
-            elif manifest_type == 'storage':
-                path = self.storage_dir / f'{name}.yaml'
-            else:
-                assert False, manifest_type
+            path = self.manifest_dir(manifest_type) / f'{name}.yaml'
             if os.path.exists(path):
                 return path
 
@@ -96,6 +93,43 @@ class ManifestLoader:
             return Path(name)
 
         return None
+
+    def manifest_dir(self, manifest_type) -> Path:
+        '''
+        Return default path for a given manifest type.
+        '''
+
+        if manifest_type == 'user':
+            return self.user_dir
+        if manifest_type == 'storage':
+            return self.storage_dir
+        if manifest_type == 'container':
+            return self.container_dir
+        assert False, manifest_type
+        return None
+
+    def load_manifests(self, manifest_type) -> List[Tuple[Path, Manifest]]:
+        '''
+        Load all manifests for a given type. Returns list of tuples
+        (path, manifest).
+        '''
+
+        path = self.manifest_dir(manifest_type)
+        if not os.path.exists(path):
+            return []
+        manifests = []
+        for file_name in sorted(os.listdir(path)):
+            if file_name.endswith('.yaml'):
+                manifest_path = path / file_name
+                manifest = Manifest.from_file(manifest_path, self.sig)
+                try:
+                    self.validate_manifest(manifest, manifest_type)
+                except SchemaError as e:
+                    raise ManifestError(
+                        f'Error validating {manifest_path}: {e}')
+                manifests.append((manifest_path, manifest))
+
+        return manifests
 
     @classmethod
     def validate_manifest(cls, manifest, manifest_type=None):
@@ -109,6 +143,8 @@ class ManifestLoader:
             manifest.apply_schema(Schema('storage'))
             manifest.apply_schema(Schema('storage-{}'.format(
                 manifest._fields['type'])))
+        elif manifest_type == 'container':
+            manifest.apply_schema(Schema('container'))
         else:
             assert False, manifest_type
 
@@ -134,7 +170,7 @@ class ManifestLoader:
             f.write(manifest_data)
         return path
 
-    def create_storage(self, pubkey, storage_type, fields, name=None) -> Path:
+    def create_storage(self, pubkey, storage_type, fields, name) -> Path:
         '''
         Create a new storage.
         '''
@@ -150,6 +186,26 @@ class ManifestLoader:
         if not os.path.exists(self.storage_dir):
             os.makedirs(self.storage_dir)
         path = self.storage_dir / f'{name}.yaml'
+        with open(path, 'wb') as f:
+            f.write(manifest_data)
+        return path
+
+    def create_container(self, pubkey, paths, storages, name) -> Path:
+        '''
+        Create a new container.
+        '''
+        manifest = Manifest.from_fields({
+            'signer': pubkey,
+            'paths': paths,
+            'backends': {'storage': storages},
+        })
+        schema = Schema('container')
+        manifest.apply_schema(schema)
+        manifest.sign(self.sig)
+        manifest_data = manifest.to_bytes()
+        if not os.path.exists(self.container_dir):
+            os.makedirs(self.container_dir)
+        path = self.container_dir / f'{name}.yaml'
         with open(path, 'wb') as f:
             f.write(manifest_data)
         return path
@@ -253,6 +309,7 @@ class Config:
         return {
             'user_dir': base_dir / 'users',
             'storage_dir': base_dir / 'storage',
+            'container_dir': base_dir / 'containers',
             'mount_dir': home_dir / 'wildland',
             'dummy': False,
             'gpg_home': None,

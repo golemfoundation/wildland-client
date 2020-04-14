@@ -99,8 +99,6 @@ class Command:
 class UserCreateCommand(Command):
     '''Create a new user'''
 
-    cmd = 'user-create'
-
     def add_arguments(self, parser):
         parser.add_argument(
             'key',
@@ -124,8 +122,6 @@ class UserCreateCommand(Command):
 class StorageCreateCommand(Command):
     '''Create a new storage'''
 
-    cmd = 'storage-create'
-
     supported_types = [
         'local'
     ]
@@ -140,7 +136,7 @@ class StorageCreateCommand(Command):
             '--user',
             help='User for signing')
         parser.add_argument(
-            '--name',
+            '--name', required=True,
             help='Name for file')
 
         parser.add_argument(
@@ -153,15 +149,7 @@ class StorageCreateCommand(Command):
         else:
             assert False, args.type
 
-        if args.user:
-            user = loader.find_user(args.user)
-            print('Using user: {}'.format(user.pubkey))
-        else:
-            user = loader.find_default_user()
-            if user is None:
-                raise CliError(
-                    'Default user not set, you need to provide --user')
-            print('Using default user: {}'.format(user.pubkey))
+        user = self.find_user(loader, args.user)
 
         path = loader.create_storage(user.pubkey, args.type, fields, args.name)
         print('Created: {}'.format(path))
@@ -179,15 +167,69 @@ class StorageCreateCommand(Command):
         return fields
 
 
+class ContainerCreateCommand(Command):
+    '''Create a new container'''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--user',
+            help='User for signing')
+        parser.add_argument(
+            '--name', required=True,
+            help='Name for file')
+        parser.add_argument(
+            '--path', nargs='+', required=True,
+            help='Mount path (can be repeated)')
+        parser.add_argument(
+            '--storage', nargs='+', required=True,
+            help='Storage to use (can be repeated)')
+
+
+    def handle(self, loader, args):
+        user = self.find_user(loader, args.user)
+        storages = []
+        for storage_name in args.storage:
+            storage_path = loader.find_manifest(storage_name, 'storage')
+            if not storage_path:
+                raise CliError(f'Storage manifest not found: {storage_name}')
+            print(f'Using storage: {storage_path}')
+            storages.append(str(storage_path))
+        path = loader.create_container(user.pubkey, args.path, storages,
+                                       args.name)
+        print(f'Created: {path}')
+
+
 class UserListCommand(Command):
     '''List users'''
-
-    cmd = 'user-list'
 
     def handle(self, loader, args):
         loader.load_users()
         for user in loader.users:
             print('{} {}'.format(user.pubkey, user.manifest_path))
+
+
+class StorageListCommand(Command):
+    '''List storages'''
+
+    def handle(self, loader, args):
+        loader.load_users()
+        for path, manifest in loader.load_manifests('storage'):
+            print(path)
+            storage_type = manifest.fields['type']
+            print(f'  type:', storage_type)
+            if storage_type == 'local':
+                print(f'  path:', manifest.fields['path'])
+
+
+class ContainerListCommand(Command):
+    '''List containers'''
+
+    def handle(self, loader, args):
+        loader.load_users()
+        for path, manifest in loader.load_manifests('container'):
+            print(path)
+            for container_path in manifest.fields['paths']:
+                print(f'  path:', container_path)
 
 
 class SignCommand(Command):
@@ -301,7 +343,7 @@ class EditCommand(Command):
                 raise CliError('No editor specified and EDITOR not set')
 
         data, path = self.read_manifest_file(loader, args.input_file,
-                                              self.manifest_type)
+                                             self.manifest_type)
 
         if HEADER_SEPARATOR in data:
             _, data = split_header(data)
@@ -379,9 +421,16 @@ class MainCommand:
         EditCommand('user-edit', 'user'),
 
         StorageCreateCommand('storage-create'),
+        StorageListCommand('storage-list'),
         SignCommand('storage-sign', 'storage'),
         VerifyCommand('storage-verify', 'storage'),
         EditCommand('storage-edit', 'storage'),
+
+        ContainerCreateCommand('container-create'),
+        ContainerListCommand('container-list'),
+        SignCommand('container-sign', 'container'),
+        VerifyCommand('container-verify', 'container'),
+        EditCommand('container-edit', 'container'),
 
         SignCommand('sign'),
         VerifyCommand('verify'),
