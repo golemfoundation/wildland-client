@@ -176,9 +176,11 @@ class Config:
     default_base_dir = '.wildland'
 
     def __init__(self,
+                 base_dir,
                  path: Path,
                  default_fields: Dict[str, Any],
                  file_fields: Dict[str, Any]):
+        self.base_dir = base_dir
         self.path = path
         self.default_fields = default_fields
         self.file_fields = file_fields
@@ -240,7 +242,7 @@ class Config:
                 file_fields = yaml.safe_load(f)
         else:
             file_fields = {}
-        return cls(path, default_fields, file_fields)
+        return cls(base_dir, path, default_fields, file_fields)
 
     @classmethod
     def get_default_fields(cls, home_dir, base_dir) -> dict:

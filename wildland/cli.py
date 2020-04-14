@@ -17,6 +17,10 @@ from .exc import WildlandError
 from .user import User
 
 
+PROJECT_PATH = Path(__file__).resolve().parents[1]
+FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
+
+
 class CliError(WildlandError):
     '''
     User error during CLI command execution
@@ -330,6 +334,38 @@ class EditCommand(Command):
         print(f'Saved: {path}')
 
 
+class MountCommand(Command):
+    '''Mount the Wildland filesystem'''
+
+    def handle(self, loader, args):
+        mount_dir = loader.config.get('mount_dir')
+        if not os.path.exists(mount_dir):
+            print(f'Creating: {mount_dir}')
+            os.makedirs(mount_dir)
+        print(f'Mounting: {mount_dir}')
+
+        options = ['base_dir=' + str(loader.config.base_dir)]
+        if loader.config.get('dummy'):
+            options.append('dummy_sig')
+        cmd = [str(FUSE_ENTRY_POINT), str(mount_dir), '-o', ','.join(options)]
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            raise CliError(f'Failed to mount: {e}')
+
+
+class UnmountCommand(Command):
+    '''Unmount the Wildland filesystem'''
+
+    def handle(self, loader, args):
+        mount_dir = loader.config.get('mount_dir')
+        cmd = ['umount', str(mount_dir)]
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            raise CliError(f'Failed to unmount: {e}')
+
+
 class MainCommand:
     '''
     Main Wildland CLI command that defers to sub-commands.
@@ -350,6 +386,9 @@ class MainCommand:
         SignCommand('sign'),
         VerifyCommand('verify'),
         EditCommand('edit'),
+
+        MountCommand('mount'),
+        UnmountCommand('unmount'),
     ]
 
     def __init__(self):
