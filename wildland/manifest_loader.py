@@ -160,12 +160,23 @@ class ManifestLoader:
             'pubkey': pubkey,
         })
         manifest.sign(self.sig)
-        manifest_data = manifest.to_bytes()
         if name is None:
             name = pubkey
-        if not os.path.exists(self.user_dir):
-            os.makedirs(self.user_dir)
-        path = self.user_dir / f'{name}.yaml'
+
+        return self.save_manifest(manifest, name, 'user')
+
+    def save_manifest(self, manifest, name, manifest_type):
+        '''
+        Save a manifest to a default path.
+        '''
+
+        manifest_data = manifest.to_bytes()
+        manifest_dir = self.manifest_dir(manifest_type)
+        if not os.path.exists(manifest_dir):
+            os.makedirs(manifest_dir)
+        path = manifest_dir / f'{name}.yaml'
+        if os.path.exists(path):
+            raise ManifestError(f'File already exists: {path}')
         with open(path, 'wb') as f:
             f.write(manifest_data)
         return path
@@ -182,13 +193,7 @@ class ManifestLoader:
         schema = Schema(f'storage-{storage_type}')
         manifest.apply_schema(schema)
         manifest.sign(self.sig)
-        manifest_data = manifest.to_bytes()
-        if not os.path.exists(self.storage_dir):
-            os.makedirs(self.storage_dir)
-        path = self.storage_dir / f'{name}.yaml'
-        with open(path, 'wb') as f:
-            f.write(manifest_data)
-        return path
+        return self.save_manifest(manifest, name, 'storage')
 
     def create_container(self, pubkey, paths, storages, name) -> Path:
         '''
@@ -202,13 +207,7 @@ class ManifestLoader:
         schema = Schema('container')
         manifest.apply_schema(schema)
         manifest.sign(self.sig)
-        manifest_data = manifest.to_bytes()
-        if not os.path.exists(self.container_dir):
-            os.makedirs(self.container_dir)
-        path = self.container_dir / f'{name}.yaml'
-        with open(path, 'wb') as f:
-            f.write(manifest_data)
-        return path
+        return self.save_manifest(manifest, name, 'container')
 
     def parse_manifest(self, data: bytes,
                        schema: Optional[Schema] = None) -> Manifest:
