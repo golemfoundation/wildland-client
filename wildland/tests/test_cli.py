@@ -3,8 +3,8 @@
 import tempfile
 import shutil
 from pathlib import Path
-from io import StringIO
-import sys
+import os
+import yaml
 
 import pytest
 
@@ -15,8 +15,15 @@ from ..exc import WildlandError
 @pytest.fixture
 def base_dir():
     base_dir = tempfile.mkdtemp(prefix='wlcli.')
+    base_dir = Path(base_dir)
     try:
-        yield Path(base_dir)
+        os.mkdir(base_dir / 'mnt')
+        os.mkdir(base_dir / 'mnt/.control')
+        with open(base_dir / 'config.yaml', 'w') as f:
+            yaml.dump({
+                'mount_dir': str(base_dir / 'mnt')
+            }, f)
+        yield base_dir
     finally:
         shutil.rmtree(base_dir)
 
@@ -27,16 +34,7 @@ def cli(base_dir):
         cmdline = ['--dummy', '--base-dir', base_dir] + list(args)
         # Convert Path to str
         cmdline = [str(arg) for arg in cmdline]
-
-        out = StringIO()
-        stdout = sys.stdout
-        sys.stdout = out
-        try:
-            MainCommand().run(cmdline)
-        finally:
-            sys.stdout = stdout
-        # print(out.getvalue())
-        return out.getvalue()
+        MainCommand().run(cmdline)
 
     return cli
 
@@ -50,6 +48,8 @@ def modify_file(path, pattern, replacement):
         f.write(data)
 
 
+## Users
+
 def test_user_create(cli, base_dir):
     cli('user-create', '0xaaa', '--name', 'User')
     with open(base_dir / 'users/User.yaml') as f:
@@ -58,11 +58,18 @@ def test_user_create(cli, base_dir):
     assert "pubkey: '0xaaa'" in data
     assert "signer: '0xaaa'" in data
 
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+    assert "default_user: '0xaaa'" in config
 
-def test_user_list(cli, base_dir):
+
+def test_user_list(cli, base_dir, capsys):
     cli('user-create', '0xaaa', '--name', 'User1')
     cli('user-create', '0xbbb', '--name', 'User2')
-    out = cli('user-list')
+    capsys.readouterr()
+
+    cli('user-list')
+    out, _err = capsys.readouterr()
     assert out.splitlines() == [
         '0xaaa {}'.format(base_dir / 'users/User1.yaml'),
         '0xbbb {}'.format(base_dir / 'users/User2.yaml'),
@@ -100,6 +107,7 @@ def test_user_sign(cli, base_dir):
     cli('user-sign', '-i', tmp_file)
     cli('user-verify', tmp_file)
 
+
 def test_user_edit(cli, base_dir):
     cli('user-create', '0xaaa', '--name', 'User')
     editor = 'sed -i s,\'0xaaa\',"0xaaa",g'
@@ -108,15 +116,126 @@ def test_user_edit(cli, base_dir):
         data = f.read()
     assert '"0xaaa"' in data
 
-def test_user_editor_bad_fields(cli):
+
+def test_user_edit_bad_fields(cli):
     cli('user-create', '0xaaa', '--name', 'User')
     editor = 'sed -i s,pubkey,pk,g'
     with pytest.raises(WildlandError, match="'pubkey' is a required property"):
         cli('user-edit', 'User', '--editor', editor)
 
 
-def test_user_editor_failed(cli):
+def test_user_edit_editor_failed(cli):
     cli('user-create', '0xaaa', '--name', 'User')
     editor = 'false'
     with pytest.raises(WildlandError, match='Running editor failed'):
         cli('user-edit', 'User', '--editor', editor)
+
+
+## Storage
+
+def test_storage_create(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    with open(base_dir / 'storage/Storage.yaml') as f:
+        data = f.read()
+
+    assert "signer: '0xaaa'" in data
+    assert "path: PATH" in data
+
+
+def test_storage_list(cli, base_dir, capsys):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    capsys.readouterr()
+
+    cli('storage-list')
+    out, _err = capsys.readouterr()
+    assert out.splitlines() == [
+        str(base_dir / 'storage/Storage.yaml'),
+        '  type: local',
+        '  path: PATH',
+    ]
+
+
+## Container
+
+
+def test_container_create(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+    with open(base_dir / 'containers/Container.yaml') as f:
+        data = f.read()
+
+    assert "signer: '0xaaa'" in data
+    assert "- /PATH" in data
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert f"- {storage_path}" in data
+
+
+def test_container_list(cli, base_dir, capsys):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+    capsys.readouterr()
+
+    cli('container-list')
+    out, _err = capsys.readouterr()
+    assert out.splitlines() == [
+        str(base_dir / 'containers/Container.yaml'),
+        '  path: /PATH',
+    ]
+
+
+def test_container_mount(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+
+    cli('container-mount', 'Container')
+
+    # The command should write container manifest to .control/mount.
+    with open(base_dir / 'mnt/.control/mount') as f:
+        data = f.read()
+    assert "signer: '0xaaa'" in data
+    assert "- /PATH" in data
+
+
+def test_container_unmount(cli, base_dir):
+    cli('user-create', '0xaaa', '--name', 'User')
+    cli('storage-create', '--type', 'local', '--path', 'PATH',
+        '--name', 'Storage')
+    cli('container-create', '--path', '/PATH', '--storage', 'Storage',
+        '--name', 'Container')
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        f.write('''\
+/PATH 101
+/PATH2 102
+''')
+    cli('container-unmount', 'Container')
+
+    with open(base_dir / 'mnt/.control/cmd') as f:
+        data = f.read()
+    assert data == 'unmount 101'
+
+def test_container_unmount_by_path(cli, base_dir):
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        f.write('''\
+/PATH 101
+/PATH2 102
+''')
+    cli('container-unmount', '--path', '/PATH2')
+
+    with open(base_dir / 'mnt/.control/cmd') as f:
+        data = f.read()
+    assert data == 'unmount 102'
