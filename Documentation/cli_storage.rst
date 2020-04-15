@@ -2,21 +2,21 @@ Storage commands
 ================
 
 
-``wl storage-create``
+``wl storage create``
 ---------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: storage-create
+   :path: storage create
 
 
-``wl storage-list``
+``wl storage list``
 -------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: storage-list
+   :path: storage list

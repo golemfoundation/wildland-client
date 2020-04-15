@@ -31,9 +31,6 @@ class CliError(WildlandError):
 class Command:
     '''Base command'''
 
-    def __init__(self, cmd):
-        self.cmd = cmd
-
     @property
     def description(self):
         '''
@@ -287,12 +284,11 @@ class SignCommand(Command):
     Sign a manifest. The input file can be a manifest with or without header.
     The existing header will be ignored.
 
-    If invoked with manifest type (``user-sign``, etc.), the will also validate
+    If invoked with manifest type (``user sign``, etc.), the will also validate
     the manifest against schema.
     '''
 
-    def __init__(self, cmd, manifest_type=None):
-        super().__init__(cmd)
+    def __init__(self, manifest_type=None):
         self.manifest_type = manifest_type
 
     def add_arguments(self, parser):
@@ -338,12 +334,11 @@ class VerifyCommand(Command):
     '''
     Verify a manifest signature.
 
-    If invoked with manifests type (``user-verify etc.``), the command will
+    If invoked with manifests type (``user verify``, etc.), the command will
     also validate the manifest against schema.
     '''
 
-    def __init__(self, cmd, manifest_type=None):
-        super().__init__(cmd)
+    def __init__(self, manifest_type=None):
         self.manifest_type = manifest_type
 
     def add_arguments(self, parser):
@@ -368,12 +363,11 @@ class EditCommand(Command):
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
 
-    If invoked with manifests type (``user-edit etc.``), the command will
+    If invoked with manifests type (``user edit``, etc.), the command will
     also validate the manifest against schema.
     '''
 
-    def __init__(self, cmd, manifest_type=None):
-        super().__init__(cmd)
+    def __init__(self, manifest_type=None):
         self.manifest_type = manifest_type
 
     def add_arguments(self, parser):
@@ -636,44 +630,67 @@ class MainCommand:
     '''
 
     commands = [
-        UserCreateCommand('user-create'),
-        UserListCommand('user-list'),
-        SignCommand('user-sign', 'user'),
-        VerifyCommand('user-verify', 'user'),
-        EditCommand('user-edit', 'user'),
+        ('user', 'User management', [
+            ('create', 'Create user', UserCreateCommand()),
+            ('list', 'List users', UserListCommand()),
+            ('sign', 'Sign user', SignCommand('user')),
+            ('verify', 'Verify user', VerifyCommand('user')),
+            ('edit', 'Edit user', EditCommand('user')),
+        ]),
 
-        StorageCreateCommand('storage-create'),
-        StorageListCommand('storage-list'),
-        SignCommand('storage-sign', 'storage'),
-        VerifyCommand('storage-verify', 'storage'),
-        EditCommand('storage-edit', 'storage'),
+        ('storage', 'Storage management', [
+            ('create', 'Create stroage', StorageCreateCommand()),
+            ('list', 'List storages', StorageListCommand()),
+            ('sign', 'Sign storage', SignCommand('storage')),
+            ('verify', 'Verify storage', VerifyCommand('storage')),
+            ('edit', 'Edit storage', EditCommand('storage')),
+        ]),
 
-        ContainerCreateCommand('container-create'),
-        ContainerListCommand('container-list'),
-        SignCommand('container-sign', 'container'),
-        VerifyCommand('container-verify', 'container'),
-        EditCommand('container-edit', 'container'),
-        ContainerMountCommand('container-mount'),
-        ContainerUnmountCommand('container-unmount'),
+        ('container', 'Container management', [
+            ('create', 'Create container', ContainerCreateCommand()),
+            ('list', 'List containers', ContainerListCommand()),
+            ('sign', 'Sign container', SignCommand('container')),
+            ('verify', 'Verify container', VerifyCommand('container')),
+            ('edit', 'Edit container', EditCommand('container')),
+            ('mount', 'Mount container', ContainerMountCommand()),
+            ('unmount', 'Unmount container', ContainerUnmountCommand()),
+        ]),
 
-        SignCommand('sign'),
-        VerifyCommand('verify'),
-        EditCommand('edit'),
+        ('sign', 'Sign manifest', SignCommand()),
+        ('verify', 'Verify manifest', VerifyCommand()),
+        ('edit', 'Edit manifest', EditCommand()),
 
-        MountCommand('mount'),
-        UnmountCommand('unmount'),
+        ('mount', 'Mount Wildland filesystem', MountCommand()),
+        ('unmount', 'Unmount Wildland filesystem', UnmountCommand()),
     ]
 
     def __init__(self):
         self.parser = argparse.ArgumentParser()
+        self.parser.set_defaults(parser=self.parser, command=None)
+
         self.add_arguments(self.parser)
-        subparsers = self.parser.add_subparsers(dest='cmd')
-        for command in self.commands:
-            command_parser = subparsers.add_parser(
-                command.cmd,
-                description=command.description,
-            )
-            command.add_arguments(command_parser)
+        self.add_commands(self.parser, self.commands)
+
+    def add_commands(self, parser, commands):
+        '''
+        Construct a subcommand tree.
+        '''
+
+        subparsers = parser.add_subparsers()
+        for name, short, item in commands:
+            if isinstance(item, list):
+                subparser = subparsers.add_parser(name, help=short)
+                subparser.set_defaults(parser=subparser, command=None)
+                self.add_commands(subparser, item)
+            else:
+                command_parser = subparsers.add_parser(
+                    name,
+                    help=short,
+                    description=item.description,
+                )
+                command_parser.set_defaults(parser=command_parser,
+                                            command=item)
+                item.add_arguments(command_parser)
 
     def add_arguments(self, parser):
         '''
@@ -692,15 +709,13 @@ class MainCommand:
         Entry point.
         '''
         args = self.parser.parse_args(cmdline)
-
-        loader = ManifestLoader(
-            dummy=args.dummy, base_dir=args.base_dir)
-
-        for command in self.commands:
-            if args.cmd == command.cmd:
-                command.handle(loader, args)
-                return
-        self.parser.print_help()
+        if args.command:
+            loader = ManifestLoader(
+                dummy=args.dummy, base_dir=args.base_dir)
+            args.command.handle(loader, args)
+        else:
+            parser = args.parser
+            parser.print_help()
 
 
 def make_parser():

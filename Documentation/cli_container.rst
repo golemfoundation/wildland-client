@@ -2,41 +2,41 @@ Container commands
 ==================
 
 
-``wl container-create``
+``wl container create``
 -----------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: container-create
+   :path: container create
 
 
-``wl container-list``
+``wl container list``
 ---------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: container-list
+   :path: container list
 
 
-``wl container-mount``
+``wl container mount``
 ----------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: container-mount
+   :path: container mount
 
 
-``wl container-unmount``
+``wl container unmount``
 ------------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: container-unmount
+   :path: container unmount

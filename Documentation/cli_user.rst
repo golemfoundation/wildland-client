@@ -1,21 +1,21 @@
 User commands
 =============
 
-``wl user-create``
+``wl user create``
 ------------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: user-create
+   :path: user create
 
 
-``wl user-list``
+``wl user list``
 ----------------
 
 .. argparse::
    :module: wildland.cli
    :func: make_parser
    :prog: wl
-   :path: user-list
+   :path: user list
