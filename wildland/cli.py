@@ -163,7 +163,8 @@ class StorageCreateCommand(Command):
     '''
 
     supported_types = [
-        'local'
+        'local',
+        's3',
     ]
 
     def add_arguments(self, parser):
@@ -189,10 +190,15 @@ class StorageCreateCommand(Command):
         parser.add_argument(
             '--path',
             help='Path (for local storage)')
+        parser.add_argument(
+            '--bucket',
+            help='S3 bucket name')
 
     def handle(self, loader, args):
         if args.type == 'local':
             fields = self.get_fields(args, 'path')
+        elif args.type == 's3':
+            fields = self.get_fields(args, 'bucket')
         else:
             assert False, args.type
 

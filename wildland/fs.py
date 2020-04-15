@@ -98,8 +98,12 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         Initialize user repository and signature context.
         '''
 
-        self.loader = ManifestLoader(dummy=args.dummy_sig,
-                                     base_dir=args.base_dir)
+        self.loader = ManifestLoader(
+            base_dir=args.base_dir,
+            dummy=args.dummy_sig,
+            uid=self.uid,
+            gid=self.gid,
+        )
         logging.info('loading users from %s', self.loader.user_dir)
         self.loader.load_users()
 

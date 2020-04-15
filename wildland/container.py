@@ -14,6 +14,7 @@ import urllib.request
 from .storage import AbstractStorage
 from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
+from .storage_s3 import S3Storage
 
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.loader import ManifestLoader
@@ -66,6 +67,7 @@ class Container:
     '''Wildland container'''
     STORAGE = {
         'local': LocalStorage,
+        's3': S3Storage,
     }
 
     SCHEMA = Schema('container')
@@ -125,7 +127,12 @@ class Container:
                     'Unrecognized container path for storage: {}, {}'.format(
                         storage_manifest.fields['container_path'], manifest.fields['paths']))
 
-            storage = storage_cls(manifest=storage_manifest, relative_to=dirpath)
+            uid = loader.config.get('uid')
+            gid = loader.config.get('gid')
+
+            storage = storage_cls(manifest=storage_manifest,
+                                  relative_to=dirpath,
+                                  uid=uid, gid=gid)
 
             return cls(manifest=manifest, storage=storage)
 

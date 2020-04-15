@@ -10,10 +10,11 @@ RUN apt-get install -y \
       python3-jsonschema \
       python3-yaml \
       python3-gnupg \
+      python3-boto3 \
       python3-pytest \
       python3-pytest-cov \
       python3-sphinx \
-      python3-sphinx-argparse \      
+      python3-sphinx-argparse \
       pylint3 \
       strace \
       sudo \
