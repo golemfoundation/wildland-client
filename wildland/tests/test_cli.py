@@ -110,7 +110,7 @@ def test_user_sign(cli, base_dir):
 
 def test_user_edit(cli, base_dir):
     cli('user', 'create', 'User', '0xaaa')
-    editor = 'sed -i s,\'0xaaa\',"0xaaa",g'
+    editor = r'sed -i s,\'0xaaa\',\"0xaaa\",g'
     cli('user', 'edit', 'User', '--editor', editor)
     with open(base_dir / 'users/User.yaml') as f:
         data = f.read()
