@@ -9,10 +9,11 @@ RUN apt-get install -y \
       python3-fuse \
       python3-jsonschema \
       python3-yaml \
-      python3-pytest \
       python3-gnupg \
-      python3-sphinx \
+      python3-pytest \
       python3-pytest-cov \
+      python3-sphinx \
+      python3-sphinx-argparse \      
       pylint3 \
       strace \
       sudo \

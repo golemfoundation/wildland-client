@@ -35,9 +35,9 @@ class Command:
         self.cmd = cmd
 
     @property
-    def help(self):
+    def description(self):
         '''
-        Help text for this command.
+        Description for this command. By default, taken from class docstring.
         '''
         return self.__class__.__doc__
 
@@ -132,7 +132,10 @@ class Command:
 
 
 class UserCreateCommand(Command):
-    '''Create a new user'''
+    '''
+    Create a new user manifest and save it. You need to have a GPG private key
+    in your keyring.
+    '''
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -155,7 +158,9 @@ class UserCreateCommand(Command):
 
 
 class StorageCreateCommand(Command):
-    '''Create a new storage'''
+    '''
+    Create a new storage manifest.
+    '''
 
     supported_types = [
         'local'
@@ -204,7 +209,9 @@ class StorageCreateCommand(Command):
 
 
 class ContainerCreateCommand(Command):
-    '''Create a new container'''
+    '''
+    Create a new container manifest.
+    '''
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -237,7 +244,9 @@ class ContainerCreateCommand(Command):
 
 
 class UserListCommand(Command):
-    '''List users'''
+    '''
+    Display known users.
+    '''
 
     def handle(self, loader, args):
         loader.load_users()
@@ -246,7 +255,9 @@ class UserListCommand(Command):
 
 
 class StorageListCommand(Command):
-    '''List storages'''
+    '''
+    Display known storages.
+    '''
 
     def handle(self, loader, args):
         loader.load_users()
@@ -259,7 +270,9 @@ class StorageListCommand(Command):
 
 
 class ContainerListCommand(Command):
-    '''List containers'''
+    '''
+    Display known containers.
+    '''
 
     def handle(self, loader, args):
         loader.load_users()
@@ -270,17 +283,17 @@ class ContainerListCommand(Command):
 
 
 class SignCommand(Command):
-    '''Sign a manifest'''
+    '''
+    Sign a manifest. The input file can be a manifest with or without header.
+    The existing header will be ignored.
+
+    If invoked with manifest type (``user-sign``, etc.), the will also validate
+    the manifest against schema.
+    '''
 
     def __init__(self, cmd, manifest_type=None):
         super().__init__(cmd)
         self.manifest_type = manifest_type
-
-    @property
-    def help(self):
-        if self.manifest_type:
-            return f'Sign a {self.manifest_type} manifest'
-        return f'Sign a manifest'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -322,17 +335,16 @@ class SignCommand(Command):
 
 
 class VerifyCommand(Command):
-    '''Verify a manifest'''
+    '''
+    Verify a manifest signature.
+
+    If invoked with manifests type (``user-verify etc.``), the command will
+    also validate the manifest against schema.
+    '''
 
     def __init__(self, cmd, manifest_type=None):
         super().__init__(cmd)
         self.manifest_type = manifest_type
-
-    @property
-    def help(self):
-        if self.manifest_type:
-            return f'Verify a {self.manifest_type} manifest'
-        return f'Verify a manifest (signature only, no schema)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -352,17 +364,17 @@ class VerifyCommand(Command):
 
 
 class EditCommand(Command):
-    '''Edit and sign a manifest'''
+    '''
+    Edit and sign a manifest in a safe way. The command will launch an editor
+    and validate the edited file before signing and replacing it.
+
+    If invoked with manifests type (``user-edit etc.``), the command will
+    also validate the manifest against schema.
+    '''
 
     def __init__(self, cmd, manifest_type=None):
         super().__init__(cmd)
         self.manifest_type = manifest_type
-
-    @property
-    def help(self):
-        if self.manifest_type:
-            return f'Edit, validate and sign a {self.manifest_type} manifest'
-        return f'Edit and sign a manifest'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -371,7 +383,7 @@ class EditCommand(Command):
 
         parser.add_argument(
             '--editor', metavar='EDITOR',
-            help='Editor to use')
+            help='Editor to use, instead of $EDITOR')
 
     def handle(self, loader, args):
         if args.editor is None:
@@ -414,7 +426,11 @@ class EditCommand(Command):
 
 
 class MountCommand(Command):
-    '''Mount the Wildland filesystem'''
+    '''
+    Mount the Wildland filesystem. The default path is ``~/wildland/``, but
+    it can be customized in the configuration file
+    (``~/.widland/config.yaml``) as ``mount_dir``.
+    '''
 
     def handle(self, loader, args):
         mount_dir = loader.config.get('mount_dir')
@@ -434,7 +450,9 @@ class MountCommand(Command):
 
 
 class UnmountCommand(Command):
-    '''Unmount the Wildland filesystem'''
+    '''
+    Unmount the Wildland filesystem.
+    '''
 
     def handle(self, loader, args):
         mount_dir = loader.config.get('mount_dir')
@@ -446,12 +464,15 @@ class UnmountCommand(Command):
 
 
 class ContainerMountCommand(Command):
-    '''Mount a container'''
+    '''
+    Mount a container. The Wildland system has to be mounted first, see ``wl
+    mount``.
+    '''
 
     def add_arguments(self, parser):
         parser.add_argument(
             'container', metavar='CONTAINER',
-            help='File to edit')
+            help='Container name or path to manifest')
 
     def handle(self, loader, args):
         self.ensure_mounted(loader)
@@ -464,12 +485,15 @@ class ContainerMountCommand(Command):
 
 
 class ContainerUnmountCommand(Command):
-    '''Unmount a container'''
+    '''
+    Unmount a container. You can either specify the container manifest, or
+    identify the container by one of its path (using ``--path``).
+    '''
 
     def add_arguments(self, parser):
         parser.add_argument(
             'container', metavar='CONTAINER', nargs='?',
-            help='File to edit')
+            help='Container name or path to manifest')
         parser.add_argument(
             '--path', metavar='PATH',
             help='Mount path to search for')
@@ -572,8 +596,10 @@ class MainCommand:
         self.add_arguments(self.parser)
         subparsers = self.parser.add_subparsers(dest='cmd')
         for command in self.commands:
-            command_parser = subparsers.add_parser(command.cmd,
-                                                   help=command.help)
+            command_parser = subparsers.add_parser(
+                command.cmd,
+                description=command.description,
+            )
             command.add_arguments(command_parser)
 
     def add_arguments(self, parser):
@@ -605,6 +631,13 @@ class MainCommand:
                 command.handle(loader, args)
                 return
         self.parser.print_help()
+
+
+def make_parser():
+    '''
+    Entry point for Sphinx to parse the commands.
+    '''
+    return MainCommand().parser
 
 
 def main(cmdline=None):
