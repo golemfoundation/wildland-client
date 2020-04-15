@@ -673,9 +673,6 @@ class MainCommand:
         parser.add_argument(
             '--dummy', action='store_true',
             help='Use dummy signatures')
-        parser.add_argument(
-            '--gpg-home',
-            help='Use a different GPG home directory')
 
     def run(self, cmdline):
         '''
@@ -684,7 +681,7 @@ class MainCommand:
         args = self.parser.parse_args(cmdline)
 
         loader = ManifestLoader(
-            dummy=args.dummy, base_dir=args.base_dir, gpg_home=args.gpg_home)
+            dummy=args.dummy, base_dir=args.base_dir)
 
         for command in self.commands:
             if args.cmd == command.cmd:

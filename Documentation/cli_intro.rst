@@ -55,8 +55,6 @@ Global options
 --------------
 
 * ``--base-dir PATH``: base config directory (default is ~/.wildland)
-* ``--dummy``: use dummy signatures instead of GPG
-* ``--gpg-home PATH``: use different GPG home directory
 
 Configuration file
 ------------------

@@ -269,12 +269,10 @@ class Config:
             return self.file_fields[name]
         return self.default_fields[name]
 
-    def override(self, *, gpg_home=None, dummy=False):
+    def override(self, *, dummy=False):
         '''
         Override configuration based on command line arguments.
         '''
-        if gpg_home:
-            self.override_fields['gpg_home'] = gpg_home
         if dummy:
             self.override_fields['dummy'] = True
 
