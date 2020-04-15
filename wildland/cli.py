@@ -139,11 +139,11 @@ class UserCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            'name',
+            help='Name for the user')
+        parser.add_argument(
             'key',
             help='GPG key identifier')
-        parser.add_argument(
-            '--name',
-            help='Name for file')
 
     def handle(self, loader, args):
         pubkey = loader.sig.find(args.key)
@@ -168,6 +168,9 @@ class StorageCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            'name',
+            help='Name for the storage')
+        parser.add_argument(
             '--type',
             required=True,
             choices=self.supported_types,
@@ -175,9 +178,6 @@ class StorageCreateCommand(Command):
         parser.add_argument(
             '--user',
             help='User for signing')
-        parser.add_argument(
-            '--name', required=True,
-            help='Name for file')
 
         parser.add_argument(
             '--path',
@@ -215,11 +215,11 @@ class ContainerCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            'name',
+            help='Name for the container')
+        parser.add_argument(
             '--user',
             help='User for signing')
-        parser.add_argument(
-            '--name', required=True,
-            help='Name for file')
         parser.add_argument(
             '--path', nargs='+', required=True,
             help='Mount path (can be repeated)')

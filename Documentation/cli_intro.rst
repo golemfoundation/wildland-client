@@ -19,7 +19,7 @@ Generate a GPG key::
 
 Create a user::
 
-   $ ./wl user-create "Wildland Test" --name User
+   $ ./wl user-create User "Wildland Test"
    Using key: 0xfd56724c5a712815390bbda63dba761d9e757f15
    Created: /home/user/.wildland/users/User.yaml
    Using 0xfd56724c5a712815390bbda63dba761d9e757f15 as default user
@@ -31,11 +31,11 @@ List users::
 
 Create a storage and container manifests::
 
-   $ ./wl storage-create --name Storage1 --type local --path /tmp/storage
+   $ ./wl storage-create Storage1 --type local --path /tmp/storage
    Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
    Created: /home/user/.wildland/storage/Storage1.yaml
 
-   $ ./wl container-create --name Containter --storage Storage1 --path /C1
+   $ ./wl container-create Container --storage Storage1 --path /C1
    Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
    Using storage: /home/user/.wildland/storage/Storage1.yaml
    Created: /home/user/.wildland/containers/Containter.yaml
