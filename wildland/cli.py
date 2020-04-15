@@ -432,21 +432,80 @@ class MountCommand(Command):
     (``~/.widland/config.yaml``) as ``mount_dir``.
     '''
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--remount', '-r', action='store_true',
+            help='If mounted already, remount')
+
+        parser.add_argument(
+            '--debug', '-d', action='store_true',
+            help='Debug mode: run in foreground')
+
     def handle(self, loader, args):
         mount_dir = loader.config.get('mount_dir')
         if not os.path.exists(mount_dir):
             print(f'Creating: {mount_dir}')
             os.makedirs(mount_dir)
-        print(f'Mounting: {mount_dir}')
 
+        if os.path.isdir(mount_dir / '.control'):
+            if not args.remount:
+                raise CliError(f'Already mounted')
+            self.unmount(mount_dir)
+
+        cmd = [str(FUSE_ENTRY_POINT), str(mount_dir)]
         options = ['base_dir=' + str(loader.config.base_dir)]
         if loader.config.get('dummy'):
             options.append('dummy_sig')
-        cmd = [str(FUSE_ENTRY_POINT), str(mount_dir), '-o', ','.join(options)]
+        if args.debug:
+            options.append('log=-')
+            cmd += ['-d', '-f']
+
+        cmd += ['-o', ','.join(options)]
+
+        if args.debug:
+            self.run_debug(cmd, mount_dir)
+        else:
+            self.mount(cmd, mount_dir)
+
+    def run_debug(self, cmd, mount_dir):
+        '''
+        Run the FUSE driver in foreground, and cleanup on SIGINT.
+        '''
+
+        print(f'Mounting in foreground: {mount_dir}')
+        print('Press Ctrl-C to unmount')
+        # Start a new session in order to not propagate SIGINT.
+        p = subprocess.Popen(cmd, start_new_session=True)
+        try:
+            p.wait()
+        except KeyboardInterrupt:
+            self.unmount(mount_dir)
+            p.wait()
+
+        if p.returncode != 0:
+            raise CliError(f'FUSE driver exited with failure')
+
+    def mount(self, cmd, mount_dir):
+        '''
+        Mount the Wildland filesystem.
+        '''
+
+        print(f'Mounting: {mount_dir}')
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            raise CliError(f'Failed to mount: {e}')
+            raise CliError(f'Failed to unmount: {e}')
+
+    def unmount(self, mount_dir):
+        '''
+        Unmount the Wildland filesystem.
+        '''
+        print(f'Unmounting: {mount_dir}')
+        cmd = ['umount', str(mount_dir)]
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            raise CliError(f'Failed to unmount: {e}')
 
 
 class UnmountCommand(Command):
@@ -456,6 +515,7 @@ class UnmountCommand(Command):
 
     def handle(self, loader, args):
         mount_dir = loader.config.get('mount_dir')
+        print(f'Unmounting: {mount_dir}')
         cmd = ['umount', str(mount_dir)]
         try:
             subprocess.run(cmd, check=True)
