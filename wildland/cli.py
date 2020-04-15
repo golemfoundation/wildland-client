@@ -441,6 +441,10 @@ class MountCommand(Command):
             '--debug', '-d', action='store_true',
             help='Debug mode: run in foreground')
 
+        parser.add_argument(
+            '--container', '-c', metavar='CONTAINER', nargs='*',
+            help='Container to mount (can be repeated)')
+
     def handle(self, loader, args):
         mount_dir = loader.config.get('mount_dir')
         if not os.path.exists(mount_dir):
@@ -454,11 +458,20 @@ class MountCommand(Command):
 
         cmd = [str(FUSE_ENTRY_POINT), str(mount_dir)]
         options = ['base_dir=' + str(loader.config.base_dir)]
+
         if loader.config.get('dummy'):
             options.append('dummy_sig')
+
         if args.debug:
             options.append('log=-')
             cmd += ['-d', '-f']
+
+        if args.container:
+            for name in args.container:
+                path = loader.find_manifest(name, 'container')
+                if not path:
+                    raise CliError(f'Container not found: {name}')
+                options.append(f'manifest={path}')
 
         cmd += ['-o', ','.join(options)]
 
