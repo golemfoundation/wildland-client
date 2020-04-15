@@ -7,7 +7,7 @@ from ..manifest import Manifest, Header, ManifestError
 
 def make_header(gpg_sig, signer, test_data):
     signature = gpg_sig.sign(signer, test_data, passphrase='secret')
-    header = Header(signer, signature.strip())
+    header = Header(signature.strip())
     return header.to_bytes()
 
 

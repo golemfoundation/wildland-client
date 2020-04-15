@@ -84,7 +84,7 @@ def test_user_verify(cli):
 def test_user_verify_bad_sig(cli, base_dir):
     cli('user', 'create', 'User', '0xaaa')
     modify_file(base_dir / 'users/User.yaml', 'dummy.0xaaa', 'dummy.0xbbb')
-    with pytest.raises(WildlandError, match='Signature verification failed'):
+    with pytest.raises(WildlandError, match='Signer field mismatch'):
         cli('user', 'verify', 'User')
 
 

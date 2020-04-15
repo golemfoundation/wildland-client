@@ -43,10 +43,9 @@ class SigContext:
         '''
         raise NotImplementedError()
 
-    def verify(self, signer: str, signature: str, data: bytes,
-               self_signed=False):
+    def verify(self, signature: str, data: bytes, self_signed=False) -> str:
         '''
-        Verify signature for data.
+        Verify signature for data, returning the recognized signer.
         If self_signed, ignore that a signer is not recognized.
         '''
         raise NotImplementedError()
@@ -64,13 +63,13 @@ class DummySigContext(SigContext):
     def sign(self, signer: str, data: bytes) -> str:
         return f'dummy.{signer}'
 
-    def verify(self, signer: str, signature: str, data: bytes,
-               self_signed=False):
-        expected_signature = f'dummy.{signer}'
-        if signature != expected_signature:
+    def verify(self, signature: str, data: bytes, self_signed=False) -> str:
+        if not signature.startswith('dummy.'):
             raise SigError(
-                'Expected {!r}, got {!r}'.format(
-                    expected_signature, signature))
+                'Expected dummy.* signature, got {!r}'.format(
+                    signature))
+
+        return signature[len('dummy.'):]
 
 
 class GpgSigContext(SigContext):
@@ -123,11 +122,8 @@ class GpgSigContext(SigContext):
             raise Exception('gen_key failed')
         return self.convert_fingerprint(key.fingerprint)
 
-    def verify(self, signer: str, signature: str, data: bytes,
-               self_signed=False):
-        if not self_signed and signer not in self.signers:
-            raise SigError('Unknown signer: {!r}'.format(signer))
-
+    def verify(self, signature: str, data: bytes,
+               self_signed=False) -> str:
         # Create a file for detached signature, because gnupg needs to get it
         # from file. NamedTemporaryFile() creates the file as 0o600, so no need
         # to set umask.
@@ -144,9 +140,12 @@ class GpgSigContext(SigContext):
         if not verified.valid:
             raise SigError('Could not verify signature')
 
-        if self.convert_fingerprint(verified.fingerprint) != signer:
-            raise SigError('Wrong key for signature ({}, expected {})'.format(
-                           verified.fingerprint, signer))
+        signer = self.convert_fingerprint(verified.fingerprint)
+
+        if not self_signed and signer not in self.signers:
+            raise SigError('Unknown signer: {!r}'.format(signer))
+
+        return signer
 
     def sign(self, signer: str, data: bytes, passphrase: str = None) -> str:
         # pylint: disable=arguments-differ

@@ -18,21 +18,18 @@ def test_split_header():
 
 def test_parse_header():
     data = b'''\
-signer: "0x3333"
 signature: |
   line 1
   line 2
 '''
     header = Header.from_bytes(data)
-    assert header.signer == '0x3333'
     assert header.signature == 'line 1\nline 2'
 
 
 def test_header_to_bytes():
-    header = Header('0x3333', 'line 1\nline 2')
+    header = Header('line 1\nline 2')
     data = header.to_bytes()
     assert data == b'''\
-signer: "0x3333"
 signature: |
   line 1
   line 2'''

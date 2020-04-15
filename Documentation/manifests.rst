@@ -8,14 +8,13 @@ separator (``---``).
 Header
 ------
 
-A YAML manifests begins with a header that contains a ``signer`` field (public
-key fingerprint) and a matching signature.
+A YAML manifests begins with a header that contains a ``signature`` field. The
+signature is needs to match the ``signer`` field in the manifest body.
 
 Here is an example of a signed manifest:
 
 .. code-block:: yaml
 
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
    signature: |
      -----BEGIN PGP SIGNATURE-----
 
@@ -46,7 +45,7 @@ Here is an example of a signed manifest:
 
 Note that we recognize an **extremely limited YAML subset** in the header:
 
-* there have to be only ``signer`` and ``signature`` fields, in that order
+* there has to be only a ``signature`` field
 * fields have to be either double quoted (``"foo"``), with exact character
   subset to be determined, or
 * multi-line fields have to use a block format with ``|`` as in the example
@@ -61,10 +60,9 @@ verify a signature, a key with a given fingerprint has to be found in the GnuPG
 keyring. In addition, the signer is verified against a list of known users (see
 "User manifests").
 
-Note that the ``signer`` key is duplicated in header and body. This is in order
-to make manifest processing easy: on one hand, we need the signer before we
-have verified the body, but on the other, the body should be also useful as a
-standalone YAML document.
+Note that this means we parse the manifest body **before** we know that the
+signature matches. However, we already know that it is a correct signature by
+a user recognized by the system.
 
 Schema
 ------
@@ -96,7 +94,6 @@ Example:
 
 .. code-block:: yaml
 
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
    signature: ...
    ---
    pubkey: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
@@ -115,7 +112,6 @@ Example:
 
 .. code-block:: yaml
 
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
    signature: ...
    ---
    signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
@@ -150,7 +146,6 @@ Example:
 
 .. code-block:: yaml
 
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
    signature: ...
    ---
 
