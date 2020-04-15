@@ -122,7 +122,7 @@ def test_control_containers(env):
 
     with open(containers_dir / '0/manifest.yaml') as f:
         manifest_content = f.read()
-    assert 'signer: "0x3333"' in manifest_content
+    assert "signer: '0x3333'" in manifest_content
     assert '/container1' in manifest_content
 
 
@@ -132,7 +132,7 @@ def test_control_storage(env):
 
     with open(storage_dir / '0/manifest.yaml') as f:
         manifest_content = f.read()
-    assert 'signer: "0x3333"' in manifest_content
+    assert "signer: '0x3333'" in manifest_content
     assert '/storage1' in manifest_content
 
 

@@ -91,7 +91,7 @@ class Manifest:
 
         signer = self._fields['signer']
         signature = sig_context.sign(signer, self.original_data)
-        self.header = Header(signer, signature)
+        self.header = Header(signature)
 
     @classmethod
     def from_file(cls, path, sig_context: SigContext,
@@ -131,7 +131,7 @@ class Manifest:
         header = Header.from_bytes(header_data)
 
         try:
-            header.verify_rest(rest_data, sig_context, self_signed)
+            header_signer = header.verify_rest(rest_data, sig_context, self_signed)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e))
@@ -142,10 +142,10 @@ class Manifest:
         except ValueError as e:
             raise ManifestError('Manifest parse error: {}'.format(e))
 
-        if fields.get('signer') != header.signer:
+        if fields.get('signer') != header_signer:
             raise ManifestError(
                 'Signer field mismatch: header {!r}, manifest {!r}'.format(
-                    header.signer, fields.get('signer')))
+                    header_signer, fields.get('signer')))
 
         manifest = cls(header, fields, rest_data)
         if schema:
@@ -176,17 +176,17 @@ class Header:
     Manifest header (signer and signature).
     '''
 
-    def __init__(self, signer: str, signature: str):
-        self.signer = signer
+    def __init__(self, signature: str):
         self.signature = signature.rstrip('\n')
 
     def verify_rest(self, rest_data: bytes, sig_context: SigContext,
-                    self_signed):
+                    self_signed) -> str:
         '''
         Verify the signature against manifest content (without parsing it).
+        Return signer, if known.
         '''
 
-        sig_context.verify(self.signer, self.signature, rest_data, self_signed)
+        return sig_context.verify(self.signature, rest_data, self_signed)
 
     @classmethod
     def from_bytes(cls, data: bytes):
@@ -195,10 +195,9 @@ class Header:
         '''
 
         parser = HeaderParser(data)
-        signer = parser.expect_field('signer')
         signature = parser.expect_field('signature')
         parser.expect_eof()
-        return cls(signer, signature)
+        return cls(signature)
 
     def to_bytes(self):
         '''
@@ -206,7 +205,6 @@ class Header:
         '''
 
         lines = []
-        lines.append(f'signer: "{self.signer}"')
         lines.append(f'signature: |')
         for sig_line in self.signature.splitlines():
             lines.append('  ' + sig_line)
@@ -225,8 +223,7 @@ class Header:
             header = self.from_bytes(data)
         except ManifestError:
             raise Exception('Header serialization error')
-        if header.signer != self.signer or header.signature != self.signature:
-            print(header.signer, self.signer)
+        if header.signature != self.signature:
             print(repr(header.signature), repr(self.signature))
             raise Exception('Header serialization error')
 
