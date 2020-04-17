@@ -26,11 +26,17 @@ class S3File:
         self.uid = uid
         self.gid = gid
         self.buf = None
+        self.modified = False
 
     # pylint: disable=missing-docstring
 
+    def load(self):
+        if not self.buf:
+            self.buf = BytesIO()
+            self.obj.download_fileobj(self.buf)
+
     def release(self, _flags):
-        if self.buf:
+        if self.modified:
             self.buf.seek(0)
             logging.info('Uploading: %s', self.buf.getvalue())
             self.obj.upload_fileobj(self.buf)
@@ -40,20 +46,19 @@ class S3File:
         return s3_stat(self.obj, self.uid, self.gid)
 
     def read(self, length, offset):
-        if not self.buf:
-            self.buf = BytesIO()
-            self.obj.download_fileobj(self.buf)
+        self.load()
         self.buf.seek(offset)
         return self.buf.read(length)
 
     def write(self, buf, offset):
-        if not self.buf:
-            self.buf = BytesIO()
-            self.obj.download_fileobj(self.buf)
+        self.load()
+        self.modified = True
         self.buf.seek(offset)
         return self.buf.write(buf)
 
     def ftruncate(self, length):
+        self.load()
+        self.modified = True
         return self.buf.truncate(length)
 
 
