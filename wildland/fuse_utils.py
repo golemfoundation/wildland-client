@@ -13,6 +13,8 @@ import logging
 import os
 import sys
 
+logger = logging.getLogger('fuse')
+
 def debug_handler(func, bound=False):
     '''A decorator for wrapping FUSE API.
 
@@ -23,7 +25,7 @@ def debug_handler(func, bound=False):
         try:
             args_to_display = args if bound else args[1:]
 
-            logging.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
+            logger.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
                 (repr(i) for i in args_to_display),
                 (f'{k}={v!r}' for k, v in kwds.items()))))
 
@@ -35,13 +37,13 @@ def debug_handler(func, bound=False):
                     ret_repr = str(ret)
             else:
                 ret_repr = repr(ret)
-            logging.debug('%s → %s', func.__name__, ret_repr)
+            logger.debug('%s → %s', func.__name__, ret_repr)
             return ret
         except OSError as err:
-            logging.debug('%s !→ %s', func.__name__, err)
+            logger.debug('%s !→ %s', func.__name__, err)
             raise
         except Exception:
-            logging.exception('error while handling %s', func.__name__)
+            logger.exception('error while handling %s', func.__name__)
             raise
     return wrapper
 

@@ -506,8 +506,9 @@ class MountCommand(Command):
             help='If mounted already, remount')
 
         parser.add_argument(
-            '--debug', '-d', action='store_true',
-            help='Debug mode: run in foreground')
+            '--debug', '-d', action='count',
+            default=0,
+            help='Debug mode: run in foreground (repeat for more verbosity)')
 
         parser.add_argument(
             '--container', '-c', metavar='CONTAINER', nargs='*',
@@ -530,9 +531,11 @@ class MountCommand(Command):
         if loader.config.get('dummy'):
             options.append('dummy_sig')
 
-        if args.debug:
+        if args.debug > 0:
             options.append('log=-')
-            cmd += ['-d', '-f']
+            cmd.append('-f')
+            if args.debug > 1:
+                cmd.append('-d')
 
         if args.container:
             for name in args.container:
