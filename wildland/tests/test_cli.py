@@ -169,6 +169,7 @@ def test_container_create(cli, base_dir):
 
     assert "signer: '0xaaa'" in data
     assert "- /PATH" in data
+    assert "- /.uuid/" in data
     storage_path = base_dir / 'storage/Storage.yaml'
     assert f"- {storage_path}" in data
 
@@ -181,10 +182,9 @@ def test_container_list(cli, base_dir, capsys):
 
     cli('container', 'list')
     out, _err = capsys.readouterr()
-    assert out.splitlines() == [
-        str(base_dir / 'containers/Container.yaml'),
-        '  path: /PATH',
-    ]
+    out_lines = out.splitlines()
+    assert str(base_dir / 'containers/Container.yaml') in out_lines
+    assert '  path: /PATH' in out_lines
 
 
 def test_container_mount(cli, base_dir):

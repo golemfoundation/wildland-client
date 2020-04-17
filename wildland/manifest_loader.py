@@ -5,6 +5,8 @@ Manifest handling according to user configuration.
 from pathlib import Path
 import os
 from typing import Optional, Dict, Any, List, Tuple
+import uuid
+
 import yaml
 
 from .schema import Schema, SchemaError
@@ -209,10 +211,22 @@ class ManifestLoader:
         manifest.sign(self.sig)
         return self.save_manifest(manifest, name, 'storage')
 
-    def create_container(self, pubkey, paths, storages, name) -> Path:
+    def create_container(self,
+                         pubkey: str,
+                         paths: List[str],
+                         storages: List[str],
+                         name: str) -> Path:
         '''
         Create a new container.
+
+        If the list of paths doesn't contain UUID (/.uuid/...), the function
+        will add one at the beginning.
         '''
+
+        if not any(path.startswith('/.uuid/') for path in paths):
+            ident = str(uuid.uuid4())
+            paths = [f'/.uuid/{ident}'] + paths
+
         manifest = Manifest.from_fields({
             'signer': pubkey,
             'paths': paths,
