@@ -88,9 +88,6 @@ def s3_stat(obj_summary, uid, gid):
 class S3Storage(AbstractStorage, FileProxyMixin):
     '''
     Amazon S3 storage.
-
-    Currently expects the access keys to be configured globally:
-    install ``awscli``, and run ``aws configure``.
     '''
 
     SCHEMA = Schema('storage-s3')
@@ -102,7 +99,12 @@ class S3Storage(AbstractStorage, FileProxyMixin):
         self.uid = uid
         self.gid = gid
 
-        s3 = boto3.resource('s3')
+        credentials = self.manifest.fields['credentials']
+        session = boto3.Session(
+            aws_access_key_id=credentials['access_key'],
+            aws_secret_access_key=credentials['secret_key'],
+        )
+        s3 = session.resource('s3')
         # pylint: disable=no-member
         self.bucket = s3.Bucket(manifest.fields['bucket'])
 

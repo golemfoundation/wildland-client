@@ -12,6 +12,9 @@ import shlex
 from pathlib import Path
 import copy
 
+import botocore.session
+import botocore.credentials
+
 from .manifest.loader import ManifestLoader
 from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .manifest.user import User
@@ -199,6 +202,7 @@ class StorageCreateCommand(Command):
             fields = self.get_fields(args, 'path')
         elif args.type == 's3':
             fields = self.get_fields(args, 'bucket')
+            fields['credentials'] = self.get_aws_credentials()
         else:
             assert False, args.type
 
@@ -239,6 +243,23 @@ class StorageCreateCommand(Command):
                     ', '.join(names)))
             fields[name] = getattr(args, name)
         return fields
+
+    def get_aws_credentials(self) -> dict:
+        '''
+        Retrieve AWS credentials.
+        '''
+
+        print('Resolving AWS credentials...')
+        session = botocore.session.Session()
+        resolver = botocore.credentials.create_credential_resolver(session)
+        credentials = resolver.load_credentials()
+        if not credentials:
+            raise CliError("AWS not configured, run 'aws configure' first")
+        print(f'Credentials found by method: {credentials.method}')
+        return {
+            'access_key': credentials.access_key,
+            'secret_key': credentials.secret_key,
+        }
 
 
 class ContainerCreateCommand(Command):
