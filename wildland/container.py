@@ -15,7 +15,7 @@ from .storage import AbstractStorage
 from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
 
-from .manifest import Manifest
+from .manifest import Manifest, ManifestError
 from .manifest_loader import ManifestLoader
 from .schema import Schema
 
@@ -93,8 +93,6 @@ class Container:
     def from_yaml_content(cls, content: bytes, loader: ManifestLoader,
                           dirpath: pathlib.Path = None):
         '''Load from YAML-formatted data'''
-        # TODO verify real signatures
-
         manifest = loader.parse_manifest(content, schema=cls.SCHEMA)
 
         for smurl in manifest.fields['backends']['storage']:
@@ -117,11 +115,21 @@ class Container:
 
             storage_manifest.apply_schema(storage_cls.SCHEMA)
 
+            # Verify storage
+            if storage_manifest.fields['signer'] != manifest.fields['signer']:
+                raise ManifestError(
+                    'Signer field mismatch: storage {}, container {}'.format(
+                        storage_manifest.fields['signer'], manifest.fields['signer']))
+            if storage_manifest.fields['container_path'] not in manifest.fields['paths']:
+                raise ManifestError(
+                    'Unrecognized container path for storage: {}, {}'.format(
+                        storage_manifest.fields['container_path'], manifest.fields['paths']))
+
             storage = storage_cls(manifest=storage_manifest, relative_to=dirpath)
 
             return cls(manifest=manifest, storage=storage)
 
-        raise TypeError('no supported storage manifest URL scheme')
+        raise ManifestError('no supported storage manifest URL scheme')
 
     # pylint: disable=missing-docstring
 

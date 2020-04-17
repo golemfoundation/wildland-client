@@ -15,8 +15,7 @@
             "properties": {
                 "storage": {
                     "type": "array",
-                    "items": { "$ref": "types.json#url" },
-                    "minItems": 1
+                    "items": { "$ref": "types.json#url" }
                 }
             },
             "additionalProperties": false

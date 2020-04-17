@@ -214,7 +214,6 @@ class ManifestLoader:
     def create_container(self,
                          pubkey: str,
                          paths: List[str],
-                         storages: List[str],
                          name: str) -> Path:
         '''
         Create a new container.
@@ -230,7 +229,7 @@ class ManifestLoader:
         manifest = Manifest.from_fields({
             'signer': pubkey,
             'paths': paths,
-            'backends': {'storage': storages},
+            'backends': {'storage': []},
         })
         schema = Schema('container')
         manifest.apply_schema(schema)

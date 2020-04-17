@@ -10,6 +10,7 @@ import tempfile
 import subprocess
 import shlex
 from pathlib import Path
+import copy
 
 from .manifest_loader import ManifestLoader
 from .manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
@@ -157,6 +158,8 @@ class UserCreateCommand(Command):
 class StorageCreateCommand(Command):
     '''
     Create a new storage manifest.
+
+    The storage has to be associated with a specific container.
     '''
 
     supported_types = [
@@ -172,6 +175,13 @@ class StorageCreateCommand(Command):
             required=True,
             choices=self.supported_types,
             help='Storage type')
+        parser.add_argument(
+            '--container', metavar='CONTAINER',
+            required=True,
+            help='Container this storage is for')
+        parser.add_argument(
+            '--update-container', '-u', action='store_true',
+            help='Update the container after creating storage')
         parser.add_argument(
             '--user',
             help='User for signing')
@@ -189,8 +199,28 @@ class StorageCreateCommand(Command):
         loader.load_users()
         user = self.find_user(loader, args.user)
 
-        path = loader.create_storage(user.pubkey, args.type, fields, args.name)
-        print('Created: {}'.format(path))
+        container_path, container_manifest = loader.load_manifest(args.container,
+                                                        'container')
+        if not container_manifest:
+            raise CliError(f'Not found: {args.container}')
+        container_mount_path = container_manifest.fields['paths'][0]
+        print(f'Using container: {container_path} ({container_mount_path})')
+        fields['container_path'] = container_mount_path
+
+        storage_path = loader.create_storage(user.pubkey, args.type, fields, args.name)
+        print('Created: {}'.format(storage_path))
+
+        if args.update_container:
+            print('Adding storage to container')
+            fields = copy.deepcopy(container_manifest.fields)
+            fields['backends']['storage'].append(str(storage_path))
+            container_manifest = Manifest.from_fields(fields)
+            loader.validate_manifest(container_manifest, 'container')
+            container_manifest.sign(loader.sig)
+            signed_data = container_manifest.to_bytes()
+            print(f'Saving: {container_path}')
+            with open(container_path, 'wb') as f:
+                f.write(signed_data)
 
     def get_fields(self, args, *names) -> dict:
         '''
@@ -220,24 +250,57 @@ class ContainerCreateCommand(Command):
         parser.add_argument(
             '--path', nargs='+', required=True,
             help='Mount path (can be repeated)')
-        parser.add_argument(
-            '--storage', nargs='+', required=True,
-            help='Storage to use (can be repeated)')
-
 
     def handle(self, loader, args):
         loader.load_users()
         user = self.find_user(loader, args.user)
-        storages = []
+        path = loader.create_container(user.pubkey, args.path, args.name)
+        print(f'Created: {path}')
+
+
+class ContainerUpdateCommand(Command):
+    '''
+    Update a container manifest.
+    '''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'container', metavar='CONTAINER',
+            help='Container to modify')
+        parser.add_argument(
+            '--storage', nargs='*',
+            help='Storage to use (can be repeated)')
+
+    def handle(self, loader, args):
+        loader.load_users()
+        path, manifest = loader.load_manifest(args.container, 'container')
+        if not path:
+            raise CliError(f'Container not found: {args.container}')
+
+        if not args.storage:
+            print('No change')
+            return
+
+        storages = list(manifest.fields['backends']['storage'])
         for storage_name in args.storage:
             storage_path = loader.find_manifest(storage_name, 'storage')
             if not storage_path:
                 raise CliError(f'Storage manifest not found: {storage_name}')
-            print(f'Using storage: {storage_path}')
+            print(f'Adding storage: {storage_path}')
+            if str(storage_path) in storages:
+                raise CliError('Storage already attached to container')
             storages.append(str(storage_path))
-        path = loader.create_container(user.pubkey, args.path, storages,
-                                       args.name)
-        print(f'Created: {path}')
+
+        fields = copy.deepcopy(manifest.fields)
+        fields['backends']['storage'] = storages
+        new_manifest = Manifest.from_fields(fields)
+        loader.validate_manifest(new_manifest, 'container')
+        new_manifest.sign(loader.sig)
+        signed_data = new_manifest.to_bytes()
+
+        print(f'Saving: {path}')
+        with open(path, 'wb') as f:
+            f.write(signed_data)
 
 
 class UserListCommand(Command):
@@ -314,7 +377,8 @@ class SignCommand(Command):
                                              self.manifest_type)
 
         manifest = Manifest.from_unsigned_bytes(data)
-        loader.validate_manifest(manifest, self.manifest_type)
+        if self.manifest_type:
+            loader.validate_manifest(manifest, self.manifest_type)
         manifest.sign(loader.sig)
         signed_data = manifest.to_bytes()
 
@@ -352,7 +416,8 @@ class VerifyCommand(Command):
                                               self.manifest_type)
         try:
             manifest = Manifest.from_bytes(data, loader.sig)
-            loader.validate_manifest(manifest, self.manifest_type)
+            if self.manifest_type:
+                loader.validate_manifest(manifest, self.manifest_type)
         except ManifestError as e:
             raise CliError(f'Error verifying manifest: {e}')
         print('Manifest is valid')
@@ -411,7 +476,8 @@ class EditCommand(Command):
 
         loader.load_users()
         manifest = Manifest.from_unsigned_bytes(data)
-        loader.validate_manifest(manifest, self.manifest_type)
+        if self.manifest_type:
+            loader.validate_manifest(manifest, self.manifest_type)
         manifest.sign(loader.sig)
         signed_data = manifest.to_bytes()
         with open(path, 'wb') as f:
@@ -648,6 +714,7 @@ class MainCommand:
 
         ('container', 'Container management', [
             ('create', 'Create container', ContainerCreateCommand()),
+            ('update', 'Update container', ContainerUpdateCommand()),
             ('list', 'List containers', ContainerListCommand()),
             ('sign', 'Sign container', SignCommand('container')),
             ('verify', 'Verify container', VerifyCommand('container')),

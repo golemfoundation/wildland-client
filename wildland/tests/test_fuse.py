@@ -37,8 +37,9 @@ def create_test_data(env):
     })
 
     env.create_manifest('storage1.yaml', {
-            'type': 'local',
-            'path': './storage/storage1',
+        'type': 'local',
+        'path': './storage/storage1',
+        'container_path': '/container1',
     })
 
     env.create_dir('./storage/storage1/')
@@ -146,7 +147,7 @@ def container_manifest(*, signer='0x3333',
     if paths is None:
         paths = ['/container2']
     if storage is None:
-        storage = ['storage1.yaml']
+        storage = ['storage2.yaml']
 
     return {
         'signer': signer,
@@ -157,15 +158,18 @@ def container_manifest(*, signer='0x3333',
     }
 
 
-def storage_manifest(*, signer='0x3333', path):
+def storage_manifest(*, signer='0x3333', path, container_path='/container2'):
     return {
         'signer': signer,
         'type': 'local',
+        'container_path': container_path,
         'path': path,
     }
 
 
 def test_cmd_mount(env):
+    env.create_manifest('storage2.yaml', storage_manifest(
+        path='./storage/storage2'))
     env.create_manifest('manifest2.yaml', container_manifest())
     cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
     assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
@@ -179,8 +183,11 @@ def test_cmd_mount(env):
 
 
 def test_cmd_mount_direct(env):
+    env.create_manifest('storage2.yaml', storage_manifest(
+        path='./storage/storage2'))
     manifest = Manifest.from_fields(container_manifest(storage=[
-        str(env.test_dir / 'storage1.yaml')
+        # Absolute path
+        str(env.test_dir / 'storage2.yaml')
     ]))
     manifest.sign(DummySigContext())
     with open(env.mnt_dir / '.control/mount', 'wb') as f:
@@ -195,10 +202,36 @@ def test_cmd_mount_direct(env):
     ]
 
 
-def test_cmd_mount_error(env):
+def test_cmd_mount_path_collision(env):
     env.create_manifest('manifest3.yaml', container_manifest(paths=['/container1']))
     with pytest.raises(IOError) as e:
         cmd(env, 'mount ' + str(env.test_dir / 'manifest3.yaml'))
+    assert e.value.errno == errno.EINVAL
+
+
+def test_cmd_mount_signer_mismatch(env):
+    env.create_manifest('storage2.yaml', storage_manifest(
+        signer='0x4444',
+        path='./storage/storage2',
+        container_path='/container2'))
+    env.create_manifest('manifest2.yaml', container_manifest(
+        signer='0x3333', paths=['/container2'],
+        storage=['storage2.yaml']))
+    with pytest.raises(IOError) as e:
+        cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    assert e.value.errno == errno.EINVAL
+
+
+def test_cmd_mount_container_path_mismatch(env):
+    env.create_manifest('storage2.yaml', storage_manifest(
+        signer='0x3333',
+        path='./storage/storage2',
+        container_path='/container3'))
+    env.create_manifest('manifest2.yaml', container_manifest(
+        signer='0x3333', paths=['/container2'],
+        storage=['storage2.yaml']))
+    with pytest.raises(IOError) as e:
+        cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
     assert e.value.errno == errno.EINVAL
 
 
@@ -224,7 +257,8 @@ def test_mount_no_directory(env):
         'manifest2.yaml', container_manifest(storage=['storage2.yaml']))
 
     env.create_manifest(
-        'storage2.yaml', storage_manifest(path='./storage/storage2'))
+        'storage2.yaml', storage_manifest(path='./storage/storage2',
+                                          container_path='/container2'))
 
     # The container should mount, with the directory visible but empty
     cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
@@ -270,7 +304,10 @@ def test_nested_mounts(env):
     env.create_file('storage/storage2/file-c2-nested')
 
     env.create_manifest(
-        'storage2.yaml', storage_manifest(path='./storage/storage2'))
+        'storage2.yaml', storage_manifest(
+            path='./storage/storage2',
+            container_path='/container1/nested1',
+        ))
     env.create_manifest(
         'manifest2.yaml', container_manifest(storage=['storage2.yaml'],
                                              paths=['/container1/nested1',

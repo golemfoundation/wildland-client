@@ -22,6 +22,16 @@ Container commands
    :path: container list
 
 
+``wl container update``
+-----------------------
+
+.. argparse::
+   :module: wildland.cli
+   :func: make_parser
+   :prog: wl
+   :path: container update
+
+
 ``wl container mount``
 ----------------------
 

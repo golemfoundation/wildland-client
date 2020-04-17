@@ -1,8 +1,10 @@
 {
     "title": "Storage manifest (common schema)",
     "type": "object",
-    "required": ["type"],
+    "required": ["signer", "type", "container_path"],
     "properties": {
-        "type": { "type": "string" }
+        "signer": { "$ref": "types.json#fingerprint" },
+        "type": { "type": "string" },
+        "container_path": { "$ref": "types.json#abs_path" }
     }
 }

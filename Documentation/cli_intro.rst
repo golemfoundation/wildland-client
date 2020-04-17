@@ -19,33 +19,37 @@ Generate a GPG key::
 
 Create a user::
 
-   $ ./wl user-create User "Wildland Test"
+   $ ./wl user create User "Wildland Test"
    Using key: 0xfd56724c5a712815390bbda63dba761d9e757f15
    Created: /home/user/.wildland/users/User.yaml
    Using 0xfd56724c5a712815390bbda63dba761d9e757f15 as default user
 
 List users::
 
-   $ ./wl user-list
+   $ ./wl user list
    0xfd56724c5a712815390bbda63dba761d9e757f15 /home/user/.wildland/users/User.yaml
 
-Create a storage and container manifests::
+Create a container and storage manifests. You need to first create a container,
+and then attach storage to it::
 
-   $ ./wl storage-create Storage1 --type local --path /tmp/storage
+   $ ./wl container create Container --path /C1
    Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
-   Created: /home/user/.wildland/storage/Storage1.yaml
-
-   $ ./wl container-create Container --storage Storage1 --path /C1
-   Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
-   Using storage: /home/user/.wildland/storage/Storage1.yaml
    Created: /home/user/.wildland/containers/Containter.yaml
+
+   $ ./wl storage create Storage1 --type local --path /tmp/storage \
+          --container Container --update-container
+   Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
+   Using container: /home/user/.wildland/containers/Container.yaml (/.uuid/9434c95b-9860-46cc-90dd-d32d6f410aa3)
+   Created: /home/user/.wildland/storage/Storage1.yaml
+   Adding storage to container
+   Saving: /home/user/.wildland/containers/Container.yaml
 
 Mount it all::
 
    $ ./wl mount
    Mounting: /home/user/wildland
 
-   $ ./wl container-mount C1
+   $ ./wl container mount C1
    Mounting: /home/user/.wildland/containers/C1.yaml
 
    $ ls -a ~/wildland

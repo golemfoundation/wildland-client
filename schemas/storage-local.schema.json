@@ -1,10 +1,11 @@
 {
     "title": "Storage manifest (local)",
     "type": "object",
-    "required": ["signer", "type", "path"],
+    "required": ["signer", "type", "container_path", "path"],
     "properties": {
         "signer": { "$ref": "types.json#fingerprint" },
         "type": { "const": "local" },
+        "container_path": { "$ref": "types.json#abs_path" },
         "path": {
             "oneOf": [
                 {"$ref": "types.json#abs_path"},

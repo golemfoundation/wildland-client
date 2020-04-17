@@ -32,6 +32,7 @@ Here is an example of a signed manifest:
    signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
 
    paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
      - /container1
      - /test/a1
 
@@ -117,6 +118,7 @@ Example:
    signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
 
    paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
      - /container1
      - /test/a1
 
@@ -130,6 +132,10 @@ Fields:
 * ``signer`` (fingerprint): Signer of the manifest
 * ``paths`` (list of absolute paths): Paths in the Wildland namespace where the
   container will be available. The paths are per-signer.
+
+  The first path is recommended to be ``/.uuid/UUID``, but it's a convention,
+  not a requirement.
+
 * ``backends``:
 
   * ``storage`` (list of URLs): List of paths to storage manifests, specifying
@@ -151,14 +157,21 @@ Example:
 
    signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
    type: local
-   path: /path/to//storage/storage11
+   container_path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+   path: /path/to/storage/storage11.yaml
 
 Fields:
 
-* ``signer`` (fingerprint): Signer of the manifest.
+* ``signer`` (fingerprint): Signer of the manifest. Needs to match the signer
+  of the container.
 * ``type``: Type of storage backend. The backend might be unsupported, in which
   case the Wildland driver will skip loading the storage manifest and move on
   to the next one.
+* ``container_path``: One of the paths in Wildland namespace for the container
+  (by convention, the one with UUID).
+
+  This is in order to prevent attaching a storage to a container it wasn't
+  intended for.
 
 Local storage (``local``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
