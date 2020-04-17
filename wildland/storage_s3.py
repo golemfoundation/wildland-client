@@ -21,29 +21,35 @@ class S3File:
     A file in S3 bucket.
     '''
 
-    def __init__(self, obj, uid, gid):
-        self.obj = obj
+    def __init__(self, obj_summary, uid, gid):
+        self.obj_summary = obj_summary
         self.uid = uid
         self.gid = gid
-        self.buf = None
+
+        self.loaded = False
         self.modified = False
+        self.obj = None
+        self.buf = None
 
     # pylint: disable=missing-docstring
 
     def load(self):
-        if not self.buf:
+        if not self.loaded:
             self.buf = BytesIO()
+            self.obj = self.obj_summary.Object()
             self.obj.download_fileobj(self.buf)
+            self.loaded = True
 
     def release(self, _flags):
         if self.modified:
+            assert self.loaded
             self.buf.seek(0)
             logging.info('Uploading: %s', self.buf.getvalue())
             self.obj.upload_fileobj(self.buf)
-            self.obj.reload()
+            self.obj_summary.load()
 
     def fgetattr(self):
-        return s3_stat(self.obj, self.uid, self.gid)
+        return s3_stat(self.obj_summary, self.uid, self.gid)
 
     def read(self, length, offset):
         self.load()
@@ -62,15 +68,21 @@ class S3File:
         return self.buf.truncate(length)
 
 
-def s3_stat(obj, uid, gid):
-    '''Construct a stat entry for given S3 object.'''
+def s3_stat(obj_summary, uid, gid):
+    '''Construct a stat entry for given S3 ObjectSummary.'''
+
+    # S3 remember only last_modified, no creation or access
+    timestamp = int(obj_summary.last_modified.timestamp())
 
     return fuse.Stat(
         st_mode=stat.S_IFREG | 0o644,
         st_nlink=1,
         st_uid=uid,
         st_gid=gid,
-        st_size=obj.content_length
+        st_size=obj_summary.size,
+        st_atime=timestamp,
+        st_mtime=timestamp,
+        st_ctime=timestamp,
     )
 
 class S3Storage(AbstractStorage, FileProxyMixin):
@@ -106,9 +118,9 @@ class S3Storage(AbstractStorage, FileProxyMixin):
         self.files.clear()
         self.dirs.clear()
 
-        for obj in self.bucket.objects.all():
-            obj_path = Path(obj.key)
-            self.files[obj_path] = self.bucket.Object(obj.key)
+        for obj_summary in self.bucket.objects.all():
+            obj_path = Path(obj_summary.key)
+            self.files[obj_path] = obj_summary
             for parent in obj_path.parents:
                 self.dirs.add(parent)
 
@@ -119,23 +131,16 @@ class S3Storage(AbstractStorage, FileProxyMixin):
         return S3File(self.files[path], self.uid, self.gid)
 
     def create(self, path, flags, mode):
-        obj = self.bucket.put_object(Key=str(path))
+        self.bucket.put_object(Key=path)
         self.refresh()
-        return S3File(obj, self.uid, self.gid)
-
-    def release(self, _path, flags, obj):
-        # pylint: disable=missing-docstring
-        try:
-            return obj.release(flags)
-        finally:
-            self.refresh()
+        return S3File(self.files[path], self.uid, self.gid)
 
     def getattr(self, path):
         path = Path(path)
         if path in self.dirs:
             return fuse.Stat(
                 st_mode=stat.S_IFDIR | 0o755,
-                st_nlink=1, # TODO
+                st_nlink=1,
                 st_uid=self.uid,
                 st_gid=self.gid,
             )
@@ -153,12 +158,12 @@ class S3Storage(AbstractStorage, FileProxyMixin):
                 yield dir_path.name
 
     def truncate(self, path, length):
-        obj = self.files[path]
+        obj_summary = self.files[path]
         assert length == 0  # TODO
-        obj.upload_fileobj(BytesIO(b''))
-        self.refresh()
+        obj_summary.Object().upload_fileobj(BytesIO(b''))
+        obj_summary.load()
 
     def unlink(self, path):
-        obj = self.files[path]
-        obj.delete()
+        obj_summary = self.files[path]
+        obj_summary.delete()
         self.refresh()
