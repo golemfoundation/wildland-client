@@ -340,6 +340,8 @@ class ContainerListCommand(Command):
             print(path)
             for container_path in manifest.fields['paths']:
                 print(f'  path:', container_path)
+            for storage_path in manifest.fields['backends']['storage']:
+                print(f'  storage:', storage_path)
 
 
 class SignCommand(Command):
