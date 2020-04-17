@@ -15,9 +15,9 @@ from .storage import AbstractStorage
 from .storage_control import control_directory, control_file
 from .storage_local import LocalStorage
 
-from .manifest import Manifest, ManifestError
-from .manifest_loader import ManifestLoader
-from .schema import Schema
+from .manifest.manifest import Manifest, ManifestError
+from .manifest.loader import ManifestLoader
+from .manifest.schema import Schema
 
 
 class UnsupportedURLSchemeError(Exception):

@@ -10,8 +10,8 @@ import abc
 import errno
 from typing import Optional
 
-from .schema import Schema
-from .manifest import Manifest
+from .manifest.schema import Schema
+from .manifest.manifest import Manifest
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.

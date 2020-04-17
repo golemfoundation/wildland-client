@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from ..sig import GpgSigContext
+from ..manifest.sig import GpgSigContext
 
 # The following fixtures are session-scoped for performance reasons (generating
 # keys takes time).

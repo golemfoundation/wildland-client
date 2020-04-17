@@ -9,8 +9,8 @@ import subprocess
 import pytest
 
 from .fuse_env import FuseEnv
-from ..manifest import Manifest
-from ..sig import DummySigContext
+from ..manifest.manifest import Manifest
+from ..manifest.sig import DummySigContext
 
 
 @pytest.fixture

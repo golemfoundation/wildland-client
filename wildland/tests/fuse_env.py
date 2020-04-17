@@ -10,8 +10,8 @@ import time
 
 import pytest
 
-from ..manifest import Manifest
-from ..sig import DummySigContext
+from ..manifest.manifest import Manifest
+from ..manifest.sig import DummySigContext
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'

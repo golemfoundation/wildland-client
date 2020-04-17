@@ -7,7 +7,7 @@ import tempfile
 
 import gnupg
 
-from .exc import WildlandError
+from ..exc import WildlandError
 
 
 class SigError(WildlandError):

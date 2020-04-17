@@ -2,7 +2,7 @@
 
 import pytest
 
-from ..sig import SigError, GpgSigContext
+from ..manifest.sig import SigError, GpgSigContext
 
 
 def test_verify(gpg_sig, signer):

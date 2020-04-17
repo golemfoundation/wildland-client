@@ -13,26 +13,24 @@ FUSE driver
 .. autoclass:: wildland.storage.AbstractStorage
    :members:
 
-Users
------
-
-.. automodule:: wildland.user
-   :members:
 
 Manifests
 ---------
 
-.. autoclass:: wildland.manifest.Manifest
+.. autoclass:: wildland.manifest.loader.ManifestLoader
    :members:
 
-.. autoclass:: wildland.manifest.Header
+.. autoclass:: wildland.manifest.manifest.Manifest
    :members:
 
-.. autoclass:: wildland.schema.Schema
+.. autoclass:: wildland.manifest.manifest.Header
+   :members:
+
+.. autoclass:: wildland.manifest.schema.Schema
    :members:
 
 Signing
 -------
 
-.. autoclass:: wildland.sig.SigContext
+.. autoclass:: wildland.manifest.sig.SigContext
    :members:

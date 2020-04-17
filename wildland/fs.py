@@ -21,7 +21,7 @@ from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
 from .storage_control import ControlStorage, control_directory, control_file
 from .exc import WildlandError
-from .manifest_loader import ManifestLoader
+from .manifest.loader import ManifestLoader
 
 
 class WildlandFS(fuse.Fuse, FileProxyMixin):

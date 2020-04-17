@@ -9,7 +9,7 @@ import yaml
 
 from .schema import Schema
 from .sig import SigContext, SigError
-from .exc import WildlandError
+from ..exc import WildlandError
 
 
 HEADER_SEPARATOR = b'\n---\n'

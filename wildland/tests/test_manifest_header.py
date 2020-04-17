@@ -2,7 +2,7 @@
 
 import pytest
 
-from ..manifest import split_header, Header, HeaderParser, ManifestError
+from ..manifest.manifest import split_header, Header, HeaderParser, ManifestError
 
 
 def test_split_header():

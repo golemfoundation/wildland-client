@@ -12,10 +12,10 @@ import shlex
 from pathlib import Path
 import copy
 
-from .manifest_loader import ManifestLoader
-from .manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
+from .manifest.loader import ManifestLoader
+from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
+from .manifest.user import User
 from .exc import WildlandError
-from .user import User
 
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]

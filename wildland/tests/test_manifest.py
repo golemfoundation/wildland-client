@@ -2,7 +2,7 @@
 
 import pytest
 
-from ..manifest import Manifest, Header, ManifestError
+from ..manifest.manifest import Manifest, Header, ManifestError
 
 
 def make_header(gpg_sig, signer, test_data):

@@ -13,7 +13,7 @@ import logging
 from . import storage as _storage
 from .fuse_utils import flags_to_mode
 from .storage_control import control_file
-from .schema import Schema
+from .manifest.schema import Schema
 
 __all__ = ['LocalStorage']
 

@@ -5,10 +5,10 @@ from pathlib import Path
 
 import jsonschema
 
-from .exc import WildlandError
+from ..exc import WildlandError
 
 
-PROJECT_PATH = Path(__file__).resolve().parents[1]
+PROJECT_PATH = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = PROJECT_PATH / 'schemas'
 COMMON_FILES = ['types.json']
 

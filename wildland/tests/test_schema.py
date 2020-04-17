@@ -3,7 +3,7 @@
 
 import pytest
 
-from ..schema import Schema, SchemaError
+from ..manifest.schema import Schema, SchemaError
 
 
 def container():
