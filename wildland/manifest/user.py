@@ -1,4 +1,3 @@
-
 '''
 User manifest and user management
 '''

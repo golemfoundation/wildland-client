@@ -1,7 +1,3 @@
-#
-# (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
-#
-
 '''
 Synthetic storage, which services :path:`/.control` directory
 '''

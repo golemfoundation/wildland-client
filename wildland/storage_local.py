@@ -1,7 +1,3 @@
-#
-# (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
-#
-
 '''
 Local storage, similar to :command:`mount --bind`
 '''

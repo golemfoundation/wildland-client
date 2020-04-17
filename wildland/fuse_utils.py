@@ -1,7 +1,3 @@
-#
-# (c) 2020 Wojtek Porczyk <woju@invisiblethingslab.com>
-#
-
 '''
 Assorted helpers for handling FUSE API
 '''
