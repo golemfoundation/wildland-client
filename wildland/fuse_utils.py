@@ -13,6 +13,11 @@ import logging
 import os
 import sys
 
+import fuse
+
+
+logger = logging.getLogger('fuse')
+
 def debug_handler(func, bound=False):
     '''A decorator for wrapping FUSE API.
 
@@ -23,27 +28,56 @@ def debug_handler(func, bound=False):
         try:
             args_to_display = args if bound else args[1:]
 
-            logging.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
+            logger.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
                 (repr(i) for i in args_to_display),
                 (f'{k}={v!r}' for k, v in kwds.items()))))
 
             ret = func(*args, **kwds)
-            if isinstance(ret, int):
-                try:
-                    ret_repr = '-' + errno.errorcode[-ret]
-                except KeyError:
-                    ret_repr = str(ret)
-            else:
-                ret_repr = repr(ret)
-            logging.debug('%s → %s', func.__name__, ret_repr)
+            ret_repr = debug_repr(ret)
+            logger.debug('%s → %s', func.__name__, ret_repr)
             return ret
         except OSError as err:
-            logging.debug('%s !→ %s', func.__name__, err)
+            logger.debug('%s !→ %s', func.__name__, err)
             raise
         except Exception:
-            logging.exception('error while handling %s', func.__name__)
+            logger.exception('error while handling %s', func.__name__)
             raise
     return wrapper
+
+
+def debug_repr(obj):
+    '''
+    Return a representation for FUSE operation result, for logging.
+    '''
+
+    if isinstance(obj, int):
+        try:
+            return '-' + errno.errorcode[-obj]
+        except KeyError:
+            return str(obj)
+
+    if isinstance(obj, fuse.Stat):
+        fmt = {
+            'st_mode': oct,
+            'st_ino': str,
+            'st_dev': str,
+            'st_nlink': str,
+            'st_uid': str,
+            'st_gid': str,
+            'st_size': str,
+            'st_atime': str,
+            'st_mtime': str,
+            'st_ctime': str,
+        }
+        attribs = []
+        for key, formatter in fmt.items():
+            value = getattr(obj, key)
+            if value is not None and value != 0:
+                attribs.append('{}={}'.format(key, formatter(value)))
+        return 'fuse.Stat({})'.format(', '.join(attribs))
+
+    return repr(obj)
+
 
 # stolen from python-fuse/example/xmp.py
 _FLAGS_TO_MODE = {os.O_RDONLY: 'rb', os.O_WRONLY: 'wb', os.O_RDWR: 'wb+'}

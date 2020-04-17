@@ -1,0 +1,24 @@
+{
+    "title": "Storage manifest (S3)",
+    "type": "object",
+    "required": ["signer", "type", "container_path", "bucket"],
+    "properties": {
+        "signer": { "$ref": "types.json#fingerprint" },
+        "type": { "const": "s3" },
+        "container_path": { "$ref": "types.json#abs_path" },
+        "bucket": {
+            "type": "string",
+            "description": "S3 bucket name"
+        },
+        "credentials": {
+            "type": "object",
+            "required": ["access_key", "secret_key"],
+            "properties": {
+                "access_key": {"type": "string"},
+                "secret_key": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

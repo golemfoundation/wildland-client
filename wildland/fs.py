@@ -8,10 +8,10 @@ Wildland Filesystem
 
 import errno
 import logging
+import logging.config
 import os
 import pathlib
 import stat
-import sys
 
 import fuse
 fuse.fuse_python_api = 0, 2
@@ -72,13 +72,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         # this is after cmdline parsing
         self.uid, self.gid = os.getuid(), os.getgid()
 
-        log_path = self.cmdline[0].log or '/tmp/wlfuse.log'
-        if log_path == '-':
-            logging.basicConfig(format='%(asctime)s %(message)s',
-                                stream=sys.stderr, level=logging.NOTSET)
-        else:
-            logging.basicConfig(format='%(asctime)s %(message)s',
-                                filename=log_path, level=logging.NOTSET)
+        self.init_logging(self.cmdline[0])
 
         self.init_users(self.cmdline[0])
 
@@ -93,13 +87,63 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         super().main(*args, **kwds)
 
+    def init_logging(self, args):
+        '''
+        Configure logging module.
+        '''
+
+        config = {
+            'version': 1,
+            'disable_existing_loggers': False,
+            'formatters': {
+                'default': {
+                    'class': 'logging.Formatter',
+                    'format': '%(asctime)s %(levelname)s [%(name)s] %(message)s',
+                },
+            },
+            'handlers': {
+                'console': {
+                    'class': 'logging.StreamHandler',
+                    'stream': 'ext://sys.stderr',
+                    'formatter': 'default',
+                },
+            },
+            'root': {
+                'level': 'DEBUG',
+                'handlers': [],
+            },
+            'loggers': {
+                'gnupg': {'level': 'INFO'},
+                'boto3': {'level': 'INFO'},
+                'botocore': {'level': 'INFO'},
+                's3transfer': {'level': 'INFO'},
+            }
+        }
+
+        log_path = args.log or '/tmp/wlfuse.log'
+
+        if log_path == '-':
+            config['root']['handlers'].append('console')
+        else:
+            config['handlers']['file'] = {
+                'class': 'logging.FileHandler',
+                'filename': log_path,
+                'formatter': 'default',
+            }
+            config['root']['handlers'].append('file')
+        logging.config.dictConfig(config)
+
     def init_users(self, args):
         '''
         Initialize user repository and signature context.
         '''
 
-        self.loader = ManifestLoader(dummy=args.dummy_sig,
-                                     base_dir=args.base_dir)
+        self.loader = ManifestLoader(
+            base_dir=args.base_dir,
+            dummy=args.dummy_sig,
+            uid=self.uid,
+            gid=self.gid,
+        )
         logging.info('loading users from %s', self.loader.user_dir)
         self.loader.load_users()
 

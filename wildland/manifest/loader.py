@@ -282,12 +282,16 @@ class Config:
             return self.file_fields[name]
         return self.default_fields[name]
 
-    def override(self, *, dummy=False):
+    def override(self, *, dummy=False, uid=None, gid=None):
         '''
         Override configuration based on command line arguments.
         '''
         if dummy:
             self.override_fields['dummy'] = True
+        if uid is not None:
+            self.override_fields['uid'] = uid
+        if uid is not None:
+            self.override_fields['gid'] = gid
 
     def update_and_save(self, **kwargs):
         '''
@@ -340,4 +344,6 @@ class Config:
             'dummy': False,
             'gpg_home': None,
             'default_user': None,
+            'uid': os.getuid(),
+            'gid': os.getgid(),
         }

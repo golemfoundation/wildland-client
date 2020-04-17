@@ -16,7 +16,8 @@ Debian:
       python3-jsonschema \
       python3-yaml \
       python3-pytest \
-      python3-gnupg
+      python3-gnupg \
+      python3-boto3
 
 Fedora:
 
@@ -29,7 +30,9 @@ Fedora:
       python3-pytest \
       fuse-devel \
       python3-devel \
-      python3-gnupg
+      python3-gnupg \
+      python3-boto3
+
 
    git clone git@github.com:libfuse/python-fuse.git
    pip3 install --user python-fuse

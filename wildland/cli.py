@@ -12,6 +12,9 @@ import shlex
 from pathlib import Path
 import copy
 
+import botocore.session
+import botocore.credentials
+
 from .manifest.loader import ManifestLoader
 from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .manifest.user import User
@@ -163,7 +166,8 @@ class StorageCreateCommand(Command):
     '''
 
     supported_types = [
-        'local'
+        'local',
+        's3',
     ]
 
     def add_arguments(self, parser):
@@ -189,10 +193,16 @@ class StorageCreateCommand(Command):
         parser.add_argument(
             '--path',
             help='Path (for local storage)')
+        parser.add_argument(
+            '--bucket',
+            help='S3 bucket name')
 
     def handle(self, loader, args):
         if args.type == 'local':
             fields = self.get_fields(args, 'path')
+        elif args.type == 's3':
+            fields = self.get_fields(args, 'bucket')
+            fields['credentials'] = self.get_aws_credentials()
         else:
             assert False, args.type
 
@@ -233,6 +243,23 @@ class StorageCreateCommand(Command):
                     ', '.join(names)))
             fields[name] = getattr(args, name)
         return fields
+
+    def get_aws_credentials(self) -> dict:
+        '''
+        Retrieve AWS credentials.
+        '''
+
+        print('Resolving AWS credentials...')
+        session = botocore.session.Session()
+        resolver = botocore.credentials.create_credential_resolver(session)
+        credentials = resolver.load_credentials()
+        if not credentials:
+            raise CliError("AWS not configured, run 'aws configure' first")
+        print(f'Credentials found by method: {credentials.method}')
+        return {
+            'access_key': credentials.access_key,
+            'secret_key': credentials.secret_key,
+        }
 
 
 class ContainerCreateCommand(Command):
@@ -500,8 +527,9 @@ class MountCommand(Command):
             help='If mounted already, remount')
 
         parser.add_argument(
-            '--debug', '-d', action='store_true',
-            help='Debug mode: run in foreground')
+            '--debug', '-d', action='count',
+            default=0,
+            help='Debug mode: run in foreground (repeat for more verbosity)')
 
         parser.add_argument(
             '--container', '-c', metavar='CONTAINER', nargs='*',
@@ -524,9 +552,11 @@ class MountCommand(Command):
         if loader.config.get('dummy'):
             options.append('dummy_sig')
 
-        if args.debug:
+        if args.debug > 0:
             options.append('log=-')
-            cmd += ['-d', '-f']
+            cmd.append('-f')
+            if args.debug > 1:
+                cmd.append('-d')
 
         if args.container:
             for name in args.container:
