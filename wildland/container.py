@@ -26,10 +26,10 @@ import pathlib
 import urllib.parse
 import urllib.request
 
-from .storage import AbstractStorage
-from .storage_control import control_directory, control_file
-from .storage_local import LocalStorage
-from .storage_s3 import S3Storage
+from .storage.base import AbstractStorage
+from .storage.control import control_directory, control_file
+from .storage.local import LocalStorage
+from .storage.s3 import S3Storage
 
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.loader import ManifestLoader

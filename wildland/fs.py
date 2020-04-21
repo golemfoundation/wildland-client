@@ -33,10 +33,9 @@ from typing import List, Dict
 import fuse
 fuse.fuse_python_api = 0, 2
 
-from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
-from .storage import AbstractStorage
-from .storage_control import ControlStorage, control_directory, control_file
+from .storage.base import FileProxyMixin, AbstractStorage
+from .storage.control import ControlStorage, control_directory, control_file
 from .exc import WildlandError
 
 

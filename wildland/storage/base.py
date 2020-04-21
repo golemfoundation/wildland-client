@@ -25,9 +25,9 @@ import abc
 import errno
 from typing import Optional
 
-from .manifest.schema import Schema
-from .manifest.manifest import Manifest
-from .exc import WildlandError
+from ..manifest.schema import Schema
+from ..manifest.manifest import Manifest
+from ..exc import WildlandError
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -91,9 +91,9 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         Construct a Storage from manifest.
         '''
 
-        # pylint: disable=import-outside-toplevel
-        from .storage_local import LocalStorage
-        from .storage_s3 import S3Storage
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from .local import LocalStorage
+        from .s3 import S3Storage
 
         storage_type = manifest.fields['type']
         if storage_type == 'local':

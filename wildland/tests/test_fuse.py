@@ -29,8 +29,6 @@ import json
 import pytest
 
 from .fuse_env import FuseEnv
-from ..manifest.manifest import Manifest
-from ..manifest.sig import DummySigContext
 
 
 @pytest.fixture
