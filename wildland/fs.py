@@ -33,13 +33,11 @@ from typing import List, Dict
 import fuse
 fuse.fuse_python_api = 0, 2
 
-from .container import Container
 from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
 from .storage import AbstractStorage
 from .storage_control import ControlStorage, control_directory, control_file
 from .exc import WildlandError
-from .manifest.loader import ManifestLoader
 
 
 class WildlandFS(fuse.Fuse, FileProxyMixin):
@@ -54,12 +52,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.parser.add_option(mountopt='log', metavar='PATH',
             help='path to log file, use - for stderr')
 
-        self.parser.add_option(mountopt='base_dir', metavar='PATH',
-            help='path to base Wildland config directory')
-
-        self.parser.add_option(mountopt='dummy_sig', action='store_true',
-            help='use dummy signatures')
-
         self.storages: Dict[int, AbstractStorage] = {}
         self.storage_paths: Dict[int, List[pathlib.Path]] = {}
         self.paths: Dict[pathlib.Path, int] = {}
@@ -67,7 +59,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.uid = None
         self.gid = None
         self.install_debug_handler()
-        self.loader: ManifestLoader = None
 
         # Run FUSE in single-threaded mode.
         # (TODO: verify what is needed for multi-threaded, what guarantees FUSE
@@ -87,8 +78,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         self.uid, self.gid = os.getuid(), os.getgid()
 
         self.init_logging(self.cmdline[0])
-
-        self.init_users(self.cmdline[0])
 
         self.mount_storage(
             [pathlib.Path('/.control')],
@@ -141,38 +130,6 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             }
             config['root']['handlers'].append('file')
         logging.config.dictConfig(config)
-
-    def init_users(self, args):
-        '''
-        Initialize user repository and signature context.
-        '''
-
-        self.loader = ManifestLoader(
-            base_dir=args.base_dir,
-            dummy=args.dummy_sig,
-            uid=self.uid,
-            gid=self.gid,
-        )
-        logging.info('loading users from %s', self.loader.user_dir)
-        self.loader.load_users()
-
-    def load_container(self, path: pathlib.Path) -> Container:
-        '''Load a container from the manifest given by file path'''
-        logging.info('loading manifest %s', path)
-
-        try:
-            return Container.from_yaml_file(path, self.loader)
-        except Exception:
-            raise WildlandError('error loading manifest %s' % path)
-
-    def load_container_direct(self, content: bytes) -> Container:
-        '''Load a container from the manifest given by file contents'''
-        logging.info('loading manifest directly')
-
-        try:
-            return Container.from_yaml_content(content, self.loader)
-        except Exception:
-            raise WildlandError('error loading manifest')
 
     def mount_storage(self, paths: List[pathlib.Path], storage: AbstractStorage):
         '''

@@ -26,11 +26,9 @@ import shutil
 from pathlib import Path
 import traceback
 import time
+import json
 
 import pytest
-
-from ..manifest.manifest import Manifest
-from ..manifest.sig import DummySigContext
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
@@ -42,11 +40,8 @@ class FuseEnv:
 
         env = FuseEnv()
         try:
-            # Prepare
-            env.add_manifest('manifest1.yaml', {...})
+            env.mount()
             ...
-            # Mount
-            env.mount(['manifest1.yaml'])
 
         finally:
             env.destroy()
@@ -63,17 +58,11 @@ class FuseEnv:
         os.mkdir(self.test_dir / 'mnt')
         os.mkdir(self.test_dir / 'storage')
 
-    def mount(self, manifests):
+    def mount(self):
         assert not self.mounted, 'only one mount() at a time'
         mnt_dir = self.test_dir / 'mnt'
 
-        options = ['manifest={}'.format(self.test_dir / manifest)
-                   for manifest in manifests]
-        options.append('log=-')
-        options.append('dummy_sig')
-        # No users necessary for now with dummy signatures, but make sure
-        # wildland-fuse won't try to load anything from outside.
-        options.append('base_dir={}'.format(self.test_dir))
+        options = ['log=-']
 
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
@@ -100,13 +89,16 @@ class FuseEnv:
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
 
-    def create_manifest(self, name, fields):
-        if 'signer' not in fields:
-            fields['signer'] = '0x3333'
-        manifest = Manifest.from_fields(fields)
-        manifest.sign(DummySigContext())
-        with open(self.test_dir / name, 'wb') as f:
-            f.write(manifest.to_bytes())
+    def mount_storage(self, paths, storage):
+        with open(self.mnt_dir / '.control/mount', 'w') as f:
+            f.write(json.dumps({
+                'paths': [str(p) for p in paths],
+                'storage': storage
+            }))
+
+    def unmount_storage(self, ident):
+        with open(self.mnt_dir / '.control/unmount', 'w') as f:
+            f.write(str(ident))
 
     def create_dir(self, name):
         os.mkdir(self.test_dir / name)

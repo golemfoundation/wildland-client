@@ -566,10 +566,7 @@ class MountCommand(Command):
             self.unmount(mount_dir)
 
         cmd = [str(FUSE_ENTRY_POINT), str(mount_dir)]
-        options = ['base_dir=' + str(loader.config.base_dir)]
-
-        if loader.config.get('dummy'):
-            options.append('dummy_sig')
+        options = []
 
         if args.debug > 0:
             options.append('log=-')
