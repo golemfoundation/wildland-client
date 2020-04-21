@@ -54,6 +54,9 @@ class Manifest:
         # If header is set, that means we have verified the signature.
         self.header = header
 
+        # Alternatively, you can mark it as unsigned.
+        self.unsigned_ok = False
+
         # Accessible as 'fields' only if there is a header.
         self._fields = fields
 
@@ -66,7 +69,7 @@ class Manifest:
         A wrapper for manifest fields that makes sure the manifest is signed.
         '''
 
-        if not self.header:
+        if not self.header and not self.unsigned_ok:
             raise ManifestError('Trying to read an unsigned manifest')
         return self._fields
 
@@ -111,6 +114,13 @@ class Manifest:
         signer = self._fields['signer']
         signature = sig_context.sign(signer, self.original_data)
         self.header = Header(signature)
+
+    def skip_signing(self):
+        '''
+        Explicitly mark the manifest as unsigned, and allow using it.
+        '''
+
+        self.unsigned_ok = True
 
     @classmethod
     def from_file(cls, path, sig_context: SigContext,
@@ -178,6 +188,8 @@ class Manifest:
         '''
 
         if self.header is None:
+            if self.unsigned_ok:
+                return self.original_data
             raise ManifestError('Manifest not signed')
 
         return self.header.to_bytes() + HEADER_SEPARATOR + self.original_data

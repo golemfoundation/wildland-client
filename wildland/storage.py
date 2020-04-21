@@ -27,6 +27,7 @@ from typing import Optional
 
 from .manifest.schema import Schema
 from .manifest.manifest import Manifest
+from .exc import WildlandError
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -70,6 +71,36 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def unlink(self, path):
         raise NotImplementedError()
+
+    @staticmethod
+    def from_fields(fields, uid, gid) -> 'AbstractStorage':
+        '''
+        Construct a Storage from fields originating from manifest.
+
+        Assume the fields have been validated before.
+        '''
+
+        manifest = Manifest.from_fields(fields)
+        manifest.skip_signing()
+
+        return AbstractStorage.from_manifest(manifest, uid, gid)
+
+    @staticmethod
+    def from_manifest(manifest, uid, gid) -> 'AbstractStorage':
+        '''
+        Construct a Storage from manifest.
+        '''
+
+        # pylint: disable=import-outside-toplevel
+        from .storage_local import LocalStorage
+        from .storage_s3 import S3Storage
+
+        storage_type = manifest.fields['type']
+        if storage_type == 'local':
+            return LocalStorage(manifest=manifest)
+        if storage_type == 's3':
+            return S3Storage(manifest=manifest, uid=uid, gid=gid)
+        raise WildlandError(f'unknown storage type: {storage_type}')
 
 
 def _proxy(method_name):
