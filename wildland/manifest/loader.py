@@ -265,7 +265,7 @@ class ManifestLoader:
 
 class Config:
     '''
-    Wildland configuration, by default loaded from ~/.wildland/config.yaml.
+    Wildland configuration, by default loaded from ~/.config/wildland/config.yaml.
 
     Consists of three layers:
     - default_fields (set here)
@@ -274,7 +274,6 @@ class Config:
     '''
 
     filename = 'config.yaml'
-    default_base_dir = '.wildland'
 
     def __init__(self,
                  base_dir,
@@ -333,7 +332,11 @@ class Config:
         home_dir = Path(home_dir)
 
         if base_dir is None:
-            base_dir = home_dir / cls.default_base_dir
+            xdg_home = os.getenv('XDG_CONFIG_HOME')
+            if xdg_home:
+                base_dir = Path(xdg_home / 'wildland')
+            else:
+                base_dir = Path(home_dir / '.config/wildland')
         else:
             base_dir = Path(base_dir)
 

@@ -11,7 +11,7 @@ In addition, there are versions that will work on specific types of manifests:
 
 When the type of manifest is known, you can refer to a manifest just by a short
 name (e.g. ``wl container-sign C1`` will know to look for
-``~/.wildland/users/C1.yaml``). The manifests will also be verified against
+``~/.config/wildland/containers/C1.yaml``). The manifests will also be verified against
 schema.
 
 ``wl sign``

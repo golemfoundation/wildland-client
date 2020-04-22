@@ -8,8 +8,8 @@ mkdir "$MOUNT_DIR"
 
 export __fish_prompt_hostname="wildland-fuse"
 
-mkdir -p ~/.wildland
-echo "mount_dir: $MOUNT_DIR" > ~/.wildland/config.yaml
+mkdir -p ~/.config/wildland
+echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
 
 /wildland-fuse/example/setup.sh
 

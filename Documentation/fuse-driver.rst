@@ -36,9 +36,6 @@ Command-line options for ``wildland-fuse``:
 Mount options (passed with ``-o``):
 
 * ``log=PATH``: log to a file (`-` means stderr)
-* ``dummy``: use dummy signature verification instead of GPG (for testing)
-* ``base_dir=PATH``: load configuration from a specific directory (default
-  is ``~/.wildland``)
 
 Control interface
 -----------------
