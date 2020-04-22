@@ -23,9 +23,9 @@ import tempfile
 import shutil
 from pathlib import Path
 import os
-import yaml
 import json
 
+import yaml
 import pytest
 
 from ..cli import MainCommand
