@@ -186,10 +186,10 @@ class UserCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'name',
+            'name', nargs='?',
             help='Name for the user')
         parser.add_argument(
-            'key',
+            '--key', required=True,
             help='GPG key identifier')
 
     def handle(self, args):
@@ -218,7 +218,7 @@ class StorageCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'name',
+            'name', nargs='?',
             help='Name for the storage')
         parser.add_argument(
             '--type',
@@ -315,7 +315,7 @@ class ContainerCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'name',
+            'name', nargs='?',
             help='Name for the container')
         parser.add_argument(
             '--user',

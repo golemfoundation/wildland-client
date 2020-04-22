@@ -19,7 +19,7 @@ Generate a GPG key::
 
 Create a user::
 
-   $ ./wl user create User "Wildland Test"
+   $ ./wl user create User --key "Wildland Test"
    Using key: 0xfd56724c5a712815390bbda63dba761d9e757f15
    Created: /home/user/.config/wildland/users/User.yaml
    Using 0xfd56724c5a712815390bbda63dba761d9e757f15 as default user
