@@ -102,6 +102,31 @@ class AbstractStorage(metaclass=abc.ABCMeta):
             return S3Storage(manifest=manifest, uid=uid, gid=gid)
         raise WildlandError(f'unknown storage type: {storage_type}')
 
+    @staticmethod
+    def is_manifest_supported(manifest):
+        '''
+        Check if the storage type is supported.
+        '''
+        storage_type = manifest.fields['type']
+        return storage_type in ['local', 's3']
+
+    @staticmethod
+    def validate_manifest(manifest):
+        '''
+        Validate manifest, assuming it's of a supported type.
+        '''
+
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from .local import LocalStorage
+        from .s3 import S3Storage
+
+        storage_type = manifest.fields['type']
+        if storage_type == 'local':
+            manifest.apply_schema(LocalStorage.SCHEMA)
+        if storage_type == 's3':
+            manifest.apply_schema(S3Storage.SCHEMA)
+        raise WildlandError(f'unknown storage type: {storage_type}')
+
 
 def _proxy(method_name):
     def method(_self, *args, **_kwargs):

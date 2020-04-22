@@ -30,6 +30,8 @@ import subprocess
 import shlex
 from pathlib import Path
 import copy
+import json
+import time
 
 import botocore.session
 import botocore.credentials
@@ -37,6 +39,7 @@ import botocore.credentials
 from .manifest.loader import ManifestLoader
 from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .manifest.user import User
+from .container import Container
 from .exc import WildlandError
 
 
@@ -149,6 +152,19 @@ class Command:
                 return f.read()
         except IOError as e:
             raise CliError(f'Reading control file failed: {control_path}: {e}')
+
+    def wait_for_mount(self, mount_dir):
+        '''
+        Wait until Wildland is mounted.
+        '''
+
+        n_tries = 20
+        delay = 0.1
+        for _ in range(n_tries):
+            if os.path.isdir(mount_dir / '.control'):
+                return
+            time.sleep(delay)
+        raise CliError(f'Timed out waiting for Wildland to mount: {mount_dir}')
 
 
 class UserCreateCommand(Command):
@@ -555,7 +571,7 @@ class MountCommand(Command):
             help='Container to mount (can be repeated)')
 
     def handle(self, loader, args):
-        mount_dir = loader.config.get('mount_dir')
+        mount_dir = Path(loader.config.get('mount_dir'))
         if not os.path.exists(mount_dir):
             print(f'Creating: {mount_dir}')
             os.makedirs(mount_dir)
@@ -574,21 +590,31 @@ class MountCommand(Command):
             if args.debug > 1:
                 cmd.append('-d')
 
+        loader.load_users()
+        to_mount = []
         if args.container:
             for name in args.container:
-                path = loader.find_manifest(name, 'container')
-                if not path:
+                path, manifest = loader.load_manifest(name, 'container')
+                if not manifest:
                     raise CliError(f'Container not found: {name}')
-                options.append(f'manifest={path}')
+                container = Container(manifest)
+                storage_manifest = container.select_storage(loader)
+                command = {
+                    'paths': [str(path) for path in container.paths],
+                    'storage': storage_manifest.fields,
+                }
+                to_mount.append((path, command))
 
-        cmd += ['-o', ','.join(options)]
+        if options:
+            cmd += ['-o', ','.join(options)]
 
         if args.debug:
-            self.run_debug(cmd, mount_dir)
+            self.run_debug(cmd, mount_dir, to_mount)
         else:
             self.mount(cmd, mount_dir)
+            self.mount_containers(mount_dir, to_mount)
 
-    def run_debug(self, cmd, mount_dir):
+    def run_debug(self, cmd, mount_dir, to_mount):
         '''
         Run the FUSE driver in foreground, and cleanup on SIGINT.
         '''
@@ -597,6 +623,8 @@ class MountCommand(Command):
         print('Press Ctrl-C to unmount')
         # Start a new session in order to not propagate SIGINT.
         p = subprocess.Popen(cmd, start_new_session=True)
+        self.wait_for_mount(mount_dir)
+        self.mount_containers(mount_dir, to_mount)
         try:
             p.wait()
         except KeyboardInterrupt:
@@ -616,6 +644,20 @@ class MountCommand(Command):
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
             raise CliError(f'Failed to unmount: {e}')
+
+    def mount_containers(self, mount_dir, to_mount):
+        '''
+        Issue a series of .control/mount commands.
+        '''
+
+        for path, command in to_mount:
+            print(f'Mounting: {path}')
+            try:
+                with open(mount_dir / '.control/mount', 'wb') as f:
+                    f.write(json.dumps(command).encode())
+            except IOError as e:
+                self.unmount(mount_dir)
+                raise CliError(f'Failed to mount {path}: {e}')
 
     def unmount(self, mount_dir):
         '''
@@ -661,8 +703,16 @@ class ContainerMountCommand(Command):
         path, manifest = loader.load_manifest(args.container, 'container')
         if not manifest:
             raise CliError(f'Not found: {args.container}')
+
+        container = Container(manifest)
+        storage_manifest = container.select_storage(loader)
+        command = {
+            'paths': container.paths,
+            'storage': storage_manifest.fields,
+        }
+
         print(f'Mounting: {path}')
-        self.write_control(loader, 'mount', manifest.to_bytes())
+        self.write_control(loader, 'mount', json.dumps(command).encode())
 
 
 class ContainerUnmountCommand(Command):
@@ -690,8 +740,8 @@ class ContainerUnmountCommand(Command):
             num = self.find_by_manifest(loader, args.container)
         else:
             num = self.find_by_path(loader, args.path)
-        print(f'Unmounting container {num}')
-        self.write_control(loader, 'cmd', f'unmount {num}'.encode())
+        print(f'Unmounting storage {num}')
+        self.write_control(loader, 'unmount', str(num).encode())
 
     def find_by_manifest(self, loader, container_name):
         '''
@@ -702,40 +752,23 @@ class ContainerUnmountCommand(Command):
         if not manifest:
             raise CliError(f'Not found: {container_name}')
         print(f'Using manifest: {path}')
-        nums = set()
-        for path, num in self.read_paths(loader):
-            if path in manifest.fields['paths']:
-                nums.add(num)
+        mount_path = manifest.fields['paths'][0]
+        return self.find_by_path(loader, mount_path)
 
-        if len(nums) == 0:
-            raise CliError(
-                'Container with a given list of paths not found. '
-                'Is it mounted?')
-        if len(nums) > 1:
-            raise CliError(
-                'More than one container found: {}. '
-                'Consider unmounting by path instead.'.format(
-                    ', '.join(map(str, nums))))
-
-        return list(nums)[0]
-
-    def find_by_path(self, loader, container_path):
+    def find_by_path(self, loader, mount_path):
         '''
         Find container ID by one of mount paths.
         '''
 
-        for path, num in self.read_paths(loader):
-            print(path)
-            if container_path == path:
-                return num
-        raise CliError(f'No container found: {container_path}')
+        paths = self.read_paths(loader)
+        if mount_path not in paths:
+            raise CliError(f'No container found under {mount_path}')
+        return paths[mount_path]
 
     def read_paths(self, loader):
         '''Read and parse .control/paths.'''
 
-        for line in self.read_control(loader, 'paths').decode().splitlines():
-            path, _sep, num = line.rpartition(' ')
-            yield path, num
+        return json.loads(self.read_control(loader, 'paths'))
 
 
 class MainCommand:

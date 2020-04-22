@@ -24,6 +24,7 @@ import shutil
 from pathlib import Path
 import os
 import yaml
+import json
 
 import pytest
 
@@ -237,40 +238,46 @@ def test_container_list(cli, base_dir, capsys):
 def test_container_mount(cli, base_dir):
     cli('user', 'create', 'User', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'Storage', '--type', 'local', '--path', 'PATH',
+        '--container', 'Container', '--update-container')
 
     cli('container', 'mount', 'Container')
 
     # The command should write container manifest to .control/mount.
     with open(base_dir / 'mnt/.control/mount') as f:
         data = f.read()
-    assert "signer: '0xaaa'" in data
-    assert "- /PATH" in data
+    assert '"signer": "0xaaa"' in data
+    assert "/PATH" in data
 
 
 def test_container_unmount(cli, base_dir):
     cli('user', 'create', 'User', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
+    with open(base_dir / 'containers/Container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        f.write('''\
-/PATH 101
-/PATH2 102
-''')
+        json.dump({
+            path: 101,
+            '/PATH2': 102,
+        }, f)
     cli('container', 'unmount', 'Container')
 
-    with open(base_dir / 'mnt/.control/cmd') as f:
+    with open(base_dir / 'mnt/.control/unmount') as f:
         data = f.read()
-    assert data == 'unmount 101'
+    assert data == '101'
 
 def test_container_unmount_by_path(cli, base_dir):
 
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        f.write('''\
-/PATH 101
-/PATH2 102
-''')
+        json.dump({
+            '/PATH': 101,
+            '/PATH2': 102,
+        }, f)
     cli('container', 'unmount', '--path', '/PATH2')
 
-    with open(base_dir / 'mnt/.control/cmd') as f:
+    with open(base_dir / 'mnt/.control/unmount') as f:
         data = f.read()
-    assert data == 'unmount 102'
+    assert data == '102'
