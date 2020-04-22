@@ -1,18 +1,24 @@
 FUSE Driver
 ===========
 
+The FUSE driver is a layer below Wildland CLI. It's responsible for mediating
+between storage backends and the FUSE filesystem.
+
+The driver intentionally does as little as possible. That means no signature
+verification, no resolving containers/storages etc. See "Control interface" for
+details.
+
 Quick start
 -----------
-
-Import the example GPG key::
-
-   gpg2 --import example/test-public-key.key
-
 Mount the filesystem::
 
    mkdir mnt
-   ./wildland-fuse ./mnt -f \
-      -o log=-,user_dir=./example/users,manifest=./example/manifests/container1.yaml,manifest=./example/manifests/container2.yaml
+   ./wildland-fuse ./mnt -f
+
+Mount a storage::
+
+   echo '{ "paths": ["/foo", "/bar"], "storage": {"type": "local", "path": "/tmp", "signer": "0xaaa"}}' \
+       > ./mnt/.control/mount
 
 After you're done, unmount:
 
@@ -30,33 +36,35 @@ Command-line options for ``wildland-fuse``:
 Mount options (passed with ``-o``):
 
 * ``log=PATH``: log to a file (`-` means stderr)
-* ``dummy``: use dummy signature verification instead of GPG (for testing)
-* ``base_dir=PATH``: load configuration from a specific directory (default
-  is ``~/.wildland``)
-* ``manifest=...`` (can be repeated): mount a container with given manifest
-  (this is optional, you can also add containers afterwards using the
-  ``.control`` system)
 
 Control interface
 -----------------
 
-There is a procfs-like interface under ``.control/``:
+There is a procfs-like interface under ``.control/``. It's intended to be used
+by Widland CLI. Structured data is passed using JSON.
 
-* ``.control/paths`` - list of paths and corresponding containers, by number::
+* ``.control/paths`` - paths and corresponding storages, by number::
 
-      /container1 0
-      /container2 1
-      /path/for/container1 0
+      {
+        "/.control": 0,
+        "/container1": 1,
+        "/container2": 2,
+      }
 
-* ``.control/containers/<NUM>`` - container directories:
+* ``.control/storage/<NUM>`` - storage directories:
 
-  * ``manifest.yaml``
-  * ``/storage/<NUM>/manifest.yaml``
+  * ``manifest.yaml`` - unsigned
 
-* ``.control/cmd`` - commands (write-only file):
+* ``.control/mount`` (write-only) - mount a storage under a list of
+  paths. Expects storage manifest fields under ``storage``::
 
-  * ``mount <MANIFEST_FILE>``
-  * ``unmount <NUM>``
+      {
+        "paths": ["/path1", "path2" ...],
+        "storage": {
+           "type": ...
+           ...
+        }
+      }
 
-* ``.control/mount`` - mount a manifest provided directly (``cat manifest.yaml >
-  .control/mount``); note: absolute paths are required
+* ``.control/unmount`` (write-only) - unmount a storage by number. Input data
+  is a single number.

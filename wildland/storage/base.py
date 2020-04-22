@@ -25,8 +25,9 @@ import abc
 import errno
 from typing import Optional
 
-from .manifest.schema import Schema
-from .manifest.manifest import Manifest
+from ..manifest.schema import Schema
+from ..manifest.manifest import Manifest
+from ..exc import WildlandError
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -70,6 +71,61 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def unlink(self, path):
         raise NotImplementedError()
+
+    @staticmethod
+    def from_fields(fields, uid, gid) -> 'AbstractStorage':
+        '''
+        Construct a Storage from fields originating from manifest.
+
+        Assume the fields have been validated before.
+        '''
+
+        manifest = Manifest.from_fields(fields)
+        manifest.skip_signing()
+
+        return AbstractStorage.from_manifest(manifest, uid, gid)
+
+    @staticmethod
+    def from_manifest(manifest, uid, gid) -> 'AbstractStorage':
+        '''
+        Construct a Storage from manifest.
+        '''
+
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from .local import LocalStorage
+        from .s3 import S3Storage
+
+        storage_type = manifest.fields['type']
+        if storage_type == 'local':
+            return LocalStorage(manifest=manifest)
+        if storage_type == 's3':
+            return S3Storage(manifest=manifest, uid=uid, gid=gid)
+        raise WildlandError(f'unknown storage type: {storage_type}')
+
+    @staticmethod
+    def is_manifest_supported(manifest):
+        '''
+        Check if the storage type is supported.
+        '''
+        storage_type = manifest.fields['type']
+        return storage_type in ['local', 's3']
+
+    @staticmethod
+    def validate_manifest(manifest):
+        '''
+        Validate manifest, assuming it's of a supported type.
+        '''
+
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from .local import LocalStorage
+        from .s3 import S3Storage
+
+        storage_type = manifest.fields['type']
+        if storage_type == 'local':
+            manifest.apply_schema(LocalStorage.SCHEMA)
+        if storage_type == 's3':
+            manifest.apply_schema(S3Storage.SCHEMA)
+        raise WildlandError(f'unknown storage type: {storage_type}')
 
 
 def _proxy(method_name):

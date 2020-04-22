@@ -183,7 +183,22 @@ class ManifestLoader:
         else:
             assert False, manifest_type
 
-    def create_user(self, pubkey, name=None) -> Path:
+    def make_name(self, base_name: str, manifest_type) -> str:
+        '''
+        Make up an unused name for a new manifest.
+        In case of collisions, tries '{name}', '{name}.1', etc.
+        '''
+
+        i = 0
+        while True:
+            suffix = '' if i == 0 else f'.{i}'
+            if not os.path.exists(
+                    self.manifest_dir(manifest_type) /
+                    (base_name + suffix + '.yaml')):
+                return base_name + suffix
+            i += 1
+
+    def create_user(self, pubkey, name) -> Path:
         '''
         Create a new user.
         '''
@@ -196,7 +211,7 @@ class ManifestLoader:
         })
         manifest.sign(self.sig)
         if name is None:
-            name = pubkey
+            name = self.make_name(pubkey, 'user')
 
         return self.save_manifest(manifest, name, 'user')
 
@@ -220,6 +235,7 @@ class ManifestLoader:
         '''
         Create a new storage.
         '''
+
         manifest = Manifest.from_fields({
             'signer': pubkey,
             'type': storage_type,
@@ -228,12 +244,18 @@ class ManifestLoader:
         schema = Schema(f'storage-{storage_type}')
         manifest.apply_schema(schema)
         manifest.sign(self.sig)
+
+        if name is None:
+            container_path = fields['container_path']
+            base_name = Path(container_path).name
+            name = self.make_name(base_name, 'storage')
+
         return self.save_manifest(manifest, name, 'storage')
 
     def create_container(self,
                          pubkey: str,
                          paths: List[str],
-                         name: str) -> Path:
+                         name: Optional[str]) -> Path:
         '''
         Create a new container.
 
@@ -241,9 +263,16 @@ class ManifestLoader:
         will add one at the beginning.
         '''
 
-        if not any(path.startswith('/.uuid/') for path in paths):
+        for path in paths:
+            if path.startswith('/.uuid/'):
+                ident = path[len('/.uuid/'):]
+                break
+        else:
             ident = str(uuid.uuid4())
             paths = [f'/.uuid/{ident}'] + paths
+
+        if name is None:
+            name = self.make_name(ident, 'container')
 
         manifest = Manifest.from_fields({
             'signer': pubkey,
@@ -265,7 +294,7 @@ class ManifestLoader:
 
 class Config:
     '''
-    Wildland configuration, by default loaded from ~/.wildland/config.yaml.
+    Wildland configuration, by default loaded from ~/.config/wildland/config.yaml.
 
     Consists of three layers:
     - default_fields (set here)
@@ -274,7 +303,6 @@ class Config:
     '''
 
     filename = 'config.yaml'
-    default_base_dir = '.wildland'
 
     def __init__(self,
                  base_dir,
@@ -333,7 +361,11 @@ class Config:
         home_dir = Path(home_dir)
 
         if base_dir is None:
-            base_dir = home_dir / cls.default_base_dir
+            xdg_home = os.getenv('XDG_CONFIG_HOME')
+            if xdg_home:
+                base_dir = Path(xdg_home / 'wildland')
+            else:
+                base_dir = Path(home_dir / '.config/wildland')
         else:
             base_dir = Path(base_dir)
 

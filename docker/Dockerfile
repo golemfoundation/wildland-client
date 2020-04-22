@@ -18,6 +18,7 @@ RUN apt-get install -y \
       pylint3 \
       strace \
       sudo \
+      nano \
       fish
 
 RUN useradd -G sudo -s /usr/bin/fish -m user

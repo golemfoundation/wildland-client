@@ -29,8 +29,8 @@ import stat
 
 import fuse
 
-from . import storage as _storage
-from .exc import WildlandError
+from .base import AbstractStorage, FileProxyMixin
+from ..exc import WildlandError
 
 CONTROL_FILE_MAX_SIZE = 4096
 
@@ -125,7 +125,7 @@ class ControlFile:
         pass
 
 
-class ControlStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
+class ControlStorage(AbstractStorage, FileProxyMixin):
     '''Control pseudo-storage'''
     file_class = ControlFile
 

@@ -17,68 +17,56 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 
 import os
 import stat
 import errno
 import shutil
 import subprocess
+import json
 
 import pytest
 
 from .fuse_env import FuseEnv
-from ..manifest.manifest import Manifest
-from ..manifest.sig import DummySigContext
 
 
 @pytest.fixture
 def env():
     env = FuseEnv()
     try:
-        create_test_data(env)
-        env.mount(['manifest1.yaml'])
+        env.mount()
         yield env
     finally:
         env.destroy()
 
-
-def create_test_data(env):
-    # TODO: instead of creating a single fixture, we should define them on the
-    # fly.
-    env.create_manifest('manifest1.yaml', {
-        'paths': ['/container1'],
-        'backends': {
-            'storage': [
-                'storage1.yaml',
-            ]
-        }
-    })
-
-    env.create_manifest('storage1.yaml', {
+@pytest.fixture
+def container(env):
+    env.create_dir('storage/storage1')
+    env.mount_storage(['/container1'], {
         'type': 'local',
-        'path': './storage/storage1',
+        'signer': '0x3333',
+        'path': str(env.test_dir / 'storage/storage1'),
         'container_path': '/container1',
     })
+    return 'container1'
 
-    env.create_dir('./storage/storage1/')
 
-
-def test_list(env):
+def test_list(env, container):
     assert sorted(os.listdir(env.mnt_dir)) == [
         '.control',
-        'container1',
+        container
     ]
 
 
-def test_list_contains_dots(env):
+def test_list_contains_dots(env, container):
     # Python's directory list functions filter out '.' and '..', so we use ls.
     ls_output = subprocess.check_output(['ls', '-a', env.mnt_dir])
     assert sorted(ls_output.decode().split()) == [
         '.',
         '..',
         '.control',
-        'container1',
+        container,
     ]
 
 
@@ -97,27 +85,27 @@ def test_stat_not_found(env):
         os.stat(env.mnt_dir / 'nonexistent')
 
 
-def test_container_list(env):
+def test_container_list(env, container):
     env.create_file('storage/storage1/file1')
     env.create_file('storage/storage1/file2')
-    assert sorted(os.listdir(env.mnt_dir / 'container1')) == ['file1', 'file2']
+    assert sorted(os.listdir(env.mnt_dir / container)) == ['file1', 'file2']
 
 
-def test_container_stat_file(env):
+def test_container_stat_file(env, container):
     env.create_file('storage/storage1/file1', mode=0o644)
-    st = os.stat(env.mnt_dir / 'container1/file1')
+    st = os.stat(env.mnt_dir / container / 'file1')
     assert st.st_mode == 0o644 | stat.S_IFREG
 
 
-def test_container_read_file(env):
+def test_container_read_file(env, container):
     env.create_file('storage/storage1/file1', 'hello world')
-    with open(env.mnt_dir / 'container1/file1', 'r') as f:
+    with open(env.mnt_dir / container / 'file1', 'r') as f:
         content = f.read()
     assert content == 'hello world'
 
 
-def test_container_create_file(env):
-    with open(env.mnt_dir / 'container1/file1', 'w') as f:
+def test_container_create_file(env, container):
+    with open(env.mnt_dir / container / 'file1', 'w') as f:
         f.write('hello world')
     os.sync()
     with open(env.test_dir / 'storage/storage1/file1', 'r') as f:
@@ -125,74 +113,43 @@ def test_container_create_file(env):
     assert content == 'hello world'
 
 
-def test_container_delete_file(env):
+def test_container_delete_file(env, container):
     env.create_file('storage/storage1/file1', 'hello world')
-    os.unlink(env.mnt_dir / 'container1/file1')
+    os.unlink(env.mnt_dir / container / 'file1')
     assert not (env.test_dir / 'storage/storage1/file1').exists()
 
 
-def test_control_paths(env):
+def test_control_paths(env, container):
     text = (env.mnt_dir / '.control/paths').read_text()
-    assert text.splitlines() == [f'/container1 0']
+    assert json.loads(text) == {
+        '/.control': 0,
+        '/' + container: 1,
+    }
 
 
-def test_control_containers(env):
-    containers_dir = env.mnt_dir / '.control/containers'
-    assert sorted(os.listdir(containers_dir)) == ['0']
+def test_control_storage(env, container):
+    storage_dir = env.mnt_dir / '.control/storage'
+    assert sorted(os.listdir(storage_dir)) == ['0', '1']
 
-    with open(containers_dir / '0/manifest.yaml') as f:
-        manifest_content = f.read()
-    assert "signer: '0x3333'" in manifest_content
-    assert '/container1' in manifest_content
-
-
-def test_control_storage(env):
-    storage_dir = env.mnt_dir / '.control/containers/0/storage'
-    assert sorted(os.listdir(storage_dir)) == ['0']
-
-    with open(storage_dir / '0/manifest.yaml') as f:
+    with open(storage_dir / '1/manifest.yaml') as f:
         manifest_content = f.read()
     assert "signer: '0x3333'" in manifest_content
     assert '/storage1' in manifest_content
 
 
-def cmd(env, data):
-    with open(env.mnt_dir / '.control/cmd', 'w') as f:
-        f.write(data)
-
-
-def container_manifest(*, signer='0x3333',
-                       paths=None, storage=None):
-    if paths is None:
-        paths = ['/container2']
-    if storage is None:
-        storage = ['storage2.yaml']
-
+def storage_manifest(env, path):
     return {
-        'signer': signer,
-        'paths': paths,
-        'backends': {
-            'storage': storage
-        }
-    }
-
-
-def storage_manifest(*, signer='0x3333', path, container_path='/container2'):
-    return {
-        'signer': signer,
+        'signer': '0x3333',
         'type': 'local',
-        'container_path': container_path,
-        'path': path,
+        'path': str(env.test_dir / path),
     }
 
 
-def test_cmd_mount(env):
-    env.create_manifest('storage2.yaml', storage_manifest(
-        path='./storage/storage2'))
-    env.create_manifest('manifest2.yaml', container_manifest())
-    cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
-    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
-        '0', '1'
+def test_cmd_mount(env, container):
+    storage = storage_manifest(env, 'storage/storage2')
+    env.mount_storage(['/container2'], storage)
+    assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == [
+        '0', '1', '2'
     ]
     assert sorted(os.listdir(env.mnt_dir)) == [
         '.control',
@@ -201,86 +158,36 @@ def test_cmd_mount(env):
     ]
 
 
-def test_cmd_mount_direct(env):
-    env.create_manifest('storage2.yaml', storage_manifest(
-        path='./storage/storage2'))
-    manifest = Manifest.from_fields(container_manifest(storage=[
-        # Absolute path
-        str(env.test_dir / 'storage2.yaml')
-    ]))
-    manifest.sign(DummySigContext())
-    with open(env.mnt_dir / '.control/mount', 'wb') as f:
-        f.write(manifest.to_bytes())
-    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == [
-        '0', '1'
-    ]
-    assert sorted(os.listdir(env.mnt_dir)) == [
-        '.control',
-        'container1',
-        'container2',
-    ]
-
-
-def test_cmd_mount_path_collision(env):
-    env.create_manifest('manifest3.yaml', container_manifest(paths=['/container1']))
+def test_cmd_mount_path_collision(env, container):
+    storage = storage_manifest(env, 'storage2.yaml')
+    env.mount_storage(['/container2'], storage)
     with pytest.raises(IOError) as e:
-        cmd(env, 'mount ' + str(env.test_dir / 'manifest3.yaml'))
+        env.mount_storage(['/container2'], storage)
     assert e.value.errno == errno.EINVAL
 
 
-def test_cmd_mount_signer_mismatch(env):
-    env.create_manifest('storage2.yaml', storage_manifest(
-        signer='0x4444',
-        path='./storage/storage2',
-        container_path='/container2'))
-    env.create_manifest('manifest2.yaml', container_manifest(
-        signer='0x3333', paths=['/container2'],
-        storage=['storage2.yaml']))
-    with pytest.raises(IOError) as e:
-        cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
-    assert e.value.errno == errno.EINVAL
-
-
-def test_cmd_mount_container_path_mismatch(env):
-    env.create_manifest('storage2.yaml', storage_manifest(
-        signer='0x3333',
-        path='./storage/storage2',
-        container_path='/container3'))
-    env.create_manifest('manifest2.yaml', container_manifest(
-        signer='0x3333', paths=['/container2'],
-        storage=['storage2.yaml']))
-    with pytest.raises(IOError) as e:
-        cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
-    assert e.value.errno == errno.EINVAL
-
-
-def test_cmd_unmount(env):
-    cmd(env, 'unmount 0')
-    assert sorted(os.listdir(env.mnt_dir / '.control/containers')) == []
+def test_cmd_unmount(env, container):
+    env.unmount_storage(1)
+    assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == ['0']
     assert sorted(os.listdir(env.mnt_dir)) == ['.control']
 
 
-def test_cmd_unmount_error(env):
+def test_cmd_unmount_error(env, container):
     with pytest.raises(IOError) as e:
-        cmd(env, 'unmount 1')
+        env.unmount_storage(2)
     assert e.value.errno == errno.EINVAL
 
     with pytest.raises(IOError) as e:
-        cmd(env, 'unmount XXX')
+        env.unmount_storage('XXX')
     assert e.value.errno == errno.EINVAL
 
 
-def test_mount_no_directory(env):
+def test_mount_no_directory(env, container):
     # Mount should still work if them backing directory does not exist
-    env.create_manifest(
-        'manifest2.yaml', container_manifest(storage=['storage2.yaml']))
-
-    env.create_manifest(
-        'storage2.yaml', storage_manifest(path='./storage/storage2',
-                                          container_path='/container2'))
+    storage = storage_manifest(env, 'storage/storage2')
 
     # The container should mount, with the directory visible but empty
-    cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    env.mount_storage(['/container2'], storage)
     assert sorted(os.listdir(env.mnt_dir)) == [
         '.control',
         'container1',
@@ -315,6 +222,7 @@ def test_nested_mounts(env):
     #                        nested2/
     #                          file-c2-nested
 
+    env.create_dir('storage/storage1')
     env.create_file('storage/storage1/file-c1')
     env.create_dir('storage/storage1/nested1')
     env.create_file('storage/storage1/nested1/file-c1-nested')
@@ -322,15 +230,10 @@ def test_nested_mounts(env):
     env.create_dir('storage/storage2/')
     env.create_file('storage/storage2/file-c2-nested')
 
-    env.create_manifest(
-        'storage2.yaml', storage_manifest(
-            path='./storage/storage2',
-            container_path='/container1/nested1',
-        ))
-    env.create_manifest(
-        'manifest2.yaml', container_manifest(storage=['storage2.yaml'],
-                                             paths=['/container1/nested1',
-                                                    '/container1/nested2']))
+    storage1 = storage_manifest(env, 'storage/storage1')
+    storage2 = storage_manifest(env, 'storage/storage2')
+
+    env.mount_storage(['/container1'], storage1)
 
     # Before mounting container2:
     assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
@@ -343,7 +246,7 @@ def test_nested_mounts(env):
 
 
     # Mount container2: nested1 and nested2 should be shadowed
-    cmd(env, 'mount ' + str(env.test_dir / 'manifest2.yaml'))
+    env.mount_storage(['/container1/nested1', '/container1/nested2'], storage2)
     assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
         'file-c1',
         'nested1',
@@ -365,7 +268,7 @@ def test_nested_mounts(env):
     ]
 
     # Unmount container1
-    cmd(env, 'unmount 0')
+    env.unmount_storage(1)
     assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
         'nested1',
         'nested2',

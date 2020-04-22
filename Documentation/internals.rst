@@ -10,7 +10,7 @@ FUSE driver
 .. autoclass:: wildland.container.Container
    :members:
 
-.. autoclass:: wildland.storage.AbstractStorage
+.. autoclass:: wildland.storage.base.AbstractStorage
    :members:
 
 

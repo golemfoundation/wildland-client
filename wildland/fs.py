@@ -27,16 +27,16 @@ import logging.config
 import os
 import pathlib
 import stat
+import json
+from typing import List, Dict
 
 import fuse
 fuse.fuse_python_api = 0, 2
 
-from .container import Container
-from .storage import FileProxyMixin
 from .fuse_utils import debug_handler
-from .storage_control import ControlStorage, control_directory, control_file
+from .storage.base import FileProxyMixin, AbstractStorage
+from .storage.control import ControlStorage, control_directory, control_file
 from .exc import WildlandError
-from .manifest.loader import ManifestLoader
 
 
 class WildlandFS(fuse.Fuse, FileProxyMixin):
@@ -48,27 +48,16 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         super().__init__(*args, **kwds)
 
-        self.parser.add_option(mountopt='manifest', metavar='PATH',
-            action='append',
-            help='paths to the container manifests')
-
         self.parser.add_option(mountopt='log', metavar='PATH',
             help='path to log file, use - for stderr')
 
-        self.parser.add_option(mountopt='base_dir', metavar='PATH',
-            help='path to base Wildland config directory')
+        self.storages: Dict[int, AbstractStorage] = {}
+        self.storage_paths: Dict[int, List[pathlib.Path]] = {}
+        self.paths: Dict[pathlib.Path, int] = {}
 
-        self.parser.add_option(mountopt='dummy_sig', action='store_true',
-            help='use dummy signatures')
-
-        # path -> Storage
-        self.paths = {}
-        # ident -> Container
-        self.containers = {}
         self.uid = None
         self.gid = None
         self.install_debug_handler()
-        self.loader: ManifestLoader = None
 
         # Run FUSE in single-threaded mode.
         # (TODO: verify what is needed for multi-threaded, what guarantees FUSE
@@ -89,16 +78,9 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
 
         self.init_logging(self.cmdline[0])
 
-        self.init_users(self.cmdline[0])
-
-        self.paths[pathlib.PurePosixPath('/.control')] = \
-            ControlStorage(fs=self, uid=self.uid, gid=self.gid)
-
-        if self.cmdline[0].manifest:
-            for path in self.cmdline[0].manifest:
-                path = pathlib.Path(path)
-                container = self.load_container(path)
-                self.mount_container(container)
+        self.mount_storage(
+            [pathlib.Path('/.control')],
+            ControlStorage(fs=self, uid=self.uid, gid=self.gid))
 
         super().main(*args, **kwds)
 
@@ -148,66 +130,43 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             config['root']['handlers'].append('file')
         logging.config.dictConfig(config)
 
-    def init_users(self, args):
+    def mount_storage(self, paths: List[pathlib.Path], storage: AbstractStorage):
         '''
-        Initialize user repository and signature context.
+        Mount a storage under a set of paths.
         '''
 
-        self.loader = ManifestLoader(
-            base_dir=args.base_dir,
-            dummy=args.dummy_sig,
-            uid=self.uid,
-            gid=self.gid,
-        )
-        logging.info('loading users from %s', self.loader.user_dir)
-        self.loader.load_users()
+        logging.info('Mounting storage %r under paths: %s',
+                    storage, [str(p) for p in paths])
 
-    def load_container(self, path: pathlib.Path) -> Container:
-        '''Load a container from the manifest given by file path'''
-        logging.info('loading manifest %s', path)
-
-        try:
-            return Container.from_yaml_file(path, self.loader)
-        except Exception:
-            raise WildlandError('error loading manifest %s' % path)
-
-    def load_container_direct(self, content: bytes) -> Container:
-        '''Load a container from the manifest given by file contents'''
-        logging.info('loading manifest directly')
-
-        try:
-            return Container.from_yaml_content(content, self.loader)
-        except Exception:
-            raise WildlandError('error loading manifest')
-
-    def mount_container(self, container: Container):
-        '''Mount a container'''
-        cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
-        intersection = set(self.paths).intersection(cpaths)
+        intersection = set(self.paths).intersection(paths)
         if intersection:
             raise WildlandError('path collision: %r' % intersection)
 
-        for path in cpaths:
-            self.paths[path] = container.storage
-
         ident = 0
-        while ident in self.containers:
+        while ident in self.storages:
             ident += 1
 
-        self.containers[ident] = container
+        self.storages[ident] = storage
+        self.storage_paths[ident] = paths
+        for path in paths:
+            self.paths[path] = ident
 
-    def unmount_container(self, ident):
-        '''Unmount a container'''
-        container = self.containers.get(ident)
-        if not container:
-            raise WildlandError('container not mounted: %s')
-        # TODO don't unmount if for open files?
-        cpaths = [pathlib.PurePosixPath(p) for p in container.paths]
-        for path in cpaths:
+    def unmount_storage(self, ident: int):
+        '''Unmount a storage'''
+
+        assert ident in self.storages
+        assert ident in self.storage_paths
+        storage = self.storages[ident]
+        paths = self.storage_paths[ident]
+        logging.info('unmounting storage %r from paths: %s',
+                     storage, [str(p) for p in paths])
+
+        # TODO check open files?
+        for path in paths:
             assert path in self.paths
             del self.paths[path]
-
-        del self.containers[ident]
+        del self.storages[ident]
+        del self.storage_paths[ident]
 
     def resolve_path(self, path: pathlib.Path):
         '''Given path inside Wildland mount, return which storage is
@@ -224,7 +183,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             except ValueError:
                 continue
             else:
-                storage = self.paths[cpath]
+                storage = self.storages[self.paths[cpath]]
                 return storage, relpath
         return None, None
 
@@ -251,46 +210,30 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     # .control API
     #
 
-    @control_file('cmd', read=False, write=True)
-    def control_cmd(self, data: bytes):
-        logging.debug('command: %r', data)
-
-        # TODO encoding?
-        command, _sep, arg = data.decode().rstrip().partition(' ')
-
-        if command == 'mount':
-            path = pathlib.Path(arg)
-            container = self.load_container(path)
-            self.mount_container(container)
-        elif command == 'unmount':
-            try:
-                ident = int(arg)
-            except ValueError:
-                raise WildlandError('wrong number: %s' % arg)
-            self.unmount_container(ident)
-        else:
-            raise WildlandError('unknown command: %r' % data)
-
     @control_file('mount', read=False, write=True)
-    def control_mount_direct(self, content: bytes):
-        logging.debug('mount')
-        container = self.load_container_direct(content)
-        self.mount_container(container)
+    def control_mount(self, content: bytes):
+        params = json.loads(content)
+        paths = [pathlib.Path(p) for p in params['paths']]
+        storage_fields = params['storage']
+        storage = AbstractStorage.from_fields(storage_fields, self.uid, self.gid)
+        self.mount_storage(paths, storage)
+
+    @control_file('unmount', read=False, write=True)
+    def control_unmount(self, content: bytes):
+        ident = int(content)
+        if ident not in self.storages:
+            raise WildlandError(f'storage not found: {ident}')
+        self.unmount_storage(ident)
 
     @control_file('paths')
     def control_paths(self):
-        result = ''
+        result = {str(path): ident for path, ident in self.paths.items()}
+        return (json.dumps(result, indent=2) + '\n').encode()
 
-        for ident, container in self.containers.items():
-            for path in container.paths:
-                result += f'{path} {ident}\n'
-
-        return result.encode()
-
-    @control_directory('containers')
+    @control_directory('storage')
     def control_containers(self):
-        for ident, container in self.containers.items():
-            yield str(ident), container
+        for ident, storage in self.storages.items():
+            yield str(ident), storage
 
 
     #

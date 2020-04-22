@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 
 MOUNT_DIR="$HOME/mnt"
+export EDITOR=nano
+export PATH=/wildland-fuse:$PATH
+
 mkdir "$MOUNT_DIR"
 
 export __fish_prompt_hostname="wildland-fuse"
-cd /wildland-fuse
 
-mkdir -p "$HOME/.wildland/users"
-cp example/users/* "$HOME/.wildland/users"
-gpg2 --import example/test-secret-key.key
+mkdir -p ~/.config/wildland
+echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
 
-./wildland-fuse "$MOUNT_DIR" \
-  -o manifest=./example/manifests/container1.yaml,manifest=./example/manifests/container2.yaml
+/wildland-fuse/example/setup.sh
+
 cd "$MOUNT_DIR"
 exec fish

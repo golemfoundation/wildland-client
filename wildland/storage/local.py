@@ -25,10 +25,10 @@ import os
 import pathlib
 import logging
 
-from . import storage as _storage
-from .fuse_utils import flags_to_mode
-from .storage_control import control_file
-from .manifest.schema import Schema
+from .base import AbstractStorage, FileProxyMixin
+from .control import control_file
+from ..fuse_utils import flags_to_mode
+from ..manifest.schema import Schema
 
 __all__ = ['LocalStorage']
 
@@ -69,7 +69,7 @@ class LocalFile:
         return self.file.truncate(length)
 
 
-class LocalStorage(_storage.AbstractStorage, _storage.FileProxyMixin):
+class LocalStorage(AbstractStorage, FileProxyMixin):
     '''Local, file-based storage'''
     SCHEMA = Schema('storage-local')
     TYPE = 'local'

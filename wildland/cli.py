@@ -30,6 +30,8 @@ import subprocess
 import shlex
 from pathlib import Path
 import copy
+import json
+import time
 
 import botocore.session
 import botocore.credentials
@@ -37,6 +39,7 @@ import botocore.credentials
 from .manifest.loader import ManifestLoader
 from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
 from .manifest.user import User
+from .container import Container
 from .exc import WildlandError
 
 
@@ -54,6 +57,10 @@ class CliError(WildlandError):
 class Command:
     '''Base command'''
 
+    def __init__(self):
+        self.loader: ManifestLoader = None
+        self.mount_dir: Path = None
+
     @property
     def description(self):
         '''
@@ -66,7 +73,18 @@ class Command:
         Add arguments supported by this command.
         '''
 
-    def handle(self, loader: ManifestLoader, args):
+    def setup(self, loader: ManifestLoader):
+        '''
+        Initialize the command before calling handle().
+
+        The initialization is a separate step, so that we can still read
+        command description and call add_arguments() before.
+        '''
+
+        self.loader = loader
+        self.mount_dir = Path(loader.config.get('mount_dir'))
+
+    def handle(self, args):
         '''
         Run the command based on parsed arguments.
         '''
@@ -74,7 +92,6 @@ class Command:
         raise NotImplementedError()
 
     def read_manifest_file(self,
-                           loader: ManifestLoader,
                            name: Optional[str],
                            manifest_type: Optional[str]) \
                            -> Tuple[bytes, Optional[Path]]:
@@ -87,7 +104,7 @@ class Command:
         if name is None:
             return (sys.stdin.buffer.read(), None)
 
-        path = loader.find_manifest(name, manifest_type)
+        path = self.loader.find_manifest(name, manifest_type)
         if not path:
             if manifest_type:
                 raise CliError(
@@ -97,58 +114,68 @@ class Command:
         with open(path, 'rb') as f:
             return (f.read(), path)
 
-    def find_user(self, loader: ManifestLoader, name: Optional[str]) -> User:
+    def find_user(self, name: Optional[str]) -> User:
         '''
         Find a user specified by name, using default if there is none.
         '''
 
         if name:
-            user = loader.find_user(name)
+            user = self.loader.find_user(name)
             if not user:
                 raise CliError(f'User not found: {name}')
             print(f'Using user: {user.pubkey}')
             return user
-        user = loader.find_default_user()
+        user = self.loader.find_default_user()
         if user is None:
             raise CliError(
                 'Default user not set, you need to provide --user')
         print(f'Using default user: {user.pubkey}')
         return user
 
-    def ensure_mounted(self, loader):
+    def ensure_mounted(self):
         '''
         Check that Wildland is mounted, and raise an exception otherwise.
         '''
 
-        mount_dir = Path(loader.config.get('mount_dir'))
-        if not os.path.isdir(mount_dir / '.control'):
-            raise CliError(f'Wildland not mounted at {mount_dir}')
+        if not os.path.isdir(self.mount_dir / '.control'):
+            raise CliError(f'Wildland not mounted at {self.mount_dir}')
 
-    def write_control(self, loader, name: str, data: bytes):
+    def write_control(self, name: str, data: bytes):
         '''
         Write to a .control file.
         '''
 
-        mount_dir = Path(loader.config.get('mount_dir'))
-        control_path = mount_dir / '.control' / name
+        control_path = self.mount_dir / '.control' / name
         try:
             with open(control_path, 'wb') as f:
                 f.write(data)
         except IOError as e:
             raise CliError(f'Control command failed: {control_path}: {e}')
 
-    def read_control(self, loader, name: str) -> bytes:
+    def read_control(self, name: str) -> bytes:
         '''
         Read a .control file.
         '''
 
-        mount_dir = Path(loader.config.get('mount_dir'))
-        control_path = mount_dir / '.control' / name
+        control_path = self.mount_dir / '.control' / name
         try:
             with open(control_path, 'rb') as f:
                 return f.read()
         except IOError as e:
             raise CliError(f'Reading control file failed: {control_path}: {e}')
+
+    def wait_for_mount(self):
+        '''
+        Wait until Wildland is mounted.
+        '''
+
+        n_tries = 20
+        delay = 0.1
+        for _ in range(n_tries):
+            if os.path.isdir(self.mount_dir / '.control'):
+                return
+            time.sleep(delay)
+        raise CliError(f'Timed out waiting for Wildland to mount: {self.mount_dir}')
 
 
 class UserCreateCommand(Command):
@@ -159,22 +186,22 @@ class UserCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'name',
+            'name', nargs='?',
             help='Name for the user')
         parser.add_argument(
-            'key',
+            '--key', required=True,
             help='GPG key identifier')
 
-    def handle(self, loader, args):
-        pubkey = loader.sig.find(args.key)
+    def handle(self, args):
+        pubkey = self.loader.sig.find(args.key)
         print(f'Using key: {pubkey}')
 
-        path = loader.create_user(pubkey, args.name)
+        path = self.loader.create_user(pubkey, args.name)
         print(f'Created: {path}')
 
-        if loader.config.get('default_user') is None:
+        if self.loader.config.get('default_user') is None:
             print(f'Using {pubkey} as default user')
-            loader.config.update_and_save(default_user=pubkey)
+            self.loader.config.update_and_save(default_user=pubkey)
 
 
 class StorageCreateCommand(Command):
@@ -191,7 +218,7 @@ class StorageCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'name',
+            'name', nargs='?',
             help='Name for the storage')
         parser.add_argument(
             '--type',
@@ -216,7 +243,7 @@ class StorageCreateCommand(Command):
             '--bucket',
             help='S3 bucket name')
 
-    def handle(self, loader, args):
+    def handle(self, args):
         if args.type == 'local':
             fields = self.get_fields(args, 'path')
         elif args.type == 's3':
@@ -225,10 +252,10 @@ class StorageCreateCommand(Command):
         else:
             assert False, args.type
 
-        loader.load_users()
-        user = self.find_user(loader, args.user)
+        self.loader.load_users()
+        user = self.find_user(args.user)
 
-        container_path, container_manifest = loader.load_manifest(args.container,
+        container_path, container_manifest = self.loader.load_manifest(args.container,
                                                         'container')
         if not container_manifest:
             raise CliError(f'Not found: {args.container}')
@@ -236,7 +263,7 @@ class StorageCreateCommand(Command):
         print(f'Using container: {container_path} ({container_mount_path})')
         fields['container_path'] = container_mount_path
 
-        storage_path = loader.create_storage(user.pubkey, args.type, fields, args.name)
+        storage_path = self.loader.create_storage(user.pubkey, args.type, fields, args.name)
         print('Created: {}'.format(storage_path))
 
         if args.update_container:
@@ -244,8 +271,8 @@ class StorageCreateCommand(Command):
             fields = copy.deepcopy(container_manifest.fields)
             fields['backends']['storage'].append(str(storage_path))
             container_manifest = Manifest.from_fields(fields)
-            loader.validate_manifest(container_manifest, 'container')
-            container_manifest.sign(loader.sig)
+            self.loader.validate_manifest(container_manifest, 'container')
+            container_manifest.sign(self.loader.sig)
             signed_data = container_manifest.to_bytes()
             print(f'Saving: {container_path}')
             with open(container_path, 'wb') as f:
@@ -288,7 +315,7 @@ class ContainerCreateCommand(Command):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'name',
+            'name', nargs='?',
             help='Name for the container')
         parser.add_argument(
             '--user',
@@ -297,10 +324,10 @@ class ContainerCreateCommand(Command):
             '--path', nargs='+', required=True,
             help='Mount path (can be repeated)')
 
-    def handle(self, loader, args):
-        loader.load_users()
-        user = self.find_user(loader, args.user)
-        path = loader.create_container(user.pubkey, args.path, args.name)
+    def handle(self, args):
+        self.loader.load_users()
+        user = self.find_user(args.user)
+        path = self.loader.create_container(user.pubkey, args.path, args.name)
         print(f'Created: {path}')
 
 
@@ -317,9 +344,9 @@ class ContainerUpdateCommand(Command):
             '--storage', nargs='*',
             help='Storage to use (can be repeated)')
 
-    def handle(self, loader, args):
-        loader.load_users()
-        path, manifest = loader.load_manifest(args.container, 'container')
+    def handle(self, args):
+        self.loader.load_users()
+        path, manifest = self.loader.load_manifest(args.container, 'container')
         if not path:
             raise CliError(f'Container not found: {args.container}')
 
@@ -329,7 +356,7 @@ class ContainerUpdateCommand(Command):
 
         storages = list(manifest.fields['backends']['storage'])
         for storage_name in args.storage:
-            storage_path = loader.find_manifest(storage_name, 'storage')
+            storage_path = self.loader.find_manifest(storage_name, 'storage')
             if not storage_path:
                 raise CliError(f'Storage manifest not found: {storage_name}')
             print(f'Adding storage: {storage_path}')
@@ -340,8 +367,8 @@ class ContainerUpdateCommand(Command):
         fields = copy.deepcopy(manifest.fields)
         fields['backends']['storage'] = storages
         new_manifest = Manifest.from_fields(fields)
-        loader.validate_manifest(new_manifest, 'container')
-        new_manifest.sign(loader.sig)
+        self.loader.validate_manifest(new_manifest, 'container')
+        new_manifest.sign(self.loader.sig)
         signed_data = new_manifest.to_bytes()
 
         print(f'Saving: {path}')
@@ -354,9 +381,9 @@ class UserListCommand(Command):
     Display known users.
     '''
 
-    def handle(self, loader, args):
-        loader.load_users()
-        for user in loader.users:
+    def handle(self, args):
+        self.loader.load_users()
+        for user in self.loader.users:
             print('{} {}'.format(user.pubkey, user.manifest_path))
 
 
@@ -365,9 +392,9 @@ class StorageListCommand(Command):
     Display known storages.
     '''
 
-    def handle(self, loader, args):
-        loader.load_users()
-        for path, manifest in loader.load_manifests('storage'):
+    def handle(self, args):
+        self.loader.load_users()
+        for path, manifest in self.loader.load_manifests('storage'):
             print(path)
             storage_type = manifest.fields['type']
             print(f'  type:', storage_type)
@@ -380,9 +407,9 @@ class ContainerListCommand(Command):
     Display known containers.
     '''
 
-    def handle(self, loader, args):
-        loader.load_users()
-        for path, manifest in loader.load_manifests('container'):
+    def handle(self, args):
+        self.loader.load_users()
+        for path, manifest in self.loader.load_manifests('container'):
             print(path)
             for container_path in manifest.fields['paths']:
                 print(f'  path:', container_path)
@@ -400,6 +427,7 @@ class SignCommand(Command):
     '''
 
     def __init__(self, manifest_type=None):
+        super().__init__()
         self.manifest_type = manifest_type
 
     def add_arguments(self, parser):
@@ -413,21 +441,21 @@ class SignCommand(Command):
             '-i', dest='in_place', action='store_true',
             help='Modify the file in place')
 
-    def handle(self, loader, args):
+    def handle(self, args):
         if args.in_place:
             if not args.input_file:
                 raise CliError('Cannot -i without a file')
             if args.output_file:
                 raise CliError('Cannot use both -i and -o')
 
-        loader.load_users()
-        data, path = self.read_manifest_file(loader, args.input_file,
+        self.loader.load_users()
+        data, path = self.read_manifest_file(args.input_file,
                                              self.manifest_type)
 
         manifest = Manifest.from_unsigned_bytes(data)
         if self.manifest_type:
-            loader.validate_manifest(manifest, self.manifest_type)
-        manifest.sign(loader.sig)
+            self.loader.validate_manifest(manifest, self.manifest_type)
+        manifest.sign(self.loader.sig)
         signed_data = manifest.to_bytes()
 
         if args.in_place:
@@ -451,6 +479,7 @@ class VerifyCommand(Command):
     '''
 
     def __init__(self, manifest_type=None):
+        super().__init__()
         self.manifest_type = manifest_type
 
     def add_arguments(self, parser):
@@ -458,14 +487,14 @@ class VerifyCommand(Command):
             'input_file', metavar='FILE', nargs='?',
             help='File to verify (default is stdin)')
 
-    def handle(self, loader, args):
-        loader.load_users()
-        data, _path = self.read_manifest_file(loader, args.input_file,
+    def handle(self, args):
+        self.loader.load_users()
+        data, _path = self.read_manifest_file(args.input_file,
                                               self.manifest_type)
         try:
-            manifest = Manifest.from_bytes(data, loader.sig)
+            manifest = Manifest.from_bytes(data, self.loader.sig)
             if self.manifest_type:
-                loader.validate_manifest(manifest, self.manifest_type)
+                self.loader.validate_manifest(manifest, self.manifest_type)
         except ManifestError as e:
             raise CliError(f'Error verifying manifest: {e}')
         print('Manifest is valid')
@@ -481,6 +510,7 @@ class EditCommand(Command):
     '''
 
     def __init__(self, manifest_type=None):
+        super().__init__()
         self.manifest_type = manifest_type
 
     def add_arguments(self, parser):
@@ -492,13 +522,13 @@ class EditCommand(Command):
             '--editor', metavar='EDITOR',
             help='Editor to use, instead of $EDITOR')
 
-    def handle(self, loader, args):
+    def handle(self, args):
         if args.editor is None:
             args.editor = os.getenv('EDITOR')
             if args.editor is None:
                 raise CliError('No editor specified and EDITOR not set')
 
-        data, path = self.read_manifest_file(loader, args.input_file,
+        data, path = self.read_manifest_file(args.input_file,
                                              self.manifest_type)
 
         if HEADER_SEPARATOR in data:
@@ -522,11 +552,11 @@ class EditCommand(Command):
             with open(temp_path, 'rb') as f:
                 data = f.read()
 
-        loader.load_users()
+        self.loader.load_users()
         manifest = Manifest.from_unsigned_bytes(data)
         if self.manifest_type:
-            loader.validate_manifest(manifest, self.manifest_type)
-        manifest.sign(loader.sig)
+            self.loader.validate_manifest(manifest, self.manifest_type)
+        manifest.sign(self.loader.sig)
         signed_data = manifest.to_bytes()
         with open(path, 'wb') as f:
             f.write(signed_data)
@@ -554,22 +584,18 @@ class MountCommand(Command):
             '--container', '-c', metavar='CONTAINER', nargs='*',
             help='Container to mount (can be repeated)')
 
-    def handle(self, loader, args):
-        mount_dir = loader.config.get('mount_dir')
-        if not os.path.exists(mount_dir):
-            print(f'Creating: {mount_dir}')
-            os.makedirs(mount_dir)
+    def handle(self, args):
+        if not os.path.exists(self.mount_dir):
+            print(f'Creating: {self.mount_dir}')
+            os.makedirs(self.mount_dir)
 
-        if os.path.isdir(mount_dir / '.control'):
+        if os.path.isdir(self.mount_dir / '.control'):
             if not args.remount:
                 raise CliError(f'Already mounted')
-            self.unmount(mount_dir)
+            self.unmount()
 
-        cmd = [str(FUSE_ENTRY_POINT), str(mount_dir)]
-        options = ['base_dir=' + str(loader.config.base_dir)]
-
-        if loader.config.get('dummy'):
-            options.append('dummy_sig')
+        cmd = [str(FUSE_ENTRY_POINT), str(self.mount_dir)]
+        options = []
 
         if args.debug > 0:
             options.append('log=-')
@@ -577,55 +603,81 @@ class MountCommand(Command):
             if args.debug > 1:
                 cmd.append('-d')
 
+        self.loader.load_users()
+        to_mount = []
         if args.container:
             for name in args.container:
-                path = loader.find_manifest(name, 'container')
-                if not path:
+                path, manifest = self.loader.load_manifest(name, 'container')
+                if not manifest:
                     raise CliError(f'Container not found: {name}')
-                options.append(f'manifest={path}')
+                container = Container(manifest)
+                storage_manifest = container.select_storage(self.loader)
+                command = {
+                    'paths': [str(path) for path in container.paths],
+                    'storage': storage_manifest.fields,
+                }
+                to_mount.append((path, command))
 
-        cmd += ['-o', ','.join(options)]
+        if options:
+            cmd += ['-o', ','.join(options)]
 
         if args.debug:
-            self.run_debug(cmd, mount_dir)
+            self.run_debug(cmd, to_mount)
         else:
-            self.mount(cmd, mount_dir)
+            self.mount(cmd)
+            self.mount_containers(to_mount)
 
-    def run_debug(self, cmd, mount_dir):
+    def run_debug(self, cmd, to_mount):
         '''
         Run the FUSE driver in foreground, and cleanup on SIGINT.
         '''
 
-        print(f'Mounting in foreground: {mount_dir}')
+        print(f'Mounting in foreground: {self.mount_dir}')
         print('Press Ctrl-C to unmount')
         # Start a new session in order to not propagate SIGINT.
         p = subprocess.Popen(cmd, start_new_session=True)
+        self.wait_for_mount()
+        self.mount_containers(to_mount)
         try:
             p.wait()
         except KeyboardInterrupt:
-            self.unmount(mount_dir)
+            self.unmount()
             p.wait()
 
         if p.returncode != 0:
             raise CliError(f'FUSE driver exited with failure')
 
-    def mount(self, cmd, mount_dir):
+    def mount(self, cmd):
         '''
         Mount the Wildland filesystem.
         '''
 
-        print(f'Mounting: {mount_dir}')
+        print(f'Mounting: {self.mount_dir}')
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
             raise CliError(f'Failed to unmount: {e}')
 
-    def unmount(self, mount_dir):
+    def mount_containers(self, to_mount):
+        '''
+        Issue a series of .control/mount commands.
+        '''
+
+        for path, command in to_mount:
+            print(f'Mounting: {path}')
+            try:
+                with open(self.mount_dir / '.control/mount', 'wb') as f:
+                    f.write(json.dumps(command).encode())
+            except IOError as e:
+                self.unmount()
+                raise CliError(f'Failed to mount {path}: {e}')
+
+    def unmount(self):
         '''
         Unmount the Wildland filesystem.
         '''
-        print(f'Unmounting: {mount_dir}')
-        cmd = ['umount', str(mount_dir)]
+        print(f'Unmounting: {self.mount_dir}')
+        cmd = ['umount', str(self.mount_dir)]
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
@@ -637,10 +689,9 @@ class UnmountCommand(Command):
     Unmount the Wildland filesystem.
     '''
 
-    def handle(self, loader, args):
-        mount_dir = loader.config.get('mount_dir')
-        print(f'Unmounting: {mount_dir}')
-        cmd = ['umount', str(mount_dir)]
+    def handle(self, args):
+        print(f'Unmounting: {self.mount_dir}')
+        cmd = ['umount', str(self.mount_dir)]
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
@@ -658,14 +709,22 @@ class ContainerMountCommand(Command):
             'container', metavar='CONTAINER',
             help='Container name or path to manifest')
 
-    def handle(self, loader, args):
-        self.ensure_mounted(loader)
-        loader.load_users()
-        path, manifest = loader.load_manifest(args.container, 'container')
+    def handle(self, args):
+        self.ensure_mounted()
+        self.loader.load_users()
+        path, manifest = self.loader.load_manifest(args.container, 'container')
         if not manifest:
             raise CliError(f'Not found: {args.container}')
+
+        container = Container(manifest)
+        storage_manifest = container.select_storage(self.loader)
+        command = {
+            'paths': container.paths,
+            'storage': storage_manifest.fields,
+        }
+
         print(f'Mounting: {path}')
-        self.write_control(loader, 'mount', manifest.to_bytes())
+        self.write_control('mount', json.dumps(command).encode())
 
 
 class ContainerUnmountCommand(Command):
@@ -682,63 +741,46 @@ class ContainerUnmountCommand(Command):
             '--path', metavar='PATH',
             help='Mount path to search for')
 
-    def handle(self, loader, args):
-        self.ensure_mounted(loader)
-        loader.load_users()
+    def handle(self, args):
+        self.ensure_mounted()
+        self.loader.load_users()
 
         if bool(args.container) + bool(args.path) != 1:
             raise CliError('Specify either container or --path')
 
         if args.container:
-            num = self.find_by_manifest(loader, args.container)
+            num = self.find_by_manifest(args.container)
         else:
-            num = self.find_by_path(loader, args.path)
-        print(f'Unmounting container {num}')
-        self.write_control(loader, 'cmd', f'unmount {num}'.encode())
+            num = self.find_by_path(args.path)
+        print(f'Unmounting storage {num}')
+        self.write_control('unmount', str(num).encode())
 
-    def find_by_manifest(self, loader, container_name):
+    def find_by_manifest(self, container_name):
         '''
         Find container ID by reading the manifest and matching paths.
         '''
 
-        path, manifest = loader.load_manifest(container_name, 'container')
+        path, manifest = self.loader.load_manifest(container_name, 'container')
         if not manifest:
             raise CliError(f'Not found: {container_name}')
         print(f'Using manifest: {path}')
-        nums = set()
-        for path, num in self.read_paths(loader):
-            if path in manifest.fields['paths']:
-                nums.add(num)
+        mount_path = manifest.fields['paths'][0]
+        return self.find_by_path(mount_path)
 
-        if len(nums) == 0:
-            raise CliError(
-                'Container with a given list of paths not found. '
-                'Is it mounted?')
-        if len(nums) > 1:
-            raise CliError(
-                'More than one container found: {}. '
-                'Consider unmounting by path instead.'.format(
-                    ', '.join(map(str, nums))))
-
-        return list(nums)[0]
-
-    def find_by_path(self, loader, container_path):
+    def find_by_path(self, mount_path):
         '''
         Find container ID by one of mount paths.
         '''
 
-        for path, num in self.read_paths(loader):
-            print(path)
-            if container_path == path:
-                return num
-        raise CliError(f'No container found: {container_path}')
+        paths = self.read_paths()
+        if mount_path not in paths:
+            raise CliError(f'No container found under {mount_path}')
+        return paths[mount_path]
 
-    def read_paths(self, loader):
+    def read_paths(self):
         '''Read and parse .control/paths.'''
 
-        for line in self.read_control(loader, 'paths').decode().splitlines():
-            path, _sep, num = line.rpartition(' ')
-            yield path, num
+        return json.loads(self.read_control('paths'))
 
 
 class MainCommand:
@@ -830,7 +872,8 @@ class MainCommand:
         if args.command:
             loader = ManifestLoader(
                 dummy=args.dummy, base_dir=args.base_dir)
-            args.command.handle(loader, args)
+            args.command.setup(loader)
+            args.command.handle(args)
         else:
             parser = args.parser
             parser.print_help()

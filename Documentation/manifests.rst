@@ -86,7 +86,7 @@ User manifest
 -------------
 
 User manifests specify which users are recognized by the system. Currently,
-they are loaded from a specific directory (``$HOME/.wildland/users``).
+they are loaded from a specific directory (``$HOME/.config/wildland/users``).
 
 All the other manifests have to be verified against known users, i.e. their
 ``signer`` field has to correspond to the one in user manifest.

@@ -30,8 +30,8 @@ from io import BytesIO
 import boto3
 import fuse
 
-from .storage import AbstractStorage, FileProxyMixin
-from .manifest.schema import Schema
+from .base import AbstractStorage, FileProxyMixin
+from ..manifest.schema import Schema
 
 
 
