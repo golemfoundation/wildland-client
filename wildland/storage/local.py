@@ -112,8 +112,7 @@ class LocalStorage(AbstractStorage, FileProxyMixin):
         return os.listdir(self._path(path))
 
     def truncate(self, path, length):
-        with open(self._path(path), 'ab') as file:
-            file.truncate(length)
+        return os.truncate(self._path(path), length)
 
     def unlink(self, path):
         return os.unlink(self._path(path))
