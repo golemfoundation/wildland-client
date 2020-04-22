@@ -119,6 +119,17 @@ def test_container_delete_file(env, container):
     assert not (env.test_dir / 'storage/storage1/file1').exists()
 
 
+def test_container_mkdir_rmdir(env, container):
+    dirpath = env.mnt_dir / container / 'directory'
+
+    os.mkdir(dirpath, 0o755)
+    assert os.stat(dirpath).st_mode == 0o755 | stat.S_IFDIR
+
+    os.rmdir(dirpath)
+    with pytest.raises(FileNotFoundError):
+        os.stat(dirpath)
+
+
 def test_control_paths(env, container):
     text = (env.mnt_dir / '.control/paths').read_text()
     assert json.loads(text) == {

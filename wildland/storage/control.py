@@ -262,3 +262,9 @@ class ControlStorage(AbstractStorage, FileProxyMixin):
 
     def unlink(self, path):
         raise OSError(errno.EPERM, '')
+
+    def mkdir(self, path, mode):
+        raise OSError(errno.EPERM, '')
+
+    def rmdir(self, path):
+        raise OSError(errno.EPERM, '')
