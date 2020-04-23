@@ -415,3 +415,7 @@ def main():
     server = WildlandFS()
     server.parse(errex=1)
     server.main()
+
+
+if __name__ == '__main__':
+    main()

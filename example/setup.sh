@@ -9,7 +9,7 @@ WL="../wl"
 
 gpg2 --import test-secret-key.key
 
-$WL user create User "Test Key"
+$WL user create User --key "Test Key"
 
 $WL container create container1 --path /container1
 $WL storage create storage11 --type local --path $(realpath storage/storage11) \

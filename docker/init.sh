@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash -e
+
+. /home/user/env/bin/activate
 
 MOUNT_DIR="$HOME/mnt"
 export EDITOR=nano

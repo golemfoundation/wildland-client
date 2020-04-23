@@ -29,6 +29,9 @@ Manifests
 .. autoclass:: wildland.manifest.schema.Schema
    :members:
 
+.. autoclass:: wildland.manifest.user.User
+   :members:
+
 Signing
 -------
 
