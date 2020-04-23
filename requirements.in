@@ -7,5 +7,6 @@ pytest
 pytest-cov
 sphinx
 sphinx-argparse
+sphinx-autodoc-typehints
 pylint
 mypy
