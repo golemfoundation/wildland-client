@@ -213,6 +213,7 @@ class StorageCreateCommand(Command):
 
     supported_types = [
         'local',
+        'local-cached',
         's3',
     ]
 
@@ -244,7 +245,7 @@ class StorageCreateCommand(Command):
             help='S3 bucket name')
 
     def handle(self, args):
-        if args.type == 'local':
+        if args.type in ['local', 'local-cached']:
             fields = self.get_fields(args, 'path')
         elif args.type == 's3':
             fields = self.get_fields(args, 'bucket')

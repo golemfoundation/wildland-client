@@ -113,8 +113,7 @@ class S3Storage(AbstractStorage, FileProxyMixin):
     TYPE = 's3'
 
     def __init__(self, *, manifest, uid, gid, **kwds):
-        super().__init__(**kwds)
-        self.manifest = manifest
+        super().__init__(manifest=manifest, **kwds)
         self.uid = uid
         self.gid = gid
 
