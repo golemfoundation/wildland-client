@@ -1,12 +1,19 @@
+# Core
 fuse-python>=1.0.0
 jsonschema
 pyyaml
 python-gnupg
+
+# Storage
 boto3
+
+# Development / testing
 pytest
 pytest-cov
+pylint
+mypy
+
+# Documentation
 sphinx
 sphinx-argparse
 sphinx-autodoc-typehints
-pylint
-mypy
