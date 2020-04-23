@@ -164,7 +164,7 @@ class ControlStorage(AbstractStorage, FileProxyMixin):
             raise OSError(errno.EISDIR, '')
         if ((need_read and not node._control_read)
         or (need_write and not node._control_write)):
-            raise OSError(errno.ENOANO, '')
+            raise OSError(errno.EACCES, '')
 
         return node
 
