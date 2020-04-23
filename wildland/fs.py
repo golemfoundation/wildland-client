@@ -371,8 +371,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     def listxattr(self, *args):
         return -errno.ENOSYS
 
-    def mkdir(self, *args):
-        return -errno.ENOSYS
+    def mkdir(self, path, mode):
+        return self.proxy('mkdir', path, mode)
 
     def mknod(self, *args):
         return -errno.ENOSYS
@@ -386,8 +386,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     def rename(self, *args):
         return -errno.ENOSYS
 
-    def rmdir(self, *args):
-        return -errno.ENOSYS
+    def rmdir(self, path):
+        return self.proxy('rmdir', path)
 
     def setxattr(self, *args):
         return -errno.ENOSYS

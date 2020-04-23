@@ -97,6 +97,7 @@ class LocalStorage(AbstractStorage, FileProxyMixin):
         ret.relative_to(self.root) # this will throw ValueError if not relative
         return ret
 
+
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
@@ -116,6 +117,14 @@ class LocalStorage(AbstractStorage, FileProxyMixin):
 
     def unlink(self, path):
         return os.unlink(self._path(path))
+
+
+    def mkdir(self, path, mode):
+        return os.mkdir(self._path(path), mode)
+
+    def rmdir(self, path):
+        return os.rmdir(self._path(path))
+
 
     @control_file('manifest.yaml')
     def control_manifest_read(self):

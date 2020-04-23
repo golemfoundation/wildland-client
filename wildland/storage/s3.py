@@ -188,3 +188,9 @@ class S3Storage(AbstractStorage, FileProxyMixin):
         obj_summary = self.files[path]
         obj_summary.delete()
         self.refresh()
+
+    def mkdir(self, path, mode):
+        raise OSError(errno.EPERM, '')
+
+    def rmdir(self, path):
+        raise OSError(errno.EPERM, '')

@@ -46,32 +46,6 @@ class AbstractStorage(metaclass=abc.ABCMeta):
             assert manifest.fields['type'] == self.TYPE
             self.manifest = manifest
 
-    # pylint: disable=missing-docstring
-
-    @abc.abstractmethod
-    def open(self, path, flags):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def create(self, path, flags, mode):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def getattr(self, path):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def readdir(self, path):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def truncate(self, path, length):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def unlink(self, path):
-        raise NotImplementedError()
-
     @staticmethod
     def from_fields(fields, uid, gid) -> 'AbstractStorage':
         '''
@@ -126,6 +100,41 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         if storage_type == 's3':
             manifest.apply_schema(S3Storage.SCHEMA)
         raise WildlandError(f'unknown storage type: {storage_type}')
+
+
+    # pylint: disable=missing-docstring
+
+    @abc.abstractmethod
+    def open(self, path, flags):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def create(self, path, flags, mode):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def getattr(self, path):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def readdir(self, path):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def truncate(self, path, length):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def unlink(self, path):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def mkdir(self, path, mode):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def rmdir(self, path):
+        raise NotImplementedError()
 
 
 def _proxy(method_name):
