@@ -3,7 +3,9 @@ version: '3'
 services:
   wildland-fuse:
     container_name: wildland-fuse
-    build: .
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
     image: wildland-fuse
     stdin_open: true
     tty: true

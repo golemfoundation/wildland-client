@@ -1,0 +1,11 @@
+fuse-python>=1.0.0
+jsonschema
+pyyaml
+python-gnupg
+boto3
+pytest
+pytest-cov
+sphinx
+sphinx-argparse
+pylint
+mypy
