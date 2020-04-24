@@ -341,7 +341,7 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             ret.add('.control')
 
         if exists:
-            return (fuse.Direntry(i) for i in ret)
+            return [fuse.Direntry(i) for i in ret]
 
         raise OSError(errno.ENOENT, '')
 
