@@ -23,7 +23,6 @@ S3 storage backend
 
 from pathlib import Path
 import stat
-import errno
 from io import BytesIO
 from typing import Iterable, Tuple, Set
 
