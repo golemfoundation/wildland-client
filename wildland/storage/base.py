@@ -25,6 +25,7 @@ import abc
 import errno
 from typing import Optional, Dict, List, Type
 
+from .control_decorators import control_file
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 
@@ -44,6 +45,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
         # pylint: disable=redefined-builtin, unused-argument
+        self.manifest: Optional[Manifest] = None
         if manifest:
             assert manifest.fields['type'] == self.TYPE
             self.manifest = manifest
@@ -59,11 +61,15 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
         # pylint: disable=import-outside-toplevel,cyclic-import
         from .local import LocalStorage
+        from .local_cached import LocalCachedStorage
         from .s3 import S3Storage
+        from .webdav import WebdavStorage
 
         classes: List[Type[AbstractStorage]] = [
             LocalStorage,
+            LocalCachedStorage,
             S3Storage,
+            WebdavStorage,
         ]
 
         for cls in classes:
@@ -72,6 +78,18 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         return AbstractStorage._types
 
     # pylint: disable=missing-docstring
+
+    def mount(self):
+        pass
+
+    def refresh(self):
+        pass
+
+    @control_file('manifest.yaml')
+    def control_manifest_read(self):
+        if self.manifest:
+            return self.manifest.to_bytes()
+        return b''
 
     @abc.abstractmethod
     def open(self, path, flags):
@@ -104,6 +122,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def rmdir(self, path):
         raise NotImplementedError()
+
 
     @staticmethod
     def from_fields(fields, uid, gid) -> 'AbstractStorage':

@@ -40,11 +40,22 @@ def env():
     finally:
         env.destroy()
 
+
+
+@pytest.fixture(params=['local', 'local-cached'])
+def storage_type(request):
+    '''
+    Parametrize the tests by storage type
+    '''
+
+    return request.param
+
+
 @pytest.fixture
-def container(env):
+def container(env, storage_type):
     env.create_dir('storage/storage1')
     env.mount_storage(['/container1'], {
-        'type': 'local',
+        'type': storage_type,
         'signer': '0x3333',
         'path': str(env.test_dir / 'storage/storage1'),
         'container_path': '/container1',
@@ -88,17 +99,20 @@ def test_stat_not_found(env):
 def test_container_list(env, container):
     env.create_file('storage/storage1/file1')
     env.create_file('storage/storage1/file2')
+    env.refresh_storage(1)
     assert sorted(os.listdir(env.mnt_dir / container)) == ['file1', 'file2']
 
 
 def test_container_stat_file(env, container):
     env.create_file('storage/storage1/file1', mode=0o644)
+    env.refresh_storage(1)
     st = os.stat(env.mnt_dir / container / 'file1')
     assert st.st_mode == 0o644 | stat.S_IFREG
 
 
 def test_container_read_file(env, container):
     env.create_file('storage/storage1/file1', 'hello world')
+    env.refresh_storage(1)
     with open(env.mnt_dir / container / 'file1', 'r') as f:
         content = f.read()
     assert content == 'hello world'
@@ -107,7 +121,7 @@ def test_container_read_file(env, container):
 def test_container_create_file(env, container):
     with open(env.mnt_dir / container / 'file1', 'w') as f:
         f.write('hello world')
-    os.sync()
+    env.refresh_storage(1)
     with open(env.test_dir / 'storage/storage1/file1', 'r') as f:
         content = f.read()
     assert content == 'hello world'
@@ -115,7 +129,9 @@ def test_container_create_file(env, container):
 
 def test_container_delete_file(env, container):
     env.create_file('storage/storage1/file1', 'hello world')
+    env.refresh_storage(1)
     os.unlink(env.mnt_dir / container / 'file1')
+    assert not (env.mnt_dir / container / 'file1').exists()
     assert not (env.test_dir / 'storage/storage1/file1').exists()
 
 
@@ -148,16 +164,16 @@ def test_control_storage(env, container):
     assert '/storage1' in manifest_content
 
 
-def storage_manifest(env, path):
+def storage_manifest(env, path, storage_type):
     return {
         'signer': '0x3333',
-        'type': 'local',
+        'type': storage_type,
         'path': str(env.test_dir / path),
     }
 
 
-def test_cmd_mount(env, container):
-    storage = storage_manifest(env, 'storage/storage2')
+def test_cmd_mount(env, container, storage_type):
+    storage = storage_manifest(env, 'storage/storage2', storage_type)
     env.mount_storage(['/container2'], storage)
     assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == [
         '0', '1', '2'
@@ -169,8 +185,8 @@ def test_cmd_mount(env, container):
     ]
 
 
-def test_cmd_mount_path_collision(env, container):
-    storage = storage_manifest(env, 'storage2.yaml')
+def test_cmd_mount_path_collision(env, container, storage_type):
+    storage = storage_manifest(env, 'storage2.yaml', storage_type)
     env.mount_storage(['/container2'], storage)
     with pytest.raises(IOError) as e:
         env.mount_storage(['/container2'], storage)
@@ -193,9 +209,9 @@ def test_cmd_unmount_error(env, container):
     assert e.value.errno == errno.EINVAL
 
 
-def test_mount_no_directory(env, container):
+def test_mount_no_directory(env, container, storage_type):
     # Mount should still work if them backing directory does not exist
-    storage = storage_manifest(env, 'storage/storage2')
+    storage = storage_manifest(env, 'storage/storage2', storage_type)
 
     # The container should mount, with the directory visible but empty
     env.mount_storage(['/container2'], storage)
@@ -207,12 +223,13 @@ def test_mount_no_directory(env, container):
 
     # It's not possible to list the directory, or create a file...
     with pytest.raises(IOError):
-        assert os.listdir(env.mnt_dir / 'container2') == []
+        os.listdir(env.mnt_dir / 'container2')
     with pytest.raises(IOError):
         open(env.mnt_dir / 'container2/file1', 'w')
 
     # ... until you create the backing directory
     os.mkdir(env.test_dir / 'storage/storage2')
+    env.refresh_storage(2)
     with open(env.mnt_dir / 'container2/file1', 'w') as f:
         f.write('hello world')
     os.sync()
@@ -221,7 +238,7 @@ def test_mount_no_directory(env, container):
         assert f.read() == 'hello world'
 
 
-def test_nested_mounts(env):
+def test_nested_mounts(env, storage_type):
     # Test setup:
     #
     # CONTAINER 1            CONTAINER 2
@@ -241,8 +258,8 @@ def test_nested_mounts(env):
     env.create_dir('storage/storage2/')
     env.create_file('storage/storage2/file-c2-nested')
 
-    storage1 = storage_manifest(env, 'storage/storage1')
-    storage2 = storage_manifest(env, 'storage/storage2')
+    storage1 = storage_manifest(env, 'storage/storage1', storage_type)
+    storage2 = storage_manifest(env, 'storage/storage2', storage_type)
 
     env.mount_storage(['/container1'], storage1)
 
@@ -273,6 +290,7 @@ def test_nested_mounts(env):
 
     # Delete backing storage of container1: we can only see the mounts
     shutil.rmtree(env.test_dir / 'storage/storage1')
+    env.refresh_storage(1)
     assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
         'nested1',
         'nested2',

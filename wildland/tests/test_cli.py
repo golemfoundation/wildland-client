@@ -156,19 +156,19 @@ def test_user_edit_editor_failed(cli):
 def test_storage_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', 'PATH',
+    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
         '--container', 'Container')
     with open(base_dir / 'storage/Storage.yaml') as f:
         data = f.read()
 
     assert "signer: '0xaaa'" in data
-    assert "path: PATH" in data
+    assert "path: /PATH" in data
 
 
 def test_storage_create_update_container(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', 'PATH',
+    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
         '--container', 'Container', '--update-container')
 
     with open(base_dir / 'containers/Container.yaml') as f:
@@ -181,7 +181,7 @@ def test_storage_create_update_container(cli, base_dir):
 def test_storage_list(cli, base_dir, capsys):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', 'PATH',
+    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
         '--container', 'Container')
     capsys.readouterr()
 
@@ -190,7 +190,7 @@ def test_storage_list(cli, base_dir, capsys):
     assert out.splitlines() == [
         str(base_dir / 'storage/Storage.yaml'),
         '  type: local',
-        '  path: PATH',
+        '  path: /PATH',
     ]
 
 
@@ -212,7 +212,7 @@ def test_container_update(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', 'PATH',
+    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
         '--container', 'Container')
     cli('container', 'update', 'Container', '--storage', 'Storage')
 
@@ -238,7 +238,7 @@ def test_container_list(cli, base_dir, capsys):
 def test_container_mount(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', 'PATH',
+    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
         '--container', 'Container', '--update-container')
 
     cli('container', 'mount', 'Container')
