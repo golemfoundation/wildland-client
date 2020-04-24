@@ -33,24 +33,6 @@ from .cached import CachedStorage, Info
 from ..manifest.schema import Schema
 
 
-def s3_stat(obj_summary, uid, gid):
-    '''Construct a stat entry for given S3 ObjectSummary.'''
-
-    # S3 remember only last_modified, no creation or access
-    timestamp = int(obj_summary.last_modified.timestamp())
-
-    return fuse.Stat(
-        st_mode=stat.S_IFREG | 0o644,
-        st_nlink=1,
-        st_uid=uid,
-        st_gid=gid,
-        st_size=obj_summary.size,
-        st_atime=timestamp,
-        st_mtime=timestamp,
-        st_ctime=timestamp,
-    )
-
-
 class S3Storage(CachedStorage):
     '''
     Amazon S3 storage.
