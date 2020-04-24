@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, Tuple, Set
 from pathlib import Path
 import logging
+import time
 
 import fuse
 
@@ -84,6 +85,7 @@ class CachedStorage(AbstractStorage):
     To use, subclass it and implement backend_* methods.
     '''
 
+    REFRESH_TIMEOUT_SECONDS = 3
 
     def __init__(self, *, uid, gid, **kwds):
         super().__init__(**kwds)
@@ -100,6 +102,8 @@ class CachedStorage(AbstractStorage):
         # Loaded data, and dirty flag. For currently open files only.
         self.buffers: Dict[Path, BytesIO] = {}
         self.modified: Set[Path] = set()
+
+        self.last_refresh = 0
 
     ## Backend operations - to override
 
@@ -164,6 +168,14 @@ class CachedStorage(AbstractStorage):
     def mount(self):
         self.refresh()
 
+    def check(self):
+        '''
+        Refresh cache if necessary.
+        '''
+
+        if time.time() - self.last_refresh > self.REFRESH_TIMEOUT_SECONDS:
+            self.refresh()
+
     def refresh(self):
         '''
         Refresh cached information (self.files, self.dirs).
@@ -178,6 +190,8 @@ class CachedStorage(AbstractStorage):
                 self.dirs[path] = info
             else:
                 self.files[path] = info
+
+        self.last_refresh = time.time()
 
         logging.info('%s', self.files)
         logging.info('%s', self.dirs)
@@ -220,6 +234,7 @@ class CachedStorage(AbstractStorage):
 
     def open(self, path, flags):
         path = Path(path)
+
         if path not in self.files:
             return -errno.ENOENT
 
@@ -233,6 +248,7 @@ class CachedStorage(AbstractStorage):
 
     def create(self, path, flags, _mode):
         path = Path(path)
+
         if path in self.files or path in self.dirs:
             return -errno.EEXIST
 
@@ -243,6 +259,8 @@ class CachedStorage(AbstractStorage):
         return self.open(path, flags)
 
     def release(self, path, _flags, _handle):
+        path = Path(path)
+
         self.save(path)
         self.handle_count[path] -= 1
         if self.handle_count[path] == 0:
@@ -251,7 +269,9 @@ class CachedStorage(AbstractStorage):
                 del self.buffers[path]
 
     def getattr(self, path):
+        self.check()
         path = Path(path)
+
         if path in self.dirs:
             return self.dirs[path].as_fuse_stat(self.uid, self.gid)
         if path in self.files:
@@ -260,10 +280,13 @@ class CachedStorage(AbstractStorage):
 
     def fgetattr(self, path, _handle):
         path = Path(path)
+
         return self.files[path].as_fuse_stat(self.uid, self.gid)
 
     def readdir(self, path):
+        self.check()
         path = Path(path)
+
         if path not in self.dirs:
             raise FileNotFoundError(str(path))
 
@@ -276,6 +299,7 @@ class CachedStorage(AbstractStorage):
 
     def read(self, path, length, offset, _handle):
         path = Path(path)
+
         buf = self.load(path)
 
         buf.seek(offset)
@@ -283,6 +307,7 @@ class CachedStorage(AbstractStorage):
 
     def write(self, path, data, offset, _handle):
         path = Path(path)
+
         buf = self.load(path)
         self.modified.add(path)
 
@@ -291,6 +316,7 @@ class CachedStorage(AbstractStorage):
 
     def ftruncate(self, path, length, _handle):
         path = Path(path)
+
         if length == 0:
             self.buffers[path] = BytesIO()
         else:
@@ -300,6 +326,7 @@ class CachedStorage(AbstractStorage):
 
     def truncate(self, path, length):
         path = Path(path)
+
         if path in self.handle_count:
             self.ftruncate(path, length, None)
             self.save(path)
@@ -311,6 +338,8 @@ class CachedStorage(AbstractStorage):
             self.save_direct(path, buf)
 
     def unlink(self, path):
+        path = Path(path)
+
         if path in self.handle_count:
             return -errno.EACCES
         if path not in self.files:
@@ -322,6 +351,7 @@ class CachedStorage(AbstractStorage):
 
     def mkdir(self, path, _mode):
         path = Path(path)
+
         if path in self.files or path in self.dirs:
             return -errno.EEXIST
         info = self.backend_create_dir(path)
@@ -330,6 +360,7 @@ class CachedStorage(AbstractStorage):
 
     def rmdir(self, path):
         path = Path(path)
+
         if path not in self.dirs:
             return -errno.ENOENT
         # TODO: check for open files
