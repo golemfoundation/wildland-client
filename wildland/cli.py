@@ -215,6 +215,7 @@ class StorageCreateCommand(Command):
         'local',
         'local-cached',
         's3',
+        'webdav',
     ]
 
     def add_arguments(self, parser):
@@ -239,17 +240,32 @@ class StorageCreateCommand(Command):
 
         parser.add_argument(
             '--path',
-            help='Path (for local storage)')
+            help='Path (local)')
         parser.add_argument(
             '--bucket',
-            help='S3 bucket name')
+            help='Bucket name (S3)')
+        parser.add_argument(
+            '--url',
+            help='URL (WebDAV)')
+        parser.add_argument(
+            '--login',
+            help='Login (WebDAV)')
+        parser.add_argument(
+            '--password',
+            help='Password (WebDAV)')
 
     def handle(self, args):
-        if args.type in ['local', 'local-cached']:
+        if args.type == 'local':
             fields = self.get_fields(args, 'path')
         elif args.type == 's3':
             fields = self.get_fields(args, 'bucket')
             fields['credentials'] = self.get_aws_credentials()
+        elif args.type == 'webdav':
+            fields = self.get_fields(args, 'url', 'login', 'password')
+            fields['credentials'] = {
+                'login': fields.pop('login'),
+                'password': fields.pop('password'),
+            }
         else:
             assert False, args.type
 

@@ -63,11 +63,13 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         from .local import LocalStorage
         from .local_cached import LocalCachedStorage
         from .s3 import S3Storage
+        from .webdav import WebdavStorage
 
         classes: List[Type[AbstractStorage]] = [
             LocalStorage,
             LocalCachedStorage,
             S3Storage,
+            WebdavStorage,
         ]
 
         for cls in classes:

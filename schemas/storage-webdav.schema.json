@@ -1,0 +1,24 @@
+{
+    "title": "Storage manifest (WebDAV)",
+    "type": "object",
+    "required": ["signer", "type", "container_path", "url", "credentials"],
+    "properties": {
+        "signer": { "$ref": "types.json#fingerprint" },
+        "type": { "const": "webdav" },
+        "container_path": { "$ref": "types.json#abs_path" },
+        "url": {
+            "$ref": "types.json#http_url",
+            "description": "HTTP URL, e.g. https://example.com/remote.php/dav/files/user/"
+        },
+        "credentials": {
+            "type": "object",
+            "required": ["login", "password"],
+            "properties": {
+                "login": {"type": "string"},
+                "password": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

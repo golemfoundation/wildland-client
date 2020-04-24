@@ -22,12 +22,10 @@ S3 storage backend
 '''
 
 from pathlib import Path
-import stat
 from io import BytesIO
 from typing import Iterable, Tuple, Set
 
 import boto3
-import fuse
 
 from .cached import CachedStorage, Info
 from ..manifest.schema import Schema
