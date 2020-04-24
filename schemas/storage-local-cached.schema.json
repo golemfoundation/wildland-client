@@ -7,11 +7,8 @@
         "type": { "const": "local-cached" },
         "container_path": { "$ref": "types.json#abs_path" },
         "path": {
-            "oneOf": [
-                {"$ref": "types.json#abs_path"},
-                {"$ref": "types.json#rel_path"}
-            ],
-            "description": "Path in the local filesystem (can be relative to manifest document)"
+            "$ref": "types.json#abs_path",
+            "description": "Path in the local filesystem"
         }
     },
     "additionalProperties": false
