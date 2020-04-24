@@ -23,11 +23,11 @@ Abstract classes for storage
 
 import abc
 import errno
-from typing import Optional
+from typing import Optional, Dict, List, Type
 
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
-from ..exc import WildlandError
+
 
 class AbstractStorage(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -40,6 +40,8 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     SCHEMA = Schema('storage')
     TYPE = ''
 
+    _types: Dict[str, Type['AbstractStorage']] = {}
+
     def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
         # pylint: disable=redefined-builtin, unused-argument
         if manifest:
@@ -47,60 +49,27 @@ class AbstractStorage(metaclass=abc.ABCMeta):
             self.manifest = manifest
 
     @staticmethod
-    def from_fields(fields, uid, gid) -> 'AbstractStorage':
+    def types() -> Dict[str, Type['AbstractStorage']]:
         '''
-        Construct a Storage from fields originating from manifest.
-
-        Assume the fields have been validated before.
+        Lazily initialized type -> storage class mapping.
         '''
 
-        manifest = Manifest.from_fields(fields)
-        manifest.skip_signing()
-
-        return AbstractStorage.from_manifest(manifest, uid, gid)
-
-    @staticmethod
-    def from_manifest(manifest, uid, gid) -> 'AbstractStorage':
-        '''
-        Construct a Storage from manifest.
-        '''
+        if AbstractStorage._types:
+            return AbstractStorage._types
 
         # pylint: disable=import-outside-toplevel,cyclic-import
         from .local import LocalStorage
         from .s3 import S3Storage
 
-        storage_type = manifest.fields['type']
-        if storage_type == 'local':
-            return LocalStorage(manifest=manifest)
-        if storage_type == 's3':
-            return S3Storage(manifest=manifest, uid=uid, gid=gid)
-        raise WildlandError(f'unknown storage type: {storage_type}')
+        classes: List[Type[AbstractStorage]] = [
+            LocalStorage,
+            S3Storage,
+        ]
 
-    @staticmethod
-    def is_manifest_supported(manifest):
-        '''
-        Check if the storage type is supported.
-        '''
-        storage_type = manifest.fields['type']
-        return storage_type in ['local', 's3']
+        for cls in classes:
+            AbstractStorage._types[cls.TYPE] = cls
 
-    @staticmethod
-    def validate_manifest(manifest):
-        '''
-        Validate manifest, assuming it's of a supported type.
-        '''
-
-        # pylint: disable=import-outside-toplevel,cyclic-import
-        from .local import LocalStorage
-        from .s3 import S3Storage
-
-        storage_type = manifest.fields['type']
-        if storage_type == 'local':
-            manifest.apply_schema(LocalStorage.SCHEMA)
-        if storage_type == 's3':
-            manifest.apply_schema(S3Storage.SCHEMA)
-        raise WildlandError(f'unknown storage type: {storage_type}')
-
+        return AbstractStorage._types
 
     # pylint: disable=missing-docstring
 
@@ -135,6 +104,47 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def rmdir(self, path):
         raise NotImplementedError()
+
+    @staticmethod
+    def from_fields(fields, uid, gid) -> 'AbstractStorage':
+        '''
+        Construct a Storage from fields originating from manifest.
+
+        Assume the fields have been validated before.
+        '''
+
+        manifest = Manifest.from_fields(fields)
+        manifest.skip_signing()
+
+        return AbstractStorage.from_manifest(manifest, uid, gid)
+
+    @staticmethod
+    def from_manifest(manifest, uid, gid) -> 'AbstractStorage':
+        '''
+        Construct a Storage from manifest.
+        '''
+
+        storage_type = manifest.fields['type']
+        cls = AbstractStorage.types()[storage_type]
+        return cls(manifest=manifest, uid=uid, gid=gid)
+
+    @staticmethod
+    def is_manifest_supported(manifest):
+        '''
+        Check if the storage type is supported.
+        '''
+        storage_type = manifest.fields['type']
+        return storage_type in AbstractStorage.types()
+
+    @staticmethod
+    def validate_manifest(manifest):
+        '''
+        Validate manifest, assuming it's of a supported type.
+        '''
+
+        storage_type = manifest.fields['type']
+        cls = AbstractStorage.types()[storage_type]
+        manifest.apply_schema(cls.SCHEMA)
 
 
 def _proxy(method_name):
