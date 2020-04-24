@@ -22,19 +22,21 @@ Wildland command-line interface.
 '''
 
 import argparse
-import sys
-from typing import Optional, Tuple
-import os
-import tempfile
-import subprocess
-import shlex
-from pathlib import Path
 import copy
 import json
+import os
+import pathlib
+import shlex
+import subprocess
+import sys
+import tempfile
 import time
 
-import botocore.session
+from pathlib import Path
+from typing import Optional, Tuple
+
 import botocore.credentials
+import botocore.session
 
 from .manifest.loader import ManifestLoader
 from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_header
@@ -176,6 +178,30 @@ class Command:
                 return
             time.sleep(delay)
         raise CliError(f'Timed out waiting for Wildland to mount: {self.mount_dir}')
+
+
+    def get_command_for_mount_container(self, container):
+        '''
+        Prepare command to be written to :file:`/.control/mount` to mount
+        a container
+
+        Args:
+            container (Container): the container to be mounted
+        '''
+        signer = container.manifest.fields['signer']
+        default_user = self.loader.config.get('default_user')
+
+        paths = [
+            os.fspath(
+                f'/.users/{signer}' / pathlib.PurePosixPath(p).relative_to('/'))
+            for p in container.paths]
+        if signer is not None and signer == default_user:
+            paths.extend(os.fspath(p) for p in container.paths)
+
+        return {
+            'paths': paths,
+            'storage': container.select_storage(self.loader).fields,
+        }
 
 
 class UserCreateCommand(Command):
@@ -611,12 +637,8 @@ class MountCommand(Command):
                 if not manifest:
                     raise CliError(f'Container not found: {name}')
                 container = Container(manifest)
-                storage_manifest = container.select_storage(self.loader)
-                command = {
-                    'paths': [str(path) for path in container.paths],
-                    'storage': storage_manifest.fields,
-                }
-                to_mount.append((path, command))
+                to_mount.append((path,
+                    self.get_command_for_mount_container(container)))
 
         if options:
             cmd += ['-o', ','.join(options)]
@@ -717,11 +739,7 @@ class ContainerMountCommand(Command):
             raise CliError(f'Not found: {args.container}')
 
         container = Container(manifest)
-        storage_manifest = container.select_storage(self.loader)
-        command = {
-            'paths': container.paths,
-            'storage': storage_manifest.fields,
-        }
+        command = self.get_command_for_mount_container(container)
 
         print(f'Mounting: {path}')
         self.write_control('mount', json.dumps(command).encode())
