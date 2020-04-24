@@ -128,17 +128,17 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_load_file(self, _path: Path) -> BytesIO:
+    def backend_load_file(self, _path: Path) -> bytes:
         '''
-        Load file content as BytesIO.
+        Load file content as bytes.
         '''
 
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_save_file(self, _path: Path, _buf: BytesIO) -> Info:
+    def backend_save_file(self, _path: Path, _data: bytes) -> Info:
         '''
-        Save file content from BytesIO.
+        Save file content from bytes.
         '''
 
         raise NotImplementedError()
@@ -190,7 +190,7 @@ class CachedStorage(AbstractStorage):
         assert path in self.handle_count, path
 
         if path not in self.buffers:
-            self.buffers[path] = self.backend_load_file(path)
+            self.buffers[path] = BytesIO(self.backend_load_file(path))
         return self.buffers[path]
 
     def save_direct(self, path: Path, buf: BytesIO):
@@ -200,7 +200,7 @@ class CachedStorage(AbstractStorage):
         '''
 
         assert path not in self.handle_count
-        info = self.backend_save_file(path, buf)
+        info = self.backend_save_file(path, buf.getvalue())
         self.files[path] = info
 
     def save(self, path: Path):
@@ -211,7 +211,7 @@ class CachedStorage(AbstractStorage):
         assert path in self.handle_count
         if path in self.modified:
             self.modified.remove(path)
-            info = self.backend_save_file(path, self.buffers[path])
+            info = self.backend_save_file(path, self.buffers[path].getvalue())
             self.files[path] = info
 
     ## Filesystem operations
@@ -246,6 +246,7 @@ class CachedStorage(AbstractStorage):
         self.save(path)
         self.handle_count[path] -= 1
         if self.handle_count[path] == 0:
+            del self.handle_count[path]
             if path in self.buffers:
                 del self.buffers[path]
 
@@ -305,7 +306,7 @@ class CachedStorage(AbstractStorage):
         elif length == 0:
             self.save_direct(path, BytesIO())
         else:
-            buf = self.backend_load_file(path)
+            buf = BytesIO(self.backend_load_file(path))
             buf.truncate(length)
             self.save_direct(path, buf)
 

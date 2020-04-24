@@ -25,8 +25,6 @@ from typing import Iterable, Tuple
 from pathlib import Path
 import os
 import stat
-from io import BytesIO
-import shutil
 
 from .cached import CachedStorage, Info
 from ..manifest.schema import Schema
@@ -96,16 +94,13 @@ class LocalCachedStorage(CachedStorage):
         os.mkdir(self.base_path / path)
         return self.info(os.stat(self.base_path / path))
 
-    def backend_load_file(self, path: Path) -> BytesIO:
-        buf = BytesIO()
+    def backend_load_file(self, path: Path) -> bytes:
         with open(self.base_path / path, 'rb') as f:
-            shutil.copyfileobj(f, buf)
-        return buf
+            return f.read()
 
-    def backend_save_file(self, path: Path, buf: BytesIO) -> Info:
-        buf.seek(0)
+    def backend_save_file(self, path: Path, data: bytes) -> Info:
         with open(self.base_path / path, 'wb') as f:
-            shutil.copyfileobj(buf, f)
+            f.write(data)
         return self.info(os.stat(self.base_path / path))
 
     def backend_delete_file(self, path: Path):

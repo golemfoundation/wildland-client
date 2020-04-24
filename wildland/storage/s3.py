@@ -24,67 +24,14 @@ S3 storage backend
 from pathlib import Path
 import stat
 import errno
-import logging
 from io import BytesIO
+from typing import Iterable, Tuple, Set
 
 import boto3
 import fuse
 
-from .base import AbstractStorage, FileProxyMixin
+from .cached import CachedStorage, Info
 from ..manifest.schema import Schema
-
-
-
-class S3File:
-    '''
-    A file in S3 bucket.
-    '''
-
-    def __init__(self, obj_summary, uid, gid):
-        self.obj_summary = obj_summary
-        self.uid = uid
-        self.gid = gid
-
-        self.loaded = False
-        self.modified = False
-        self.obj = None
-        self.buf = None
-
-    # pylint: disable=missing-docstring
-
-    def load(self):
-        if not self.loaded:
-            self.buf = BytesIO()
-            self.obj = self.obj_summary.Object()
-            self.obj.download_fileobj(self.buf)
-            self.loaded = True
-
-    def release(self, _flags):
-        if self.modified:
-            assert self.loaded
-            self.buf.seek(0)
-            logging.info('Uploading: %s', self.buf.getvalue())
-            self.obj.upload_fileobj(self.buf)
-            self.obj_summary.load()
-
-    def fgetattr(self):
-        return s3_stat(self.obj_summary, self.uid, self.gid)
-
-    def read(self, length, offset):
-        self.load()
-        self.buf.seek(offset)
-        return self.buf.read(length)
-
-    def write(self, buf, offset):
-        self.load()
-        self.modified = True
-        self.buf.seek(offset)
-        return self.buf.write(buf)
-
-    def ftruncate(self, length):
-        self.load()
-        self.modified = True
-        return self.buf.truncate(length)
 
 
 def s3_stat(obj_summary, uid, gid):
@@ -104,7 +51,8 @@ def s3_stat(obj_summary, uid, gid):
         st_ctime=timestamp,
     )
 
-class S3Storage(AbstractStorage, FileProxyMixin):
+
+class S3Storage(CachedStorage):
     '''
     Amazon S3 storage.
     '''
@@ -112,12 +60,10 @@ class S3Storage(AbstractStorage, FileProxyMixin):
     SCHEMA = Schema('storage-s3')
     TYPE = 's3'
 
-    def __init__(self, *, manifest, uid, gid, **kwds):
+    def __init__(self, *, manifest, **kwds):
         super().__init__(manifest=manifest, **kwds)
-        self.uid = uid
-        self.gid = gid
 
-        credentials = self.manifest.fields['credentials']
+        credentials = manifest.fields['credentials']
         session = boto3.Session(
             aws_access_key_id=credentials['access_key'],
             aws_secret_access_key=credentials['secret_key'],
@@ -126,70 +72,54 @@ class S3Storage(AbstractStorage, FileProxyMixin):
         # pylint: disable=no-member
         self.bucket = s3.Bucket(manifest.fields['bucket'])
 
-        self.files = {}
-        self.dirs = set()
-        self.refresh()
+        # Persist created directories between refreshes. This is because S3
+        # doesn't have information about directories, andwe might want to
+        # create/remove them manually.
+        self.s3_dirs: Set[Path] = set()
 
-    def refresh(self):
+    @staticmethod
+    def info(obj) -> Info:
         '''
-        Refresh the file list from S3.
+        Convert Amazon's Obj or ObjSummary to Info.
         '''
+        timestamp = int(obj.last_modified.timestamp())
+        if hasattr(obj, 'size'):
+            size = obj.size
+        else:
+            size = obj.content_length
+        return Info(is_dir=False, size=size, timestamp=timestamp)
 
-        self.files.clear()
-        self.dirs.clear()
-
+    def backend_info_all(self) -> Iterable[Tuple[Path, Info]]:
         for obj_summary in self.bucket.objects.all():
             obj_path = Path(obj_summary.key)
-            self.files[obj_path] = obj_summary
+            yield obj_path, self.info(obj_summary)
             for parent in obj_path.parents:
-                self.dirs.add(parent)
+                self.s3_dirs.add(parent)
 
-        logging.info('dirs: %s', self.dirs)
-        logging.info('files: %s', self.files)
+        for dir_path in self.s3_dirs:
+            yield dir_path, Info(is_dir=True)
 
-    def open(self, path, flags):
-        return S3File(self.files[path], self.uid, self.gid)
+    def backend_create_file(self, path: Path) -> Info:
+        obj = self.bucket.put_object(Key=str(path))
+        return self.info(obj)
 
-    def create(self, path, flags, mode):
-        self.bucket.put_object(Key=path)
-        self.refresh()
-        return S3File(self.files[path], self.uid, self.gid)
+    def backend_create_dir(self, path: Path) -> Info:
+        self.s3_dirs.add(path)
+        return Info(is_dir=True)
 
-    def getattr(self, path):
-        path = Path(path)
-        if path in self.dirs:
-            return fuse.Stat(
-                st_mode=stat.S_IFDIR | 0o755,
-                st_nlink=1,
-                st_uid=self.uid,
-                st_gid=self.gid,
-            )
-        if path in self.files:
-            return s3_stat(self.files[path], self.uid, self.gid)
-        return -errno.ENOENT
+    def backend_load_file(self, path: Path) -> bytes:
+        buf = BytesIO()
+        obj = self.bucket.Object(str(path))
+        obj.download_fileobj(buf)
+        return buf.getvalue()
 
-    def readdir(self, path):
-        path = Path(path)
-        for file_path in self.files:
-            if file_path.parent == path:
-                yield file_path.name
-        for dir_path in self.dirs:
-            if dir_path != path and dir_path.parent == path:
-                yield dir_path.name
+    def backend_save_file(self, path: Path, data: bytes) -> Info:
+        obj = self.bucket.Object(str(path))
+        obj.upload_fileobj(BytesIO(data))
+        return self.info(obj)
 
-    def truncate(self, path, length):
-        obj_summary = self.files[path]
-        assert length == 0  # TODO
-        obj_summary.Object().upload_fileobj(BytesIO(b''))
-        obj_summary.load()
+    def backend_delete_file(self, path: Path):
+        self.bucket.Object(str(path)).delete()
 
-    def unlink(self, path):
-        obj_summary = self.files[path]
-        obj_summary.delete()
-        self.refresh()
-
-    def mkdir(self, path, mode):
-        raise OSError(errno.EPERM, '')
-
-    def rmdir(self, path):
-        raise OSError(errno.EPERM, '')
+    def backend_delete_dir(self, path: Path):
+        self.s3_dirs.remove(path)
