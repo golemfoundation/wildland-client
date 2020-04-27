@@ -123,13 +123,13 @@ class Command:
             user = self.loader.find_user(name)
             if not user:
                 raise CliError(f'User not found: {name}')
-            print(f'Using user: {user.pubkey}')
+            print(f'Using user: {user.signer}')
             return user
         user = self.loader.find_default_user()
         if user is None:
             raise CliError(
                 'Default user not set, you need to provide --user')
-        print(f'Using default user: {user.pubkey}')
+        print(f'Using default user: {user.signer}')
         return user
 
     def ensure_mounted(self):
@@ -193,15 +193,15 @@ class UserCreateCommand(Command):
             help='GPG key identifier')
 
     def handle(self, args):
-        pubkey = self.loader.sig.find(args.key)
-        print(f'Using key: {pubkey}')
+        signer, pubkey = self.loader.sig.find(args.key)
+        print(f'Using key: {signer}')
 
-        path = self.loader.create_user(pubkey, args.name)
+        path = self.loader.create_user(signer, pubkey, args.name)
         print(f'Created: {path}')
 
         if self.loader.config.get('default_user') is None:
-            print(f'Using {pubkey} as default user')
-            self.loader.config.update_and_save(default_user=pubkey)
+            print(f'Using {signer} as default user')
+            self.loader.config.update_and_save(default_user=signer)
 
 
 class StorageCreateCommand(Command):
@@ -280,7 +280,7 @@ class StorageCreateCommand(Command):
         print(f'Using container: {container_path} ({container_mount_path})')
         fields['container_path'] = container_mount_path
 
-        storage_path = self.loader.create_storage(user.pubkey, args.type, fields, args.name)
+        storage_path = self.loader.create_storage(user.signer, args.type, fields, args.name)
         print('Created: {}'.format(storage_path))
 
         if args.update_container:
@@ -344,7 +344,7 @@ class ContainerCreateCommand(Command):
     def handle(self, args):
         self.loader.load_users()
         user = self.find_user(args.user)
-        path = self.loader.create_container(user.pubkey, args.path, args.name)
+        path = self.loader.create_container(user.signer, args.path, args.name)
         print(f'Created: {path}')
 
 
@@ -401,7 +401,7 @@ class UserListCommand(Command):
     def handle(self, args):
         self.loader.load_users()
         for user in self.loader.users:
-            print('{} {}'.format(user.pubkey, user.manifest_path))
+            print('{} {}'.format(user.signer, user.manifest_path))
 
 
 class StorageListCommand(Command):
@@ -472,7 +472,8 @@ class SignCommand(Command):
         manifest = Manifest.from_unsigned_bytes(data)
         if self.manifest_type:
             self.loader.validate_manifest(manifest, self.manifest_type)
-        manifest.sign(self.loader.sig)
+        manifest.sign(self.loader.sig,
+                      attach_pubkey=self.manifest_type == 'user')
         signed_data = manifest.to_bytes()
 
         if args.in_place:
@@ -509,7 +510,9 @@ class VerifyCommand(Command):
         data, _path = self.read_manifest_file(args.input_file,
                                               self.manifest_type)
         try:
-            manifest = Manifest.from_bytes(data, self.loader.sig)
+            manifest = Manifest.from_bytes(
+                data, self.loader.sig,
+                self_signed=self.manifest_type == 'user')
             if self.manifest_type:
                 self.loader.validate_manifest(manifest, self.manifest_type)
         except ManifestError as e:
@@ -573,7 +576,8 @@ class EditCommand(Command):
         manifest = Manifest.from_unsigned_bytes(data)
         if self.manifest_type:
             self.loader.validate_manifest(manifest, self.manifest_type)
-        manifest.sign(self.loader.sig)
+        manifest.sign(self.loader.sig,
+                      attach_pubkey=self.manifest_type == 'user')
         signed_data = manifest.to_bytes()
         with open(path, 'wb') as f:
             f.write(signed_data)
@@ -889,8 +893,11 @@ class MainCommand:
         if args.command:
             loader = ManifestLoader(
                 dummy=args.dummy, base_dir=args.base_dir)
-            args.command.setup(loader)
-            args.command.handle(args)
+            try:
+                args.command.setup(loader)
+                args.command.handle(args)
+            finally:
+                loader.close()
         else:
             parser = args.parser
             parser.print_help()
