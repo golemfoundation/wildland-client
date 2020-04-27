@@ -37,6 +37,18 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     Currently the storage should implement an interface similar to FUSE.
     This implementation detail might change in the future.
+
+    Although FUSE allows returning an error value (like -errno.ENOENT), the
+    storage should always raise an exception if the operation fails, like so:
+
+        raise FileNotFoundError(str(path))
+
+    Or:
+
+        raise OSError(errno.ENOENT, str(path))
+
+    See also Python documentation for OS exceptions:
+    https://docs.python.org/3/library/exceptions.html#os-exceptions
     '''
     SCHEMA = Schema('storage')
     TYPE = ''
@@ -182,7 +194,7 @@ def _proxy(method_name):
     def method(_self, *args, **_kwargs):
         _path, rest, fileobj = args[0], args[1:-1], args[-1]
         if not hasattr(fileobj, method_name):
-            return -errno.ENOSYS
+            raise OSError(errno.ENOSYS, '')
         return getattr(fileobj, method_name)(*rest)
 
     method.__name__ = method_name

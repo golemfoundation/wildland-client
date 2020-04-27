@@ -24,7 +24,6 @@ Cache layer for storages
 import abc
 import stat
 from io import BytesIO
-import errno
 from dataclasses import dataclass
 from typing import Dict, Iterable, Tuple, Set
 from pathlib import Path
@@ -236,7 +235,7 @@ class CachedStorage(AbstractStorage):
         path = Path(path)
 
         if path not in self.files:
-            return -errno.ENOENT
+            raise FileNotFoundError(str(path))
 
         if path in self.handle_count:
             self.handle_count[path] += 1
@@ -250,7 +249,7 @@ class CachedStorage(AbstractStorage):
         path = Path(path)
 
         if path in self.files or path in self.dirs:
-            return -errno.EEXIST
+            raise FileExistsError(str(path))
 
         info = self.backend_create_file(path)
         self.files[path] = info
@@ -341,9 +340,9 @@ class CachedStorage(AbstractStorage):
         path = Path(path)
 
         if path in self.handle_count:
-            return -errno.EACCES
+            raise PermissionError(str(path))
         if path not in self.files:
-            return -errno.ENOENT
+            raise FileNotFoundError(str(path))
         result = self.backend_delete_file(path)
         if not result:
             del self.files[path]
@@ -353,16 +352,15 @@ class CachedStorage(AbstractStorage):
         path = Path(path)
 
         if path in self.files or path in self.dirs:
-            return -errno.EEXIST
+            raise FileExistsError(str(path))
         info = self.backend_create_dir(path)
         self.dirs[path] = info
-        return None
 
     def rmdir(self, path):
         path = Path(path)
 
         if path not in self.dirs:
-            return -errno.ENOENT
+            raise FileNotFoundError(str(path))
         # TODO: check for open files
         result = self.backend_delete_dir(path)
         if not result:
