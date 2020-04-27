@@ -41,6 +41,7 @@ from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_
 from .manifest.user import User
 from .container import Container
 from .exc import WildlandError
+from .log import init_logging
 
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]
@@ -894,6 +895,7 @@ class MainCommand:
             loader = ManifestLoader(
                 dummy=args.dummy, base_dir=args.base_dir)
             try:
+                init_logging()
                 args.command.setup(loader)
                 args.command.handle(args)
             finally:
