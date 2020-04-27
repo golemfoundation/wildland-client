@@ -100,6 +100,18 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def read(self, path, length, offset, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def write(self, path, data, offset, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def fgetattr(self, path, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def getattr(self, path):
         raise NotImplementedError()
 
@@ -193,7 +205,7 @@ class FileProxyMixin:
                 ...
 
 
-        class MyStorage(AbstractStorage, FileProxyMixin):
+        class MyStorage(FileProxyMixin, AbstractStorage):
             def open(self, path, flags):
                 return MyFile(path, flags, ...)
 

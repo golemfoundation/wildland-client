@@ -68,7 +68,7 @@ class LocalFile:
         return self.file.truncate(length)
 
 
-class LocalStorage(AbstractStorage, FileProxyMixin):
+class LocalStorage(FileProxyMixin, AbstractStorage):
     '''Local, file-based storage'''
     SCHEMA = Schema('storage-local')
     TYPE = 'local'
