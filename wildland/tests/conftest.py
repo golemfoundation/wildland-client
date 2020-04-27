@@ -14,19 +14,16 @@ from ..manifest.sig import GpgSigContext
 def gpg_sig():
     home_dir = tempfile.mkdtemp(prefix='wlgpg.')
     try:
-        yield GpgSigContext(home_dir)
+        with GpgSigContext(home_dir) as gpg_sig:
+            yield gpg_sig
     finally:
         shutil.rmtree(home_dir)
 
 @pytest.fixture(scope='session')
 def signer(gpg_sig):
-    keyid = gpg_sig.gen_test_key(name='Test 1', passphrase='secret')
-    gpg_sig.add_signer(keyid)
-    return keyid
+    return gpg_sig.gen_test_key(name='Test 1', passphrase='secret')
 
 
 @pytest.fixture(scope='session')
 def other_signer(gpg_sig):
-    keyid = gpg_sig.gen_test_key(name='Test 2', passphrase='secret')
-    gpg_sig.add_signer(keyid)
-    return keyid
+    return gpg_sig.gen_test_key(name='Test 2', passphrase='secret')

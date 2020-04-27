@@ -75,7 +75,7 @@ def test_user_create(cli, base_dir):
     with open(base_dir / 'users/User.yaml') as f:
         data = f.read()
 
-    assert "pubkey: '0xaaa'" in data
+    assert "key.0xaaa" in data
     assert "signer: '0xaaa'" in data
 
     with open(base_dir / 'config.yaml') as f:
@@ -104,14 +104,14 @@ def test_user_verify(cli):
 def test_user_verify_bad_sig(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     modify_file(base_dir / 'users/User.yaml', 'dummy.0xaaa', 'dummy.0xbbb')
-    with pytest.raises(WildlandError, match='Signer field mismatch'):
+    with pytest.raises(WildlandError, match='Unknown signer'):
         cli('user', 'verify', 'User')
 
 
 def test_user_verify_bad_fields(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.yaml', 'pubkey:', 'pk:')
-    with pytest.raises(WildlandError, match="'pubkey' is a required property"):
+    modify_file(base_dir / 'users/User.yaml', 'signer:', 'extra: xxx\nsigner:')
+    with pytest.raises(WildlandError, match="Additional properties are not allowed"):
         cli('user', 'verify', 'User')
 
 
@@ -139,8 +139,8 @@ def test_user_edit(cli, base_dir):
 
 def test_user_edit_bad_fields(cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    editor = 'sed -i s,pubkey,pk,g'
-    with pytest.raises(WildlandError, match="'pubkey' is a required property"):
+    editor = 'sed -i s,signer,Signer,g'
+    with pytest.raises(WildlandError, match="signer field not found"):
         cli('user', 'edit', 'User', '--editor', editor)
 
 

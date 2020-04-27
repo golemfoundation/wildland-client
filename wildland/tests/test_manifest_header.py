@@ -43,15 +43,41 @@ signature: |
 '''
     header = Header.from_bytes(data)
     assert header.signature == 'line 1\nline 2'
+    assert header.pubkey is None
+
+def test_parse_header_with_pubkey():
+    data = b'''\
+signature: |
+  line 1
+  line 2
+pubkey: |
+  line 3
+  line 4
+'''
+    header = Header.from_bytes(data)
+    assert header.signature == 'line 1\nline 2'
+    assert header.pubkey == 'line 3\nline 4'
 
 
 def test_header_to_bytes():
-    header = Header('line 1\nline 2')
+    header = Header('line 1\nline 2', None)
     data = header.to_bytes()
     assert data == b'''\
 signature: |
   line 1
   line 2'''
+
+
+def test_header_with_pubkey_to_bytes():
+    header = Header('line 1\nline 2', 'line 3\nline 4')
+    data = header.to_bytes()
+    assert data == b'''\
+signature: |
+  line 1
+  line 2
+pubkey: |
+  line 3
+  line 4'''
 
 
 def test_parser():

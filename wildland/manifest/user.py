@@ -33,4 +33,8 @@ class User:
     def __init__(self, manifest: Manifest, manifest_path=None):
         self.manifest = manifest
         self.manifest_path = manifest_path
-        self.pubkey = manifest.fields['pubkey']
+
+        assert manifest.header
+        assert manifest.header.pubkey
+        self.signer = manifest.fields['signer']
+        self.pubkey = manifest.header.pubkey

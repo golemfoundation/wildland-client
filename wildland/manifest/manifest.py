@@ -104,16 +104,21 @@ class Manifest:
             raise ManifestError('signer field not found')
         return cls(None, fields, data)
 
-    def sign(self, sig_context: SigContext):
+    def sign(self, sig_context: SigContext, attach_pubkey: bool = False):
         '''
         Sign a previously unsigned manifest.
+        If attach_pubkey is true, attach the public key to the signature.
         '''
+
         if self.header is not None:
             raise ManifestError('Manifest already signed')
 
         signer = self._fields['signer']
         signature = sig_context.sign(signer, self.original_data)
-        self.header = Header(signature)
+        pubkey = None
+        if attach_pubkey:
+            pubkey = sig_context.get_pubkey(signer)
+        self.header = Header(signature, pubkey)
 
     def skip_signing(self):
         '''
@@ -207,8 +212,11 @@ class Header:
     Manifest header (signer and signature).
     '''
 
-    def __init__(self, signature: str):
+    def __init__(self, signature: str, pubkey: Optional[str]):
         self.signature = signature.rstrip('\n')
+        self.pubkey = None
+        if pubkey is not None:
+            self.pubkey = pubkey.rstrip('\n')
 
     def verify_rest(self, rest_data: bytes, sig_context: SigContext,
                     self_signed) -> str:
@@ -217,7 +225,21 @@ class Header:
         Return signer, if known.
         '''
 
-        return sig_context.verify(self.signature, rest_data, self_signed)
+        if self_signed:
+            if self.pubkey is None:
+                raise SigError('Expecting the header to contain pubkey')
+            with sig_context.copy() as sig_temp:
+                pubkey_signer = sig_temp.add_pubkey(self.pubkey)
+                signer = sig_temp.verify(self.signature, rest_data)
+                if signer != pubkey_signer:
+                    raise SigError(
+                        'Signer does not match pubkey (signature {!r}, pubkey {!r})'.format(
+                            signer, pubkey_signer))
+                return signer
+
+        if self.pubkey is not None:
+            raise SigError('Not expecting the header to contain pubkey')
+        return sig_context.verify(self.signature, rest_data)
 
     @classmethod
     def from_bytes(cls, data: bytes):
@@ -227,8 +249,11 @@ class Header:
 
         parser = HeaderParser(data)
         signature = parser.expect_field('signature')
-        parser.expect_eof()
-        return cls(signature)
+        pubkey = None
+        if not parser.is_eof():
+            pubkey = parser.expect_field('pubkey')
+            parser.expect_eof()
+        return cls(signature, pubkey)
 
     def to_bytes(self):
         '''
@@ -239,6 +264,11 @@ class Header:
         lines.append(f'signature: |')
         for sig_line in self.signature.splitlines():
             lines.append('  ' + sig_line)
+
+        if self.pubkey is not None:
+            lines.append(f'pubkey: |')
+            for sig_line in self.pubkey.splitlines():
+                lines.append('  ' + sig_line)
 
         data = '\n'.join(lines).encode()
         self.verify_bytes(data)
@@ -256,6 +286,9 @@ class Header:
             raise Exception('Header serialization error')
         if header.signature != self.signature:
             print(repr(header.signature), repr(self.signature))
+            raise Exception('Header serialization error')
+        if header.pubkey != self.pubkey:
+            print(repr(header.pubkey), repr(self.pubkey))
             raise Exception('Header serialization error')
 
 
@@ -324,6 +357,12 @@ class HeaderParser:
             return self.parse_block()
 
         raise ManifestError('Unexpected line: {!r}'.format(line))
+
+    def is_eof(self):
+        '''
+        Check if there is nothing else in the parser.
+        '''
+        return self.pos == len(self.lines)
 
     def expect_eof(self):
         '''
