@@ -885,6 +885,9 @@ class MainCommand:
         parser.add_argument(
             '--dummy', action='store_true',
             help='Use dummy signatures')
+        parser.add_argument(
+            '--verbose', '-v', action='store_true',
+            help='Output logs')
 
     def run(self, cmdline):
         '''
@@ -895,7 +898,8 @@ class MainCommand:
             loader = ManifestLoader(
                 dummy=args.dummy, base_dir=args.base_dir)
             try:
-                init_logging()
+                if args.verbose:
+                    init_logging()
                 args.command.setup(loader)
                 args.command.handle(args)
             finally:
