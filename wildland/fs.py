@@ -183,7 +183,8 @@ class WildlandFS(fuse.Fuse):
         params = json.loads(content)
         paths = [PurePosixPath(p) for p in params['paths']]
         storage_fields = params['storage']
-        storage = AbstractStorage.from_fields(storage_fields, self.uid, self.gid)
+        read_only = params.get('read_only')
+        storage = AbstractStorage.from_fields(storage_fields, self.uid, self.gid, read_only)
         self.mount_storage(paths, storage)
 
     @control_file('unmount', read=False, write=True)

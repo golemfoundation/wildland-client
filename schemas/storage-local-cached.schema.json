@@ -6,6 +6,7 @@
         "signer": { "$ref": "types.json#fingerprint" },
         "type": { "const": "local-cached" },
         "container_path": { "$ref": "types.json#abs_path" },
+        "read_only": { "type": "boolean" },
         "path": {
             "$ref": "types.json#abs_path",
             "description": "Path in the local filesystem"

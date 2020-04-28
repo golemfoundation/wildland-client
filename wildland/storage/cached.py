@@ -29,6 +29,8 @@ from typing import Dict, Iterable, Tuple, Set
 from pathlib import PurePosixPath
 import logging
 import time
+import errno
+import os
 
 import fuse
 
@@ -45,7 +47,7 @@ class Info:
     size: int = 0
     timestamp: int = 0
 
-    def as_fuse_stat(self, uid, gid) -> fuse.Stat:
+    def as_fuse_stat(self, uid, gid, read_only) -> fuse.Stat:
         '''
         Convert to a fuse.Stat object.
         '''
@@ -54,6 +56,9 @@ class Info:
             st_mode = stat.S_IFDIR | 0o755
         else:
             st_mode = stat.S_IFREG | 0o644
+
+        if read_only:
+            st_mode &= ~0o222
 
         return fuse.Stat(
             st_mode=st_mode,
@@ -237,6 +242,9 @@ class CachedStorage(AbstractStorage):
         if path not in self.files:
             raise FileNotFoundError(str(path))
 
+        if self.read_only and (flags & (os.O_RDWR | os.O_WRONLY)):
+            raise PermissionError(errno.EROFS, str(path))
+
         if path in self.handle_count:
             self.handle_count[path] += 1
         else:
@@ -250,6 +258,9 @@ class CachedStorage(AbstractStorage):
 
         if path in self.files or path in self.dirs:
             raise FileExistsError(str(path))
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         info = self.backend_create_file(path)
         self.files[path] = info
@@ -272,15 +283,15 @@ class CachedStorage(AbstractStorage):
         path = PurePosixPath(path)
 
         if path in self.dirs:
-            return self.dirs[path].as_fuse_stat(self.uid, self.gid)
+            return self.dirs[path].as_fuse_stat(self.uid, self.gid, self.read_only)
         if path in self.files:
-            return self.files[path].as_fuse_stat(self.uid, self.gid)
+            return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
         raise FileNotFoundError(str(path))
 
     def fgetattr(self, path, _handle):
         path = PurePosixPath(path)
 
-        return self.files[path].as_fuse_stat(self.uid, self.gid)
+        return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
 
     def readdir(self, path):
         self.check()
@@ -307,6 +318,9 @@ class CachedStorage(AbstractStorage):
     def write(self, path, data, offset, _handle):
         path = PurePosixPath(path)
 
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         buf = self.load(path)
         self.modified.add(path)
 
@@ -315,6 +329,9 @@ class CachedStorage(AbstractStorage):
 
     def ftruncate(self, path, length, _handle):
         path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if length == 0:
             self.buffers[path] = BytesIO()
@@ -325,6 +342,9 @@ class CachedStorage(AbstractStorage):
 
     def truncate(self, path, length):
         path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if path in self.handle_count:
             self.ftruncate(path, length, None)
@@ -339,8 +359,11 @@ class CachedStorage(AbstractStorage):
     def unlink(self, path):
         path = PurePosixPath(path)
 
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         if path in self.handle_count:
-            raise PermissionError(str(path))
+            raise PermissionError(errno.EPERM, str(path))
         if path not in self.files:
             raise FileNotFoundError(str(path))
         result = self.backend_delete_file(path)
@@ -351,6 +374,9 @@ class CachedStorage(AbstractStorage):
     def mkdir(self, path, _mode):
         path = PurePosixPath(path)
 
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         if path in self.files or path in self.dirs:
             raise FileExistsError(str(path))
         info = self.backend_create_dir(path)
@@ -358,6 +384,9 @@ class CachedStorage(AbstractStorage):
 
     def rmdir(self, path):
         path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if path not in self.dirs:
             raise FileNotFoundError(str(path))

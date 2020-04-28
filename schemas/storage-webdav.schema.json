@@ -6,6 +6,7 @@
         "signer": { "$ref": "types.json#fingerprint" },
         "type": { "const": "webdav" },
         "container_path": { "$ref": "types.json#abs_path" },
+        "read_only": { "type": "boolean" },
         "url": {
             "$ref": "types.json#http_url",
             "description": "HTTP URL, e.g. https://example.com/remote.php/dav/files/user/"

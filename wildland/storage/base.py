@@ -55,12 +55,20 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     _types: Dict[str, Type['AbstractStorage']] = {}
 
-    def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
+    def __init__(self, *,
+                 manifest: Optional[Manifest] = None,
+                 read_only: bool = False,
+                 **kwds):
         # pylint: disable=redefined-builtin, unused-argument
         self.manifest: Optional[Manifest] = None
+        self.read_only = False
         if manifest:
             assert manifest.fields['type'] == self.TYPE
             self.manifest = manifest
+            self.read_only = manifest.fields.get('read_only', False)
+
+        if read_only:
+            self.read_only = True
 
     @staticmethod
     def types() -> Dict[str, Type['AbstractStorage']]:
@@ -157,7 +165,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
 
     @staticmethod
-    def from_fields(fields, uid, gid) -> 'AbstractStorage':
+    def from_fields(fields, uid, gid, read_only=False) -> 'AbstractStorage':
         '''
         Construct a Storage from fields originating from manifest.
 
@@ -167,17 +175,17 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         manifest = Manifest.from_fields(fields)
         manifest.skip_signing()
 
-        return AbstractStorage.from_manifest(manifest, uid, gid)
+        return AbstractStorage.from_manifest(manifest, uid, gid, read_only)
 
     @staticmethod
-    def from_manifest(manifest, uid, gid) -> 'AbstractStorage':
+    def from_manifest(manifest, uid, gid, read_only=False) -> 'AbstractStorage':
         '''
         Construct a Storage from manifest.
         '''
 
         storage_type = manifest.fields['type']
         cls = AbstractStorage.types()[storage_type]
-        return cls(manifest=manifest, uid=uid, gid=gid)
+        return cls(manifest=manifest, uid=uid, gid=gid, read_only=read_only)
 
     @staticmethod
     def is_manifest_supported(manifest):
