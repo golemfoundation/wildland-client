@@ -24,11 +24,16 @@ S3 storage backend
 from pathlib import Path
 from io import BytesIO
 from typing import Iterable, Tuple, Set
+import mimetypes
+import logging
 
 import boto3
 
 from .cached import CachedStorage, Info
 from ..manifest.schema import Schema
+
+
+logger = logging.getLogger('storage-s3')
 
 
 class S3Storage(CachedStorage):
@@ -56,6 +61,8 @@ class S3Storage(CachedStorage):
         # create/remove them manually.
         self.s3_dirs: Set[Path] = set()
 
+        mimetypes.init()
+
     @staticmethod
     def info(obj) -> Info:
         '''
@@ -78,8 +85,19 @@ class S3Storage(CachedStorage):
         for dir_path in self.s3_dirs:
             yield dir_path, Info(is_dir=True)
 
+    @staticmethod
+    def get_content_type(path: Path) -> str:
+        '''
+        Guess the right content type for given path.
+        '''
+
+        content_type, _encoding = mimetypes.guess_type(path.name)
+        return content_type or 'application/octet-stream'
+
     def backend_create_file(self, path: Path) -> Info:
-        obj = self.bucket.put_object(Key=str(path))
+        content_type = self.get_content_type(path)
+        logger.debug('creating %s with content type %s', path, content_type)
+        obj = self.bucket.put_object(Key=str(path), ContentType=content_type)
         return self.info(obj)
 
     def backend_create_dir(self, path: Path) -> Info:
@@ -93,8 +111,12 @@ class S3Storage(CachedStorage):
         return buf.getvalue()
 
     def backend_save_file(self, path: Path, data: bytes) -> Info:
+        # Set the Content-Type again, otherwise it will get overwritten with
+        # application/octet-stream.
+        content_type = self.get_content_type(path)
         obj = self.bucket.Object(str(path))
-        obj.upload_fileobj(BytesIO(data))
+        obj.upload_fileobj(BytesIO(data),
+                           ExtraArgs={'ContentType': content_type})
         return self.info(obj)
 
     def backend_delete_file(self, path: Path):
