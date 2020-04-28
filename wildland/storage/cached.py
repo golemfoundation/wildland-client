@@ -192,8 +192,8 @@ class CachedStorage(AbstractStorage):
 
         self.last_refresh = time.time()
 
-        logging.info('%s', self.files)
-        logging.info('%s', self.dirs)
+        logging.debug('files: %s', self.files)
+        logging.debug('dirs: %s', self.dirs)
 
     def load(self, path: Path) -> BytesIO:
         '''

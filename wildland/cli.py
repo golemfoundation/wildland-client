@@ -949,8 +949,8 @@ class MainCommand:
             '--dummy', action='store_true',
             help='Use dummy signatures')
         parser.add_argument(
-            '--verbose', '-v', action='store_true',
-            help='Output logs')
+            '--verbose', '-v', action='count', default=0,
+            help='Output logs (repeat for more verbosity)')
 
     def run(self, cmdline):
         '''
@@ -962,7 +962,8 @@ class MainCommand:
                 dummy=args.dummy, base_dir=args.base_dir)
             try:
                 if args.verbose:
-                    init_logging()
+                    level = 'INFO' if args.verbose == 1 else 'DEBUG'
+                    init_logging(level=level)
                 args.command.setup(loader)
                 args.command.handle(args)
             finally:

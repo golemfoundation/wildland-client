@@ -24,7 +24,7 @@ Logging
 import logging.config
 
 
-def init_logging(console=True, file_path=None):
+def init_logging(console=True, file_path=None, level='DEBUG'):
     '''
     Configure logging module.
     '''
@@ -46,7 +46,7 @@ def init_logging(console=True, file_path=None):
             },
         },
         'root': {
-            'level': 'DEBUG',
+            'level': level,
             'handlers': [],
         },
         'loggers': {
