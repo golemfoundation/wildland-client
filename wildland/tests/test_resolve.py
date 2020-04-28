@@ -21,6 +21,7 @@
 
 from pathlib import Path
 import os
+import shutil
 
 import pytest
 
@@ -77,10 +78,18 @@ def setup(base_dir, cli):
         '--path', base_dir / 'storage1',
         '--container', 'Container1', '--update-container')
 
-    cli('container', 'create', 'Container2', '--path', '/path/subpath')
+    cli('container', 'create', 'Container2',
+        '--path', '/path/subpath', '/other/path')
     cli('storage', 'create', 'Storage2', '--type', 'local',
         '--path', base_dir / 'storage2',
         '--container', 'Container2', '--update-container')
+
+    os.mkdir(base_dir / 'storage1/other/')
+    # TODO copy storage manifest as well
+    # (and make sure storage manifests are resolved in the local context)
+    shutil.copyfile(base_dir / 'containers/Container2.yaml',
+                    base_dir / 'storage1/other/path.yaml')
+
 
 @pytest.fixture
 def loader(setup, base_dir):
@@ -115,3 +124,10 @@ def test_write_file(base_dir, loader):
                '0xaaa')
     with open(base_dir / 'storage1/file.txt') as f:
         assert f.read() == 'Hello world'
+
+
+def test_read_file_traverse(base_dir, loader):
+    with open(base_dir / 'storage2/file.txt', 'w') as f:
+        f.write('Hello world')
+    data = read_file(loader, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
+    assert data == b'Hello world'

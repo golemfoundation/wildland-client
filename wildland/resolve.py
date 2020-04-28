@@ -25,11 +25,16 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 import os
 import re
+import logging
 
+from .manifest.manifest import Manifest
 from .manifest.loader import ManifestLoader
 from .exc import WildlandError
 from .container import Container
 from .storage.base import AbstractStorage
+
+
+logger = logging.getLogger('resolve')
 
 
 class PathError(WildlandError):
@@ -43,14 +48,11 @@ def read_file(loader: ManifestLoader, wlpath: 'WildlandPath',
     '''
     Resolve the path and load a file under a given path.
     '''
-
-    assert len(wlpath.parts) == 1, 'Only 1-part paths are supported for now'
-
     signer = wlpath.signer or default_signer
     if signer is None:
         raise PathError('Could not find default user for path')
 
-    storage, relpath = resolve_local(loader, wlpath.parts[0], signer)
+    storage, relpath = resolve_full(loader, wlpath.parts, signer)
     return storage_read_file(storage, relpath)
 
 
@@ -59,15 +61,55 @@ def write_file(data: bytes, loader: ManifestLoader, wlpath: 'WildlandPath',
     '''
     Resolve the path and save a file under a given path.
     '''
-
-    assert len(wlpath.parts) == 1, 'Only 1-part paths are supported for now'
-
     signer = wlpath.signer or default_signer
     if signer is None:
         raise PathError('Could not find default user for path')
 
-    storage, relpath = resolve_local(loader, wlpath.parts[0], signer)
+    storage, relpath = resolve_full(loader, wlpath.parts, signer)
     return storage_write_file(data, storage, relpath)
+
+
+def resolve_full(loader: ManifestLoader, parts: List[Path], signer: str):
+    '''
+    Find a container and storage for a given path, traversing intermediate
+    manifests, if necessary.
+
+    Return a Storage and relative path.
+    '''
+
+    storage, relpath = resolve_local(loader, parts[0], signer)
+
+    if len(parts) == 1:
+        return storage, relpath
+
+    if relpath != Path('.'):
+        raise PathError('Not a container path: {}'.format(relpath))
+
+    for part in parts[1:-1]:
+        manifest_path = part.relative_to('/').with_suffix('.yaml')
+        try:
+            manifest_content = storage_read_file(storage, manifest_path)
+        except FileNotFoundError:
+            raise PathError(f'Could not find manifest: {manifest_path}')
+
+        logger.info('%s: container manifest: %s', part, manifest_path)
+
+        manifest = Manifest.from_bytes(manifest_content, loader.sig,
+                                       schema=Container.SCHEMA)
+        if manifest.fields['signer'] != signer:
+            raise PathError(
+                'Unexpected signer for {}: {} (expected {})'.format(
+                    manifest_path, manifest.fields['signer'], signer
+                ))
+        container = Container(manifest)
+        if part not in container.paths:
+            logger.warning('%s: path not found in manifest: %s',
+                           part, manifest_path)
+        # TODO: resolve manifest path in the context of the container
+        # TODO: accept local storage only as long as the whole chain is local
+        storage_manifest = container.select_storage(loader)
+        storage = AbstractStorage.from_manifest(storage_manifest, uid=0, gid=0)
+    return storage, parts[-1].relative_to('/')
 
 
 def resolve_local(loader: ManifestLoader, path: Path, signer: str) \
@@ -78,6 +120,7 @@ def resolve_local(loader: ManifestLoader, path: Path, signer: str) \
     '''
 
     best_container = None
+    best_container_path = None
     best_relpath = None
     containers = [
         Container(manifest)
@@ -94,6 +137,7 @@ def resolve_local(loader: ManifestLoader, path: Path, signer: str) \
                 continue
             if best_container is None or len(best_relpath.parts) > len(relpath.parts):
                 best_container = container
+                best_container_path = container_path
                 best_relpath = relpath
 
     if best_container is None:
@@ -101,6 +145,8 @@ def resolve_local(loader: ManifestLoader, path: Path, signer: str) \
 
     storage_manifest = best_container.select_storage(loader)
     storage = AbstractStorage.from_manifest(storage_manifest, uid=0, gid=0)
+
+    logger.info('%s: local container: %s', best_container_path, path)
 
     assert best_relpath
     return storage, best_relpath
