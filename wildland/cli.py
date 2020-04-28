@@ -42,6 +42,7 @@ from .manifest.user import User
 from .container import Container
 from .exc import WildlandError
 from .log import init_logging
+from . import resolve
 
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]
@@ -741,7 +742,7 @@ class ContainerMountCommand(Command):
         container = Container(manifest)
         storage_manifest = container.select_storage(self.loader)
         command = {
-            'paths': container.paths,
+            'paths': [str(p) for p in container.paths],
             'storage': storage_manifest.fields,
         }
 
@@ -805,6 +806,65 @@ class ContainerUnmountCommand(Command):
         return json.loads(self.read_control('paths'))
 
 
+class GetCommand(Command):
+    '''
+    Get a file, given its Wildland path. Saves to stdout or to a file.
+    '''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'wlpath', metavar='WLPATH',
+            help='Wildland path to the file')
+
+        parser.add_argument(
+            'local_path', metavar='PATH', nargs='?',
+            help='Local path (default is stdout)')
+
+    def handle(self, args):
+        wlpath = resolve.WildlandPath.from_str(args.wlpath)
+        self.loader.load_users()
+        default_user = self.loader.find_default_user()
+
+        data = resolve.read_file(
+            self.loader, wlpath,
+            default_user.signer if default_user else None)
+        if args.local_path:
+            with open(args.local_path, 'wb') as f:
+                f.write(data)
+        else:
+            sys.stdout.buffer.write(data)
+
+
+class PutCommand(Command):
+    '''
+    Put a file under Wildland path. Reads from stdout or from a file.
+    '''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'local_path', metavar='PATH', nargs='?',
+            help='Local path (default is stdout)')
+
+        parser.add_argument(
+            'wlpath', metavar='WLPATH',
+            help='Wildland path to the file')
+
+    def handle(self, args):
+        wlpath = resolve.WildlandPath.from_str(args.wlpath)
+        self.loader.load_users()
+        default_user = self.loader.find_default_user()
+
+        if args.local_path:
+            with open(args.local_path, 'rb') as f:
+                data = f.read()
+        else:
+            data = sys.stdin.buffer.read()
+
+        resolve.write_file(
+            data, self.loader, wlpath,
+            default_user.signer if default_user else None)
+
+
 class MainCommand:
     '''
     Main Wildland CLI command that defers to sub-commands.
@@ -844,6 +904,9 @@ class MainCommand:
 
         ('mount', 'Mount Wildland filesystem', MountCommand()),
         ('unmount', 'Unmount Wildland filesystem', UnmountCommand()),
+
+        ('get', 'Get a file from container', GetCommand()),
+        ('put', 'Put a file in container', PutCommand()),
     ]
 
     def __init__(self):
@@ -886,8 +949,8 @@ class MainCommand:
             '--dummy', action='store_true',
             help='Use dummy signatures')
         parser.add_argument(
-            '--verbose', '-v', action='store_true',
-            help='Output logs')
+            '--verbose', '-v', action='count', default=0,
+            help='Output logs (repeat for more verbosity)')
 
     def run(self, cmdline):
         '''
@@ -899,7 +962,8 @@ class MainCommand:
                 dummy=args.dummy, base_dir=args.base_dir)
             try:
                 if args.verbose:
-                    init_logging()
+                    level = 'INFO' if args.verbose == 1 else 'DEBUG'
+                    init_logging(level=level)
                 args.command.setup(loader)
                 args.command.handle(args)
             finally:

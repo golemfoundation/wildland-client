@@ -112,6 +112,10 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def release(self, path, flags, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def read(self, path, length, offset, obj):
         raise NotImplementedError()
 
@@ -121,6 +125,10 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def fgetattr(self, path, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def ftruncate(self, path, length, obj):
         raise NotImplementedError()
 
     @abc.abstractmethod
