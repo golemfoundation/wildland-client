@@ -47,6 +47,7 @@ def base_dir():
         os.mkdir(base_dir / 'mnt/.control')
         with open(base_dir / 'config.yaml', 'w') as f:
             yaml.dump({
+                'dummy': True,
                 'mount_dir': str(base_dir / 'mnt')
             }, f)
         yield base_dir
@@ -57,7 +58,7 @@ def base_dir():
 @pytest.fixture
 def cli(base_dir):
     def cli(*args):
-        cmdline = ['--dummy', '--base-dir', base_dir] + list(args)
+        cmdline = ['--base-dir', base_dir] + list(args)
         # Convert Path to str
         cmdline = [str(arg) for arg in cmdline]
         MainCommand().run(cmdline)
