@@ -39,7 +39,7 @@ class PathError(WildlandError):
 
 
 def read_file(loader: ManifestLoader, wlpath: 'WildlandPath',
-             default_signer: Optional[str]) -> bytes:
+              default_signer: Optional[str]) -> bytes:
     '''
     Resolve the path and load a file under a given path.
     '''
@@ -55,7 +55,7 @@ def read_file(loader: ManifestLoader, wlpath: 'WildlandPath',
 
 
 def write_file(data: bytes, loader: ManifestLoader, wlpath: 'WildlandPath',
-             default_signer: Optional[str]) -> bytes:
+               default_signer: Optional[str]) -> bytes:
     '''
     Resolve the path and save a file under a given path.
     '''

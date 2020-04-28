@@ -20,10 +20,16 @@
 # pylint: disable=missing-docstring,redefined-outer-name
 
 from pathlib import Path
+import os
 
 import pytest
 
-from ..resolve import WildlandPath, PathError
+from ..manifest.loader import ManifestLoader
+from ..resolve import WildlandPath, PathError, resolve_local, \
+    read_file, write_file
+
+
+## Path
 
 
 def test_path_from_str():
@@ -56,3 +62,56 @@ def test_path_to_str():
 
     wlpath = WildlandPath(None, [Path('/foo/bar'), Path('/baz/quux')])
     assert str(wlpath) == ':/foo/bar:/baz/quux'
+
+
+## Path resolution
+
+@pytest.fixture
+def setup(base_dir, cli):
+    os.mkdir(base_dir / 'storage1')
+    os.mkdir(base_dir / 'storage2')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container1', '--path', '/path')
+    cli('storage', 'create', 'Storage1', '--type', 'local',
+        '--path', base_dir / 'storage1',
+        '--container', 'Container1', '--update-container')
+
+    cli('container', 'create', 'Container2', '--path', '/path/subpath')
+    cli('storage', 'create', 'Storage2', '--type', 'local',
+        '--path', base_dir / 'storage2',
+        '--container', 'Container2', '--update-container')
+
+@pytest.fixture
+def loader(setup, base_dir):
+    # pylint: disable=unused-argument
+    loader = ManifestLoader(base_dir=base_dir)
+    try:
+        loader.load_users()
+        yield loader
+    finally:
+        loader.close()
+
+
+def test_resolve_local(base_dir, loader):
+    storage, relpath = resolve_local(loader, Path('/path/foo'), '0xaaa')
+    assert storage.root == base_dir / 'storage1'
+    assert relpath == Path('foo')
+
+    storage, relpath = resolve_local(loader, Path('/path/subpath/foo'), '0xaaa')
+    assert storage.root == base_dir / 'storage2'
+    assert relpath == Path('foo')
+
+
+def test_read_file(base_dir, loader):
+    with open(base_dir / 'storage1/file.txt', 'w') as f:
+        f.write('Hello world')
+    data = read_file(loader, WildlandPath.from_str(':/path/file.txt'), '0xaaa')
+    assert data == b'Hello world'
+
+
+def test_write_file(base_dir, loader):
+    write_file(b'Hello world', loader, WildlandPath.from_str(':/path/file.txt'),
+               '0xaaa')
+    with open(base_dir / 'storage1/file.txt') as f:
+        assert f.read() == 'Hello world'
