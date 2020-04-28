@@ -137,7 +137,7 @@ def storage_write_file(data, storage, relpath):
         obj = storage.open(relpath, os.O_WRONLY)
         storage.ftruncate(relpath, 0, obj)
     else:
-        obj = storage.create(relpath, 0, 0)
+        obj = storage.create(relpath, os.O_CREAT | os.O_WRONLY, 0o644)
 
     try:
         storage.write(relpath, data, 0, obj)
