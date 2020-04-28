@@ -19,44 +19,13 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name
 
-import tempfile
 import shutil
-from pathlib import Path
-import os
 import json
 
 import yaml
 import pytest
 
-from ..cli import MainCommand
 from ..exc import WildlandError
-
-
-@pytest.fixture
-def base_dir():
-    base_dir = tempfile.mkdtemp(prefix='wlcli.')
-    base_dir = Path(base_dir)
-    try:
-        os.mkdir(base_dir / 'mnt')
-        os.mkdir(base_dir / 'mnt/.control')
-        with open(base_dir / 'config.yaml', 'w') as f:
-            yaml.dump({
-                'mount_dir': str(base_dir / 'mnt')
-            }, f)
-        yield base_dir
-    finally:
-        shutil.rmtree(base_dir)
-
-
-@pytest.fixture
-def cli(base_dir):
-    def cli(*args):
-        cmdline = ['--dummy', '--base-dir', base_dir] + list(args)
-        # Convert Path to str
-        cmdline = [str(arg) for arg in cmdline]
-        MainCommand().run(cmdline)
-
-    return cli
 
 
 def modify_file(path, pattern, replacement):
