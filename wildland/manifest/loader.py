@@ -269,7 +269,7 @@ class ManifestLoader:
                 break
         else:
             ident = str(uuid.uuid4())
-            paths = [f'/.uuid/{ident}'] + paths
+            paths = [f'/.uuid/{ident}', *paths]
 
         if name is None:
             name = self.make_name(ident, 'container')
