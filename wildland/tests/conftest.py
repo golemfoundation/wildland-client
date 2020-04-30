@@ -8,7 +8,7 @@ import os
 import yaml
 import pytest
 
-from ..cli import MainCommand
+from ..cli.main import MainCommand
 from ..manifest.sig import GpgSigContext
 
 

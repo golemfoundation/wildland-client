@@ -6,7 +6,7 @@ Container commands
 -----------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: container create
@@ -16,7 +16,7 @@ Container commands
 ---------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: container list
@@ -26,7 +26,7 @@ Container commands
 -----------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: container update
@@ -36,7 +36,7 @@ Container commands
 ----------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: container mount
@@ -46,7 +46,7 @@ Container commands
 ------------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: container unmount
