@@ -22,7 +22,7 @@ A cached version of local storage.
 '''
 
 from typing import Iterable, Tuple
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import os
 import stat
 
@@ -56,7 +56,7 @@ class LocalCachedStorage(CachedStorage):
             timestamp=int(st.st_mtime),
         )
 
-    def backend_info_all(self) -> Iterable[Tuple[Path, Info]]:
+    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         '''
         Load information about all files and directories.
         '''
@@ -66,11 +66,11 @@ class LocalCachedStorage(CachedStorage):
         except IOError:
             return
 
-        yield Path('.'), self.info(st)
+        yield PurePosixPath('.'), self.info(st)
 
         for root, dirs, files in os.walk(self.base_path):
             root = Path(root)
-            rel_root = root.relative_to(self.base_path)
+            rel_root = PurePosixPath(root.relative_to(self.base_path))
             for dir_name in dirs:
                 try:
                     st = os.stat(root / dir_name)
@@ -85,26 +85,26 @@ class LocalCachedStorage(CachedStorage):
                     continue
                 yield rel_root / file_name, self.info(st)
 
-    def backend_create_file(self, path: Path) -> Info:
+    def backend_create_file(self, path: PurePosixPath) -> Info:
         with open(self.base_path / path, 'w'):
             pass
         return self.info(os.stat(self.base_path / path))
 
-    def backend_create_dir(self, path: Path) -> Info:
+    def backend_create_dir(self, path: PurePosixPath) -> Info:
         os.mkdir(self.base_path / path)
         return self.info(os.stat(self.base_path / path))
 
-    def backend_load_file(self, path: Path) -> bytes:
+    def backend_load_file(self, path: PurePosixPath) -> bytes:
         with open(self.base_path / path, 'rb') as f:
             return f.read()
 
-    def backend_save_file(self, path: Path, data: bytes) -> Info:
+    def backend_save_file(self, path: PurePosixPath, data: bytes) -> Info:
         with open(self.base_path / path, 'wb') as f:
             f.write(data)
         return self.info(os.stat(self.base_path / path))
 
-    def backend_delete_file(self, path: Path):
+    def backend_delete_file(self, path: PurePosixPath):
         os.unlink(self.base_path / path)
 
-    def backend_delete_dir(self, path: Path):
+    def backend_delete_dir(self, path: PurePosixPath):
         os.rmdir(self.base_path / path)

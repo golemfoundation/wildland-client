@@ -21,7 +21,6 @@
 
 import shutil
 import json
-import os
 
 import yaml
 import pytest

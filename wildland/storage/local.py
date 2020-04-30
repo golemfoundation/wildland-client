@@ -22,7 +22,7 @@ Local storage, similar to :command:`mount --bind`
 '''
 
 import os
-import pathlib
+from pathlib import Path, PurePosixPath
 import logging
 
 from .base import AbstractStorage, FileProxyMixin
@@ -75,7 +75,7 @@ class LocalStorage(FileProxyMixin, AbstractStorage):
 
     def __init__(self, *, manifest, relative_to=None, **kwds):
         super().__init__(manifest=manifest, **kwds)
-        path = pathlib.Path(manifest.fields['path'])
+        path = Path(manifest.fields['path'])
         if relative_to is not None:
             path = relative_to / path
         path = path.resolve()
@@ -83,7 +83,7 @@ class LocalStorage(FileProxyMixin, AbstractStorage):
             logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
 
-    def _path(self, path):
+    def _path(self, path: PurePosixPath) -> Path:
         '''Given path inside filesystem, calculate path on disk, relative to
         :attr:`self.root`
 

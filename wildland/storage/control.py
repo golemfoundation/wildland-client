@@ -24,7 +24,7 @@ Synthetic storage, which services :path:`/.control` directory
 import errno
 import logging
 import os
-import pathlib
+from pathlib import PurePosixPath
 import stat
 
 import fuse
@@ -111,7 +111,7 @@ class ControlStorage(FileProxyMixin, AbstractStorage):
           :obj:`False)
         '''
         logging.debug('get_node_for_path(path=%r)', path)
-        path = pathlib.PurePosixPath(path)
+        path = PurePosixPath(path)
         node = self._query_object_for_node(self.fs, *path.parts)
 
         if need_directory and not self.node_isdir(node):

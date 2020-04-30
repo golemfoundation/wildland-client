@@ -31,7 +31,7 @@ import sys
 import tempfile
 import time
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional, Tuple
 
 import botocore.credentials
@@ -203,11 +203,11 @@ class Command:
             'storage': container.select_storage(self.loader).fields,
         }
 
-    def get_user_path(self, signer, path: Path) -> Path:
+    def get_user_path(self, signer, path: PurePosixPath) -> PurePosixPath:
         '''
         Prepend an absolute path with signer namespace.
         '''
-        return Path('/.users/') / signer / path.relative_to('/')
+        return PurePosixPath('/.users/') / signer / path.relative_to('/')
 
 
 class UserCreateCommand(Command):
