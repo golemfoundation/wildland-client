@@ -22,8 +22,9 @@ The container
 '''
 
 import logging
-from .storage.base import AbstractStorage
+from pathlib import Path
 
+from .storage.base import AbstractStorage
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.loader import ManifestLoader
 from .manifest.schema import Schema
@@ -36,7 +37,8 @@ class Container:
     def __init__(self, manifest: Manifest):
         self.manifest = manifest
         #: list of paths, under which this container should be mounted
-        self.paths = manifest.fields['paths']
+        self.signer = manifest.fields['signer']
+        self.paths = [Path(p) for p in manifest.fields['paths']]
 
     def select_storage(self, loader: ManifestLoader) -> Manifest:
         '''

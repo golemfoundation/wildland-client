@@ -16,7 +16,9 @@ $WL storage create storage11 --type local --path $(realpath storage/storage11) \
     --container container1 --update-container
 
 $WL container create container2 --path /container2
-$WL storage create storage21 --type local --path $(realpath storage/storage21) \
+$WL storage create storage21 --type local-cached --path $(realpath storage/storage21) \
     --container container2 --update-container
 
-$WL mount --container container1 container2
+cp ~/.config/wildland/containers/container2.yaml storage/storage11/container2.yaml
+
+$WL mount --container container1

@@ -43,6 +43,8 @@ from .manifest.manifest import Manifest, ManifestError, HEADER_SEPARATOR, split_
 from .manifest.user import User
 from .container import Container
 from .exc import WildlandError
+from .log import init_logging
+from . import resolve
 
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]
@@ -125,13 +127,13 @@ class Command:
             user = self.loader.find_user(name)
             if not user:
                 raise CliError(f'User not found: {name}')
-            print(f'Using user: {user.pubkey}')
+            print(f'Using user: {user.signer}')
             return user
         user = self.loader.find_default_user()
         if user is None:
             raise CliError(
                 'Default user not set, you need to provide --user')
-        print(f'Using default user: {user.pubkey}')
+        print(f'Using default user: {user.signer}')
         return user
 
     def ensure_mounted(self):
@@ -179,7 +181,6 @@ class Command:
             time.sleep(delay)
         raise CliError(f'Timed out waiting for Wildland to mount: {self.mount_dir}')
 
-
     def get_command_for_mount_container(self, container):
         '''
         Prepare command to be written to :file:`/.control/mount` to mount
@@ -219,15 +220,15 @@ class UserCreateCommand(Command):
             help='GPG key identifier')
 
     def handle(self, args):
-        pubkey = self.loader.sig.find(args.key)
-        print(f'Using key: {pubkey}')
+        signer, pubkey = self.loader.sig.find(args.key)
+        print(f'Using key: {signer}')
 
-        path = self.loader.create_user(pubkey, args.name)
+        path = self.loader.create_user(signer, pubkey, args.name)
         print(f'Created: {path}')
 
         if self.loader.config.get('default_user') is None:
-            print(f'Using {pubkey} as default user')
-            self.loader.config.update_and_save(default_user=pubkey)
+            print(f'Using {signer} as default user')
+            self.loader.config.update_and_save(default_user=signer)
 
 
 class StorageCreateCommand(Command):
@@ -239,7 +240,9 @@ class StorageCreateCommand(Command):
 
     supported_types = [
         'local',
+        'local-cached',
         's3',
+        'webdav',
     ]
 
     def add_arguments(self, parser):
@@ -264,17 +267,32 @@ class StorageCreateCommand(Command):
 
         parser.add_argument(
             '--path',
-            help='Path (for local storage)')
+            help='Path (local)')
         parser.add_argument(
             '--bucket',
-            help='S3 bucket name')
+            help='Bucket name (S3)')
+        parser.add_argument(
+            '--url',
+            help='URL (WebDAV)')
+        parser.add_argument(
+            '--login',
+            help='Login (WebDAV)')
+        parser.add_argument(
+            '--password',
+            help='Password (WebDAV)')
 
     def handle(self, args):
-        if args.type == 'local':
+        if args.type in ['local', 'local-cached']:
             fields = self.get_fields(args, 'path')
         elif args.type == 's3':
             fields = self.get_fields(args, 'bucket')
             fields['credentials'] = self.get_aws_credentials()
+        elif args.type == 'webdav':
+            fields = self.get_fields(args, 'url', 'login', 'password')
+            fields['credentials'] = {
+                'login': fields.pop('login'),
+                'password': fields.pop('password'),
+            }
         else:
             assert False, args.type
 
@@ -289,7 +307,7 @@ class StorageCreateCommand(Command):
         print(f'Using container: {container_path} ({container_mount_path})')
         fields['container_path'] = container_mount_path
 
-        storage_path = self.loader.create_storage(user.pubkey, args.type, fields, args.name)
+        storage_path = self.loader.create_storage(user.signer, args.type, fields, args.name)
         print('Created: {}'.format(storage_path))
 
         if args.update_container:
@@ -353,7 +371,7 @@ class ContainerCreateCommand(Command):
     def handle(self, args):
         self.loader.load_users()
         user = self.find_user(args.user)
-        path = self.loader.create_container(user.pubkey, args.path, args.name)
+        path = self.loader.create_container(user.signer, args.path, args.name)
         print(f'Created: {path}')
 
 
@@ -410,7 +428,7 @@ class UserListCommand(Command):
     def handle(self, args):
         self.loader.load_users()
         for user in self.loader.users:
-            print('{} {}'.format(user.pubkey, user.manifest_path))
+            print('{} {}'.format(user.signer, user.manifest_path))
 
 
 class StorageListCommand(Command):
@@ -481,7 +499,8 @@ class SignCommand(Command):
         manifest = Manifest.from_unsigned_bytes(data)
         if self.manifest_type:
             self.loader.validate_manifest(manifest, self.manifest_type)
-        manifest.sign(self.loader.sig)
+        manifest.sign(self.loader.sig,
+                      attach_pubkey=self.manifest_type == 'user')
         signed_data = manifest.to_bytes()
 
         if args.in_place:
@@ -518,7 +537,9 @@ class VerifyCommand(Command):
         data, _path = self.read_manifest_file(args.input_file,
                                               self.manifest_type)
         try:
-            manifest = Manifest.from_bytes(data, self.loader.sig)
+            manifest = Manifest.from_bytes(
+                data, self.loader.sig,
+                self_signed=self.manifest_type == 'user')
             if self.manifest_type:
                 self.loader.validate_manifest(manifest, self.manifest_type)
         except ManifestError as e:
@@ -582,7 +603,8 @@ class EditCommand(Command):
         manifest = Manifest.from_unsigned_bytes(data)
         if self.manifest_type:
             self.loader.validate_manifest(manifest, self.manifest_type)
-        manifest.sign(self.loader.sig)
+        manifest.sign(self.loader.sig,
+                      attach_pubkey=self.manifest_type == 'user')
         signed_data = manifest.to_bytes()
         with open(path, 'wb') as f:
             f.write(signed_data)
@@ -801,6 +823,65 @@ class ContainerUnmountCommand(Command):
         return json.loads(self.read_control('paths'))
 
 
+class GetCommand(Command):
+    '''
+    Get a file, given its Wildland path. Saves to stdout or to a file.
+    '''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'wlpath', metavar='WLPATH',
+            help='Wildland path to the file')
+
+        parser.add_argument(
+            'local_path', metavar='PATH', nargs='?',
+            help='Local path (default is stdout)')
+
+    def handle(self, args):
+        wlpath = resolve.WildlandPath.from_str(args.wlpath)
+        self.loader.load_users()
+        default_user = self.loader.find_default_user()
+
+        data = resolve.read_file(
+            self.loader, wlpath,
+            default_user.signer if default_user else None)
+        if args.local_path:
+            with open(args.local_path, 'wb') as f:
+                f.write(data)
+        else:
+            sys.stdout.buffer.write(data)
+
+
+class PutCommand(Command):
+    '''
+    Put a file under Wildland path. Reads from stdout or from a file.
+    '''
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'local_path', metavar='PATH', nargs='?',
+            help='Local path (default is stdout)')
+
+        parser.add_argument(
+            'wlpath', metavar='WLPATH',
+            help='Wildland path to the file')
+
+    def handle(self, args):
+        wlpath = resolve.WildlandPath.from_str(args.wlpath)
+        self.loader.load_users()
+        default_user = self.loader.find_default_user()
+
+        if args.local_path:
+            with open(args.local_path, 'rb') as f:
+                data = f.read()
+        else:
+            data = sys.stdin.buffer.read()
+
+        resolve.write_file(
+            data, self.loader, wlpath,
+            default_user.signer if default_user else None)
+
+
 class MainCommand:
     '''
     Main Wildland CLI command that defers to sub-commands.
@@ -840,6 +921,9 @@ class MainCommand:
 
         ('mount', 'Mount Wildland filesystem', MountCommand()),
         ('unmount', 'Unmount Wildland filesystem', UnmountCommand()),
+
+        ('get', 'Get a file from container', GetCommand()),
+        ('put', 'Put a file in container', PutCommand()),
     ]
 
     def __init__(self):
@@ -881,6 +965,9 @@ class MainCommand:
         parser.add_argument(
             '--dummy', action='store_true',
             help='Use dummy signatures')
+        parser.add_argument(
+            '--verbose', '-v', action='count', default=0,
+            help='Output logs (repeat for more verbosity)')
 
     def run(self, cmdline):
         '''
@@ -890,8 +977,14 @@ class MainCommand:
         if args.command:
             loader = ManifestLoader(
                 dummy=args.dummy, base_dir=args.base_dir)
-            args.command.setup(loader)
-            args.command.handle(args)
+            try:
+                if args.verbose:
+                    level = 'INFO' if args.verbose == 1 else 'DEBUG'
+                    init_logging(level=level)
+                args.command.setup(loader)
+                args.command.handle(args)
+            finally:
+                loader.close()
         else:
             parser = args.parser
             parser.print_help()

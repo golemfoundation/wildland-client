@@ -23,7 +23,6 @@ Wildland Filesystem
 
 import errno
 import logging
-import logging.config
 import os
 import pathlib
 import stat
@@ -34,12 +33,14 @@ import fuse
 fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
-from .storage.base import FileProxyMixin, AbstractStorage
-from .storage.control import ControlStorage, control_directory, control_file
+from .storage.base import AbstractStorage
+from .storage.control import ControlStorage
+from .storage.control_decorators import control_directory, control_file
 from .exc import WildlandError
+from .log import init_logging
 
 
-class WildlandFS(fuse.Fuse, FileProxyMixin):
+class WildlandFS(fuse.Fuse):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
 
@@ -89,46 +90,11 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         Configure logging module.
         '''
 
-        config = {
-            'version': 1,
-            'disable_existing_loggers': False,
-            'formatters': {
-                'default': {
-                    'class': 'logging.Formatter',
-                    'format': '%(asctime)s %(levelname)s [%(name)s] %(message)s',
-                },
-            },
-            'handlers': {
-                'console': {
-                    'class': 'logging.StreamHandler',
-                    'stream': 'ext://sys.stderr',
-                    'formatter': 'default',
-                },
-            },
-            'root': {
-                'level': 'DEBUG',
-                'handlers': [],
-            },
-            'loggers': {
-                'gnupg': {'level': 'INFO'},
-                'boto3': {'level': 'INFO'},
-                'botocore': {'level': 'INFO'},
-                's3transfer': {'level': 'INFO'},
-            }
-        }
-
         log_path = args.log or '/tmp/wlfuse.log'
-
         if log_path == '-':
-            config['root']['handlers'].append('console')
+            init_logging(console=True)
         else:
-            config['handlers']['file'] = {
-                'class': 'logging.FileHandler',
-                'filename': log_path,
-                'formatter': 'default',
-            }
-            config['root']['handlers'].append('file')
-        logging.config.dictConfig(config)
+            init_logging(console=False, file_path=log_path)
 
     def mount_storage(self, paths: List[pathlib.Path], storage: AbstractStorage):
         '''
@@ -145,6 +111,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         ident = 0
         while ident in self.storages:
             ident += 1
+
+        storage.mount()
 
         self.storages[ident] = storage
         self.storage_paths[ident] = paths
@@ -225,6 +193,14 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             raise WildlandError(f'storage not found: {ident}')
         self.unmount_storage(ident)
 
+    @control_file('refresh', read=False, write=True)
+    def control_refresh(self, content: bytes):
+        ident = int(content)
+        if ident not in self.storages:
+            raise WildlandError(f'storage not found: {ident}')
+        logging.info('refreshing storage: %s', ident)
+        self.storages[ident].refresh()
+
     @control_file('paths')
     def control_paths(self):
         result = {str(path): ident for path, ident in self.paths.items()}
@@ -255,6 +231,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
         storage, relpath = self.resolve_path(path)
         if storage is None:
             return -errno.ENOENT
+        if not hasattr(storage, method_name):
+            return -errno.ENOSYS
 
         return getattr(storage, method_name)(relpath, *args, **kwargs)
 
@@ -341,11 +319,35 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
             ret.add('.control')
 
         if exists:
-            return (fuse.Direntry(i) for i in ret)
+            return [fuse.Direntry(i) for i in ret]
 
         raise OSError(errno.ENOENT, '')
 
     # pylint: disable=unused-argument
+
+    def read(self, *args):
+        return self.proxy('read', *args)
+
+    def write(self, *args):
+        return self.proxy('write', *args)
+
+    def fsync(self, *args):
+        return self.proxy('fsync', *args)
+
+    def release(self, *args):
+        return self.proxy('release', *args)
+
+    def flush(self, *args):
+        return self.proxy('flush', *args)
+
+    def fgetattr(self, *args):
+        return self.proxy('fgetattr', *args)
+
+    def ftruncate(self, *args):
+        return self.proxy('ftruncate', *args)
+
+    def lock(self, *args, **kwargs):
+        return self.proxy('lock', *args, **kwargs)
 
     def access(self, *args):
         return -errno.ENOSYS
@@ -371,8 +373,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     def listxattr(self, *args):
         return -errno.ENOSYS
 
-    def mkdir(self, *args):
-        return -errno.ENOSYS
+    def mkdir(self, path, mode):
+        return self.proxy('mkdir', path, mode)
 
     def mknod(self, *args):
         return -errno.ENOSYS
@@ -386,8 +388,8 @@ class WildlandFS(fuse.Fuse, FileProxyMixin):
     def rename(self, *args):
         return -errno.ENOSYS
 
-    def rmdir(self, *args):
-        return -errno.ENOSYS
+    def rmdir(self, path):
+        return self.proxy('rmdir', path)
 
     def setxattr(self, *args):
         return -errno.ENOSYS

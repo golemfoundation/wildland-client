@@ -24,11 +24,13 @@ import pytest
 from ..manifest.manifest import Manifest, Header, ManifestError
 
 
-def make_header(gpg_sig, signer, test_data):
+def make_header(gpg_sig, signer, test_data, attach_pubkey=False):
     signature = gpg_sig.sign(signer, test_data, passphrase='secret')
-    header = Header(signature.strip())
+    pubkey = None
+    if attach_pubkey:
+        pubkey = gpg_sig.get_pubkey(signer)
+    header = Header(signature.strip(), pubkey)
     return header.to_bytes()
-
 
 def test_parse(gpg_sig, signer):
     test_data = f'''
@@ -54,3 +56,18 @@ key2: "value2"
 
     with pytest.raises(ManifestError, match='Signer field mismatch'):
         Manifest.from_bytes(data, gpg_sig)
+
+
+def test_parse_self_signed(gpg_sig, signer):
+    test_data = f'''
+signer: "{signer}"
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = (make_header(gpg_sig, signer, test_data, attach_pubkey=True) +
+            b'\n---\n' + test_data)
+    manifest = Manifest.from_bytes(data, gpg_sig, self_signed=True)
+    assert manifest.fields['signer'] == signer
+    assert manifest.fields['key1'] == 'value1'
+    assert manifest.fields['key2'] == 'value2'

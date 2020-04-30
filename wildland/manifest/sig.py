@@ -23,6 +23,8 @@ Module for handling signatures. Currently provides two backends: GPG, and a
 '''
 
 import tempfile
+import shutil
+from typing import TypeVar, Tuple, Optional
 
 import gnupg
 
@@ -35,24 +37,53 @@ class SigError(WildlandError):
     '''
 
 
+T = TypeVar('T')
+
+
 class SigContext:
     '''
     A class for signing and verifying signatures. Operates on 'signer'
     identifiers, serving as key fingerprints.
+
+    Should be closed before exiting, so it's best to use it as a file-like
+    object:
+
+        with ...SigContext() as sig:
+            ...
     '''
 
-    def __init__(self):
-        self.signers = set()
+    def close(self):
+        '''Clean up.'''
 
-    def add_signer(self, signer: str):
-        '''
-        Add a signer to recognized signers.
-        '''
-        self.signers.add(signer)
+    def __enter__(self: T) -> T:
+        return self
 
-    def find(self, key_id: str) -> str:
+    def __exit__(self, *args):
+        self.close()
+
+    def copy(self: T) -> T:
+        '''
+        Create a copy of the current context.
+        '''
+        raise NotImplementedError()
+
+    def add_pubkey(self, pubkey: str) -> str:
+        '''
+        Add a public key to recognized signers. Returns a signer ID.
+        '''
+        raise NotImplementedError()
+
+    def get_pubkey(self, signer: str) -> str:
+        '''
+        Get a public key by signer ID.
+        '''
+        raise NotImplementedError()
+
+    def find(self, key_id: str) -> Tuple[str, str]:
         '''
         Find a canonical form for the key.
+
+        Returns a pair of (signer, pubkey).
         '''
         raise NotImplementedError()
 
@@ -62,7 +93,7 @@ class SigContext:
         '''
         raise NotImplementedError()
 
-    def verify(self, signature: str, data: bytes, self_signed=False) -> str:
+    def verify(self, signature: str, data: bytes) -> str:
         '''
         Verify signature for data, returning the recognized signer.
         If self_signed, ignore that a signer is not recognized.
@@ -76,19 +107,44 @@ class DummySigContext(SigContext):
     for testing purposes.
     '''
 
-    def find(self, key_id: str) -> str:
-        return key_id
+    def __init__(self):
+        self.signers = set()
+
+    # For pylint to correctly infer the type.
+    def __enter__(self: T) -> T:
+        return self
+
+    def copy(self) -> 'DummySigContext':
+        copied = DummySigContext()
+        copied.signers = self.signers.copy()
+        return copied
+
+    def add_pubkey(self, pubkey: str) -> str:
+        if not pubkey.startswith('key.'):
+            raise SigError('Expected key.* key, got {!r}'.format(pubkey))
+
+        signer = pubkey[len('key.'):]
+        self.signers.add(signer)
+        return signer
+
+    def get_pubkey(self, signer: str) -> str:
+        return f'key.{signer}'
+
+    def find(self, key_id: str) -> Tuple[str, str]:
+        return key_id, f'key.{key_id}'
 
     def sign(self, signer: str, data: bytes) -> str:
         return f'dummy.{signer}'
 
-    def verify(self, signature: str, data: bytes, self_signed=False) -> str:
+    def verify(self, signature: str, data: bytes) -> str:
         if not signature.startswith('dummy.'):
             raise SigError(
-                'Expected dummy.* signature, got {!r}'.format(
-                    signature))
+                'Expected dummy.* signature, got {!r}'.format(signature))
 
-        return signature[len('dummy.'):]
+        signer = signature[len('dummy.'):]
+        if signer not in self.signers:
+            raise SigError('Unknown signer: {!r}'.format(signer))
+        return signer
 
 
 class GpgSigContext(SigContext):
@@ -97,14 +153,23 @@ class GpgSigContext(SigContext):
 
     https://gnupg.readthedocs.io/en/latest/
 
-    Uses keys stored in GnuPG keyring. The fingerprint association
-    must be first registered using add_signer().
+    Uses keys stored in GnuPG keyring, but also allows you to add other keys.
     '''
 
     def __init__(self, gnupghome=None):
         super().__init__()
         self.gnupghome = gnupghome
-        self.gpg = gnupg.GPG(gnupghome=gnupghome)
+        self.keyring_file = tempfile.NamedTemporaryFile(prefix='wlgpg.')
+        self.gpg = gnupg.GPG(gnupghome=gnupghome,
+                             keyring=self.keyring_file.name)
+        self.signers = set()
+
+    # For pylint to correctly infer the type.
+    def __enter__(self: T) -> T:
+        return self
+
+    def close(self):
+        self.keyring_file.close()
 
     @staticmethod
     def convert_fingerprint(fingerprint):
@@ -116,15 +181,45 @@ class GpgSigContext(SigContext):
             fingerprint = '0x' + fingerprint
         return fingerprint
 
-    def find(self, key_id: str) -> str:
+    def copy(self) -> 'GpgSigContext':
+        copied = GpgSigContext()
+        copied.signers = self.signers.copy()
+        shutil.copyfile(self.keyring_file.name, copied.keyring_file.name)
+        return copied
+
+    def add_pubkey(self, pubkey: str) -> str:
+        result = self.gpg.import_keys(pubkey)
+        if len(result.fingerprints) > 1:
+            raise SigError('More than one public key found')
+        if len(result.fingerprints) == 0:
+            raise SigError('Error importing public key')
+        signer = self.convert_fingerprint(result.fingerprints[0])
+        self.signers.add(signer)
+        return signer
+
+    def get_pubkey(self, signer: str) -> str:
+        return self.gpg.export_keys([signer])
+
+    def find(self, key_id: str) -> Tuple[str, str]:
+        # Search both in local keyring and in gnupghome.
+
+        result = (
+            self._find(key_id, self.gpg) or
+            self._find(key_id, gnupg.GPG(gnupghome=self.gnupghome))
+        )
+        if result is None:
+            raise SigError('No key found for {}'.format(key_id))
+        return result
+
+    def _find(self, key_id, gpg) -> Optional[Tuple[str, str]]:
         keys = [self.convert_fingerprint(k['fingerprint'])
-                for k in self.gpg.list_keys(keys=key_id)]
+                for k in gpg.list_keys(keys=key_id)]
         if len(keys) > 1:
             raise SigError('Multiple keys found for {}: {}'.format(
                 key_id, keys))
         if len(keys) == 0:
-            raise SigError('No key found for {}'.format(key_id))
-        return keys[0]
+            return None
+        return keys[0], gpg.export_keys(keys)
 
     def gen_test_key(self, name, passphrase: str = None) -> str:
         '''
@@ -139,10 +234,11 @@ class GpgSigContext(SigContext):
         key = self.gpg.gen_key(input_data)
         if not key:
             raise Exception('gen_key failed')
-        return self.convert_fingerprint(key.fingerprint)
+        signer = self.convert_fingerprint(key.fingerprint)
+        self.signers.add(signer)
+        return signer
 
-    def verify(self, signature: str, data: bytes,
-               self_signed=False) -> str:
+    def verify(self, signature: str, data: bytes) -> str:
         # Create a file for detached signature, because gnupg needs to get it
         # from file. NamedTemporaryFile() creates the file as 0o600, so no need
         # to set umask.
@@ -161,7 +257,7 @@ class GpgSigContext(SigContext):
 
         signer = self.convert_fingerprint(verified.fingerprint)
 
-        if not self_signed and signer not in self.signers:
+        if signer not in self.signers:
             raise SigError('Unknown signer: {!r}'.format(signer))
 
         return signer

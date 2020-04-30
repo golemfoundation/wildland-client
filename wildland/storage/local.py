@@ -26,7 +26,6 @@ import pathlib
 import logging
 
 from .base import AbstractStorage, FileProxyMixin
-from .control import control_file
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 
@@ -69,7 +68,7 @@ class LocalFile:
         return self.file.truncate(length)
 
 
-class LocalStorage(AbstractStorage, FileProxyMixin):
+class LocalStorage(FileProxyMixin, AbstractStorage):
     '''Local, file-based storage'''
     SCHEMA = Schema('storage-local')
     TYPE = 'local'
@@ -97,6 +96,7 @@ class LocalStorage(AbstractStorage, FileProxyMixin):
         ret.relative_to(self.root) # this will throw ValueError if not relative
         return ret
 
+
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
@@ -117,6 +117,8 @@ class LocalStorage(AbstractStorage, FileProxyMixin):
     def unlink(self, path):
         return os.unlink(self._path(path))
 
-    @control_file('manifest.yaml')
-    def control_manifest_read(self):
-        return self.manifest.to_bytes()
+    def mkdir(self, path, mode):
+        return os.mkdir(self._path(path), mode)
+
+    def rmdir(self, path):
+        return os.rmdir(self._path(path))
