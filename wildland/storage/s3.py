@@ -21,7 +21,7 @@
 S3 storage backend
 '''
 
-from pathlib import Path
+from pathlib import PurePosixPath
 from io import BytesIO
 from typing import Iterable, Tuple, Set
 import mimetypes
@@ -59,7 +59,7 @@ class S3Storage(CachedStorage):
         # Persist created directories between refreshes. This is because S3
         # doesn't have information about directories, andwe might want to
         # create/remove them manually.
-        self.s3_dirs: Set[Path] = set()
+        self.s3_dirs: Set[PurePosixPath] = set()
 
         mimetypes.init()
 
@@ -75,9 +75,9 @@ class S3Storage(CachedStorage):
             size = obj.content_length
         return Info(is_dir=False, size=size, timestamp=timestamp)
 
-    def backend_info_all(self) -> Iterable[Tuple[Path, Info]]:
+    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         for obj_summary in self.bucket.objects.all():
-            obj_path = Path(obj_summary.key)
+            obj_path = PurePosixPath(obj_summary.key)
             yield obj_path, self.info(obj_summary)
             for parent in obj_path.parents:
                 self.s3_dirs.add(parent)
@@ -86,7 +86,7 @@ class S3Storage(CachedStorage):
             yield dir_path, Info(is_dir=True)
 
     @staticmethod
-    def get_content_type(path: Path) -> str:
+    def get_content_type(path: PurePosixPath) -> str:
         '''
         Guess the right content type for given path.
         '''
@@ -94,23 +94,23 @@ class S3Storage(CachedStorage):
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
 
-    def backend_create_file(self, path: Path) -> Info:
+    def backend_create_file(self, path: PurePosixPath) -> Info:
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
         obj = self.bucket.put_object(Key=str(path), ContentType=content_type)
         return self.info(obj)
 
-    def backend_create_dir(self, path: Path) -> Info:
+    def backend_create_dir(self, path: PurePosixPath) -> Info:
         self.s3_dirs.add(path)
         return Info(is_dir=True)
 
-    def backend_load_file(self, path: Path) -> bytes:
+    def backend_load_file(self, path: PurePosixPath) -> bytes:
         buf = BytesIO()
         obj = self.bucket.Object(str(path))
         obj.download_fileobj(buf)
         return buf.getvalue()
 
-    def backend_save_file(self, path: Path, data: bytes) -> Info:
+    def backend_save_file(self, path: PurePosixPath, data: bytes) -> Info:
         # Set the Content-Type again, otherwise it will get overwritten with
         # application/octet-stream.
         content_type = self.get_content_type(path)
@@ -119,8 +119,8 @@ class S3Storage(CachedStorage):
                            ExtraArgs={'ContentType': content_type})
         return self.info(obj)
 
-    def backend_delete_file(self, path: Path):
+    def backend_delete_file(self, path: PurePosixPath):
         self.bucket.Object(str(path)).delete()
 
-    def backend_delete_dir(self, path: Path):
+    def backend_delete_dir(self, path: PurePosixPath):
         self.s3_dirs.remove(path)

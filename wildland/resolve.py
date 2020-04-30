@@ -21,7 +21,7 @@
 Utilities for URL resolving and traversing the path
 '''
 
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import List, Optional, Tuple
 import os
 import re
@@ -69,7 +69,7 @@ def write_file(data: bytes, loader: ManifestLoader, wlpath: 'WildlandPath',
     return storage_write_file(data, storage, relpath)
 
 
-def resolve_full(loader: ManifestLoader, parts: List[Path], signer: str):
+def resolve_full(loader: ManifestLoader, parts: List[PurePosixPath], signer: str):
     '''
     Find a container and storage for a given path, traversing intermediate
     manifests, if necessary.
@@ -82,7 +82,7 @@ def resolve_full(loader: ManifestLoader, parts: List[Path], signer: str):
     if len(parts) == 1:
         return storage, relpath
 
-    if relpath != Path('.'):
+    if relpath != PurePosixPath('.'):
         raise PathError('Not a container path: {}'.format(relpath))
 
     for part in parts[1:-1]:
@@ -112,8 +112,8 @@ def resolve_full(loader: ManifestLoader, parts: List[Path], signer: str):
     return storage, parts[-1].relative_to('/')
 
 
-def resolve_local(loader: ManifestLoader, path: Path, signer: str) \
-    -> Tuple[AbstractStorage, Path]:
+def resolve_local(loader: ManifestLoader, path: PurePosixPath, signer: str) \
+    -> Tuple[AbstractStorage, PurePosixPath]:
     '''
     Find a local container and storage for a given path.
     Return a Storage and relative path.
@@ -200,7 +200,7 @@ class WildlandPath:
     FINGERPRINT_RE = re.compile('^0x[0-9a-f]+$')
 
 
-    def __init__(self, signer: Optional[str], parts: List[Path]):
+    def __init__(self, signer: Optional[str], parts: List[PurePosixPath]):
         assert len(parts) > 0
         self.signer = signer
         self.parts = parts
@@ -208,7 +208,7 @@ class WildlandPath:
     @classmethod
     def from_str(cls, s: str) -> 'WildlandPath':
         '''
-        Construct a Path from a string.
+        Construct a WildlandPath from a string.
         '''
         if ':' not in s:
             raise PathError('The path has to start with signer and ":"')
@@ -225,7 +225,7 @@ class WildlandPath:
         for part in split[1:]:
             if not cls.ABSPATH_RE.match(part):
                 raise PathError('Unrecognized absolute path: {!r}'.format(part))
-            parts.append(Path(part))
+            parts.append(PurePosixPath(part))
         return cls(signer, parts)
 
     def __str__(self):

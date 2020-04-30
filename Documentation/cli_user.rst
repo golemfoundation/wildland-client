@@ -5,7 +5,7 @@ User commands
 ------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: user create
@@ -15,7 +15,7 @@ User commands
 ----------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: user list

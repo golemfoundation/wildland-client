@@ -5,7 +5,7 @@ Main mount/unmount commands
 ------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: mount
@@ -15,7 +15,7 @@ Main mount/unmount commands
 --------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: unmount

@@ -18,7 +18,7 @@ schema.
 -----------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: sign
@@ -27,7 +27,7 @@ schema.
 -------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: verify
@@ -37,7 +37,7 @@ schema.
 -------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: edit

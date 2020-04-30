@@ -22,7 +22,7 @@ The container
 '''
 
 import logging
-from pathlib import Path
+from pathlib import PurePosixPath
 
 from .storage.base import AbstractStorage
 from .manifest.manifest import Manifest, ManifestError
@@ -38,7 +38,7 @@ class Container:
         self.manifest = manifest
         #: list of paths, under which this container should be mounted
         self.signer = manifest.fields['signer']
-        self.paths = [Path(p) for p in manifest.fields['paths']]
+        self.paths = [PurePosixPath(p) for p in manifest.fields['paths']]
 
     def select_storage(self, loader: ManifestLoader) -> Manifest:
         '''

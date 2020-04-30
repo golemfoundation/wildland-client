@@ -210,13 +210,34 @@ def test_container_mount(cli, base_dir):
     cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
         '--container', 'Container', '--update-container')
 
+    with open(base_dir / 'containers/Container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
     cli('container', 'mount', 'Container')
 
     # The command should write container manifest to .control/mount.
     with open(base_dir / 'mnt/.control/mount') as f:
-        data = f.read()
-    assert '"signer": "0xaaa"' in data
-    assert "/PATH" in data
+        command = json.load(f)
+    assert command['storage']['signer'] == '0xaaa'
+    assert command['paths'] == [
+        f'/.users/0xaaa{path}',
+        f'/.users/0xaaa/PATH',
+        path,
+        f'/PATH',
+    ]
+
+    modify_file(base_dir / 'config.yaml', "default_user: '0xaaa'", '')
+
+    # The command should not contain the default path.
+    cli('container', 'mount', 'Container')
+    with open(base_dir / 'mnt/.control/mount') as f:
+        command = json.load(f)
+    assert command['storage']['signer'] == '0xaaa'
+    assert command['paths'] == [
+        f'/.users/0xaaa{path}',
+        f'/.users/0xaaa/PATH',
+    ]
 
 
 def test_container_unmount(cli, base_dir):
@@ -229,8 +250,9 @@ def test_container_unmount(cli, base_dir):
 
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({
-            path: 101,
-            '/PATH2': 102,
+            f'/.users/0xaaa{path}': 101,
+            path: 102,
+            '/PATH2': 103,
         }, f)
     cli('container', 'unmount', 'Container')
 
