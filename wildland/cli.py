@@ -25,7 +25,6 @@ import argparse
 import copy
 import json
 import os
-import pathlib
 import shlex
 import subprocess
 import sys
@@ -193,9 +192,9 @@ class Command:
         default_user = self.loader.config.get('default_user')
 
         paths = [
-            os.fspath(
-                f'/.users/{signer}' / pathlib.PurePosixPath(p).relative_to('/'))
-            for p in container.paths]
+            os.fspath(self.get_user_path(signer, path))
+            for path in container.paths
+        ]
         if signer is not None and signer == default_user:
             paths.extend(os.fspath(p) for p in container.paths)
 
@@ -203,6 +202,12 @@ class Command:
             'paths': paths,
             'storage': container.select_storage(self.loader).fields,
         }
+
+    def get_user_path(self, signer, path: Path) -> Path:
+        '''
+        Prepend an absolute path with signer namespace.
+        '''
+        return Path('/.users/') / signer / path.relative_to('/')
 
 
 class UserCreateCommand(Command):
@@ -804,7 +809,8 @@ class ContainerUnmountCommand(Command):
         if not manifest:
             raise CliError(f'Not found: {container_name}')
         print(f'Using manifest: {path}')
-        mount_path = manifest.fields['paths'][0]
+        container = Container(manifest)
+        mount_path = self.get_user_path(container.signer, container.paths[0])
         return self.find_by_path(mount_path)
 
     def find_by_path(self, mount_path):
@@ -813,9 +819,9 @@ class ContainerUnmountCommand(Command):
         '''
 
         paths = self.read_paths()
-        if mount_path not in paths:
+        if str(mount_path) not in paths:
             raise CliError(f'No container found under {mount_path}')
-        return paths[mount_path]
+        return paths[str(mount_path)]
 
     def read_paths(self):
         '''Read and parse .control/paths.'''
