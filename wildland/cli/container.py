@@ -27,9 +27,9 @@ from pathlib import PurePosixPath
 
 import click
 
-from . import cli_common
-from .container import Container
-from .manifest.manifest import Manifest
+from .common import sign, verify, edit
+from ..container import Container
+from ..manifest.manifest import Manifest
 
 
 def find_by_manifest(container_name):
@@ -140,9 +140,9 @@ def list_(ctx):
             click.echo(f'  storage: {storage_path}')
 
 
-container_.add_command(cli_common.sign)
-container_.add_command(cli_common.verify)
-container_.add_command(cli_common.edit)
+container_.add_command(sign)
+container_.add_command(verify)
+container_.add_command(edit)
 
 
 @container_.command(short_help='mount container')

@@ -9,7 +9,7 @@ import yaml
 import pytest
 import click.testing
 
-from ..cli import main as _cli_main
+from ..cli.main import main as _cli_main
 from ..manifest.sig import GpgSigContext
 
 

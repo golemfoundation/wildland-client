@@ -27,8 +27,9 @@ import botocore.credentials
 import botocore.session
 import click
 
-from .cli_common import sign, verify, edit
-from .manifest.manifest import Manifest
+from .common import sign, verify, edit
+from ..manifest.manifest import Manifest
+
 
 @click.group(short_help='storage management')
 def storage():

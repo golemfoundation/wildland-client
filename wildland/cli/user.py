@@ -23,7 +23,7 @@ Manage users
 
 import click
 
-from . import cli_common
+from .common import sign, verify, edit
 
 
 @click.group(short_help='user management')
@@ -67,6 +67,6 @@ def list_(ctx):
         print(f'{u.signer} {u.manifest_path}')
 
 
-user.add_command(cli_common.sign)
-user.add_command(cli_common.verify)
-user.add_command(cli_common.edit)
+user.add_command(sign)
+user.add_command(verify)
+user.add_command(edit)

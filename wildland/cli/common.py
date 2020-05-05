@@ -25,7 +25,7 @@ import sys
 
 import click
 
-from .manifest.manifest import (
+from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
     ManifestError,
