@@ -43,29 +43,46 @@ def test_verify_unknown_signer(gpg_sig, signer):
     test_data = b'hello world'
     signature = gpg_sig.sign(signer, test_data, passphrase='secret')
 
-    gpg_sig_2 = GpgSigContext(gpg_sig.gnupghome)
+    with GpgSigContext(gpg_sig.gnupghome) as gpg_sig_2:
+        with pytest.raises(SigError, match='Could not verify signature'):
+            gpg_sig_2.verify(signature, test_data)
 
-    with pytest.raises(SigError, match='Unknown signer'):
-        gpg_sig_2.verify(signature, test_data)
 
+def test_export_import_key(gpg_sig, signer):
+    pubkey = gpg_sig.get_pubkey(signer)
 
-def test_verify_self_signed(gpg_sig, signer):
     test_data = b'hello world'
     signature = gpg_sig.sign(signer, test_data, passphrase='secret')
 
-    gpg_sig_2 = GpgSigContext(gpg_sig.gnupghome)
-    assert gpg_sig_2.verify(signature, test_data, self_signed=True) == signer
+    with GpgSigContext(gpg_sig.gnupghome) as gpg_sig_2:
+        signer_2 = gpg_sig_2.add_pubkey(pubkey)
+        assert signer_2 == signer
+        assert gpg_sig_2.verify(signature, test_data) == signer
 
 
 def test_find(gpg_sig, signer, other_signer):
     # pylint: disable=unused-argument
 
-    assert gpg_sig.find(signer) == signer
-    assert gpg_sig.find(signer.lower()) == signer
-    assert gpg_sig.find('Test 1') == signer
+    assert gpg_sig.find(signer)[0] == signer
+    assert gpg_sig.find(signer.lower())[0] == signer
+    assert gpg_sig.find('Test 1')[0] == signer
 
     with pytest.raises(SigError, match='No key found'):
         gpg_sig.find('Someone Else')
 
     with pytest.raises(SigError, match='Multiple keys found'):
         gpg_sig.find('Test')
+
+
+def test_copy_and_import(gpg_sig, signer, other_signer):
+    pubkey = gpg_sig.get_pubkey(signer)
+    pubkey2 = gpg_sig.get_pubkey(other_signer)
+
+    with GpgSigContext(gpg_sig.gnupghome) as g1:
+        assert g1.add_pubkey(pubkey) == signer
+        assert signer in g1.signers
+
+        with g1.copy() as g2:
+            assert g2.add_pubkey(pubkey2) == other_signer
+            assert other_signer in g2.signers
+            assert other_signer not in g1.signers

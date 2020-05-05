@@ -46,7 +46,8 @@ Here is an example of a signed manifest:
 
 Note that we recognize an **extremely limited YAML subset** in the header:
 
-* there has to be only a ``signature`` field
+* there has to be either only a ``signature`` field, or ``signature`` and
+  ``pubkey`` fields, in that order
 * fields have to be either double quoted (``"foo"``), with exact character
   subset to be determined, or
 * multi-line fields have to use a block format with ``|`` as in the example
@@ -56,10 +57,9 @@ The reason for that is because we want to use a simple parser with smaller
 attack surface. At the same time, the format should remain compatible with
 YAML, i.e. should be parsed by YAML parsers in the same way.
 
-Currently, we delegate the key management to GnuPG. That means that in order to
-verify a signature, a key with a given fingerprint has to be found in the GnuPG
-keyring. In addition, the signer is verified against a list of known users (see
-"User manifests").
+The user manifests are special: they are self-signed, and contain a public key
+in the header. For other manifests, the signer is verified against public keys
+already loaded from user manifests. See "User manifests" below.
 
 Note that this means we parse the manifest body **before** we know that the
 signature matches. However, we already know that it is a correct signature by
@@ -91,20 +91,28 @@ they are loaded from a specific directory (``$HOME/.config/wildland/users``).
 All the other manifests have to be verified against known users, i.e. their
 ``signer`` field has to correspond to the one in user manifest.
 
+The user manifests also contain a ``pubkey`` field in the header, containing
+the user's public key (currently, in GPG armor format). The public key has to
+match both the manifest signature and the ``signer`` field.
+
 Example:
 
 .. code-block:: yaml
 
-   signature: ...
-   ---
-   pubkey: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+    signature: |
+      -----BEGIN PGP SIGNATURE-----
+      ...
+      -----END PGP SIGNATURE-----
+    pubkey: |
+      -----BEGIN PGP PUBLIC KEY BLOCK-----
+      ...
+      -----END PGP PUBLIC KEY BLOCK-----
+    ---
+    signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
 
 Fields:
 
 * ``signer`` (fingerprint): Signer of the manifest.
-* ``pubkey`` (fingerprint): User's public key, currently has to be the same as
-  ``signer``.
 
 Container manifest
 ------------------

@@ -92,7 +92,7 @@ def test_user_create(cli, base_dir):
     with open(base_dir / 'users/User.yaml') as f:
         data = f.read()
 
-    assert "pubkey: '0xaaa'" in data
+    assert "key.0xaaa" in data
     assert "signer: '0xaaa'" in data
 
     with open(base_dir / 'config.yaml') as f:
@@ -123,7 +123,7 @@ def test_user_verify_bad_sig(cli, cli_fail, base_dir):
 
 def test_user_verify_bad_fields(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.yaml', 'pubkey:', 'pk:')
+    modify_file(base_dir / 'users/User.yaml', 'signer:', 'extra: xxx\nsigner:')
     cli_fail('user', 'verify', 'User')
 
 
@@ -150,7 +150,7 @@ def test_user_edit(cli, base_dir):
 
 def test_user_edit_bad_fields(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    editor = 'sed -i s,pubkey,pk,g'
+    editor = 'sed -i s,signer,Signer,g'
     cli_fail('user', 'edit', 'User', '--editor', editor)
 
 

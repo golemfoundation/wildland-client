@@ -56,6 +56,12 @@ class ManifestLoader:
 
         self.users = []
 
+    def close(self):
+        '''
+        Clean up.
+        '''
+        self.sig.close()
+
     def load_users(self):
         '''
         Load recognized users from default directory.
@@ -77,7 +83,7 @@ class ManifestLoader:
         user = User(manifest, path)
 
         self.users.append(user)
-        self.sig.add_signer(user.pubkey)
+        self.sig.add_pubkey(user.pubkey)
         return user
 
     def find_user(self, name) -> Optional[User]:
@@ -95,9 +101,9 @@ class ManifestLoader:
         Find and load the default configured user (if any).
         '''
 
-        pubkey = self.config.get('default_user')
+        signer = self.config.get('default_user')
         for user in self.users:
-            if user.pubkey == pubkey:
+            if user.signer == signer:
                 return user
         return None
 
@@ -198,18 +204,19 @@ class ManifestLoader:
                 return base_name + suffix
             i += 1
 
-    def create_user(self, pubkey, name) -> Path:
+    def create_user(self, signer, pubkey, name) -> Path:
         '''
         Create a new user.
         '''
 
-        self.sig.add_signer(pubkey)
-
         manifest = Manifest.from_fields({
-            'signer': pubkey,
-            'pubkey': pubkey,
+            'signer': signer,
         })
-        manifest.sign(self.sig)
+
+        with self.sig.copy() as sig_temp:
+            sig_temp.add_pubkey(pubkey)
+            manifest.sign(sig_temp, attach_pubkey=True)
+
         if name is None:
             name = self.make_name(pubkey, 'user')
 
@@ -231,13 +238,13 @@ class ManifestLoader:
             f.write(manifest_data)
         return path
 
-    def create_storage(self, pubkey, storage_type, fields, name) -> Path:
+    def create_storage(self, signer, storage_type, fields, name) -> Path:
         '''
         Create a new storage.
         '''
 
         manifest = Manifest.from_fields({
-            'signer': pubkey,
+            'signer': signer,
             'type': storage_type,
             **fields
         })
@@ -253,7 +260,7 @@ class ManifestLoader:
         return self.save_manifest(manifest, name, 'storage')
 
     def create_container(self,
-                         pubkey: str,
+                         signer: str,
                          paths: List[str],
                          name: Optional[str]) -> Path:
         '''
@@ -275,7 +282,7 @@ class ManifestLoader:
             name = self.make_name(ident, 'container')
 
         manifest = Manifest.from_fields({
-            'signer': pubkey,
+            'signer': signer,
             'paths': paths,
             'backends': {'storage': []},
         })
