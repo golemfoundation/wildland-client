@@ -81,7 +81,7 @@ class ControlFile:
         pass
 
 
-class ControlStorage(AbstractStorage, FileProxyMixin):
+class ControlStorage(FileProxyMixin, AbstractStorage):
     '''Control pseudo-storage'''
     file_class = ControlFile
 

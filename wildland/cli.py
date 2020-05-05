@@ -35,6 +35,7 @@ import click
 
 from . import __version__ as _version
 
+from .log import init_logging
 from . import cli_common, cli_container, cli_storage, cli_user
 from .manifest.loader import ManifestLoader
 from .manifest.user import User
@@ -177,11 +178,15 @@ class ContextObj:
     help='use dummy signatures')
 @click.option('--base-dir', default='',
     help='base directory for configuration')
+@click.option('--verbose', '-v', help='output logs')
 @click.version_option(_version)
 @click.pass_context
-def main(ctx, base_dir, dummy):
+def main(ctx, base_dir, dummy, verbose):
     # pylint: disable=missing-docstring
     ctx.obj = ContextObj(ManifestLoader(dummy=dummy, base_dir=base_dir))
+    if verbose:
+        init_logging()
+
 
 main.add_command(cli_user.user)
 main.add_command(cli_storage.storage)

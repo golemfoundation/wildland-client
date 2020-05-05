@@ -83,6 +83,8 @@ rst_prolog = '''
 
 nitpicky = True
 
+nitpick_ignore = [('py:class', 'T')]
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
