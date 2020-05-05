@@ -37,18 +37,38 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     Currently the storage should implement an interface similar to FUSE.
     This implementation detail might change in the future.
+
+    Although FUSE allows returning an error value (like -errno.ENOENT), the
+    storage should always raise an exception if the operation fails, like so:
+
+        raise FileNotFoundError(str(path))
+
+    Or:
+
+        raise OSError(errno.ENOENT, str(path))
+
+    See also Python documentation for OS exceptions:
+    https://docs.python.org/3/library/exceptions.html#os-exceptions
     '''
     SCHEMA = Schema('storage')
     TYPE = ''
 
     _types: Dict[str, Type['AbstractStorage']] = {}
 
-    def __init__(self, *, manifest: Optional[Manifest] = None, **kwds):
+    def __init__(self, *,
+                 manifest: Optional[Manifest] = None,
+                 read_only: bool = False,
+                 **kwds):
         # pylint: disable=redefined-builtin, unused-argument
         self.manifest: Optional[Manifest] = None
+        self.read_only = False
         if manifest:
             assert manifest.fields['type'] == self.TYPE
             self.manifest = manifest
+            self.read_only = manifest.fields.get('read_only', False)
+
+        if read_only:
+            self.read_only = True
 
     @staticmethod
     def types() -> Dict[str, Type['AbstractStorage']]:
@@ -100,6 +120,10 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def release(self, path, flags, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def read(self, path, length, offset, obj):
         raise NotImplementedError()
 
@@ -109,6 +133,10 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def fgetattr(self, path, obj):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def ftruncate(self, path, length, obj):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -137,7 +165,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
 
     @staticmethod
-    def from_fields(fields, uid, gid) -> 'AbstractStorage':
+    def from_fields(fields, uid, gid, read_only=False) -> 'AbstractStorage':
         '''
         Construct a Storage from fields originating from manifest.
 
@@ -147,17 +175,17 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         manifest = Manifest.from_fields(fields)
         manifest.skip_signing()
 
-        return AbstractStorage.from_manifest(manifest, uid, gid)
+        return AbstractStorage.from_manifest(manifest, uid, gid, read_only)
 
     @staticmethod
-    def from_manifest(manifest, uid, gid) -> 'AbstractStorage':
+    def from_manifest(manifest, uid, gid, read_only=False) -> 'AbstractStorage':
         '''
         Construct a Storage from manifest.
         '''
 
         storage_type = manifest.fields['type']
         cls = AbstractStorage.types()[storage_type]
-        return cls(manifest=manifest, uid=uid, gid=gid)
+        return cls(manifest=manifest, uid=uid, gid=gid, read_only=read_only)
 
     @staticmethod
     def is_manifest_supported(manifest):
@@ -182,7 +210,7 @@ def _proxy(method_name):
     def method(_self, *args, **_kwargs):
         _path, rest, fileobj = args[0], args[1:-1], args[-1]
         if not hasattr(fileobj, method_name):
-            return -errno.ENOSYS
+            raise OSError(errno.ENOSYS, '')
         return getattr(fileobj, method_name)(*rest)
 
     method.__name__ = method_name

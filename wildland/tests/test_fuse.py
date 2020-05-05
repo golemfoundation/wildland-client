@@ -164,11 +164,12 @@ def test_control_storage(env, container):
     assert '/storage1' in manifest_content
 
 
-def storage_manifest(env, path, storage_type):
+def storage_manifest(env, path, storage_type, read_only=False):
     return {
         'signer': '0x3333',
         'type': storage_type,
         'path': str(env.test_dir / path),
+        'read_only': read_only,
     }
 
 
@@ -302,3 +303,31 @@ def test_nested_mounts(env, storage_type):
         'nested1',
         'nested2',
     ]
+
+def test_read_only(env, storage_type):
+    env.create_dir('storage/storage1')
+    env.create_file('storage/storage1/file')
+    env.create_dir('storage/storage1/dir')
+
+    storage1 = storage_manifest(env, 'storage/storage1', storage_type,
+                                read_only=True)
+    env.mount_storage(['/container1/'], storage1)
+
+    st = os.lstat(env.mnt_dir / 'container1/file')
+    assert st.st_mode & 0o222 == 0
+
+    st = os.lstat(env.mnt_dir / 'container1/dir')
+    assert st.st_mode & 0o222 == 0
+
+    with pytest.raises(OSError):
+        os.unlink(env.mnt_dir / 'container1/file')
+    with pytest.raises(OSError):
+        os.truncate(env.mnt_dir / 'container1/file', 0)
+    with pytest.raises(OSError):
+        open(env.mnt_dir / 'container1/file', 'w')
+    with pytest.raises(OSError):
+        open(env.mnt_dir / 'container1/file-new', 'w')
+    with pytest.raises(OSError):
+        os.mkdir(env.mnt_dir / 'container1/dir-new')
+    with pytest.raises(OSError):
+        os.rmdir(env.mnt_dir / 'container1/dir')

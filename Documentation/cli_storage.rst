@@ -6,7 +6,7 @@ Storage commands
 ---------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: storage create
@@ -16,7 +16,7 @@ Storage commands
 -------------------
 
 .. argparse::
-   :module: wildland.cli
+   :module: wildland.cli.main
    :func: make_parser
    :prog: wl
    :path: storage list

@@ -19,61 +19,10 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name
 
-import json
-import os
-from pathlib import Path
 import shutil
-import tempfile
-
-import click.testing
-import pytest
+import json
 import yaml
 
-from ..cli import main as _cli_main
-from ..exc import WildlandError
-
-
-@pytest.fixture
-def base_dir():
-    base_dir = tempfile.mkdtemp(prefix='wlcli.')
-    base_dir = Path(base_dir)
-    try:
-        os.mkdir(base_dir / 'mnt')
-        os.mkdir(base_dir / 'mnt/.control')
-        with open(base_dir / 'config.yaml', 'w') as f:
-            yaml.dump({
-                'mount_dir': str(base_dir / 'mnt')
-            }, f)
-        yield base_dir
-    finally:
-        shutil.rmtree(base_dir)
-
-
-@pytest.fixture
-def cli_may_fail(base_dir):
-    def cli_may_fail(*args):
-        cmdline = ['--dummy', '--base-dir', base_dir, *args]
-        # Convert Path to str
-        cmdline = [str(arg) for arg in cmdline]
-        return click.testing.CliRunner().invoke(_cli_main, cmdline)
-    return cli_may_fail
-
-@pytest.fixture
-def cli(cli_may_fail):
-    def cli(*args):
-        result = cli_may_fail(*args)
-        if result.exit_code != 0:
-            raise result.exception
-        return result
-    return cli
-
-@pytest.fixture
-def cli_fail(cli_may_fail):
-    def cli_fail(*args):
-        result = cli_may_fail(*args)
-        assert result.exit_code != 0
-        return result
-    return cli_fail
 
 
 def modify_file(path, pattern, replacement):
@@ -246,13 +195,34 @@ def test_container_mount(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container', '--update-container')
 
+    with open(base_dir / 'containers/Container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
     cli('container', 'mount', 'Container')
 
     # The command should write container manifest to .control/mount.
     with open(base_dir / 'mnt/.control/mount') as f:
-        data = f.read()
-    assert '"signer": "0xaaa"' in data
-    assert "/PATH" in data
+        command = json.load(f)
+    assert command['storage']['signer'] == '0xaaa'
+    assert command['paths'] == [
+        f'/.users/0xaaa{path}',
+        f'/.users/0xaaa/PATH',
+        path,
+        f'/PATH',
+    ]
+
+    modify_file(base_dir / 'config.yaml', "default_user: '0xaaa'", '')
+
+    # The command should not contain the default path.
+    cli('container', 'mount', 'Container')
+    with open(base_dir / 'mnt/.control/mount') as f:
+        command = json.load(f)
+    assert command['storage']['signer'] == '0xaaa'
+    assert command['paths'] == [
+        f'/.users/0xaaa{path}',
+        f'/.users/0xaaa/PATH',
+    ]
 
 
 def test_container_unmount(cli, base_dir):
@@ -265,8 +235,9 @@ def test_container_unmount(cli, base_dir):
 
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({
-            path: 101,
-            '/PATH2': 102,
+            f'/.users/0xaaa{path}': 101,
+            path: 102,
+            '/PATH2': 103,
         }, f)
     cli('container', 'unmount', 'Container')
 

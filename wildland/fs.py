@@ -24,7 +24,7 @@ Wildland Filesystem
 import errno
 import logging
 import os
-import pathlib
+from pathlib import PurePosixPath
 import stat
 import json
 from typing import List, Dict
@@ -53,8 +53,8 @@ class WildlandFS(fuse.Fuse):
             help='path to log file, use - for stderr')
 
         self.storages: Dict[int, AbstractStorage] = {}
-        self.storage_paths: Dict[int, List[pathlib.Path]] = {}
-        self.paths: Dict[pathlib.Path, int] = {}
+        self.storage_paths: Dict[int, List[PurePosixPath]] = {}
+        self.paths: Dict[PurePosixPath, int] = {}
 
         self.uid = None
         self.gid = None
@@ -80,7 +80,7 @@ class WildlandFS(fuse.Fuse):
         self.init_logging(self.cmdline[0])
 
         self.mount_storage(
-            [pathlib.Path('/.control')],
+            [PurePosixPath('/.control')],
             ControlStorage(fs=self, uid=self.uid, gid=self.gid))
 
         super().main(*args, **kwds)
@@ -96,7 +96,7 @@ class WildlandFS(fuse.Fuse):
         else:
             init_logging(console=False, file_path=log_path)
 
-    def mount_storage(self, paths: List[pathlib.Path], storage: AbstractStorage):
+    def mount_storage(self, paths: List[PurePosixPath], storage: AbstractStorage):
         '''
         Mount a storage under a set of paths.
         '''
@@ -136,7 +136,7 @@ class WildlandFS(fuse.Fuse):
         del self.storages[ident]
         del self.storage_paths[ident]
 
-    def resolve_path(self, path: pathlib.Path):
+    def resolve_path(self, path: PurePosixPath):
         '''Given path inside Wildland mount, return which storage is
         responsible, and a path relative to the container root.
 
@@ -181,9 +181,10 @@ class WildlandFS(fuse.Fuse):
     @control_file('mount', read=False, write=True)
     def control_mount(self, content: bytes):
         params = json.loads(content)
-        paths = [pathlib.Path(p) for p in params['paths']]
+        paths = [PurePosixPath(p) for p in params['paths']]
         storage_fields = params['storage']
-        storage = AbstractStorage.from_fields(storage_fields, self.uid, self.gid)
+        read_only = params.get('read_only')
+        storage = AbstractStorage.from_fields(storage_fields, self.uid, self.gid, read_only)
         self.mount_storage(paths, storage)
 
     @control_file('unmount', read=False, write=True)
@@ -227,7 +228,7 @@ class WildlandFS(fuse.Fuse):
         Proxy a call to corresponding Storage.
         '''
 
-        path = pathlib.PurePosixPath(path)
+        path = PurePosixPath(path)
         storage, relpath = self.resolve_path(path)
         if storage is None:
             return -errno.ENOENT
@@ -243,7 +244,7 @@ class WildlandFS(fuse.Fuse):
         return self.proxy('create', path, flags, mode)
 
     def getattr(self, path):
-        path = pathlib.PurePosixPath(path)
+        path = PurePosixPath(path)
 
         # XXX there is a problem, when the path exists, but is also on_path
         #   - it can be not a directory
@@ -274,7 +275,7 @@ class WildlandFS(fuse.Fuse):
     # XXX this looks unneeded
 #   def opendir(self, path):
 #       logging.debug('opendir(%r)', path)
-#       path = pathlib.PurePosixPath(path)
+#       path = PurePosixPath(path)
 #       container, relpath = self.get_container_for_path(path)
 #       if container is not None:
 #           try:
@@ -288,7 +289,7 @@ class WildlandFS(fuse.Fuse):
 #       return -errno.ENOENT
 
     def readdir(self, path, _offset):
-        path = pathlib.PurePosixPath(path)
+        path = PurePosixPath(path)
 
         # TODO disallow .control in all containers, or disallow mounting /
 
@@ -314,7 +315,7 @@ class WildlandFS(fuse.Fuse):
                     ret.add(suffix.parts[0])
                     exists = True
 
-        if path == pathlib.PurePosixPath('/'):
+        if path == PurePosixPath('/'):
             exists = True
             ret.add('.control')
 

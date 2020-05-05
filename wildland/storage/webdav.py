@@ -21,7 +21,7 @@
 WebDAV storage backend
 '''
 
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote, unquote
 
@@ -52,12 +52,12 @@ class WebdavStorage(CachedStorage):
         self.session.auth = auth
 
         self.base_url = manifest.fields['url']
-        self.base_path = Path(urlparse(self.base_url).path)
+        self.base_path = PurePosixPath(urlparse(self.base_url).path)
 
-    def backend_info_all(self) -> Iterable[Tuple[Path, Info]]:
-        return self.propfind(Path('.'), 'infinity')
+    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
+        return self.propfind(PurePosixPath('.'), 'infinity')
 
-    def backend_info_single(self, path: Path) -> Info:
+    def backend_info_single(self, path: PurePosixPath) -> Info:
         '''
         Retrieve information about a single path.
         '''
@@ -67,7 +67,8 @@ class WebdavStorage(CachedStorage):
             raise FileNotFoundError
         return props[0][1]
 
-    def propfind(self, path: Path, depth: str) -> Iterable[Tuple[Path, Info]]:
+    def propfind(self, path: PurePosixPath, depth: str) -> \
+        Iterable[Tuple[PurePosixPath, Info]]:
         '''
         Make a WebDAV PROPFIND request.
         '''
@@ -85,7 +86,7 @@ class WebdavStorage(CachedStorage):
             if href is None:
                 continue
             full_path = unquote(urlparse(href).path)
-            path = Path(full_path).relative_to(self.base_path)
+            path = PurePosixPath(full_path).relative_to(self.base_path)
 
             prop = response.find('./{DAV:}propstat/{DAV:}prop')
             if prop is None:
@@ -108,7 +109,7 @@ class WebdavStorage(CachedStorage):
 
             yield path, Info(is_dir=is_dir, size=size, timestamp=timestamp)
 
-    def make_url(self, path: Path) -> str:
+    def make_url(self, path: PurePosixPath) -> str:
         '''
         Convert a Path to resource URL.
         '''
@@ -116,10 +117,10 @@ class WebdavStorage(CachedStorage):
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))
 
-    def backend_create_file(self, path: Path) -> Info:
+    def backend_create_file(self, path: PurePosixPath) -> Info:
         return self.backend_save_file(path, b'')
 
-    def backend_create_dir(self, path: Path) -> Info:
+    def backend_create_dir(self, path: PurePosixPath) -> Info:
         resp = self.session.request(
             method='MKCOL',
             url=self.make_url(path),
@@ -127,7 +128,7 @@ class WebdavStorage(CachedStorage):
         resp.raise_for_status()
         return self.backend_info_single(path)
 
-    def backend_load_file(self, path: Path) -> bytes:
+    def backend_load_file(self, path: PurePosixPath) -> bytes:
         resp = self.session.request(
             method='GET',
             url=self.make_url(path),
@@ -136,7 +137,7 @@ class WebdavStorage(CachedStorage):
         resp.raise_for_status()
         return resp.content
 
-    def backend_save_file(self, path: Path, data: bytes) -> Info:
+    def backend_save_file(self, path: PurePosixPath, data: bytes) -> Info:
         resp = self.session.request(
             method='PUT',
             url=self.make_url(path),
@@ -145,12 +146,12 @@ class WebdavStorage(CachedStorage):
         resp.raise_for_status()
         return self.backend_info_single(path)
 
-    def backend_delete_file(self, path: Path):
+    def backend_delete_file(self, path: PurePosixPath):
         resp = self.session.request(
             method='DELETE',
             url=self.make_url(path),
         )
         resp.raise_for_status()
 
-    def backend_delete_dir(self, path: Path):
+    def backend_delete_dir(self, path: PurePosixPath):
         return self.backend_delete_file(path)

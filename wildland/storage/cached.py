@@ -24,12 +24,13 @@ Cache layer for storages
 import abc
 import stat
 from io import BytesIO
-import errno
 from dataclasses import dataclass
 from typing import Dict, Iterable, Tuple, Set
-from pathlib import Path
+from pathlib import PurePosixPath
 import logging
 import time
+import errno
+import os
 
 import fuse
 
@@ -46,7 +47,7 @@ class Info:
     size: int = 0
     timestamp: int = 0
 
-    def as_fuse_stat(self, uid, gid) -> fuse.Stat:
+    def as_fuse_stat(self, uid, gid, read_only) -> fuse.Stat:
         '''
         Convert to a fuse.Stat object.
         '''
@@ -55,6 +56,9 @@ class Info:
             st_mode = stat.S_IFDIR | 0o755
         else:
             st_mode = stat.S_IFREG | 0o644
+
+        if read_only:
+            st_mode &= ~0o222
 
         return fuse.Stat(
             st_mode=st_mode,
@@ -75,7 +79,7 @@ class FileHandle:
     keep it only to pass a unique (pointer) value to FUSE.
     '''
 
-    path: Path
+    path: PurePosixPath
 
 
 class CachedStorage(AbstractStorage):
@@ -93,22 +97,22 @@ class CachedStorage(AbstractStorage):
         self.gid = gid
 
         # Currently known files and directories
-        self.files: Dict[Path, Info] = {}
-        self.dirs: Dict[Path, Info] = {}
+        self.files: Dict[PurePosixPath, Info] = {}
+        self.dirs: Dict[PurePosixPath, Info] = {}
 
         # Currently open files
-        self.handle_count: Dict[Path, int] = {}
+        self.handle_count: Dict[PurePosixPath, int] = {}
 
         # Loaded data, and dirty flag. For currently open files only.
-        self.buffers: Dict[Path, BytesIO] = {}
-        self.modified: Set[Path] = set()
+        self.buffers: Dict[PurePosixPath, BytesIO] = {}
+        self.modified: Set[PurePosixPath] = set()
 
         self.last_refresh = 0
 
     ## Backend operations - to override
 
     @abc.abstractmethod
-    def backend_info_all(self) -> Iterable[Tuple[Path, Info]]:
+    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         '''
         Load information about all files and directories.
         '''
@@ -116,7 +120,7 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_create_file(self, _path: Path) -> Info:
+    def backend_create_file(self, _path: PurePosixPath) -> Info:
         '''
         Create a new, empty file. Return Info object for that file.
         '''
@@ -124,7 +128,7 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_create_dir(self, _path: Path) -> Info:
+    def backend_create_dir(self, _path: PurePosixPath) -> Info:
         '''
         Create a new directory. Return Info object for that directory.
         '''
@@ -132,7 +136,7 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_load_file(self, _path: Path) -> bytes:
+    def backend_load_file(self, _path: PurePosixPath) -> bytes:
         '''
         Load file content as bytes.
         '''
@@ -140,7 +144,7 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_save_file(self, _path: Path, _data: bytes) -> Info:
+    def backend_save_file(self, _path: PurePosixPath, _data: bytes) -> Info:
         '''
         Save file content from bytes.
         '''
@@ -148,7 +152,7 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_delete_file(self, _path: Path):
+    def backend_delete_file(self, _path: PurePosixPath):
         '''
         Delete a file.
         '''
@@ -156,7 +160,7 @@ class CachedStorage(AbstractStorage):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def backend_delete_dir(self, _path: Path):
+    def backend_delete_dir(self, _path: PurePosixPath):
         '''
         Delete a directory.
         '''
@@ -193,10 +197,10 @@ class CachedStorage(AbstractStorage):
 
         self.last_refresh = time.time()
 
-        logging.info('%s', self.files)
-        logging.info('%s', self.dirs)
+        logging.debug('files: %s', self.files)
+        logging.debug('dirs: %s', self.dirs)
 
-    def load(self, path: Path) -> BytesIO:
+    def load(self, path: PurePosixPath) -> BytesIO:
         '''
         Load a currently open file into memory.
         '''
@@ -207,7 +211,7 @@ class CachedStorage(AbstractStorage):
             self.buffers[path] = BytesIO(self.backend_load_file(path))
         return self.buffers[path]
 
-    def save_direct(self, path: Path, buf: BytesIO):
+    def save_direct(self, path: PurePosixPath, buf: BytesIO):
         '''
         Save a file directly to backend. Use if the file is not open, otherwise
         call flush().
@@ -217,7 +221,7 @@ class CachedStorage(AbstractStorage):
         info = self.backend_save_file(path, buf.getvalue())
         self.files[path] = info
 
-    def save(self, path: Path):
+    def save(self, path: PurePosixPath):
         '''
         Save modifications to backend, if the file was modified.
         '''
@@ -233,10 +237,13 @@ class CachedStorage(AbstractStorage):
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
-        path = Path(path)
+        path = PurePosixPath(path)
 
         if path not in self.files:
-            return -errno.ENOENT
+            raise FileNotFoundError(str(path))
+
+        if self.read_only and (flags & (os.O_RDWR | os.O_WRONLY)):
+            raise PermissionError(errno.EROFS, str(path))
 
         if path in self.handle_count:
             self.handle_count[path] += 1
@@ -247,10 +254,13 @@ class CachedStorage(AbstractStorage):
         return handle
 
     def create(self, path, flags, _mode):
-        path = Path(path)
+        path = PurePosixPath(path)
 
         if path in self.files or path in self.dirs:
-            return -errno.EEXIST
+            raise FileExistsError(str(path))
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         info = self.backend_create_file(path)
         self.files[path] = info
@@ -259,7 +269,7 @@ class CachedStorage(AbstractStorage):
         return self.open(path, flags)
 
     def release(self, path, _flags, _handle):
-        path = Path(path)
+        path = PurePosixPath(path)
 
         self.save(path)
         self.handle_count[path] -= 1
@@ -270,22 +280,22 @@ class CachedStorage(AbstractStorage):
 
     def getattr(self, path):
         self.check()
-        path = Path(path)
+        path = PurePosixPath(path)
 
         if path in self.dirs:
-            return self.dirs[path].as_fuse_stat(self.uid, self.gid)
+            return self.dirs[path].as_fuse_stat(self.uid, self.gid, self.read_only)
         if path in self.files:
-            return self.files[path].as_fuse_stat(self.uid, self.gid)
+            return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
         raise FileNotFoundError(str(path))
 
     def fgetattr(self, path, _handle):
-        path = Path(path)
+        path = PurePosixPath(path)
 
-        return self.files[path].as_fuse_stat(self.uid, self.gid)
+        return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
 
     def readdir(self, path):
         self.check()
-        path = Path(path)
+        path = PurePosixPath(path)
 
         if path not in self.dirs:
             raise FileNotFoundError(str(path))
@@ -298,7 +308,7 @@ class CachedStorage(AbstractStorage):
                 yield dir_path.name
 
     def read(self, path, length, offset, _handle):
-        path = Path(path)
+        path = PurePosixPath(path)
 
         buf = self.load(path)
 
@@ -306,7 +316,10 @@ class CachedStorage(AbstractStorage):
         return buf.read(length)
 
     def write(self, path, data, offset, _handle):
-        path = Path(path)
+        path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         buf = self.load(path)
         self.modified.add(path)
@@ -315,7 +328,10 @@ class CachedStorage(AbstractStorage):
         return buf.write(data)
 
     def ftruncate(self, path, length, _handle):
-        path = Path(path)
+        path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if length == 0:
             self.buffers[path] = BytesIO()
@@ -325,7 +341,10 @@ class CachedStorage(AbstractStorage):
         self.modified.add(path)
 
     def truncate(self, path, length):
-        path = Path(path)
+        path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if path in self.handle_count:
             self.ftruncate(path, length, None)
@@ -338,31 +357,39 @@ class CachedStorage(AbstractStorage):
             self.save_direct(path, buf)
 
     def unlink(self, path):
-        path = Path(path)
+        path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if path in self.handle_count:
-            return -errno.EACCES
+            raise PermissionError(errno.EPERM, str(path))
         if path not in self.files:
-            return -errno.ENOENT
+            raise FileNotFoundError(str(path))
         result = self.backend_delete_file(path)
         if not result:
             del self.files[path]
         return result
 
     def mkdir(self, path, _mode):
-        path = Path(path)
+        path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if path in self.files or path in self.dirs:
-            return -errno.EEXIST
+            raise FileExistsError(str(path))
         info = self.backend_create_dir(path)
         self.dirs[path] = info
-        return None
 
     def rmdir(self, path):
-        path = Path(path)
+        path = PurePosixPath(path)
+
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
 
         if path not in self.dirs:
-            return -errno.ENOENT
+            raise FileNotFoundError(str(path))
         # TODO: check for open files
         result = self.backend_delete_dir(path)
         if not result:

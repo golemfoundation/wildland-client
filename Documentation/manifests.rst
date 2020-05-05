@@ -180,6 +180,8 @@ Fields:
 
   This is in order to prevent attaching a storage to a container it wasn't
   intended for.
+* ``read_only`` (optional): This is a read-only storage, editing or deleting
+  files is not possible.
 
 Local storage (``local``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~

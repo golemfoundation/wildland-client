@@ -24,7 +24,7 @@ Synthetic storage, which services :path:`/.control` directory
 import errno
 import logging
 import os
-import pathlib
+from pathlib import PurePosixPath
 import stat
 
 import fuse
@@ -64,7 +64,7 @@ class ControlFile:
 
     def read(self, length, offset):
         if self.buffer is None:
-            return -errno.EINVAL
+            raise OSError(errno.EINVAL, '')
         return self.buffer[offset:offset+length]
 
     def write(self, buf, offset):
@@ -74,7 +74,7 @@ class ControlFile:
         except WildlandError:
             # libfuse will return EINVAL anyway, but make it explicit here.
             logging.exception('control write error')
-            return -errno.EINVAL
+            raise OSError(errno.EINVAL, '')
         return len(buf)
 
     def ftruncate(self, length):
@@ -111,7 +111,7 @@ class ControlStorage(FileProxyMixin, AbstractStorage):
           :obj:`False)
         '''
         logging.debug('get_node_for_path(path=%r)', path)
-        path = pathlib.PurePosixPath(path)
+        path = PurePosixPath(path)
         node = self._query_object_for_node(self.fs, *path.parts)
 
         if need_directory and not self.node_isdir(node):
@@ -181,7 +181,7 @@ class ControlStorage(FileProxyMixin, AbstractStorage):
                            need_write=write)
 
     def create(self, path, flags, mode):
-        return -errno.ENOSYS
+        raise OSError(errno.ENOSYS, '')
 
     def getattr(self, path):
         node = self.get_node_for_path(path)

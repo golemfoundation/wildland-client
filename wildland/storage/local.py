@@ -22,8 +22,11 @@ Local storage, similar to :command:`mount --bind`
 '''
 
 import os
-import pathlib
+from pathlib import Path, PurePosixPath
 import logging
+import errno
+
+import fuse
 
 from .base import AbstractStorage, FileProxyMixin
 from ..fuse_utils import flags_to_mode
@@ -31,18 +34,43 @@ from ..manifest.schema import Schema
 
 __all__ = ['LocalStorage']
 
+
+def fuse_stat(st: os.stat_result, read_only: bool) -> fuse.Stat:
+    '''
+    Convert os.stat_result to fuse.Stat.
+    '''
+
+    mode = st.st_mode
+    if read_only:
+        mode &= ~0o222
+
+    return fuse.Stat(
+        st_mode=mode,
+        st_ino=st.st_ino,
+        st_dev=st.st_dev,
+        st_nlink=st.st_nlink,
+        st_uid=st.st_uid,
+        st_gid=st.st_gid,
+        st_size=st.st_size,
+        st_atime=st.st_atime,
+        st_mtime=st.st_mtime,
+        st_ctime=st.st_ctime,
+    )
+
+
 class LocalFile:
     '''A file on disk
 
     (does not need to be a regular file)
     '''
-    def __init__(self, path, realpath, flags, mode=0):
+    def __init__(self, path, realpath, flags, mode=0, read_only=False):
         self.path = path
         self.realpath = realpath
 
         self.file = os.fdopen(
             os.open(realpath, flags, mode),
             flags_to_mode(flags))
+        self.read_only = read_only
 
     # pylint: disable=missing-docstring
 
@@ -54,17 +82,24 @@ class LocalFile:
 
         Without this method, at least :meth:`read` does not work.
         '''
-        return os.fstat(self.file.fileno())
+        return fuse_stat(os.fstat(self.file.fileno()),
+                         self.read_only)
 
     def read(self, length, offset):
         self.file.seek(offset)
         return self.file.read(length)
 
     def write(self, buf, offset):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, '')
+
         self.file.seek(offset)
         return self.file.write(buf)
 
     def ftruncate(self, length):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, '')
+
         return self.file.truncate(length)
 
 
@@ -75,7 +110,7 @@ class LocalStorage(FileProxyMixin, AbstractStorage):
 
     def __init__(self, *, manifest, relative_to=None, **kwds):
         super().__init__(manifest=manifest, **kwds)
-        path = pathlib.Path(manifest.fields['path'])
+        path = Path(manifest.fields['path'])
         if relative_to is not None:
             path = relative_to / path
         path = path.resolve()
@@ -83,7 +118,7 @@ class LocalStorage(FileProxyMixin, AbstractStorage):
             logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
 
-    def _path(self, path):
+    def _path(self, path: PurePosixPath) -> Path:
         '''Given path inside filesystem, calculate path on disk, relative to
         :attr:`self.root`
 
@@ -100,25 +135,43 @@ class LocalStorage(FileProxyMixin, AbstractStorage):
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
-        return LocalFile(path, self._path(path), flags)
+        if self.read_only and (flags & (os.O_RDWR | os.O_WRONLY)):
+            raise PermissionError(errno.EROFS, str(path))
+
+        return LocalFile(path, self._path(path), flags, read_only=self.read_only)
 
     def create(self, path, flags, mode):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         return LocalFile(path, self._path(path), flags, mode)
 
     def getattr(self, path):
-        return os.lstat(self._path(path))
+        return fuse_stat(os.lstat(self._path(path)), self.read_only)
 
     def readdir(self, path):
         return os.listdir(self._path(path))
 
     def truncate(self, path, length):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         return os.truncate(self._path(path), length)
 
     def unlink(self, path):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         return os.unlink(self._path(path))
 
     def mkdir(self, path, mode):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         return os.mkdir(self._path(path), mode)
 
     def rmdir(self, path):
+        if self.read_only:
+            raise PermissionError(errno.EROFS, str(path))
+
         return os.rmdir(self._path(path))

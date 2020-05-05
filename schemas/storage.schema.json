@@ -5,6 +5,7 @@
     "properties": {
         "signer": { "$ref": "types.json#fingerprint" },
         "type": { "type": "string" },
-        "container_path": { "$ref": "types.json#abs_path" }
+        "container_path": { "$ref": "types.json#abs_path" },
+        "read_only": { "type": "boolean" }
     }
 }
