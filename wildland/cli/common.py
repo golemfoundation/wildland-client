@@ -137,7 +137,9 @@ def edit(ctx, editor, input_file):
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
 
-    data = click.edit(data.decode(), editor=editor).encode()
+    edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
+                          require_save=False)
+    data = edited_s.encode()
 
     obj.loader.load_users()
     manifest = Manifest.from_unsigned_bytes(data)
