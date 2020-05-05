@@ -23,6 +23,7 @@ Manage containers
 
 import copy
 import json
+from pathlib import PurePosixPath
 
 import click
 
@@ -40,28 +41,30 @@ def find_by_manifest(container_name):
     if not manifest:
         raise click.ClickException(f'Not found: {container_name}')
     click.echo(f'Using manifest: {path}')
-    mount_path = manifest.fields['paths'][0]
+    container = Container(manifest)
+    mount_path = ctx.obj.get_user_path(container.signer, container.paths[0])
     return find_by_path(mount_path)
 
-def find_by_path(mount_path):
+
+def find_by_path(mount_path: PurePosixPath):
     '''
     Find container ID by one of mount paths.
     '''
     ctx = click.get_current_context()
     paths = json.loads(ctx.obj.read_control('paths'))
-    if mount_path not in paths:
+    if str(mount_path) not in paths:
         raise click.ClickException(f'No container found under {mount_path}')
-    return paths[mount_path]
+    return paths[str(mount_path)]
 
 
 @click.group('container', short_help='container management')
-def container():
+def container_():
     '''
     Manage containers
     '''
 
 
-@container.command(short_help='create container')
+@container_.command(short_help='create container')
 @click.option('--user',
     help='user for signing')
 @click.option('--path', multiple=True, required=True,
@@ -79,7 +82,7 @@ def create(ctx, user, path, name):
     click.echo(f'Created: {path}')
 
 
-@container.command(short_help='update container')
+@container_.command(short_help='update container')
 @click.option('--storage', multiple=True,
     help='storage to use (can be repeated)')
 @click.argument('cont', metavar='CONTAINER')
@@ -121,7 +124,7 @@ def update(ctx, storage, cont):
         f.write(signed_data)
 
 
-@container.command('list', short_help='list containers')
+@container_.command('list', short_help='list containers')
 @click.pass_context
 def list_(ctx):
     '''
@@ -137,12 +140,12 @@ def list_(ctx):
             click.echo(f'  storage: {storage_path}')
 
 
-container.add_command(cli_common.sign)
-container.add_command(cli_common.verify)
-container.add_command(cli_common.edit)
+container_.add_command(cli_common.sign)
+container_.add_command(cli_common.verify)
+container_.add_command(cli_common.edit)
 
 
-@container.command(short_help='mount container')
+@container_.command(short_help='mount container')
 @click.argument('cont', metavar='CONTAINER')
 @click.pass_context
 def mount(ctx, cont):
@@ -164,14 +167,14 @@ def mount(ctx, cont):
     ctx.obj.write_control('mount', json.dumps(command).encode())
 
 
-@container.command(short_help='unmount container')
+@container_.command(short_help='unmount container')
 @click.option('--path', metavar='PATH',
     help='mount path to search for')
 @click.argument('cont', metavar='CONTAINER', required=False)
 @click.pass_context
 def unmount(ctx, path, cont):
     '''
-    Unmount a container. You can either specify the container manifest, or
+    Unmount a container_ You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
     '''
 

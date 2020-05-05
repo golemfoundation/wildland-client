@@ -23,8 +23,7 @@ Wildland command-line interface.
 
 import json
 import os
-import pathlib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 import time
@@ -160,9 +159,9 @@ class ContextObj:
         default_user = self.loader.config.get('default_user')
 
         paths = [
-            os.fspath(
-                f'/.users/{signer}' / pathlib.PurePosixPath(p).relative_to('/'))
-            for p in container.paths]
+            os.fspath(self.get_user_path(signer, path))
+            for path in container.paths
+        ]
         if signer is not None and signer == default_user:
             paths.extend(os.fspath(p) for p in container.paths)
 
@@ -171,6 +170,11 @@ class ContextObj:
             'storage': container.select_storage(self.loader).fields,
         }
 
+    def get_user_path(self, signer, path: PurePosixPath) -> PurePosixPath:
+        '''
+        Prepend an absolute path with signer namespace.
+        '''
+        return PurePosixPath('/.users/') / signer / path.relative_to('/')
 
 
 @click.group()
@@ -190,7 +194,7 @@ def main(ctx, base_dir, dummy, verbose):
 
 main.add_command(cli_user.user)
 main.add_command(cli_storage.storage)
-main.add_command(cli_container.container)
+main.add_command(cli_container.container_)
 
 main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)
