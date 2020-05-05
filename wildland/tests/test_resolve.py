@@ -19,13 +19,14 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name
 
-from pathlib import Path
+from pathlib import PurePosixPath
 import os
 import shutil
 
 import pytest
 
 from ..manifest.loader import ManifestLoader
+from ..storage.local import LocalStorage
 from ..resolve import WildlandPath, PathError, resolve_local, \
     read_file, write_file
 
@@ -36,11 +37,11 @@ from ..resolve import WildlandPath, PathError, resolve_local, \
 def test_path_from_str():
     wlpath = WildlandPath.from_str(':/foo/bar')
     assert wlpath.signer is None
-    assert wlpath.parts == [Path('/foo/bar')]
+    assert wlpath.parts == [PurePosixPath('/foo/bar')]
 
     wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux')
     assert wlpath.signer == '0xabcd'
-    assert wlpath.parts == [Path('/foo/bar'), Path('/baz/quux')]
+    assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
 
 
 def test_path_from_str_fail():
@@ -58,10 +59,10 @@ def test_path_from_str_fail():
 
 
 def test_path_to_str():
-    wlpath = WildlandPath('0xabcd', [Path('/foo/bar')])
+    wlpath = WildlandPath('0xabcd', [PurePosixPath('/foo/bar')])
     assert str(wlpath) == '0xabcd:/foo/bar'
 
-    wlpath = WildlandPath(None, [Path('/foo/bar'), Path('/baz/quux')])
+    wlpath = WildlandPath(None, [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')])
     assert str(wlpath) == ':/foo/bar:/baz/quux'
 
 
@@ -104,13 +105,15 @@ def loader(setup, base_dir):
 
 
 def test_resolve_local(base_dir, loader):
-    storage, relpath = resolve_local(loader, Path('/path/foo'), '0xaaa')
+    storage, relpath = resolve_local(loader, PurePosixPath('/path/foo'), '0xaaa')
+    assert isinstance(storage, LocalStorage)
     assert storage.root == base_dir / 'storage1'
-    assert relpath == Path('foo')
+    assert relpath == PurePosixPath('foo')
 
-    storage, relpath = resolve_local(loader, Path('/path/subpath/foo'), '0xaaa')
+    storage, relpath = resolve_local(loader, PurePosixPath('/path/subpath/foo'), '0xaaa')
+    assert isinstance(storage, LocalStorage)
     assert storage.root == base_dir / 'storage2'
-    assert relpath == Path('foo')
+    assert relpath == PurePosixPath('foo')
 
 
 def test_read_file(base_dir, loader):

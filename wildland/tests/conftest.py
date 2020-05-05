@@ -41,8 +41,8 @@ def other_signer(gpg_sig):
 
 @pytest.fixture
 def base_dir():
-    base_dir = tempfile.mkdtemp(prefix='wlcli.')
-    base_dir = Path(base_dir)
+    base_dir_s = tempfile.mkdtemp(prefix='wlcli.')
+    base_dir = Path(base_dir_s)
     try:
         os.mkdir(base_dir / 'mnt')
         os.mkdir(base_dir / 'mnt/.control')

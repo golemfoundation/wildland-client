@@ -116,6 +116,7 @@ class FuseEnv:
 
     def unmount(self):
         assert self.mounted
+        assert self.proc
 
         subprocess.run(['fusermount', '-u', self.mnt_dir], check=False)
         self.proc.wait()

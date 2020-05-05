@@ -26,6 +26,7 @@ import logging
 import os
 from pathlib import PurePosixPath
 import stat
+import posix
 
 import fuse
 
@@ -156,7 +157,7 @@ class ControlStorage(FileProxyMixin, AbstractStorage):
             for attr in dir(obj):
                 try:
                     attr = getattr(obj, attr)
-                    name = attr._control_name
+                    name = getattr(attr, '_control_name')
                 except AttributeError:
                     continue
                 yield name, attr
@@ -170,8 +171,8 @@ class ControlStorage(FileProxyMixin, AbstractStorage):
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
-        read = bool((flags & os.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
-        write = bool((flags & os.O_ACCMODE) in (os.O_WRONLY, os.O_RDWR))
+        read = bool((flags & posix.O_ACCMODE) in (os.O_RDONLY, os.O_RDWR))
+        write = bool((flags & posix.O_ACCMODE) in (os.O_WRONLY, os.O_RDWR))
 
         node = self.get_node_for_path(
             path, need_file=True,

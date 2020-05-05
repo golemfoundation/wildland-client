@@ -29,7 +29,7 @@ import uuid
 import yaml
 
 from .schema import Schema, SchemaError
-from .sig import DummySigContext, GpgSigContext
+from .sig import SigContext, DummySigContext, GpgSigContext
 from .manifest import Manifest
 from .user import User
 from .manifest import ManifestError
@@ -49,6 +49,7 @@ class ManifestLoader:
         self.storage_dir = Path(self.config.get('storage_dir'))
         self.container_dir = Path(self.config.get('container_dir'))
 
+        self.sig: SigContext
         if self.config.get('dummy'):
             self.sig = DummySigContext()
         else:
@@ -363,16 +364,16 @@ class Config:
         defaults if not.
         '''
 
-        home_dir = os.getenv('HOME')
-        assert home_dir
-        home_dir = Path(home_dir)
+        home_dir_s = os.getenv('HOME')
+        assert home_dir_s
+        home_dir = Path(home_dir_s)
 
         if base_dir is None:
             xdg_home = os.getenv('XDG_CONFIG_HOME')
             if xdg_home:
-                base_dir = Path(xdg_home / 'wildland')
+                base_dir = Path(xdg_home) / 'wildland'
             else:
-                base_dir = Path(home_dir / '.config/wildland')
+                base_dir = Path(home_dir) / '.config/wildland'
         else:
             base_dir = Path(base_dir)
 

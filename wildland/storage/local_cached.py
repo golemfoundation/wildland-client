@@ -68,8 +68,8 @@ class LocalCachedStorage(CachedStorage):
 
         yield PurePosixPath('.'), self.info(st)
 
-        for root, dirs, files in os.walk(self.base_path):
-            root = Path(root)
+        for root_s, dirs, files in os.walk(self.base_path):
+            root = Path(root_s)
             rel_root = PurePosixPath(root.relative_to(self.base_path))
             for dir_name in dirs:
                 try:

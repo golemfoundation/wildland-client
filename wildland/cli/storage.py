@@ -22,6 +22,7 @@ Storage object
 '''
 
 import copy
+from typing import List, Callable
 
 import botocore.credentials
 import botocore.session
@@ -49,7 +50,7 @@ def create_command(storage_type):
     Decorator for 'storage create' command, with common options.
     '''
 
-    options = [
+    options: List[Callable] = [
         create.command(storage_type),
         click.option('--container', metavar='CONTAINER',
                      required=True,
