@@ -74,13 +74,14 @@ def setup(base_dir, cli):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container1', '--path', '/path')
-    cli('storage', 'create', 'Storage1', '--type', 'local',
+    cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
         '--container', 'Container1', '--update-container')
 
     cli('container', 'create', 'Container2',
-        '--path', '/path/subpath', '/other/path')
-    cli('storage', 'create', 'Storage2', '--type', 'local',
+        '--path', '/path/subpath',
+        '--path', '/other/path')
+    cli('storage', 'create', 'local', 'Storage2',
         '--path', base_dir / 'storage2',
         '--container', 'Container2', '--update-container')
 

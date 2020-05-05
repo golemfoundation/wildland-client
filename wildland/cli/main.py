@@ -24,6 +24,7 @@ Wildland command-line interface.
 import os
 from pathlib import Path
 import subprocess
+import json
 
 import click
 
@@ -32,6 +33,7 @@ from . import user as cli_common
 from . import user as cli_user
 from . import storage as cli_storage
 from . import container as cli_container
+from . import transfer as cli_transfer
 
 from .container import Container
 from ..log import init_logging
@@ -65,6 +67,10 @@ main.add_command(cli_container.container_)
 main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)
 main.add_command(cli_common.edit)
+
+main.add_command(cli_transfer.get)
+main.add_command(cli_transfer.put)
+
 
 def _do_mount(cmd):
     '''

@@ -48,7 +48,8 @@ def base_dir():
         os.mkdir(base_dir / 'mnt/.control')
         with open(base_dir / 'config.yaml', 'w') as f:
             yaml.dump({
-                'mount_dir': str(base_dir / 'mnt')
+                'mount_dir': str(base_dir / 'mnt'),
+                'dummy': True,
             }, f)
         yield base_dir
     finally:
@@ -58,18 +59,19 @@ def base_dir():
 @pytest.fixture
 def cli_may_fail(base_dir):
     def cli_may_fail(*args):
-        cmdline = ['--dummy', '--base-dir', base_dir, *args]
+        cmdline = ['--base-dir', base_dir, *args]
         # Convert Path to str
         cmdline = [str(arg) for arg in cmdline]
         return click.testing.CliRunner().invoke(_cli_main, cmdline)
     return cli_may_fail
+
 
 @pytest.fixture
 def cli(cli_may_fail):
     def cli(*args):
         result = cli_may_fail(*args)
         if result.exit_code != 0:
-            raise result.exception
+            pytest.fail(f'Command failed: {args}')
         return result
     return cli
 
