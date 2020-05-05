@@ -44,15 +44,15 @@ def create(ctx, key, name):
     in your keyring.
     '''
 
-    pubkey = ctx.obj.loader.sig.find(key)
-    print(f'Using key: {pubkey}')
+    signer, pubkey = ctx.obj.loader.sig.find(key)
+    print(f'Using key: {signer}')
 
-    path = ctx.obj.loader.create_user(pubkey, name)
+    path = ctx.obj.loader.create_user(signer, pubkey, name)
     print(f'Created: {path}')
 
     if ctx.obj.loader.config.get('default_user') is None:
-        print(f'Using {pubkey} as default user')
-        ctx.obj.loader.config.update_and_save(default_user=pubkey)
+        print(f'Using {signer} as default user')
+        ctx.obj.loader.config.update_and_save(default_user=signer)
 
 
 @user.command('list', short_help='list users')
@@ -64,7 +64,7 @@ def list_(ctx):
 
     ctx.obj.loader.load_users()
     for u in ctx.obj.loader.users:
-        print(f'{u.pubkey} {u.manifest_path}')
+        print(f'{u.signer} {u.manifest_path}')
 
 
 user.add_command(cli_common.sign)

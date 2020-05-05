@@ -75,7 +75,7 @@ def create(ctx, user, path, name):
 
     ctx.obj.loader.load_users()
     user = ctx.obj.find_user(user)
-    path = ctx.obj.loader.create_container(user.pubkey, path, name)
+    path = ctx.obj.loader.create_container(user.signer, path, name)
     click.echo(f'Created: {path}')
 
 

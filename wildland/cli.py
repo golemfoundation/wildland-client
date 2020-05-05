@@ -91,13 +91,13 @@ class ContextObj:
             user = self.loader.find_user(name)
             if not user:
                 raise CliError(f'User not found: {name}')
-            print(f'Using user: {user.pubkey}')
+            print(f'Using user: {user.signer}')
             return user
         user = self.loader.find_default_user()
         if user is None:
             raise CliError(
                 'Default user not set, you need to provide --user')
-        print(f'Using default user: {user.pubkey}')
+        print(f'Using default user: {user.signer}')
         return user
 
     def write_control(self, name: str, data: bytes):

@@ -80,7 +80,7 @@ def _do_create(ctx, type_, fields, name, user, container, update_container):
     fields['container_path'] = container_mount_path
 
     storage_path = ctx.obj.loader.create_storage(
-        user.pubkey, type_, fields, name)
+        user.signer, type_, fields, name)
     click.echo('Created: {}'.format(storage_path))
 
     if update_container:
