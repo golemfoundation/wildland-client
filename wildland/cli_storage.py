@@ -42,6 +42,31 @@ def create():
     The storage has to be associated with a specific container.
     '''
 
+
+def create_command(storage_type):
+    '''
+    Decorator for 'storage create' command, with common options.
+    '''
+
+    options = [
+        create.command(storage_type),
+        click.option('--container', metavar='CONTAINER',
+                     required=True,
+                     help='Container this storage is for'),
+        click.option('--update-container', '-u', is_flag=True,
+                     help='Update the container after creating storage'),
+        click.option('--user',
+                     help='user for signing'),
+        click.argument('name', metavar='NAME', required=False),
+    ]
+
+    def decorator(func):
+        for option in reversed(options):
+            func = option(func)
+        return func
+    return decorator
+
+
 def _do_create(ctx, type_, fields, name, user, container, update_container):
     ctx.obj.loader.load_users()
     user = ctx.obj.find_user(user)
@@ -70,38 +95,23 @@ def _do_create(ctx, type_, fields, name, user, container, update_container):
         with open(container_path, 'wb') as f:
             f.write(signed_data)
 
-@create.command('local')
-@click.option('--container', metavar='CONTAINER',
-    required=True,
-    help='Container this storage is for')
-@click.option('--update-container', '-u', is_flag=True,
-    help='Update the container after creating storage')
-@click.option('--user',
-    help='user for signing')
-@click.option('--path',
-    help='path on local filesystem')
-@click.argument('name', metavar='NAME', required=False)
+@create_command('local')
 @click.pass_context
 def create_local(ctx, path, **kwds):
     '''Create local storage'''
+
     fields = {'path': path}
     return _do_create(ctx, ctx.command.name, fields, **kwds)
 
-@create.command('s3')
-@click.option('--container', metavar='CONTAINER',
-    required=True,
-    help='Container this storage is for')
-@click.option('--update-container', '-u', is_flag=True,
-    help='Update the container after creating storage')
-@click.option('--user',
-    help='user for signing')
-@click.argument('bucket', metavar='BUCKET')
-@click.argument('name', metavar='NAME', required=False)
+
+@create_command('s3')
+@click.option('--bucket', metavar='BUCKET', required=True)
 @click.pass_context
 def create_s3(ctx, bucket, **kwds):
     '''
     Create S3 storage in BUCKET. The storage will be named NAME.
     '''
+
     click.echo('Resolving AWS credentials...')
     session = botocore.session.Session()
     resolver = botocore.credentials.create_credential_resolver(session)
@@ -119,6 +129,7 @@ def create_s3(ctx, bucket, **kwds):
         }
     }
     return _do_create(ctx, ctx.command.name, fields, **kwds)
+
 
 @storage.command('list', short_help='list storages')
 @click.pass_context
