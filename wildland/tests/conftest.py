@@ -7,7 +7,6 @@ import os
 
 import yaml
 import pytest
-import click.testing
 
 from ..cli.main import main as _cli_main
 from ..manifest.sig import GpgSigContext
@@ -57,28 +56,31 @@ def base_dir():
 
 
 @pytest.fixture
-def cli_may_fail(base_dir):
-    def cli_may_fail(*args):
+def cli(base_dir, capsys):
+    def cli(*args, capture=False):
         cmdline = ['--base-dir', base_dir, *args]
         # Convert Path to str
         cmdline = [str(arg) for arg in cmdline]
-        return click.testing.CliRunner().invoke(_cli_main, cmdline)
-    return cli_may_fail
-
-
-@pytest.fixture
-def cli(cli_may_fail):
-    def cli(*args):
-        result = cli_may_fail(*args)
-        if result.exit_code != 0:
-            pytest.fail(f'Command failed: {args}')
-        return result
+        if capture:
+            capsys.readouterr()
+        try:
+            _cli_main.main(args=cmdline, prog_name='wl')
+        except SystemExit as e:
+            if e.code not in [None, 0]:
+                if hasattr(e, '__context__'):
+                    assert isinstance(e.__context__, Exception)
+                    raise e.__context__
+                pytest.fail(f'command failed: {args}')
+        if capture:
+            out, _err = capsys.readouterr()
+            return out
+        return None
     return cli
 
+# TODO examine exception
 @pytest.fixture
-def cli_fail(cli_may_fail):
+def cli_fail(cli):
     def cli_fail(*args):
-        result = cli_may_fail(*args)
-        assert result.exit_code != 0
-        return result
+        with pytest.raises(Exception):
+            cli(*args)
     return cli_fail

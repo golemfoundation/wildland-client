@@ -52,8 +52,8 @@ def test_user_create(cli, base_dir):
 def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
-    result = cli('user', 'list')
-    assert result.output.splitlines() == [
+    result = cli('user', 'list', capture=True)
+    assert result.splitlines() == [
         '0xaaa {}'.format(base_dir / 'users/User1.yaml'),
         '0xbbb {}'.format(base_dir / 'users/User2.yaml'),
     ]
@@ -142,8 +142,8 @@ def test_storage_list(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    result = cli('storage', 'list')
-    assert result.output.splitlines() == [
+    result = cli('storage', 'list', capture=True)
+    assert result.splitlines() == [
         str(base_dir / 'storage/Storage.yaml'),
         '  type: local',
         '  path: /PATH',
@@ -183,8 +183,8 @@ def test_container_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    result = cli('container', 'list')
-    out_lines = result.output.splitlines()
+    result = cli('container', 'list', capture=True)
+    out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.yaml') in out_lines
     assert '  path: /PATH' in out_lines
 
