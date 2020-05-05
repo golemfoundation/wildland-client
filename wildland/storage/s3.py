@@ -90,7 +90,8 @@ class S3Storage(CachedStorage):
 
     def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         for obj_summary in self.bucket.objects.all():
-            full_path = PurePosixPath(obj_summary.key)
+            full_path = PurePosixPath('/') / obj_summary.key
+            print(full_path, self.base_path)
             try:
                 obj_path = full_path.relative_to(self.base_path)
             except ValueError:
