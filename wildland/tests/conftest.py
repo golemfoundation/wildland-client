@@ -8,7 +8,7 @@ import os
 import yaml
 import pytest
 
-from ..cli.main import main as _cli_main
+from ..cli import cli_main
 from ..manifest.sig import GpgSigContext
 
 
@@ -64,7 +64,7 @@ def cli(base_dir, capsys):
         if capture:
             capsys.readouterr()
         try:
-            _cli_main.main(args=cmdline, prog_name='wl')
+            cli_main.main.main(args=cmdline, prog_name='wl')
         except SystemExit as e:
             if e.code not in [None, 0]:
                 if hasattr(e, '__context__'):

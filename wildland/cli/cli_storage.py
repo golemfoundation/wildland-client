@@ -28,8 +28,8 @@ import botocore.credentials
 import botocore.session
 import click
 
-from .base import ContextObj
-from .common import sign, verify, edit
+from .cli_base import ContextObj
+from .cli_common import sign, verify, edit
 from ..manifest.manifest import Manifest
 
 

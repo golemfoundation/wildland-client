@@ -25,7 +25,7 @@ import sys
 
 import click
 
-from .base import ContextObj, CliError
+from .cli_base import ContextObj, CliError
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,

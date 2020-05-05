@@ -28,14 +28,16 @@ import json
 
 import click
 
-from .base import CliError, ContextObj
-from . import user as cli_common
-from . import user as cli_user
-from . import storage as cli_storage
-from . import container as cli_container
-from . import transfer as cli_transfer
+from .cli_base import CliError, ContextObj
+from . import (
+    cli_common,
+    cli_user,
+    cli_storage,
+    cli_container,
+    cli_transfer
+)
 
-from .container import Container
+from ..container import Container
 from ..log import init_logging
 from ..manifest.loader import ManifestLoader
 from .. import __version__ as _version

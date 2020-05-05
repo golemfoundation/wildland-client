@@ -27,8 +27,8 @@ from pathlib import PurePosixPath
 
 import click
 
-from .base import ContextObj
-from .common import sign, verify, edit
+from .cli_base import ContextObj
+from .cli_common import sign, verify, edit
 from ..container import Container
 from ..manifest.manifest import Manifest
 

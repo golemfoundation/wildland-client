@@ -23,7 +23,7 @@ Manage users
 
 import click
 
-from .common import sign, verify, edit
+from .cli_common import sign, verify, edit
 
 
 @click.group(short_help='user management')
