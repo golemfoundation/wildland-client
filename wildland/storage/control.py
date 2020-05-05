@@ -34,50 +34,6 @@ from ..exc import WildlandError
 
 CONTROL_FILE_MAX_SIZE = 4096
 
-def control_directory(name):
-    '''Decorator for creating control directories
-
-    Decorated generator should yield 2-tuples: name (a string) and object which
-    represents the directory contents. That object's class should have further
-    attributes decorated with either :func:`control_file` or
-    :func:`control_directory`.
-    '''
-    assert '/' not in name
-
-    def decorator(func):
-        func._control_name = name
-        func._control_read = False
-        func._control_write = False
-        func._control_directory = True
-        return func
-
-    return decorator
-
-def control_file(name, *, read=True, write=False):
-    '''Decorator for creating control files
-
-    When the file is *read*, decorated function will be called without argument
-    and should return the director contents (:class:`bytes`). When the file is
-    *written*, the function will be called with the argument to ``write()``
-    (also :class:`bytes`).
-
-    Args:
-        name (str): file name
-        read (bool): if :obj:`True`, the file is writable
-        write (bool): if :obj:`True`, the file is readable
-    '''
-    assert '/' not in name
-    assert read or write
-
-    def decorator(func):
-        func._control_name = name
-        func._control_read = read
-        func._control_write = write
-        func._control_directory = False
-        return func
-
-    return decorator
-
 class ControlFile:
     '''Control file handler'''
     def __init__(self, node, *, uid, gid, need_read, need_write):
@@ -261,4 +217,10 @@ class ControlStorage(AbstractStorage, FileProxyMixin):
         pass
 
     def unlink(self, path):
+        raise OSError(errno.EPERM, '')
+
+    def mkdir(self, path, mode):
+        raise OSError(errno.EPERM, '')
+
+    def rmdir(self, path):
         raise OSError(errno.EPERM, '')

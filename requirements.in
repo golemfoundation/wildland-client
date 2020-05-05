@@ -7,6 +7,9 @@ click
 
 # Storage
 boto3
+requests
+python-dateutil
+lxml
 
 # Development / testing
 pytest

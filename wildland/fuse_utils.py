@@ -71,7 +71,34 @@ def debug_repr(obj):
         except KeyError:
             return str(obj)
 
+    if isinstance(obj, list):
+        return '[{}]'.format(
+            ', '.join(debug_repr(element) for element in obj))
+
+    if isinstance(obj, fuse.Direntry):
+        return fuse_repr(obj)
+
     if isinstance(obj, fuse.Stat):
+        return fuse_repr(obj)
+
+    return repr(obj)
+
+
+def fuse_repr(obj):
+    '''
+    Return a nice representation for a FUSE object.
+    '''
+
+    if isinstance(obj, fuse.Direntry):
+        name = 'fuse.Direntry'
+        fmt = {
+            'name': repr,
+            'offset': str,
+            'type': str,
+            'ino': str
+        }
+    elif isinstance(obj, fuse.Stat):
+        name = 'fuse.Stat'
         fmt = {
             'st_mode': oct,
             'st_ino': str,
@@ -84,14 +111,14 @@ def debug_repr(obj):
             'st_mtime': str,
             'st_ctime': str,
         }
-        attribs = []
-        for key, formatter in fmt.items():
-            value = getattr(obj, key)
-            if value is not None and value != 0:
-                attribs.append('{}={}'.format(key, formatter(value)))
-        return 'fuse.Stat({})'.format(', '.join(attribs))
-
-    return repr(obj)
+    else:
+        assert False, obj
+    attribs = []
+    for key, formatter in fmt.items():
+        value = getattr(obj, key)
+        if value is not None and value != 0:
+            attribs.append('{}={}'.format(key, formatter(value)))
+    return '{}({})'.format(name, ', '.join(attribs))
 
 
 # stolen from python-fuse/example/xmp.py
