@@ -96,6 +96,7 @@ def _do_create(ctx, type_, fields, name, user, container, update_container):
             f.write(signed_data)
 
 @create_command('local')
+@click.option('--path', metavar='PATH', required=True)
 @click.pass_context
 def create_local(ctx, path, **kwds):
     '''Create local storage'''
@@ -105,6 +106,7 @@ def create_local(ctx, path, **kwds):
 
 
 @create_command('local-cached')
+@click.option('--path', metavar='PATH', required=True)
 @click.pass_context
 def create_local_cached(ctx, path, **kwds):
     '''Create local (cached) storage'''
