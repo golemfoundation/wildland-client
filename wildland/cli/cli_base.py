@@ -18,18 +18,19 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-Base CLI command.
+Wildland command-line interface - base module.
 '''
 
 import os
+from pathlib import Path, PurePosixPath
 import sys
 import time
-import argparse
-from pathlib import Path, PurePosixPath
+
 from typing import Optional, Tuple
 
-from ..manifest.loader import ManifestLoader
+import click
 
+from ..manifest.loader import ManifestLoader
 from ..manifest.user import User
 from ..exc import WildlandError
 
@@ -41,42 +42,13 @@ class CliError(WildlandError):
 
 # pylint: disable=no-self-use
 
-class Command:
-    '''Base command'''
 
-    def __init__(self):
-        self.loader: ManifestLoader = None
-        self.mount_dir: Path = None
+class ContextObj:
+    '''Helper object for keeping state in :attr:`click.Context.obj`'''
 
-    @property
-    def description(self):
-        '''
-        Description for this command. By default, taken from class docstring.
-        '''
-        return self.__class__.__doc__
-
-    def add_arguments(self, parser: argparse.ArgumentParser):
-        '''
-        Add arguments supported by this command.
-        '''
-
-    def setup(self, loader: ManifestLoader):
-        '''
-        Initialize the command before calling handle().
-
-        The initialization is a separate step, so that we can still read
-        command description and call add_arguments() before.
-        '''
-
-        self.loader = loader
-        self.mount_dir = Path(loader.config.get('mount_dir'))
-
-    def handle(self, args):
-        '''
-        Run the command based on parsed arguments.
-        '''
-
-        raise NotImplementedError()
+    def __init__(self, loader: ManifestLoader):
+        self.loader: ManifestLoader = loader
+        self.mount_dir: Path = Path(loader.config.get('mount_dir'))
 
     def read_manifest_file(self,
                            name: Optional[str],
@@ -119,14 +91,6 @@ class Command:
         print(f'Using default user: {user.signer}')
         return user
 
-    def ensure_mounted(self):
-        '''
-        Check that Wildland is mounted, and raise an exception otherwise.
-        '''
-
-        if not os.path.isdir(self.mount_dir / '.control'):
-            raise CliError(f'Wildland not mounted at {self.mount_dir}')
-
     def write_control(self, name: str, data: bytes):
         '''
         Write to a .control file.
@@ -151,6 +115,15 @@ class Command:
         except IOError as e:
             raise CliError(f'Reading control file failed: {control_path}: {e}')
 
+    def ensure_mounted(self):
+        '''
+        Check that Wildland is mounted, and raise an exception otherwise.
+        '''
+
+        if not os.path.isdir(self.mount_dir / '.control'):
+            raise click.ClickException(
+                f'Wildland not mounted at {self.mount_dir}')
+
     def wait_for_mount(self):
         '''
         Wait until Wildland is mounted.
@@ -163,6 +136,7 @@ class Command:
                 return
             time.sleep(delay)
         raise CliError(f'Timed out waiting for Wildland to mount: {self.mount_dir}')
+
 
     def get_command_for_mount_container(self, container):
         '''

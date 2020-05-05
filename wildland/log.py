@@ -29,7 +29,7 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
     Configure logging module.
     '''
 
-    config = {
+    config: dict = {
         'version': 1,
         'disable_existing_loggers': False,
         'formatters': {

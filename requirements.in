@@ -3,6 +3,7 @@ fuse-python>=1.0.0
 jsonschema
 pyyaml
 python-gnupg
+click
 
 # Storage
 boto3
@@ -18,5 +19,4 @@ mypy
 
 # Documentation
 sphinx
-sphinx-argparse
 sphinx-autodoc-typehints

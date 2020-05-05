@@ -107,7 +107,7 @@ class CachedStorage(AbstractStorage):
         self.buffers: Dict[PurePosixPath, BytesIO] = {}
         self.modified: Set[PurePosixPath] = set()
 
-        self.last_refresh = 0
+        self.last_refresh = 0.
 
     ## Backend operations - to override
 

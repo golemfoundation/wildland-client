@@ -17,27 +17,8 @@ schema.
 ``wl sign``
 -----------
 
-.. argparse::
-   :module: wildland.cli.main
-   :func: make_parser
-   :prog: wl
-   :path: sign
-
 ``wl verify``
 -------------
 
-.. argparse::
-   :module: wildland.cli.main
-   :func: make_parser
-   :prog: wl
-   :path: verify
-
-
 ``wl edit``
 -------------
-
-.. argparse::
-   :module: wildland.cli.main
-   :func: make_parser
-   :prog: wl
-   :path: edit

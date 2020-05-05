@@ -21,11 +21,8 @@
 
 import shutil
 import json
-
 import yaml
-import pytest
 
-from ..exc import WildlandError
 
 
 def modify_file(path, pattern, replacement):
@@ -52,14 +49,11 @@ def test_user_create(cli, base_dir):
     assert "default_user: '0xaaa'" in config
 
 
-def test_user_list(cli, base_dir, capsys):
+def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
-    capsys.readouterr()
-
-    cli('user', 'list')
-    out, _err = capsys.readouterr()
-    assert out.splitlines() == [
+    result = cli('user', 'list', capture=True)
+    assert result.splitlines() == [
         '0xaaa {}'.format(base_dir / 'users/User1.yaml'),
         '0xbbb {}'.format(base_dir / 'users/User2.yaml'),
     ]
@@ -70,28 +64,25 @@ def test_user_verify(cli):
     cli('user', 'verify', 'User')
 
 
-def test_user_verify_bad_sig(cli, base_dir):
+def test_user_verify_bad_sig(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     modify_file(base_dir / 'users/User.yaml', 'dummy.0xaaa', 'dummy.0xbbb')
-    with pytest.raises(WildlandError, match='Unknown signer'):
-        cli('user', 'verify', 'User')
+    cli_fail('user', 'verify', 'User')
 
 
-def test_user_verify_bad_fields(cli, base_dir):
+def test_user_verify_bad_fields(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     modify_file(base_dir / 'users/User.yaml', 'signer:', 'extra: xxx\nsigner:')
-    with pytest.raises(WildlandError, match="Additional properties are not allowed"):
-        cli('user', 'verify', 'User')
+    cli_fail('user', 'verify', 'User')
 
 
-def test_user_sign(cli, base_dir):
+def test_user_sign(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     tmp_file = base_dir / 'tmp.yaml'
     shutil.copyfile(base_dir / 'users/User.yaml', tmp_file)
 
     modify_file(tmp_file, 'dummy.0xaaa', 'outdated.0xaaa')
-    with pytest.raises(WildlandError, match='Signature verification failed'):
-        cli('user', 'verify', tmp_file)
+    cli_fail('user', 'verify', tmp_file)
 
     cli('user', 'sign', '-i', tmp_file)
     cli('user', 'verify', tmp_file)
@@ -106,18 +97,16 @@ def test_user_edit(cli, base_dir):
     assert '"0xaaa"' in data
 
 
-def test_user_edit_bad_fields(cli):
+def test_user_edit_bad_fields(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     editor = 'sed -i s,signer,Signer,g'
-    with pytest.raises(WildlandError, match="signer field not found"):
-        cli('user', 'edit', 'User', '--editor', editor)
+    cli_fail('user', 'edit', 'User', '--editor', editor)
 
 
-def test_user_edit_editor_failed(cli):
+def test_user_edit_editor_failed(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     editor = 'false'
-    with pytest.raises(WildlandError, match='Running editor failed'):
-        cli('user', 'edit', 'User', '--editor', editor)
+    cli_fail('user', 'edit', 'User', '--editor', editor)
 
 
 ## Storage
@@ -125,7 +114,7 @@ def test_user_edit_editor_failed(cli):
 def test_storage_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
     with open(base_dir / 'storage/Storage.yaml') as f:
         data = f.read()
@@ -137,7 +126,7 @@ def test_storage_create(cli, base_dir):
 def test_storage_create_update_container(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container', '--update-container')
 
     with open(base_dir / 'containers/Container.yaml') as f:
@@ -147,16 +136,14 @@ def test_storage_create_update_container(cli, base_dir):
     assert str(storage_path) in data
 
 
-def test_storage_list(cli, base_dir, capsys):
+def test_storage_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
-    capsys.readouterr()
 
-    cli('storage', 'list')
-    out, _err = capsys.readouterr()
-    assert out.splitlines() == [
+    result = cli('storage', 'list', capture=True)
+    assert result.splitlines() == [
         str(base_dir / 'storage/Storage.yaml'),
         '  type: local',
         '  path: /PATH',
@@ -173,15 +160,15 @@ def test_container_create(cli, base_dir):
         data = f.read()
 
     assert "signer: '0xaaa'" in data
-    assert "- /PATH" in data
-    assert "- /.uuid/" in data
+    assert "/PATH" in data
+    assert "/.uuid/" in data
 
 
 def test_container_update(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
     cli('container', 'update', 'Container', '--storage', 'Storage')
 
@@ -192,14 +179,12 @@ def test_container_update(cli, base_dir):
     assert str(storage_path) in data
 
 
-def test_container_list(cli, base_dir, capsys):
+def test_container_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    capsys.readouterr()
 
-    cli('container', 'list')
-    out, _err = capsys.readouterr()
-    out_lines = out.splitlines()
+    result = cli('container', 'list', capture=True)
+    out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.yaml') in out_lines
     assert '  path: /PATH' in out_lines
 
@@ -207,7 +192,7 @@ def test_container_list(cli, base_dir, capsys):
 def test_container_mount(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'Storage', '--type', 'local', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container', '--update-container')
 
     with open(base_dir / 'containers/Container.yaml') as f:

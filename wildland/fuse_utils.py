@@ -28,6 +28,8 @@ import logging
 import os
 import sys
 
+from typing import Dict, Callable
+
 import fuse
 
 
@@ -88,6 +90,8 @@ def fuse_repr(obj):
     '''
     Return a nice representation for a FUSE object.
     '''
+
+    fmt: Dict[str, Callable]
 
     if isinstance(obj, fuse.Direntry):
         name = 'fuse.Direntry'

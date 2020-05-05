@@ -44,7 +44,6 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
-    'sphinxarg.ext',
     'sphinx_autodoc_typehints',
 ]
 
