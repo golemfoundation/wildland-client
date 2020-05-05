@@ -176,7 +176,7 @@ class ContextObj:
 @click.group()
 @click.option('--dummy/--no-dummy', default=False,
     help='use dummy signatures')
-@click.option('--base-dir', default='',
+@click.option('--base-dir', default=None,
     help='base directory for configuration')
 @click.option('--verbose', '-v', help='output logs')
 @click.version_option(_version)
