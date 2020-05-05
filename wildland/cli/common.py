@@ -25,6 +25,7 @@ import sys
 
 import click
 
+from .base import ContextObj, CliError
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
@@ -47,6 +48,8 @@ def sign(ctx, input_file, output_file, in_place):
     If invoked with manifest type (``user sign``, etc.), the will also validate
     the manifest against schema.
     '''
+    obj: ContextObj = ctx.obj
+
     manifest_type = ctx.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
@@ -58,13 +61,15 @@ def sign(ctx, input_file, output_file, in_place):
         if output_file:
             raise click.ClickException('Cannot use both -i and -o')
 
-    ctx.obj.loader.load_users()
-    data, path = ctx.obj.read_manifest_file(input_file, manifest_type)
+    obj.loader.load_users()
+    data, path = obj.read_manifest_file(input_file, manifest_type)
+    if not path:
+        raise CliError(f'Manifest not found: {input_file}')
 
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type:
-        ctx.obj.loader.validate_manifest(manifest, manifest_type)
-    manifest.sign(ctx.obj.loader.sig, attach_pubkey=(manifest_type == 'user'))
+        obj.loader.validate_manifest(manifest, manifest_type)
+    manifest.sign(obj.loader.sig, attach_pubkey=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
 
     if in_place:
@@ -88,17 +93,19 @@ def verify(ctx, input_file):
     If invoked with manifests type (``user verify``, etc.), the command will
     also validate the manifest against schema.
     '''
+    obj: ContextObj = ctx.obj
+
     manifest_type = ctx.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
 
-    ctx.obj.loader.load_users()
-    data, _path = ctx.obj.read_manifest_file(input_file, manifest_type)
+    obj.loader.load_users()
+    data, _path = obj.read_manifest_file(input_file, manifest_type)
     try:
-        manifest = Manifest.from_bytes(data, ctx.obj.loader.sig,
+        manifest = Manifest.from_bytes(data, obj.loader.sig,
                                        self_signed=(manifest_type == 'user'))
         if manifest_type:
-            ctx.obj.loader.validate_manifest(manifest, manifest_type)
+            obj.loader.validate_manifest(manifest, manifest_type)
     except ManifestError as e:
         raise click.ClickException(f'Error verifying manifest: {e}')
     click.echo('Manifest is valid')
@@ -117,22 +124,26 @@ def edit(ctx, editor, input_file):
     If invoked with manifests type (``user edit``, etc.), the command will
     also validate the manifest against schema.
     '''
+    obj: ContextObj = ctx.obj
+
     manifest_type = ctx.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
 
-    data, path = ctx.obj.read_manifest_file(input_file, manifest_type)
+    data, path = obj.read_manifest_file(input_file, manifest_type)
+    if not path:
+        raise CliError(f'Manifest not found: {input_file}')
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
 
     data = click.edit(data.decode(), editor=editor).encode()
 
-    ctx.obj.loader.load_users()
+    obj.loader.load_users()
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type is not None:
-        ctx.obj.loader.validate_manifest(manifest, manifest_type)
-    manifest.sign(ctx.obj.loader.sig, attach_pubkey=(manifest_type == 'user'))
+        obj.loader.validate_manifest(manifest, manifest_type)
+    manifest.sign(obj.loader.sig, attach_pubkey=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)

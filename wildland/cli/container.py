@@ -27,6 +27,7 @@ from pathlib import PurePosixPath
 
 import click
 
+from .base import ContextObj
 from .common import sign, verify, edit
 from ..container import Container
 from ..manifest.manifest import Manifest
@@ -36,13 +37,13 @@ def find_by_manifest(container_name):
     '''
     Find container ID by reading the manifest and matching paths.
     '''
-    ctx = click.get_current_context()
-    path, manifest = ctx.obj.loader.load_manifest(container_name, 'container')
+    obj: ContextObj = click.get_current_context().obj
+    path, manifest = obj.loader.load_manifest(container_name, 'container')
     if not manifest:
         raise click.ClickException(f'Not found: {container_name}')
     click.echo(f'Using manifest: {path}')
     container = Container(manifest)
-    mount_path = ctx.obj.get_user_path(container.signer, container.paths[0])
+    mount_path = obj.get_user_path(container.signer, container.paths[0])
     return find_by_path(mount_path)
 
 
@@ -50,8 +51,8 @@ def find_by_path(mount_path: PurePosixPath):
     '''
     Find container ID by one of mount paths.
     '''
-    ctx = click.get_current_context()
-    paths = json.loads(ctx.obj.read_control('paths'))
+    obj: ContextObj = click.get_current_context().obj
+    paths = json.loads(obj.read_control('paths'))
     if str(mount_path) not in paths:
         raise click.ClickException(f'No container found under {mount_path}')
     return paths[str(mount_path)]
@@ -70,15 +71,15 @@ def container_():
 @click.option('--path', multiple=True, required=True,
     help='mount path (can be repeated)')
 @click.argument('name', metavar='CONTAINER', required=False)
-@click.pass_context
-def create(ctx, user, path, name):
+@click.pass_obj
+def create(obj: ContextObj, user, path, name):
     '''
     Create a new container manifest.
     '''
 
-    ctx.obj.loader.load_users()
-    user = ctx.obj.find_user(user)
-    path = ctx.obj.loader.create_container(user.signer, path, name)
+    obj.loader.load_users()
+    user = obj.find_user(user)
+    path = obj.loader.create_container(user.signer, path, name)
     click.echo(f'Created: {path}')
 
 
@@ -86,16 +87,17 @@ def create(ctx, user, path, name):
 @click.option('--storage', multiple=True,
     help='storage to use (can be repeated)')
 @click.argument('cont', metavar='CONTAINER')
-@click.pass_context
-def update(ctx, storage, cont):
+@click.pass_obj
+def update(obj: ContextObj, storage, cont):
     '''
     Update a container manifest.
     '''
 
-    ctx.obj.loader.load_users()
-    path, manifest = ctx.obj.loader.load_manifest(cont, 'container')
-    if not path:
+    obj.loader.load_users()
+    path, manifest = obj.loader.load_manifest(cont, 'container')
+    if not manifest:
         raise click.ClickException(f'Container not found: {cont}')
+    assert path
 
     if not storage:
         print('No change')
@@ -103,7 +105,7 @@ def update(ctx, storage, cont):
 
     storages = list(manifest.fields['backends']['storage'])
     for storage_name in storage:
-        storage_path = ctx.obj.loader.find_manifest(storage_name, 'storage')
+        storage_path = obj.loader.find_manifest(storage_name, 'storage')
         if not storage_path:
             raise click.ClickException(
                 f'Storage manifest not found: {storage_name}')
@@ -115,8 +117,8 @@ def update(ctx, storage, cont):
     fields = copy.deepcopy(manifest.fields)
     fields['backends']['storage'] = storages
     new_manifest = Manifest.from_fields(fields)
-    ctx.obj.loader.validate_manifest(new_manifest, 'container')
-    new_manifest.sign(ctx.obj.loader.sig)
+    obj.loader.validate_manifest(new_manifest, 'container')
+    new_manifest.sign(obj.loader.sig)
     signed_data = new_manifest.to_bytes()
 
     print(f'Saving: {path}')
@@ -125,14 +127,14 @@ def update(ctx, storage, cont):
 
 
 @container_.command('list', short_help='list containers')
-@click.pass_context
-def list_(ctx):
+@click.pass_obj
+def list_(obj: ContextObj):
     '''
     Display known containers.
     '''
 
-    ctx.obj.loader.load_users()
-    for path, manifest in ctx.obj.loader.load_manifests('container'):
+    obj.loader.load_users()
+    for path, manifest in obj.loader.load_manifests('container'):
         click.echo(path)
         for container_path in manifest.fields['paths']:
             click.echo(f'  path: {container_path}')
@@ -147,39 +149,39 @@ container_.add_command(edit)
 
 @container_.command(short_help='mount container')
 @click.argument('cont', metavar='CONTAINER')
-@click.pass_context
-def mount(ctx, cont):
+@click.pass_obj
+def mount(obj: ContextObj, cont):
     '''
     Mount a container given by name or path to manifest. The Wildland system has
     to be mounted first, see ``wl mount``.
     '''
-    ctx.obj.ensure_mounted()
-    ctx.obj.loader.load_users()
+    obj.ensure_mounted()
+    obj.loader.load_users()
 
-    path, manifest = ctx.obj.loader.load_manifest(cont, 'container')
+    path, manifest = obj.loader.load_manifest(cont, 'container')
     if not manifest:
         raise click.ClickException(f'Not found: {cont}')
 
     cont = Container(manifest)
-    command = ctx.obj.get_command_for_mount_container(cont)
+    command = obj.get_command_for_mount_container(cont)
 
     click.echo(f'Mounting: {path}')
-    ctx.obj.write_control('mount', json.dumps(command).encode())
+    obj.write_control('mount', json.dumps(command).encode())
 
 
 @container_.command(short_help='unmount container')
 @click.option('--path', metavar='PATH',
     help='mount path to search for')
 @click.argument('cont', metavar='CONTAINER', required=False)
-@click.pass_context
-def unmount(ctx, path, cont):
+@click.pass_obj
+def unmount(obj, path, cont):
     '''
     Unmount a container_ You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
     '''
 
-    ctx.obj.ensure_mounted()
-    ctx.obj.loader.load_users()
+    obj.ensure_mounted()
+    obj.loader.load_users()
 
     if bool(cont) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
@@ -190,4 +192,4 @@ def unmount(ctx, path, cont):
         num = find_by_path(path)
 
     click.echo(f'Unmounting storage {num}')
-    ctx.obj.write_control('unmount', str(num).encode())
+    obj.write_control('unmount', str(num).encode())

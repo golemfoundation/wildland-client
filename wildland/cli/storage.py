@@ -28,6 +28,7 @@ import botocore.credentials
 import botocore.session
 import click
 
+from .base import ContextObj
 from .common import sign, verify, edit
 from ..manifest.manifest import Manifest
 
@@ -69,19 +70,21 @@ def create_command(storage_type):
     return decorator
 
 
-def _do_create(ctx, type_, fields, name, user, container, update_container):
-    ctx.obj.loader.load_users()
-    user = ctx.obj.find_user(user)
+def _do_create(obj: ContextObj, type_, fields, name, user, container, update_container):
+    obj.loader.load_users()
+    user = obj.find_user(user)
 
-    container_path, container_manifest = ctx.obj.loader.load_manifest(
+    container_path, container_manifest = obj.loader.load_manifest(
         container, 'container')
     if not container_manifest:
         raise click.ClickException(f'Not found: {container}')
+    assert container_path
+
     container_mount_path = container_manifest.fields['paths'][0]
     click.echo(f'Using container: {container_path} ({container_mount_path})')
     fields['container_path'] = container_mount_path
 
-    storage_path = ctx.obj.loader.create_storage(
+    storage_path = obj.loader.create_storage(
         user.signer, type_, fields, name)
     click.echo('Created: {}'.format(storage_path))
 
@@ -90,8 +93,8 @@ def _do_create(ctx, type_, fields, name, user, container, update_container):
         fields = copy.deepcopy(container_manifest.fields)
         fields['backends']['storage'].append(str(storage_path))
         container_manifest = Manifest.from_fields(fields)
-        ctx.obj.loader.validate_manifest(container_manifest, 'container')
-        container_manifest.sign(ctx.obj.loader.sig)
+        obj.loader.validate_manifest(container_manifest, 'container')
+        container_manifest.sign(obj.loader.sig)
         signed_data = container_manifest.to_bytes()
         click.echo(f'Saving: {container_path}')
         with open(container_path, 'wb') as f:
@@ -104,7 +107,7 @@ def create_local(ctx, path, **kwds):
     '''Create local storage'''
 
     fields = {'path': path}
-    return _do_create(ctx, ctx.command.name, fields, **kwds)
+    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
 
 
 @create_command('local-cached')
@@ -114,7 +117,7 @@ def create_local_cached(ctx, path, **kwds):
     '''Create local (cached) storage'''
 
     fields = {'path': path}
-    return _do_create(ctx, ctx.command.name, fields, **kwds)
+    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
 
 
 @create_command('s3')
@@ -141,7 +144,7 @@ def create_s3(ctx, bucket, **kwds):
             'secret_key': credentials.secret_key,
         }
     }
-    return _do_create(ctx, ctx.command.name, fields, **kwds)
+    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
 
 
 @create_command('webdav')
@@ -161,18 +164,18 @@ def create_webdav(ctx, url, login, password, **kwds):
             'password': password,
         }
     }
-    return _do_create(ctx, ctx.command.name, fields, **kwds)
+    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
 
 
 @storage.command('list', short_help='list storages')
-@click.pass_context
-def list_(ctx):
+@click.pass_obj
+def list_(obj: ContextObj):
     '''
     Display known storages.
     '''
 
-    ctx.obj.loader.load_users()
-    for path, manifest in ctx.obj.loader.load_manifests('storage'):
+    obj.loader.load_users()
+    for path, manifest in obj.loader.load_manifests('storage'):
         click.echo(path)
         storage_type = manifest.fields['type']
         click.echo(f'  type: {storage_type}')
