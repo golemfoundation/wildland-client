@@ -12,10 +12,21 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
+import collections
 import os
+import pathlib
 import sys
+
+import docutils.nodes
+from sphinx.errors import SphinxError
+from sphinx.util import logging
+log = logging.getLogger(__name__)
+
+sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('..'))
 
+from wildland.cli.cli_main import main as cmd_main
+import manhelper
 
 # -- Project information -----------------------------------------------------
 
@@ -45,6 +56,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinx_autodoc_typehints',
+    'sphinx.ext.todo',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -81,8 +93,13 @@ rst_prolog = '''
 '''
 
 nitpicky = True
+nitpick_ignore = [
+    ('envvar', 'EDITOR'),
+    ('envvar', 'VISUAL'),
+    ('py:class', 'T'),
+]
 
-nitpick_ignore = [('py:class', 'T')]
+todo_include_todos = True
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -153,10 +170,78 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'wildland', 'Wildland Documentation',
-     [author], 1)
+    ('manpages/wl-container', 'wl-container', 'Container management', [author], 1),
+    ('manpages/wl-storage', 'wl-storage', 'Storage management', [author], 1),
+    ('manpages/wl-user', 'wl-user', 'Wildland user management', [author], 1),
+
+    ('manpages/wl-sign', 'wl-sign', 'Sign manifests', [author], 1),
+    ('manpages/wl-verify', 'wl-verify', 'Verify signatures', [author], 1),
+    ('manpages/wl-edit', 'wl-edit', 'Edit manifests', [author], 1),
+
+    ('manpages/wl-mount', 'wl-mount', 'Mount the whole Wildland FUSE filesystem', [author], 1),
+    ('manpages/wl-unmount', 'wl-unmount', 'Unmount the whole Wildland FUSE filesystem', [author], 1),
+
+    ('manpages/wl-get', 'wl-get', 'Get a file from wildland', [author], 1),
+    ('manpages/wl-put', 'wl-put', 'Put a file into wildland', [author], 1),
 ]
 
+# what should be documented:
+cnt_subcommands = collections.Counter(f'manpages/wl-{subcmd}'
+    for subcmd in cmd_main.commands)
+cnt_man_pages = collections.Counter(source
+    for source, *_ in man_pages)
+cnt_man_sources = collections.Counter(str(p.with_suffix(''))
+    for p in pathlib.Path().glob('manpages/*.rst')
+    if not p.stem == 'index')
+
+# barf if something is wrong:
+assert cnt_man_pages == cnt_man_sources, (
+    'mismatch files vs man_pages in conf.py: '
+    f'{set(cnt_man_pages).symmetric_difference(cnt_man_sources)}')
+assert cnt_subcommands == cnt_man_pages, ('under- or overdocumented commands: '
+    f'{set(cnt_subcommands).symmetric_difference(cnt_man_pages)}')
+
+class ManpageCheckVisitor(docutils.nodes.SparseNodeVisitor):
+    def __init__(self, app, command, document):
+        super().__init__(document)
+        self.stem = command
+        command, *subcommands = command.split('-')
+        self.command = cmd_main
+        assert command == self.command.name
+        for subcmd in subcommands:
+            # this is OK, because the assert above already succeeded
+            self.command = self.command.commands[subcmd]
+
+        self.subcommands = set(manhelper.walk_group(self.command,
+            self._collect_subcommands, prefix=(command, *subcommands[:-1])))
+        log.info('expecting targets: %s',
+            ', '.join(sorted(self.subcommands)))
+
+    def _collect_subcommands(self, cmd, prefix):
+        yield '-'.join((*prefix, cmd.name))
+
+    def visit_target(self, node):
+        try:
+            refid = node['refid']
+        except KeyError:
+            return
+        log.debug('target refid=%s self.stem=%r', refid, self.stem)
+        if refid.startswith(self.stem):
+            self.subcommands.remove(refid)
+
+    def check_undocumented(self):
+        if self.subcommands:
+            raise SphinxError('undocumented subcommands: {}'.format(
+                ', '.join(sorted(self.subcommands))))
+
+def check_man(app, doctree, docname):
+    dirname, command = os.path.split(docname)
+    if dirname != 'manpages':
+        return
+    log.info('\nchecking manpage for %s', command)
+    visitor = ManpageCheckVisitor(app, command, doctree)
+    doctree.walk(visitor)
+    visitor.check_undocumented()
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -194,3 +279,8 @@ epub_exclude_files = ['search.html']
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
+
+
+
+def setup(app):
+    app.connect('doctree-resolved', check_man)

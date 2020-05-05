@@ -1,3 +1,3 @@
 #!/bin/sh -ex
 
-make -C Documentation/ html SPHINXOPTS=-W SPHINXBUILD=/home/user/env/bin/sphinx-build
+make -C Documentation/ html man SPHINXOPTS=-W SPHINXBUILD=/home/user/env/bin/sphinx-build

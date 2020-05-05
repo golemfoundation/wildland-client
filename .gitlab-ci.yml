@@ -65,6 +65,7 @@ pages:
     - docker-compose build
     - docker-compose run wildland-fuse-ci ./ci/ci-docs
     - cp -r ../Documentation/_build/html ../public
+    - cp -r ../Documentation/_build/man ../public/man
     - cp -r ../htmlcov ../public/coverage
   artifacts:
     paths:
