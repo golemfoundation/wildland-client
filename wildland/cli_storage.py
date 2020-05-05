@@ -104,6 +104,15 @@ def create_local(ctx, path, **kwds):
     return _do_create(ctx, ctx.command.name, fields, **kwds)
 
 
+@create_command('local-cached')
+@click.pass_context
+def create_local_cached(ctx, path, **kwds):
+    '''Create local (cached) storage'''
+
+    fields = {'path': path}
+    return _do_create(ctx, ctx.command.name, fields, **kwds)
+
+
 @create_command('s3')
 @click.option('--bucket', metavar='BUCKET', required=True)
 @click.pass_context
@@ -126,6 +135,26 @@ def create_s3(ctx, bucket, **kwds):
         'credentials': {
             'access_key': credentials.access_key,
             'secret_key': credentials.secret_key,
+        }
+    }
+    return _do_create(ctx, ctx.command.name, fields, **kwds)
+
+
+@create_command('webdav')
+@click.option('--url', metavar='URL', required=True)
+@click.option('--login', metavar='LOGIN', required=True)
+@click.option('--password', metavar='PASSWORD', required=True)
+@click.pass_context
+def create_webdav(ctx, url, login, password, **kwds):
+    '''
+    Create WebDAV storage.
+    '''
+
+    fields = {
+        'url': url,
+        'credentials': {
+            'login': login,
+            'password': password,
         }
     }
     return _do_create(ctx, ctx.command.name, fields, **kwds)
