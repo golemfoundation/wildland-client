@@ -19,5 +19,4 @@ mypy
 
 # Documentation
 sphinx
-sphinx-argparse
 sphinx-autodoc-typehints
