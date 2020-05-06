@@ -28,6 +28,7 @@ from .storage.base import AbstractStorage
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.loader import ManifestLoader
 from .manifest.schema import Schema
+from .exc import WildlandError
 
 
 class Container:
@@ -50,27 +51,44 @@ class Container:
         urls = self.manifest.fields['backends']['storage']
 
         for url in urls:
-            with open(url, 'rb') as f:
-                storage_manifest_content = f.read()
-
-            storage_manifest = loader.parse_manifest(
-                storage_manifest_content)
-            if not AbstractStorage.is_manifest_supported(storage_manifest):
-                logging.info('skipping unsupported manifest: %s', url)
-
-            if storage_manifest.fields['signer'] != self.manifest.fields['signer']:
-                raise ManifestError(
-                    '{}: signer field mismatch: storage {}, container {}'.format(
-                        url,
-                        storage_manifest.fields['signer'],
-                        self.manifest.fields['signer']))
-            if storage_manifest.fields['container_path'] not in self.manifest.fields['paths']:
-                raise ManifestError(
-                    '{}: unrecognized container path for storage: {}, {}'.format(
-                        url,
-                        storage_manifest.fields['container_path'],
-                        self.manifest.fields['paths']))
+            try:
+                storage_manifest = self.try_load_manifest(loader, url)
+            except WildlandError:
+                logging.exception('Error loading manifest: %s', url)
+                continue
 
             return storage_manifest
 
         raise ManifestError('no supported storage manifest')
+
+    def try_load_manifest(self, loader: ManifestLoader, url: str) -> Manifest:
+        '''
+        Try loading a storage manifest for this container.
+        '''
+
+        try:
+            with open(url, 'rb') as f:
+                storage_manifest_content = f.read()
+        except IOError:
+            raise ManifestError(f'Error loading uRL: {url}')
+
+        storage_manifest = loader.parse_manifest(
+            storage_manifest_content)
+        if not AbstractStorage.is_manifest_supported(storage_manifest):
+            raise ManifestError(f'Unsupported storage manifest: {url}')
+
+        if storage_manifest.fields['signer'] != self.manifest.fields['signer']:
+            raise ManifestError(
+                '{}: signer field mismatch: storage {}, container {}'.format(
+                    url,
+                    storage_manifest.fields['signer'],
+                    self.manifest.fields['signer']))
+
+        if storage_manifest.fields['container_path'] not in self.manifest.fields['paths']:
+            raise ManifestError(
+                '{}: unrecognized container path for storage: {}, {}'.format(
+                    url,
+                    storage_manifest.fields['container_path'],
+                    self.manifest.fields['paths']))
+
+        return storage_manifest
