@@ -22,7 +22,6 @@ Manage containers
 '''
 
 import copy
-import json
 from pathlib import PurePosixPath
 
 import click
@@ -31,31 +30,6 @@ from .cli_base import ContextObj
 from .cli_common import sign, verify, edit
 from ..container import Container
 from ..manifest.manifest import Manifest
-
-
-def find_by_manifest(container_name):
-    '''
-    Find container ID by reading the manifest and matching paths.
-    '''
-    obj: ContextObj = click.get_current_context().obj
-    path, manifest = obj.loader.load_manifest(container_name, 'container')
-    if not manifest:
-        raise click.ClickException(f'Not found: {container_name}')
-    click.echo(f'Using manifest: {path}')
-    container = Container(manifest)
-    mount_path = obj.get_user_path(container.signer, container.paths[0])
-    return find_by_path(mount_path)
-
-
-def find_by_path(mount_path: PurePosixPath):
-    '''
-    Find container ID by one of mount paths.
-    '''
-    obj: ContextObj = click.get_current_context().obj
-    paths = json.loads(obj.read_control('paths'))
-    if str(mount_path) not in paths:
-        raise click.ClickException(f'No container found under {mount_path}')
-    return paths[str(mount_path)]
 
 
 @click.group('container', short_help='container management')
@@ -158,18 +132,16 @@ def mount(obj: ContextObj, cont):
     Mount a container given by name or path to manifest. The Wildland system has
     to be mounted first, see ``wl mount``.
     '''
-    obj.ensure_mounted()
+    obj.client.ensure_mounted()
     obj.loader.load_users()
 
     path, manifest = obj.loader.load_manifest(cont, 'container')
     if not manifest:
         raise click.ClickException(f'Not found: {cont}')
 
-    cont = Container(manifest)
-    command = obj.get_command_for_mount_container(cont)
-
+    container = Container(manifest)
     click.echo(f'Mounting: {path}')
-    obj.write_control('mount', json.dumps(command).encode())
+    obj.client.mount_container(container)
 
 
 @container_.command(short_help='unmount container')
@@ -177,22 +149,30 @@ def mount(obj: ContextObj, cont):
     help='mount path to search for')
 @click.argument('cont', metavar='CONTAINER', required=False)
 @click.pass_obj
-def unmount(obj, path, cont):
+def unmount(obj: ContextObj, path: str, cont):
     '''
     Unmount a container_ You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
     '''
 
-    obj.ensure_mounted()
+    obj.client.ensure_mounted()
     obj.loader.load_users()
 
     if bool(cont) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
 
     if cont:
-        num = find_by_manifest(cont)
-    else:
-        num = find_by_path(path)
+        _container_path, manifest = obj.loader.load_manifest(cont, 'container')
+        if not manifest:
+            raise click.ClickException(f'Not found: {cont}')
 
-    click.echo(f'Unmounting storage {num}')
-    obj.write_control('unmount', str(num).encode())
+        container = Container(manifest)
+        storage_id = obj.client.find_storage_id(container)
+    else:
+        storage_id = obj.client.find_storage_id_by_path(PurePosixPath(path))
+
+    if storage_id is None:
+        raise click.ClickException('Container not mounted')
+
+    click.echo(f'Unmounting storage {storage_id}')
+    obj.client.unmount_container(storage_id)

@@ -23,7 +23,6 @@ Wildland command-line interface.
 
 import os
 from pathlib import Path
-import subprocess
 import json
 
 import click
@@ -74,18 +73,6 @@ main.add_command(cli_transfer.get)
 main.add_command(cli_transfer.put)
 
 
-def _do_mount(cmd):
-    '''
-    Mount the Wildland filesystem.
-    '''
-    ctx = click.get_current_context()
-
-    click.echo(f'Mounting {ctx.obj.mount_dir}')
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        raise click.ClickException(f'Failed to unmount: {e}')
-
 def _do_mount_containers(to_mount):
     '''
     Issue a series of .control/mount commands.
@@ -109,81 +96,63 @@ def _do_mount_containers(to_mount):
     help='debug mode: run in foreground (repeat for more verbosity)')
 @click.option('--container', '-c', metavar='CONTAINER', multiple=True,
     help='Container to mount (can be repeated)')
-@click.pass_context
-def mount(ctx, remount, debug, container):
+@click.pass_obj
+def mount(obj: ContextObj, remount, debug, container):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
     (``~/.widland/config.yaml``) as ``mount_dir``.
     '''
 
-    if not os.path.exists(ctx.obj.mount_dir):
-        print(f'Creating: {ctx.obj.mount_dir}')
-        os.makedirs(ctx.obj.mount_dir)
+    if not os.path.exists(obj.mount_dir):
+        print(f'Creating: {obj.mount_dir}')
+        os.makedirs(obj.mount_dir)
 
-    if os.path.isdir(ctx.obj.mount_dir / '.control'):
-        if not remount:
+    if obj.client.is_mounted():
+        if remount:
+            obj.client.unmount()
+        else:
             raise CliError(f'Already mounted')
-        ctx.obj.unmount()
 
-    cmd = [str(FUSE_ENTRY_POINT), str(ctx.obj.mount_dir)]
-    options = []
-
-    if debug > 0:
-        options.append('log=-')
-        cmd.append('-f')
-        if debug > 1:
-            cmd.append('-d')
-
-    ctx.obj.loader.load_users()
+    obj.loader.load_users()
     to_mount = []
     if container:
         for name in container:
-            path, manifest = ctx.obj.loader.load_manifest(name, 'container')
+            path, manifest = obj.loader.load_manifest(name, 'container')
             if not manifest:
                 raise CliError(f'Container not found: {name}')
             container = Container(manifest)
             to_mount.append((path,
-                ctx.obj.get_command_for_mount_container(container)))
-
-    if options:
-        cmd += ['-o', ','.join(options)]
+                obj.client.get_command_for_mount_container(container)))
 
     if not debug:
-        _do_mount(cmd)
+        obj.client.mount()
         _do_mount_containers(to_mount)
         return
 
-
-    print(f'Mounting in foreground: {ctx.obj.mount_dir}')
+    print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
-    # Start a new session in order to not propagate SIGINT.
-    p = subprocess.Popen(cmd, start_new_session=True)
-    ctx.obj.wait_for_mount()
+
+    p = obj.client.mount(foreground=True, debug=(debug > 1))
     _do_mount_containers(to_mount)
     try:
         p.wait()
     except KeyboardInterrupt:
-        ctx.obj.unmount()
+        obj.client.unmount()
         p.wait()
 
     if p.returncode != 0:
         raise CliError(f'FUSE driver exited with failure')
 
 @main.command(short_help='unmount Wildland filesystem')
-@click.pass_context
-def unmount(ctx):
+@click.pass_obj
+def unmount(obj: ContextObj):
     '''
     Unmount the Wildland filesystem.
     '''
 
-    click.echo(f'Unmounting: {ctx.obj.mount_dir}')
-    # XXX fusermount?
-    cmd = ['umount', os.fspath(ctx.obj.mount_dir)]
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        raise click.ClickException(f'Failed to unmount: {e}')
+    click.echo(f'Unmounting: {obj.mount_dir}')
+    obj.client.unmount()
 
 
 if __name__ == '__main__':

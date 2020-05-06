@@ -21,18 +21,15 @@
 Wildland command-line interface - base module.
 '''
 
-import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import sys
-import time
 
 from typing import Optional, Tuple
-
-import click
 
 from ..manifest.loader import ManifestLoader
 from ..manifest.user import User
 from ..exc import WildlandError
+from ..fs_client import WildlandFSClient
 
 
 class CliError(WildlandError):
@@ -49,6 +46,7 @@ class ContextObj:
     def __init__(self, loader: ManifestLoader):
         self.loader: ManifestLoader = loader
         self.mount_dir: Path = Path(loader.config.get('mount_dir'))
+        self.client: WildlandFSClient = WildlandFSClient(self.mount_dir, loader)
 
     def read_manifest_file(self,
                            name: Optional[str],
@@ -90,79 +88,3 @@ class ContextObj:
                 'Default user not set, you need to provide --user')
         print(f'Using default user: {user.signer}')
         return user
-
-    def write_control(self, name: str, data: bytes):
-        '''
-        Write to a .control file.
-        '''
-
-        control_path = self.mount_dir / '.control' / name
-        try:
-            with open(control_path, 'wb') as f:
-                f.write(data)
-        except IOError as e:
-            raise CliError(f'Control command failed: {control_path}: {e}')
-
-    def read_control(self, name: str) -> bytes:
-        '''
-        Read a .control file.
-        '''
-
-        control_path = self.mount_dir / '.control' / name
-        try:
-            with open(control_path, 'rb') as f:
-                return f.read()
-        except IOError as e:
-            raise CliError(f'Reading control file failed: {control_path}: {e}')
-
-    def ensure_mounted(self):
-        '''
-        Check that Wildland is mounted, and raise an exception otherwise.
-        '''
-
-        if not os.path.isdir(self.mount_dir / '.control'):
-            raise click.ClickException(
-                f'Wildland not mounted at {self.mount_dir}')
-
-    def wait_for_mount(self):
-        '''
-        Wait until Wildland is mounted.
-        '''
-
-        n_tries = 20
-        delay = 0.1
-        for _ in range(n_tries):
-            if os.path.isdir(self.mount_dir / '.control'):
-                return
-            time.sleep(delay)
-        raise CliError(f'Timed out waiting for Wildland to mount: {self.mount_dir}')
-
-
-    def get_command_for_mount_container(self, container):
-        '''
-        Prepare command to be written to :file:`/.control/mount` to mount
-        a container
-
-        Args:
-            container (Container): the container to be mounted
-        '''
-        signer = container.manifest.fields['signer']
-        default_user = self.loader.config.get('default_user')
-
-        paths = [
-            os.fspath(self.get_user_path(signer, path))
-            for path in container.paths
-        ]
-        if signer is not None and signer == default_user:
-            paths.extend(os.fspath(p) for p in container.paths)
-
-        return {
-            'paths': paths,
-            'storage': container.select_storage(self.loader).fields,
-        }
-
-    def get_user_path(self, signer, path: PurePosixPath) -> PurePosixPath:
-        '''
-        Prepend an absolute path with signer namespace.
-        '''
-        return PurePosixPath('/.users/') / signer / path.relative_to('/')
