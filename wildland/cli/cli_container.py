@@ -135,11 +135,14 @@ def list_(obj: ContextObj):
 
     obj.loader.load_users()
     for path, manifest in obj.loader.load_manifests('container'):
+        container = Container(manifest)
         click.echo(path)
-        for container_path in manifest.fields['paths']:
+        click.echo(f'  signer: {container.signer}')
+        for container_path in container.paths:
             click.echo(f'  path: {container_path}')
         for storage_path in manifest.fields['backends']['storage']:
             click.echo(f'  storage: {storage_path}')
+        click.echo()
 
 
 container_.add_command(sign)
