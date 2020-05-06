@@ -58,8 +58,6 @@ def create_command(storage_type):
                      help='Container this storage is for'),
         click.option('--update-container/--no-update-container', '-u/-n', default=True,
                      help='Update the container after creating storage'),
-        click.option('--user',
-                     help='user for signing'),
         click.argument('name', metavar='NAME', required=False),
     ]
 
@@ -70,9 +68,8 @@ def create_command(storage_type):
     return decorator
 
 
-def _do_create(obj: ContextObj, type_, fields, name, user, container, update_container):
+def _do_create(obj: ContextObj, type_, fields, name, container, update_container):
     obj.loader.load_users()
-    user = obj.find_user(user)
 
     container_path, container_manifest = obj.loader.load_manifest(
         container, 'container')
@@ -84,8 +81,10 @@ def _do_create(obj: ContextObj, type_, fields, name, user, container, update_con
     click.echo(f'Using container: {container_path} ({container_mount_path})')
     fields['container_path'] = container_mount_path
 
+    container_signer = container_manifest.fields['signer']
+
     storage_path = obj.loader.create_storage(
-        user.signer, type_, fields, name)
+        container_signer, type_, fields, name)
     click.echo('Created: {}'.format(storage_path))
 
     if update_container:
