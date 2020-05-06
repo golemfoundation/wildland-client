@@ -56,7 +56,7 @@ def create_command(storage_type):
         click.option('--container', metavar='CONTAINER',
                      required=True,
                      help='Container this storage is for'),
-        click.option('--update-container', '-u', is_flag=True,
+        click.option('--update-container/--no-update-container', '-u/-n', default=True,
                      help='Update the container after creating storage'),
         click.option('--user',
                      help='user for signing'),

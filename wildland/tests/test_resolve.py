@@ -77,14 +77,14 @@ def setup(base_dir, cli):
     cli('container', 'create', 'Container1', '--path', '/path')
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
-        '--container', 'Container1', '--update-container')
+        '--container', 'Container1')
 
     cli('container', 'create', 'Container2',
         '--path', '/path/subpath',
         '--path', '/other/path')
     cli('storage', 'create', 'local', 'Storage2',
         '--path', base_dir / 'storage2',
-        '--container', 'Container2', '--update-container')
+        '--container', 'Container2')
 
     os.mkdir(base_dir / 'storage1/other/')
     # TODO copy storage manifest as well

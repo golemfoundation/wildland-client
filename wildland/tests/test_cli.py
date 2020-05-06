@@ -115,7 +115,7 @@ def test_storage_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
-        '--container', 'Container')
+        '--container', 'Container', '--no-update-container')
     with open(base_dir / 'storage/Storage.yaml') as f:
         data = f.read()
 
@@ -127,7 +127,7 @@ def test_storage_create_update_container(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
-        '--container', 'Container', '--update-container')
+        '--container', 'Container')
 
     with open(base_dir / 'containers/Container.yaml') as f:
         data = f.read()
@@ -169,7 +169,7 @@ def test_container_update(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH')
 
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
-        '--container', 'Container')
+        '--container', 'Container', '--no-update-container')
     cli('container', 'update', 'Container', '--storage', 'Storage')
 
     with open(base_dir / 'containers/Container.yaml') as f:
@@ -193,7 +193,7 @@ def test_container_mount(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
-        '--container', 'Container', '--update-container')
+        '--container', 'Container')
 
     with open(base_dir / 'containers/Container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
