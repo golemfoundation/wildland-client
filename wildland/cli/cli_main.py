@@ -51,14 +51,15 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
     help='use dummy signatures')
 @click.option('--base-dir', default=None,
     help='base directory for configuration')
-@click.option('--verbose', '-v', help='output logs')
+@click.option('--verbose', '-v', count=True,
+              help='output logs (repeat for more verbosity)')
 @click.version_option(_version)
 @click.pass_context
 def main(ctx, base_dir, dummy, verbose):
     # pylint: disable=missing-docstring
     ctx.obj = ContextObj(ManifestLoader(dummy=dummy, base_dir=base_dir))
-    if verbose:
-        init_logging()
+    if verbose > 0:
+        init_logging(level='DEBUG' if verbose > 1 else 'INFO')
 
 
 main.add_command(cli_user.user)
