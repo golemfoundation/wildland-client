@@ -27,8 +27,7 @@ import pytest
 
 from ..manifest.loader import ManifestLoader
 from ..storage.local import LocalStorage
-from ..resolve import WildlandPath, PathError, resolve_local, \
-    read_file, write_file
+from ..resolve import WildlandPath, PathError, Search
 
 
 ## Path
@@ -104,28 +103,35 @@ def loader(setup, base_dir):
         loader.close()
 
 
-def test_resolve_local(base_dir, loader):
-    storage, relpath = resolve_local(loader, PurePosixPath('/path/foo'), '0xaaa')
+def test_resolve_first(base_dir, loader):
+    search = Search(loader, WildlandPath.from_str(':/path'), '0xaaa')
+    search.resolve_first()
+    assert search.steps[0].container_path == PurePosixPath('/path')
+
+    storage = search.find_storage()
     assert isinstance(storage, LocalStorage)
     assert storage.root == base_dir / 'storage1'
-    assert relpath == PurePosixPath('foo')
 
-    storage, relpath = resolve_local(loader, PurePosixPath('/path/subpath/foo'), '0xaaa')
+    search = Search(loader, WildlandPath.from_str(':/path/subpath'), '0xaaa')
+    search.resolve_first()
+    assert search.steps[0].container_path == PurePosixPath('/path/subpath')
+
+    storage = search.find_storage()
     assert isinstance(storage, LocalStorage)
     assert storage.root == base_dir / 'storage2'
-    assert relpath == PurePosixPath('foo')
 
 
 def test_read_file(base_dir, loader):
     with open(base_dir / 'storage1/file.txt', 'w') as f:
         f.write('Hello world')
-    data = read_file(loader, WildlandPath.from_str(':/path/file.txt'), '0xaaa')
+    search = Search(loader, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
+    data = search.read_file()
     assert data == b'Hello world'
 
 
 def test_write_file(base_dir, loader):
-    write_file(b'Hello world', loader, WildlandPath.from_str(':/path/file.txt'),
-               '0xaaa')
+    search = Search(loader, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
+    search.write_file(b'Hello world')
     with open(base_dir / 'storage1/file.txt') as f:
         assert f.read() == 'Hello world'
 
@@ -133,5 +139,6 @@ def test_write_file(base_dir, loader):
 def test_read_file_traverse(base_dir, loader):
     with open(base_dir / 'storage2/file.txt', 'w') as f:
         f.write('Hello world')
-    data = read_file(loader, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
+    search = Search(loader, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
+    data = search.read_file()
     assert data == b'Hello world'

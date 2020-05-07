@@ -25,20 +25,21 @@ import sys
 
 import click
 
-from .. import resolve
+from .cli_base import ContextObj
+from ..resolve import WildlandPath, Search
+
 
 @click.command(short_help='send a file')
 @click.argument('local_path', required=False)
 @click.argument('wlpath')
-@click.pass_context
-def put(ctx, local_path, wlpath):
+@click.pass_obj
+def put(obj: ContextObj, local_path, wlpath):
     '''
     Put a file under Wildland path. Reads from stdout or from a file.
     '''
 
-    wlpath = resolve.WildlandPath.from_str(wlpath)
-    ctx.obj.loader.load_users()
-    default_user = ctx.obj.loader.find_default_user()
+    wlpath = WildlandPath.from_str(wlpath)
+    obj.loader.load_users()
 
     if local_path:
         with open(local_path, 'rb') as f:
@@ -46,27 +47,25 @@ def put(ctx, local_path, wlpath):
     else:
         data = sys.stdin.buffer.read()
 
-    resolve.write_file(
-        data, ctx.obj.loader, wlpath,
-        default_user.signer if default_user else None)
+    search = Search(obj.loader, wlpath)
+    search.write_file(data)
 
 
 @click.command(short_help='download a file')
 @click.argument('wlpath')
 @click.argument('local_path', required=False)
-@click.pass_context
-def get(ctx, wlpath, local_path):
+@click.pass_obj
+def get(obj: ContextObj, wlpath, local_path):
     '''
     Get a file, given its Wildland path. Saves to stdout or to a file.
     '''
 
-    wlpath = resolve.WildlandPath.from_str(wlpath)
-    ctx.obj.loader.load_users()
-    default_user = ctx.obj.loader.find_default_user()
+    wlpath = WildlandPath.from_str(wlpath)
+    obj.loader.load_users()
 
-    data = resolve.read_file(
-        ctx.obj.loader, wlpath,
-        default_user.signer if default_user else None)
+    search = Search(obj.loader, wlpath)
+    data = search.read_file()
+
     if local_path:
         with open(local_path, 'wb') as f:
             f.write(data)

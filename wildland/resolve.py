@@ -21,11 +21,12 @@
 Utilities for URL resolving and traversing the path
 '''
 
-from pathlib import PurePosixPath
-from typing import List, Optional, Tuple
+from pathlib import PurePosixPath, Path
+from typing import List, Optional
 import os
 import re
 import logging
+from dataclasses import dataclass
 
 from .manifest.manifest import Manifest
 from .manifest.loader import ManifestLoader
@@ -43,113 +44,149 @@ class PathError(WildlandError):
     '''
 
 
-def read_file(loader: ManifestLoader, wlpath: 'WildlandPath',
-              default_signer: Optional[str]) -> bytes:
+@dataclass
+class Step:
     '''
-    Resolve the path and load a file under a given path.
-    '''
-    signer = wlpath.signer or default_signer
-    if signer is None:
-        raise PathError('Could not find default user for path')
-
-    storage, relpath = resolve_full(loader, wlpath.parts, signer)
-    return storage_read_file(storage, relpath)
-
-
-def write_file(data: bytes, loader: ManifestLoader, wlpath: 'WildlandPath',
-               default_signer: Optional[str]) -> bytes:
-    '''
-    Resolve the path and save a file under a given path.
-    '''
-    signer = wlpath.signer or default_signer
-    if signer is None:
-        raise PathError('Could not find default user for path')
-
-    storage, relpath = resolve_full(loader, wlpath.parts, signer)
-    return storage_write_file(data, storage, relpath)
-
-
-def resolve_full(loader: ManifestLoader, parts: List[PurePosixPath], signer: str):
-    '''
-    Find a container and storage for a given path, traversing intermediate
-    manifests, if necessary.
-
-    Return a Storage and relative path.
+    A single step of a resolved path.
     '''
 
-    storage, relpath = resolve_local(loader, parts[0], signer)
+    container: Container
+    manifest_path: Optional[Path]
+    container_path: PurePosixPath
 
-    if len(parts) == 1:
-        return storage, relpath
 
-    if relpath != PurePosixPath('.'):
-        raise PathError('Not a container path: {}'.format(relpath))
+class Search:
+    '''
+    A class for traversing a Wildland path.
 
-    for part in parts[1:-1]:
+    Usage:
+
+        search = Search(loader, wlpath)
+        search.read_file()
+    '''
+
+    def __init__(self, loader: ManifestLoader, wlpath: 'WildlandPath',
+                 default_signer: Optional[str] = None):
+        self.loader = loader
+        self.wlpath = wlpath
+        self.signer = wlpath.signer or default_signer or loader.config.get('default_user')
+        if self.signer is None:
+            raise PathError('Could not find default user for path')
+
+        # Each step correspond to a given part of the WildlandPath.
+        self.steps: List[Step] = []
+
+    @property
+    def last_part(self) -> PurePosixPath:
+        '''
+        Last part of the Wildland path.
+        '''
+
+        return self.wlpath.parts[-1]
+
+    @property
+    def current_part(self) -> PurePosixPath:
+        '''
+        Current part, after the steps we have already resolved.
+        '''
+
+        return self.wlpath.parts[-1]
+
+    def read_file(self) -> bytes:
+        '''
+        Read a file under the Wildland path.
+        '''
+
+        self.resolve_until_last()
+        storage = self.find_storage()
+        return storage_read_file(storage, self.last_part.relative_to('/'))
+
+    def write_file(self, data: bytes):
+        '''
+        Read a file under the Wildland path.
+        '''
+
+        self.resolve_until_last()
+        storage = self.find_storage()
+        return storage_write_file(data, storage, self.last_part.relative_to('/'))
+
+    def resolve_until_last(self):
+        '''
+        Resolve all path parts until the last one. Use if you want to interpret
+        the last part as a file path.
+        '''
+
+        assert len(self.steps) == 0
+        if len(self.wlpath.parts) == 1:
+            return
+
+        self.resolve_first()
+        while len(self.steps) < len(self.wlpath.parts) - 1:
+            self.resolve_next()
+
+    def find_storage(self):
+        '''
+        Find a storage for the latest resolved part.
+        '''
+
+        assert len(self.steps) > 0
+        step = self.steps[-1]
+        # TODO: resolve manifest path in the context of the container
+        # TODO: accept local storage only as long as the whole chain is local
+        storage_manifest = step.container.select_storage(self.loader)
+        return AbstractStorage.from_manifest(storage_manifest, uid=0, gid=0)
+
+    def resolve_first(self):
+        '''
+        Resolve the first path part. The first part is special because we are
+        looking up the manifest locally.
+        '''
+
+        assert len(self.steps) == 0
+        container_path = self.wlpath.parts[0]
+
+        for manifest_path, manifest in self.loader.load_manifests('container'):
+            container = Container(manifest)
+            if (container.signer == self.signer and
+                container_path in container.paths):
+
+                logger.info('%s: local container: %s', container_path,
+                            manifest_path)
+                step = Step(container, manifest_path, container_path)
+                self.steps.append(step)
+                return
+
+        raise PathError(f'Container not found for path: {container_path}')
+
+    def resolve_next(self):
+        '''
+        Resolve next part by looking up a manifest in the current container.
+        '''
+
+        assert 0 < len(self.steps) < len(self.wlpath.parts)
+        storage = self.find_storage()
+        part = self.wlpath.parts[len(self.steps)]
         manifest_path = part.relative_to('/').with_suffix('.yaml')
+
         try:
             manifest_content = storage_read_file(storage, manifest_path)
         except FileNotFoundError:
             raise PathError(f'Could not find manifest: {manifest_path}')
-
         logger.info('%s: container manifest: %s', part, manifest_path)
 
-        manifest = Manifest.from_bytes(manifest_content, loader.sig,
+        manifest = Manifest.from_bytes(manifest_content, self.loader.sig,
                                        schema=Container.SCHEMA)
-        if manifest.fields['signer'] != signer:
+        if manifest.fields['signer'] != self.signer:
             raise PathError(
                 'Unexpected signer for {}: {} (expected {})'.format(
-                    manifest_path, manifest.fields['signer'], signer
+                    manifest_path, manifest.fields['signer'], self.signer
                 ))
         container = Container(manifest)
         if part not in container.paths:
             logger.warning('%s: path not found in manifest: %s',
                            part, manifest_path)
-        # TODO: resolve manifest path in the context of the container
-        # TODO: accept local storage only as long as the whole chain is local
-        storage_manifest = container.select_storage(loader)
-        storage = AbstractStorage.from_manifest(storage_manifest, uid=0, gid=0)
-    return storage, parts[-1].relative_to('/')
-
-
-def resolve_local(loader: ManifestLoader, path: PurePosixPath, signer: str) \
-    -> Tuple[AbstractStorage, PurePosixPath]:
-    '''
-    Find a local container and storage for a given path.
-    Return a Storage and relative path.
-    '''
-
-    best_container = None
-    best_container_path = None
-    best_relpath = None
-    containers = [
-        Container(manifest)
-        for mpath, manifest in loader.load_manifests('container')
-    ]
-    for container in containers:
-        if container.signer != signer:
-            continue
-
-        for container_path in container.paths:
-            try:
-                relpath = path.relative_to(container_path)
-            except ValueError:
-                continue
-            if best_container is None or len(best_relpath.parts) > len(relpath.parts):
-                best_container = container
-                best_container_path = container_path
-                best_relpath = relpath
-
-    if best_container is None:
-        raise PathError(f'Container not found for path: {path}')
-
-    storage_manifest = best_container.select_storage(loader)
-    storage = AbstractStorage.from_manifest(storage_manifest, uid=0, gid=0)
-
-    logger.info('%s: local container: %s', best_container_path, path)
-
-    assert best_relpath
-    return storage, best_relpath
+        step = Step(container, None, part)
+        self.steps.append(step)
 
 
 def storage_read_file(storage, relpath) -> bytes:
