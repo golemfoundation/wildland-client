@@ -51,7 +51,7 @@ class ContextObj:
     def read_manifest_file(self,
                            name: Optional[str],
                            manifest_type: Optional[str]) \
-                           -> Tuple[bytes, Optional[Path]]:
+                           -> Tuple[Optional[Path], bytes]:
         '''
         Read a manifest file specified by name. Recognize None as stdin.
 
@@ -59,17 +59,11 @@ class ContextObj:
         '''
 
         if name is None:
-            return (sys.stdin.buffer.read(), None)
+            return (None, sys.stdin.buffer.read())
 
-        path = self.loader.find_manifest(name, manifest_type)
-        if not path:
-            if manifest_type:
-                raise CliError(
-                    f'{manifest_type.title()} manifest not found: {name}')
-            raise CliError(f'Manifest not found: {name}')
-        print(f'Loading: {path}')
-        with open(path, 'rb') as f:
-            return (f.read(), path)
+        path, data = self.loader.read_manifest(name, manifest_type)
+        print(f'Loading manifest: {path}')
+        return path, data
 
     def find_user(self, name: Optional[str]) -> User:
         '''
@@ -78,13 +72,12 @@ class ContextObj:
 
         if name:
             user = self.loader.find_user(name)
-            if not user:
-                raise CliError(f'User not found: {name}')
             print(f'Using user: {user.signer}')
             return user
-        user = self.loader.find_default_user()
-        if user is None:
+
+        default_user = self.loader.find_default_user()
+        if default_user is None:
             raise CliError(
                 'Default user not set, you need to provide --user')
-        print(f'Using default user: {user.signer}')
-        return user
+        print(f'Using default user: {default_user.signer}')
+        return default_user
