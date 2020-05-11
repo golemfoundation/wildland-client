@@ -50,7 +50,8 @@ class ContextObj:
 
     def read_manifest_file(self,
                            name: Optional[str],
-                           manifest_type: Optional[str]) \
+                           manifest_type: Optional[str],
+                           remote: bool = False) \
                            -> Tuple[Optional[Path], bytes]:
         '''
         Read a manifest file specified by name. Recognize None as stdin.
@@ -61,7 +62,8 @@ class ContextObj:
         if name is None:
             return (None, sys.stdin.buffer.read())
 
-        path, data = self.loader.read_manifest(name, manifest_type)
+        path, data = self.loader.read_manifest(name, manifest_type,
+                                               remote=remote)
         print(f'Loading manifest: {path}')
         return path, data
 

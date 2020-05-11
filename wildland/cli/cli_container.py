@@ -133,7 +133,7 @@ def mount(obj: ContextObj, cont):
     obj.client.ensure_mounted()
     obj.loader.load_users()
 
-    path, manifest = obj.loader.load_manifest(cont, 'container')
+    path, manifest = obj.loader.load_manifest(cont, 'container', remote=True)
     if not manifest:
         raise click.ClickException(f'Not found: {cont}')
 
@@ -160,7 +160,8 @@ def unmount(obj: ContextObj, path: str, cont):
         raise click.UsageError('Specify either container or --path')
 
     if cont:
-        _container_path, manifest = obj.loader.load_manifest(cont, 'container')
+        _container_path, manifest = obj.loader.load_manifest(cont, 'container',
+                                                             remote=True)
         if not manifest:
             raise click.ClickException(f'Not found: {cont}')
 

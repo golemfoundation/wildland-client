@@ -163,6 +163,8 @@ class WildlandFSClient:
         '''
         Mount a container.
         '''
+        if self.find_storage_id(container) is not None:
+            raise WildlandFSError('Already mounted')
         command = self.get_command_for_mount_container(container)
         self.write_control('mount', json.dumps(command).encode())
 

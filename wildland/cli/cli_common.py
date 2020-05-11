@@ -99,7 +99,7 @@ def verify(ctx, input_file):
         manifest_type = None
 
     obj.loader.load_users()
-    _path, data = obj.read_manifest_file(input_file, manifest_type)
+    _path, data = obj.read_manifest_file(input_file, manifest_type, remote=True)
     try:
         manifest = Manifest.from_bytes(data, obj.loader.sig,
                                        self_signed=(manifest_type == 'user'))
