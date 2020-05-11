@@ -25,6 +25,7 @@ from pathlib import Path
 import os
 from typing import Optional, Dict, Any, List, Tuple
 import uuid
+import warnings
 
 import yaml
 
@@ -56,12 +57,19 @@ class ManifestLoader:
             self.sig = GpgSigContext(self.config.get('gpg_home'))
 
         self.users = []
+        self.closed = False
 
     def close(self):
         '''
         Clean up.
         '''
         self.sig.close()
+        self.closed = True
+
+    def __del__(self):
+        if not self.closed:
+            warnings.warn('ManifestLoader: not closed', ResourceWarning)
+            self.close()
 
     def load_users(self):
         '''

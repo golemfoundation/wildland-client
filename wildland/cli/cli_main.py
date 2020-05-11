@@ -24,6 +24,7 @@ Wildland command-line interface.
 import os
 from pathlib import Path
 import json
+import atexit
 
 import click
 
@@ -57,7 +58,11 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 @click.pass_context
 def main(ctx, base_dir, dummy, verbose):
     # pylint: disable=missing-docstring
-    ctx.obj = ContextObj(ManifestLoader(dummy=dummy, base_dir=base_dir))
+
+    loader = ManifestLoader(dummy=dummy, base_dir=base_dir)
+    # TODO: Is there a better way to ensure close?
+    atexit.register(loader.close)
+    ctx.obj = ContextObj(loader)
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
 
