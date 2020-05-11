@@ -166,6 +166,6 @@ def test_unmount_traverse(cli, loader, base_dir):
 
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({
-            f'/.users/0xaaa{path}': 101,
+            f'/.users/0xaaa{path}': [101],
         }, f)
     cli('container', 'unmount', ':/path:/other/path')

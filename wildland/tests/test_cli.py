@@ -238,9 +238,9 @@ def test_container_unmount(cli, base_dir):
 
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({
-            f'/.users/0xaaa{path}': 101,
-            path: 102,
-            '/PATH2': 103,
+            f'/.users/0xaaa{path}': [101],
+            path: [102],
+            '/PATH2': [103],
         }, f)
     cli('container', 'unmount', 'Container')
 
@@ -253,8 +253,8 @@ def test_container_unmount_by_path(cli, base_dir):
 
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({
-            '/PATH': 101,
-            '/PATH2': 102,
+            '/PATH': [101],
+            '/PATH2': [102],
         }, f)
     cli('container', 'unmount', '--path', '/PATH2')
 

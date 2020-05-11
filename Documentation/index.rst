@@ -12,6 +12,7 @@ Welcome to Wildland's documentation!
 
    setup
    fuse-driver
+   conflict
    manifests
    cli
    internals
