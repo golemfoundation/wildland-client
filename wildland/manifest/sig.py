@@ -25,6 +25,7 @@ Module for handling signatures. Currently provides two backends: GPG, and a
 import tempfile
 import shutil
 from typing import TypeVar, Tuple, Optional
+import os
 
 import gnupg
 
@@ -169,7 +170,11 @@ class GpgSigContext(SigContext):
         return self
 
     def close(self):
-        self.keyring_file.close()
+        if os.path.exists(self.keyring_file.name):
+            self.keyring_file.close()
+        # GPG backup
+        if os.path.exists(self.keyring_file.name + '~'):
+            os.unlink(self.keyring_file.name + '~')
 
     @staticmethod
     def convert_fingerprint(fingerprint):

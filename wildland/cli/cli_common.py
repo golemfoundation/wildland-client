@@ -25,7 +25,7 @@ import sys
 
 import click
 
-from .cli_base import ContextObj, CliError
+from .cli_base import ContextObj
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
@@ -62,9 +62,8 @@ def sign(ctx, input_file, output_file, in_place):
             raise click.ClickException('Cannot use both -i and -o')
 
     obj.loader.load_users()
-    data, path = obj.read_manifest_file(input_file, manifest_type)
-    if not path:
-        raise CliError(f'Manifest not found: {input_file}')
+    path, data = obj.read_manifest_file(input_file, manifest_type)
+    assert path
 
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type:
@@ -100,7 +99,7 @@ def verify(ctx, input_file):
         manifest_type = None
 
     obj.loader.load_users()
-    data, _path = obj.read_manifest_file(input_file, manifest_type)
+    _path, data = obj.read_manifest_file(input_file, manifest_type, remote=True)
     try:
         manifest = Manifest.from_bytes(data, obj.loader.sig,
                                        self_signed=(manifest_type == 'user'))
@@ -130,9 +129,10 @@ def edit(ctx, editor, input_file):
     if manifest_type == 'main':
         manifest_type = None
 
-    data, path = obj.read_manifest_file(input_file, manifest_type)
-    if not path:
-        raise CliError(f'Manifest not found: {input_file}')
+    obj.loader.load_users()
+
+    path, data = obj.read_manifest_file(input_file, manifest_type)
+    assert path
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)

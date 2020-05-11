@@ -199,6 +199,9 @@ def test_container_mount(cli, base_dir):
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+
     cli('container', 'mount', 'Container')
 
     # The command should write container manifest to .control/mount.
@@ -244,6 +247,7 @@ def test_container_unmount(cli, base_dir):
     with open(base_dir / 'mnt/.control/unmount') as f:
         data = f.read()
     assert data == '101'
+
 
 def test_container_unmount_by_path(cli, base_dir):
 

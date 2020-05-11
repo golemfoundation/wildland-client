@@ -22,6 +22,8 @@
 from pathlib import PurePosixPath
 import os
 import shutil
+import json
+import yaml
 
 import pytest
 
@@ -142,3 +144,28 @@ def test_read_file_traverse(base_dir, loader):
     search = Search(loader, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
+
+
+def test_verify_traverse(cli, loader):
+    # pylint: disable=unused-argument
+    cli('container', 'verify', ':/path:/other/path')
+
+
+def test_mount_traverse(cli, loader, base_dir):
+    # pylint: disable=unused-argument
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+    cli('container', 'mount', ':/path:/other/path')
+
+
+def test_unmount_traverse(cli, loader, base_dir):
+    # pylint: disable=unused-argument
+    with open(base_dir / 'containers/Container2.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({
+            f'/.users/0xaaa{path}': 101,
+        }, f)
+    cli('container', 'unmount', ':/path:/other/path')

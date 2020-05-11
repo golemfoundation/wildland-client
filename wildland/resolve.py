@@ -22,7 +22,7 @@ Utilities for URL resolving and traversing the path
 '''
 
 from pathlib import PurePosixPath, Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import os
 import re
 import logging
@@ -71,7 +71,7 @@ class Search:
         self.wlpath = wlpath
         self.signer = wlpath.signer or default_signer or loader.config.get('default_user')
         if self.signer is None:
-            raise PathError('Could not find default user for path')
+            raise PathError('Could not find default user for path: {wlpath}')
 
         # Each step correspond to a given part of the WildlandPath.
         self.steps: List[Step] = []
@@ -92,6 +92,24 @@ class Search:
 
         return self.wlpath.parts[-1]
 
+    def read_container(self, remote: bool) -> Tuple[Container, Optional[Path]]:
+        '''
+        Read a container manifest represented by the path. Returns
+        ``(container, manifest_path)``.
+
+        If 'remote' is true, we are allowed to traverse the Wildland path
+        further. If we do, the manifest path will be null.
+        '''
+        if remote:
+            self.resolve_all()
+            return self.steps[-1].container, self.steps[-1].manifest_path
+
+        if len(self.wlpath.parts) > 1:
+            raise PathError(f'Expecting a local path: {self.wlpath}')
+
+        self.resolve_first()
+        return self.steps[0].container, self.steps[0].manifest_path
+
     def read_file(self) -> bytes:
         '''
         Read a file under the Wildland path.
@@ -109,6 +127,17 @@ class Search:
         self.resolve_until_last()
         storage = self.find_storage()
         return storage_write_file(data, storage, self.last_part.relative_to('/'))
+
+    def resolve_all(self):
+        '''
+        Resolve all path parts, including the last one. Use if you want to
+        interpret the path as a manifest path.
+        '''
+
+        assert len(self.steps) == 0
+        self.resolve_first()
+        while len(self.steps) < len(self.wlpath.parts):
+            self.resolve_next()
 
     def resolve_until_last(self):
         '''
@@ -234,13 +263,27 @@ class WildlandPath:
     '''
 
     ABSPATH_RE = re.compile(r'^/.*$')
-    FINGERPRINT_RE = re.compile('^0x[0-9a-f]+$')
-
+    FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
+    WLPATH_RE = re.compile(r'^(0x[0-9a-f]+)?:')
 
     def __init__(self, signer: Optional[str], parts: List[PurePosixPath]):
         assert len(parts) > 0
         self.signer = signer
         self.parts = parts
+
+    @classmethod
+    def match(cls, s: str) -> bool:
+        '''
+        Check if a string should be recognized as a Wildland path.
+
+        To be used when distinguishing Wildland paths from other identifiers
+        (local paths, URLs).
+
+        Note that this doesn't guarantee that the WildlandPath.from_str() will
+        succeed in parsing the path.
+        '''
+
+        return cls.WLPATH_RE.match(s) is not None
 
     @classmethod
     def from_str(cls, s: str) -> 'WildlandPath':

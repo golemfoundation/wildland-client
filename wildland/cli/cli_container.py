@@ -79,10 +79,8 @@ def update(obj: ContextObj, storage, cont):
 
     storages = list(manifest.fields['backends']['storage'])
     for storage_name in storage:
-        storage_path = obj.loader.find_manifest(storage_name, 'storage')
-        if not storage_path:
-            raise click.ClickException(
-                f'Storage manifest not found: {storage_name}')
+        storage_path, _storage_data = obj.loader.read_manifest(storage_name, 'storage')
+        assert storage_path
         print(f'Adding storage: {storage_path}')
         if str(storage_path) in storages:
             raise click.ClickException('Storage already attached to container')
@@ -135,7 +133,7 @@ def mount(obj: ContextObj, cont):
     obj.client.ensure_mounted()
     obj.loader.load_users()
 
-    path, manifest = obj.loader.load_manifest(cont, 'container')
+    path, manifest = obj.loader.load_manifest(cont, 'container', remote=True)
     if not manifest:
         raise click.ClickException(f'Not found: {cont}')
 
@@ -162,7 +160,8 @@ def unmount(obj: ContextObj, path: str, cont):
         raise click.UsageError('Specify either container or --path')
 
     if cont:
-        _container_path, manifest = obj.loader.load_manifest(cont, 'container')
+        _container_path, manifest = obj.loader.load_manifest(cont, 'container',
+                                                             remote=True)
         if not manifest:
             raise click.ClickException(f'Not found: {cont}')
 

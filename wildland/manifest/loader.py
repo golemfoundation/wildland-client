@@ -25,6 +25,7 @@ from pathlib import Path
 import os
 from typing import Optional, Dict, Any, List, Tuple
 import uuid
+import warnings
 
 import yaml
 
@@ -56,12 +57,19 @@ class ManifestLoader:
             self.sig = GpgSigContext(self.config.get('gpg_home'))
 
         self.users = []
+        self.closed = False
 
     def close(self):
         '''
         Clean up.
         '''
         self.sig.close()
+        self.closed = True
+
+    def __del__(self):
+        if not self.closed:
+            warnings.warn('ManifestLoader: not closed', ResourceWarning)
+            self.close()
 
     def load_users(self):
         '''
@@ -87,15 +95,19 @@ class ManifestLoader:
         self.sig.add_pubkey(user.pubkey)
         return user
 
-    def find_user(self, name) -> Optional[User]:
+    def find_user(self, name) -> User:
         '''
         CLI helper: find (and load) user by name.
         '''
 
-        path = self.find_manifest(name, 'user')
-        if not path:
-            return None
-        return self.load_user(path)
+        path, data = self.read_manifest(name, 'user')
+        manifest = Manifest.from_bytes(data, self.sig, User.SCHEMA,
+                                       self_signed=True)
+        user = User(manifest, path)
+
+        self.users.append(user)
+        self.sig.add_pubkey(user.pubkey)
+        return user
 
     def find_default_user(self) -> Optional[User]:
         '''
@@ -108,31 +120,62 @@ class ManifestLoader:
                 return user
         return None
 
-    def find_manifest(self, name, manifest_type=None) -> Optional[Path]:
+    def read_manifest(self, name, manifest_type=None, *, remote=False) \
+        -> Tuple[Optional[Path], bytes]:
         '''
-        CLI helper: find manifest by name.
+        CLI helper: find manifest by description and read it.
+
+        The name can be:
+        - a local path (ending with '.yaml')
+        - short name, in which case it's loaded from the appropriate manifest
+        directory
+        - Wildland path (such as :/foo/bar)
+
+        If 'remote' is true, also traverse the Wildland path further. In this
+        case, the method might read a manifest that is not available locally.
+
+        Note that in case of Wildland path, we will also verify the manifest
+        during loading, so loading malformed manifest is not possible.
         '''
 
+        # TODO: This is circular dependency with resolve.py, refactor
+        # pylint: disable=import-outside-toplevel, cyclic-import
+        from ..resolve import WildlandPath, Search
+
+        # TODO: Possibly return WildlandPath
+        # TODO: Return the context with appropriate signing keys imported
+
+        # Wildland path
+        if WildlandPath.match(name):
+            if manifest_type not in ['container']:
+                raise ManifestError('Wildland paths are supported for containers only')
+
+            wlpath = WildlandPath.from_str(name)
+            search = Search(self, wlpath)
+            container, manifest_path = search.read_container(remote=remote)
+            return manifest_path, container.manifest.to_bytes()
+
+        # Short name
         if not name.endswith('.yaml') and manifest_type is not None:
             path = self.manifest_dir(manifest_type) / f'{name}.yaml'
             if os.path.exists(path):
-                return path
+                return path, path.read_bytes()
 
+        # Local path
         if os.path.exists(name):
-            return Path(name)
+            path = Path(name)
+            return path, path.read_bytes()
 
-        return None
+        raise ManifestError(f'Manifest not found: {name}')
 
-    def load_manifest(self, name, manifest_type=None) \
-        -> Tuple[Optional[Path], Optional[Manifest]]:
+    def load_manifest(self, name, manifest_type=None, *, remote=False) \
+        -> Tuple[Optional[Path], Manifest]:
         '''
         CLI helper: find manifest by name, and load it.
         '''
 
-        path = self.find_manifest(name, manifest_type)
-        if not path:
-            return None, None
-        manifest = Manifest.from_file(path, self.sig)
+        path, data = self.read_manifest(name, manifest_type, remote=remote)
+        manifest = Manifest.from_bytes(data, self.sig)
         self.validate_manifest(manifest, manifest_type)
         return (path, manifest)
 
