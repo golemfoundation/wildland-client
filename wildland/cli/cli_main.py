@@ -91,7 +91,7 @@ def _do_mount_containers(to_mount):
             with open(ctx.obj.mount_dir / '.control/mount', 'wb') as f:
                 f.write(json.dumps(command).encode())
         except IOError as e:
-            ctx.obj.unmount()
+            ctx.obj.client.unmount()
             raise click.ClickException(f'Failed to mount {path}: {e}')
 
 
