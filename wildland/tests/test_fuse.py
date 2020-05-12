@@ -22,7 +22,6 @@
 import os
 import stat
 import errno
-import shutil
 import subprocess
 import json
 
@@ -88,7 +87,7 @@ def test_list_not_found(env):
 
 def test_stat_dir(env):
     st = os.stat(env.mnt_dir)
-    assert st.st_mode == 0o755 | stat.S_IFDIR
+    assert st.st_mode == 0o555 | stat.S_IFDIR
 
 
 def test_stat_not_found(env):
@@ -149,8 +148,8 @@ def test_container_mkdir_rmdir(env, container):
 def test_control_paths(env, container):
     text = (env.mnt_dir / '.control/paths').read_text()
     assert json.loads(text) == {
-        '/.control': 0,
-        '/' + container: 1,
+        '/.control': [0],
+        '/' + container: [1],
     }
 
 
@@ -184,14 +183,6 @@ def test_cmd_mount(env, container, storage_type):
         'container1',
         'container2',
     ]
-
-
-def test_cmd_mount_path_collision(env, container, storage_type):
-    storage = storage_manifest(env, 'storage2.yaml', storage_type)
-    env.mount_storage(['/container2'], storage)
-    with pytest.raises(IOError) as e:
-        env.mount_storage(['/container2'], storage)
-    assert e.value.errno == errno.EINVAL
 
 
 def test_cmd_unmount(env, container):
@@ -240,23 +231,32 @@ def test_mount_no_directory(env, container, storage_type):
 
 
 def test_nested_mounts(env, storage_type):
-    # Test setup:
-    #
-    # CONTAINER 1            CONTAINER 2
-    #
-    # /container1
-    #   file-c1
-    #   nested1/             nested1/ (shadows container 1)
-    #     file-c1-nested       file-c2-nested
-    #                        nested2/
-    #                          file-c2-nested
+    '''
+    This is an integration test for conflict resolution.
+    See also test_conflict.py for detailed unit tests.
+
+    Test setup:
+
+    CONTAINER 1            CONTAINER 2
+
+    /container1
+      file-c1
+      nested1/             nested1/ (merges with container 1)
+        file-conflict        file-conflict
+        file-c1-nested       file-c2-nested
+                           nested2/
+                             file-conflict
+                             file-c2-nested
+    '''
 
     env.create_dir('storage/storage1')
     env.create_file('storage/storage1/file-c1')
     env.create_dir('storage/storage1/nested1')
     env.create_file('storage/storage1/nested1/file-c1-nested')
+    env.create_file('storage/storage1/nested1/file-conflict', content='c1')
 
     env.create_dir('storage/storage2/')
+    env.create_file('storage/storage2/file-conflict', content='c2')
     env.create_file('storage/storage2/file-c2-nested')
 
     storage1 = storage_manifest(env, 'storage/storage1', storage_type)
@@ -271,10 +271,11 @@ def test_nested_mounts(env, storage_type):
     ]
     assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
         'file-c1-nested',
+        'file-conflict',
     ]
 
 
-    # Mount container2: nested1 and nested2 should be shadowed
+    # Mount container2
     env.mount_storage(['/container1/nested1', '/container1/nested2'], storage2)
     assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
         'file-c1',
@@ -282,27 +283,51 @@ def test_nested_mounts(env, storage_type):
         'nested2',
     ]
     assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
+        'file-c1-nested',
         'file-c2-nested',
+        'file-conflict.wl.1',
+        'file-conflict.wl.2',
     ]
     assert os.path.isdir(env.mnt_dir / 'container1/nested2')
     assert sorted(os.listdir(env.mnt_dir / 'container1/nested2')) == [
         'file-c2-nested',
+        'file-conflict',
     ]
 
-    # Delete backing storage of container1: we can only see the mounts
-    shutil.rmtree(env.test_dir / 'storage/storage1')
-    env.refresh_storage(1)
-    assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
-        'nested1',
-        'nested2',
+    # I should be able to read and write to conflicted files
+    path1 = env.mnt_dir / 'container1/nested1/file-conflict.wl.1'
+    with open(path1) as f:
+        assert f.read() == 'c1'
+    with open(path1, 'w') as f:
+        f.write('new content')
+    os.sync()
+    with open(env.test_dir / 'storage/storage1/nested1/file-conflict') as f:
+        assert f.read() == 'new content'
+
+    # I shouldn't be able to remove the file, or create a new one
+    with pytest.raises(PermissionError):
+        os.unlink(path1)
+    with pytest.raises(PermissionError):
+        open(env.mnt_dir / 'container1/nested1/new-file', 'w')
+
+    # However, I can create a file under the second mount path...
+    with open(env.mnt_dir / 'container1/nested2/file-c1-nested', 'w'):
+        pass
+    assert sorted(os.listdir(env.mnt_dir / 'container1/nested2')) == [
+        'file-c1-nested',
+        'file-c2-nested',
+        'file-conflict',
     ]
 
-    # Unmount container1
-    env.unmount_storage(1)
-    assert sorted(os.listdir(env.mnt_dir / 'container1')) == [
-        'nested1',
-        'nested2',
+    # ...and that will cause a conflict and rename under the first path
+    assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
+        'file-c1-nested.wl.1',
+        'file-c1-nested.wl.2',
+        'file-c2-nested',
+        'file-conflict.wl.1',
+        'file-conflict.wl.2',
     ]
+
 
 def test_read_only(env, storage_type):
     env.create_dir('storage/storage1')

@@ -46,9 +46,9 @@ by Widland CLI. Structured data is passed using JSON.
 * ``.control/paths`` - paths and corresponding storages, by number::
 
       {
-        "/.control": 0,
-        "/container1": 1,
-        "/container2": 2,
+        "/.control": [0],
+        "/container1": [1],
+        "/container2": [2, 3],
       }
 
 * ``.control/storage/<NUM>`` - storage directories:

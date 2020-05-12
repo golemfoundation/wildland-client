@@ -26,7 +26,7 @@ import time
 from pathlib import Path, PurePosixPath
 import subprocess
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import json
 
 from .manifest.loader import ManifestLoader
@@ -189,9 +189,14 @@ class WildlandFSClient:
         '''
 
         paths = self.get_paths()
-        return paths.get(path)
+        storage_ids = paths.get(path)
+        if storage_ids is None:
+            return None
+        if len(storage_ids) > 1:
+            logger.warning('multiple storages found for path: %s', path)
+        return storage_ids[0]
 
-    def get_paths(self) -> Dict[PurePosixPath, int]:
+    def get_paths(self) -> Dict[PurePosixPath, List[int]]:
         '''
         Read a path -> container ID mapping.
         '''

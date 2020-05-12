@@ -25,7 +25,6 @@ import errno
 import logging
 import os
 from pathlib import PurePosixPath
-import stat
 import json
 from typing import List, Dict
 
@@ -33,6 +32,7 @@ import fuse
 fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
+from .conflict import ConflictResolver
 from .storage.base import AbstractStorage
 from .storage.control import ControlStorage
 from .storage.control_decorators import control_directory, control_file
@@ -54,7 +54,6 @@ class WildlandFS(fuse.Fuse):
 
         self.storages: Dict[int, AbstractStorage] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
-        self.paths: Dict[PurePosixPath, int] = {}
 
         self.uid = None
         self.gid = None
@@ -65,6 +64,8 @@ class WildlandFS(fuse.Fuse):
         # gives us, etc.)
         # (TODO: make code coverage work in multi-threaded mode)
         self.multithreaded = False
+
+        self.resolver = WildlandFSConflictResolver(self, 0, 0)
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
@@ -78,6 +79,9 @@ class WildlandFS(fuse.Fuse):
         self.uid, self.gid = os.getuid(), os.getgid()
 
         self.init_logging(self.cmdline[0])
+
+        self.resolver.uid = self.uid
+        self.resolver.gid = self.gid
 
         self.mount_storage(
             [PurePosixPath('/.control')],
@@ -104,10 +108,6 @@ class WildlandFS(fuse.Fuse):
         logging.info('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
 
-        intersection = set(self.paths).intersection(paths)
-        if intersection:
-            raise WildlandError('path collision: %r' % intersection)
-
         ident = 0
         while ident in self.storages:
             ident += 1
@@ -116,8 +116,6 @@ class WildlandFS(fuse.Fuse):
 
         self.storages[ident] = storage
         self.storage_paths[ident] = paths
-        for path in paths:
-            self.paths[path] = ident
 
     def unmount_storage(self, ident: int):
         '''Unmount a storage'''
@@ -130,46 +128,8 @@ class WildlandFS(fuse.Fuse):
                      storage, [str(p) for p in paths])
 
         # TODO check open files?
-        for path in paths:
-            assert path in self.paths
-            del self.paths[path]
         del self.storages[ident]
         del self.storage_paths[ident]
-
-    def resolve_path(self, path: PurePosixPath):
-        '''Given path inside Wildland mount, return which storage is
-        responsible, and a path relative to the container root.
-
-        The storage with longest prefix is returned.
-
-        :obj:`None`, :obj:`None` is returned if in no particular storage.
-        '''
-
-        for cpath in sorted(self.paths, key=lambda x: len(str(x)), reverse=True):
-            try:
-                relpath = path.relative_to(cpath)
-            except ValueError:
-                continue
-            else:
-                storage = self.storages[self.paths[cpath]]
-                return storage, relpath
-        return None, None
-
-
-    def is_on_path(self, path):
-        '''
-        Check if the given path is inside (but not a root) of at least one
-        container.
-        '''
-        for cpath in self.paths:
-            try:
-                relpath = cpath.relative_to(path)
-                if relpath.parts:
-                    return True
-            except ValueError:
-                continue
-        return False
-
 
     # pylint: disable=missing-docstring
 
@@ -204,7 +164,10 @@ class WildlandFS(fuse.Fuse):
 
     @control_file('paths')
     def control_paths(self):
-        result = {str(path): ident for path, ident in self.paths.items()}
+        result = {}
+        for ident, paths in self.storage_paths.items():
+            for path in paths:
+                result.setdefault(str(path), []).append(ident)
         return (json.dumps(result, indent=2) + '\n').encode()
 
     @control_directory('storage')
@@ -223,106 +186,42 @@ class WildlandFS(fuse.Fuse):
     def fsdestroy(self):
         logging.info('unmounting wildland')
 
-    def proxy(self, method_name, path, *args, **kwargs):
+    def proxy(self, method_name, path, *args,
+              parent=False,
+              **kwargs):
         '''
         Proxy a call to corresponding Storage.
+
+        If parent is true, resolve the path based on parent. This will apply
+        for calls that create a file or otherwise modify the parent directory.
         '''
 
         path = PurePosixPath(path)
-        storage, relpath = self.resolve_path(path)
-        if storage is None:
-            return -errno.ENOENT
+        to_resolve = path.parent if parent else path
+
+        _st, res = self.resolver.getattr_extended(to_resolve)
+        if not (res and res.is_inside):
+            return -errno.EACCES
+
+        storage = self.storages[res.ident]
         if not hasattr(storage, method_name):
             return -errno.ENOSYS
 
+        relpath = res.relpath / path.name if parent else res.relpath
         return getattr(storage, method_name)(relpath, *args, **kwargs)
 
     def open(self, path, flags):
         return self.proxy('open', path, flags)
 
     def create(self, path, flags, mode):
-        return self.proxy('create', path, flags, mode)
+        return self.proxy('create', path, flags, mode, parent=True)
 
     def getattr(self, path):
-        path = PurePosixPath(path)
-
-        # XXX there is a problem, when the path exists, but is also on_path
-        #   - it can be not a directory
-        #   - it can have conflicting permissions (might it be possible to deny
-        #     access to other container?)
-
-        storage, relpath = self.resolve_path(path)
-
-        if storage is not None:
-            try:
-                return storage.getattr(relpath)
-            except FileNotFoundError:
-                # maybe this is on path to next container, so we have to
-                # check is on path; if that would not be the case, we'll
-                # raise -ENOENT later anyway
-                pass
-
-        if self.is_on_path(path):
-            return fuse.Stat(
-                st_mode=0o755 | stat.S_IFDIR,
-                st_nlink=0, # XXX is this OK?
-                st_uid=self.uid,
-                st_gid=self.gid,
-            )
-
-        return -errno.ENOENT
-
-    # XXX this looks unneeded
-#   def opendir(self, path):
-#       logging.debug('opendir(%r)', path)
-#       path = PurePosixPath(path)
-#       container, relpath = self.get_container_for_path(path)
-#       if container is not None:
-#           try:
-#               return container.storage.opendir(relpath)
-#           except FileNotFoundError:
-#               pass
-#
-#       if self.is_on_path(path):
-#           return FIXME
-#
-#       return -errno.ENOENT
+        return self.resolver.getattr(PurePosixPath(path))
 
     def readdir(self, path, _offset):
-        path = PurePosixPath(path)
-
-        # TODO disallow .control in all containers, or disallow mounting /
-
-        ret = {'.', '..'}
-        exists = False
-
-        storage, relpath = self.resolve_path(path)
-
-        if storage is not None:
-            try:
-                ret.update(storage.readdir(relpath))
-                exists = True
-            except FileNotFoundError:
-                pass
-
-        for p in self.paths:
-            try:
-                suffix = p.relative_to(path)
-            except ValueError:
-                continue
-            else:
-                if suffix.parts:
-                    ret.add(suffix.parts[0])
-                    exists = True
-
-        if path == PurePosixPath('/'):
-            exists = True
-            ret.add('.control')
-
-        if exists:
-            return [fuse.Direntry(i) for i in ret]
-
-        raise OSError(errno.ENOENT, '')
+        names = ['.', '..'] + self.resolver.readdir(PurePosixPath(path))
+        return [fuse.Direntry(name) for name in names]
 
     # pylint: disable=unused-argument
 
@@ -375,7 +274,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def mkdir(self, path, mode):
-        return self.proxy('mkdir', path, mode)
+        return self.proxy('mkdir', path, mode, parent=True)
 
     def mknod(self, *args):
         return -errno.ENOSYS
@@ -390,7 +289,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def rmdir(self, path):
-        return self.proxy('rmdir', path)
+        return self.proxy('rmdir', path, parent=True)
 
     def setxattr(self, *args):
         return -errno.ENOSYS
@@ -405,13 +304,34 @@ class WildlandFS(fuse.Fuse):
         return self.proxy('truncate', path, length)
 
     def unlink(self, path):
-        return self.proxy('unlink', path)
+        return self.proxy('unlink', path, parent=True)
 
     def utime(self, *args):
         return -errno.ENOSYS
 
     def utimens(self, *args):
         return -errno.ENOSYS
+
+
+class WildlandFSConflictResolver(ConflictResolver):
+    '''
+    WildlandFS adapter for ConflictResolver.
+    '''
+
+    def __init__(self, fs: WildlandFS, *args):
+        super().__init__(*args)
+        self.fs = fs
+
+    def get_storage_paths(self):
+        return self.fs.storage_paths
+
+    def storage_getattr(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
+        return self.fs.storages[ident].getattr(relpath)
+
+    def storage_readdir(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
+        return self.fs.storages[ident].readdir(relpath)
+
+
 
 def main():
     # pylint: disable=missing-docstring

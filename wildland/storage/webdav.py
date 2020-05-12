@@ -24,6 +24,7 @@ WebDAV storage backend
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote, unquote
+import errno
 
 import dateutil.parser
 import requests
@@ -64,7 +65,7 @@ class WebdavStorage(CachedStorage):
 
         props = list(self.propfind(path, '0'))
         if not props:
-            raise FileNotFoundError
+            raise FileNotFoundError(errno.ENOENT, str(path))
         return props[0][1]
 
     def propfind(self, path: PurePosixPath, depth: str) -> \
