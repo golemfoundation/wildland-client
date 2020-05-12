@@ -240,7 +240,7 @@ class CachedStorage(AbstractStorage):
         path = PurePosixPath(path)
 
         if path not in self.files:
-            raise FileNotFoundError(str(path))
+            raise FileNotFoundError(errno.ENOENT, str(path))
 
         if self.read_only and (flags & (os.O_RDWR | os.O_WRONLY)):
             raise PermissionError(errno.EROFS, str(path))
@@ -286,7 +286,7 @@ class CachedStorage(AbstractStorage):
             return self.dirs[path].as_fuse_stat(self.uid, self.gid, self.read_only)
         if path in self.files:
             return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
-        raise FileNotFoundError(str(path))
+        raise FileNotFoundError(errno.ENOENT, str(path))
 
     def fgetattr(self, path, _handle):
         path = PurePosixPath(path)
@@ -365,7 +365,7 @@ class CachedStorage(AbstractStorage):
         if path in self.handle_count:
             raise PermissionError(errno.EPERM, str(path))
         if path not in self.files:
-            raise FileNotFoundError(str(path))
+            raise FileNotFoundError(errno.ENOENT, str(path))
         result = self.backend_delete_file(path)
         if not result:
             del self.files[path]
@@ -389,7 +389,7 @@ class CachedStorage(AbstractStorage):
             raise PermissionError(errno.EROFS, str(path))
 
         if path not in self.dirs:
-            raise FileNotFoundError(str(path))
+            raise FileNotFoundError(errno.ENOENT, str(path))
         # TODO: check for open files
         result = self.backend_delete_dir(path)
         if not result:
