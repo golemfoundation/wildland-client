@@ -1,16 +1,16 @@
 {
     "title": "Storage manifest (local)",
-    "type": "object",
-    "required": ["signer", "type", "container_path", "path"],
-    "properties": {
-        "signer": { "$ref": "types.json#fingerprint" },
-        "type": { "const": "local" },
-        "container_path": { "$ref": "types.json#abs_path" },
-        "read_only": { "type": "boolean" },
-        "path": {
-            "$ref": "types.json#abs_path",
-            "description": "Path in the local filesystem"
-        }
-    },
-    "additionalProperties": false
+    "allOf": [
+        { "$ref": "storage.schema.json" },
+        {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "$ref": "types.json#abs_path",
+                    "description": "Path in the local filesystem"
+                }
+            }
+         }
+    ]
 }
