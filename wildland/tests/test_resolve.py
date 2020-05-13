@@ -36,13 +36,20 @@ from ..resolve import WildlandPath, PathError, Search
 
 
 def test_path_from_str():
-    wlpath = WildlandPath.from_str(':/foo/bar')
+    wlpath = WildlandPath.from_str(':/foo/bar:')
     assert wlpath.signer is None
     assert wlpath.parts == [PurePosixPath('/foo/bar')]
+    assert wlpath.file_path is None
 
-    wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux')
+    wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:')
     assert wlpath.signer == '0xabcd'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
+    assert wlpath.file_path is None
+
+    wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:/some/file.txt')
+    assert wlpath.signer == '0xabcd'
+    assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
+    assert wlpath.file_path == PurePosixPath('/some/file.txt')
 
 
 def test_path_from_str_fail():
@@ -50,21 +57,34 @@ def test_path_from_str_fail():
         WildlandPath.from_str('/foo/bar')
 
     with pytest.raises(PathError, match='Unrecognized signer field'):
-        WildlandPath.from_str('foo:/foo/bar')
+        WildlandPath.from_str('foo:/foo/bar:')
 
     with pytest.raises(PathError, match='Unrecognized absolute path'):
-        WildlandPath.from_str('0xabcd:foo/bar')
+        WildlandPath.from_str('0xabcd:foo/bar:')
 
     with pytest.raises(PathError, match='Unrecognized absolute path'):
+        WildlandPath.from_str('0xabcd:foo/bar:baz.txt')
+
+    with pytest.raises(PathError, match='Path has no containers'):
         WildlandPath.from_str('0xabcd:')
+
+    with pytest.raises(PathError, match='Path has no containers'):
+        WildlandPath.from_str('0xabcd:/foo')
 
 
 def test_path_to_str():
-    wlpath = WildlandPath('0xabcd', [PurePosixPath('/foo/bar')])
-    assert str(wlpath) == '0xabcd:/foo/bar'
+    wlpath = WildlandPath('0xabcd', [PurePosixPath('/foo/bar')], None)
+    assert str(wlpath) == '0xabcd:/foo/bar:'
 
-    wlpath = WildlandPath(None, [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')])
-    assert str(wlpath) == ':/foo/bar:/baz/quux'
+    wlpath = WildlandPath(
+        None, [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')], None)
+    assert str(wlpath) == ':/foo/bar:/baz/quux:'
+
+    wlpath = WildlandPath(
+        None,
+        [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')],
+        PurePosixPath('/some/file.txt'))
+    assert str(wlpath) == ':/foo/bar:/baz/quux:/some/file.txt'
 
 
 ## Path resolution
@@ -106,7 +126,7 @@ def loader(setup, base_dir):
 
 
 def test_resolve_first(base_dir, loader):
-    search = Search(loader, WildlandPath.from_str(':/path'), '0xaaa')
+    search = Search(loader, WildlandPath.from_str(':/path:'), '0xaaa')
     search.resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path')
 
@@ -114,7 +134,7 @@ def test_resolve_first(base_dir, loader):
     assert isinstance(storage, LocalStorage)
     assert storage.root == base_dir / 'storage1'
 
-    search = Search(loader, WildlandPath.from_str(':/path/subpath'), '0xaaa')
+    search = Search(loader, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
     search.resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path/subpath')
 
@@ -148,14 +168,14 @@ def test_read_file_traverse(base_dir, loader):
 
 def test_verify_traverse(cli, loader):
     # pylint: disable=unused-argument
-    cli('container', 'verify', ':/path:/other/path')
+    cli('container', 'verify', ':/path:/other/path:')
 
 
 def test_mount_traverse(cli, loader, base_dir):
     # pylint: disable=unused-argument
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({}, f)
-    cli('container', 'mount', ':/path:/other/path')
+    cli('container', 'mount', ':/path:/other/path:')
 
 
 def test_unmount_traverse(cli, loader, base_dir):
@@ -168,4 +188,4 @@ def test_unmount_traverse(cli, loader, base_dir):
         json.dump({
             f'/.users/0xaaa{path}': [101],
         }, f)
-    cli('container', 'unmount', ':/path:/other/path')
+    cli('container', 'unmount', ':/path:/other/path:')

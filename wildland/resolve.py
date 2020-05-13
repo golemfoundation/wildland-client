@@ -77,14 +77,6 @@ class Search:
         self.steps: List[Step] = []
 
     @property
-    def last_part(self) -> PurePosixPath:
-        '''
-        Last part of the Wildland path.
-        '''
-
-        return self.wlpath.parts[-1]
-
-    @property
     def current_part(self) -> PurePosixPath:
         '''
         Current part, after the steps we have already resolved.
@@ -100,6 +92,9 @@ class Search:
         If 'remote' is true, we are allowed to traverse the Wildland path
         further. If we do, the manifest path will be null.
         '''
+        if self.wlpath.file_path is not None:
+            raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
+
         if remote:
             self.resolve_all()
             return self.steps[-1].container, self.steps[-1].manifest_path
@@ -115,42 +110,33 @@ class Search:
         Read a file under the Wildland path.
         '''
 
-        self.resolve_until_last()
+        if self.wlpath.file_path is None:
+            raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
+
+        self.resolve_all()
         storage = self.find_storage()
-        return storage_read_file(storage, self.last_part.relative_to('/'))
+        return storage_read_file(storage, self.wlpath.file_path.relative_to('/'))
 
     def write_file(self, data: bytes):
         '''
         Read a file under the Wildland path.
         '''
 
-        self.resolve_until_last()
+        if self.wlpath.file_path is None:
+            raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
+
+        self.resolve_all()
         storage = self.find_storage()
-        return storage_write_file(data, storage, self.last_part.relative_to('/'))
+        return storage_write_file(data, storage, self.wlpath.file_path.relative_to('/'))
 
     def resolve_all(self):
         '''
-        Resolve all path parts, including the last one. Use if you want to
-        interpret the path as a manifest path.
+        Resolve all path parts.
         '''
 
         assert len(self.steps) == 0
         self.resolve_first()
         while len(self.steps) < len(self.wlpath.parts):
-            self.resolve_next()
-
-    def resolve_until_last(self):
-        '''
-        Resolve all path parts until the last one. Use if you want to interpret
-        the last part as a file path.
-        '''
-
-        assert len(self.steps) == 0
-        if len(self.wlpath.parts) == 1:
-            return
-
-        self.resolve_first()
-        while len(self.steps) < len(self.wlpath.parts) - 1:
             self.resolve_next()
 
     def find_storage(self):
@@ -260,16 +246,30 @@ def storage_write_file(data, storage, relpath):
 class WildlandPath:
     '''
     A path in Wildland namespace.
+
+    The path has the following form:
+
+        [signer]:(part:)+:[file_path]
+
+    - signer (optional): signer determining the first container's namespace
+    - parts: intermediate parts, identifying containers on the path
+    - file_path (optional): path to file in the last container
     '''
 
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
     WLPATH_RE = re.compile(r'^(0x[0-9a-f]+)?:')
 
-    def __init__(self, signer: Optional[str], parts: List[PurePosixPath]):
+    def __init__(
+        self,
+        signer: Optional[str],
+        parts: List[PurePosixPath],
+        file_path: Optional[PurePosixPath]
+    ):
         assert len(parts) > 0
         self.signer = signer
         self.parts = parts
+        self.file_path = file_path
 
     @classmethod
     def match(cls, s: str) -> bool:
@@ -302,12 +302,28 @@ class WildlandPath:
             raise PathError('Unrecognized signer field: {!r}'.format(split[0]))
 
         parts = []
-        for part in split[1:]:
+        for part in split[1:-1]:
             if not cls.ABSPATH_RE.match(part):
                 raise PathError('Unrecognized absolute path: {!r}'.format(part))
             parts.append(PurePosixPath(part))
-        return cls(signer, parts)
+
+        if split[-1] == '':
+            file_path = None
+        else:
+            if not cls.ABSPATH_RE.match(split[-1]):
+                raise PathError('Unrecognized absolute path: {!r}'.format(split[-1]))
+            file_path = PurePosixPath(split[-1])
+
+        if not parts:
+            raise PathError('Path has no containers: {!r}. Did you forget a ":" at the end?')
+
+        return cls(signer, parts, file_path)
 
     def __str__(self):
-        return ':'.join(
-            [self.signer or ''] + [str(p) for p in self.parts])
+        s = ''
+        if self.signer is not None:
+            s += self.signer
+        s += ':' + ':'.join(str(p) for p in self.parts) + ':'
+        if self.file_path is not None:
+            s += str(self.file_path)
+        return s
