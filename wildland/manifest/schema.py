@@ -29,7 +29,11 @@ from ..exc import WildlandError
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = PROJECT_PATH / 'schemas'
-COMMON_FILES = ['types.json', 'storage.schema.json']
+COMMON_FILES = [
+    'types.json',
+    'storage.schema.json',
+    'container.schema.json',
+]
 
 
 def load_common_files():

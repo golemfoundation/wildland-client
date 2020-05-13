@@ -1,9 +1,7 @@
 {
     "title": "User manifest",
     "type": "object",
-    "required": ["signer"],
-    "properties": {
-        "signer": { "$ref": "types.json#fingerprint" }
-    },
-    "additionalProperties": false
+    "allOf": [
+        { "$ref": "container.schema.json" }
+    ]
 }

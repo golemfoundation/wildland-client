@@ -72,7 +72,7 @@ def test_user_verify_bad_sig(cli, cli_fail, base_dir):
 
 def test_user_verify_bad_fields(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.yaml', 'signer:', 'extra: xxx\nsigner:')
+    modify_file(base_dir / 'users/User.yaml', 'paths:', 'Paths:')
     cli_fail('user', 'verify', 'User')
 
 
