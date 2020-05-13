@@ -262,7 +262,7 @@ class ManifestLoader:
             manifest.sign(sig_temp, attach_pubkey=True)
 
         if name is None:
-            name = self.make_name(pubkey, 'user')
+            name = self.make_name(signer, 'user')
 
         return self.save_manifest(manifest, name, 'user')
 
