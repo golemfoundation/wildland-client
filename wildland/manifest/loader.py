@@ -26,6 +26,7 @@ import os
 from typing import Optional, Dict, Any, List, Tuple
 import uuid
 import warnings
+import logging
 
 import yaml
 
@@ -34,6 +35,7 @@ from .sig import SigContext, DummySigContext, GpgSigContext
 from .manifest import Manifest
 from .user import User
 from .manifest import ManifestError
+from ..exc import WildlandError
 
 
 class ManifestLoader:
@@ -80,7 +82,11 @@ class ManifestLoader:
             return
         for name in sorted(os.listdir(self.user_dir)):
             path = self.user_dir / name
-            self.load_user(path)
+            try:
+                self.load_user(path)
+            except WildlandError as e:
+                logging.warning('error loading user manifest: %s: %s',
+                               path, e)
 
     def load_user(self, path) -> User:
         '''
