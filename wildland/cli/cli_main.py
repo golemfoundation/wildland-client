@@ -67,7 +67,7 @@ def main(ctx, base_dir, dummy, verbose):
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
 
 
-main.add_command(cli_user.user)
+main.add_command(cli_user.user_)
 main.add_command(cli_storage.storage)
 main.add_command(cli_container.container_)
 

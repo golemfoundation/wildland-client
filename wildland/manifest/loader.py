@@ -205,6 +205,8 @@ class ManifestLoader:
         (path, manifest).
         '''
 
+        self_signed = manifest_type == 'user'
+
         path = self.manifest_dir(manifest_type)
         if not os.path.exists(path):
             return []
@@ -212,7 +214,8 @@ class ManifestLoader:
         for file_name in sorted(os.listdir(path)):
             if file_name.endswith('.yaml'):
                 manifest_path = path / file_name
-                manifest = Manifest.from_file(manifest_path, self.sig)
+                manifest = Manifest.from_file(manifest_path, self.sig,
+                                              self_signed=self_signed)
                 try:
                     self.validate_manifest(manifest, manifest_type)
                 except SchemaError as e:
@@ -254,13 +257,15 @@ class ManifestLoader:
                 return base_name + suffix
             i += 1
 
-    def create_user(self, signer, pubkey, name) -> Path:
+    def create_user(self, signer, pubkey, paths, name) -> Path:
         '''
         Create a new user.
         '''
 
         manifest = Manifest.from_fields({
             'signer': signer,
+            'paths': paths,
+            'containers': []
         })
 
         with self.sig.copy() as sig_temp:

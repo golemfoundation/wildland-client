@@ -21,6 +21,9 @@
 User manifest and user management
 '''
 
+from pathlib import PurePosixPath
+from typing import List
+
 from .manifest import Manifest
 from .schema import Schema
 
@@ -38,3 +41,7 @@ class User:
         assert manifest.header.pubkey
         self.signer = manifest.fields['signer']
         self.pubkey = manifest.header.pubkey
+        self.paths: List[PurePosixPath] = \
+            [PurePosixPath(p) for p in manifest.fields['paths']]
+        self.containers: List[str] = \
+            manifest.fields['containers']

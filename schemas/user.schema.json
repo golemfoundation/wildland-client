@@ -1,9 +1,18 @@
 {
     "title": "User manifest",
     "type": "object",
-    "required": ["signer"],
+    "required": ["signer", "paths", "containers"],
     "properties": {
-        "signer": { "$ref": "types.json#fingerprint" }
+        "signer": { "$ref": "types.json#fingerprint" },
+        "paths": {
+            "type": "array",
+            "items": { "$ref": "types.json#abs_path" },
+            "minItems": 1
+        },
+        "containers": {
+            "type": "array",
+            "items": { "$ref": "types.json#url" }
+        }
     },
     "additionalProperties": false
 }
