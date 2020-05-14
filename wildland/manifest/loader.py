@@ -253,15 +253,8 @@ class ManifestLoader:
         Create a new user.
         '''
 
-        if name is None:
-            paths = [f'/users/{signer}']
-        else:
-            paths = [f'/users/{name}']
-
         manifest = Manifest.from_fields({
             'signer': signer,
-            'paths': paths,
-            'backends': {'storage': []},
         })
 
         with self.sig.copy() as sig_temp:
