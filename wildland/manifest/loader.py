@@ -95,7 +95,7 @@ class ManifestLoader:
         '''
 
         manifest = Manifest.from_file(path, self.sig, User.SCHEMA,
-                                      self_signed=True)
+                                      self_signed=Manifest.REQUIRE)
         user = User(manifest, path)
 
         self.users.append(user)
@@ -109,7 +109,7 @@ class ManifestLoader:
 
         path, data = self.read_manifest(name, 'user')
         manifest = Manifest.from_bytes(data, self.sig, User.SCHEMA,
-                                       self_signed=True)
+                                       self_signed=Manifest.REQUIRE)
         user = User(manifest, path)
 
         self.users.append(user)

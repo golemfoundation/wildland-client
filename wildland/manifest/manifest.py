@@ -48,6 +48,11 @@ class Manifest:
     return signature.
     '''
 
+    # Values for self_signed parameter
+    DISALLOW = 0
+    ALLOW = 1
+    REQUIRE = 2
+
     def __init__(self, header: Optional['Header'], fields,
                  original_data: bytes):
 
@@ -130,7 +135,7 @@ class Manifest:
     @classmethod
     def from_file(cls, path, sig_context: SigContext,
                    schema: Optional[Schema] = None,
-                   self_signed=False) -> 'Manifest':
+                   self_signed: int = DISALLOW) -> 'Manifest':
         '''
         Load a manifest from YAML file, verifying it.
 
@@ -149,7 +154,7 @@ class Manifest:
     @classmethod
     def from_bytes(cls, data: bytes, sig_context: SigContext,
                    schema: Optional[Schema] = None,
-                   self_signed=False) -> 'Manifest':
+                   self_signed: int = DISALLOW) -> 'Manifest':
         '''
         Load a manifest from YAML content, verifying it.
 
@@ -219,15 +224,19 @@ class Header:
             self.pubkey = pubkey.rstrip('\n')
 
     def verify_rest(self, rest_data: bytes, sig_context: SigContext,
-                    self_signed) -> str:
+                    self_signed: int) -> str:
         '''
         Verify the signature against manifest content (without parsing it).
         Return signer, if known.
         '''
 
-        if self_signed:
-            if self.pubkey is None:
-                raise SigError('Expecting the header to contain pubkey')
+        if self_signed == Manifest.REQUIRE and self.pubkey is None:
+            raise SigError('Expecting the header to contain pubkey')
+
+        if self_signed == Manifest.DISALLOW and self.pubkey is not None:
+            raise SigError('Not expecting the header to contain pubkey')
+
+        if self.pubkey is not None:
             with sig_context.copy() as sig_temp:
                 pubkey_signer = sig_temp.add_pubkey(self.pubkey)
                 signer = sig_temp.verify(self.signature, rest_data)
@@ -237,8 +246,6 @@ class Header:
                             signer, pubkey_signer))
                 return signer
 
-        if self.pubkey is not None:
-            raise SigError('Not expecting the header to contain pubkey')
         return sig_context.verify(self.signature, rest_data)
 
     @classmethod
