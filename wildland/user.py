@@ -24,8 +24,8 @@ User manifest and user management
 from pathlib import PurePosixPath
 from typing import List
 
-from .manifest import Manifest
-from .schema import Schema
+from .manifest.manifest import Manifest
+from .manifest.schema import Schema
 
 
 class User:

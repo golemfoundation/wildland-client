@@ -30,10 +30,11 @@ import logging
 
 import yaml
 
+from ..user import User
+
 from .schema import Schema, SchemaError
 from .sig import SigContext, DummySigContext, GpgSigContext
 from .manifest import Manifest
-from .user import User
 from .manifest import ManifestError
 from ..exc import WildlandError
 

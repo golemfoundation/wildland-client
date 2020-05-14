@@ -23,7 +23,7 @@ Manage users
 
 import click
 
-from ..manifest.user import User
+from ..user import User
 
 from .cli_base import ContextObj
 from .cli_common import sign, verify, edit

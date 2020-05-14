@@ -29,7 +29,7 @@ Manifests
 .. autoclass:: wildland.manifest.schema.Schema
    :members:
 
-.. autoclass:: wildland.manifest.user.User
+.. autoclass:: wildland.user.User
    :members:
 
 Signing
