@@ -172,6 +172,16 @@ def test_container_create(cli, base_dir):
     assert "/.uuid/" in data
 
 
+def test_container_create_update_user(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+
+    with open(base_dir / 'users/User.yaml') as f:
+        data = f.read()
+
+    assert 'containers/Container.yaml' in data
+
+
 def test_container_update(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
