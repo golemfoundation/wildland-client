@@ -49,6 +49,9 @@ pages-test:
     - cd ci
     - docker-compose build
     - docker-compose run wildland-fuse-ci ./ci/ci-docs
+  artifacts:
+    paths:
+      - Documentation/_build
 
 pages:
   stage: docs
