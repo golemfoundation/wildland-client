@@ -15,8 +15,10 @@
 import collections
 import os
 import pathlib
+import pickle
 import sys
 
+import click
 import docutils.nodes
 from sphinx.errors import SphinxError
 from sphinx.util import logging
@@ -25,7 +27,7 @@ log = logging.getLogger(__name__)
 sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('..'))
 
-from wildland.cli.cli_main import main as cmd_main
+from wildland.cli.cli_main import main as CMD_MAIN
 import manhelper
 
 # -- Project information -----------------------------------------------------
@@ -170,6 +172,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
+    ('manpages/wl', 'wl', 'Wildland command-line interface', [author], 1),
     ('manpages/wl-container', 'wl-container', 'Container management', [author], 1),
     ('manpages/wl-storage', 'wl-storage', 'Storage management', [author], 1),
     ('manpages/wl-user', 'wl-user', 'Wildland user management', [author], 1),
@@ -187,7 +190,8 @@ man_pages = [
 
 # what should be documented:
 cnt_subcommands = collections.Counter(f'manpages/wl-{subcmd}'
-    for subcmd in cmd_main.commands)
+    for subcmd in CMD_MAIN.commands)
+cnt_subcommands['manpages/wl'] = 1
 cnt_man_pages = collections.Counter(source
     for source, *_ in man_pages)
 cnt_man_sources = collections.Counter(str(p.with_suffix(''))
@@ -202,23 +206,20 @@ assert cnt_subcommands == cnt_man_pages, ('under- or overdocumented commands: '
     f'{set(cnt_subcommands).symmetric_difference(cnt_man_pages)}')
 
 class ManpageCheckVisitor(docutils.nodes.SparseNodeVisitor):
-    def __init__(self, app, command, document):
-        super().__init__(document)
+    def __init__(self, doctree, command, command_options):
+        super().__init__(doctree)
         self.stem = command
-        command, *subcommands = command.split('-')
-        self.command = cmd_main
-        assert command == self.command.name
-        for subcmd in subcommands:
-            # this is OK, because the assert above already succeeded
-            self.command = self.command.commands[subcmd]
+        self.command_options = command_options
 
-        self.subcommands = set(manhelper.walk_group(self.command,
-            self._collect_subcommands, prefix=(command, *subcommands[:-1])))
-        log.info('expecting targets: %s',
-            ', '.join(sorted(self.subcommands)))
+        # this is needed, because .split('-') fails for local-cached
+        self.command_refids = dict(
+            manhelper.walk_group(CMD_MAIN, self._collect_refids))
 
-    def _collect_subcommands(self, cmd, prefix):
-        yield '-'.join((*prefix, cmd.name))
+        self.current_command = None
+
+    @staticmethod
+    def _collect_refids(cmd, prefix):
+        yield ('-'.join((*prefix, cmd.name)), cmd)
 
     def visit_target(self, node):
         try:
@@ -227,21 +228,54 @@ class ManpageCheckVisitor(docutils.nodes.SparseNodeVisitor):
             return
         log.debug('target refid=%s self.stem=%r', refid, self.stem)
         if refid.startswith(self.stem):
-            self.subcommands.remove(refid)
+            try:
+                self.current_command = self.command_refids[refid]
+            except KeyError:
+                raise SphinxError(f'invalid command: {refid}')
 
-    def check_undocumented(self):
-        if self.subcommands:
-            raise SphinxError('undocumented subcommands: {}'.format(
-                ', '.join(sorted(self.subcommands))))
+            self.command_options.discard((self.current_command, None))
 
-def check_man(app, doctree, docname):
-    dirname, command = os.path.split(docname)
-    if dirname != 'manpages':
-        return
-    log.info('\nchecking manpage for %s', command)
-    visitor = ManpageCheckVisitor(app, command, doctree)
-    doctree.walk(visitor)
-    visitor.check_undocumented()
+    def visit_desc(self, node):
+        if node.get('desctype') != 'option':
+            raise docutils.nodes.SkipChildren()
+
+    def visit_desc_name(self, node):
+        opt = str(node[0])
+        try:
+            self.command_options.remove((self.current_command, opt))
+        except KeyError:
+            raise SphinxError(
+                f'invalid or double-documented option {opt} '
+                f'for command {self.current_command.name}')
+
+def _collect_cmd_opts(cmd, prefix):
+    yield (cmd, None)
+    for param in cmd.params:
+        if not isinstance(param, click.Option):
+            continue
+        for opt in (*param.opts, *param.secondary_opts):
+            yield (cmd, opt)
+
+def check_man(app, env):
+    command_options = set(manhelper.walk_group(CMD_MAIN, _collect_cmd_opts))
+
+    for docname in env.found_docs:
+        log.info('docname: %r', docname)
+        dirname, command = os.path.split(docname)
+        if dirname != 'manpages':
+            continue
+        doctree = env.get_doctree(docname)
+
+        log.info('checking manpage for %s', command)
+        doctree.walk(ManpageCheckVisitor(doctree, command, command_options))
+
+    if command_options:
+        for cmd, opt in command_options:
+            if opt is None:
+                log.warn(f'undocumented command {cmd}')
+            else:
+                log.warn(f'undocumented option {opt} for command {cmd.name}')
+        raise SphinxError('undocumented options and/or commands')
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -281,6 +315,5 @@ epub_exclude_files = ['search.html']
 intersphinx_mapping = {'https://docs.python.org/': None}
 
 
-
 def setup(app):
-    app.connect('doctree-resolved', check_man)
+    app.connect('env-check-consistency', check_man)
