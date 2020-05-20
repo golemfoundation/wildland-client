@@ -27,6 +27,21 @@ pytest:
       - htmlcov/
   coverage: '/TOTAL.*\s(\d+)%/'
 
+examples:
+  stage: test
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  script:
+    - mkdir --mode=0777 htmlcov
+    - cd docker
+    - docker-compose build
+    - docker-compose run wildland-fuse < /dev/null
+  artifacts:
+    paths:
+      - htmlcov/
+  coverage: '/TOTAL.*\s(\d+)%/'
+
 pages-test:
   stage: docs
   except:
