@@ -13,6 +13,13 @@ export __fish_prompt_hostname="wildland-fuse"
 mkdir -p ~/.config/wildland
 echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
 
+if [ "$ENABLE_WEBDAV" = "1" ]; then
+    sudo /etc/init.d/nginx start
+    echo
+    echo "WebDAV server is running at dav://localhost:8080/"
+    echo
+fi
+
 if [ -n "$1" -a -x "docker/$1" ]; then
     cd docker
     exec "$@"
