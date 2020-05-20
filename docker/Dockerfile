@@ -19,6 +19,7 @@ RUN apt-get install -y \
       fish
 
 RUN useradd -G sudo -s /usr/bin/fish -m user
+RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 
 USER user
 
