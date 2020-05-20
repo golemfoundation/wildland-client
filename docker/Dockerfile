@@ -28,6 +28,6 @@ COPY ./requirements.txt .
 RUN python3 -m venv /home/user/env/
 RUN /home/user/env/bin/pip3 install -r requirements.txt
 
-WORKDIR /wildland-fuse/docker
+WORKDIR /wildland-fuse
 
-CMD ["./init.sh"]
+ENTRYPOINT ["./docker/entrypoint.sh"]
