@@ -8,6 +8,9 @@ export PATH=/wildland-fuse:$PATH
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"
 
+# workaround for https://github.com/docker/distribution/issues/2853
+sudo chmod 666 /dev/fuse
+
 export __fish_prompt_hostname="wildland-fuse"
 
 mkdir -p ~/.config/wildland
