@@ -19,3 +19,23 @@ services:
       - ../Documentation/_build:/wildland-fuse/Documentation/_build:rw
       - ../htmlcov:/wildland-fuse/htmlcov:rw
     privileged: true
+  wildland-fuse-webdav:
+    container_name: wildland-fuse-webdav
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    image: wildland-fuse
+    stdin_open: true
+    tty: true
+    environment:
+      - ENABLE_WEBDAV=1
+    devices:
+      - /dev/fuse
+    ports:
+      - "8080:8080"
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - ..:/wildland-fuse:ro
+      - ../example/storage:/wildland-fuse/example/storage:rw
+    privileged: true

@@ -16,9 +16,18 @@ RUN apt-get install -y \
       strace \
       sudo \
       nano \
-      fish
+      fish \
+      nginx
+
+COPY ./docker/nginx-webdav.conf /etc/nginx/sites-available
+
+RUN rm -f /etc/nginx/sites-enabled/default
+RUN ln -s ../sites-available/nginx-webdav.conf /etc/nginx/sites-enabled/
+# FUSE is configured to allow only the owner
+RUN sed -i s/www-data/user/ /etc/nginx/nginx.conf
 
 RUN useradd -G sudo -s /usr/bin/fish -m user
+RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 
 USER user
 
@@ -28,6 +37,6 @@ COPY ./requirements.txt .
 RUN python3 -m venv /home/user/env/
 RUN /home/user/env/bin/pip3 install -r requirements.txt
 
-WORKDIR /wildland-fuse/docker
+WORKDIR /wildland-fuse
 
-CMD ["./init.sh"]
+ENTRYPOINT ["./docker/entrypoint.sh"]
