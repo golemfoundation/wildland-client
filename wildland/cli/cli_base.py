@@ -30,6 +30,7 @@ from ..manifest.loader import ManifestLoader
 from ..user import User
 from ..exc import WildlandError
 from ..fs_client import WildlandFSClient
+from ..client import Client
 
 
 class CliError(WildlandError):
@@ -43,10 +44,12 @@ class CliError(WildlandError):
 class ContextObj:
     '''Helper object for keeping state in :attr:`click.Context.obj`'''
 
-    def __init__(self, loader: ManifestLoader):
+    def __init__(self, loader: ManifestLoader, client: Client):
         self.loader: ManifestLoader = loader
         self.mount_dir: Path = Path(loader.config.get('mount_dir'))
         self.fs_client: WildlandFSClient = WildlandFSClient(self.mount_dir, loader)
+        self.client = client
+        self.session = client.session
 
     def read_manifest_file(self,
                            name: Optional[str],

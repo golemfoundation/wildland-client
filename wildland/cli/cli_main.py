@@ -40,6 +40,7 @@ from . import (
 from ..container import Container
 from ..log import init_logging
 from ..manifest.loader import ManifestLoader
+from ..client import Client
 from .. import __version__ as _version
 
 
@@ -60,9 +61,11 @@ def main(ctx, base_dir, dummy, verbose):
     # pylint: disable=missing-docstring
 
     loader = ManifestLoader(dummy=dummy, base_dir=base_dir)
+    client = Client(dummy=dummy, base_dir=base_dir)
     # TODO: Is there a better way to ensure close?
     atexit.register(loader.close)
-    ctx.obj = ContextObj(loader)
+    atexit.register(client.close)
+    ctx.obj = ContextObj(loader, client)
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
 
