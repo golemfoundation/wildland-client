@@ -23,14 +23,14 @@ Manifest handling according to user configuration.
 
 from pathlib import Path
 import os
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, List, Tuple
 import uuid
 import warnings
 import logging
 
-import yaml
 
 from ..user import User
+from ..config import Config
 
 from .schema import Schema, SchemaError
 from .sig import SigContext, DummySigContext, GpgSigContext
@@ -353,111 +353,3 @@ class ManifestLoader:
         Parse a user manifest, verifying it.
         '''
         return Manifest.from_bytes(data, self.sig, schema)
-
-
-class Config:
-    '''
-    Wildland configuration, by default loaded from ~/.config/wildland/config.yaml.
-
-    Consists of three layers:
-    - default_fields (set here)
-    - file_fields (loaded from file)
-    - override_fields (provided from command line)
-    '''
-
-    filename = 'config.yaml'
-
-    def __init__(self,
-                 base_dir,
-                 path: Path,
-                 default_fields: Dict[str, Any],
-                 file_fields: Dict[str, Any]):
-        self.base_dir = base_dir
-        self.path = path
-        self.default_fields = default_fields
-        self.file_fields = file_fields
-        self.override_fields: Dict[str, Any] = {}
-
-    def get(self, name: str):
-        '''
-        Get a configuration value for given name. The name has to be known,
-        i.e. exist in defaults.
-        '''
-
-        assert name in self.default_fields, f'unknown config name: {name}'
-
-        if name in self.override_fields:
-            return self.override_fields[name]
-        if name in self.file_fields:
-            return self.file_fields[name]
-        return self.default_fields[name]
-
-    def override(self, *, dummy=False, uid=None, gid=None):
-        '''
-        Override configuration based on command line arguments.
-        '''
-        if dummy:
-            self.override_fields['dummy'] = True
-        if uid is not None:
-            self.override_fields['uid'] = uid
-        if uid is not None:
-            self.override_fields['gid'] = gid
-
-    def update_and_save(self, **kwargs):
-        '''
-        Set new values and save to a file.
-        '''
-
-        self.file_fields.update(kwargs)
-        with open(self.path, 'w') as f:
-            yaml.dump(self.file_fields, f)
-
-    @classmethod
-    def load(cls, base_dir=None):
-        '''
-        Load a configuration file from base directory, if it exists; use
-        defaults if not.
-        '''
-
-        home_dir_s = os.getenv('HOME')
-        assert home_dir_s
-        home_dir = Path(home_dir_s)
-
-        if base_dir is None:
-            xdg_home = os.getenv('XDG_CONFIG_HOME')
-            if xdg_home:
-                base_dir = Path(xdg_home) / 'wildland'
-            else:
-                base_dir = Path(home_dir) / '.config/wildland'
-        else:
-            base_dir = Path(base_dir)
-
-        default_fields = cls.get_default_fields(home_dir, base_dir)
-
-        path = base_dir / cls.filename
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                file_fields = yaml.safe_load(f)
-                if not file_fields:
-                    file_fields = {}
-        else:
-            file_fields = {}
-        return cls(base_dir, path, default_fields, file_fields)
-
-    @classmethod
-    def get_default_fields(cls, home_dir, base_dir) -> dict:
-        '''
-        Compute the default values for all the unspecified fields.
-        '''
-
-        return {
-            'user_dir': base_dir / 'users',
-            'storage_dir': base_dir / 'storage',
-            'container_dir': base_dir / 'containers',
-            'mount_dir': home_dir / 'wildland',
-            'dummy': False,
-            'gpg_home': None,
-            'default_user': None,
-            'uid': os.getuid(),
-            'gid': os.getgid(),
-        }
