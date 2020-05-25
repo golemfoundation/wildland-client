@@ -146,7 +146,7 @@ def mount(obj: ContextObj, cont):
     Mount a container given by name or path to manifest. The Wildland system has
     to be mounted first, see ``wl mount``.
     '''
-    obj.client.ensure_mounted()
+    obj.fs_client.ensure_mounted()
     obj.loader.load_users()
 
     path, manifest = obj.loader.load_manifest(cont, 'container', remote=True)
@@ -155,7 +155,7 @@ def mount(obj: ContextObj, cont):
 
     container = Container.from_manifest(manifest)
     click.echo(f'Mounting: {path}')
-    obj.client.mount_container(container)
+    obj.fs_client.mount_container(container)
 
 
 @container_.command(short_help='unmount container')
@@ -169,7 +169,7 @@ def unmount(obj: ContextObj, path: str, cont):
     identify the container by one of its path (using ``--path``).
     '''
 
-    obj.client.ensure_mounted()
+    obj.fs_client.ensure_mounted()
     obj.loader.load_users()
 
     if bool(cont) + bool(path) != 1:
@@ -182,12 +182,12 @@ def unmount(obj: ContextObj, path: str, cont):
             raise click.ClickException(f'Not found: {cont}')
 
         container = Container.from_manifest(manifest)
-        storage_id = obj.client.find_storage_id(container)
+        storage_id = obj.fs_client.find_storage_id(container)
     else:
-        storage_id = obj.client.find_storage_id_by_path(PurePosixPath(path))
+        storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
 
     if storage_id is None:
         raise click.ClickException('Container not mounted')
 
     click.echo(f'Unmounting storage {storage_id}')
-    obj.client.unmount_container(storage_id)
+    obj.fs_client.unmount_container(storage_id)

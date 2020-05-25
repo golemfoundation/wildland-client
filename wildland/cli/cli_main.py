@@ -91,7 +91,7 @@ def _do_mount_containers(to_mount):
             with open(ctx.obj.mount_dir / '.control/mount', 'wb') as f:
                 f.write(json.dumps(command).encode())
         except IOError as e:
-            ctx.obj.client.unmount()
+            ctx.obj.fs_client.unmount()
             raise click.ClickException(f'Failed to mount {path}: {e}')
 
 
@@ -114,9 +114,9 @@ def mount(obj: ContextObj, remount, debug, container):
         print(f'Creating: {obj.mount_dir}')
         os.makedirs(obj.mount_dir)
 
-    if obj.client.is_mounted():
+    if obj.fs_client.is_mounted():
         if remount:
-            obj.client.unmount()
+            obj.fs_client.unmount()
         else:
             raise CliError(f'Already mounted')
 
@@ -129,22 +129,22 @@ def mount(obj: ContextObj, remount, debug, container):
                 raise CliError(f'Container not found: {name}')
             container = Container.from_manifest(manifest)
             to_mount.append((path,
-                obj.client.get_command_for_mount_container(container)))
+                obj.fs_client.get_command_for_mount_container(container)))
 
     if not debug:
-        obj.client.mount()
+        obj.fs_client.mount()
         _do_mount_containers(to_mount)
         return
 
     print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
 
-    p = obj.client.mount(foreground=True, debug=(debug > 1))
+    p = obj.fs_client.mount(foreground=True, debug=(debug > 1))
     _do_mount_containers(to_mount)
     try:
         p.wait()
     except KeyboardInterrupt:
-        obj.client.unmount()
+        obj.fs_client.unmount()
         p.wait()
 
     if p.returncode != 0:
@@ -158,7 +158,7 @@ def unmount(obj: ContextObj):
     '''
 
     click.echo(f'Unmounting: {obj.mount_dir}')
-    obj.client.unmount()
+    obj.fs_client.unmount()
 
 
 if __name__ == '__main__':

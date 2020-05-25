@@ -46,7 +46,7 @@ class ContextObj:
     def __init__(self, loader: ManifestLoader):
         self.loader: ManifestLoader = loader
         self.mount_dir: Path = Path(loader.config.get('mount_dir'))
-        self.client: WildlandFSClient = WildlandFSClient(self.mount_dir, loader)
+        self.fs_client: WildlandFSClient = WildlandFSClient(self.mount_dir, loader)
 
     def read_manifest_file(self,
                            name: Optional[str],
