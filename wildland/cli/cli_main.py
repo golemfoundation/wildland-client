@@ -127,7 +127,7 @@ def mount(obj: ContextObj, remount, debug, container):
             path, manifest = obj.loader.load_manifest(name, 'container')
             if not manifest:
                 raise CliError(f'Container not found: {name}')
-            container = Container(manifest)
+            container = Container.from_manifest(manifest)
             to_mount.append((path,
                 obj.client.get_command_for_mount_container(container)))
 

@@ -159,8 +159,8 @@ class ManifestLoader:
 
             wlpath = WildlandPath.from_str(name)
             search = Search(self, wlpath)
-            container, manifest_path = search.read_container(remote=remote)
-            return manifest_path, container.manifest.to_bytes()
+            _container, manifest, manifest_path = search.read_container(remote=remote)
+            return manifest_path, manifest.to_bytes()
 
         # Short name
         if not name.endswith('.yaml') and manifest_type is not None:

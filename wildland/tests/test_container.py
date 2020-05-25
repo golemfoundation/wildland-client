@@ -54,7 +54,7 @@ def loader(setup, base_dir):
 def test_select_storage(loader, base_dir):
     _path, manifest = loader.load_manifest('Container1', 'container')
     assert manifest
-    container = Container(manifest)
+    container = Container.from_manifest(manifest)
 
     storage_manifest = container.select_storage(loader)
     assert storage_manifest.fields['path'] == str(base_dir / 'storage1')
@@ -63,7 +63,7 @@ def test_select_storage(loader, base_dir):
 def test_select_storage_unsupported(loader, base_dir):
     _path, manifest = loader.load_manifest('Container1', 'container')
     assert manifest
-    container = Container(manifest)
+    container = Container.from_manifest(manifest)
 
     storage_manifest = Manifest.from_fields({
         'signer': '0xaaa',

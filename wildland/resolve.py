@@ -45,6 +45,7 @@ class Step:
     '''
 
     container: Container
+    manifest: Manifest
     manifest_path: Optional[Path]
     container_path: PurePosixPath
 
@@ -78,7 +79,7 @@ class Search:
 
         return self.wlpath.parts[-1]
 
-    def read_container(self, remote: bool) -> Tuple[Container, Optional[Path]]:
+    def read_container(self, remote: bool) -> Tuple[Container, Manifest, Optional[Path]]:
         '''
         Read a container manifest represented by the path. Returns
         ``(container, manifest_path)``.
@@ -91,13 +92,13 @@ class Search:
 
         if remote:
             self.resolve_all()
-            return self.steps[-1].container, self.steps[-1].manifest_path
+            return self.steps[-1].container, self.steps[-1].manifest, self.steps[-1].manifest_path
 
         if len(self.wlpath.parts) > 1:
             raise PathError(f'Expecting a local path: {self.wlpath}')
 
         self.resolve_first()
-        return self.steps[0].container, self.steps[0].manifest_path
+        return self.steps[0].container, self.steps[0].manifest, self.steps[0].manifest_path
 
     def read_file(self) -> bytes:
         '''
@@ -155,13 +156,13 @@ class Search:
         container_path = self.wlpath.parts[0]
 
         for manifest_path, manifest in self.loader.load_manifests('container'):
-            container = Container(manifest)
+            container = Container.from_manifest(manifest)
             if (container.signer == self.signer and
                 container_path in container.paths):
 
                 logger.info('%s: local container: %s', container_path,
                             manifest_path)
-                step = Step(container, manifest_path, container_path)
+                step = Step(container, manifest, manifest_path, container_path)
                 self.steps.append(step)
                 return
 
@@ -190,11 +191,11 @@ class Search:
                 'Unexpected signer for {}: {} (expected {})'.format(
                     manifest_path, manifest.fields['signer'], self.signer
                 ))
-        container = Container(manifest)
+        container = Container.from_manifest(manifest)
         if part not in container.paths:
             logger.warning('%s: path not found in manifest: %s',
                            part, manifest_path)
-        step = Step(container, None, part)
+        step = Step(container, manifest, None, part)
         self.steps.append(step)
 
 

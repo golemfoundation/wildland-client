@@ -123,7 +123,7 @@ def list_(obj: ContextObj):
 
     obj.loader.load_users()
     for path, manifest in obj.loader.load_manifests('container'):
-        container = Container(manifest)
+        container = Container.from_manifest(manifest)
         click.echo(path)
         click.echo(f'  signer: {container.signer}')
         for container_path in container.paths:
@@ -153,7 +153,7 @@ def mount(obj: ContextObj, cont):
     if not manifest:
         raise click.ClickException(f'Not found: {cont}')
 
-    container = Container(manifest)
+    container = Container.from_manifest(manifest)
     click.echo(f'Mounting: {path}')
     obj.client.mount_container(container)
 
@@ -181,7 +181,7 @@ def unmount(obj: ContextObj, path: str, cont):
         if not manifest:
             raise click.ClickException(f'Not found: {cont}')
 
-        container = Container(manifest)
+        container = Container.from_manifest(manifest)
         storage_id = obj.client.find_storage_id(container)
     else:
         storage_id = obj.client.find_storage_id_by_path(PurePosixPath(path))

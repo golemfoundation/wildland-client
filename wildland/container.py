@@ -22,7 +22,9 @@ The container
 '''
 
 import logging
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
+
+from typing import Optional, List
 
 from .storage.base import AbstractStorage
 from .manifest.manifest import Manifest, ManifestError
@@ -35,11 +37,29 @@ class Container:
     '''Wildland container'''
     SCHEMA = Schema('container')
 
-    def __init__(self, manifest: Manifest):
-        self.manifest = manifest
-        #: list of paths, under which this container should be mounted
-        self.signer = manifest.fields['signer']
-        self.paths = [PurePosixPath(p) for p in manifest.fields['paths']]
+    def __init__(self, *,
+                 signer: str,
+                 paths: List[PurePosixPath],
+                 backends: List[str],
+                 local_path: Optional[Path] = None):
+        self.signer = signer
+        self.paths = paths
+        self.backends = backends
+        self.local_path = local_path
+
+    @classmethod
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
+        '''
+        Construct a Container instance from a manifest.
+        '''
+
+        manifest.apply_schema(cls.SCHEMA)
+        return cls(
+            signer=manifest.fields['signer'],
+            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
+            backends=manifest.fields['backends']['storage'],
+            local_path=local_path,
+        )
 
     def select_storage(self, loader: ManifestLoader) -> Manifest:
         '''
@@ -48,9 +68,7 @@ class Container:
         '''
 
         # TODO: currently just file URLs
-        urls = self.manifest.fields['backends']['storage']
-
-        for url in urls:
+        for url in self.backends:
             try:
                 storage_manifest = self.try_load_manifest(loader, url)
             except WildlandError:
@@ -77,18 +95,20 @@ class Container:
         if not AbstractStorage.is_manifest_supported(storage_manifest):
             raise ManifestError(f'Unsupported storage manifest: {url}')
 
-        if storage_manifest.fields['signer'] != self.manifest.fields['signer']:
+        if storage_manifest.fields['signer'] != self.signer:
             raise ManifestError(
                 '{}: signer field mismatch: storage {}, container {}'.format(
                     url,
                     storage_manifest.fields['signer'],
-                    self.manifest.fields['signer']))
+                    self.signer))
 
-        if storage_manifest.fields['container_path'] not in self.manifest.fields['paths']:
+        container_path = PurePosixPath(storage_manifest.fields['container_path'])
+        if container_path not in self.paths:
             raise ManifestError(
                 '{}: unrecognized container path for storage: {}, {}'.format(
                     url,
-                    storage_manifest.fields['container_path'],
-                    self.manifest.fields['paths']))
+                    container_path,
+                    self.paths,
+            ))
 
         return storage_manifest

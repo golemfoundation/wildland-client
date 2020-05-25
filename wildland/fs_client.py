@@ -214,13 +214,11 @@ class WildlandFSClient:
         Args:
             container (Container): the container to be mounted
         '''
-        signer = container.manifest.fields['signer']
-
         paths = [
-            os.fspath(self.get_user_path(signer, path))
+            os.fspath(self.get_user_path(container.signer, path))
             for path in container.paths
         ]
-        if signer is not None and signer == self.default_user:
+        if container.signer == self.default_user:
             paths.extend(os.fspath(p) for p in container.paths)
 
         return {
