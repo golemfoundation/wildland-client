@@ -67,7 +67,7 @@ key2: "value2"
 
     data = (make_header(gpg_sig, signer, test_data, attach_pubkey=True) +
             b'\n---\n' + test_data)
-    manifest = Manifest.from_bytes(data, gpg_sig, self_signed=True)
+    manifest = Manifest.from_bytes(data, gpg_sig, self_signed=Manifest.REQUIRE)
     assert manifest.fields['signer'] == signer
     assert manifest.fields['key1'] == 'value1'
     assert manifest.fields['key2'] == 'value2'

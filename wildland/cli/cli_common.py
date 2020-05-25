@@ -101,8 +101,9 @@ def verify(ctx, input_file):
     obj.loader.load_users()
     _path, data = obj.read_manifest_file(input_file, manifest_type, remote=True)
     try:
+        self_signed = Manifest.REQUIRE if manifest_type == 'user' else Manifest.DISALLOW
         manifest = Manifest.from_bytes(data, obj.loader.sig,
-                                       self_signed=(manifest_type == 'user'))
+                                       self_signed=self_signed)
         if manifest_type:
             obj.loader.validate_manifest(manifest, manifest_type)
     except ManifestError as e:

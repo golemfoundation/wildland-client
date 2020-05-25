@@ -23,50 +23,70 @@ Manage users
 
 import click
 
+from ..user import User
+
+from .cli_base import ContextObj
 from .cli_common import sign, verify, edit
 
-
-@click.group(short_help='user management')
-def user():
+@click.group('user', short_help='user management')
+def user_():
     '''
     Manage users
     '''
 
 
-@user.command(short_help='create user')
+@user_.command(short_help='create user')
 @click.option('--key', required=True,
     help='GPG key identifier')
+@click.option('--path', 'paths', multiple=True,
+    help='path (can be repeated)')
 @click.argument('name', metavar='NAME', required=False)
-@click.pass_context
-def create(ctx, key, name):
+@click.pass_obj
+def create(obj: ContextObj, key, paths, name):
     '''
     Create a new user manifest and save it. You need to have a GPG private key
     in your keyring.
     '''
 
-    signer, pubkey = ctx.obj.loader.sig.find(key)
+    signer, pubkey = obj.loader.sig.find(key)
     print(f'Using key: {signer}')
 
-    path = ctx.obj.loader.create_user(signer, pubkey, name)
-    print(f'Created: {path}')
+    if paths:
+        paths = list(paths)
+    else:
+        if name:
+            paths = [f'/users/{name}']
+        else:
+            paths = [f'/users/{signer}']
+        click.echo(f'No path specified, using: {paths[0]}')
 
-    if ctx.obj.loader.config.get('default_user') is None:
+    path = obj.loader.create_user(signer, pubkey, paths, name)
+    click.echo(f'Created: {path}')
+
+    if obj.loader.config.get('default_user') is None:
         print(f'Using {signer} as default user')
-        ctx.obj.loader.config.update_and_save(default_user=signer)
+        obj.loader.config.update_and_save(default_user=signer)
 
 
-@user.command('list', short_help='list users')
-@click.pass_context
-def list_(ctx):
+@user_.command('list', short_help='list users')
+@click.pass_obj
+def list_(obj: ContextObj):
     '''
     Display known users.
     '''
 
-    ctx.obj.loader.load_users()
-    for u in ctx.obj.loader.users:
-        print(f'{u.signer} {u.manifest_path}')
+    obj.loader.load_users()
+    for path, manifest in obj.loader.load_manifests('user'):
+        user = User(manifest)
+        click.echo(path)
+        click.echo(f'  signer: {user.signer}')
+        for user_path in user.paths:
+            click.echo(f'  path: {user_path}')
+        for user_container in user.containers:
+            click.echo(f'  container: {user_container}')
+        click.echo()
 
 
-user.add_command(sign)
-user.add_command(verify)
-user.add_command(edit)
+user_.add_command(sign)
+user_.add_command(verify)
+user_.add_command(edit)

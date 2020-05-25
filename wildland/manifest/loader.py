@@ -26,14 +26,17 @@ import os
 from typing import Optional, Dict, Any, List, Tuple
 import uuid
 import warnings
+import logging
 
 import yaml
+
+from ..user import User
 
 from .schema import Schema, SchemaError
 from .sig import SigContext, DummySigContext, GpgSigContext
 from .manifest import Manifest
-from .user import User
 from .manifest import ManifestError
+from ..exc import WildlandError
 
 
 class ManifestLoader:
@@ -80,7 +83,11 @@ class ManifestLoader:
             return
         for name in sorted(os.listdir(self.user_dir)):
             path = self.user_dir / name
-            self.load_user(path)
+            try:
+                self.load_user(path)
+            except WildlandError as e:
+                logging.warning('error loading user manifest: %s: %s',
+                               path, e)
 
     def load_user(self, path) -> User:
         '''
@@ -88,7 +95,7 @@ class ManifestLoader:
         '''
 
         manifest = Manifest.from_file(path, self.sig, User.SCHEMA,
-                                      self_signed=True)
+                                      self_signed=Manifest.REQUIRE)
         user = User(manifest, path)
 
         self.users.append(user)
@@ -102,7 +109,7 @@ class ManifestLoader:
 
         path, data = self.read_manifest(name, 'user')
         manifest = Manifest.from_bytes(data, self.sig, User.SCHEMA,
-                                       self_signed=True)
+                                       self_signed=Manifest.REQUIRE)
         user = User(manifest, path)
 
         self.users.append(user)
@@ -199,6 +206,8 @@ class ManifestLoader:
         (path, manifest).
         '''
 
+        self_signed = manifest_type == 'user'
+
         path = self.manifest_dir(manifest_type)
         if not os.path.exists(path):
             return []
@@ -206,7 +215,8 @@ class ManifestLoader:
         for file_name in sorted(os.listdir(path)):
             if file_name.endswith('.yaml'):
                 manifest_path = path / file_name
-                manifest = Manifest.from_file(manifest_path, self.sig)
+                manifest = Manifest.from_file(manifest_path, self.sig,
+                                              self_signed=self_signed)
                 try:
                     self.validate_manifest(manifest, manifest_type)
                 except SchemaError as e:
@@ -248,20 +258,15 @@ class ManifestLoader:
                 return base_name + suffix
             i += 1
 
-    def create_user(self, signer, pubkey, name) -> Path:
+    def create_user(self, signer, pubkey, paths, name) -> Path:
         '''
         Create a new user.
         '''
 
-        if name is None:
-            paths = [f'/users/{signer}']
-        else:
-            paths = [f'/users/{name}']
-
         manifest = Manifest.from_fields({
             'signer': signer,
             'paths': paths,
-            'backends': {'storage': []},
+            'containers': []
         })
 
         with self.sig.copy() as sig_temp:

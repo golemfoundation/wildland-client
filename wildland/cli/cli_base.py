@@ -27,7 +27,7 @@ import sys
 from typing import Optional, Tuple
 
 from ..manifest.loader import ManifestLoader
-from ..manifest.user import User
+from ..user import User
 from ..exc import WildlandError
 from ..fs_client import WildlandFSClient
 

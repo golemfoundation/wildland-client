@@ -26,7 +26,7 @@ from pathlib import PurePosixPath
 
 import click
 
-from .cli_base import ContextObj
+from .cli_base import ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
 from ..manifest.manifest import Manifest
@@ -44,9 +44,11 @@ def container_():
     help='user for signing')
 @click.option('--path', multiple=True, required=True,
     help='mount path (can be repeated)')
+@click.option('--update-user/--no-update-user', '-u/-n', default=False,
+              help='Attach the container to the user')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name):
+def create(obj: ContextObj, user, path, name, update_user):
     '''
     Create a new container manifest.
     '''
@@ -55,6 +57,21 @@ def create(obj: ContextObj, user, path, name):
     user = obj.find_user(user)
     path = obj.loader.create_container(user.signer, path, name)
     click.echo(f'Created: {path}')
+
+    if update_user:
+        if not user.manifest_path:
+            raise CliError('Cannot update user because the manifest path is unknown')
+        click.echo('Attaching container to user')
+        fields = copy.deepcopy(user.manifest.fields)
+        fields['containers'].append(str(path))
+
+        user_manifest = Manifest.from_fields(fields)
+        obj.loader.validate_manifest(user_manifest, 'user')
+        user_manifest.sign(obj.loader.sig, attach_pubkey=True)
+        signed_data = user_manifest.to_bytes()
+        click.echo(f'Saving: {user.manifest_path}')
+        with open(user.manifest_path, 'wb') as f:
+            f.write(signed_data)
 
 
 @container_.command(short_help='update container')

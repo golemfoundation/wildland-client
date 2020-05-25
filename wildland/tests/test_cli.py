@@ -50,12 +50,20 @@ def test_user_create(cli, base_dir):
 
 
 def test_user_list(cli, base_dir):
-    cli('user', 'create', 'User1', '--key', '0xaaa')
+    cli('user', 'create', 'User1', '--key', '0xaaa',
+        '--path', '/users/Foo', '--path', '/users/Bar')
     cli('user', 'create', 'User2', '--key', '0xbbb')
     result = cli('user', 'list', capture=True)
     assert result.splitlines() == [
-        '0xaaa {}'.format(base_dir / 'users/User1.yaml'),
-        '0xbbb {}'.format(base_dir / 'users/User2.yaml'),
+        str(base_dir / 'users/User1.yaml'),
+        '  signer: 0xaaa',
+        '  path: /users/Foo',
+        '  path: /users/Bar',
+        '',
+        str(base_dir / 'users/User2.yaml'),
+        '  signer: 0xbbb',
+        '  path: /users/User2',
+        ''
     ]
 
 
@@ -72,7 +80,7 @@ def test_user_verify_bad_sig(cli, cli_fail, base_dir):
 
 def test_user_verify_bad_fields(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.yaml', 'paths:', 'Paths:')
+    modify_file(base_dir / 'users/User.yaml', 'signer:', 'extra: xxx\nsigner:')
     cli_fail('user', 'verify', 'User')
 
 
@@ -162,6 +170,16 @@ def test_container_create(cli, base_dir):
     assert "signer: '0xaaa'" in data
     assert "/PATH" in data
     assert "/.uuid/" in data
+
+
+def test_container_create_update_user(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+
+    with open(base_dir / 'users/User.yaml') as f:
+        data = f.read()
+
+    assert 'containers/Container.yaml' in data
 
 
 def test_container_update(cli, base_dir):
