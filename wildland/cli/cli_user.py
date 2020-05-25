@@ -77,7 +77,7 @@ def list_(obj: ContextObj):
 
     obj.loader.load_users()
     for path, manifest in obj.loader.load_manifests('user'):
-        user = User(manifest)
+        user = User.from_manifest(manifest, path)
         click.echo(path)
         click.echo(f'  signer: {user.signer}')
         for user_path in user.paths:

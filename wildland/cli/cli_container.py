@@ -59,18 +59,17 @@ def create(obj: ContextObj, user, path, name, update_user):
     click.echo(f'Created: {path}')
 
     if update_user:
-        if not user.manifest_path:
+        if not user.local_path:
             raise CliError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
-        fields = copy.deepcopy(user.manifest.fields)
-        fields['containers'].append(str(path))
 
-        user_manifest = Manifest.from_fields(fields)
+        user.containers.append(str(path))
+        user_manifest = user.to_unsigned_manifest()
         obj.loader.validate_manifest(user_manifest, 'user')
         user_manifest.sign(obj.loader.sig, attach_pubkey=True)
         signed_data = user_manifest.to_bytes()
-        click.echo(f'Saving: {user.manifest_path}')
-        with open(user.manifest_path, 'wb') as f:
+        click.echo(f'Saving: {user.local_path}')
+        with open(user.local_path, 'wb') as f:
             f.write(signed_data)
 
 
