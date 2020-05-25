@@ -73,8 +73,10 @@ class User:
         Has to be signed separately.
         '''
 
-        return Manifest.from_fields(dict(
+        manifest = Manifest.from_fields(dict(
             signer=self.signer,
             paths=[str(p) for p in self.paths],
             containers=self.containers,
         ))
+        manifest.apply_schema(self.SCHEMA)
+        return manifest

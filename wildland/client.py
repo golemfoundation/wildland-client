@@ -26,6 +26,7 @@ import logging
 from typing import Optional, Iterator
 
 from .user import User
+from .container import Container
 from .manifest.sig import SigContext, DummySigContext, GpgSigContext
 from .manifest.manifest import ManifestError
 from .session import Session
@@ -46,6 +47,7 @@ class Client:
         self.config.override(**config_kwargs)
 
         self.user_dir = Path(self.config.get('user_dir'))
+        self.container_dir = Path(self.config.get('container_dir'))
 
         sig: SigContext
         if self.config.get('dummy'):
@@ -80,7 +82,7 @@ class Client:
         '''
 
         if self.user_dir.exists():
-            for path in self.user_dir.glob('*.yaml'):
+            for path in sorted(self.user_dir.glob('*.yaml')):
                 try:
                     user = self.load_user_from_path(path)
                 except WildlandError as e:
@@ -97,10 +99,17 @@ class Client:
 
         return self.session.load_user(path.read_bytes(), path)
 
-    def load_user_from(self, name: str) -> User:
+    def load_user_from(self, name: Optional[str]) -> User:
         '''
         Load a user based on a (potentially ambiguous) name.
         '''
+
+        # Default user
+        if name is None:
+            default_user = self.config.get('default_user')
+            if default_user is None:
+                raise WildlandError('user not specified and default_user not set')
+            return self.load_user_from(default_user)
 
         # Short name
         if not name.endswith('.yaml'):
@@ -108,12 +117,30 @@ class Client:
             if path.exists():
                 return self.load_user_from_path(path)
 
+        # Key
+        if name.startswith('0x'):
+            for user in self.load_users():
+                if user.signer == name:
+                    return user
+
         # Local path
         path = Path(name)
         if path.exists():
             return self.load_user_from_path(path)
 
         raise ManifestError(f'User not found: {name}')
+
+    def save_user(self, user: User, path: Optional[Path] = None) -> Path:
+        '''
+        Save a user manifest. If path is None, the user has to have
+        local_path set.
+        '''
+
+        path = path or user.local_path
+        assert path is not None
+        path.write_bytes(self.session.dump_user(user))
+        user.local_path = path
+        return path
 
     def save_new_user(self, user: User, name: Optional[str] = None) -> Path:
         '''
@@ -126,8 +153,23 @@ class Client:
         user.local_path = path
         return path
 
+    def save_new_container(self, container: Container, name: Optional[str] = None) -> Path:
+        '''
+        Save a new container in the container directory. Use the name as a hint for file
+        name.
+        '''
+
+        ident = container.ensure_uuid()
+        path = self._new_path(self.container_dir, name or ident)
+        path.write_bytes(self.session.dump_container(container))
+        container.local_path = path
+        return path
+
     @staticmethod
     def _new_path(base_dir: Path, name: str) -> Path:
+        if not base_dir.exists():
+            base_dir.mkdir(parents=True)
+
         i = 0
         while True:
             suffix = '' if i == 0 else f'.{i}'

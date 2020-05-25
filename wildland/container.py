@@ -23,7 +23,7 @@ The container
 
 import logging
 from pathlib import PurePosixPath, Path
-
+import uuid
 from typing import Optional, List
 
 from .storage.base import AbstractStorage
@@ -47,6 +47,18 @@ class Container:
         self.backends = backends
         self.local_path = local_path
 
+    def ensure_uuid(self) -> str:
+        '''
+        Find or create an UUID path for this container.
+        '''
+
+        for path in self.paths:
+            if path.parent == PurePosixPath('/.uuid/'):
+                return path.name
+        ident = str(uuid.uuid4())
+        self.paths.insert(0, PurePosixPath('/.uuid/') / ident)
+        return ident
+
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
         '''
@@ -60,6 +72,20 @@ class Container:
             backends=manifest.fields['backends']['storage'],
             local_path=local_path,
         )
+
+    def to_unsigned_manifest(self) -> Manifest:
+        '''
+        Create a manifest based on Container's data.
+        Has to be signed separately.
+        '''
+
+        manifest = Manifest.from_fields(dict(
+            signer=self.signer,
+            paths=[str(p) for p in self.paths],
+            backends={'storage': self.backends},
+        ))
+        manifest.apply_schema(self.SCHEMA)
+        return manifest
 
     def select_storage(self, loader: ManifestLoader) -> Manifest:
         '''

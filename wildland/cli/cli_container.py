@@ -53,9 +53,15 @@ def create(obj: ContextObj, user, path, name, update_user):
     Create a new container manifest.
     '''
 
-    obj.loader.load_users()
-    user = obj.find_user(user)
-    path = obj.loader.create_container(user.signer, path, name)
+    obj.client.recognize_users()
+    user = obj.client.load_user_from(user)
+
+    container = Container(
+        signer=user.signer,
+        paths=[PurePosixPath(p) for p in path],
+        backends=[],
+    )
+    path = obj.client.save_new_container(container, name)
     click.echo(f'Created: {path}')
 
     if update_user:
@@ -64,13 +70,7 @@ def create(obj: ContextObj, user, path, name, update_user):
         click.echo('Attaching container to user')
 
         user.containers.append(str(path))
-        user_manifest = user.to_unsigned_manifest()
-        obj.loader.validate_manifest(user_manifest, 'user')
-        user_manifest.sign(obj.loader.sig, attach_pubkey=True)
-        signed_data = user_manifest.to_bytes()
-        click.echo(f'Saving: {user.local_path}')
-        with open(user.local_path, 'wb') as f:
-            f.write(signed_data)
+        obj.client.save_user(user)
 
 
 @container_.command(short_help='update container')

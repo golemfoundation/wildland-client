@@ -67,7 +67,7 @@ def create(obj: ContextObj, key, paths, name):
         paths=[PurePosixPath(p) for p in paths],
         containers=[],
     )
-    path = obj.client.save_new_user(user)
+    path = obj.client.save_new_user(user, name)
     click.echo(f'Created: {path}')
 
     if obj.client.config.get('default_user') is None:

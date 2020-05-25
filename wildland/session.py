@@ -27,7 +27,7 @@ from typing import Optional
 from .manifest.manifest import Manifest
 from .manifest.sig import SigContext
 from .user import User
-
+from .container import Container
 
 class Session:
     '''
@@ -64,4 +64,24 @@ class Session:
         with self.sig.copy() as sig_temp:
             sig_temp.add_pubkey(user.pubkey)
             manifest.sign(sig_temp, attach_pubkey=True)
+        return manifest.to_bytes()
+
+    def load_container(self,
+                  data: bytes,
+                  local_path: Optional[Path] = None) -> Container:
+        '''
+        Load a container manifest, creating a Container object.
+        '''
+
+        manifest = Manifest.from_bytes(
+            data, self.sig, self_signed=Manifest.DISALLOW)
+        return Container.from_manifest(manifest, local_path)
+
+    def dump_container(self, container: Container) -> bytes:
+        '''
+        Create a signed manifest out of a Container object.
+        '''
+
+        manifest = container.to_unsigned_manifest()
+        manifest.sign(self.sig)
         return manifest.to_bytes()
