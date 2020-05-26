@@ -71,16 +71,19 @@ Usage:
 
 .. code-block:: sh
 
-   cd docker
-   docker-compose build
-   docker-compose run wildland-fuse
+    cd demo
+    docker-compose build
+    docker-compose run wildland-fuse
 
-wildland-fuse is mounted in ``/mnt`` and the log is in ``/tmp/wlfuse.log``
+To create and mount the example containers, run ``wl-example``. wildland-fuse
+is mounted in ``/home/user/mnt`` and the log is in ``/tmp/wlfuse.log``.
 
 Running tests:
 
 .. code-block:: sh
 
-   cd docker
-   docker-compose build
-   docker-compose run wildland-fuse test.sh -v
+    cd ci
+    docker-compose build
+    docker-compose run wildland-fuse-ci ./ci/ci-pytest
+
+(or ``./ci/ci-lint``, ``./ci/ci-docs``)

@@ -1,0 +1,6 @@
+#!/bin/sh -ex
+
+/home/user/wildland-fuse/example/setup.sh
+cd "$MOUNT_DIR"
+
+exec fish

@@ -2,15 +2,15 @@ stages:
   - test
   - docs
 
-pylint:
+lint:
   stage: test
   image: docker/compose:latest
   services:
     - docker:dind
   script:
-    - cd docker
+    - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse ./lint.sh wildland -v
+    - docker-compose run wildland-fuse-ci ./ci/ci-lint
 
 pytest:
   stage: test
@@ -18,10 +18,10 @@ pytest:
   services:
     - docker:dind
   script:
-    - mkdir --mode=0777 htmlcov
-    - cd docker
+    - mkdir --mode=0777 htmlcov/
+    - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse ./test.sh -v --cov=wildland --cov-report term --cov-report html
+    - docker-compose run wildland-fuse-ci ./ci/ci-pytest
   artifacts:
     paths:
       - htmlcov/
@@ -33,44 +33,37 @@ examples:
   services:
     - docker:dind
   script:
-    - mkdir --mode=0777 htmlcov
-    - cd docker
+    - cd demo
     - docker-compose build
-    - docker-compose run wildland-fuse < /dev/null
-  artifacts:
-    paths:
-      - htmlcov/
-  coverage: '/TOTAL.*\s(\d+)%/'
+    - docker-compose run wildland-fuse wl-example < /dev/null
 
 pages-test:
   stage: docs
+  image: docker/compose:latest
   except:
     - master
-  image: docker/compose:latest
   services:
     - docker:dind
   script:
     - mkdir --mode=0777 Documentation/_build
-    - cd docker
+    - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W SPHINXBUILD=/home/user/env/bin/sphinx-build
+    - docker-compose run wildland-fuse-ci ./ci/ci-docs
 
 pages:
   stage: docs
+  image: docker/compose:latest
   dependencies:
     - pytest
   only:
     - master
-  image: docker/compose:latest
   services:
     - docker:dind
   script:
     - mkdir --mode=0777 Documentation/_build
-    - cd docker
+    - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse make -C /wildland-fuse/Documentation html SPHINXOPTS=-W SPHINXBUILD=/home/user/env/bin/sphinx-build
-    - cp -r ../Documentation/_build/html ../public
-    - cp -r ../htmlcov ../public/coverage
+    - docker-compose run wildland-fuse-ci ./ci/ci-docs
   artifacts:
     paths:
       - public/

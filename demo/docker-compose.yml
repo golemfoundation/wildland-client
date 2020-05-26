@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  wildland-fuse-ci:
+    build:
+      context: ..
+      dockerfile: ./ci/Dockerfile
+    image: wildland-fuse-ci
+    container_name: wildland-fuse-ci
+
+  wildland-fuse:
+    build:
+      context: ..
+      dockerfile: ./demo/Dockerfile
+    container_name: wildland-fuse
+    image: wildland-fuse
+    depends_on:
+      - wildland-fuse-ci
+    privileged: true
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    volumes:
+      - ..:/home/user/wildland-fuse:ro
+      - usercfg:/home/user/.config:rw
+      - usergpgcfg:/home/user/.gnupg:rw
+
+volumes:
+  usercfg:
+  usergpgcfg:
