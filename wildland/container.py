@@ -118,7 +118,7 @@ class Container:
 
         storage_manifest = loader.parse_manifest(
             storage_manifest_content)
-        if not AbstractStorage.is_manifest_supported(storage_manifest):
+        if not AbstractStorage.is_type_supported(storage_manifest.fields['type']):
             raise ManifestError(f'Unsupported storage manifest: {url}')
 
         if storage_manifest.fields['signer'] != self.signer:

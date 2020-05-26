@@ -108,9 +108,9 @@ class LocalStorage(FileProxyMixin, AbstractStorage):
     SCHEMA = Schema('storage-local')
     TYPE = 'local'
 
-    def __init__(self, *, manifest, relative_to=None, **kwds):
-        super().__init__(manifest=manifest, **kwds)
-        path = Path(manifest.fields['path'])
+    def __init__(self, *, relative_to=None, **kwds):
+        super().__init__(**kwds)
+        path = Path(self.params['path'])
         if relative_to is not None:
             path = relative_to / path
         path = path.resolve()

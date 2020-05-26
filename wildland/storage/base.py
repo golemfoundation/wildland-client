@@ -23,11 +23,9 @@ Abstract classes for storage
 
 import abc
 import errno
-from typing import Optional, Dict, List, Type
+from typing import Optional, Dict, List, Type, Any
 
-from .control_decorators import control_file
 from ..manifest.schema import Schema
-from ..manifest.manifest import Manifest
 
 
 class AbstractStorage(metaclass=abc.ABCMeta):
@@ -56,16 +54,16 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     _types: Dict[str, Type['AbstractStorage']] = {}
 
     def __init__(self, *,
-                 manifest: Optional[Manifest] = None,
+                 params: Optional[Dict[str, Any]] = None,
                  read_only: bool = False,
                  **kwds):
         # pylint: disable=redefined-builtin, unused-argument
-        self.manifest: Optional[Manifest] = None
         self.read_only = False
-        if manifest:
-            assert manifest.fields['type'] == self.TYPE
-            self.manifest = manifest
-            self.read_only = manifest.fields.get('read_only', False)
+        self.params: Dict[str, Any] = {}
+        if params:
+            assert params['type'] == self.TYPE
+            self.params = params
+            self.read_only = params.get('read_only', False)
 
         if read_only:
             self.read_only = True
@@ -104,12 +102,6 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
     def refresh(self):
         pass
-
-    @control_file('manifest.yaml')
-    def control_manifest_read(self):
-        if self.manifest:
-            return self.manifest.to_bytes()
-        return b''
 
     @abc.abstractmethod
     def open(self, path, flags):
@@ -165,34 +157,22 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
 
     @staticmethod
-    def from_fields(fields, uid, gid, read_only=False) -> 'AbstractStorage':
+    def from_params(params, uid, gid, read_only=False) -> 'AbstractStorage':
         '''
         Construct a Storage from fields originating from manifest.
 
         Assume the fields have been validated before.
         '''
 
-        manifest = Manifest.from_fields(fields)
-        manifest.skip_signing()
-
-        return AbstractStorage.from_manifest(manifest, uid, gid, read_only)
-
-    @staticmethod
-    def from_manifest(manifest, uid, gid, read_only=False) -> 'AbstractStorage':
-        '''
-        Construct a Storage from manifest.
-        '''
-
-        storage_type = manifest.fields['type']
+        storage_type = params['type']
         cls = AbstractStorage.types()[storage_type]
-        return cls(manifest=manifest, uid=uid, gid=gid, read_only=read_only)
+        return cls(params=params, uid=uid, gid=gid, read_only=read_only)
 
     @staticmethod
-    def is_manifest_supported(manifest):
+    def is_type_supported(storage_type):
         '''
         Check if the storage type is supported.
         '''
-        storage_type = manifest.fields['type']
         return storage_type in AbstractStorage.types()
 
     @staticmethod

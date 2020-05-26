@@ -43,16 +43,16 @@ class WebdavStorage(CachedStorage):
     SCHEMA = Schema('storage-webdav')
     TYPE = 'webdav'
 
-    def __init__(self, *, manifest, **kwds):
-        super().__init__(manifest=manifest, **kwds)
+    def __init__(self, **kwds):
+        super().__init__(**kwds)
 
-        credentials = manifest.fields['credentials']
+        credentials = self.params['credentials']
         auth = requests.auth.HTTPBasicAuth(
             credentials['login'], credentials['password'])
         self.session = requests.Session()
         self.session.auth = auth
 
-        self.base_url = manifest.fields['url']
+        self.base_url = self.params['url']
         self.base_path = PurePosixPath(urlparse(self.base_url).path)
 
     def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:

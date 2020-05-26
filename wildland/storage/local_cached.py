@@ -40,9 +40,9 @@ class LocalCachedStorage(CachedStorage):
     SCHEMA = Schema('storage-local-cached')
     TYPE = 'local-cached'
 
-    def __init__(self, *, manifest, **kwds):
-        super().__init__(manifest=manifest, **kwds)
-        self.base_path = Path(manifest.fields['path'])
+    def __init__(self, **kwds):
+        super().__init__(**kwds)
+        self.base_path = Path(self.params['path'])
 
     @staticmethod
     def info(st: os.stat_result) -> Info:
