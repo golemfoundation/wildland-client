@@ -22,7 +22,7 @@
 import pytest
 
 from ..manifest.manifest import Manifest
-from ..manifest.loader import ManifestLoader
+from ..client import Client
 from ..container import Container
 
 # pylint: disable=missing-docstring,redefined-outer-name
@@ -41,37 +41,33 @@ def setup(base_dir, cli):
         '--container', 'Container1')
 
 @pytest.fixture
-def loader(setup, base_dir):
+def client(setup, base_dir):
     # pylint: disable=unused-argument
-    loader = ManifestLoader(base_dir=base_dir)
+    client = Client(base_dir=base_dir)
     try:
-        loader.load_users()
-        yield loader
+        client.recognize_users()
+        yield client
     finally:
-        loader.close()
+        client.close()
 
 
-def test_select_storage(loader, base_dir):
-    _path, manifest = loader.load_manifest('Container1', 'container')
-    assert manifest
-    container = Container.from_manifest(manifest)
+def test_select_storage(client, base_dir):
+    container = client.load_container_from('Container1')
 
-    storage_manifest = container.select_storage(loader)
-    assert storage_manifest.fields['path'] == str(base_dir / 'storage1')
+    storage = client.select_storage(container)
+    assert storage.params['path'] == str(base_dir / 'storage1')
 
 
-def test_select_storage_unsupported(loader, base_dir):
-    _path, manifest = loader.load_manifest('Container1', 'container')
-    assert manifest
-    container = Container.from_manifest(manifest)
+def test_select_storage_unsupported(client, base_dir):
+    container = client.load_container_from('Container1')
 
     storage_manifest = Manifest.from_fields({
         'signer': '0xaaa',
         'type': 'unknown'
     })
-    storage_manifest.sign(loader.sig)
+    storage_manifest.sign(client.session.sig)
     with open(base_dir / 'storage' / 'Storage1.yaml', 'wb') as f:
         f.write(storage_manifest.to_bytes())
 
-    storage_manifest = container.select_storage(loader)
-    assert storage_manifest.fields['path'] == str(base_dir / 'storage2')
+    storage = client.select_storage(container)
+    assert storage.params['path'] == str(base_dir / 'storage2')
