@@ -25,7 +25,10 @@ import abc
 import errno
 from typing import Optional, Dict, Type, Any
 
+import yaml
+
 from ..manifest.schema import Schema
+from .control_decorators import control_file
 
 
 class StorageBackend(metaclass=abc.ABCMeta):
@@ -82,6 +85,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return StorageBackend._types
 
     # pylint: disable=missing-docstring
+
+    @control_file('manifest.yaml')
+    def control_manifest_read(self):
+        return yaml.dump(self.params).encode('ascii')
 
     def mount(self):
         pass
