@@ -30,14 +30,14 @@ from urllib.parse import urlparse
 
 import boto3
 
-from .cached import CachedStorage, Info
+from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')
 
 
-class S3Storage(CachedStorage):
+class S3StorageBackend(CachedStorageBackend):
     '''
     Amazon S3 storage.
     '''

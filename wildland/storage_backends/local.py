@@ -28,11 +28,11 @@ import errno
 
 import fuse
 
-from .base import AbstractStorage, FileProxyMixin
+from .base import StorageBackend, FileProxyMixin
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 
-__all__ = ['LocalStorage']
+__all__ = ['LocalStorageBackend']
 
 
 def fuse_stat(st: os.stat_result, read_only: bool) -> fuse.Stat:
@@ -103,7 +103,7 @@ class LocalFile:
         return self.file.truncate(length)
 
 
-class LocalStorage(FileProxyMixin, AbstractStorage):
+class LocalStorageBackend(FileProxyMixin, StorageBackend):
     '''Local, file-based storage'''
     SCHEMA = Schema('storage-local')
     TYPE = 'local'

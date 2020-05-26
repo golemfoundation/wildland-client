@@ -26,7 +26,7 @@ from pathlib import PurePosixPath, Path
 import uuid
 from typing import Optional, List
 
-from .storage.base import AbstractStorage
+from .storage_backends.base import StorageBackend
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.loader import ManifestLoader
 from .manifest.schema import Schema
@@ -118,7 +118,7 @@ class Container:
 
         storage_manifest = loader.parse_manifest(
             storage_manifest_content)
-        if not AbstractStorage.is_type_supported(storage_manifest.fields['type']):
+        if not StorageBackend.is_type_supported(storage_manifest.fields['type']):
             raise ManifestError(f'Unsupported storage manifest: {url}')
 
         if storage_manifest.fields['signer'] != self.signer:

@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from .manifest.manifest import Manifest
 from .manifest.loader import ManifestLoader
 from .container import Container
-from .storage.base import AbstractStorage
+from .storage_backends.base import StorageBackend
 from .wlpath import WildlandPath, PathError
 
 
@@ -144,7 +144,7 @@ class Search:
         # TODO: resolve manifest path in the context of the container
         # TODO: accept local storage only as long as the whole chain is local
         storage_manifest = step.container.select_storage(self.loader)
-        return AbstractStorage.from_params(storage_manifest.fields, uid=0, gid=0)
+        return StorageBackend.from_params(storage_manifest.fields, uid=0, gid=0)
 
     def resolve_first(self):
         '''

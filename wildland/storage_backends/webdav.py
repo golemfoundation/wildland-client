@@ -31,11 +31,11 @@ import requests
 import requests.auth
 from lxml import etree
 
-from .cached import CachedStorage, Info
+from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
 
 
-class WebdavStorage(CachedStorage):
+class WebdavStorageBackend(CachedStorageBackend):
     '''
     WebDAV storage.
     '''

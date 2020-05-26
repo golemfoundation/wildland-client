@@ -34,7 +34,7 @@ import os
 
 import fuse
 
-from .base import AbstractStorage
+from .base import StorageBackend
 
 
 @dataclass
@@ -82,9 +82,9 @@ class FileHandle:
     path: PurePosixPath
 
 
-class CachedStorage(AbstractStorage):
+class CachedStorageBackend(StorageBackend):
     '''
-    A Storage that adds a caching layer.
+    A StorageBackend that adds a caching layer.
 
     To use, subclass it and implement backend_* methods.
     '''

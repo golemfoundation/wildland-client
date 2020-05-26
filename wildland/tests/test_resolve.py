@@ -28,7 +28,7 @@ import yaml
 import pytest
 
 from ..manifest.loader import ManifestLoader
-from ..storage.local import LocalStorage
+from ..storage_backends.local import LocalStorageBackend
 from ..resolve import WildlandPath, PathError, Search
 
 
@@ -131,7 +131,7 @@ def test_resolve_first(base_dir, loader):
     assert search.steps[0].container_path == PurePosixPath('/path')
 
     storage = search.find_storage()
-    assert isinstance(storage, LocalStorage)
+    assert isinstance(storage, LocalStorageBackend)
     assert storage.root == base_dir / 'storage1'
 
     search = Search(loader, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
@@ -139,7 +139,7 @@ def test_resolve_first(base_dir, loader):
     assert search.steps[0].container_path == PurePosixPath('/path/subpath')
 
     storage = search.find_storage()
-    assert isinstance(storage, LocalStorage)
+    assert isinstance(storage, LocalStorageBackend)
     assert storage.root == base_dir / 'storage2'
 
 

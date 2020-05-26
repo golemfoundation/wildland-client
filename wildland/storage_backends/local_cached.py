@@ -26,11 +26,11 @@ from pathlib import Path, PurePosixPath
 import os
 import stat
 
-from .cached import CachedStorage, Info
+from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
 
 
-class LocalCachedStorage(CachedStorage):
+class LocalCachedStorageBackend(CachedStorageBackend):
     '''
     A cached storage backed by local files.
 

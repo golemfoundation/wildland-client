@@ -28,7 +28,7 @@ from typing import Optional, Dict, List, Type, Any
 from ..manifest.schema import Schema
 
 
-class AbstractStorage(metaclass=abc.ABCMeta):
+class StorageBackend(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
 
     Any implementation should inherit from this class.
@@ -51,7 +51,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     SCHEMA = Schema('storage')
     TYPE = ''
 
-    _types: Dict[str, Type['AbstractStorage']] = {}
+    _types: Dict[str, Type['StorageBackend']] = {}
 
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
@@ -69,31 +69,31 @@ class AbstractStorage(metaclass=abc.ABCMeta):
             self.read_only = True
 
     @staticmethod
-    def types() -> Dict[str, Type['AbstractStorage']]:
+    def types() -> Dict[str, Type['StorageBackend']]:
         '''
         Lazily initialized type -> storage class mapping.
         '''
 
-        if AbstractStorage._types:
-            return AbstractStorage._types
+        if StorageBackend._types:
+            return StorageBackend._types
 
         # pylint: disable=import-outside-toplevel,cyclic-import
-        from .local import LocalStorage
-        from .local_cached import LocalCachedStorage
-        from .s3 import S3Storage
-        from .webdav import WebdavStorage
+        from .local import LocalStorageBackend
+        from .local_cached import LocalCachedStorageBackend
+        from .s3 import S3StorageBackend
+        from .webdav import WebdavStorageBackend
 
-        classes: List[Type[AbstractStorage]] = [
-            LocalStorage,
-            LocalCachedStorage,
-            S3Storage,
-            WebdavStorage,
+        classes: List[Type[StorageBackend]] = [
+            LocalStorageBackend,
+            LocalCachedStorageBackend,
+            S3StorageBackend,
+            WebdavStorageBackend,
         ]
 
         for cls in classes:
-            AbstractStorage._types[cls.TYPE] = cls
+            StorageBackend._types[cls.TYPE] = cls
 
-        return AbstractStorage._types
+        return StorageBackend._types
 
     # pylint: disable=missing-docstring
 
@@ -157,7 +157,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
 
     @staticmethod
-    def from_params(params, uid, gid, read_only=False) -> 'AbstractStorage':
+    def from_params(params, uid, gid, read_only=False) -> 'StorageBackend':
         '''
         Construct a Storage from fields originating from manifest.
 
@@ -165,7 +165,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         '''
 
         storage_type = params['type']
-        cls = AbstractStorage.types()[storage_type]
+        cls = StorageBackend.types()[storage_type]
         return cls(params=params, uid=uid, gid=gid, read_only=read_only)
 
     @staticmethod
@@ -173,7 +173,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         '''
         Check if the storage type is supported.
         '''
-        return storage_type in AbstractStorage.types()
+        return storage_type in StorageBackend.types()
 
     @staticmethod
     def validate_manifest(manifest):
@@ -182,7 +182,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         '''
 
         storage_type = manifest.fields['type']
-        cls = AbstractStorage.types()[storage_type]
+        cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
 
 
@@ -213,7 +213,7 @@ class FileProxyMixin:
                 ...
 
 
-        class MyStorage(FileProxyMixin, AbstractStorage):
+        class MyStorageBackend(FileProxyMixin, StorageBackend):
             def open(self, path, flags):
                 return MyFile(path, flags, ...)
 
