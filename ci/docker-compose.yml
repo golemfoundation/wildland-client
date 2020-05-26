@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  wildland-fuse-ci:
+    build:
+      context: ..
+      dockerfile: ./ci/Dockerfile
+    image: wildland-fuse-ci
+    container_name: wildland-fuse-ci
+    privileged: true
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    volumes:
+      - ..:/home/user/wildland-fuse:ro
+      - ../htmlcov/:/home/user/wildland-fuse/htmlcov:rw
+      - ../Documentation/_build:/home/user/wildland-fuse/Documentation/_build:rw

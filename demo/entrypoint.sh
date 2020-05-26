@@ -3,7 +3,7 @@
 . /home/user/env/bin/activate
 
 export EDITOR=nano
-export PATH=/wildland-fuse:$PATH
+export PATH=/home/user/wildland-fuse:/home/user/wildland-fuse/demo:$PATH
 
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"
@@ -13,21 +13,20 @@ sudo chmod 666 /dev/fuse
 
 export __fish_prompt_hostname="wildland-fuse"
 
+sudo /etc/init.d/nginx start
 mkdir -p ~/.config/wildland
 echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
 
-if [ "$ENABLE_WEBDAV" = "1" ]; then
-    sudo /etc/init.d/nginx start
-    echo
-    echo "WebDAV server is running at dav://localhost:8080/"
-    echo
-fi
+cd /home/user
 
-if [ -n "$1" -a -x "docker/$1" ]; then
-    cd docker
-    exec "$@"
-elif [ -n "$1" ]; then
+echo
+echo "WebDAV server is running at dav://localhost:8080/"
+echo "To create example containers, run: wl-example"
+echo
+
+
+if [ -n "$1" ]; then
     exec "$@"
 else
-    ./docker/init.sh
+    exec fish
 fi

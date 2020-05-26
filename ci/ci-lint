@@ -1,0 +1,4 @@
+#!/bin/sh -ex
+
+. /home/user/env/bin/activate
+pylint wildland/ "$@"
