@@ -27,6 +27,7 @@ from typing import Optional, Iterator
 
 from .user import User
 from .container import Container
+from .wlpath import WildlandPath
 from .manifest.sig import SigContext, DummySigContext, GpgSigContext
 from .manifest.manifest import ManifestError
 from .session import Session
@@ -130,6 +131,59 @@ class Client:
 
         raise ManifestError(f'User not found: {name}')
 
+    def load_containers(self) -> Iterator[Container]:
+        '''
+        Load containers from the containers directory.
+        '''
+
+        if self.container_dir.exists():
+            for path in sorted(self.container_dir.glob('*.yaml')):
+                try:
+                    container = self.load_container_from_path(path)
+                except WildlandError as e:
+                    logger.warning('error loading container manifest: %s: %s',
+                                   path, e)
+                else:
+                    yield container
+
+    def load_container_from_path(self, path: Path) -> Container:
+        '''
+        Load container from a local file.
+        '''
+
+        return self.session.load_container(path.read_bytes(), path)
+
+    def load_container_from_wlpath(self, wlpath: WildlandPath) -> Container:
+        '''
+        Load a container from WildlandPath.
+        '''
+
+        # TODO convert Search to use Client
+        raise NotImplementedError()
+
+    def load_container_from(self, name: str) -> Container:
+        '''
+        Load a container based on a (potentially ambiguous) name.
+        '''
+
+        # Wildland path
+        if WildlandPath.match(name):
+            wlpath = WildlandPath.from_str(name)
+            return self.load_container_from_wlpath(wlpath)
+
+        # Short name
+        if not name.endswith('.yaml'):
+            path = self.container_dir / f'{name}.yaml'
+            if path.exists():
+                return self.load_container_from_path(path)
+
+        # Local path
+        path = Path(name)
+        if path.exists():
+            return self.load_container_from_path(path)
+
+        raise ManifestError(f'Container not found: {name}')
+
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
         '''
         Save a user manifest. If path is None, the user has to have
@@ -150,7 +204,17 @@ class Client:
 
         path = self._new_path(self.user_dir, name or user.signer)
         path.write_bytes(self.session.dump_user(user))
-        user.local_path = path
+        return path
+
+    def save_container(self, container: Container, path: Optional[Path] = None) -> Path:
+        '''
+        Save a container manifest. If path is None, the container has to have
+        local_path set.
+        '''
+
+        path = path or container.local_path
+        assert path is not None
+        path.write_bytes(self.session.dump_container(container))
         return path
 
     def save_new_container(self, container: Container, name: Optional[str] = None) -> Path:
