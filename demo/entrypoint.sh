@@ -14,8 +14,14 @@ sudo chmod 666 /dev/fuse
 export __fish_prompt_hostname="wildland-fuse"
 
 sudo /etc/init.d/nginx start
-mkdir -p ~/.config/wildland
-echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
+
+sudo chown -R user.user ~/.config ~/.gnupg
+chmod 0700 ~/.gnupg
+if ! [ -f ~/.config/wildland/config.yaml ]; then
+   # fresh start?
+   mkdir -p ~/.config/wildland
+   echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
+fi
 
 cd /home/user
 

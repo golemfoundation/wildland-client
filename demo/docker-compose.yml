@@ -23,3 +23,9 @@ services:
       - /dev/fuse
     volumes:
       - ..:/home/user/wildland-fuse:ro
+      - usercfg:/home/user/.config:rw
+      - usergpgcfg:/home/user/.gnupg:rw
+
+volumes:
+  usercfg:
+  usergpgcfg:
