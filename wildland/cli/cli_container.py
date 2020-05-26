@@ -91,13 +91,12 @@ def update(obj: ContextObj, storage, cont):
         return
 
     for storage_name in storage:
-        # TODO use client
-        storage_path, _storage_data = obj.loader.read_manifest(storage_name, 'storage')
-        assert storage_path
-        print(f'Adding storage: {storage_path}')
-        if str(storage_path) in container.backends:
+        storage = obj.client.load_storage_from(storage_name)
+        assert storage.local_path
+        print(f'Adding storage: {storage.local_path}')
+        if str(storage.local_path) in container.backends:
             raise click.ClickException('Storage already attached to container')
-        container.backends.append(str(storage_path))
+        container.backends.append(str(storage.local_path))
 
     obj.client.save_container(container)
 
@@ -134,14 +133,14 @@ def mount(obj: ContextObj, cont):
     to be mounted first, see ``wl mount``.
     '''
     obj.fs_client.ensure_mounted()
-    # TODO: Still necessary until fs_client is using ManifestLoader.
-    obj.loader.load_users()
     obj.client.recognize_users()
 
     container = obj.client.load_container_from(cont)
 
     click.echo(f'Mounting: {container.local_path}')
-    obj.fs_client.mount_container(container)
+    is_default_user = container.signer == obj.client.config.get('default_user')
+    storage = obj.client.select_storage(container)
+    obj.fs_client.mount_container(container, storage, is_default_user)
 
 
 @container_.command(short_help='unmount container')

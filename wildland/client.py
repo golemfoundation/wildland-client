@@ -27,10 +27,12 @@ from typing import Optional, Iterator
 
 from .user import User
 from .container import Container
+from .storage import Storage
 from .wlpath import WildlandPath
 from .manifest.sig import SigContext, DummySigContext, GpgSigContext
 from .manifest.manifest import ManifestError
 from .session import Session
+from .storage_backends.base import StorageBackend
 
 from .config import Config
 from .exc import WildlandError
@@ -49,6 +51,7 @@ class Client:
 
         self.user_dir = Path(self.config.get('user_dir'))
         self.container_dir = Path(self.config.get('container_dir'))
+        self.storage_dir = Path(self.config.get('storage_dir'))
 
         sig: SigContext
         if self.config.get('dummy'):
@@ -184,6 +187,31 @@ class Client:
 
         raise ManifestError(f'Container not found: {name}')
 
+    def load_storage_from_path(self, path: Path) -> Storage:
+        '''
+        Load storage from a local file.
+        '''
+
+        return self.session.load_storage(path.read_bytes(), path)
+
+    def load_storage_from(self, name: str) -> Storage:
+        '''
+        Load a storage based on a (potentially ambiguous) name.
+        '''
+
+        # Short name
+        if not name.endswith('.yaml'):
+            path = self.storage_dir / f'{name}.yaml'
+            if path.exists():
+                return self.load_storage_from_path(path)
+
+        # Local path
+        path = Path(name)
+        if path.exists():
+            return self.load_storage_from_path(path)
+
+        raise ManifestError(f'Storage not found: {name}')
+
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
         '''
         Save a user manifest. If path is None, the user has to have
@@ -241,3 +269,42 @@ class Client:
             if not path.exists():
                 return path
             i += 1
+
+    def select_storage(self, container: Container) -> Storage:
+        '''
+        Select a storage to mount for a container.
+        '''
+
+        # TODO: currently just file URLs
+        for url in container.backends:
+            try:
+                storage = self.load_storage_from_path(Path(url))
+            except WildlandError:
+                logging.exception('Error loading manifest: %s', url)
+                continue
+
+            if storage.signer != container.signer:
+                logging.error(
+                    '%s: signer field mismatch: storage %s, container %s',
+                    url,
+                    storage.signer,
+                    container.signer
+                )
+                continue
+
+            if storage.container_path not in container.paths:
+                logging.error(
+                    '%s: unrecognized container path for storage: %s, %s',
+                    url,
+                    storage.container_path,
+                    container.paths
+                )
+                continue
+
+            if not StorageBackend.is_type_supported(storage.storage_type):
+                logging.warning('Unsupported storage manifest: %s', url)
+                continue
+
+            return storage
+
+        raise ManifestError('no supported storage manifest')

@@ -29,8 +29,8 @@ import logging
 from typing import Dict, List, Optional
 import json
 
-from .manifest.loader import ManifestLoader
 from .container import Container
+from .storage import Storage
 from .exc import WildlandError
 
 
@@ -49,11 +49,9 @@ class WildlandFSClient:
     A class to communicate with Wildland filesystem over the .control API.
     '''
 
-    def __init__(self, mount_dir: Path, loader: ManifestLoader):
+    def __init__(self, mount_dir: Path):
         self.mount_dir = mount_dir
         self.control_dir = self.mount_dir / '.control'
-        self.loader = loader
-        self.default_user = self.loader.config.get('default_user')
 
     def mount(self, foreground=False, debug=False) -> subprocess.Popen:
         '''
@@ -159,13 +157,17 @@ class WildlandFSClient:
             time.sleep(delay)
         raise WildlandFSError('Timed out waiting for Wildland to mount')
 
-    def mount_container(self, container: Container):
+    def mount_container(self,
+                        container: Container,
+                        storage: Storage,
+                        is_default_user: bool = False):
         '''
-        Mount a container.
+        Mount a container, assuming a storage has been already selected.
         '''
+
         if self.find_storage_id(container) is not None:
             raise WildlandFSError('Already mounted')
-        command = self.get_command_for_mount_container(container)
+        command = self.get_command_for_mount_container(container, storage, is_default_user)
         self.write_control('mount', json.dumps(command).encode())
 
     def unmount_container(self, storage_id: int):
@@ -206,7 +208,10 @@ class WildlandFSClient:
             for p, ident in data.items()
         }
 
-    def get_command_for_mount_container(self, container: Container):
+    def get_command_for_mount_container(self,
+                                        container: Container,
+                                        storage: Storage,
+                                        is_default_user: bool):
         '''
         Prepare command to be written to :file:`/.control/mount` to mount
         a container
@@ -218,12 +223,12 @@ class WildlandFSClient:
             os.fspath(self.get_user_path(container.signer, path))
             for path in container.paths
         ]
-        if container.signer == self.default_user:
+        if is_default_user:
             paths.extend(os.fspath(p) for p in container.paths)
 
         return {
             'paths': paths,
-            'storage': container.select_storage(self.loader).fields,
+            'storage': storage.params,
         }
 
     @staticmethod

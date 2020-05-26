@@ -28,6 +28,8 @@ from .manifest.manifest import Manifest
 from .manifest.sig import SigContext
 from .user import User
 from .container import Container
+from .storage import Storage
+
 
 class Session:
     '''
@@ -83,5 +85,25 @@ class Session:
         '''
 
         manifest = container.to_unsigned_manifest()
+        manifest.sign(self.sig)
+        return manifest.to_bytes()
+
+    def load_storage(self,
+                  data: bytes,
+                  local_path: Optional[Path] = None) -> Storage:
+        '''
+        Load a container manifest, creating a Storage object.
+        '''
+
+        manifest = Manifest.from_bytes(
+            data, self.sig, self_signed=Manifest.DISALLOW)
+        return Storage.from_manifest(manifest, local_path)
+
+    def dump_storage(self, storage: Storage) -> bytes:
+        '''
+        Create a signed manifest out of a Storage object.
+        '''
+
+        manifest = storage.to_unsigned_manifest()
         manifest.sign(self.sig)
         return manifest.to_bytes()
