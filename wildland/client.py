@@ -161,8 +161,11 @@ class Client:
         Load a container from WildlandPath.
         '''
 
-        # TODO convert Search to use Client
-        raise NotImplementedError()
+        # TODO: Still a circular dependency with resolve.py
+        # pylint: disable=import-outside-toplevel, cyclic-import
+        from .resolve import Search
+        search = Search(self, wlpath)
+        return search.read_container(remote=True)
 
     def load_container_from(self, name: str) -> Container:
         '''

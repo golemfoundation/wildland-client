@@ -39,7 +39,7 @@ def put(obj: ContextObj, local_path, wlpath):
     '''
 
     wlpath = WildlandPath.from_str(wlpath)
-    obj.loader.load_users()
+    obj.client.recognize_users()
 
     if local_path:
         with open(local_path, 'rb') as f:
@@ -47,7 +47,7 @@ def put(obj: ContextObj, local_path, wlpath):
     else:
         data = sys.stdin.buffer.read()
 
-    search = Search(obj.loader, wlpath)
+    search = Search(obj.client, wlpath)
     search.write_file(data)
 
 
@@ -61,9 +61,9 @@ def get(obj: ContextObj, wlpath, local_path):
     '''
 
     wlpath = WildlandPath.from_str(wlpath)
-    obj.loader.load_users()
+    obj.client.recognize_users()
 
-    search = Search(obj.loader, wlpath)
+    search = Search(obj.client, wlpath)
     data = search.read_file()
 
     if local_path:

@@ -18,67 +18,62 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-The container
+Storage class
 '''
 
 from pathlib import PurePosixPath, Path
-import uuid
-from typing import Optional, List
+from typing import Dict, Any, Optional
 
 from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 
 
-class Container:
-    '''Wildland container'''
-    SCHEMA = Schema('container')
+class Storage:
+    '''
+    A data transfer object representing Wildland storage.
+    '''
 
-    def __init__(self, *,
+    BASE_SCHEMA = Schema('storage')
+
+    def __init__(self,
                  signer: str,
-                 paths: List[PurePosixPath],
-                 backends: List[str],
-                 local_path: Optional[Path] = None):
+                 storage_type: str,
+                 container_path: PurePosixPath,
+                 params: Dict[str, Any],
+                 local_path: Optional[Path]):
         self.signer = signer
-        self.paths = paths
-        self.backends = backends
+        self.storage_type = storage_type
+        self.container_path = container_path
+        self.params = params
         self.local_path = local_path
 
-    def ensure_uuid(self) -> str:
-        '''
-        Find or create an UUID path for this container.
-        '''
-
-        for path in self.paths:
-            if path.parent == PurePosixPath('/.uuid/'):
-                return path.name
-        ident = str(uuid.uuid4())
-        self.paths.insert(0, PurePosixPath('/.uuid/') / ident)
-        return ident
-
     @classmethod
-    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Storage':
         '''
-        Construct a Container instance from a manifest.
+        Construct a Storage instance from a manifest.
         '''
 
-        manifest.apply_schema(cls.SCHEMA)
+        manifest.apply_schema(cls.BASE_SCHEMA)
         return cls(
             signer=manifest.fields['signer'],
-            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            backends=manifest.fields['backends']['storage'],
+            storage_type=manifest.fields['type'],
+            container_path=PurePosixPath(manifest.fields['container_path']),
+            params=manifest.fields,
             local_path=local_path,
         )
 
     def to_unsigned_manifest(self) -> Manifest:
         '''
-        Create a manifest based on Container's data.
+        Create a manifest based on Storage's data.
         Has to be signed separately.
         '''
 
-        manifest = Manifest.from_fields(dict(
-            signer=self.signer,
-            paths=[str(p) for p in self.paths],
-            backends={'storage': self.backends},
-        ))
-        manifest.apply_schema(self.SCHEMA)
+        fields = {
+            **self.params,
+            'signer': self.signer,
+            'type': self.storage_type,
+        }
+
+        manifest = Manifest.from_fields(fields)
+        manifest.apply_schema(self.BASE_SCHEMA)
         return manifest

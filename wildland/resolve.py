@@ -21,14 +21,13 @@
 Utilities for URL resolving and traversing the path
 '''
 
-from pathlib import PurePosixPath, Path
-from typing import List, Optional, Tuple
+from pathlib import PurePosixPath
+from typing import List, Optional
 import os
 import logging
 from dataclasses import dataclass
 
-from .manifest.manifest import Manifest
-from .manifest.loader import ManifestLoader
+from .client import Client
 from .container import Container
 from .storage_backends.base import StorageBackend
 from .wlpath import WildlandPath, PathError
@@ -45,8 +44,6 @@ class Step:
     '''
 
     container: Container
-    manifest: Manifest
-    manifest_path: Optional[Path]
     container_path: PurePosixPath
 
 
@@ -60,11 +57,11 @@ class Search:
         search.read_file()
     '''
 
-    def __init__(self, loader: ManifestLoader, wlpath: WildlandPath,
+    def __init__(self, client: Client, wlpath: WildlandPath,
                  default_signer: Optional[str] = None):
-        self.loader = loader
+        self.client = client
         self.wlpath = wlpath
-        self.signer = wlpath.signer or default_signer or loader.config.get('default_user')
+        self.signer = wlpath.signer or default_signer or client.config.get('default_user')
         if self.signer is None:
             raise PathError('Could not find default user for path: {wlpath}')
 
@@ -79,7 +76,7 @@ class Search:
 
         return self.wlpath.parts[-1]
 
-    def read_container(self, remote: bool) -> Tuple[Container, Manifest, Optional[Path]]:
+    def read_container(self, remote: bool) -> Container:
         '''
         Read a container manifest represented by the path. Returns
         ``(container, manifest_path)``.
@@ -92,13 +89,13 @@ class Search:
 
         if remote:
             self.resolve_all()
-            return self.steps[-1].container, self.steps[-1].manifest, self.steps[-1].manifest_path
+            return self.steps[-1].container
 
         if len(self.wlpath.parts) > 1:
             raise PathError(f'Expecting a local path: {self.wlpath}')
 
         self.resolve_first()
-        return self.steps[0].container, self.steps[0].manifest, self.steps[0].manifest_path
+        return self.steps[0].container
 
     def read_file(self) -> bytes:
         '''
@@ -143,8 +140,8 @@ class Search:
         step = self.steps[-1]
         # TODO: resolve manifest path in the context of the container
         # TODO: accept local storage only as long as the whole chain is local
-        storage_manifest = step.container.select_storage(self.loader)
-        return StorageBackend.from_params(storage_manifest.fields, uid=0, gid=0)
+        storage = self.client.select_storage(step.container)
+        return StorageBackend.from_params(storage.params, uid=0, gid=0)
 
     def resolve_first(self):
         '''
@@ -155,14 +152,13 @@ class Search:
         assert len(self.steps) == 0
         container_path = self.wlpath.parts[0]
 
-        for manifest_path, manifest in self.loader.load_manifests('container'):
-            container = Container.from_manifest(manifest)
+        for container in self.client.load_containers():
             if (container.signer == self.signer and
                 container_path in container.paths):
 
                 logger.info('%s: local container: %s', container_path,
-                            manifest_path)
-                step = Step(container, manifest, manifest_path, container_path)
+                            container.local_path)
+                step = Step(container, container_path)
                 self.steps.append(step)
                 return
 
@@ -184,18 +180,16 @@ class Search:
             raise PathError(f'Could not find manifest: {manifest_path}')
         logger.info('%s: container manifest: %s', part, manifest_path)
 
-        manifest = Manifest.from_bytes(manifest_content, self.loader.sig,
-                                       schema=Container.SCHEMA)
-        if manifest.fields['signer'] != self.signer:
+        container = self.client.session.load_container(manifest_content)
+        if container.signer != self.signer:
             raise PathError(
                 'Unexpected signer for {}: {} (expected {})'.format(
-                    manifest_path, manifest.fields['signer'], self.signer
+                    manifest_path, container.signer, self.signer
                 ))
-        container = Container.from_manifest(manifest)
         if part not in container.paths:
             logger.warning('%s: path not found in manifest: %s',
                            part, manifest_path)
-        step = Step(container, manifest, None, part)
+        step = Step(container, part)
         self.steps.append(step)
 
 
