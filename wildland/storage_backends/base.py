@@ -23,7 +23,7 @@ Abstract classes for storage
 
 import abc
 import errno
-from typing import Optional, Dict, List, Type, Any
+from typing import Optional, Dict, Type, Any
 
 from ..manifest.schema import Schema
 
@@ -74,24 +74,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Lazily initialized type -> storage class mapping.
         '''
 
-        if StorageBackend._types:
-            return StorageBackend._types
-
-        # pylint: disable=import-outside-toplevel,cyclic-import
-        from .local import LocalStorageBackend
-        from .local_cached import LocalCachedStorageBackend
-        from .s3 import S3StorageBackend
-        from .webdav import WebdavStorageBackend
-
-        classes: List[Type[StorageBackend]] = [
-            LocalStorageBackend,
-            LocalCachedStorageBackend,
-            S3StorageBackend,
-            WebdavStorageBackend,
-        ]
-
-        for cls in classes:
-            StorageBackend._types[cls.TYPE] = cls
+        if not StorageBackend._types:
+            # pylint: disable=import-outside-toplevel,cyclic-import
+            from .dispatch import get_storage_backends
+            StorageBackend._types = get_storage_backends()
 
         return StorageBackend._types
 
