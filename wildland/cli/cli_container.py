@@ -21,7 +21,6 @@
 Manage containers
 '''
 
-import copy
 from pathlib import PurePosixPath
 
 import click
@@ -29,7 +28,6 @@ import click
 from .cli_base import ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
-from ..manifest.manifest import Manifest
 
 
 @click.group('container', short_help='container management')
@@ -53,25 +51,24 @@ def create(obj: ContextObj, user, path, name, update_user):
     Create a new container manifest.
     '''
 
-    obj.loader.load_users()
-    user = obj.find_user(user)
-    path = obj.loader.create_container(user.signer, path, name)
+    obj.client.recognize_users()
+    user = obj.client.load_user_from(user)
+
+    container = Container(
+        signer=user.signer,
+        paths=[PurePosixPath(p) for p in path],
+        backends=[],
+    )
+    path = obj.client.save_new_container(container, name)
     click.echo(f'Created: {path}')
 
     if update_user:
-        if not user.manifest_path:
+        if not user.local_path:
             raise CliError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
-        fields = copy.deepcopy(user.manifest.fields)
-        fields['containers'].append(str(path))
 
-        user_manifest = Manifest.from_fields(fields)
-        obj.loader.validate_manifest(user_manifest, 'user')
-        user_manifest.sign(obj.loader.sig, attach_pubkey=True)
-        signed_data = user_manifest.to_bytes()
-        click.echo(f'Saving: {user.manifest_path}')
-        with open(user.manifest_path, 'wb') as f:
-            f.write(signed_data)
+        user.containers.append(str(path))
+        obj.client.save_user(user)
 
 
 @container_.command(short_help='update container')
@@ -84,35 +81,24 @@ def update(obj: ContextObj, storage, cont):
     Update a container manifest.
     '''
 
-    obj.loader.load_users()
-    path, manifest = obj.loader.load_manifest(cont, 'container')
-    if not manifest:
-        raise click.ClickException(f'Container not found: {cont}')
-    assert path
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+    if container.local_path is None:
+        raise click.ClickException('Can only update a local manifest')
 
     if not storage:
         print('No change')
         return
 
-    storages = list(manifest.fields['backends']['storage'])
     for storage_name in storage:
-        storage_path, _storage_data = obj.loader.read_manifest(storage_name, 'storage')
-        assert storage_path
-        print(f'Adding storage: {storage_path}')
-        if str(storage_path) in storages:
+        storage = obj.client.load_storage_from(storage_name)
+        assert storage.local_path
+        print(f'Adding storage: {storage.local_path}')
+        if str(storage.local_path) in container.backends:
             raise click.ClickException('Storage already attached to container')
-        storages.append(str(storage_path))
+        container.backends.append(str(storage.local_path))
 
-    fields = copy.deepcopy(manifest.fields)
-    fields['backends']['storage'] = storages
-    new_manifest = Manifest.from_fields(fields)
-    obj.loader.validate_manifest(new_manifest, 'container')
-    new_manifest.sign(obj.loader.sig)
-    signed_data = new_manifest.to_bytes()
-
-    print(f'Saving: {path}')
-    with open(path, 'wb') as f:
-        f.write(signed_data)
+    obj.client.save_container(container)
 
 
 @container_.command('list', short_help='list containers')
@@ -122,14 +108,13 @@ def list_(obj: ContextObj):
     Display known containers.
     '''
 
-    obj.loader.load_users()
-    for path, manifest in obj.loader.load_manifests('container'):
-        container = Container(manifest)
-        click.echo(path)
+    obj.client.recognize_users()
+    for container in obj.client.load_containers():
+        click.echo(container.local_path)
         click.echo(f'  signer: {container.signer}')
         for container_path in container.paths:
             click.echo(f'  path: {container_path}')
-        for storage_path in manifest.fields['backends']['storage']:
+        for storage_path in container.backends:
             click.echo(f'  storage: {storage_path}')
         click.echo()
 
@@ -147,16 +132,15 @@ def mount(obj: ContextObj, cont):
     Mount a container given by name or path to manifest. The Wildland system has
     to be mounted first, see ``wl mount``.
     '''
-    obj.client.ensure_mounted()
-    obj.loader.load_users()
+    obj.fs_client.ensure_mounted()
+    obj.client.recognize_users()
 
-    path, manifest = obj.loader.load_manifest(cont, 'container', remote=True)
-    if not manifest:
-        raise click.ClickException(f'Not found: {cont}')
+    container = obj.client.load_container_from(cont)
 
-    container = Container(manifest)
-    click.echo(f'Mounting: {path}')
-    obj.client.mount_container(container)
+    click.echo(f'Mounting: {container.local_path}')
+    is_default_user = container.signer == obj.client.config.get('default_user')
+    storage = obj.client.select_storage(container)
+    obj.fs_client.mount_container(container, storage, is_default_user)
 
 
 @container_.command(short_help='unmount container')
@@ -170,25 +154,20 @@ def unmount(obj: ContextObj, path: str, cont):
     identify the container by one of its path (using ``--path``).
     '''
 
-    obj.client.ensure_mounted()
-    obj.loader.load_users()
+    obj.fs_client.ensure_mounted()
+    obj.client.recognize_users()
 
     if bool(cont) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
 
     if cont:
-        _container_path, manifest = obj.loader.load_manifest(cont, 'container',
-                                                             remote=True)
-        if not manifest:
-            raise click.ClickException(f'Not found: {cont}')
-
-        container = Container(manifest)
-        storage_id = obj.client.find_storage_id(container)
+        container = obj.client.load_container_from(cont)
+        storage_id = obj.fs_client.find_storage_id(container)
     else:
-        storage_id = obj.client.find_storage_id_by_path(PurePosixPath(path))
+        storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
 
     if storage_id is None:
         raise click.ClickException('Container not mounted')
 
     click.echo(f'Unmounting storage {storage_id}')
-    obj.client.unmount_container(storage_id)
+    obj.fs_client.unmount_container(storage_id)

@@ -22,16 +22,57 @@ Common commands (sign, edit, ...) for multiple object types
 '''
 
 import sys
+from pathlib import Path
 
 import click
 
 from .cli_base import ContextObj
+from ..client import Client
+from ..user import User
+from ..container import Container
+from ..storage import Storage
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
     ManifestError,
     split_header,
 )
+
+
+def find_manifest_file(client: Client, name, manifest_type) -> Path:
+    '''
+    CLI helper: load a manifest by name.
+    '''
+
+    if manifest_type is not None and not name.endswith('.yaml'):
+        base_dir = {
+            'user': client.user_dir,
+            'container': client.container_dir,
+            'storage': client.storage_dir,
+        }[manifest_type]
+        path = base_dir / f'{name}.yaml'
+        if path.exists():
+            return path
+
+    path = Path(name)
+    if path.exists():
+        return path
+
+    raise click.ClickException(f'Not found: {name}')
+
+
+def validate_manifest(manifest: Manifest, manifest_type):
+    '''
+    CLI helper: validate a manifest.
+    '''
+
+    if manifest_type == 'user':
+        manifest.apply_schema(User.SCHEMA)
+    if manifest_type == 'container':
+        manifest.apply_schema(Container.SCHEMA)
+    if manifest_type == 'storage':
+        manifest.apply_schema(Storage.BASE_SCHEMA)
+
 
 @click.command(short_help='manifest signing tool')
 @click.option('-o', 'output_file', metavar='FILE',
@@ -54,21 +95,25 @@ def sign(ctx, input_file, output_file, in_place):
     if manifest_type == 'main':
         manifest_type = None
 
-
     if in_place:
         if not input_file:
             raise click.ClickException('Cannot -i without a file')
         if output_file:
             raise click.ClickException('Cannot use both -i and -o')
 
-    obj.loader.load_users()
-    path, data = obj.read_manifest_file(input_file, manifest_type)
-    assert path
+    if input_file:
+        path = find_manifest_file(obj.client, input_file, manifest_type)
+        data = path.read_bytes()
+    else:
+        data = sys.stdin.buffer.read()
 
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type:
-        obj.loader.validate_manifest(manifest, manifest_type)
-    manifest.sign(obj.loader.sig, attach_pubkey=(manifest_type == 'user'))
+        validate_manifest(manifest, manifest_type)
+
+    obj.client.recognize_users()
+
+    manifest.sign(obj.client.session.sig, attach_pubkey=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
 
     if in_place:
@@ -81,6 +126,7 @@ def sign(ctx, input_file, output_file, in_place):
             f.write(signed_data)
     else:
         sys.stdout.buffer.write(signed_data)
+
 
 @click.command(short_help='verify manifest signature')
 @click.argument('input_file', metavar='FILE', required=False)
@@ -98,14 +144,19 @@ def verify(ctx, input_file):
     if manifest_type == 'main':
         manifest_type = None
 
-    obj.loader.load_users()
-    _path, data = obj.read_manifest_file(input_file, manifest_type, remote=True)
+    if input_file:
+        path = find_manifest_file(obj.client, input_file, manifest_type)
+        data = path.read_bytes()
+    else:
+        data = sys.stdin.buffer.read()
+
+    obj.client.recognize_users()
     try:
         self_signed = Manifest.REQUIRE if manifest_type == 'user' else Manifest.DISALLOW
-        manifest = Manifest.from_bytes(data, obj.loader.sig,
+        manifest = Manifest.from_bytes(data, obj.client.session.sig,
                                        self_signed=self_signed)
         if manifest_type:
-            obj.loader.validate_manifest(manifest, manifest_type)
+            validate_manifest(manifest, manifest_type)
     except ManifestError as e:
         raise click.ClickException(f'Error verifying manifest: {e}')
     click.echo('Manifest is valid')
@@ -130,10 +181,8 @@ def edit(ctx, editor, input_file):
     if manifest_type == 'main':
         manifest_type = None
 
-    obj.loader.load_users()
-
-    path, data = obj.read_manifest_file(input_file, manifest_type)
-    assert path
+    path = find_manifest_file(obj.client, input_file, manifest_type)
+    data = path.read_bytes()
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
@@ -142,11 +191,11 @@ def edit(ctx, editor, input_file):
                           require_save=False)
     data = edited_s.encode()
 
-    obj.loader.load_users()
+    obj.client.recognize_users()
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type is not None:
-        obj.loader.validate_manifest(manifest, manifest_type)
-    manifest.sign(obj.loader.sig, attach_pubkey=(manifest_type == 'user'))
+        validate_manifest(manifest, manifest_type)
+    manifest.sign(obj.client.session.sig, attach_pubkey=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)

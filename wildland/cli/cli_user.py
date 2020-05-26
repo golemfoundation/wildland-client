@@ -21,6 +21,7 @@
 Manage users
 '''
 
+from pathlib import PurePosixPath
 import click
 
 from ..user import User
@@ -48,7 +49,7 @@ def create(obj: ContextObj, key, paths, name):
     in your keyring.
     '''
 
-    signer, pubkey = obj.loader.sig.find(key)
+    signer, pubkey = obj.session.sig.find(key)
     print(f'Using key: {signer}')
 
     if paths:
@@ -60,12 +61,18 @@ def create(obj: ContextObj, key, paths, name):
             paths = [f'/users/{signer}']
         click.echo(f'No path specified, using: {paths[0]}')
 
-    path = obj.loader.create_user(signer, pubkey, paths, name)
+    user = User(
+        signer=signer,
+        pubkey=pubkey,
+        paths=[PurePosixPath(p) for p in paths],
+        containers=[],
+    )
+    path = obj.client.save_new_user(user, name)
     click.echo(f'Created: {path}')
 
-    if obj.loader.config.get('default_user') is None:
+    if obj.client.config.get('default_user') is None:
         print(f'Using {signer} as default user')
-        obj.loader.config.update_and_save(default_user=signer)
+        obj.client.config.update_and_save(default_user=signer)
 
 
 @user_.command('list', short_help='list users')
@@ -75,10 +82,8 @@ def list_(obj: ContextObj):
     Display known users.
     '''
 
-    obj.loader.load_users()
-    for path, manifest in obj.loader.load_manifests('user'):
-        user = User(manifest)
-        click.echo(path)
+    for user in obj.client.load_users():
+        click.echo(user.local_path)
         click.echo(f'  signer: {user.signer}')
         for user_path in user.paths:
             click.echo(f'  path: {user_path}')

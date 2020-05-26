@@ -23,14 +23,15 @@ Abstract classes for storage
 
 import abc
 import errno
-from typing import Optional, Dict, List, Type
+from typing import Optional, Dict, Type, Any
 
-from .control_decorators import control_file
+import yaml
+
 from ..manifest.schema import Schema
-from ..manifest.manifest import Manifest
+from .control_decorators import control_file
 
 
-class AbstractStorage(metaclass=abc.ABCMeta):
+class StorageBackend(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
 
     Any implementation should inherit from this class.
@@ -53,63 +54,47 @@ class AbstractStorage(metaclass=abc.ABCMeta):
     SCHEMA = Schema('storage')
     TYPE = ''
 
-    _types: Dict[str, Type['AbstractStorage']] = {}
+    _types: Dict[str, Type['StorageBackend']] = {}
 
     def __init__(self, *,
-                 manifest: Optional[Manifest] = None,
+                 params: Optional[Dict[str, Any]] = None,
                  read_only: bool = False,
                  **kwds):
         # pylint: disable=redefined-builtin, unused-argument
-        self.manifest: Optional[Manifest] = None
         self.read_only = False
-        if manifest:
-            assert manifest.fields['type'] == self.TYPE
-            self.manifest = manifest
-            self.read_only = manifest.fields.get('read_only', False)
+        self.params: Dict[str, Any] = {}
+        if params:
+            assert params['type'] == self.TYPE
+            self.params = params
+            self.read_only = params.get('read_only', False)
 
         if read_only:
             self.read_only = True
 
     @staticmethod
-    def types() -> Dict[str, Type['AbstractStorage']]:
+    def types() -> Dict[str, Type['StorageBackend']]:
         '''
         Lazily initialized type -> storage class mapping.
         '''
 
-        if AbstractStorage._types:
-            return AbstractStorage._types
+        if not StorageBackend._types:
+            # pylint: disable=import-outside-toplevel,cyclic-import
+            from .dispatch import get_storage_backends
+            StorageBackend._types = get_storage_backends()
 
-        # pylint: disable=import-outside-toplevel,cyclic-import
-        from .local import LocalStorage
-        from .local_cached import LocalCachedStorage
-        from .s3 import S3Storage
-        from .webdav import WebdavStorage
-
-        classes: List[Type[AbstractStorage]] = [
-            LocalStorage,
-            LocalCachedStorage,
-            S3Storage,
-            WebdavStorage,
-        ]
-
-        for cls in classes:
-            AbstractStorage._types[cls.TYPE] = cls
-
-        return AbstractStorage._types
+        return StorageBackend._types
 
     # pylint: disable=missing-docstring
+
+    @control_file('manifest.yaml')
+    def control_manifest_read(self):
+        return yaml.dump(self.params).encode('ascii')
 
     def mount(self):
         pass
 
     def refresh(self):
         pass
-
-    @control_file('manifest.yaml')
-    def control_manifest_read(self):
-        if self.manifest:
-            return self.manifest.to_bytes()
-        return b''
 
     @abc.abstractmethod
     def open(self, path, flags):
@@ -165,35 +150,23 @@ class AbstractStorage(metaclass=abc.ABCMeta):
 
 
     @staticmethod
-    def from_fields(fields, uid, gid, read_only=False) -> 'AbstractStorage':
+    def from_params(params, uid, gid, read_only=False) -> 'StorageBackend':
         '''
         Construct a Storage from fields originating from manifest.
 
         Assume the fields have been validated before.
         '''
 
-        manifest = Manifest.from_fields(fields)
-        manifest.skip_signing()
-
-        return AbstractStorage.from_manifest(manifest, uid, gid, read_only)
-
-    @staticmethod
-    def from_manifest(manifest, uid, gid, read_only=False) -> 'AbstractStorage':
-        '''
-        Construct a Storage from manifest.
-        '''
-
-        storage_type = manifest.fields['type']
-        cls = AbstractStorage.types()[storage_type]
-        return cls(manifest=manifest, uid=uid, gid=gid, read_only=read_only)
+        storage_type = params['type']
+        cls = StorageBackend.types()[storage_type]
+        return cls(params=params, uid=uid, gid=gid, read_only=read_only)
 
     @staticmethod
-    def is_manifest_supported(manifest):
+    def is_type_supported(storage_type):
         '''
         Check if the storage type is supported.
         '''
-        storage_type = manifest.fields['type']
-        return storage_type in AbstractStorage.types()
+        return storage_type in StorageBackend.types()
 
     @staticmethod
     def validate_manifest(manifest):
@@ -202,7 +175,7 @@ class AbstractStorage(metaclass=abc.ABCMeta):
         '''
 
         storage_type = manifest.fields['type']
-        cls = AbstractStorage.types()[storage_type]
+        cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
 
 
@@ -233,7 +206,7 @@ class FileProxyMixin:
                 ...
 
 
-        class MyStorage(FileProxyMixin, AbstractStorage):
+        class MyStorageBackend(FileProxyMixin, StorageBackend):
             def open(self, path, flags):
                 return MyFile(path, flags, ...)
 

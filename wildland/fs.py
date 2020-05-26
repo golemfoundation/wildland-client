@@ -33,9 +33,9 @@ fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver
-from .storage.base import AbstractStorage
-from .storage.control import ControlStorage
-from .storage.control_decorators import control_directory, control_file
+from .storage_backends.base import StorageBackend
+from .storage_backends.control import ControlStorageBackend
+from .storage_backends.control_decorators import control_directory, control_file
 from .exc import WildlandError
 from .log import init_logging
 
@@ -52,7 +52,7 @@ class WildlandFS(fuse.Fuse):
         self.parser.add_option(mountopt='log', metavar='PATH',
             help='path to log file, use - for stderr')
 
-        self.storages: Dict[int, AbstractStorage] = {}
+        self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
 
         self.uid = None
@@ -85,7 +85,7 @@ class WildlandFS(fuse.Fuse):
 
         self.mount_storage(
             [PurePosixPath('/.control')],
-            ControlStorage(fs=self, uid=self.uid, gid=self.gid))
+            ControlStorageBackend(fs=self, uid=self.uid, gid=self.gid))
 
         super().main(*args, **kwds)
 
@@ -100,7 +100,7 @@ class WildlandFS(fuse.Fuse):
         else:
             init_logging(console=False, file_path=log_path)
 
-    def mount_storage(self, paths: List[PurePosixPath], storage: AbstractStorage):
+    def mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend):
         '''
         Mount a storage under a set of paths.
         '''
@@ -142,9 +142,9 @@ class WildlandFS(fuse.Fuse):
     def control_mount(self, content: bytes):
         params = json.loads(content)
         paths = [PurePosixPath(p) for p in params['paths']]
-        storage_fields = params['storage']
+        storage_params = params['storage']
         read_only = params.get('read_only')
-        storage = AbstractStorage.from_fields(storage_fields, self.uid, self.gid, read_only)
+        storage = StorageBackend.from_params(storage_params, self.uid, self.gid, read_only)
         self.mount_storage(paths, storage)
 
     @control_file('unmount', read=False, write=True)
@@ -164,7 +164,7 @@ class WildlandFS(fuse.Fuse):
 
     @control_file('paths')
     def control_paths(self):
-        result = {}
+        result: Dict[str, List[int]] = {}
         for ident, paths in self.storage_paths.items():
             for path in paths:
                 result.setdefault(str(path), []).append(ident)

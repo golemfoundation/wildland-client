@@ -18,29 +18,42 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-Wildland command-line interface - base module.
+Dispatch for built-in and added storage types.
 '''
 
 from pathlib import Path
+from typing import Dict, Type
+import importlib
+import inspect
 
-from ..exc import WildlandError
-from ..fs_client import WildlandFSClient
-from ..client import Client
+from .base import StorageBackend
 
 
-class CliError(WildlandError):
+def load_backends() -> Dict[str, Type[StorageBackend]]:
     '''
-    User error during CLI command execution
+    Load StorageBackend classes.
     '''
 
-# pylint: disable=no-self-use
+    result = {}
+
+    package = 'wildland.storage_backends'
+    for path in sorted(Path(__file__).parent.glob('*.py')):
+        module = importlib.import_module('.' + path.stem, package)
+        for obj in module.__dict__.values():
+            if (inspect.isclass(obj) and
+                issubclass(obj, StorageBackend) and
+                obj.TYPE != ''):
+
+                result[obj.TYPE] = obj
+    return result
 
 
-class ContextObj:
-    '''Helper object for keeping state in :attr:`click.Context.obj`'''
+def get_storage_backends() -> Dict[str, Type[StorageBackend]]:
+    '''
+    Return a list of supported StorageBackend classes.
+    '''
 
-    def __init__(self, client: Client):
-        self.mount_dir: Path = Path(client.config.get('mount_dir'))
-        self.fs_client: WildlandFSClient = WildlandFSClient(self.mount_dir)
-        self.client = client
-        self.session = client.session
+    return _backends
+
+
+_backends = load_backends()

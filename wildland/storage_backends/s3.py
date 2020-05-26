@@ -30,14 +30,14 @@ from urllib.parse import urlparse
 
 import boto3
 
-from .cached import CachedStorage, Info
+from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')
 
 
-class S3Storage(CachedStorage):
+class S3StorageBackend(CachedStorageBackend):
     '''
     Amazon S3 storage.
     '''
@@ -45,17 +45,17 @@ class S3Storage(CachedStorage):
     SCHEMA = Schema('storage-s3')
     TYPE = 's3'
 
-    def __init__(self, *, manifest, **kwds):
-        super().__init__(manifest=manifest, **kwds)
+    def __init__(self, **kwds):
+        super().__init__(**kwds)
 
-        credentials = manifest.fields['credentials']
+        credentials = self.params['credentials']
         session = boto3.Session(
             aws_access_key_id=credentials['access_key'],
             aws_secret_access_key=credentials['secret_key'],
         )
         s3 = session.resource('s3')
 
-        url = urlparse(manifest.fields['url'])
+        url = urlparse(self.params['url'])
         assert url.scheme == 's3'
 
         bucket_name = url.netloc

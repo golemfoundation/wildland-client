@@ -21,27 +21,20 @@
 Utilities for URL resolving and traversing the path
 '''
 
-from pathlib import PurePosixPath, Path
-from typing import List, Optional, Tuple
+from pathlib import PurePosixPath
+from typing import List, Optional
 import os
-import re
 import logging
 from dataclasses import dataclass
 
-from .manifest.manifest import Manifest
-from .manifest.loader import ManifestLoader
-from .exc import WildlandError
+from .client import Client
 from .container import Container
-from .storage.base import AbstractStorage
+from .storage_backends.base import StorageBackend
+from .wlpath import WildlandPath, PathError
 
 
 logger = logging.getLogger('resolve')
 
-
-class PathError(WildlandError):
-    '''
-    Error in parsing or resolving a Wildland path.
-    '''
 
 
 @dataclass
@@ -51,7 +44,6 @@ class Step:
     '''
 
     container: Container
-    manifest_path: Optional[Path]
     container_path: PurePosixPath
 
 
@@ -61,15 +53,15 @@ class Search:
 
     Usage:
 
-        search = Search(loader, wlpath)
+        search = Search(client, wlpath)
         search.read_file()
     '''
 
-    def __init__(self, loader: ManifestLoader, wlpath: 'WildlandPath',
+    def __init__(self, client: Client, wlpath: WildlandPath,
                  default_signer: Optional[str] = None):
-        self.loader = loader
+        self.client = client
         self.wlpath = wlpath
-        self.signer = wlpath.signer or default_signer or loader.config.get('default_user')
+        self.signer = wlpath.signer or default_signer or client.config.get('default_user')
         if self.signer is None:
             raise PathError('Could not find default user for path: {wlpath}')
 
@@ -84,7 +76,7 @@ class Search:
 
         return self.wlpath.parts[-1]
 
-    def read_container(self, remote: bool) -> Tuple[Container, Optional[Path]]:
+    def read_container(self, remote: bool) -> Container:
         '''
         Read a container manifest represented by the path. Returns
         ``(container, manifest_path)``.
@@ -97,13 +89,13 @@ class Search:
 
         if remote:
             self.resolve_all()
-            return self.steps[-1].container, self.steps[-1].manifest_path
+            return self.steps[-1].container
 
         if len(self.wlpath.parts) > 1:
             raise PathError(f'Expecting a local path: {self.wlpath}')
 
         self.resolve_first()
-        return self.steps[0].container, self.steps[0].manifest_path
+        return self.steps[0].container
 
     def read_file(self) -> bytes:
         '''
@@ -148,8 +140,8 @@ class Search:
         step = self.steps[-1]
         # TODO: resolve manifest path in the context of the container
         # TODO: accept local storage only as long as the whole chain is local
-        storage_manifest = step.container.select_storage(self.loader)
-        return AbstractStorage.from_manifest(storage_manifest, uid=0, gid=0)
+        storage = self.client.select_storage(step.container)
+        return StorageBackend.from_params(storage.params, uid=0, gid=0)
 
     def resolve_first(self):
         '''
@@ -160,14 +152,13 @@ class Search:
         assert len(self.steps) == 0
         container_path = self.wlpath.parts[0]
 
-        for manifest_path, manifest in self.loader.load_manifests('container'):
-            container = Container(manifest)
+        for container in self.client.load_containers():
             if (container.signer == self.signer and
                 container_path in container.paths):
 
                 logger.info('%s: local container: %s', container_path,
-                            manifest_path)
-                step = Step(container, manifest_path, container_path)
+                            container.local_path)
+                step = Step(container, container_path)
                 self.steps.append(step)
                 return
 
@@ -189,18 +180,16 @@ class Search:
             raise PathError(f'Could not find manifest: {manifest_path}')
         logger.info('%s: container manifest: %s', part, manifest_path)
 
-        manifest = Manifest.from_bytes(manifest_content, self.loader.sig,
-                                       schema=Container.SCHEMA)
-        if manifest.fields['signer'] != self.signer:
+        container = self.client.session.load_container(manifest_content)
+        if container.signer != self.signer:
             raise PathError(
                 'Unexpected signer for {}: {} (expected {})'.format(
-                    manifest_path, manifest.fields['signer'], self.signer
+                    manifest_path, container.signer, self.signer
                 ))
-        container = Container(manifest)
         if part not in container.paths:
             logger.warning('%s: path not found in manifest: %s',
                            part, manifest_path)
-        step = Step(container, None, part)
+        step = Step(container, part)
         self.steps.append(step)
 
 
@@ -241,89 +230,3 @@ def storage_write_file(data, storage, relpath):
         storage.write(relpath, data, 0, obj)
     finally:
         storage.release(relpath, 0, obj)
-
-
-class WildlandPath:
-    '''
-    A path in Wildland namespace.
-
-    The path has the following form:
-
-        [signer]:(part:)+:[file_path]
-
-    - signer (optional): signer determining the first container's namespace
-    - parts: intermediate parts, identifying containers on the path
-    - file_path (optional): path to file in the last container
-    '''
-
-    ABSPATH_RE = re.compile(r'^/.*$')
-    FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
-    WLPATH_RE = re.compile(r'^(0x[0-9a-f]+)?:')
-
-    def __init__(
-        self,
-        signer: Optional[str],
-        parts: List[PurePosixPath],
-        file_path: Optional[PurePosixPath]
-    ):
-        assert len(parts) > 0
-        self.signer = signer
-        self.parts = parts
-        self.file_path = file_path
-
-    @classmethod
-    def match(cls, s: str) -> bool:
-        '''
-        Check if a string should be recognized as a Wildland path.
-
-        To be used when distinguishing Wildland paths from other identifiers
-        (local paths, URLs).
-
-        Note that this doesn't guarantee that the WildlandPath.from_str() will
-        succeed in parsing the path.
-        '''
-
-        return cls.WLPATH_RE.match(s) is not None
-
-    @classmethod
-    def from_str(cls, s: str) -> 'WildlandPath':
-        '''
-        Construct a WildlandPath from a string.
-        '''
-        if ':' not in s:
-            raise PathError('The path has to start with signer and ":"')
-
-        split = s.split(':')
-        if split[0] == '':
-            signer = None
-        elif cls.FINGERPRINT_RE.match(split[0]):
-            signer = split[0]
-        else:
-            raise PathError('Unrecognized signer field: {!r}'.format(split[0]))
-
-        parts = []
-        for part in split[1:-1]:
-            if not cls.ABSPATH_RE.match(part):
-                raise PathError('Unrecognized absolute path: {!r}'.format(part))
-            parts.append(PurePosixPath(part))
-
-        if split[-1] == '':
-            file_path = None
-        else:
-            if not cls.ABSPATH_RE.match(split[-1]):
-                raise PathError('Unrecognized absolute path: {!r}'.format(split[-1]))
-            file_path = PurePosixPath(split[-1])
-
-        if not parts:
-            raise PathError('Path has no containers: {!r}. Did you forget a ":" at the end?')
-
-        return cls(signer, parts, file_path)
-
-    def __str__(self):
-        s = ''
-        if self.signer is not None:
-            s += self.signer
-        s += ':' + ':'.join(str(p) for p in self.parts) + ':'
-        if self.file_path is not None:
-            s += str(self.file_path)
-        return s

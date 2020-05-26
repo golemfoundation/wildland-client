@@ -1,24 +1,31 @@
 Internals
 =========
 
-FUSE driver
------------
+Client interface
+----------------
 
-.. autoclass:: wildland.fs.WildlandFS
+.. autoclass:: wildland.session.Session
+   :members:
+
+.. autoclass:: wildland.client.Client
+   :members:
+
+
+Data transfer objects
+---------------------
+
+
+.. autoclass:: wildland.user.User
    :members:
 
 .. autoclass:: wildland.container.Container
    :members:
 
-.. autoclass:: wildland.storage.base.AbstractStorage
+.. autoclass:: wildland.storage.Storage
    :members:
-
 
 Manifests
 ---------
-
-.. autoclass:: wildland.manifest.loader.ManifestLoader
-   :members:
 
 .. autoclass:: wildland.manifest.manifest.Manifest
    :members:
@@ -29,11 +36,17 @@ Manifests
 .. autoclass:: wildland.manifest.schema.Schema
    :members:
 
-.. autoclass:: wildland.user.User
-   :members:
-
 Signing
 -------
 
 .. autoclass:: wildland.manifest.sig.SigContext
+   :members:
+
+FUSE driver
+-----------
+
+.. autoclass:: wildland.fs.WildlandFS
+   :members:
+
+.. autoclass:: wildland.storage_backends.base.StorageBackend
    :members:

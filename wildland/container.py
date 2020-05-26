@@ -21,74 +21,64 @@
 The container
 '''
 
-import logging
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
+import uuid
+from typing import Optional, List
 
-from .storage.base import AbstractStorage
-from .manifest.manifest import Manifest, ManifestError
-from .manifest.loader import ManifestLoader
+from .manifest.manifest import Manifest
 from .manifest.schema import Schema
-from .exc import WildlandError
 
 
 class Container:
     '''Wildland container'''
     SCHEMA = Schema('container')
 
-    def __init__(self, manifest: Manifest):
-        self.manifest = manifest
-        #: list of paths, under which this container should be mounted
-        self.signer = manifest.fields['signer']
-        self.paths = [PurePosixPath(p) for p in manifest.fields['paths']]
+    def __init__(self, *,
+                 signer: str,
+                 paths: List[PurePosixPath],
+                 backends: List[str],
+                 local_path: Optional[Path] = None):
+        self.signer = signer
+        self.paths = paths
+        self.backends = backends
+        self.local_path = local_path
 
-    def select_storage(self, loader: ManifestLoader) -> Manifest:
+    def ensure_uuid(self) -> str:
         '''
-        Select a storage that we can use for this container.
-        Returns a storage manifest.
-        '''
-
-        # TODO: currently just file URLs
-        urls = self.manifest.fields['backends']['storage']
-
-        for url in urls:
-            try:
-                storage_manifest = self.try_load_manifest(loader, url)
-            except WildlandError:
-                logging.exception('Error loading manifest: %s', url)
-                continue
-
-            return storage_manifest
-
-        raise ManifestError('no supported storage manifest')
-
-    def try_load_manifest(self, loader: ManifestLoader, url: str) -> Manifest:
-        '''
-        Try loading a storage manifest for this container.
+        Find or create an UUID path for this container.
         '''
 
-        try:
-            with open(url, 'rb') as f:
-                storage_manifest_content = f.read()
-        except IOError:
-            raise ManifestError(f'Error loading uRL: {url}')
+        for path in self.paths:
+            if path.parent == PurePosixPath('/.uuid/'):
+                return path.name
+        ident = str(uuid.uuid4())
+        self.paths.insert(0, PurePosixPath('/.uuid/') / ident)
+        return ident
 
-        storage_manifest = loader.parse_manifest(
-            storage_manifest_content)
-        if not AbstractStorage.is_manifest_supported(storage_manifest):
-            raise ManifestError(f'Unsupported storage manifest: {url}')
+    @classmethod
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
+        '''
+        Construct a Container instance from a manifest.
+        '''
 
-        if storage_manifest.fields['signer'] != self.manifest.fields['signer']:
-            raise ManifestError(
-                '{}: signer field mismatch: storage {}, container {}'.format(
-                    url,
-                    storage_manifest.fields['signer'],
-                    self.manifest.fields['signer']))
+        manifest.apply_schema(cls.SCHEMA)
+        return cls(
+            signer=manifest.fields['signer'],
+            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
+            backends=manifest.fields['backends']['storage'],
+            local_path=local_path,
+        )
 
-        if storage_manifest.fields['container_path'] not in self.manifest.fields['paths']:
-            raise ManifestError(
-                '{}: unrecognized container path for storage: {}, {}'.format(
-                    url,
-                    storage_manifest.fields['container_path'],
-                    self.manifest.fields['paths']))
+    def to_unsigned_manifest(self) -> Manifest:
+        '''
+        Create a manifest based on Container's data.
+        Has to be signed separately.
+        '''
 
-        return storage_manifest
+        manifest = Manifest.from_fields(dict(
+            signer=self.signer,
+            paths=[str(p) for p in self.paths],
+            backends={'storage': self.backends},
+        ))
+        manifest.apply_schema(self.SCHEMA)
+        return manifest
