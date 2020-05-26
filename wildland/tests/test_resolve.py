@@ -166,11 +166,6 @@ def test_read_file_traverse(base_dir, client):
     assert data == b'Hello world'
 
 
-def test_verify_traverse(cli, client):
-    # pylint: disable=unused-argument
-    cli('container', 'verify', ':/path:/other/path:')
-
-
 def test_mount_traverse(cli, client, base_dir):
     # pylint: disable=unused-argument
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
