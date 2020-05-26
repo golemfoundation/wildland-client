@@ -22,12 +22,7 @@ Wildland command-line interface - base module.
 '''
 
 from pathlib import Path
-import sys
 
-from typing import Optional, Tuple
-
-from ..manifest.loader import ManifestLoader
-from ..user import User
 from ..exc import WildlandError
 from ..fs_client import WildlandFSClient
 from ..client import Client
@@ -44,45 +39,8 @@ class CliError(WildlandError):
 class ContextObj:
     '''Helper object for keeping state in :attr:`click.Context.obj`'''
 
-    def __init__(self, loader: ManifestLoader, client: Client):
-        self.loader: ManifestLoader = loader
-        self.mount_dir: Path = Path(loader.config.get('mount_dir'))
+    def __init__(self, client: Client):
+        self.mount_dir: Path = Path(client.config.get('mount_dir'))
         self.fs_client: WildlandFSClient = WildlandFSClient(self.mount_dir)
         self.client = client
         self.session = client.session
-
-    def read_manifest_file(self,
-                           name: Optional[str],
-                           manifest_type: Optional[str],
-                           remote: bool = False) \
-                           -> Tuple[Optional[Path], bytes]:
-        '''
-        Read a manifest file specified by name. Recognize None as stdin.
-
-        Returns (data, file_path).
-        '''
-
-        if name is None:
-            return (None, sys.stdin.buffer.read())
-
-        path, data = self.loader.read_manifest(name, manifest_type,
-                                               remote=remote)
-        print(f'Loading manifest: {path}')
-        return path, data
-
-    def find_user(self, name: Optional[str]) -> User:
-        '''
-        Find a user specified by name, using default if there is none.
-        '''
-
-        if name:
-            user = self.loader.find_user(name)
-            print(f'Using user: {user.signer}')
-            return user
-
-        default_user = self.loader.find_default_user()
-        if default_user is None:
-            raise CliError(
-                'Default user not set, you need to provide --user')
-        print(f'Using default user: {default_user.signer}')
-        return default_user

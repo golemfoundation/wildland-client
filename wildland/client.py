@@ -95,7 +95,6 @@ class Client:
                 else:
                     yield user
 
-
     def load_user_from_path(self, path: Path) -> User:
         '''
         Load user from a local file.
@@ -190,6 +189,21 @@ class Client:
 
         raise ManifestError(f'Container not found: {name}')
 
+    def load_storages(self) -> Iterator[Storage]:
+        '''
+        Load storages from the storage directory.
+        '''
+
+        if self.storage_dir.exists():
+            for path in sorted(self.storage_dir.glob('*.yaml')):
+                try:
+                    storage = self.load_storage_from_path(path)
+                except WildlandError as e:
+                    logger.warning('error loading storage manifest: %s: %s',
+                                   path, e)
+                else:
+                    yield storage
+
     def load_storage_from_path(self, path: Path) -> Storage:
         '''
         Load storage from a local file.
@@ -235,6 +249,7 @@ class Client:
 
         path = self._new_path(self.user_dir, name or user.signer)
         path.write_bytes(self.session.dump_user(user))
+        user.local_path = path
         return path
 
     def save_container(self, container: Container, path: Optional[Path] = None) -> Path:
@@ -258,6 +273,17 @@ class Client:
         path = self._new_path(self.container_dir, name or ident)
         path.write_bytes(self.session.dump_container(container))
         container.local_path = path
+        return path
+
+    def save_new_storage(self, storage: Storage, name: Optional[str] = None) -> Path:
+        '''
+        Save a new storage in the storage directory. Use the name as a hint for file
+        name.
+        '''
+
+        path = self._new_path(self.storage_dir, name or storage.container_path.name)
+        path.write_bytes(self.session.dump_storage(storage))
+        storage.local_path = path
         return path
 
     @staticmethod

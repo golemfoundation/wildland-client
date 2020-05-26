@@ -17,9 +17,6 @@ FUSE driver
 Manifests
 ---------
 
-.. autoclass:: wildland.manifest.loader.ManifestLoader
-   :members:
-
 .. autoclass:: wildland.manifest.manifest.Manifest
    :members:
 

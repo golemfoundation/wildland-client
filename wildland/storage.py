@@ -24,7 +24,8 @@ Storage class
 from pathlib import PurePosixPath, Path
 from typing import Dict, Any, Optional
 
-from .manifest.manifest import Manifest
+from .storage_backends.base import StorageBackend
+from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
 
 
@@ -40,12 +41,25 @@ class Storage:
                  storage_type: str,
                  container_path: PurePosixPath,
                  params: Dict[str, Any],
-                 local_path: Optional[Path]):
+                 local_path: Optional[Path] = None):
         self.signer = signer
         self.storage_type = storage_type
         self.container_path = container_path
         self.params = params
         self.local_path = local_path
+
+    def validate(self):
+        '''
+        Validate storage assuming it's of a known type.
+        This is not done automatically because we might want to load an
+        unrecognized storage.
+        '''
+
+        manifest = self.to_unsigned_manifest()
+        if not StorageBackend.is_type_supported(self.storage_type):
+            raise ManifestError(f'Unrecognized storage type: {self.storage_type}')
+        backend = StorageBackend.types()[self.storage_type]
+        manifest.apply_schema(backend.SCHEMA)
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Storage':
@@ -62,18 +76,20 @@ class Storage:
             local_path=local_path,
         )
 
+    def _get_manifest_fields(self) -> Dict[str, Any]:
+        return {
+            **self.params,
+            'signer': self.signer,
+            'type': self.storage_type,
+            'container_path': str(self.container_path),
+        }
+
     def to_unsigned_manifest(self) -> Manifest:
         '''
         Create a manifest based on Storage's data.
         Has to be signed separately.
         '''
 
-        fields = {
-            **self.params,
-            'signer': self.signer,
-            'type': self.storage_type,
-        }
-
-        manifest = Manifest.from_fields(fields)
+        manifest = Manifest.from_fields(self._get_manifest_fields())
         manifest.apply_schema(self.BASE_SCHEMA)
         return manifest

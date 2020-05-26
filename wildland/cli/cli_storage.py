@@ -21,7 +21,6 @@
 Storage object
 '''
 
-import copy
 from typing import List, Callable
 
 import botocore.credentials
@@ -30,14 +29,14 @@ import click
 
 from .cli_base import ContextObj
 from .cli_common import sign, verify, edit
-from ..manifest.manifest import Manifest
+from ..storage import Storage
 
 
-@click.group(short_help='storage management')
-def storage():
+@click.group('storage', short_help='storage management')
+def storage_():
     '''Manage storages for container'''
 
-@storage.group(short_help='create storage')
+@storage_.group(short_help='create storage')
 def create():
     '''
     Create a new storage manifest.
@@ -68,36 +67,33 @@ def create_command(storage_type):
     return decorator
 
 
-def _do_create(obj: ContextObj, type_, fields, name, container, update_container):
-    obj.loader.load_users()
+def _do_create(obj: ContextObj, storage_type, params, name, container, update_container):
+    obj.client.recognize_users()
 
-    container_path, container_manifest = obj.loader.load_manifest(
-        container, 'container')
-    if not container_manifest:
-        raise click.ClickException(f'Not found: {container}')
-    assert container_path
+    container = obj.client.load_container_from(container)
+    if not container.local_path:
+        raise click.ClickException(f'Need a local container')
 
-    container_mount_path = container_manifest.fields['paths'][0]
-    click.echo(f'Using container: {container_path} ({container_mount_path})')
-    fields['container_path'] = container_mount_path
+    container_mount_path = container.paths[0]
+    click.echo(f'Using container: {container.local_path} ({container_mount_path})')
 
-    container_signer = container_manifest.fields['signer']
+    storage = Storage(
+        storage_type=storage_type,
+        signer=container.signer,
+        container_path=container_mount_path,
+        params=params,
+    )
+    storage.validate()
 
-    storage_path = obj.loader.create_storage(
-        container_signer, type_, fields, name)
+    storage_path = obj.client.save_new_storage(storage, name)
     click.echo('Created: {}'.format(storage_path))
 
     if update_container:
         click.echo('Adding storage to container')
-        fields = copy.deepcopy(container_manifest.fields)
-        fields['backends']['storage'].append(str(storage_path))
-        container_manifest = Manifest.from_fields(fields)
-        obj.loader.validate_manifest(container_manifest, 'container')
-        container_manifest.sign(obj.loader.sig)
-        signed_data = container_manifest.to_bytes()
-        click.echo(f'Saving: {container_path}')
-        with open(container_path, 'wb') as f:
-            f.write(signed_data)
+        container.backends.append(str(storage_path))
+        click.echo(f'Saving: {container.local_path}')
+        obj.client.save_container(container)
+
 
 @create_command('local')
 @click.option('--path', metavar='PATH', required=True)
@@ -166,22 +162,21 @@ def create_webdav(ctx, url, login, password, **kwds):
     return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
 
 
-@storage.command('list', short_help='list storages')
+@storage_.command('list', short_help='list storages')
 @click.pass_obj
 def list_(obj: ContextObj):
     '''
     Display known storages.
     '''
 
-    obj.loader.load_users()
-    for path, manifest in obj.loader.load_manifests('storage'):
-        click.echo(path)
-        storage_type = manifest.fields['type']
-        click.echo(f'  type: {storage_type}')
-        if storage_type == 'local':
-            click.echo(f'  path: {manifest.fields["path"]}')
+    obj.client.recognize_users()
+    for storage in obj.client.load_storages():
+        click.echo(storage.local_path)
+        click.echo(f'  type: {storage.storage_type}')
+        if storage.storage_type == 'local':
+            click.echo(f'  path: {storage.params["path"]}')
 
 
-storage.add_command(sign)
-storage.add_command(verify)
-storage.add_command(edit)
+storage_.add_command(sign)
+storage_.add_command(verify)
+storage_.add_command(edit)

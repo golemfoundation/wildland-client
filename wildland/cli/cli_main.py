@@ -37,9 +37,7 @@ from . import (
     cli_transfer
 )
 
-from ..container import Container
 from ..log import init_logging
-from ..manifest.loader import ManifestLoader
 from ..client import Client
 from .. import __version__ as _version
 
@@ -60,18 +58,16 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 def main(ctx, base_dir, dummy, verbose):
     # pylint: disable=missing-docstring
 
-    loader = ManifestLoader(dummy=dummy, base_dir=base_dir)
     client = Client(dummy=dummy, base_dir=base_dir)
     # TODO: Is there a better way to ensure close?
-    atexit.register(loader.close)
     atexit.register(client.close)
-    ctx.obj = ContextObj(loader, client)
+    ctx.obj = ContextObj(client)
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
 
 
 main.add_command(cli_user.user_)
-main.add_command(cli_storage.storage)
+main.add_command(cli_storage.storage_)
 main.add_command(cli_container.container_)
 
 main.add_command(cli_common.sign)
@@ -123,16 +119,15 @@ def mount(obj: ContextObj, remount, debug, container):
         else:
             raise CliError(f'Already mounted')
 
-    obj.loader.load_users()
+    obj.client.recognize_users()
     to_mount = []
     if container:
         for name in container:
-            path, manifest = obj.loader.load_manifest(name, 'container')
-            if not manifest:
-                raise CliError(f'Container not found: {name}')
-            container = Container.from_manifest(manifest)
-            to_mount.append((path,
-                obj.fs_client.get_command_for_mount_container(container)))
+            container = obj.client.load_container_from(name)
+            storage = obj.client.select_storage(container)
+            is_default_user = container.signer == obj.client.config.get('default_user')
+            to_mount.append((container.local_path,
+                obj.fs_client.get_command_for_mount_container(container, storage, is_default_user)))
 
     if not debug:
         obj.fs_client.mount()

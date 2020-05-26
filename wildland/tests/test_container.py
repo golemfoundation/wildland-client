@@ -23,7 +23,7 @@ import pytest
 
 from ..manifest.manifest import Manifest
 from ..client import Client
-from ..container import Container
+
 
 # pylint: disable=missing-docstring,redefined-outer-name
 

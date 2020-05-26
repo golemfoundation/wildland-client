@@ -53,7 +53,7 @@ class Search:
 
     Usage:
 
-        search = Search(loader, wlpath)
+        search = Search(client, wlpath)
         search.read_file()
     '''
 

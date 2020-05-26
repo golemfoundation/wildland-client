@@ -27,7 +27,7 @@ import yaml
 
 import pytest
 
-from ..manifest.loader import ManifestLoader
+from ..client import Client
 from ..storage_backends.local import LocalStorageBackend
 from ..resolve import WildlandPath, PathError, Search
 
@@ -115,18 +115,18 @@ def setup(base_dir, cli):
 
 
 @pytest.fixture
-def loader(setup, base_dir):
+def client(setup, base_dir):
     # pylint: disable=unused-argument
-    loader = ManifestLoader(base_dir=base_dir)
+    client = Client(base_dir=base_dir)
     try:
-        loader.load_users()
-        yield loader
+        client.recognize_users()
+        yield client
     finally:
-        loader.close()
+        client.close()
 
 
-def test_resolve_first(base_dir, loader):
-    search = Search(loader, WildlandPath.from_str(':/path:'), '0xaaa')
+def test_resolve_first(base_dir, client):
+    search = Search(client, WildlandPath.from_str(':/path:'), '0xaaa')
     search.resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path')
 
@@ -134,7 +134,7 @@ def test_resolve_first(base_dir, loader):
     assert isinstance(storage, LocalStorageBackend)
     assert storage.root == base_dir / 'storage1'
 
-    search = Search(loader, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
     search.resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path/subpath')
 
@@ -143,42 +143,42 @@ def test_resolve_first(base_dir, loader):
     assert storage.root == base_dir / 'storage2'
 
 
-def test_read_file(base_dir, loader):
+def test_read_file(base_dir, client):
     with open(base_dir / 'storage1/file.txt', 'w') as f:
         f.write('Hello world')
-    search = Search(loader, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
 
 
-def test_write_file(base_dir, loader):
-    search = Search(loader, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
+def test_write_file(base_dir, client):
+    search = Search(client, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
     search.write_file(b'Hello world')
     with open(base_dir / 'storage1/file.txt') as f:
         assert f.read() == 'Hello world'
 
 
-def test_read_file_traverse(base_dir, loader):
+def test_read_file_traverse(base_dir, client):
     with open(base_dir / 'storage2/file.txt', 'w') as f:
         f.write('Hello world')
-    search = Search(loader, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
 
 
-def test_verify_traverse(cli, loader):
+def test_verify_traverse(cli, client):
     # pylint: disable=unused-argument
     cli('container', 'verify', ':/path:/other/path:')
 
 
-def test_mount_traverse(cli, loader, base_dir):
+def test_mount_traverse(cli, client, base_dir):
     # pylint: disable=unused-argument
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({}, f)
     cli('container', 'mount', ':/path:/other/path:')
 
 
-def test_unmount_traverse(cli, loader, base_dir):
+def test_unmount_traverse(cli, client, base_dir):
     # pylint: disable=unused-argument
     with open(base_dir / 'containers/Container2.yaml') as f:
         documents = list(yaml.safe_load_all(f))
