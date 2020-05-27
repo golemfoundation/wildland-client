@@ -71,7 +71,7 @@ Usage:
 
 .. code-block:: sh
 
-    cd demo
+    cd docker
     docker-compose build
     docker-compose run wildland-fuse
 

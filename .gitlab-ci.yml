@@ -33,7 +33,7 @@ examples:
   services:
     - docker:dind
   script:
-    - cd demo
+    - cd docker
     - docker-compose build
     - docker-compose run wildland-fuse wl-example < /dev/null
 
