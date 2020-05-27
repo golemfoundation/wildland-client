@@ -11,7 +11,7 @@ services:
   wildland-fuse:
     build:
       context: ..
-      dockerfile: ./demo/Dockerfile
+      dockerfile: ./docker/Dockerfile
     container_name: wildland-fuse
     image: wildland-fuse
     depends_on:
