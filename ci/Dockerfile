@@ -3,7 +3,7 @@
 # This should be as minimal as possible, and enough to run CI commands
 # (make ci-*).
 #
-# For customization, trying Widland out, etc., see demo/.
+# For customization, trying Widland out, etc., see docker/.
 
 FROM debian:bullseye
 

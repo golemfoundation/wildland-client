@@ -3,7 +3,7 @@
 . /home/user/env/bin/activate
 
 export EDITOR=nano
-export PATH=/home/user/wildland-fuse:/home/user/wildland-fuse/demo:$PATH
+export PATH=/home/user/wildland-fuse:/home/user/wildland-fuse/docker:$PATH
 
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"

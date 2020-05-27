@@ -1,4 +1,4 @@
-# "Demo" image for trying things out, based on the minimal one
+# Image for trying things out, based on the minimal one
 # in Dockerfile. Install all customizations here.
 
 FROM wildland-fuse-ci
@@ -19,7 +19,7 @@ RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 
 # Setup nginx
 
-COPY ./demo/nginx-webdav.conf /etc/nginx/sites-available
+COPY ./docker/nginx-webdav.conf /etc/nginx/sites-available
 RUN rm -f /etc/nginx/sites-enabled/default
 RUN ln -s ../sites-available/nginx-webdav.conf /etc/nginx/sites-enabled/
 # FUSE is configured to allow only the owner
@@ -27,4 +27,4 @@ RUN sed -i s/www-data/user/ /etc/nginx/nginx.conf
 
 USER user
 
-ENTRYPOINT ["./demo/entrypoint.sh"]
+ENTRYPOINT ["./docker/entrypoint.sh"]
