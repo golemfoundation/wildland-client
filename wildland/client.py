@@ -24,6 +24,7 @@ Client class
 from pathlib import Path
 import logging
 from typing import Optional, Iterator
+from urllib.parse import urlparse, quote
 
 from .user import User
 from .container import Container
@@ -232,6 +233,13 @@ class Client:
 
         return self.session.load_storage(path.read_bytes(), path)
 
+    def load_storage_from_url(self, url: str, signer: str) -> Storage:
+        '''
+        Load storage from URL.
+        '''
+
+        return self.session.load_storage(self.read_from_url(url, signer))
+
     def load_storage_from(self, name: str) -> Storage:
         '''
         Load a storage based on a (potentially ambiguous) name.
@@ -325,10 +333,9 @@ class Client:
         Select a storage to mount for a container.
         '''
 
-        # TODO: currently just file URLs
         for url in container.backends:
             try:
-                storage = self.load_storage_from_path(Path(url))
+                storage = self.load_storage_from_url(url, container.signer)
             except WildlandError:
                 logging.exception('Error loading manifest: %s', url)
                 continue
@@ -358,3 +365,45 @@ class Client:
             return storage
 
         raise ManifestError('no supported storage manifest')
+
+    def read_from_url(self, url: str, signer: str) -> bytes:
+        '''
+        Retrieve data from a given URL. The local (file://) URLs
+        are recognized based on the 'local_hostname' and 'local_signers'
+        settings.
+        '''
+
+        parse_result = urlparse(url)
+        if parse_result.scheme == 'file':
+            hostname = parse_result.netloc or 'localhost'
+            local_hostname = self.config.get('local_hostname')
+            local_signers = self.config.get('local_signers')
+
+            if hostname != local_hostname:
+                raise WildlandError(
+                    'Unrecognized file URL hostname: {} (expected {})'.format(
+                        url, local_hostname))
+
+            if signer not in local_signers:
+                raise WildlandError(
+                    'Trying to load file URL for invalid signer: {} (expected {})'.format(
+                        signer, local_signers))
+
+            try:
+                return Path(parse_result.path).read_bytes()
+            except IOError as e:
+                raise WildlandError('Error retrieving file URL: {}: {}'.format(
+                    url, e))
+        raise WildlandError(f'Unrecognized URL: {url}')
+
+    @staticmethod
+    def _is_url(url: str):
+        return '://' in url
+
+    def local_url(self, path: Path) -> str:
+        '''
+        Convert an absolute path to a local URL.
+        '''
+
+        assert path.is_absolute
+        return 'file://' + self.config.get('local_hostname') + quote(str(path))

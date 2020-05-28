@@ -33,7 +33,7 @@ def container():
         ],
         'backends': {
             'storage': [
-                'storage1.yaml',
+                'file:///tmp/storage1.yaml',
             ]
         }
     }

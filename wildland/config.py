@@ -135,4 +135,6 @@ class Config:
             'default_user': None,
             'uid': os.getuid(),
             'gid': os.getgid(),
+            'local_hostname': 'localhost',
+            'local_signers': [],
         }

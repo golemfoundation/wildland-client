@@ -21,7 +21,7 @@
 Utilities for URL resolving and traversing the path
 '''
 
-from pathlib import PurePosixPath, Path
+from pathlib import PurePosixPath
 from typing import List, Optional
 import os
 import logging
@@ -32,10 +32,10 @@ from .client import Client
 from .container import Container
 from .storage_backends.base import StorageBackend
 from .wlpath import WildlandPath, PathError
+from .exc import WildlandError
 
 
-logger = logging.getLogger('resolve')
-
+logger = logging.getLogger('search')
 
 
 @dataclass
@@ -213,10 +213,9 @@ class Search:
         self.current_signer = user.signer
 
         for container_url in user.containers:
-            # TODO treat as URL
             try:
-                manifest_content = Path(container_url).read_bytes()
-            except FileNotFoundError:
+                manifest_content = self.client.read_from_url(container_url, user.signer)
+            except WildlandError:
                 logger.warning('cannot load container: %s', container_url)
                 continue
             container = self.client.session.load_container(manifest_content)
