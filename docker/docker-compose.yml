@@ -21,6 +21,8 @@ services:
     tty: true
     devices:
       - /dev/fuse
+    ports:
+      - "8080:8080"
     volumes:
       - ..:/home/user/wildland-fuse:ro
       - usercfg:/home/user/.config:rw
