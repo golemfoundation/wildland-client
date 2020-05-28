@@ -29,7 +29,7 @@ from .user import User
 from .container import Container
 from .storage import Storage
 from .wlpath import WildlandPath
-from .manifest.sig import SigContext, DummySigContext, GpgSigContext
+from .manifest.sig import DummySigContext, GpgSigContext
 from .manifest.manifest import ManifestError
 from .session import Session
 from .storage_backends.base import StorageBackend
@@ -45,31 +45,52 @@ class Client:
     A high-level interface for operating on Wildland objects.
     '''
 
-    def __init__(self, base_dir=None, **config_kwargs):
-        self.config = Config.load(base_dir)
-        self.config.override(**config_kwargs)
+    def __init__(self, base_dir=None, sig=None, config=None, **config_kwargs):
+        if config is None:
+            config = Config.load(base_dir)
+            config.override(**config_kwargs)
+        self.config = config
 
         self.user_dir = Path(self.config.get('user_dir'))
         self.container_dir = Path(self.config.get('container_dir'))
         self.storage_dir = Path(self.config.get('storage_dir'))
 
-        sig: SigContext
-        if self.config.get('dummy'):
-            sig = DummySigContext()
-        else:
-            sig = GpgSigContext(self.config.get('gpg_home'))
+        if sig is None:
+            if self.config.get('dummy'):
+                sig = DummySigContext()
+            else:
+                sig = GpgSigContext(self.config.get('gpg_home'))
 
         self.session: Session = Session(sig)
 
         self.users = []
         self.closed = False
+        self.sub_clients = []
 
     def close(self):
         '''
         Clean up.
         '''
+
+        for client in self.sub_clients:
+            client.close()
+
         self.session.sig.close()
         self.closed = True
+
+    def sub_client_with_key(self, pubkey: str) -> 'Client':
+        '''
+        Create a copy of the current Client, with a public key imported.
+
+        (The copied client will be cleaned up when close() on the original is
+        called).
+        '''
+
+        sig = self.session.sig.copy()
+        sig.add_pubkey(pubkey)
+        client = Client(config=self.config, sig=sig)
+        self.sub_clients.append(client)
+        return client
 
     def recognize_users(self):
         '''

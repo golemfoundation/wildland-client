@@ -22,7 +22,7 @@ Session class
 '''
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from .manifest.manifest import Manifest
 from .manifest.sig import SigContext
@@ -49,6 +49,21 @@ class Session:
         manifest = Manifest.from_bytes(
             data, self.sig, self_signed=Manifest.REQUIRE)
         return User.from_manifest(manifest, local_path)
+
+    def load_container_or_user(
+            self,
+            data: bytes,
+            local_path: Optional[Path] = None) -> Union[Container, User]:
+        '''
+        Load a manifest that cal be either a container or user manifest.
+        '''
+
+        manifest = Manifest.from_bytes(
+            data, self.sig, self_signed=Manifest.ALLOW)
+        assert manifest.header
+        if manifest.header.pubkey is not None:
+            return User.from_manifest(manifest, local_path)
+        return Container.from_manifest(manifest, local_path)
 
     def recognize_user(self, user: User):
         '''
