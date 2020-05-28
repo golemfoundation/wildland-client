@@ -67,7 +67,7 @@ def create(obj: ContextObj, user, path, name, update_user):
             raise CliError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        user.containers.append(str(path))
+        user.containers.append(str(obj.client.local_url(path)))
         obj.client.save_user(user)
 
 
@@ -96,7 +96,7 @@ def update(obj: ContextObj, storage, cont):
         print(f'Adding storage: {storage.local_path}')
         if str(storage.local_path) in container.backends:
             raise click.ClickException('Storage already attached to container')
-        container.backends.append(str(storage.local_path))
+        container.backends.append(obj.client.local_url(storage.local_path))
 
     obj.client.save_container(container)
 

@@ -90,7 +90,7 @@ def _do_create(obj: ContextObj, storage_type, params, name, container, update_co
 
     if update_container:
         click.echo('Adding storage to container')
-        container.backends.append(str(storage_path))
+        container.backends.append(obj.client.local_url(storage_path))
         click.echo(f'Saving: {container.local_path}')
         obj.client.save_container(container)
 

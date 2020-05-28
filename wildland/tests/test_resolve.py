@@ -29,7 +29,8 @@ import pytest
 
 from ..client import Client
 from ..storage_backends.local import LocalStorageBackend
-from ..resolve import WildlandPath, PathError, Search
+from ..wlpath import WildlandPath, PathError
+from ..search import Search
 
 
 ## Path
@@ -93,8 +94,11 @@ def test_path_to_str():
 def setup(base_dir, cli):
     os.mkdir(base_dir / 'storage1')
     os.mkdir(base_dir / 'storage2')
+    os.mkdir(base_dir / 'storage3')
 
     cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb', '--path', '/users/User2')
+
     cli('container', 'create', 'Container1', '--path', '/path')
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
@@ -107,11 +111,23 @@ def setup(base_dir, cli):
         '--path', base_dir / 'storage2',
         '--container', 'Container2')
 
+    cli('container', 'create', 'C.User2',
+        '--user', 'User2',
+        '--path', '/users/User2',
+        '--update-user')
+    cli('storage', 'create', 'local', 'Storage3',
+        '--path', base_dir / 'storage3',
+        '--container', 'C.User2')
+
     os.mkdir(base_dir / 'storage1/other/')
     # TODO copy storage manifest as well
     # (and make sure storage manifests are resolved in the local context)
     shutil.copyfile(base_dir / 'containers/Container2.yaml',
                     base_dir / 'storage1/other/path.yaml')
+
+    os.mkdir(base_dir / 'storage1/users/')
+    shutil.copyfile(base_dir / 'users/User2.yaml',
+                    base_dir / 'storage1/users/User2.yaml')
 
 
 @pytest.fixture
@@ -127,18 +143,18 @@ def client(setup, base_dir):
 
 def test_resolve_first(base_dir, client):
     search = Search(client, WildlandPath.from_str(':/path:'), '0xaaa')
-    search.resolve_first()
+    search._resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path')
 
-    storage = search.find_storage()
+    storage = search._find_storage()
     assert isinstance(storage, LocalStorageBackend)
     assert storage.root == base_dir / 'storage1'
 
     search = Search(client, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
-    search.resolve_first()
+    search._resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path/subpath')
 
-    storage = search.find_storage()
+    storage = search._find_storage()
     assert isinstance(storage, LocalStorageBackend)
     assert storage.root == base_dir / 'storage2'
 
@@ -184,3 +200,13 @@ def test_unmount_traverse(cli, client, base_dir):
             f'/.users/0xaaa{path}': [101],
         }, f)
     cli('container', 'unmount', ':/path:/other/path:')
+
+
+def test_read_file_traverse_user(base_dir, client):
+    with open(base_dir / 'storage3/file.txt', 'w') as f:
+        f.write('Hello world')
+    search = Search(client,
+                    WildlandPath.from_str(':/path:/users/User2/:/file.txt'),
+                    '0xaaa')
+    data = search.read_file()
+    assert data == b'Hello world'

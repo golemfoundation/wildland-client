@@ -24,12 +24,13 @@ Client class
 from pathlib import Path
 import logging
 from typing import Optional, Iterator
+from urllib.parse import urlparse, quote
 
 from .user import User
 from .container import Container
 from .storage import Storage
 from .wlpath import WildlandPath
-from .manifest.sig import SigContext, DummySigContext, GpgSigContext
+from .manifest.sig import DummySigContext, GpgSigContext
 from .manifest.manifest import ManifestError
 from .session import Session
 from .storage_backends.base import StorageBackend
@@ -45,31 +46,52 @@ class Client:
     A high-level interface for operating on Wildland objects.
     '''
 
-    def __init__(self, base_dir=None, **config_kwargs):
-        self.config = Config.load(base_dir)
-        self.config.override(**config_kwargs)
+    def __init__(self, base_dir=None, sig=None, config=None, **config_kwargs):
+        if config is None:
+            config = Config.load(base_dir)
+            config.override(**config_kwargs)
+        self.config = config
 
         self.user_dir = Path(self.config.get('user_dir'))
         self.container_dir = Path(self.config.get('container_dir'))
         self.storage_dir = Path(self.config.get('storage_dir'))
 
-        sig: SigContext
-        if self.config.get('dummy'):
-            sig = DummySigContext()
-        else:
-            sig = GpgSigContext(self.config.get('gpg_home'))
+        if sig is None:
+            if self.config.get('dummy'):
+                sig = DummySigContext()
+            else:
+                sig = GpgSigContext(self.config.get('gpg_home'))
 
         self.session: Session = Session(sig)
 
         self.users = []
         self.closed = False
+        self.sub_clients = []
 
     def close(self):
         '''
         Clean up.
         '''
+
+        for client in self.sub_clients:
+            client.close()
+
         self.session.sig.close()
         self.closed = True
+
+    def sub_client_with_key(self, pubkey: str) -> 'Client':
+        '''
+        Create a copy of the current Client, with a public key imported.
+
+        (The copied client will be cleaned up when close() on the original is
+        called).
+        '''
+
+        sig = self.session.sig.copy()
+        sig.add_pubkey(pubkey)
+        client = Client(config=self.config, sig=sig)
+        self.sub_clients.append(client)
+        return client
 
     def recognize_users(self):
         '''
@@ -160,9 +182,9 @@ class Client:
         Load a container from WildlandPath.
         '''
 
-        # TODO: Still a circular dependency with resolve.py
+        # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel, cyclic-import
-        from .resolve import Search
+        from .search import Search
         search = Search(self, wlpath)
         return search.read_container(remote=True)
 
@@ -210,6 +232,13 @@ class Client:
         '''
 
         return self.session.load_storage(path.read_bytes(), path)
+
+    def load_storage_from_url(self, url: str, signer: str) -> Storage:
+        '''
+        Load storage from URL.
+        '''
+
+        return self.session.load_storage(self.read_from_url(url, signer))
 
     def load_storage_from(self, name: str) -> Storage:
         '''
@@ -304,10 +333,9 @@ class Client:
         Select a storage to mount for a container.
         '''
 
-        # TODO: currently just file URLs
         for url in container.backends:
             try:
-                storage = self.load_storage_from_path(Path(url))
+                storage = self.load_storage_from_url(url, container.signer)
             except WildlandError:
                 logging.exception('Error loading manifest: %s', url)
                 continue
@@ -337,3 +365,45 @@ class Client:
             return storage
 
         raise ManifestError('no supported storage manifest')
+
+    def read_from_url(self, url: str, signer: str) -> bytes:
+        '''
+        Retrieve data from a given URL. The local (file://) URLs
+        are recognized based on the 'local_hostname' and 'local_signers'
+        settings.
+        '''
+
+        parse_result = urlparse(url)
+        if parse_result.scheme == 'file':
+            hostname = parse_result.netloc or 'localhost'
+            local_hostname = self.config.get('local_hostname')
+            local_signers = self.config.get('local_signers')
+
+            if hostname != local_hostname:
+                raise WildlandError(
+                    'Unrecognized file URL hostname: {} (expected {})'.format(
+                        url, local_hostname))
+
+            if signer not in local_signers:
+                raise WildlandError(
+                    'Trying to load file URL for invalid signer: {} (expected {})'.format(
+                        signer, local_signers))
+
+            try:
+                return Path(parse_result.path).read_bytes()
+            except IOError as e:
+                raise WildlandError('Error retrieving file URL: {}: {}'.format(
+                    url, e))
+        raise WildlandError(f'Unrecognized URL: {url}')
+
+    @staticmethod
+    def _is_url(url: str):
+        return '://' in url
+
+    def local_url(self, path: Path) -> str:
+        '''
+        Convert an absolute path to a local URL.
+        '''
+
+        assert path.is_absolute
+        return 'file://' + self.config.get('local_hostname') + quote(str(path))

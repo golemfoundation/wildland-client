@@ -38,8 +38,8 @@ Here is an example of a signed manifest:
 
    backends:
      storage:
-       - storage11.yaml
-       - storage12.yaml
+       - file:///path/to/storage11.yaml
+       - file:///path/to/storage12.yaml
 
    # vim: ts=2 sts=2 sw=2 et
 
@@ -82,6 +82,29 @@ fingerprint of the GPG key, in lowercase. Note that **the fingerprint has to be
 quoted**, otherwise it will be interpreted as a YAML number and fail
 validation.
 
+Local URLs
+----------
+
+In places where a URL is expected, you can use a local file URL. These are of
+the form ``file://<hostname>/<path>``, where the hostname is optional.
+
+For a local URL to be recognized, two conditions must be met:
+
+1. The signer providing the URL (i.e. signer of the manifest the URL is found
+   in) must be added to ``local_signers`` in the Wildland configuration file
+   (``$HOME/.config/wildland/users``).
+
+   This is to prevent arbitrary signers causing you to access your local
+   system.
+
+2. The hostname must be the same as ``local_hostname`` in the Wildland
+   configuration file (if the hostname is not provided, it is interpreted as
+   ``localhost``).
+
+   This is in order to differentiate between your machines: if you configure
+   them with different ``local_hostname``, then file URLs intended for one
+   machine will not load on the other.
+
 User manifest
 -------------
 
@@ -109,10 +132,13 @@ Example:
       -----END PGP PUBLIC KEY BLOCK-----
     ---
     signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+    containers:
+      - file:///path/to/container.yaml
 
 Fields:
 
 * ``signer`` (fingerprint): Signer of the manifest.
+* ``containers`` (list of URLs): Containers associated with that user.
 
 Container manifest
 ------------------
@@ -132,8 +158,8 @@ Example:
 
    backends:
       storage:
-        - /path/to/storage11.yaml
-        - /path/to/storage12.yaml
+        - file:///path/to/storage11.yaml
+        - file:///path/to/storage12.yaml
 
 Fields:
 
@@ -147,7 +173,7 @@ Fields:
 * ``backends``:
 
   * ``storage`` (list of URLs): List of paths to storage manifests, specifying
-    storage backends for the container. (TODO URL format)
+    storage backends for the container.
 
 
 Storage manifest
@@ -186,5 +212,4 @@ Fields:
 Local storage (``local``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``path``: Absolute path in local filesystem. Currently, relative paths are
-  supported, but this is temporary.
+* ``path``: Absolute path in local filesystem.

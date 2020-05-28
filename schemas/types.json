@@ -14,11 +14,15 @@
         "description": "HTTP(S) address",
         "pattern": "^https?://.*$"
     },
+    "file_url": {
+        "type": "string",
+        "description": "File URL, possibly with hostname",
+        "pattern": "^file://[^/]*/.*$"
+    },
     "url": {
         "oneOf": [
-            { "$ref": "#/abs_path" },
-            { "$ref": "#/rel_path" },
-            { "$ref": "#/http_url" }
+            { "$ref": "#/http_url" },
+            { "$ref": "#/file_url" }
         ]
     },
     "fingerprint": {

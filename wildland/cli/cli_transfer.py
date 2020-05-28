@@ -26,7 +26,8 @@ import sys
 import click
 
 from .cli_base import ContextObj
-from ..resolve import WildlandPath, Search
+from ..wlpath import WildlandPath
+from ..search import Search
 
 
 @click.command(short_help='send a file')

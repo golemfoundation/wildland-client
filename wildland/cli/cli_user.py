@@ -74,6 +74,10 @@ def create(obj: ContextObj, key, paths, name):
         print(f'Using {signer} as default user')
         obj.client.config.update_and_save(default_user=signer)
 
+    print(f'Adding {signer} to local signers')
+    local_signers = obj.client.config.get('local_signers')
+    obj.client.config.update_and_save(local_signers=[*local_signers, signer])
+
 
 @user_.command('list', short_help='list users')
 @click.pass_obj
