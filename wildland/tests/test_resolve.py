@@ -29,7 +29,8 @@ import pytest
 
 from ..client import Client
 from ..storage_backends.local import LocalStorageBackend
-from ..resolve import WildlandPath, PathError, Search
+from ..wlpath import WildlandPath, PathError
+from ..search import Search
 
 
 ## Path

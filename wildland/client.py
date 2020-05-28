@@ -160,9 +160,9 @@ class Client:
         Load a container from WildlandPath.
         '''
 
-        # TODO: Still a circular dependency with resolve.py
+        # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel, cyclic-import
-        from .resolve import Search
+        from .search import Search
         search = Search(self, wlpath)
         return search.read_container(remote=True)
 
