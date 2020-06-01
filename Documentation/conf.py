@@ -206,20 +206,13 @@ assert cnt_subcommands == cnt_man_pages, ('under- or overdocumented commands: '
     f'{set(cnt_subcommands).symmetric_difference(cnt_man_pages)}')
 
 class ManpageCheckVisitor(docutils.nodes.SparseNodeVisitor):
-    def __init__(self, doctree, command, command_options):
+    def __init__(self, doctree, command, command_options, command_refids):
         super().__init__(doctree)
         self.stem = command
         self.command_options = command_options
-
-        # this is needed, because .split('-') fails for local-cached
-        self.command_refids = dict(
-            manhelper.walk_group(CMD_MAIN, self._collect_refids))
+        self.command_refids = command_refids
 
         self.current_command = None
-
-    @staticmethod
-    def _collect_refids(cmd, prefix):
-        yield ('-'.join((*prefix, cmd.name)), cmd)
 
     def visit_target(self, node):
         try:
@@ -256,8 +249,12 @@ def _collect_cmd_opts(cmd, prefix):
         for opt in (*param.opts, *param.secondary_opts):
             yield (cmd, opt)
 
+def _collect_refids(cmd, prefix):
+    yield ('-'.join((*prefix, cmd.name)), cmd)
+
 def check_man(app, env):
     command_options = set(manhelper.walk_group(CMD_MAIN, _collect_cmd_opts))
+    command_refids = dict(manhelper.walk_group(CMD_MAIN, _collect_refids))
 
     for docname in env.found_docs:
         log.info('docname: %r', docname)
@@ -267,15 +264,33 @@ def check_man(app, env):
         doctree = env.get_doctree(docname)
 
         log.info('checking manpage for %s', command)
-        doctree.walk(ManpageCheckVisitor(doctree, command, command_options))
+        doctree.walk(ManpageCheckVisitor(doctree,
+            command, command_options, command_refids))
 
     if command_options:
         for cmd, opt in command_options:
             if opt is None:
-                log.warn(f'undocumented command {cmd}')
+                log.info('undocumented command %s (%s)',
+                    cmd.name, _describe_command(cmd))
             else:
-                log.warn(f'undocumented option {opt} for command {cmd.name}')
-        raise SphinxError('undocumented options and/or commands')
+                log.info('undocumented option %s for command %s (%s)',
+                    opt, cmd.name, _describe_command(cmd))
+        log.warn('undocumented options and/or commands')
+
+def _describe_command(cmd):
+    callback = cmd.callback
+
+    while callback.__code__.co_filename.endswith('/click/decorators.py'):
+        try:
+            callback = callback.__wrapped__
+        except AttributeError:
+            # functools.wraps not used to create decorator; while theoretically
+            # possible, click authors won't make such mistake, so this shouldn't
+            # happen; trying to guess by introspecting __code__ and __closure__
+            # is not worth the effort in this unlikely case
+            break
+
+    return f'{callback.__code__.co_filename}:{callback.__code__.co_firstlineno}'
 
 # -- Options for Texinfo output ----------------------------------------------
 
