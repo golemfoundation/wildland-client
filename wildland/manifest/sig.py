@@ -24,8 +24,13 @@ Module for handling signatures. Currently provides two backends: GPG, and a
 
 import tempfile
 import shutil
-from typing import TypeVar, Tuple, Optional
+from typing import TypeVar, Tuple, Optional, Dict
+from pathlib import Path
 import os
+import subprocess
+import base64
+import binascii
+import stat
 
 import gnupg
 
@@ -278,3 +283,138 @@ class GpgSigContext(SigContext):
         if not signature:
             raise Exception('sign failed')
         return str(signature)
+
+
+class SignifySigContext(SigContext):
+    '''
+    A Signify backend.
+
+    The key_dir directory is for storing generated key pairs.
+    '''
+
+    def __init__(self, key_dir: Path):
+        self.key_dir = key_dir
+        self.binary: str = 'signify'
+        self.signers: Dict[str, str] = {}
+
+    @staticmethod
+    def fingerprint(pubkey: str) -> str:
+        '''
+        Convert Signify pubkey to a signer identifier (fingerprint).
+        '''
+        pubkey_data = pubkey.splitlines()[1]
+        data = base64.b64decode(pubkey_data)
+        prefix = data[:10][::-1]
+        return '0x' + binascii.hexlify(prefix).decode()
+
+    def generate(self) -> str:
+        '''
+        Generate a new key pair and store it in key_dir.
+
+        Returns signer.
+        '''
+
+        with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
+            secret_file = Path(d) / 'key.sec'
+            public_file = Path(d) / 'key.pub'
+            subprocess.run(
+                [self.binary,
+                 '-G',
+                 '-q',  # quiet
+                 '-n',  # no passphrase
+                 '-s', secret_file,
+                 '-p', public_file],
+                check=True
+            )
+
+            pubkey = public_file.read_text()
+            signer = self.fingerprint(pubkey)
+
+            shutil.copy(public_file, self.key_dir / f'{signer}.pub')
+            shutil.copy(secret_file, self.key_dir / f'{signer}.sec')
+            assert os.stat(self.key_dir / f'{signer}.sec').st_mode == stat.S_IFREG | 0o600
+
+        self.signers[signer] = pubkey
+        return signer
+
+    def copy(self: 'SignifySigContext') -> 'SignifySigContext':
+        sig = SignifySigContext(self.key_dir)
+        sig.signers.update(self.signers)
+        return sig
+
+    def add_pubkey(self, pubkey: str) -> str:
+        signer = self.fingerprint(pubkey)
+        self.signers[signer] = pubkey
+        return signer
+
+    def get_pubkey(self, signer: str) -> str:
+        '''
+        Get a public key by signer ID.
+        '''
+        try:
+            return self.signers[signer]
+        except KeyError:
+            raise SigError(f'Public key not found: {signer}')
+
+    def find(self, key_id: str) -> Tuple[str, str]:
+        raise NotImplementedError()
+
+    def sign(self, signer: str, data: bytes) -> str:
+        '''
+        Sign data using a given signer's key.
+        '''
+        secret_file = Path(self.key_dir / f'{signer}.sec')
+        if not secret_file.exists():
+            raise SigError(f'Secret key not found: {signer}')
+
+        with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
+            message_file = Path(d) / 'message'
+            signature_file = Path(d) / 'message.sig'
+
+            message_file.write_bytes(data)
+            subprocess.run(
+                [self.binary,
+                 '-S',
+                 '-q',  # quiet
+                 '-n',  # no passphrase
+                 '-s', secret_file,
+                 '-x', signature_file,
+                 '-m', message_file],
+                check=True
+            )
+            signature_content = signature_file.read_text()
+
+        signature_base64 = signature_content.splitlines()[1]
+        return f'untrusted comment: signify signature\n' + signature_base64
+
+    def verify(self, signature: str, data: bytes) -> str:
+        '''
+        Verify signature for data, returning the recognized signer.
+        If self_signed, ignore that a signer is not recognized.
+        '''
+        signer = self.fingerprint(signature)
+        if signer not in self.signers:
+            raise SigError(f'Unrecognized signer: {signer}')
+
+        pubkey = self.signers[signer]
+        with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
+            message_file = Path(d) / 'message'
+            signature_file = Path(d) / 'message.sig'
+            pubkey_file = Path(d) / 'key.pub'
+
+            message_file.write_bytes(data)
+            signature_file.write_text(signature + '\n')
+            pubkey_file.write_text(pubkey + '\n')
+            try:
+                subprocess.run(
+                    [self.binary,
+                     '-V',
+                     '-q',  # quiet
+                     '-p', pubkey_file,
+                     '-x', signature_file,
+                     '-m', message_file],
+                    check=True
+                )
+            except subprocess.CalledProcessError:
+                raise SigError(f'Could not verify signature for {signer}')
+        return signer

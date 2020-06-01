@@ -17,57 +17,80 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, redefined-outer-name
+
+import tempfile
+from pathlib import Path
 
 import pytest
 
 from ..manifest.manifest import Manifest, Header, ManifestError
+from ..manifest.sig import SignifySigContext
 
 
-def make_header(gpg_sig, signer, test_data, attach_pubkey=False):
-    signature = gpg_sig.sign(signer, test_data, passphrase='secret')
+@pytest.fixture(scope='session')
+def key_dir():
+    with tempfile.TemporaryDirectory(prefix='wlsecret.') as d:
+        yield Path(d)
+
+
+@pytest.fixture(scope='session')
+def sig(key_dir):
+    return SignifySigContext(key_dir)
+
+
+@pytest.fixture(scope='session')
+def signer(sig):
+    return sig.generate()
+
+
+
+def make_header(sig, signer, test_data, attach_pubkey=False):
+    signature = sig.sign(signer, test_data)
     pubkey = None
     if attach_pubkey:
-        pubkey = gpg_sig.get_pubkey(signer)
+        pubkey = sig.get_pubkey(signer)
     header = Header(signature.strip(), pubkey)
     return header.to_bytes()
 
-def test_parse(gpg_sig, signer):
+def test_parse(sig, signer):
     test_data = f'''
 signer: "{signer}"
 key1: value1
 key2: "value2"
 '''.encode()
 
-    data = make_header(gpg_sig, signer, test_data) + b'\n---\n' + test_data
-    manifest = Manifest.from_bytes(data, gpg_sig)
+    data = make_header(sig, signer, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
     assert manifest.fields['signer'] == signer
     assert manifest.fields['key1'] == 'value1'
     assert manifest.fields['key2'] == 'value2'
 
 
-def test_parse_wrong_signer(gpg_sig, signer):
+def test_parse_wrong_signer(sig, signer):
     test_data = f'''
 signer: other signer
 key1: value1
 key2: "value2"
 '''.encode()
-    data = make_header(gpg_sig, signer, test_data) + b'\n---\n' + test_data
+    data = make_header(sig, signer, test_data) + b'\n---\n' + test_data
 
     with pytest.raises(ManifestError, match='Signer field mismatch'):
-        Manifest.from_bytes(data, gpg_sig)
+        Manifest.from_bytes(data, sig)
 
 
-def test_parse_self_signed(gpg_sig, signer):
+def test_parse_self_signed(sig, signer):
     test_data = f'''
 signer: "{signer}"
 key1: value1
 key2: "value2"
 '''.encode()
 
-    data = (make_header(gpg_sig, signer, test_data, attach_pubkey=True) +
+    data = (make_header(sig, signer, test_data, attach_pubkey=True) +
             b'\n---\n' + test_data)
-    manifest = Manifest.from_bytes(data, gpg_sig, self_signed=Manifest.REQUIRE)
+    manifest = Manifest.from_bytes(data, sig, self_signed=Manifest.REQUIRE)
     assert manifest.fields['signer'] == signer
     assert manifest.fields['key1'] == 'value1'
     assert manifest.fields['key2'] == 'value2'
+
+    print(data.decode())
