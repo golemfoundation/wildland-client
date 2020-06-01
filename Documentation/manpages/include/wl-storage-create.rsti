@@ -1,0 +1,12 @@
+.. option:: --container <container>
+
+   Choose container, for which the storage will be created. This option is
+   required.
+
+.. option:: --update-container, -u
+
+   Update the container after creating storage.
+
+.. option:: --no-update-container, -n
+
+   Do not update the container after creating storage.

@@ -46,7 +46,7 @@ from .. import __version__ as _version
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
-@click.group()
+@click.group('wl')
 @click.option('--dummy/--no-dummy', default=False,
     help='use dummy signatures')
 @click.option('--base-dir', default=None,
