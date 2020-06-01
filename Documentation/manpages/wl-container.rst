@@ -54,6 +54,14 @@ Create a |~| new container manifest.
 
    .. todo:: Write the config name for default user.
 
+.. option:: -u, --update-user
+
+   Add the container to the user manifest.
+
+.. option:: -n, --no-update-user
+
+   Don't add the container to the user manifest. This is the default.
+
 .. program:: wl-container-update
 .. _wl-container-update:
 

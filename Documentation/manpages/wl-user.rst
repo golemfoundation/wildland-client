@@ -47,6 +47,11 @@ You need to have a GPG private key in your keyring. You can create one using
 Select available private key from local keyring by usual GPG convention (email,
 name or even part of comment). This option is required.
 
+.. option:: --path <path>
+
+Specify a path in Wildland namespace (such as ``/users/User``) for the
+user. Can be repeated.
+
 .. _wl-user-sign:
 .. _wl-user-verify:
 .. _wl-user-edit:
