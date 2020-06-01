@@ -1,4 +1,4 @@
 #!/bin/sh -ex
 
 . /home/user/env/bin/activate
-pytest -v --cov=widland --cov-report term --cov-report html "$@"
+pytest -v --cov=wildland --cov-report term --cov-report html "$@"

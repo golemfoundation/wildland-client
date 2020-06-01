@@ -106,7 +106,7 @@ def mount(obj: ContextObj, remount, debug, container):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
-    (``~/.widland/config.yaml``) as ``mount_dir``.
+    (``~/.wildland/config.yaml``) as ``mount_dir``.
     '''
 
     if not os.path.exists(obj.mount_dir):
