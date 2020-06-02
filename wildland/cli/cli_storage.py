@@ -21,11 +21,9 @@
 Storage object
 '''
 
-from typing import List, Callable, Type, Iterator
+from typing import Type
 import functools
 
-import botocore.credentials
-import botocore.session
 import click
 
 from .cli_base import ContextObj
