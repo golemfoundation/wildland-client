@@ -66,7 +66,7 @@ supported fields:
 * ``container_dir``: path for container manifests, default ``~/.config/wildland/containers``
 * ``key_dir``: path for key pairs, default ``~/.config/wildland/keys``
 * ``mount_dir``: path to mount Wildland in, default ``~/wildland``
-* ``dummy``: if true, use dummy signatures instead of GPG
+* ``dummy``: if true, use dummy signatures instead of Signify
 * ``default_user`` (as key fingerprint): default user for newly created manifests
 
 Keys and signatures

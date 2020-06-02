@@ -45,8 +45,7 @@ def user_():
 @click.pass_obj
 def create(obj: ContextObj, key, paths, name):
     '''
-    Create a new user manifest and save it. You need to have a GPG private key
-    in your keyring.
+    Create a new user manifest and save it.
     '''
 
     if key:
