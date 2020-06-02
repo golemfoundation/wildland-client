@@ -68,7 +68,7 @@ key2: "value2"
 
 
 def test_parse_wrong_signer(sig, signer):
-    test_data = f'''
+    test_data = '''
 signer: other signer
 key1: value1
 key2: "value2"

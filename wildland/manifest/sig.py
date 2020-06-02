@@ -270,7 +270,7 @@ class SignifySigContext(SigContext):
             signature_content = signature_file.read_text()
 
         signature_base64 = signature_content.splitlines()[1]
-        return f'untrusted comment: signify signature\n' + signature_base64
+        return 'untrusted comment: signify signature\n' + signature_base64
 
     def verify(self, signature: str, data: bytes) -> str:
         '''

@@ -237,9 +237,9 @@ def test_container_mount(cli, base_dir):
     assert command['storage']['signer'] == '0xaaa'
     assert command['paths'] == [
         f'/.users/0xaaa{path}',
-        f'/.users/0xaaa/PATH',
+        '/.users/0xaaa/PATH',
         path,
-        f'/PATH',
+        '/PATH',
     ]
 
     modify_file(base_dir / 'config.yaml', "default_user: '0xaaa'", '')
@@ -251,7 +251,7 @@ def test_container_mount(cli, base_dir):
     assert command['storage']['signer'] == '0xaaa'
     assert command['paths'] == [
         f'/.users/0xaaa{path}',
-        f'/.users/0xaaa/PATH',
+        '/.users/0xaaa/PATH',
     ]
 
 

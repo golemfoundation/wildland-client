@@ -74,7 +74,7 @@ class WildlandFS(fuse.Fuse):
                 method = getattr(self, name)
                 setattr(self, name, debug_handler(method, bound=True))
 
-    def main(self, *args, **kwds): # pylint: disable=arguments-differ
+    def main(self, *args, **kwds): # pylint: disable=signature-differs
         # this is after cmdline parsing
         self.uid, self.gid = os.getuid(), os.getgid()
 

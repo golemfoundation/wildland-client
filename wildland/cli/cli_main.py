@@ -114,7 +114,7 @@ def mount(obj: ContextObj, remount, debug, container):
         if remount:
             obj.fs_client.unmount()
         else:
-            raise CliError(f'Already mounted')
+            raise CliError('Already mounted')
 
     obj.client.recognize_users()
     to_mount = []
@@ -143,7 +143,7 @@ def mount(obj: ContextObj, remount, debug, container):
         p.wait()
 
     if p.returncode != 0:
-        raise CliError(f'FUSE driver exited with failure')
+        raise CliError('FUSE driver exited with failure')
 
 @main.command(short_help='unmount Wildland filesystem')
 @click.pass_obj

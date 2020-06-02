@@ -268,12 +268,12 @@ class Header:
         '''
 
         lines = []
-        lines.append(f'signature: |')
+        lines.append('signature: |')
         for sig_line in self.signature.splitlines():
             lines.append('  ' + sig_line)
 
         if self.pubkey is not None:
-            lines.append(f'pubkey: |')
+            lines.append('pubkey: |')
             for sig_line in self.pubkey.splitlines():
                 lines.append('  ' + sig_line)
 

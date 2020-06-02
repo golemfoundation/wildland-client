@@ -87,7 +87,7 @@ def _do_create(
 
     container = obj.client.load_container_from(container)
     if not container.local_path:
-        raise click.ClickException(f'Need a local container')
+        raise click.ClickException('Need a local container')
 
     container_mount_path = container.paths[0]
     click.echo(f'Using container: {container.local_path} ({container_mount_path})')
