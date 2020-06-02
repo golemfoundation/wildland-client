@@ -49,6 +49,15 @@ def test_user_create(cli, base_dir):
     assert "default_user: '0xaaa'" in config
 
 
+def test_user_create_generate_key(cli, base_dir):
+    cli('user', 'create', 'User')
+    with open(base_dir / 'users/User.yaml') as f:
+        data = f.read()
+
+    assert "key.0xfff" in data
+    assert "signer: '0xfff'" in data
+
+
 def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa',
         '--path', '/users/Foo', '--path', '/users/Bar')

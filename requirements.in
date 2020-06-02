@@ -2,7 +2,6 @@
 fuse-python>=1.0.0
 jsonschema
 pyyaml
-python-gnupg
 click
 
 # Storage
@@ -12,6 +11,7 @@ python-dateutil
 lxml
 
 # Development / testing
+pip-tools
 pytest
 pytest-cov
 pylint

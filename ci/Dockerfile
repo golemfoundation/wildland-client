@@ -14,7 +14,6 @@ RUN apt-get -qy update
 RUN apt-get install -y \
       gcc \
       make \
-      gnupg2 \
       signify-openbsd \
       python3-dev \
       python3-venv \

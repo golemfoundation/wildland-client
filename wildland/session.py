@@ -78,9 +78,9 @@ class Session:
         '''
 
         manifest = user.to_unsigned_manifest()
-        with self.sig.copy() as sig_temp:
-            sig_temp.add_pubkey(user.pubkey)
-            manifest.sign(sig_temp, attach_pubkey=True)
+        sig_temp = self.sig.copy()
+        sig_temp.add_pubkey(user.pubkey)
+        manifest.sign(sig_temp, attach_pubkey=True)
         return manifest.to_bytes()
 
     def load_container(self,

@@ -41,7 +41,7 @@ def sig(key_dir):
 
 @pytest.fixture(scope='session')
 def signer(sig):
-    return sig.generate()
+    return sig.generate()[0]
 
 
 

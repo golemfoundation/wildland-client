@@ -237,14 +237,14 @@ class Header:
             raise SigError('Not expecting the header to contain pubkey')
 
         if self.pubkey is not None:
-            with sig_context.copy() as sig_temp:
-                pubkey_signer = sig_temp.add_pubkey(self.pubkey)
-                signer = sig_temp.verify(self.signature, rest_data)
-                if signer != pubkey_signer:
-                    raise SigError(
-                        'Signer does not match pubkey (signature {!r}, pubkey {!r})'.format(
-                            signer, pubkey_signer))
-                return signer
+            sig_temp = sig_context.copy()
+            pubkey_signer = sig_temp.add_pubkey(self.pubkey)
+            signer = sig_temp.verify(self.signature, rest_data)
+            if signer != pubkey_signer:
+                raise SigError(
+                    'Signer does not match pubkey (signature {!r}, pubkey {!r})'.format(
+                        signer, pubkey_signer))
+            return signer
 
         return sig_context.verify(self.signature, rest_data)
 

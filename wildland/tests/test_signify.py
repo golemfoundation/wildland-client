@@ -41,12 +41,12 @@ def sig(key_dir):
 
 @pytest.fixture(scope='session')
 def signer(sig):
-    return sig.generate()
+    return sig.generate()[0]
 
 
 @pytest.fixture(scope='session')
 def other_signer(sig):
-    return sig.generate()
+    return sig.generate()[0]
 
 
 def test_pubkey_to_signer(sig):
@@ -110,3 +110,9 @@ def test_copy_and_import(sig, signer, other_signer):
     assert g2.add_pubkey(pubkey2) == other_signer
     assert other_signer in g2.signers
     assert other_signer not in g1.signers
+
+
+def test_find(sig, signer):
+    found = sig.find(signer)
+    pubkey = sig.get_pubkey(signer)
+    assert found == (signer, pubkey)

@@ -24,7 +24,6 @@ Wildland command-line interface.
 import os
 from pathlib import Path
 import json
-import atexit
 
 import click
 
@@ -59,8 +58,6 @@ def main(ctx, base_dir, dummy, verbose):
     # pylint: disable=missing-docstring
 
     client = Client(dummy=dummy, base_dir=base_dir)
-    # TODO: Is there a better way to ensure close?
-    atexit.register(client.close)
     ctx.obj = ContextObj(client)
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')

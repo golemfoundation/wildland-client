@@ -37,8 +37,8 @@ def user_():
 
 
 @user_.command(short_help='create user')
-@click.option('--key', required=True,
-    help='GPG key identifier')
+@click.option('--key', metavar='KEY',
+    help='use existing key pair (must be in ~/.config/wildland/keys/')
 @click.option('--path', 'paths', multiple=True,
     help='path (can be repeated)')
 @click.argument('name', metavar='NAME', required=False)
@@ -49,8 +49,12 @@ def create(obj: ContextObj, key, paths, name):
     in your keyring.
     '''
 
-    signer, pubkey = obj.session.sig.find(key)
-    print(f'Using key: {signer}')
+    if key:
+        signer, pubkey = obj.session.sig.find(key)
+        print(f'Using key: {signer}')
+    else:
+        signer, pubkey = obj.session.sig.generate()
+        print(f'Generated key: {signer}')
 
     if paths:
         paths = list(paths)

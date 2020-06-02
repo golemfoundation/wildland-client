@@ -44,11 +44,8 @@ def setup(base_dir, cli):
 def client(setup, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    try:
-        client.recognize_users()
-        yield client
-    finally:
-        client.close()
+    client.recognize_users()
+    return client
 
 
 def test_select_storage(client, base_dir):
