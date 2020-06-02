@@ -26,10 +26,10 @@ import click
 
 from ..user import User
 
-from .cli_base import ContextObj
+from .cli_base import AliasedGroup, ContextObj
 from .cli_common import sign, verify, edit
 
-@click.group('user', short_help='user management')
+@click.group('user', short_help='user management', cls=AliasedGroup)
 def user_():
     '''
     Manage users
@@ -97,6 +97,7 @@ def list_(obj: ContextObj):
         for user_container in user.containers:
             click.echo(f'  container: {user_container}')
         click.echo()
+user_.add_alias(ls='list')
 
 
 user_.add_command(sign)

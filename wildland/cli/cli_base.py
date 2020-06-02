@@ -21,7 +21,10 @@
 Wildland command-line interface - base module.
 '''
 
+import collections
 from pathlib import Path
+
+import click
 
 from ..exc import WildlandError
 from ..client import Client
@@ -43,3 +46,44 @@ class ContextObj:
         self.mount_dir: Path = client.fs_client.mount_dir
         self.client = client
         self.session = client.session
+
+class AliasedGroup(click.Group):
+    '''A very simple alias engine for :class:`click.Group`'''
+
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+        self.aliases = {}
+
+    def add_alias(self, **kwds):
+        '''Add aliases to a command
+
+        >>> cmd.add_alias(alias='original-command')
+        '''
+        assert all(
+            alias not in (*self.aliases, *self.commands) for alias in kwds)
+        self.aliases.update(kwds)
+
+    def get_command(self, ctx, cmd_name):
+        rv = super().get_command(ctx, cmd_name)
+        if rv is not None:
+            return rv
+
+        try:
+            aliased_name = self.aliases[cmd_name]
+        except KeyError:
+            pass # implicit return None at the end of function
+        else:
+            return super().get_command(ctx, aliased_name)
+
+    def format_commands(self, ctx, formatter):
+        super().format_commands(ctx, formatter)
+        if not self.aliases:
+            return
+
+        aliases_reversed = collections.defaultdict(set)
+        for alias, cmd_name in self.aliases.items():
+            aliases_reversed[cmd_name].add(alias)
+
+        with formatter.section('Aliases'):
+            formatter.write_dl((cmd_name, ', '.join(sorted(aliases_reversed[cmd_name])))
+                for cmd_name in sorted(aliases_reversed))

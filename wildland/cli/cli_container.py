@@ -25,12 +25,12 @@ from pathlib import PurePosixPath
 
 import click
 
-from .cli_base import ContextObj, CliError
+from .cli_base import AliasedGroup, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
 
 
-@click.group('container', short_help='container management')
+@click.group('container', short_help='container management', cls=AliasedGroup)
 def container_():
     '''
     Manage containers
@@ -117,6 +117,7 @@ def list_(obj: ContextObj):
         for storage_path in container.backends:
             click.echo(f'  storage: {storage_path}')
         click.echo()
+container_.add_alias(ls='list')
 
 
 container_.add_command(sign)
@@ -171,3 +172,5 @@ def unmount(obj: ContextObj, path: str, cont):
 
     click.echo(f'Unmounting storage {storage_id}')
     obj.fs_client.unmount_container(storage_id)
+
+container_.add_alias(umount='unmount')
