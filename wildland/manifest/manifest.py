@@ -21,7 +21,7 @@
 Classes for handling signed Wildland manifests
 '''
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 import re
 
 import yaml
@@ -56,11 +56,9 @@ class Manifest:
     def __init__(self, header: Optional['Header'], fields,
                  original_data: bytes):
 
-        # If header is set, that means we have verified the signature.
+        # If header is set, that means we have verified the signature,
+        # or explicitly accepted an unsigned manifest.
         self.header = header
-
-        # Alternatively, you can mark it as unsigned.
-        self.unsigned_ok = False
 
         # Accessible as 'fields' only if there is a header.
         self._fields = fields
@@ -74,7 +72,7 @@ class Manifest:
         A wrapper for manifest fields that makes sure the manifest is signed.
         '''
 
-        if not self.header and not self.unsigned_ok:
+        if not self.header:
             raise ManifestError('Trying to read an unsigned manifest')
         return self._fields
 
@@ -130,12 +128,13 @@ class Manifest:
         Explicitly mark the manifest as unsigned, and allow using it.
         '''
 
-        self.unsigned_ok = True
+        self.header = Header(None, None)
 
     @classmethod
     def from_file(cls, path, sig_context: SigContext,
-                   schema: Optional[Schema] = None,
-                   self_signed: int = DISALLOW) -> 'Manifest':
+                  schema: Optional[Schema] = None,
+                  self_signed: int = DISALLOW,
+                  trusted_signer: Optional[str] = None) -> 'Manifest':
         '''
         Load a manifest from YAML file, verifying it.
 
@@ -145,16 +144,19 @@ class Manifest:
             schema: a Schema to validate the fields with
             self_signed: ignore that a signer is unknown to the SigContext
                 (useful for bootstrapping)
+            trusted_signer: accept signature-less manifest from this signer
         '''
 
         with open(path, 'rb') as f:
             data = f.read()
-        return cls.from_bytes(data, sig_context, schema, self_signed)
+        return cls.from_bytes(
+            data, sig_context, schema, self_signed, trusted_signer)
 
     @classmethod
     def from_bytes(cls, data: bytes, sig_context: SigContext,
                    schema: Optional[Schema] = None,
-                   self_signed: int = DISALLOW) -> 'Manifest':
+                   self_signed: int = DISALLOW,
+                   trusted_signer: Optional[str] = None) -> 'Manifest':
         '''
         Load a manifest from YAML content, verifying it.
 
@@ -164,13 +166,15 @@ class Manifest:
             schema: a Schema to validate the fields with
             self_signed: ignore that a signer is unknown to the SigContext
                 (useful for bootstrapping)
+            trusted_signer: accept signature-less manifest from this signer
         '''
 
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
         try:
-            header_signer = header.verify_rest(rest_data, sig_context, self_signed)
+            header_signer = header.verify_rest(
+                rest_data, sig_context, self_signed, trusted_signer)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e))
@@ -182,6 +186,12 @@ class Manifest:
             raise ManifestError('Manifest parse error: {}'.format(e))
 
         if fields.get('signer') != header_signer:
+            if header.signature is None:
+                raise ManifestError(
+                    'Wrong signer for manifest without signature: '
+                    'trusted signer {!r}, manifest {!r}'.format(
+                        header_signer, fields.get('signer')))
+
             raise ManifestError(
                 'Signer field mismatch: header {!r}, manifest {!r}'.format(
                     header_signer, fields.get('signer')))
@@ -198,8 +208,6 @@ class Manifest:
         '''
 
         if self.header is None:
-            if self.unsigned_ok:
-                return self.original_data
             raise ManifestError('Manifest not signed')
 
         return self.header.to_bytes() + HEADER_SEPARATOR + self.original_data
@@ -217,26 +225,34 @@ class Header:
     Manifest header (signer and signature).
     '''
 
-    def __init__(self, signature: str, pubkey: Optional[str]):
-        self.signature = signature.rstrip('\n')
+    def __init__(self, signature: Optional[str], pubkey: Optional[str]):
+        self.signature = None
         self.pubkey = None
+
+        if signature is not None:
+            self.signature = signature.rstrip('\n')
         if pubkey is not None:
             self.pubkey = pubkey.rstrip('\n')
 
     def verify_rest(self, rest_data: bytes, sig_context: SigContext,
-                    self_signed: int) -> str:
+                    self_signed: int, trusted_signer: Optional[str]) -> str:
         '''
         Verify the signature against manifest content (without parsing it).
-        Return signer, if known.
+        Return signer.
         '''
 
+        # Verify pubkey presence/absence
         if self_signed == Manifest.REQUIRE and self.pubkey is None:
             raise SigError('Expecting the header to contain pubkey')
 
         if self_signed == Manifest.DISALLOW and self.pubkey is not None:
             raise SigError('Not expecting the header to contain pubkey')
 
+        # Verify against public key, if provided
         if self.pubkey is not None:
+            if self.signature is None:
+                raise SigError('Signature is always required when providing pubkey')
+
             sig_temp = sig_context.copy()
             pubkey_signer = sig_temp.add_pubkey(self.pubkey)
             signer = sig_temp.verify(self.signature, rest_data)
@@ -245,6 +261,12 @@ class Header:
                     'Signer does not match pubkey (signature {!r}, pubkey {!r})'.format(
                         signer, pubkey_signer))
             return signer
+
+        # Handle lack of signature, if allowed
+        if self.signature is None:
+            if trusted_signer is None:
+                raise SigError('Signature expected')
+            return trusted_signer
 
         return sig_context.verify(self.signature, rest_data)
 
@@ -255,12 +277,8 @@ class Header:
         '''
 
         parser = HeaderParser(data)
-        signature = parser.expect_field('signature')
-        pubkey = None
-        if not parser.is_eof():
-            pubkey = parser.expect_field('pubkey')
-            parser.expect_eof()
-        return cls(signature, pubkey)
+        fields = parser.parse('signature', 'pubkey')
+        return cls(fields.get('signature'), fields.get('pubkey'))
 
     def to_bytes(self):
         '''
@@ -268,9 +286,10 @@ class Header:
         '''
 
         lines = []
-        lines.append('signature: |')
-        for sig_line in self.signature.splitlines():
-            lines.append('  ' + sig_line)
+        if self.signature is not None:
+            lines.append('signature: |')
+            for sig_line in self.signature.splitlines():
+                lines.append('  ' + sig_line)
 
         if self.pubkey is not None:
             lines.append('pubkey: |')
@@ -322,9 +341,7 @@ class HeaderParser:
     Example usage:
 
         parser = HeaderParser(data)
-        signer = parser.expect_field('signer')
-        signature = parser.expect_field('signature')
-        parser.expect_eof()
+        fields = parser.parse('signature', 'signer')
     '''
 
     SIMPLE_FIELD_RE = re.compile(r'([a-z]+): "([a-zA-Z0-9_ .-]+)"$')
@@ -339,29 +356,39 @@ class HeaderParser:
         self.lines = text.splitlines()
         self.pos = 0
 
-    def expect_field(self, name: str) -> str:
+    def parse(self, *fields: str) -> Dict[str, str]:
         '''
-        Parse a single field with a given name
+        Parse the header. Recognize only provided fields.
         '''
 
-        if self.pos == len(self.lines):
-            raise ManifestError('Unexpected end of header')
+        result = {}
+        while not self.is_eof():
+            name, value = self.parse_field()
+            if name not in fields:
+                raise ManifestError(
+                    f'Unexpected field: {name!r}')
+            if name in  result:
+                raise ManifestError(
+                    f'Duplicate field: {name!r}')
+            result[name] = value
+        return result
+
+    def parse_field(self) -> Tuple[str, str]:
+        '''
+        Parse a single field. Returns (name, value).
+        '''
+
+        assert not self.is_eof()
         line = self.lines[self.pos]
         self.pos += 1
 
         m = self.SIMPLE_FIELD_RE.match(line)
         if m:
-            if m.group(1) != name:
-                raise ManifestError(
-                    'Unexpected field: {!r}'.format(m.group(1)))
-            return m.group(2)
+            return m.group(1), m.group(2)
 
         m = self.BLOCK_FIELD_RE.match(line)
         if m:
-            if m.group(1) != name:
-                raise ManifestError(
-                    'Unexpected field: {!r}'.format(m.group(1)))
-            return self.parse_block()
+            return m.group(1), self.parse_block()
 
         raise ManifestError('Unexpected line: {!r}'.format(line))
 
@@ -370,15 +397,6 @@ class HeaderParser:
         Check if there is nothing else in the parser.
         '''
         return self.pos == len(self.lines)
-
-    def expect_eof(self):
-        '''
-        Make sure there is nothing else in the parser.
-        '''
-
-        if self.pos < len(self.lines):
-            raise ManifestError(
-                'Unexpected input: {!r}'.format(self.lines[self.pos]))
 
     def parse_block(self):
         '''

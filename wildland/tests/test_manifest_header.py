@@ -45,6 +45,14 @@ signature: |
     assert header.signature == 'line 1\nline 2'
     assert header.pubkey is None
 
+
+def test_parse_header_empty():
+    data = b''
+    header = Header.from_bytes(data)
+    assert header.signature is None
+    assert header.pubkey is None
+
+
 def test_parse_header_with_pubkey():
     data = b'''\
 signature: |
@@ -80,6 +88,12 @@ pubkey: |
   line 4'''
 
 
+def test_header_empty_to_bytes():
+    header = Header(None, None)
+    data = header.to_bytes()
+    assert data == b''
+
+
 def test_parser():
     parser = HeaderParser(b'''\
 foo: "foo"
@@ -89,19 +103,21 @@ bar: |
   lines
 baz: "baz"
 ''')
-    assert parser.expect_field('foo') == 'foo'
-    assert parser.expect_field('bar') == 'bar\n\nlines'
-    assert parser.expect_field('baz') == 'baz'
+    assert parser.parse_field() == ('foo', 'foo')
+    assert parser.parse_field() == ('bar', 'bar\n\nlines')
+    assert parser.parse_field() == ('baz', 'baz')
+    assert parser.is_eof()
 
 
 def test_parser_error():
     with pytest.raises(ManifestError, match='Unexpected line'):
-        HeaderParser(b'foo: unquoted').expect_field('foo')
+        HeaderParser(b'foo: unquoted').parse_field()
     with pytest.raises(ManifestError, match='Unexpected line'):
-        HeaderParser(b'foo: "illegal\"characters"').expect_field('foo')
-    with pytest.raises(ManifestError, match='Unexpected field'):
-        HeaderParser(b'bar: "wrong field"').expect_field('foo')
-    with pytest.raises(ManifestError, match='Unexpected input'):
-        HeaderParser(b'bar: "extra field"').expect_eof()
+        HeaderParser(b'foo: "illegal\"characters"').parse_field()
     with pytest.raises(ManifestError, match='Block literal cannot be empty'):
-        HeaderParser(b'foo: |\nbar: "empty block"').expect_field('foo')
+        HeaderParser(b'foo: |\nbar: "empty block"').parse_field()
+
+    with pytest.raises(ManifestError, match='Unexpected field'):
+        HeaderParser(b'bar: "wrong field"').parse('baz')
+    with pytest.raises(ManifestError, match='Duplicate field'):
+        HeaderParser(b'bar: "once"\nbar: "twice"').parse('bar')

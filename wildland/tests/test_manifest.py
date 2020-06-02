@@ -67,6 +67,23 @@ key2: "value2"
     assert manifest.fields['key2'] == 'value2'
 
 
+def test_parse_no_signature(sig, signer):
+    test_data = f'''
+---
+signer: "{signer}"
+key1: value1
+'''.encode()
+    manifest = Manifest.from_bytes(test_data, sig, trusted_signer=signer)
+    assert manifest.fields['signer'] == signer
+    assert manifest.fields['key1'] == 'value1'
+
+    with pytest.raises(ManifestError, match='Signature expected'):
+        Manifest.from_bytes(test_data, sig)
+
+    with pytest.raises(ManifestError, match='Wrong signer for manifest without signature'):
+        Manifest.from_bytes(test_data, sig, trusted_signer='0xcafe')
+
+
 def test_parse_wrong_signer(sig, signer):
     test_data = '''
 signer: other signer
