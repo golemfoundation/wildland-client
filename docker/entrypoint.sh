@@ -15,8 +15,7 @@ export __fish_prompt_hostname="wildland-fuse"
 
 sudo /etc/init.d/nginx start
 
-sudo chown -R user.user ~/.config ~/.gnupg ~/storage
-chmod 0700 ~/.gnupg
+sudo chown -R user.user ~/.config ~/storage
 if ! [ -f ~/.config/wildland/config.yaml ]; then
    # fresh start?
    mkdir -p ~/.config/wildland

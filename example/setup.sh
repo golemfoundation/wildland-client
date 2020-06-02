@@ -9,11 +9,9 @@ WL="../wl"
 
 STORAGE="$HOME/storage"
 
-gpg2 --import test-secret-key.key
-
 cp -r storage/* $STORAGE/
 
-$WL user create User --key "Test Key"
+$WL user create User
 
 $WL container create container1 --path /container1
 $WL storage create local storage11 --path $STORAGE/storage11 \

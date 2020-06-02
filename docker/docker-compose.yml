@@ -26,9 +26,7 @@ services:
     volumes:
       - ..:/home/user/wildland-fuse:ro
       - usercfg:/home/user/.config:rw
-      - usergpgcfg:/home/user/.gnupg:rw
       - ./storage:/home/user/storage:rw
 
 volumes:
   usercfg:
-  usergpgcfg:

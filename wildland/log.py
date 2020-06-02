@@ -50,7 +50,6 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
             'handlers': [],
         },
         'loggers': {
-            'gnupg': {'level': 'INFO'},
             'boto3': {'level': 'INFO'},
             'botocore': {'level': 'INFO'},
             's3transfer': {'level': 'INFO'},

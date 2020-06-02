@@ -11,35 +11,30 @@ convenience.
 Quick start
 -----------
 
-Generate a GPG key::
-
-   $ gpg2 --gen-key
-   Real name: Wildland Test
-   Email address:
-
 Create a user::
 
-   $ ./wl user create User --key "Wildland Test"
-   Using key: 0xfd56724c5a712815390bbda63dba761d9e757f15
+   $ ./wl user create User
+   Generated key: 0x5a7a224844d80b086445
+   No path specified, using: /users/User
    Created: /home/user/.config/wildland/users/User.yaml
-   Using 0xfd56724c5a712815390bbda63dba761d9e757f15 as default user
+   Using 0x5a7a224844d80b086445 as default user
+   Adding 0x5a7a224844d80b086445 to local signers
 
 List users::
 
    $ ./wl user list
-   0xfd56724c5a712815390bbda63dba761d9e757f15 /home/user/.config/wildland/users/User.yaml
+   /home/user/.config/wildland/users/User.yaml
+     signer: 0x5a7a224844d80b086445
+     path: /users/User
 
 Create a container and storage manifests. You need to first create a container,
 and then attach storage to it::
 
    $ ./wl container create Container --path /C1
-   Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
-   Created: /home/user/.config/wildland/containers/Containter.yaml
+   Created: /home/user/.config/wildland/containers/Container.yaml
 
-   $ ./wl storage create Storage1 --type local --path /tmp/storage \
-          --container Container --update-container
-   Using default user: 0xfd56724c5a712815390bbda63dba761d9e757f15
-   Using container: /home/user/.config/wildland/containers/Container.yaml (/.uuid/9434c95b-9860-46cc-90dd-d32d6f410aa3)
+   $ ./wl storage create local Storage1 --path /tmp/storage --container Container
+   Using container: /home/user/.config/wildland/containers/Container.yaml (/.uuid/589e53d9-54ae-4036-95d7-4af261e7746f)
    Created: /home/user/.config/wildland/storage/Storage1.yaml
    Adding storage to container
    Saving: /home/user/.config/wildland/containers/Container.yaml
@@ -49,11 +44,11 @@ Mount it all::
    $ ./wl mount
    Mounting: /home/user/wildland
 
-   $ ./wl container mount C1
-   Mounting: /home/user/.config/wildland/containers/C1.yaml
+   $ ./wl container mount Container
+   Mounting: /home/user/.config/wildland/containers/Container.yaml
 
    $ ls -a ~/wildland
-   .  ..  .control  c2
+   .  ..  .control  .users  .uuid  C1
 
 Global options
 --------------
@@ -69,10 +64,21 @@ supported fields:
 * ``user_dir``: path for user manifests, default ``~/.config/wildland/users``
 * ``storage_dir``: path for storage manifests, default ``~/.config/wildland/storage``
 * ``container_dir``: path for container manifests, default ``~/.config/wildland/containers``
+* ``key_dir``: path for key pairs, default ``~/.config/wildland/keys``
 * ``mount_dir``: path to mount Wildland in, default ``~/wildland``
-* ``dummy``: if true, use dummy signatures instead of GPG
-* ``gpg_home``: path to GPG home directory
+* ``dummy``: if true, use dummy signatures instead of Signify
 * ``default_user`` (as key fingerprint): default user for newly created manifests
+
+Keys and signatures
+-------------------
+
+Public key cryptography is handled by `Signify
+<https://github.com/aperezdc/signify>`_, OpenBSD's tool for signing and
+verification.
+
+After generating, the keys are stored in ``key_dir`` (by default,
+``~/.config/wildland/keys``). The public-private key pair is stured in
+``<fingerprint>.pub`` and ``<fingerprint>.sec`` files.
 
 Manual pages
 ------------

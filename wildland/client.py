@@ -30,7 +30,7 @@ from .user import User
 from .container import Container
 from .storage import Storage
 from .wlpath import WildlandPath
-from .manifest.sig import DummySigContext, GpgSigContext
+from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError
 from .session import Session
 from .storage_backends.base import StorageBackend
@@ -60,38 +60,21 @@ class Client:
             if self.config.get('dummy'):
                 sig = DummySigContext()
             else:
-                sig = GpgSigContext(self.config.get('gpg_home'))
+                key_dir = Path(self.config.get('key_dir'))
+                sig = SignifySigContext(key_dir)
 
         self.session: Session = Session(sig)
 
         self.users = []
-        self.closed = False
-        self.sub_clients = []
-
-    def close(self):
-        '''
-        Clean up.
-        '''
-
-        for client in self.sub_clients:
-            client.close()
-
-        self.session.sig.close()
-        self.closed = True
 
     def sub_client_with_key(self, pubkey: str) -> 'Client':
         '''
         Create a copy of the current Client, with a public key imported.
-
-        (The copied client will be cleaned up when close() on the original is
-        called).
         '''
 
         sig = self.session.sig.copy()
         sig.add_pubkey(pubkey)
-        client = Client(config=self.config, sig=sig)
-        self.sub_clients.append(client)
-        return client
+        return Client(config=self.config, sig=sig)
 
     def recognize_users(self):
         '''

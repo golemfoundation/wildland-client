@@ -39,13 +39,13 @@ List all known users.
 
 Create a new user manifest and save it.
 
-You need to have a GPG private key in your keyring. You can create one using
-:command:`gpg --gen-key` and answering interactive questions.
+Unless ``--key`` is provided, the command will generate a new Signify key pair.
 
-.. option:: --key <key>
+.. option:: --key <fingerprint>
 
-Select available private key from local keyring by usual GPG convention (email,
-name or even part of comment). This option is required.
+Use an existing key pair to create a user. The key pair must be in the key
+directory (``~/.config/wildland/keys``), as ``<fingerprint>.pub`` and
+``<fingerprint>.sec`` files.
 
 .. option:: --path <path>
 

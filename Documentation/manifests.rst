@@ -16,20 +16,10 @@ Here is an example of a signed manifest:
 .. code-block:: yaml
 
    signature: |
-     -----BEGIN PGP SIGNATURE-----
-
-     iQEzBAABCAAdFiEEIlVKgqyYrufhjpvjLAOOQqK65gEFAl6PHaEACgkQLAOOQqK6
-     5gGQxQf+NFtEM6KWHM6kRBU20xNxc1m0O1xq4G5FabN+1eTcbMtOTZMjQM1pVh7i
-     vD7BN2DhYpSiTlJE32W9XQkElTmax79Ahg/bRXj3qGY/IqmS+wdkGdI+hFhsmCC+
-     VpJX4FiqcZqWLsFZWaAxX9FbcgxjcTVud0MntOjSHFcblmNBQjLS3x+CwREUAgN+
-     5HjTd68u5V40DSiG/u+6h1JmdXP/WkOKECIKzZThAcrQx+16HmScxZFGGCnuNlTn
-     Og5phgSSnHR0HrkDso2/4K7KvbvUq3EVxI97fXwSrPviC4HoBsDEAStgAFobEmPI
-     65ofO/kXFjaRSp4hRMos64hwY73TwA==
-     =Y7sA
-     -----END PGP SIGNATURE-----
+     untrusted comment: signify signature
+     RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
    ---
-
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+   signer: '0x5a7a224844d80b086445'
 
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -74,11 +64,16 @@ the time being, the canonical source of truth are the `schema documents in
 wildland-fuse repository
 <https://gitlab.com/wild-land/wildland-fuse/-/tree/master/schemas>`_.
 
-Fingerprint format
-------------------
+Keys and signatures
+-------------------
 
-The canonical format for fingerprints is ``0x`` followed by a full hexadecimal
-fingerprint of the GPG key, in lowercase. Note that **the fingerprint has to be
+Public key cryptography is handled by `Signify
+<https://github.com/aperezdc/signify>`_, OpenBSD's tool for signing and
+verification. The keys and signatures use Signify's format: a single-line
+untrusted comment, then Base64-encoded data.
+
+The canonical format for fingerprints is ``0x`` followed by a 20 hexadecimal
+digits; the first 10 bytes of the key. Note that **the fingerprint has to be
 quoted**, otherwise it will be interpreted as a YAML number and fail
 validation.
 
@@ -115,7 +110,7 @@ All the other manifests have to be verified against known users, i.e. their
 ``signer`` field has to correspond to the one in user manifest.
 
 The user manifests also contain a ``pubkey`` field in the header, containing
-the user's public key (currently, in GPG armor format). The public key has to
+the user's public key. The public key has to
 match both the manifest signature and the ``signer`` field.
 
 Example:
@@ -123,15 +118,11 @@ Example:
 .. code-block:: yaml
 
     signature: |
-      -----BEGIN PGP SIGNATURE-----
       ...
-      -----END PGP SIGNATURE-----
     pubkey: |
-      -----BEGIN PGP PUBLIC KEY BLOCK-----
       ...
-      -----END PGP PUBLIC KEY BLOCK-----
     ---
-    signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+    signer: '0x5a7a224844d80b086445'
     containers:
       - file:///path/to/container.yaml
 
@@ -149,7 +140,7 @@ Example:
 
    signature: ...
    ---
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+   signer: '0x5a7a224844d80b086445'
 
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -188,8 +179,7 @@ Example:
 
    signature: ...
    ---
-
-   signer: "0x22554a82ac98aee7e18e9be32c038e42a2bae601"
+   signer: '0x5a7a224844d80b086445'
    type: local
    container_path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    path: /path/to/storage/storage11.yaml
