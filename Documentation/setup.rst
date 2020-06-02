@@ -12,39 +12,44 @@ Debian:
 
    apt install \
       signify-openbsd \
-      python3-fuse \
-      python3-jsonschema \
-      python3-yaml \
-      python3-pytest \
-      python3-gnupg \
-      python3-boto3
+      python3-dev \
+      python3-venv \
+      fuse \
+      libfuse-dev
+
+(See also ``ci/Dockerfile``).
 
 Fedora:
 
 .. code-block:: sh
 
    dnf install \
-      gnupg2 \
-      python3-jsonschema \
-      python3-yaml \
-      python3-pytest \
       fuse-devel \
       python3-devel \
-      python3-gnupg \
-      python3-boto3 \
       libbsd-devel
 
-   git clone git@github.com:libfuse/python-fuse.git
-   pip3 install --user python-fuse
-
-Make sure to use a ``python-fuse`` 1.0.0 or newer, the old version has
-`compatibility issues with Python 3
-<https://github.com/libfuse/python-fuse/issues/13>`_.
+Unfortunately, Signify has to be installed manually under Fedora:
 
    git clone git@github.com:aperezdc/signify.git
    cd signify
    make
    sudo make install
+
+
+Install Python packages
+-----------------------
+
+.. code-block:: sh
+
+   python3 -m venv env/
+   . ./env/bin/activate
+   pip install -r requirements.txt
+
+(You can also run ``make`` to keep the packages up to date).
+
+Or, the quick-and-dirty way, without virtualenv::
+
+   pip3 install --user -r requirements.txt
 
 
 Run tests
