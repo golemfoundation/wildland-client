@@ -29,6 +29,8 @@ import logging
 from urllib.parse import urlparse
 
 import boto3
+import botocore
+import click
 
 from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
@@ -64,11 +66,36 @@ class S3StorageBackend(CachedStorageBackend):
         self.base_path = PurePosixPath(url.path)
 
         # Persist created directories between refreshes. This is because S3
-        # doesn't have information about directories, andwe might want to
+        # doesn't have information about directories, and we might want to
         # create/remove them manually.
         self.s3_dirs: Set[PurePosixPath] = set()
 
         mimetypes.init()
+
+    @classmethod
+    def cli_options(cls):
+        return [
+            click.Option(['--bucket'], metavar='BUCKET', required=True)
+        ]
+
+    @classmethod
+    def cli_create(cls, data):
+        click.echo('Resolving AWS credentials...')
+        session = botocore.session.Session()
+        resolver = botocore.credentials.create_credential_resolver(session)
+        credentials = resolver.load_credentials()
+        if not credentials:
+            raise click.ClickException(
+                "AWS not configured, run 'aws configure' first")
+        click.echo(f'Credentials found by method: {credentials.method}')
+
+        return {
+            'bucket': data['bucket'],
+            'credentials': {
+                'access_key': credentials.access_key,
+                'secret_key': credentials.secret_key,
+            }
+        }
 
     def key(self, path: PurePosixPath) -> str:
         '''

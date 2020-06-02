@@ -26,6 +26,8 @@ from pathlib import Path, PurePosixPath
 import os
 import stat
 
+import click
+
 from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
 
@@ -43,6 +45,18 @@ class LocalCachedStorageBackend(CachedStorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.base_path = Path(self.params['path'])
+
+    @classmethod
+    def cli_options(cls):
+        return [
+            click.Option(['--path'], metavar='PATH',
+                         help='local path',
+                         required=True)
+        ]
+
+    @classmethod
+    def cli_create(cls, data):
+        return {'path': data['path']}
 
     @staticmethod
     def info(st: os.stat_result) -> Info:

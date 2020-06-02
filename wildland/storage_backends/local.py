@@ -25,6 +25,7 @@ import os
 from pathlib import Path, PurePosixPath
 import logging
 import errno
+import click
 
 import fuse
 
@@ -117,6 +118,18 @@ class LocalStorageBackend(FileProxyMixin, StorageBackend):
         if not path.is_dir():
             logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
+
+    @classmethod
+    def cli_options(cls):
+        return [
+            click.Option(['--path'], metavar='PATH',
+                         help='local path',
+                         required=True)
+        ]
+
+    @classmethod
+    def cli_create(cls, data):
+        return {'path': data['path']}
 
     def _path(self, path: PurePosixPath) -> Path:
         '''Given path inside filesystem, calculate path on disk, relative to

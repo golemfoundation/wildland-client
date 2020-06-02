@@ -30,6 +30,7 @@ import dateutil.parser
 import requests
 import requests.auth
 from lxml import etree
+import click
 
 from .cached import CachedStorageBackend, Info
 from ..manifest.schema import Schema
@@ -54,6 +55,24 @@ class WebdavStorageBackend(CachedStorageBackend):
 
         self.base_url = self.params['url']
         self.base_path = PurePosixPath(urlparse(self.base_url).path)
+
+    @classmethod
+    def cli_options(cls):
+        return [
+            click.Option(['--url'], metavar='URL', required=True),
+            click.Option(['--login'], metavar='LOGIN', required=True),
+            click.Option(['--password'], metavar='PASSWORD', required=True),
+        ]
+
+    @classmethod
+    def cli_create(cls, data):
+        return {
+            'url': data['url'],
+            'credentials': {
+                'login': data['login'],
+                'password': data['password'],
+            }
+        }
 
     def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         return self.propfind(PurePosixPath('.'), 'infinity')

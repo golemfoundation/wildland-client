@@ -99,6 +99,7 @@ nitpick_ignore = [
     ('envvar', 'EDITOR'),
     ('envvar', 'VISUAL'),
     ('py:class', 'T'),
+    ('py:class', 'click.core.Option'),
 ]
 
 todo_include_todos = True

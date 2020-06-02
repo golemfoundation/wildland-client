@@ -92,6 +92,14 @@ class ControlStorageBackend(FileProxyMixin, StorageBackend):
         self.uid = uid
         self.gid = gid
 
+    @classmethod
+    def cli_options(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def cli_create(cls, data):
+        raise NotImplementedError()
+
     def get_node_for_path(self, path, *, need_directory=False, need_file=False,
             need_read=False, need_write=False):
         '''Return a python object, which represents particular inode

@@ -21,7 +21,8 @@
 Storage object
 '''
 
-from typing import List, Callable
+from typing import List, Callable, Type, Iterator
+import functools
 
 import botocore.credentials
 import botocore.session
@@ -30,6 +31,9 @@ import click
 from .cli_base import ContextObj
 from .cli_common import sign, verify, edit
 from ..storage import Storage
+
+from ..storage_backends.base import StorageBackend
+from ..storage_backends.dispatch import get_storage_backends
 
 
 @click.group('storage', short_help='storage management')
@@ -45,29 +49,42 @@ def create():
     '''
 
 
-def create_command(storage_type):
-    '''
-    Decorator for 'storage create' command, with common options.
-    '''
-
-    options: List[Callable] = [
-        create.command(storage_type),
-        click.option('--container', metavar='CONTAINER',
+def _make_create_command(backend: Type[StorageBackend]):
+    params = [
+        click.Option(['--container'], metavar='CONTAINER',
                      required=True,
                      help='Container this storage is for'),
-        click.option('--update-container/--no-update-container', '-u/-n', default=True,
+        click.Option(['--update-container/--no-update-container', '-u/-n'], default=True,
                      help='Update the container after creating storage'),
-        click.argument('name', metavar='NAME', required=False),
+        click.Argument(['name'], metavar='NAME', required=False),
     ]
 
-    def decorator(func):
-        for option in reversed(options):
-            func = option(func)
-        return func
-    return decorator
+    params.extend(backend.cli_options())
+
+    callback = functools.partial(_do_create, backend=backend)
+
+    command = click.Command(
+        name=backend.TYPE,
+        help=f'Create {backend.TYPE} storage',
+        params=params,
+        callback=callback)
+    return command
 
 
-def _do_create(obj: ContextObj, storage_type, params, name, container, update_container):
+def _add_create_commands(group):
+    for backend in get_storage_backends().values():
+        command = _make_create_command(backend)
+        group.add_command(command)
+
+
+def _do_create(
+        backend: Type[StorageBackend],
+        name,
+        container,
+        update_container,
+        **data):
+    obj: ContextObj = click.get_current_context().obj
+
     obj.client.recognize_users()
 
     container = obj.client.load_container_from(container)
@@ -77,8 +94,10 @@ def _do_create(obj: ContextObj, storage_type, params, name, container, update_co
     container_mount_path = container.paths[0]
     click.echo(f'Using container: {container.local_path} ({container_mount_path})')
 
+    params = backend.cli_create(data)
+
     storage = Storage(
-        storage_type=storage_type,
+        storage_type=backend.TYPE,
         signer=container.signer,
         container_path=container_mount_path,
         params=params,
@@ -93,73 +112,6 @@ def _do_create(obj: ContextObj, storage_type, params, name, container, update_co
         container.backends.append(obj.client.local_url(storage_path))
         click.echo(f'Saving: {container.local_path}')
         obj.client.save_container(container)
-
-
-@create_command('local')
-@click.option('--path', metavar='PATH', required=True)
-@click.pass_context
-def create_local(ctx, path, **kwds):
-    '''Create local storage'''
-
-    fields = {'path': path}
-    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
-
-
-@create_command('local-cached')
-@click.option('--path', metavar='PATH', required=True)
-@click.pass_context
-def create_local_cached(ctx, path, **kwds):
-    '''Create local (cached) storage'''
-
-    fields = {'path': path}
-    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
-
-
-@create_command('s3')
-@click.option('--bucket', metavar='BUCKET', required=True)
-@click.pass_context
-def create_s3(ctx, bucket, **kwds):
-    '''
-    Create S3 storage in BUCKET. The storage will be named NAME.
-    '''
-
-    click.echo('Resolving AWS credentials...')
-    session = botocore.session.Session()
-    resolver = botocore.credentials.create_credential_resolver(session)
-    credentials = resolver.load_credentials()
-    if not credentials:
-        raise click.ClickException(
-            "AWS not configured, run 'aws configure' first")
-    click.echo(f'Credentials found by method: {credentials.method}')
-
-    fields = {
-        'bucket': bucket,
-        'credentials': {
-            'access_key': credentials.access_key,
-            'secret_key': credentials.secret_key,
-        }
-    }
-    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
-
-
-@create_command('webdav')
-@click.option('--url', metavar='URL', required=True)
-@click.option('--login', metavar='LOGIN', required=True)
-@click.option('--password', metavar='PASSWORD', required=True)
-@click.pass_context
-def create_webdav(ctx, url, login, password, **kwds):
-    '''
-    Create WebDAV storage.
-    '''
-
-    fields = {
-        'url': url,
-        'credentials': {
-            'login': login,
-            'password': password,
-        }
-    }
-    return _do_create(ctx.obj, ctx.command.name, fields, **kwds)
 
 
 @storage_.command('list', short_help='list storages')
@@ -180,3 +132,4 @@ def list_(obj: ContextObj):
 storage_.add_command(sign)
 storage_.add_command(verify)
 storage_.add_command(edit)
+_add_create_commands(create)

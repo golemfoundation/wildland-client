@@ -23,8 +23,8 @@ Abstract classes for storage
 
 import abc
 import errno
-from typing import Optional, Dict, Type, Any
-
+from typing import Optional, Dict, Type, Any, List
+import click
 import yaml
 
 from ..manifest.schema import Schema
@@ -70,6 +70,20 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         if read_only:
             self.read_only = True
+
+    @classmethod
+    def cli_options(cls) -> List[click.Option]:
+        '''
+        Provide a list of command-line options needed to create this storage.
+        '''
+        raise NotImplementedError()
+
+    @classmethod
+    def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        '''
+        Convert provided command-line arguments to a list of storage parameters.
+        '''
+        raise NotImplementedError()
 
     @staticmethod
     def types() -> Dict[str, Type['StorageBackend']]:
