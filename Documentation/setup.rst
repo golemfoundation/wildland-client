@@ -11,7 +11,7 @@ Debian:
 .. code-block:: sh
 
    apt install \
-      gnupg2 \
+      signify-openbsd \
       python3-fuse \
       python3-jsonschema \
       python3-yaml \
@@ -31,8 +31,8 @@ Fedora:
       fuse-devel \
       python3-devel \
       python3-gnupg \
-      python3-boto3
-
+      python3-boto3 \
+      libbsd-devel
 
    git clone git@github.com:libfuse/python-fuse.git
    pip3 install --user python-fuse
@@ -40,6 +40,11 @@ Fedora:
 Make sure to use a ``python-fuse`` 1.0.0 or newer, the old version has
 `compatibility issues with Python 3
 <https://github.com/libfuse/python-fuse/issues/13>`_.
+
+   git clone git@github.com:aperezdc/signify.git
+   cd signify
+   make
+   sudo make install
 
 
 Run tests
