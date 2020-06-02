@@ -29,6 +29,8 @@ import logging
 from typing import Dict, List, Optional
 import json
 
+import yaml
+
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError
@@ -198,6 +200,69 @@ class WildlandFSClient:
             logger.warning('multiple storages found for path: %s', path)
         return storage_ids[0]
 
+    def find_all_storage_ids_for_path(self, path: PurePosixPath):
+        '''
+        Given a path, retrieve all mounted storages this path is inside.
+
+        Note that this doesn't include synthetic directories leading up to
+        mount path, e.g. if a storage is mounted under /a/b, then it will be
+        included as a storage for /a/b and /a/b/c, but not for /a.
+        '''
+
+        result = []
+        paths = self.get_paths()
+        for mount_path, storage_ids in paths.items():
+            if path == mount_path or mount_path in path.parents:
+                result.extend(storage_ids)
+
+        return result
+
+    def find_trusted_signer(self, local_path: Path) -> Optional[str]:
+        '''
+        Given a path in the filesystem, check if this is a path from a trusted
+        storage, and if so, return the trusted_signer value.
+
+        If the path potentially belongs to multiple storages, this method will
+        conservatively check if all of them would give the same answer.
+        '''
+
+        local_path = local_path.resolve()
+        try:
+            relpath = local_path.relative_to(self.mount_dir)
+        except ValueError:
+            # Outside our filesystem
+            return None
+
+        path = PurePosixPath('/') / relpath
+        storage_ids = self.find_all_storage_ids_for_path(path)
+        if len(storage_ids) == 0:
+            # Outside of any storage
+            return None
+
+        trusted_signers = set()
+        for storage_id in storage_ids:
+            manifest = self.get_storage_manifest(storage_id)
+            if not manifest:
+                # No manifest
+                return None
+
+            if not manifest.get('trusted'):
+                # Not a trusted storage
+                return None
+
+            signer = manifest.get('signer')
+            if not signer:
+                # No signer
+                return None
+
+            trusted_signers.add(signer)
+
+        if len(trusted_signers) != 1:
+            # More than one trusted signer
+            return None
+
+        return list(trusted_signers)[0]
+
     def get_paths(self) -> Dict[PurePosixPath, List[int]]:
         '''
         Read a path -> container ID mapping.
@@ -207,6 +272,17 @@ class WildlandFSClient:
             PurePosixPath(p): ident
             for p, ident in data.items()
         }
+
+    def get_storage_manifest(self, storage_id: int) -> Optional[dict]:
+        '''
+        Read a storage manifest for a mounted storage.
+        '''
+
+        control_path = self.control_dir / f'storage/{storage_id}/manifest.yaml'
+        if not control_path.exists():
+            return None
+        data = control_path.read_bytes()
+        return yaml.safe_load(data)
 
     def get_command_for_mount_container(self,
                                         container: Container,
