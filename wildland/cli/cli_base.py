@@ -24,7 +24,6 @@ Wildland command-line interface - base module.
 from pathlib import Path
 
 from ..exc import WildlandError
-from ..fs_client import WildlandFSClient
 from ..client import Client
 
 
