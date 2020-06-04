@@ -100,6 +100,27 @@ For a local URL to be recognized, two conditions must be met:
    them with different ``local_hostname``, then file URLs intended for one
    machine will not load on the other.
 
+Unsigned manifests and trusted storage
+--------------------------------------
+
+In certain circumstances, manifests without signature are also accepted by
+Wildland. Such manifests have to contain a header separator, but the header can
+be empty (i.e. a manifest will begin with ``---``).
+
+A manifest without signature is be accepted as long as the following
+requirements are met:
+
+1. The manifest originates from a storage marked as trusted (i.e. with
+   ``trusted`` enabled in the storage manifest).
+
+   In case of local files, this is determined by checking that a file path
+   resolves to a currently-mounted storage.
+
+2. The manifest ``signer`` is the same as the storage's ``signer``. Otherwise,
+   the manifest will still be parsed (in order to determine the signer) but
+   then rejected.
+
+
 User manifest
 -------------
 
@@ -151,6 +172,10 @@ Example:
       storage:
         - file:///path/to/storage11.yaml
         - file:///path/to/storage12.yaml
+        - type: local
+          path: '/path/to/storage'
+          signer: '0x5a7a224844d80b086445'
+          container_path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
 
 Fields:
 
@@ -163,9 +188,12 @@ Fields:
 
 * ``backends``:
 
-  * ``storage`` (list of URLs): List of paths to storage manifests, specifying
-    storage backends for the container.
+  * ``storage`` (list): List of storage manifests. Each can be one of the
+    following:
 
+    * a URL pointing to a storage manifest,
+    * an inline storage manifest, i.e. a dictionary with all the necessary
+      fields.
 
 Storage manifest
 ----------------
@@ -198,6 +226,9 @@ Fields:
   intended for.
 * ``read_only`` (optional): This is a read-only storage, editing or deleting
   files is not possible.
+* ``trusted`` (optional): This is a trusted storage, manifests inside this
+  storage will be accepted without signature, as long as they have the same
+  ``signer`` value. See "Unsigned manifests and trusted storage" above.
 
 Local storage (``local``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
