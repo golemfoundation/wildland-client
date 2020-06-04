@@ -15,7 +15,12 @@
             "properties": {
                 "storage": {
                     "type": "array",
-                    "items": { "$ref": "types.json#url" }
+                    "items": {
+                        "oneOf": [
+                            { "$ref": "types.json#url" },
+                            { "$ref": "storage.schema.json" }
+                        ]
+                    }
                 }
             },
             "additionalProperties": false

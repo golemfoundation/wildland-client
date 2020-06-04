@@ -26,6 +26,8 @@ import logging
 from typing import Optional, Iterator, List
 from urllib.parse import urlparse, quote
 
+import yaml
+
 from .user import User
 from .container import Container
 from .storage import Storage
@@ -35,7 +37,6 @@ from .manifest.manifest import ManifestError
 from .session import Session
 from .storage_backends.base import StorageBackend
 from .fs_client import WildlandFSClient
-
 from .config import Config
 from .exc import WildlandError
 
@@ -239,6 +240,16 @@ class Client:
 
         return self.session.load_storage(self.read_from_url(url, signer))
 
+    def load_storage_from_dict(self, dict_: dict, signer: str) -> Storage:
+        '''
+        Load storage from a dictionary. Used when a storage manifest is inlined
+        in another manifest.
+        '''
+
+        content = ('---\n' + yaml.dump(dict_)).encode()
+        trusted_signer = signer
+        return self.session.load_storage(content, trusted_signer=trusted_signer)
+
     def load_storage_from(self, name: str) -> Storage:
         '''
         Load a storage based on a (potentially ambiguous) name.
@@ -332,17 +343,27 @@ class Client:
         Select a storage to mount for a container.
         '''
 
-        for url in container.backends:
-            try:
-                storage = self.load_storage_from_url(url, container.signer)
-            except WildlandError:
-                logging.exception('Error loading manifest: %s', url)
-                continue
+        for url_or_dict in container.backends:
+            if isinstance(url_or_dict, str):
+                name = url_or_dict
+                try:
+                    storage = self.load_storage_from_url(url_or_dict, container.signer)
+                except WildlandError:
+                    logging.exception('Error loading manifest: %s', url_or_dict)
+                    continue
+            else:
+                name = '(inline)'
+                try:
+                    storage = self.load_storage_from_dict(url_or_dict, container.signer)
+                except WildlandError:
+                    logging.exception('Error loading inline manifest')
+                    continue
+
 
             if storage.signer != container.signer:
                 logging.error(
                     '%s: signer field mismatch: storage %s, container %s',
-                    url,
+                    name,
                     storage.signer,
                     container.signer
                 )
@@ -351,14 +372,14 @@ class Client:
             if storage.container_path not in container.paths:
                 logging.error(
                     '%s: unrecognized container path for storage: %s, %s',
-                    url,
+                    name,
                     storage.container_path,
                     container.paths
                 )
                 continue
 
             if not StorageBackend.is_type_supported(storage.storage_type):
-                logging.warning('Unsupported storage manifest: %s', url)
+                logging.warning('Unsupported storage manifest: %s', name)
                 continue
 
             return storage
