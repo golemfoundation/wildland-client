@@ -22,7 +22,7 @@ Utilities for URL resolving and traversing the path
 '''
 
 from pathlib import PurePosixPath
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import os
 import logging
 from dataclasses import dataclass
@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from .user import User
 from .client import Client
 from .container import Container
+from .storage import Storage
 from .storage_backends.base import StorageBackend
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
@@ -109,8 +110,8 @@ class Search:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
         self._resolve_all()
-        storage = self._find_storage()
-        return storage_read_file(storage, self.wlpath.file_path.relative_to('/'))
+        _, storage_backend = self._find_storage()
+        return storage_read_file(storage_backend, self.wlpath.file_path.relative_to('/'))
 
     def write_file(self, data: bytes):
         '''
@@ -121,8 +122,8 @@ class Search:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
         self._resolve_all()
-        storage = self._find_storage()
-        return storage_write_file(data, storage, self.wlpath.file_path.relative_to('/'))
+        _, storage_backend = self._find_storage()
+        return storage_write_file(data, storage_backend, self.wlpath.file_path.relative_to('/'))
 
     def _resolve_all(self):
         '''
@@ -134,9 +135,11 @@ class Search:
         while len(self.steps) < len(self.wlpath.parts):
             self._resolve_next()
 
-    def _find_storage(self):
+    def _find_storage(self) -> Tuple[Storage, StorageBackend]:
         '''
         Find a storage for the latest resolved part.
+
+        Returns (storage, storage_backend).
         '''
 
         assert len(self.steps) > 0
@@ -144,7 +147,7 @@ class Search:
         # TODO: resolve manifest path in the context of the container
         # TODO: accept local storage only as long as the whole chain is local
         storage = self.client.select_storage(step.container)
-        return StorageBackend.from_params(storage.params, uid=0, gid=0)
+        return storage, StorageBackend.from_params(storage.params, uid=0, gid=0)
 
     def _resolve_first(self):
         '''
@@ -173,16 +176,20 @@ class Search:
         '''
 
         assert 0 < len(self.steps) < len(self.wlpath.parts)
-        storage = self._find_storage()
+        storage, storage_backend = self._find_storage()
         part = self.wlpath.parts[len(self.steps)]
         manifest_path = part.relative_to('/').with_suffix('.yaml')
 
+        trusted_signer = None
+        if storage.trusted:
+            trusted_signer = storage.signer
+
         try:
-            manifest_content = storage_read_file(storage, manifest_path)
+            manifest_content = storage_read_file(storage_backend, manifest_path)
         except FileNotFoundError:
             raise PathError(f'Could not find manifest: {manifest_path}')
         container_or_user = self.client.session.load_container_or_user(
-            manifest_content)
+            manifest_content, trusted_signer=trusted_signer)
 
         if isinstance(container_or_user, Container):
             logger.info('%s: container manifest: %s', part, manifest_path)
@@ -240,7 +247,7 @@ class Search:
 
 def storage_read_file(storage, relpath) -> bytes:
     '''
-    Read a file from Storage, using FUSE commands.
+    Read a file from StorageBackend, using FUSE commands.
     '''
 
     storage.mount()
@@ -254,7 +261,7 @@ def storage_read_file(storage, relpath) -> bytes:
 
 def storage_write_file(data, storage, relpath):
     '''
-    Write a file to Storage, using FUSE commands.
+    Write a file to StorageBackend, using FUSE commands.
     '''
 
     storage.mount()

@@ -53,13 +53,18 @@ class Session:
     def load_container_or_user(
             self,
             data: bytes,
-            local_path: Optional[Path] = None) -> Union[Container, User]:
+            local_path: Optional[Path] = None,
+            trusted_signer: Optional[str] = None,
+    ) -> Union[Container, User]:
         '''
         Load a manifest that cal be either a container or user manifest.
         '''
 
         manifest = Manifest.from_bytes(
-            data, self.sig, self_signed=Manifest.ALLOW)
+            data,
+            self.sig,
+            self_signed=Manifest.ALLOW,
+            trusted_signer=trusted_signer)
         assert manifest.header
         if manifest.header.pubkey is not None:
             return User.from_manifest(manifest, local_path)
