@@ -15,8 +15,8 @@
 import collections
 import os
 import pathlib
-import pickle
 import sys
+import functools
 
 import click
 import docutils.nodes
@@ -280,6 +280,9 @@ def check_man(app, env):
 
 def _describe_command(cmd):
     callback = cmd.callback
+
+    if isinstance(callback, functools.partial):
+        callback = callback.func
 
     while callback.__code__.co_filename.endswith('/click/decorators.py'):
         try:
