@@ -54,7 +54,7 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help='Container this storage is for'),
         click.Option(['--update-container/--no-update-container', '-u/-n'], default=True,
                      help='Update the container after creating storage'),
-        click.Option(['--trusted'],
+        click.Option(['--trusted'], is_flag=True,
                      help='Make the storage trusted'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
@@ -96,14 +96,13 @@ def _do_create(
     click.echo(f'Using container: {container.local_path} ({container_mount_path})')
 
     params = backend.cli_create(data)
-    if trusted:
-        params['trusted'] = True
 
     storage = Storage(
         storage_type=backend.TYPE,
         signer=container.signer,
         container_path=container_mount_path,
         params=params,
+        trusted=trusted,
     )
     storage.validate()
 
