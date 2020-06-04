@@ -56,6 +56,21 @@ Subcommands
 :ref:`wl-get <wl-get>`
 :ref:`wl-put <wl-put>`
 
+Aliases
+-------
+
+Subcommands can be shortened to any unambiguous prefix. For example, instead of
+:command:`wl container` you can write :command:`wl c`, and instead of
+:command:`wl storage` you can write :command:`wl st` (but not :command:`wl s`,
+because there is also :command:`wl sign`). Also there are some custom aliases,
+like :command:`umount` in place of :command:`unmount` in a |~| couple of places.
+Those are listed in `--help`.
+
+Aliases are considered unstable (even the explicit ones, that are documented in
+`--help`), should not be used when scripting, and are subject to change and
+removal at any time (i.e., when adding new command, prefix may become
+ambiguous).
+
 See also
 --------
 
