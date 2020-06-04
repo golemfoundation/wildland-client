@@ -30,6 +30,7 @@ import pytest
 from ..client import Client
 from ..storage_backends.local import LocalStorageBackend
 from ..wlpath import WildlandPath, PathError
+from ..manifest.manifest import ManifestError
 from ..search import Search
 
 
@@ -102,7 +103,8 @@ def setup(base_dir, cli):
     cli('container', 'create', 'Container1', '--path', '/path')
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
-        '--container', 'Container1')
+        '--container', 'Container1',
+        '--trusted')
 
     cli('container', 'create', 'Container2',
         '--path', '/path/subpath',
@@ -125,6 +127,11 @@ def setup(base_dir, cli):
     shutil.copyfile(base_dir / 'containers/Container2.yaml',
                     base_dir / 'storage1/other/path.yaml')
 
+    content = (base_dir / 'containers/Container2.yaml').read_text()
+    content = content[content.index('---'):]
+    (base_dir / 'storage1/unsigned.yaml').write_text(content)
+    (base_dir / 'storage2/unsigned.yaml').write_text(content)
+
     os.mkdir(base_dir / 'storage1/users/')
     shutil.copyfile(base_dir / 'users/User2.yaml',
                     base_dir / 'storage1/users/User2.yaml')
@@ -143,17 +150,17 @@ def test_resolve_first(base_dir, client):
     search._resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path')
 
-    storage = search._find_storage()
-    assert isinstance(storage, LocalStorageBackend)
-    assert storage.root == base_dir / 'storage1'
+    _, backend = search._find_storage()
+    assert isinstance(backend, LocalStorageBackend)
+    assert backend.root == base_dir / 'storage1'
 
     search = Search(client, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
     search._resolve_first()
     assert search.steps[0].container_path == PurePosixPath('/path/subpath')
 
-    storage = search._find_storage()
-    assert isinstance(storage, LocalStorageBackend)
-    assert storage.root == base_dir / 'storage2'
+    _, backend = search._find_storage()
+    assert isinstance(backend, LocalStorageBackend)
+    assert backend.root == base_dir / 'storage2'
 
 
 def test_read_file(base_dir, client):
@@ -177,6 +184,22 @@ def test_read_file_traverse(base_dir, client):
     search = Search(client, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
+
+
+def test_read_container_traverse(client):
+    search = Search(client, WildlandPath.from_str(':/path:/other/path:'), '0xaaa')
+    container = search.read_container(remote=True)
+    assert PurePosixPath('/other/path') in container.paths
+
+
+def test_read_container_unsigned(client):
+    search = Search(client, WildlandPath.from_str(':/path:/unsigned:'), '0xaaa')
+    container = search.read_container(remote=True)
+    assert PurePosixPath('/other/path') in container.paths
+
+    search = Search(client, WildlandPath.from_str(':/path:/other/path:/unsigned:'), '0xaaa')
+    with pytest.raises(ManifestError, match='Signature expected'):
+        search.read_container(remote=True)
 
 
 def test_mount_traverse(cli, client, base_dir):

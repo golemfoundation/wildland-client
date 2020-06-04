@@ -10,3 +10,13 @@
 .. option:: --no-update-container, -n
 
    Do not update the container after creating storage.
+
+.. option:: --trusted
+
+   Make the storage trusted. Wildland will load unsigned manifests from a
+   trusted storage, as long as the signer matches.
+
+.. option:: --inline
+
+   Add the storage definition directly to container manifest, instead of
+   creating a separate storage manifest.

@@ -40,12 +40,14 @@ class Storage:
                  signer: str,
                  storage_type: str,
                  container_path: PurePosixPath,
+                 trusted: bool,
                  params: Dict[str, Any],
                  local_path: Optional[Path] = None):
         self.signer = signer
         self.storage_type = storage_type
         self.container_path = container_path
         self.params = params
+        self.trusted = trusted
         self.local_path = local_path
 
     def validate(self):
@@ -72,17 +74,21 @@ class Storage:
             signer=manifest.fields['signer'],
             storage_type=manifest.fields['type'],
             container_path=PurePosixPath(manifest.fields['container_path']),
+            trusted=manifest.fields.get('trusted', False),
             params=manifest.fields,
             local_path=local_path,
         )
 
     def _get_manifest_fields(self) -> Dict[str, Any]:
-        return {
+        fields: Dict[str, Any] = {
             **self.params,
             'signer': self.signer,
             'type': self.storage_type,
             'container_path': str(self.container_path),
         }
+        if self.trusted:
+            fields['trusted'] = True
+        return fields
 
     def to_unsigned_manifest(self) -> Manifest:
         '''

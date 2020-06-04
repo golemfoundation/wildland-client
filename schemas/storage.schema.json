@@ -4,8 +4,21 @@
     "required": ["signer", "type", "container_path"],
     "properties": {
         "signer": { "$ref": "types.json#fingerprint" },
-        "type": { "type": "string" },
-        "container_path": { "$ref": "types.json#abs_path" },
-        "read_only": { "type": "boolean" }
+        "type": {
+            "type": "string",
+            "description": "Storage backend. The manifest should contain backend-specific parameters"
+        },
+        "container_path": {
+            "$ref": "types.json#abs_path",
+            "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
+        },
+        "read_only": {
+            "type": "boolean",
+            "description": "Mount as read-only"
+        },
+        "trusted": {
+            "type": "boolean",
+            "description": "Allow loading unsigned manifests (for the same signer) from this storage"
+        }
     }
 }

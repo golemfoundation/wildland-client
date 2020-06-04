@@ -23,7 +23,7 @@ The container
 
 from pathlib import PurePosixPath, Path
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from .manifest.manifest import Manifest
 from .manifest.schema import Schema
@@ -36,7 +36,7 @@ class Container:
     def __init__(self, *,
                  signer: str,
                  paths: List[PurePosixPath],
-                 backends: List[str],
+                 backends: List[Union[str, dict]],
                  local_path: Optional[Path] = None):
         self.signer = signer
         self.paths = paths

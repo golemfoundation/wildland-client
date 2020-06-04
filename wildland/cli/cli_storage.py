@@ -54,6 +54,11 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help='Container this storage is for'),
         click.Option(['--update-container/--no-update-container', '-u/-n'], default=True,
                      help='Update the container after creating storage'),
+        click.Option(['--trusted'], is_flag=True,
+                     help='Make the storage trusted'),
+        click.Option(['--inline'], is_flag=True,
+                     help='Add the storage directly to container '
+                     'manifest, instead of saving it to a file'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -80,7 +85,13 @@ def _do_create(
         name,
         container,
         update_container,
+        trusted,
+        inline,
         **data):
+
+    if inline and not update_container:
+        raise click.ClickException('The --inline option requires --update-container')
+
     obj: ContextObj = click.get_current_context().obj
 
     obj.client.recognize_users()
@@ -99,17 +110,25 @@ def _do_create(
         signer=container.signer,
         container_path=container_mount_path,
         params=params,
+        trusted=trusted,
     )
     storage.validate()
 
-    storage_path = obj.client.save_new_storage(storage, name)
-    click.echo('Created: {}'.format(storage_path))
-
-    if update_container:
-        click.echo('Adding storage to container')
-        container.backends.append(obj.client.local_url(storage_path))
+    if inline:
+        click.echo('Adding storage directly to container')
+        container.backends.append(storage.to_unsigned_manifest()._fields)
         click.echo(f'Saving: {container.local_path}')
         obj.client.save_container(container)
+
+    else:
+        storage_path = obj.client.save_new_storage(storage, name)
+        click.echo('Created: {}'.format(storage_path))
+
+        if update_container:
+            click.echo('Adding storage to container')
+            container.backends.append(obj.client.local_url(storage_path))
+            click.echo(f'Saving: {container.local_path}')
+            obj.client.save_container(container)
 
 
 @storage_.command('list', short_help='list storages')

@@ -53,13 +53,18 @@ class Session:
     def load_container_or_user(
             self,
             data: bytes,
-            local_path: Optional[Path] = None) -> Union[Container, User]:
+            local_path: Optional[Path] = None,
+            trusted_signer: Optional[str] = None,
+    ) -> Union[Container, User]:
         '''
         Load a manifest that cal be either a container or user manifest.
         '''
 
         manifest = Manifest.from_bytes(
-            data, self.sig, self_signed=Manifest.ALLOW)
+            data,
+            self.sig,
+            self_signed=Manifest.ALLOW,
+            trusted_signer=trusted_signer)
         assert manifest.header
         if manifest.header.pubkey is not None:
             return User.from_manifest(manifest, local_path)
@@ -83,15 +88,21 @@ class Session:
         manifest.sign(sig_temp, attach_pubkey=True)
         return manifest.to_bytes()
 
-    def load_container(self,
-                  data: bytes,
-                  local_path: Optional[Path] = None) -> Container:
+    def load_container(
+        self,
+        data: bytes,
+        local_path: Optional[Path] = None,
+        trusted_signer: Optional[str] = None,
+    ) -> Container:
         '''
         Load a container manifest, creating a Container object.
         '''
 
         manifest = Manifest.from_bytes(
-            data, self.sig, self_signed=Manifest.DISALLOW)
+            data,
+            self.sig,
+            self_signed=Manifest.DISALLOW,
+            trusted_signer=trusted_signer)
         return Container.from_manifest(manifest, local_path)
 
     def dump_container(self, container: Container) -> bytes:
@@ -103,15 +114,21 @@ class Session:
         manifest.sign(self.sig)
         return manifest.to_bytes()
 
-    def load_storage(self,
-                  data: bytes,
-                  local_path: Optional[Path] = None) -> Storage:
+    def load_storage(
+        self,
+        data: bytes,
+        local_path: Optional[Path] = None,
+        trusted_signer: Optional[str] = None,
+    ) -> Storage:
         '''
         Load a container manifest, creating a Storage object.
         '''
 
         manifest = Manifest.from_bytes(
-            data, self.sig, self_signed=Manifest.DISALLOW)
+            data,
+            self.sig,
+            self_signed=Manifest.DISALLOW,
+            trusted_signer=trusted_signer)
         return Storage.from_manifest(manifest, local_path)
 
     def dump_storage(self, storage: Storage) -> bytes:
