@@ -210,7 +210,7 @@ Example:
    signer: '0x5a7a224844d80b086445'
    type: local
    container_path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-   path: /path/to/storage/storage11.yaml
+   path: /path/to/storage/
 
 Fields:
 
