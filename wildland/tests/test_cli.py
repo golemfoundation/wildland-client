@@ -157,6 +157,18 @@ def test_storage_create_update_container(cli, base_dir):
     assert str(storage_path) in data
 
 
+def test_storage_create_inline(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
+        '--container', 'Container', '--inline')
+
+    with open(base_dir / 'containers/Container.yaml') as f:
+        data = f.read()
+
+    assert '/STORAGE' in data
+
+
 def test_storage_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -256,6 +268,34 @@ def test_container_mount(cli, base_dir):
     assert command['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
+    ]
+
+
+def test_container_mount_inline_storage(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
+        '--container', 'Container', '--inline')
+
+    with open(base_dir / 'containers/Container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+
+    cli('container', 'mount', 'Container')
+
+    # The command should write container manifest to .control/mount.
+    with open(base_dir / 'mnt/.control/mount') as f:
+        command = json.load(f)
+    assert command['storage']['signer'] == '0xaaa'
+    assert command['storage']['path'] == '/STORAGE'
+    assert command['paths'] == [
+        f'/.users/0xaaa{path}',
+        '/.users/0xaaa/PATH',
+        path,
+        '/PATH',
     ]
 
 
