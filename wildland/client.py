@@ -23,7 +23,7 @@ Client class
 
 from pathlib import Path
 import logging
-from typing import Optional, Iterator
+from typing import Optional, Iterator, List
 from urllib.parse import urlparse, quote
 
 from .user import User
@@ -34,6 +34,7 @@ from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError
 from .session import Session
 from .storage_backends.base import StorageBackend
+from .fs_client import WildlandFSClient
 
 from .config import Config
 from .exc import WildlandError
@@ -46,7 +47,13 @@ class Client:
     A high-level interface for operating on Wildland objects.
     '''
 
-    def __init__(self, base_dir=None, sig=None, config=None, **config_kwargs):
+    def __init__(
+            self,
+            base_dir=None,
+            sig=None,
+            config=None,
+            **config_kwargs
+    ):
         if config is None:
             config = Config.load(base_dir)
             config.override(**config_kwargs)
@@ -55,6 +62,9 @@ class Client:
         self.user_dir = Path(self.config.get('user_dir'))
         self.container_dir = Path(self.config.get('container_dir'))
         self.storage_dir = Path(self.config.get('storage_dir'))
+
+        mount_dir = Path(self.config.get('mount_dir'))
+        self.fs_client = WildlandFSClient(mount_dir)
 
         if sig is None:
             if self.config.get('dummy'):
@@ -65,7 +75,7 @@ class Client:
 
         self.session: Session = Session(sig)
 
-        self.users = []
+        self.users: List[User] = []
 
     def sub_client_with_key(self, pubkey: str) -> 'Client':
         '''
@@ -158,7 +168,10 @@ class Client:
         Load container from a local file.
         '''
 
-        return self.session.load_container(path.read_bytes(), path)
+        trusted_signer = self.fs_client.find_trusted_signer(path)
+        return self.session.load_container(
+            path.read_bytes(), path,
+            trusted_signer=trusted_signer)
 
     def load_container_from_wlpath(self, wlpath: WildlandPath) -> Container:
         '''
@@ -214,7 +227,10 @@ class Client:
         Load storage from a local file.
         '''
 
-        return self.session.load_storage(path.read_bytes(), path)
+        trusted_signer = self.fs_client.find_trusted_signer(path)
+        return self.session.load_storage(
+            path.read_bytes(), path,
+            trusted_signer=trusted_signer)
 
     def load_storage_from_url(self, url: str, signer: str) -> Storage:
         '''

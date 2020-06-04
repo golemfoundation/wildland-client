@@ -26,7 +26,10 @@ from ..manifest.manifest import split_header, Header, HeaderParser, ManifestErro
 
 def test_split_header():
     assert split_header(b'header\n---\ndata') == (b'header', b'data')
+    assert split_header(b'\n---\ndata') == (b'', b'data')
     assert split_header(b'\n---\n') == (b'', b'')
+    assert split_header(b'---\ndata') == (b'', b'data')
+    assert split_header(b'---\n') == (b'', b'')
     with pytest.raises(ManifestError):
         split_header(b'--\nno newline')
     with pytest.raises(ManifestError):

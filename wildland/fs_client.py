@@ -226,6 +226,9 @@ class WildlandFSClient:
         conservatively check if all of them would give the same answer.
         '''
 
+        if not self.is_mounted():
+            return None
+
         local_path = local_path.resolve()
         try:
             relpath = local_path.relative_to(self.mount_dir)

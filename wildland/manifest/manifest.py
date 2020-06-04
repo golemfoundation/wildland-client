@@ -32,6 +32,7 @@ from ..exc import WildlandError
 
 
 HEADER_SEPARATOR = b'\n---\n'
+HEADER_SEPARATOR_EMPTY = b'---\n'
 
 
 class ManifestError(WildlandError):
@@ -98,7 +99,7 @@ class Manifest:
         Has to be signed separately.
         '''
 
-        if HEADER_SEPARATOR in data:
+        if HEADER_SEPARATOR in data or data.startswith(HEADER_SEPARATOR_EMPTY):
             _, data = split_header(data)
 
         rest_str = data.decode('utf-8')
@@ -322,6 +323,9 @@ def split_header(data: bytes) -> Tuple[bytes, bytes]:
     '''
     Split manifest data into header and the rest of content.
     '''
+
+    if data.startswith(HEADER_SEPARATOR_EMPTY):
+        return b'', data[len(HEADER_SEPARATOR_EMPTY):]
 
     header_data, sep, rest_data = data.partition(HEADER_SEPARATOR)
     if not sep:
