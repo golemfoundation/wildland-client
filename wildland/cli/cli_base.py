@@ -23,6 +23,7 @@ Wildland command-line interface - base module.
 
 import collections
 from pathlib import Path
+from typing import List, Tuple
 
 import click
 
@@ -70,33 +71,30 @@ class AliasedGroup(click.Group):
             return rv
 
         # 2) try exact alias
-        try:
-            aliased_name = self.aliases[cmd_name]
-        except KeyError:
-            pass
-        else:
-            return super().get_command(ctx, aliased_name)
+        if cmd_name in self.aliases:
+            return super().get_command(ctx, self.aliases[cmd_name])
 
         # 3) try unambiguous prefix in both commands and aliases
-        matches = []
+        matches: List[Tuple[str, bool]] = []
         matches.extend((cn, False)
             for cn in self.list_commands(ctx) if cn.startswith(cmd_name))
         matches.extend((an, True)
             for an in self.aliases if an.startswith(cmd_name))
 
-        print(f'matches={matches!r}')
+        if len(matches) == 0:
+            return None
 
-        if not matches:
-            return
-        elif len(matches) > 1:
-            matches = ', '.join(
-                f'{name} ({is_alias and "alias" or "command"})')
-            ctx.fail(f'too many matches: {matches}')
+        if len(matches) > 1:
+            desc = ', '.join(
+                f'{name} ({"alias" if is_alias else "command"})'
+                for (name, is_alias) in matches)
+            ctx.fail(f'too many matches: {desc}')
 
-        (name, is_alias), = matches
+        name, is_alias = matches[0]
         if is_alias:
             name = self.aliases[name]
-        print(f'cmd_name={cmd_name!r}')
+
+        click.echo(f'Understood {cmd_name!r} as {name!r}')
         return super().get_command(ctx, name)
 
     def format_commands(self, ctx, formatter):
