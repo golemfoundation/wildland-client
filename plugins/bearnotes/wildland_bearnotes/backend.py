@@ -22,8 +22,10 @@ S3 storage backend
 '''
 
 from pathlib import PurePosixPath
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Optional
 import logging
+import errno
+from dataclasses import dataclass
 
 import sqlite3
 import click
@@ -35,6 +37,17 @@ from wildland.manifest.schema import Schema
 MAX_SIZE = 4096
 
 logger = logging.getLogger('storage-bear')
+
+
+@dataclass
+class BearNote:
+    '''
+    Individual Bear note.
+    '''
+
+    ident: str
+    title: str
+    text: str
 
 
 class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
@@ -82,6 +95,17 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
         for row in cursor.fetchall():
             yield row['ZUNIQUEIDENTIFIER']
 
+    def get_note(self, ident: str) -> Optional[BearNote]:
+        cursor = self.db.cursor()
+        cursor.execute('''
+            SELECT ZTITLE, ZTEXT FROM ZSFNOTE
+            WHERE ZUNIQUEIDENTIFIER = ?
+        ''', [ident])
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'])
+
     def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         yield PurePosixPath('.'), Info(is_dir=True)
 
@@ -94,4 +118,29 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
             yield dir_path / 'README.txt', Info(is_dir=False, size=MAX_SIZE)
 
     def backend_load_file(self, path: PurePosixPath) -> bytes:
-        return f'hello world, this is {path}'.encode()
+        if len(path.parts) != 2:
+            raise FileNotFoundError(errno.ENOENT, str(path))
+        ident, name = path.parts
+
+        if name in ('note.md', f'{ident}.md'):
+            note = self.get_note(ident)
+            if not note:
+                raise FileNotFoundError(errno.ENOENT, str(path))
+
+            content = 'title: ' + note.title + '\n---\n' + note.text + '\n'
+            return content.encode('utf-8')
+
+        if name == 'container.yaml':
+            return b'' # TODO
+
+        if name == 'README.txt':
+            return (
+                'This is an auto-generated directory representing a (storage '
+                'for a) single Bear note. The note itself is exposed via the '
+                'Wildland FS tree, depending on what tags it defines for '
+                'itself. Thus a note containing `#projects/wildland/bear2fs` '
+                'tag will be found under `~/Wildland/projects/bear2fs/` '
+                'directory.\n'
+            ).encode()
+
+        raise FileNotFoundError(errno.ENOENT, str(path))
