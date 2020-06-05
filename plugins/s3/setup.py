@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="widland-s3",
+    name="wildland-s3",
     version="0.1",
     packages=find_packages(),
     entry_points={
