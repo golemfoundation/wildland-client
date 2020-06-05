@@ -30,7 +30,10 @@ from dataclasses import dataclass
 import sqlite3
 import click
 
+from wildland.storage import Storage
+from wildland.container import Container
 from wildland.storage_backends.cached import ReadOnlyCachedStorageBackend, Info
+from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
 
 # TODO why can't we serve size 0?
@@ -106,6 +109,34 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
             return None
         return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'])
 
+    def make_storage_manifest(self, ident) -> Manifest:
+        # TODO validate
+        storage = Storage(
+            signer=self.params['signer'],
+            storage_type='bear-note',
+            container_path=f'/.uuid/{ident}',
+            trusted=False,
+            params={
+                'path': self.params['path'],
+                'note': ident,
+            })
+        manifest = storage.to_unsigned_manifest()
+        manifest.skip_signing()
+        return manifest
+
+    def make_container_manifest(self, ident) -> Manifest:
+        # TODO paths
+        # TODO validate
+        storage_manifest = self.make_storage_manifest(ident)
+        container = Container(
+            signer=self.params['signer'],
+            paths=[f'/.uuid/{ident}'],
+            backends=[storage_manifest.fields],
+        )
+        manifest = container.to_unsigned_manifest()
+        manifest.skip_signing()
+        return manifest
+
     def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         yield PurePosixPath('.'), Info(is_dir=True)
 
@@ -131,7 +162,7 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
             return content.encode('utf-8')
 
         if name == 'container.yaml':
-            return b'' # TODO
+            return self.make_container_manifest(ident).to_bytes()
 
         if name == 'README.txt':
             return (
