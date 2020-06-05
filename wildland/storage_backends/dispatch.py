@@ -26,7 +26,7 @@ from typing import Dict, Type
 import importlib
 import inspect
 import logging
-import pkg_resources
+import entrypoints
 
 from .base import StorageBackend
 
@@ -37,7 +37,7 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
     '''
 
     result = {}
-    for ep in pkg_resources.iter_entry_points('wildland.storage_backends'):
+    for ep in entrypoints.get_group_all('wildland.storage_backends'):
         logging.info('storage: %s', ep)
         cls: Type[StorageBackend] = ep.load()
         result[cls.TYPE] = cls

@@ -3,6 +3,7 @@ fuse-python>=1.0.0
 jsonschema
 pyyaml
 click
+entrypoints
 
 # Storage
 boto3
