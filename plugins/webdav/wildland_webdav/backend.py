@@ -32,8 +32,8 @@ import requests.auth
 from lxml import etree
 import click
 
-from .cached import CachedStorageBackend, Info
-from ..manifest.schema import Schema
+from wildland.storage_backends.cached import CachedStorageBackend, Info
+from wildland.manifest.schema import Schema
 
 
 class WebdavStorageBackend(CachedStorageBackend):

@@ -32,8 +32,8 @@ import boto3
 import botocore
 import click
 
-from .cached import CachedStorageBackend, Info
-from ..manifest.schema import Schema
+from wildland.storage_backends.cached import CachedStorageBackend, Info
+from wildland.manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')

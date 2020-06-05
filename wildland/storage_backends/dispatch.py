@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Dict, Type
 import importlib
 import inspect
+import logging
+import pkg_resources
 
 from .base import StorageBackend
 
@@ -35,16 +37,18 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
     '''
 
     result = {}
+    for ep in pkg_resources.iter_entry_points('wildland.storage_backends'):
+        logging.info('storage: %s', ep)
+        cls: Type[StorageBackend] = ep.load()
+        result[cls.TYPE] = cls
 
-    package = 'wildland.storage_backends'
-    for path in sorted(Path(__file__).parent.glob('*.py')):
-        module = importlib.import_module('.' + path.stem, package)
-        for obj in module.__dict__.values():
-            if (inspect.isclass(obj) and
-                issubclass(obj, StorageBackend) and
-                obj.TYPE != ''):
+    if not result:
+        raise ImportError(
+            'No storage backends found. Please install the Python packages:\n'
+            '  pip install -e wildland-fuse\n'
+            '  pip install -e wildland-fuse/plugins/*\n'
+        )
 
-                result[obj.TYPE] = obj
     return result
 
 
