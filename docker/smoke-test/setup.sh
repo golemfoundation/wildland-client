@@ -5,7 +5,7 @@ cd $(dirname $0)
 rm -rf /tmp/bla
 mkdir /tmp/bla
 
-WL="../wl"
+WL="../../wl"
 
 STORAGE="$HOME/storage"
 

@@ -27,7 +27,7 @@ pytest:
       - htmlcov/
   coverage: '/TOTAL.*\s(\d+)%/'
 
-examples:
+smoke-test:
   stage: test
   image: docker/compose:latest
   services:
@@ -35,7 +35,7 @@ examples:
   script:
     - cd docker
     - docker-compose build
-    - docker-compose run wildland-fuse wl-example < /dev/null
+    - docker-compose run wildland-fuse wl-smoke-test < /dev/null
 
 pages-test:
   stage: docs

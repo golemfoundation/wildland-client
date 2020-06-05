@@ -10,7 +10,7 @@ fi
 
 set -x
 
-/home/user/wildland-fuse/example/setup.sh
+/home/user/wildland-fuse/docker/smoke-test/setup.sh
 
 if [ $$ = 1 ]; then
     cd "$MOUNT_DIR"

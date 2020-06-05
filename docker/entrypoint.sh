@@ -28,7 +28,6 @@ cd /home/user
 
 echo
 echo "WebDAV server is running at dav://localhost:8080/"
-echo "To create example containers, run: wl-example"
 echo
 
 
