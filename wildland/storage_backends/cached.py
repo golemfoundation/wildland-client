@@ -395,3 +395,35 @@ class CachedStorageBackend(StorageBackend):
         if not result:
             del self.dirs[path]
         return result
+
+
+class ReadOnlyCachedStorageBackend(CachedStorageBackend):
+    '''
+    A read-only version of CachedStorageBackend.
+
+    Only backed_info_all() and backend_load_file() need to be implemented.
+    '''
+
+    # Stop Pylint from complaining about this class being abstract, see:
+    # https://stackoverflow.com/questions/39256350/pylint-cannot-handle-abstract-subclasses-of-abstract-base-classes
+
+    # pylint: disable=abstract-method
+
+    def __init__(self, **kwds):
+        super().__init__(**kwds)
+        self.read_only = True
+
+    def backend_create_file(self, path: PurePosixPath) -> Info:
+        raise PermissionError(errno.EROFS, str(path))
+
+    def backend_create_dir(self, path: PurePosixPath) -> Info:
+        raise PermissionError(errno.EROFS, str(path))
+
+    def backend_save_file(self, path: PurePosixPath, _data: bytes) -> Info:
+        raise PermissionError(errno.EROFS, str(path))
+
+    def backend_delete_file(self, path: PurePosixPath):
+        raise PermissionError(errno.EROFS, str(path))
+
+    def backend_delete_dir(self, path: PurePosixPath):
+        raise PermissionError(errno.EROFS, str(path))
