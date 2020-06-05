@@ -27,13 +27,17 @@ import json
 
 import click
 
-from .cli_base import CliError, ContextObj
+from .cli_base import (
+    AliasedGroup,
+    CliError,
+    ContextObj,
+)
 from . import (
     cli_common,
     cli_user,
     cli_storage,
     cli_container,
-    cli_transfer
+    cli_transfer,
 )
 
 from ..log import init_logging
@@ -41,11 +45,10 @@ from ..client import Client
 from .. import __version__ as _version
 
 
-
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
-@click.group('wl')
+@click.group('wl', cls=AliasedGroup)
 @click.option('--dummy/--no-dummy', default=False,
     help='use dummy signatures')
 @click.option('--base-dir', default=None,
@@ -66,6 +69,7 @@ def main(ctx, base_dir, dummy, verbose):
 main.add_command(cli_user.user_)
 main.add_command(cli_storage.storage_)
 main.add_command(cli_container.container_)
+main.add_alias(u='user', s='storage', c='container')
 
 main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)
@@ -154,6 +158,7 @@ def unmount(obj: ContextObj):
 
     click.echo(f'Unmounting: {obj.mount_dir}')
     obj.fs_client.unmount()
+main.add_alias(umount='unmount')
 
 
 if __name__ == '__main__':

@@ -26,7 +26,7 @@ import functools
 
 import click
 
-from .cli_base import ContextObj
+from .cli_base import AliasedGroup, ContextObj
 from .cli_common import sign, verify, edit
 from ..storage import Storage
 
@@ -34,7 +34,7 @@ from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 
 
-@click.group('storage', short_help='storage management')
+@click.group('storage', short_help='storage management', cls=AliasedGroup)
 def storage_():
     '''Manage storages for container'''
 
@@ -144,9 +144,11 @@ def list_(obj: ContextObj):
         click.echo(f'  type: {storage.storage_type}')
         if storage.storage_type == 'local':
             click.echo(f'  path: {storage.params["path"]}')
+storage_.add_alias(ls='list')
 
 
 storage_.add_command(sign)
 storage_.add_command(verify)
 storage_.add_command(edit)
+
 _add_create_commands(create)
