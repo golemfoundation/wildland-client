@@ -30,4 +30,4 @@ WORKDIR /home/user/wildland-fuse
 
 COPY ./requirements.txt .
 RUN python3 -m venv /home/user/env/
-RUN /home/user/env/bin/pip3 install -r requirements.txt
+RUN /home/user/env/bin/pip install -r requirements.txt
