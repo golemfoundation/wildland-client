@@ -21,10 +21,7 @@
 Dispatch for built-in and added storage types.
 '''
 
-from pathlib import Path
 from typing import Dict, Type
-import importlib
-import inspect
 import logging
 import entrypoints
 
@@ -45,8 +42,7 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
     if not result:
         raise ImportError(
             'No storage backends found. Please install the Python packages:\n'
-            '  pip install -e wildland-fuse\n'
-            '  pip install -e wildland-fuse/plugins/*\n'
+            '  pip install -e . plugins/*\n'
         )
 
     return result
