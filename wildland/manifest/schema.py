@@ -22,20 +22,19 @@
 import json
 from pathlib import Path
 from typing import Union
+import pkg_resources
 
 import jsonschema
 
 from ..exc import WildlandError
 
 
-PROJECT_PATH = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = PROJECT_PATH / 'schemas'
 COMMON_FILES = ['types.json', 'storage.schema.json']
 
 
 def load_common_files():
     for name in COMMON_FILES:
-        with open(SCHEMA_PATH / name) as f:
+        with pkg_resources.resource_stream('wildland', 'schemas/' + name) as f:
             yield name, json.load(f)
 
 
@@ -58,8 +57,8 @@ class SchemaError(WildlandError):
 class Schema:
     def __init__(self, arg: Union[str, dict]):
         if isinstance(arg, str):
-            path = SCHEMA_PATH / f'{arg}.schema.json'
-            with open(path) as f:
+            path = f'schemas/{arg}.schema.json'
+            with pkg_resources.resource_stream('wildland', path) as f:
                 self.schema = json.load(f)
         else:
             self.schema = arg
