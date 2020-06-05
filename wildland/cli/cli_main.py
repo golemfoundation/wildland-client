@@ -28,7 +28,7 @@ import json
 import click
 
 from .cli_base import (
-    AliasedGroup,
+    aliased_group,
     CliError,
     ContextObj,
 )
@@ -48,7 +48,7 @@ from .. import __version__ as _version
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
-@click.group('wl', cls=AliasedGroup)
+@aliased_group('wl')
 @click.option('--dummy/--no-dummy', default=False,
     help='use dummy signatures')
 @click.option('--base-dir', default=None,
@@ -149,7 +149,7 @@ def mount(obj: ContextObj, remount, debug, container):
     if p.returncode != 0:
         raise CliError('FUSE driver exited with failure')
 
-@main.command(short_help='unmount Wildland filesystem')
+@main.command(short_help='unmount Wildland filesystem', alias=['umount'])
 @click.pass_obj
 def unmount(obj: ContextObj):
     '''
@@ -158,7 +158,6 @@ def unmount(obj: ContextObj):
 
     click.echo(f'Unmounting: {obj.mount_dir}')
     obj.fs_client.unmount()
-main.add_alias(umount='unmount')
 
 
 if __name__ == '__main__':

@@ -26,10 +26,10 @@ import click
 
 from ..user import User
 
-from .cli_base import AliasedGroup, ContextObj
+from .cli_base import aliased_group, ContextObj
 from .cli_common import sign, verify, edit
 
-@click.group('user', short_help='user management', cls=AliasedGroup)
+@aliased_group('user', short_help='user management')
 def user_():
     '''
     Manage users
@@ -82,7 +82,7 @@ def create(obj: ContextObj, key, paths, name):
     obj.client.config.update_and_save(local_signers=[*local_signers, signer])
 
 
-@user_.command('list', short_help='list users')
+@user_.command('list', short_help='list users', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
     '''
@@ -97,7 +97,6 @@ def list_(obj: ContextObj):
         for user_container in user.containers:
             click.echo(f'  container: {user_container}')
         click.echo()
-user_.add_alias(ls='list')
 
 
 user_.add_command(sign)

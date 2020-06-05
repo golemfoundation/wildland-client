@@ -25,12 +25,12 @@ from pathlib import PurePosixPath
 
 import click
 
-from .cli_base import AliasedGroup, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
 
 
-@click.group('container', short_help='container management', cls=AliasedGroup)
+@aliased_group('container', short_help='container management')
 def container_():
     '''
     Manage containers
@@ -101,7 +101,7 @@ def update(obj: ContextObj, storage, cont):
     obj.client.save_container(container)
 
 
-@container_.command('list', short_help='list containers')
+@container_.command('list', short_help='list containers', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
     '''
@@ -117,7 +117,6 @@ def list_(obj: ContextObj):
         for storage_path in container.backends:
             click.echo(f'  storage: {storage_path}')
         click.echo()
-container_.add_alias(ls='list')
 
 
 container_.add_command(sign)
@@ -144,7 +143,7 @@ def mount(obj: ContextObj, cont):
     obj.fs_client.mount_container(container, storage, is_default_user)
 
 
-@container_.command(short_help='unmount container')
+@container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
     help='mount path to search for')
 @click.argument('cont', metavar='CONTAINER', required=False)
@@ -172,5 +171,3 @@ def unmount(obj: ContextObj, path: str, cont):
 
     click.echo(f'Unmounting storage {storage_id}')
     obj.fs_client.unmount_container(storage_id)
-
-container_.add_alias(umount='unmount')

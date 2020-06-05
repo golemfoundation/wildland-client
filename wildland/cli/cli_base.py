@@ -23,7 +23,7 @@ Wildland command-line interface - base module.
 
 import collections
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 import click
 
@@ -48,12 +48,28 @@ class ContextObj:
         self.client = client
         self.session = client.session
 
+
+
 class AliasedGroup(click.Group):
     '''A very simple alias engine for :class:`click.Group`'''
 
     def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)
         self.aliases = {}
+
+    def command(self, *args, **kwargs):
+        if 'alias' not in kwargs:
+            return super().command(*args, **kwargs)
+
+        aliases = kwargs.pop('alias')
+        super_decorator = super().command(*args, **kwargs)
+
+        def decorator(f):
+            cmd = super_decorator(f)
+            self.add_alias(**{alias: cmd.name for alias in aliases})
+            return cmd
+
+        return decorator
 
     def add_alias(self, **kwds):
         '''Add aliases to a command
@@ -109,3 +125,14 @@ class AliasedGroup(click.Group):
         with formatter.section('Aliases'):
             formatter.write_dl((cmd_name, ', '.join(sorted(aliases_reversed[cmd_name])))
                 for cmd_name in sorted(aliases_reversed))
+
+
+def aliased_group(name=None, **kwargs) -> Callable[[Callable], AliasedGroup]:
+    '''
+    A decorator that creates an AliasedGroup and typechecks properly.
+    '''
+
+    def decorator(f):
+        return click.group(name, cls=AliasedGroup, **kwargs)(f)
+
+    return decorator
