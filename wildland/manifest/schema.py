@@ -20,7 +20,6 @@
 # TODO pylint: disable=missing-docstring
 
 import json
-from pathlib import Path
 from typing import Union
 import pkg_resources
 
