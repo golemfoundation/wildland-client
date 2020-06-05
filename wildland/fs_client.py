@@ -28,6 +28,7 @@ import subprocess
 import logging
 from typing import Dict, List, Optional
 import json
+import sys
 
 import yaml
 
@@ -37,9 +38,6 @@ from .exc import WildlandError
 
 
 logger = logging.getLogger('fs_client')
-
-PROJECT_PATH = Path(__file__).resolve().parents[1]
-FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
 class WildlandFSError(WildlandError):
@@ -65,7 +63,7 @@ class WildlandFSClient:
             foreground: Run in foreground instead of daemonizing
             debug: Enable debug logs (only in case of foreground)
         '''
-        cmd = [str(FUSE_ENTRY_POINT), str(self.mount_dir)]
+        cmd = [sys.executable, '-m', 'wildland.fs', str(self.mount_dir)]
         options = []
 
         if foreground:
