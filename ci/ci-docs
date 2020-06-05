@@ -1,3 +1,4 @@
 #!/bin/sh -ex
 
+/home/user/env/bin/pip install . plugins/*
 make -C Documentation/ html man pseudoxml SPHINXOPTS=-W SPHINXBUILD=/home/user/env/bin/sphinx-build

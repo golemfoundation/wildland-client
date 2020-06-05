@@ -106,7 +106,16 @@ class LocalFile:
 
 class LocalStorageBackend(FileProxyMixin, StorageBackend):
     '''Local, file-based storage'''
-    SCHEMA = Schema('storage-local')
+    SCHEMA = Schema({
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+            "path": {
+                "$ref": "types.json#abs_path",
+                "description": "Path in the local filesystem"
+            }
+        }
+    })
     TYPE = 'local'
 
     def __init__(self, *, relative_to=None, **kwds):

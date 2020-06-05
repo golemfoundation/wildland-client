@@ -2,6 +2,8 @@
 
 . /home/user/env/bin/activate
 
+pip install . plugins/*
+
 export EDITOR=nano
 export PATH=/home/user/wildland-fuse:/home/user/wildland-fuse/docker:$PATH
 

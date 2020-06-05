@@ -32,8 +32,8 @@ import boto3
 import botocore
 import click
 
-from .cached import CachedStorageBackend, Info
-from ..manifest.schema import Schema
+from wildland.storage_backends.cached import CachedStorageBackend, Info
+from wildland.manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')
@@ -44,7 +44,27 @@ class S3StorageBackend(CachedStorageBackend):
     Amazon S3 storage.
     '''
 
-    SCHEMA = Schema('storage-s3')
+    SCHEMA = Schema({
+        "title": "Storage manifest (S3)",
+        "type": "object",
+        "required": ["url", "credentials"],
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "S3 URL, in the s3://bucket/path format",
+                "pattern": "^s3://.*$"
+            },
+            "credentials": {
+                "type": "object",
+                "required": ["access_key", "secret_key"],
+                "properties": {
+                    "access_key": {"type": "string"},
+                    "secret_key": {"type": "string"}
+                },
+                "additionalProperties": False
+            }
+        }
+    })
     TYPE = 's3'
 
     def __init__(self, **kwds):

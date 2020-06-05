@@ -21,10 +21,9 @@
 Dispatch for built-in and added storage types.
 '''
 
-from pathlib import Path
 from typing import Dict, Type
-import importlib
-import inspect
+import logging
+import entrypoints
 
 from .base import StorageBackend
 
@@ -35,16 +34,17 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
     '''
 
     result = {}
+    for ep in entrypoints.get_group_all('wildland.storage_backends'):
+        logging.info('storage: %s', ep)
+        cls: Type[StorageBackend] = ep.load()
+        result[cls.TYPE] = cls
 
-    package = 'wildland.storage_backends'
-    for path in sorted(Path(__file__).parent.glob('*.py')):
-        module = importlib.import_module('.' + path.stem, package)
-        for obj in module.__dict__.values():
-            if (inspect.isclass(obj) and
-                issubclass(obj, StorageBackend) and
-                obj.TYPE != ''):
+    if not result:
+        raise ImportError(
+            'No storage backends found. Please install the Python packages:\n'
+            '  pip install -e . plugins/*\n'
+        )
 
-                result[obj.TYPE] = obj
     return result
 
 

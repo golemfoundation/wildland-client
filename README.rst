@@ -26,12 +26,13 @@ Repository structure
 --------------------
 
 * ``Documentation/``: project documentation, in ReST/Sphinx format
-* ``docker/``: Docker setup, for local testing and CI
+* ``ci/``: Docker setup for CI
+* ``docker/``: Docker setup for local testing
 * ``example/``: Example manifests, keys, etc., used in Docker setup
-* ``schemas/``: Manifest schemas in `JSON Schema <https://json-schema.org/>`_
-  format
 * ``wl``, ``wildland-cli``: command-line interface entry point
 * ``wildland-fuse``: FUSE driver entry point
 * ``wildland/``: Python source code
 
+  * ``wildland/schemas/``: Manifest schemas in `JSON Schema <https://json-schema.org/>`_
+    format
   * ``wildland/tests/``: Tests (in Pytest framework)
