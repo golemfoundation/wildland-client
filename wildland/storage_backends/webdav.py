@@ -41,7 +41,25 @@ class WebdavStorageBackend(CachedStorageBackend):
     WebDAV storage.
     '''
 
-    SCHEMA = Schema('storage-webdav')
+    SCHEMA = Schema({
+        "type": "object",
+        "required": ["url", "credentials"],
+        "properties": {
+            "url": {
+            "$ref": "types.json#http_url",
+                "description": "HTTP URL, e.g. https://example.com/remote.php/dav/files/user/"
+            },
+            "credentials": {
+                "type": "object",
+                "required": ["login", "password"],
+                "properties": {
+                    "login": {"type": "string"},
+                    "password": {"type": "string"}
+                },
+                "additionalProperties": False
+            }
+        }
+    })
     TYPE = 'webdav'
 
     def __init__(self, **kwds):

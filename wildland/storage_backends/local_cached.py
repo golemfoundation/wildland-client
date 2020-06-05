@@ -39,7 +39,16 @@ class LocalCachedStorageBackend(CachedStorageBackend):
     Used mostly to test the caching scheme.
     '''
 
-    SCHEMA = Schema('storage-local-cached')
+    SCHEMA = Schema({
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+            "path": {
+                "$ref": "types.json#abs_path",
+                "description": "Path in the local filesystem"
+            }
+        }
+    })
     TYPE = 'local-cached'
 
     def __init__(self, **kwds):

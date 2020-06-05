@@ -21,6 +21,7 @@
 
 import json
 from pathlib import Path
+from typing import Union
 
 import jsonschema
 
@@ -55,10 +56,13 @@ class SchemaError(WildlandError):
 
 
 class Schema:
-    def __init__(self, name: str):
-        path = SCHEMA_PATH / f'{name}.schema.json'
-        with open(path) as f:
-            self.schema = json.load(f)
+    def __init__(self, arg: Union[str, dict]):
+        if isinstance(arg, str):
+            path = SCHEMA_PATH / f'{arg}.schema.json'
+            with open(path) as f:
+                self.schema = json.load(f)
+        else:
+            self.schema = arg
         jsonschema.Draft4Validator.check_schema(self.schema)
         self.validator = jsonschema.Draft4Validator(self.schema)
         self.validator.resolver.store.update(load_common_files())
