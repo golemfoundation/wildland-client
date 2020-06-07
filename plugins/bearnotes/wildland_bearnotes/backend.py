@@ -22,10 +22,10 @@ S3 storage backend
 '''
 
 from pathlib import PurePosixPath
-from typing import Iterable, Tuple, Optional
+from typing import Iterable, Tuple, Optional, List
 import logging
-import errno
 from dataclasses import dataclass
+import errno
 
 import sqlite3
 import click
@@ -51,6 +51,59 @@ class BearNote:
     ident: str
     title: str
     text: str
+    tags: List[str]
+
+
+class BearDB:
+    '''
+    An class for accessing the Bear SQLite database.
+    '''
+
+    def __init__(self, path):
+        self.db = sqlite3.connect(path)
+        self.db.row_factory = sqlite3.Row
+
+    def get_note_idents(self) -> Iterable[str]:
+        '''
+        Retrieve list of note IDs.
+        '''
+
+        cursor = self.db.cursor()
+        cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
+        for row in cursor.fetchall():
+            yield row['ZUNIQUEIDENTIFIER']
+
+    def get_note(self, ident: str) -> Optional[BearNote]:
+        '''
+        Retrieve a single note.
+        '''
+
+        cursor = self.db.cursor()
+        cursor.execute('''
+            SELECT Z_PK, ZTITLE, ZTEXT FROM ZSFNOTE
+            WHERE ZUNIQUEIDENTIFIER = ?
+        ''', [ident])
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        tags = self.get_tags(row['Z_PK'])
+        return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'],
+                        tags=tags)
+
+    def get_tags(self, pk: int) -> List[str]:
+        '''
+        Retrieve a list of tags for a note.
+        '''
+
+        cursor = self.db.cursor()
+        cursor.execute('''
+            SELECT ZTITLE FROM ZSFNOTETAG
+            JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ?
+            AND Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
+        ''', [pk])
+
+        return [tag_row['ZTITLE'] for tag_row in cursor.fetchall()]
 
 
 class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
@@ -75,8 +128,7 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
 
-        self.db = sqlite3.connect(self.params['path'])
-        self.db.row_factory = sqlite3.Row
+        self.bear_db = BearDB(self.params['path'])
 
     @classmethod
     def cli_options(cls):
@@ -92,45 +144,38 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
             'path': data['path'],
         }
 
-    def get_note_idents(self) -> Iterable[str]:
-        cursor = self.db.cursor()
-        cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
-        for row in cursor.fetchall():
-            yield row['ZUNIQUEIDENTIFIER']
+    def make_storage_manifest(self, note: BearNote) -> Manifest:
+        '''
+        Create a storage manifest for a single note.
+        '''
 
-    def get_note(self, ident: str) -> Optional[BearNote]:
-        cursor = self.db.cursor()
-        cursor.execute('''
-            SELECT ZTITLE, ZTEXT FROM ZSFNOTE
-            WHERE ZUNIQUEIDENTIFIER = ?
-        ''', [ident])
-        row = cursor.fetchone()
-        if not row:
-            return None
-        return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'])
-
-    def make_storage_manifest(self, ident) -> Manifest:
-        # TODO validate
         storage = Storage(
             signer=self.params['signer'],
             storage_type='bear-note',
-            container_path=f'/.uuid/{ident}',
+            container_path=f'/.uuid/{note.ident}',
             trusted=False,
             params={
                 'path': self.params['path'],
-                'note': ident,
+                'note': note.ident,
             })
+        storage.validate()
         manifest = storage.to_unsigned_manifest()
         manifest.skip_signing()
         return manifest
 
-    def make_container_manifest(self, ident) -> Manifest:
-        # TODO paths
-        # TODO validate
-        storage_manifest = self.make_storage_manifest(ident)
+    def make_container_manifest(self, note: BearNote) -> Manifest:
+        '''
+        Create a container manifest for a single note. The container paths will
+        be derived from note tags.
+        '''
+
+        storage_manifest = self.make_storage_manifest(note)
+        paths = [f'/.uuid/{note.ident}']
+        for tag in note.tags:
+            paths.append(f'/{tag}')
         container = Container(
             signer=self.params['signer'],
-            paths=[f'/.uuid/{ident}'],
+            paths=paths,
             backends=[storage_manifest.fields],
         )
         manifest = container.to_unsigned_manifest()
@@ -140,38 +185,119 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
     def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
         yield PurePosixPath('.'), Info(is_dir=True)
 
-        for ident in self.get_note_idents():
-            dir_path = PurePosixPath(ident)
-            yield dir_path, Info(is_dir=True)
-            yield dir_path / 'container.yaml', Info(is_dir=False, size=MAX_SIZE)
-            yield dir_path / 'note.md', Info(is_dir=False, size=MAX_SIZE)
-            yield dir_path / f'{ident}.md', Info(is_dir=False, size=MAX_SIZE)
-            yield dir_path / 'README.txt', Info(is_dir=False, size=MAX_SIZE)
+        for ident in self.bear_db.get_note_idents():
+            note = self.bear_db.get_note(ident)
+            if not note:
+                continue
+            # TODO: we need the right manifest size here; because otherwise the
+            # file gets padded with 0's otherwise
+            manifest_size = len(self.make_container_manifest(note).to_bytes())
+            yield PurePosixPath(f'{ident}.yaml'), Info(is_dir=False, size=manifest_size)
 
     def backend_load_file(self, path: PurePosixPath) -> bytes:
-        if len(path.parts) != 2:
+        # we should be called by CachedStorage only with paths from backend_info_all()
+        assert len(path.parts) == 1
+        assert path.suffix == '.yaml'
+
+        ident = path.stem
+        note = self.bear_db.get_note(ident)
+        if not note:
             raise FileNotFoundError(errno.ENOENT, str(path))
-        ident, name = path.parts
+        return self.make_container_manifest(note).to_bytes()
 
-        if name in ('note.md', f'{ident}.md'):
-            note = self.get_note(ident)
-            if not note:
-                raise FileNotFoundError(errno.ENOENT, str(path))
 
-            content = 'title: ' + note.title + '\n---\n' + note.text + '\n'
-            return content.encode('utf-8')
+class BearNoteStorageBackend(ReadOnlyCachedStorageBackend):
+    '''
+    A backend responsible for serving an individual Bear note.
+    '''
 
-        if name == 'container.yaml':
-            return self.make_container_manifest(ident).to_bytes()
+    SCHEMA = Schema({
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+            "path": {
+                "$ref": "types.json#abs_path",
+                "description": "Path to the Bear SQLite database",
+            },
+            "note": {
+                "type": "string",
+                "description": "Bear note identifier, typically UUID",
+            },
+        }
+    })
+    TYPE = 'bear-note'
 
-        if name == 'README.txt':
-            return (
-                'This is an auto-generated directory representing a (storage '
-                'for a) single Bear note. The note itself is exposed via the '
-                'Wildland FS tree, depending on what tags it defines for '
-                'itself. Thus a note containing `#projects/wildland/bear2fs` '
-                'tag will be found under `~/Wildland/projects/bear2fs/` '
-                'directory.\n'
-            ).encode()
+    def __init__(self, **kwds):
+        super().__init__(**kwds)
+
+        self.bear_db = BearDB(self.params['path'])
+        self.ident = self.params['note']
+        self.note: Optional[BearNote] = None
+
+    @classmethod
+    def cli_options(cls):
+        return [
+            click.Option(['--path'], metavar='PATH',
+                         help='Path to the SQLite database',
+                         required=True),
+            click.Option(['--note'], metavar='IDENT',
+                         help='Bear note identifier',
+                         required=True),
+        ]
+
+    @classmethod
+    def cli_create(cls, data):
+        return {
+            'path': data['path'],
+            'note': data['note'],
+        }
+
+    def get_md(self) -> bytes:
+        '''
+        Get the contents of note Markdown file.
+        '''
+
+        if not self.note:
+            return b''
+
+        content = 'title: ' + self.note.title + '\n---\n' + self.note.text + '\n'
+        return content.encode('utf-8')
+
+    @staticmethod
+    def get_readme() -> bytes:
+        '''
+        Get the contents of note README.txt file.
+        '''
+
+        return (
+            'This is an auto-generated directory representing a (storage '
+             'for a) single Bear note. The note itself is exposed via the '
+            'Wildland FS tree, depending on what tags it defines for '
+            'itself. Thus a note containing `#projects/wildland/bear2fs` '
+            'tag will be found under `~/Wildland/projects/bear2fs/` '
+            'directory.\n'
+        ).encode()
+
+    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
+        self.note = self.bear_db.get_note(self.ident)
+        if not self.note:
+            return
+
+        yield PurePosixPath('.'), Info(is_dir=True)
+
+        md_size = len(self.get_md())
+        readme_size = len(self.get_readme())
+        yield PurePosixPath('note.md'), Info(is_dir=False, size=md_size)
+        yield PurePosixPath(f'{self.ident}.md'), Info(is_dir=False, size=md_size)
+        yield PurePosixPath('README.txt'), Info(is_dir=False, size=readme_size)
+
+    def backend_load_file(self, path: PurePosixPath) -> bytes:
+        assert len(path.parts) == 1
+
+        if path.name == 'note.md' or path.name == f'{self.ident}.md':
+            return self.get_md()
+
+        if path.name == 'README.txt':
+            return self.get_readme()
 
         raise FileNotFoundError(errno.ENOENT, str(path))
