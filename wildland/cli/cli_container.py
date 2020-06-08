@@ -125,22 +125,25 @@ container_.add_command(edit)
 
 
 @container_.command(short_help='mount container')
-@click.argument('cont', metavar='CONTAINER')
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, cont):
+def mount(obj: ContextObj, container_names):
     '''
-    Mount a container given by name or path to manifest. The Wildland system has
-    to be mounted first, see ``wl mount``.
+    Mount a container given by name or path to manifest. Repeat the argument to
+    mount multiple containers.
+
+    The Wildland system has to be mounted first, see ``wl mount``.
     '''
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
-    container = obj.client.load_container_from(cont)
+    for container_name in container_names:
+        container = obj.client.load_container_from(container_name)
 
-    click.echo(f'Mounting: {container.local_path}')
-    is_default_user = container.signer == obj.client.config.get('default_user')
-    storage = obj.client.select_storage(container)
-    obj.fs_client.mount_container(container, storage, is_default_user)
+        click.echo(f'Mounting: {container.local_path}')
+        is_default_user = container.signer == obj.client.config.get('default_user')
+        storage = obj.client.select_storage(container)
+        obj.fs_client.mount_container(container, storage, is_default_user)
 
 
 @container_.command(short_help='unmount container', alias=['umount'])
