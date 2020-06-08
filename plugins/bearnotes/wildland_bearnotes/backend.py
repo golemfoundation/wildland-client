@@ -63,7 +63,6 @@ class BearNote:
         for tag in sorted(self.tags, key=len):
             path = PurePosixPath('/') / PurePosixPath(tag)
             for parent in path.parents:
-                print(parent, result)
                 if parent in result:
                     result.remove(parent)
             result.add(path)
