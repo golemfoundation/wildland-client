@@ -87,6 +87,34 @@ Create local storage.
 
    Password. Required.
 
+.. program:: wl-storage-create-bear-db
+.. _wl-storage-create-bear-db:
+
+:command:`wl storage create bear-db --container <container> [-u] [--user <user>] --path <path>`
+-----------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --path <path>
+
+   Path to Bear SQLite database. Required.
+
+.. program:: wl-storage-create-bear-note
+.. _wl-storage-create-bear-note:
+
+:command:`wl storage create bear-note --container <container> [-u] [--user <user>] --path <path> --note <note>`
+---------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --path <path>
+
+   Path to Bear SQLite database. Required.
+
+.. option:: --note <note>
+
+   Bear note identifier. Required.
+
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:
