@@ -189,10 +189,7 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
             note = self.bear_db.get_note(ident)
             if not note:
                 continue
-            # TODO: we need the right manifest size here; because otherwise the
-            # file gets padded with 0's otherwise
-            manifest_size = len(self.make_container_manifest(note).to_bytes())
-            yield PurePosixPath(f'{ident}.yaml'), Info(is_dir=False, size=manifest_size)
+            yield PurePosixPath(f'{ident}.yaml'), Info(is_dir=False)
 
     def backend_load_file(self, path: PurePosixPath) -> bytes:
         # we should be called by CachedStorage only with paths from backend_info_all()
@@ -284,12 +281,9 @@ class BearNoteStorageBackend(ReadOnlyCachedStorageBackend):
             return
 
         yield PurePosixPath('.'), Info(is_dir=True)
-
-        md_size = len(self.get_md())
-        readme_size = len(self.get_readme())
-        yield PurePosixPath('note.md'), Info(is_dir=False, size=md_size)
-        yield PurePosixPath(f'{self.ident}.md'), Info(is_dir=False, size=md_size)
-        yield PurePosixPath('README.txt'), Info(is_dir=False, size=readme_size)
+        yield PurePosixPath('note.md'), Info(is_dir=False)
+        yield PurePosixPath(f'{self.ident}.md'), Info(is_dir=False)
+        yield PurePosixPath('README.txt'), Info(is_dir=False)
 
     def backend_load_file(self, path: PurePosixPath) -> bytes:
         assert len(path.parts) == 1
