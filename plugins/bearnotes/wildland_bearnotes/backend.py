@@ -18,7 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-S3 storage backend
+Bear storage backend
 '''
 
 from pathlib import PurePosixPath
