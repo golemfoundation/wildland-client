@@ -99,6 +99,10 @@ Create local storage.
 
    Path to Bear SQLite database. Required.
 
+.. option:: --with-content
+
+   Serve also note content, not only manifests.
+
 .. program:: wl-storage-create-bear-note
 .. _wl-storage-create-bear-note:
 
