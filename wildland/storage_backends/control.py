@@ -33,7 +33,7 @@ import fuse
 from .base import StorageBackend, FileProxyMixin
 from ..exc import WildlandError
 
-CONTROL_FILE_MAX_SIZE = 4096
+CONTROL_FILE_MAX_SIZE = 40960
 
 class ControlFile:
     '''Control file handler'''
