@@ -25,7 +25,7 @@ import abc
 import stat
 from io import BytesIO
 from dataclasses import dataclass
-from typing import Dict, Iterable, Tuple, Set, Optional
+from typing import Dict, Iterable, Tuple, Set
 from pathlib import PurePosixPath
 import logging
 import time
@@ -41,25 +41,16 @@ from .base import StorageBackend
 class Info:
     '''
     Common file attributes supported by the backends.
-
-    If size is None, it means the information is not available,
-    and CachedStorageBackend will try to determine it.
     '''
 
     is_dir: bool
-    size: Optional[int] = None
+    size: int = 0
     timestamp: int = 0
 
     def as_fuse_stat(self, uid, gid, read_only) -> fuse.Stat:
         '''
         Convert to a fuse.Stat object.
         '''
-
-        if self.is_dir:
-            size = self.size or 0
-        else:
-            assert self.size is not None
-            size = self.size
 
         if self.is_dir:
             st_mode = stat.S_IFDIR | 0o755
@@ -74,7 +65,7 @@ class Info:
             st_nlink=1,
             st_uid=uid,
             st_gid=gid,
-            st_size=size,
+            st_size=self.size,
             st_atime=self.timestamp,
             st_mtime=self.timestamp,
             st_ctime=self.timestamp,
@@ -290,7 +281,7 @@ class CachedStorageBackend(StorageBackend):
 
     def update_size(self, path):
         '''
-        Update the current known file size.
+        Update the current known file size, if the file is open.
 
         This needs to be done if the file is open, or if the file size is not
         yet known (backend_info_all() did not return a size).
@@ -301,8 +292,6 @@ class CachedStorageBackend(StorageBackend):
         st = self.files[path]
         if path in self.buffers:
             st.size = self.buffers[path].getbuffer().nbytes
-        elif st.size is None:
-            st.size = len(self.backend_load_file(path))
 
     def getattr(self, path):
         self.check()

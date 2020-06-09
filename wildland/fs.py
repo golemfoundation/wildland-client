@@ -65,6 +65,11 @@ class WildlandFS(fuse.Fuse):
         # (TODO: make code coverage work in multi-threaded mode)
         self.multithreaded = False
 
+        # Disable file caching, so that we don't have to report the right file
+        # size in getattr(), for example for auto-generated files.
+        # See 'man 8 mount.fuse' for details.
+        self.fuse_args.add('direct_io')
+
         self.resolver = WildlandFSConflictResolver(self, 0, 0)
 
     def install_debug_handler(self):
@@ -74,7 +79,7 @@ class WildlandFS(fuse.Fuse):
                 method = getattr(self, name)
                 setattr(self, name, debug_handler(method, bound=True))
 
-    def main(self, *args, **kwds): # pylint: disable=signature-differs
+    def main(self, args=None):
         # this is after cmdline parsing
         self.uid, self.gid = os.getuid(), os.getgid()
 
@@ -87,7 +92,7 @@ class WildlandFS(fuse.Fuse):
             [PurePosixPath('/.control')],
             ControlStorageBackend(fs=self, uid=self.uid, gid=self.gid))
 
-        super().main(*args, **kwds)
+        super().main(args)
 
     def init_logging(self, args):
         '''

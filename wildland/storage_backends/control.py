@@ -33,8 +33,6 @@ import fuse
 from .base import StorageBackend, FileProxyMixin
 from ..exc import WildlandError
 
-CONTROL_FILE_MAX_SIZE = 40960
-
 class ControlFile:
     '''Control file handler'''
     def __init__(self, node, *, uid, gid, need_read, need_write):
@@ -44,8 +42,6 @@ class ControlFile:
         self.gid = gid
 
         self.buffer = self.node() if need_read else None
-        if self.buffer is not None:
-            assert len(self.buffer) <= CONTROL_FILE_MAX_SIZE
 
     # pylint: disable=missing-docstring
 
@@ -60,7 +56,7 @@ class ControlFile:
             st_nlink=1,
             st_uid=self.uid,
             st_gid=self.gid,
-            st_size=CONTROL_FILE_MAX_SIZE,
+            st_size=0,
         )
 
     def read(self, length, offset):
@@ -214,7 +210,7 @@ class ControlStorageBackend(FileProxyMixin, StorageBackend):
             st_nlink=1,
             st_uid=self.uid,
             st_gid=self.gid,
-            st_size=CONTROL_FILE_MAX_SIZE,
+            st_size=0,
         )
 
     def readdir(self, path):
