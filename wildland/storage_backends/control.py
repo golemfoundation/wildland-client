@@ -30,10 +30,11 @@ import posix
 
 import fuse
 
-from .base import StorageBackend, FileProxyMixin
+from .base import StorageBackend, File, FileProxyMixin
 from ..exc import WildlandError
 
-class ControlFile:
+
+class ControlFile(File):
     '''Control file handler'''
     def __init__(self, node, *, uid, gid, need_read, need_write):
         # pylint: disable=unused-argument
@@ -64,15 +65,15 @@ class ControlFile:
             raise OSError(errno.EINVAL, '')
         return self.buffer[offset:offset+length]
 
-    def write(self, buf, offset):
+    def write(self, data, offset):
         assert offset == 0
         try:
-            self.node(buf)
+            self.node(data)
         except WildlandError:
             # libfuse will return EINVAL anyway, but make it explicit here.
             logging.exception('control write error')
             raise OSError(errno.EINVAL, '')
-        return len(buf)
+        return len(data)
 
     def ftruncate(self, length):
         pass

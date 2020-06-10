@@ -23,12 +23,17 @@ Abstract classes for storage
 
 import abc
 import errno
-from typing import Optional, Dict, Type, Any, List
+from pathlib import PurePosixPath
+from typing import Optional, Dict, Type, Any, List, TypeVar
 import click
 import yaml
+import fuse
 
 from ..manifest.schema import Schema
 from .control_decorators import control_file
+
+
+F = TypeVar('F')
 
 
 class StorageBackend(metaclass=abc.ABCMeta):
@@ -101,65 +106,70 @@ class StorageBackend(metaclass=abc.ABCMeta):
     # pylint: disable=missing-docstring
 
     @control_file('manifest.yaml')
-    def control_manifest_read(self):
+    def control_manifest_read(self) -> bytes:
         return yaml.dump(self.params).encode('ascii')
 
-    def mount(self):
+    def mount(self) -> None:
         pass
 
-    def refresh(self):
+    def refresh(self) -> None:
         pass
 
+    # File operations (here described on abstract type F).
+    # Can be implemented using FileProxyMixin, see below.
+
     @abc.abstractmethod
-    def open(self, path, flags):
+    def open(self, path: PurePosixPath, flags: int) -> F:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def create(self, path, flags, mode):
+    def create(self, path: PurePosixPath, flags: int, mode: int) -> F:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def release(self, path, flags, obj):
+    def release(self, path: PurePosixPath, flags: int, obj: F) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def read(self, path, length, offset, obj):
+    def read(self, path: PurePosixPath, length: int, offset: int, obj: F) -> bytes:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def write(self, path, data, offset, obj):
+    def write(self, path: PurePosixPath, data: bytes, offset: int, obj: F) -> int:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def fgetattr(self, path, obj):
+    def fgetattr(self, path: PurePosixPath, obj: F) -> fuse.Stat:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def ftruncate(self, path, length, obj):
+    def ftruncate(self, path: PurePosixPath, length: int, obj: F) -> None:
+        raise NotImplementedError()
+
+    # Other operations.
+
+    @abc.abstractmethod
+    def getattr(self, path: PurePosixPath) -> fuse.Stat:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def getattr(self, path):
+    def readdir(self, path: PurePosixPath) -> List[str]:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def readdir(self, path):
+    def truncate(self, path: PurePosixPath, length: int) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def truncate(self, path, length):
+    def unlink(self, path: PurePosixPath) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def unlink(self, path):
+    def mkdir(self, path: PurePosixPath, mode: int) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def mkdir(self, path, mode):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def rmdir(self, path):
+    def rmdir(self, path: PurePosixPath) -> None:
         raise NotImplementedError()
 
 
@@ -196,13 +206,40 @@ class StorageBackend(metaclass=abc.ABCMeta):
 def _proxy(method_name):
     def method(_self, *args, **_kwargs):
         _path, rest, fileobj = args[0], args[1:-1], args[-1]
-        if not hasattr(fileobj, method_name):
+        try:
+            return getattr(fileobj, method_name)(*rest)
+        except NotImplementedError:
             raise OSError(errno.ENOSYS, '')
-        return getattr(fileobj, method_name)(*rest)
 
     method.__name__ = method_name
 
     return method
+
+
+class File(metaclass=abc.ABCMeta):
+    '''
+    Abstract base class for a file. Subclass and use with FileProxyMixin.
+
+    Methods are optional to implement, except release().
+    '''
+
+    # pylint: disable=missing-docstring
+
+    @abc.abstractmethod
+    def release(self, flags: int) -> None:
+        raise NotImplementedError()
+
+    def read(self, length: int, offset: int) -> bytes:
+        raise NotImplementedError()
+
+    def write(self, data: bytes, offset: int) -> int:
+        raise NotImplementedError()
+
+    def fgetattr(self) -> fuse.Stat:
+        raise NotImplementedError()
+
+    def ftruncate(self, length: int) -> None:
+        raise NotImplementedError()
 
 
 class FileProxyMixin:
@@ -212,7 +249,7 @@ class FileProxyMixin:
 
     Example:
 
-        class MyFile:
+        class MyFile(File):
             def __init__(self, path, flags, mode=0, ...):
                 ...
 
@@ -232,7 +269,7 @@ class FileProxyMixin:
     write = _proxy('write')
     fsync = _proxy('fsync')
     release = _proxy('release')
-    flush = _proxy('flush')
+    # flush = _proxy('flush')
     fgetattr = _proxy('fgetattr')
     ftruncate = _proxy('ftruncate')
-    lock = _proxy('lock')
+    # lock = _proxy('lock')
