@@ -24,7 +24,7 @@ Abstract classes for storage
 import abc
 import errno
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, TypeVar
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 import click
 import yaml
 import fuse
@@ -33,7 +33,13 @@ from ..manifest.schema import Schema
 from .control_decorators import control_file
 
 
-F = TypeVar('F')
+class OptionalError(NotImplementedError):
+    '''
+    A variant of NotImplementedError.
+
+    This is a hack to stop pylint from complaining about methods that do not
+    have to be implemented.
+    '''
 
 
 class StorageBackend(metaclass=abc.ABCMeta):
@@ -77,18 +83,26 @@ class StorageBackend(metaclass=abc.ABCMeta):
             self.read_only = True
 
     @classmethod
+    def add_wrappers(cls, backend: 'StorageBackend') -> 'StorageBackend':
+        '''
+        Add necessary wrappers after creating the class.
+        '''
+
+        return backend
+
+    @classmethod
     def cli_options(cls) -> List[click.Option]:
         '''
         Provide a list of command-line options needed to create this storage.
         '''
-        raise NotImplementedError()
+        raise OptionalError()
 
     @classmethod
     def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         '''
         Convert provided command-line arguments to a list of storage parameters.
         '''
-        raise NotImplementedError()
+        raise OptionalError()
 
     @staticmethod
     def types() -> Dict[str, Type['StorageBackend']]:
@@ -103,7 +117,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         return StorageBackend._types
 
-    # pylint: disable=missing-docstring
+    # pylint: disable=missing-docstring, no-self-use
 
     @control_file('manifest.yaml')
     def control_manifest_read(self) -> bytes:
@@ -115,46 +129,41 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def refresh(self) -> None:
         pass
 
-    # File operations (here described on abstract type F).
+    # FUSE file operations. You can return an arbitrary object as a file handle
+    # from open() / create(), and receive it as obj.
     # Can be implemented using FileProxyMixin, see below.
 
+    def open(self, _path: PurePosixPath, _flags: int):
+        return object()
+
     @abc.abstractmethod
-    def open(self, path: PurePosixPath, flags: int) -> F:
+    def create(self, path: PurePosixPath, flags: int, mode: int):
+        raise NotImplementedError()
+
+    def release(self, _path: PurePosixPath, _flags: int, _obj) -> None:
+        return
+
+    @abc.abstractmethod
+    def read(self, path: PurePosixPath, length: int, offset: int, obj) -> bytes:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def create(self, path: PurePosixPath, flags: int, mode: int) -> F:
+    def write(self, path: PurePosixPath, data: bytes, offset: int, obj) -> int:
         raise NotImplementedError()
 
-    @abc.abstractmethod
-    def release(self, path: PurePosixPath, flags: int, obj: F) -> None:
-        raise NotImplementedError()
+    def fgetattr(self, path: PurePosixPath, _obj) -> fuse.Stat:
+        return self.getattr(path)
 
-    @abc.abstractmethod
-    def read(self, path: PurePosixPath, length: int, offset: int, obj: F) -> bytes:
-        raise NotImplementedError()
+    def ftruncate(self, path: PurePosixPath, length: int, _obj) -> None:
+        self.truncate(path, length)
 
-    @abc.abstractmethod
-    def write(self, path: PurePosixPath, data: bytes, offset: int, obj: F) -> int:
-        raise NotImplementedError()
+    # Other FUSE operations
 
-    @abc.abstractmethod
-    def fgetattr(self, path: PurePosixPath, obj: F) -> fuse.Stat:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def ftruncate(self, path: PurePosixPath, length: int, obj: F) -> None:
-        raise NotImplementedError()
-
-    # Other operations.
-
-    @abc.abstractmethod
     def getattr(self, path: PurePosixPath) -> fuse.Stat:
-        raise NotImplementedError()
+        raise OptionalError()
 
-    @abc.abstractmethod
-    def readdir(self, path: PurePosixPath) -> List[str]:
-        raise NotImplementedError()
+    def readdir(self, path: PurePosixPath) -> Iterable[str]:
+        raise OptionalError()
 
     @abc.abstractmethod
     def truncate(self, path: PurePosixPath, length: int) -> None:
@@ -172,6 +181,14 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def rmdir(self, path: PurePosixPath) -> None:
         raise NotImplementedError()
 
+    # Extra, optional operations
+
+    def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+        '''
+        Retrieve information about all files and directories.
+        '''
+
+        raise OptionalError()
 
     @staticmethod
     def from_params(params, uid, gid, read_only=False) -> 'StorageBackend':
@@ -183,7 +200,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
-        return cls(params=params, uid=uid, gid=gid, read_only=read_only)
+        backend = cls(params=params, uid=uid, gid=gid, read_only=read_only)
+        backend = cls.add_wrappers(backend)
+        return backend
 
     @staticmethod
     def is_type_supported(storage_type):
@@ -203,7 +222,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         manifest.apply_schema(cls.SCHEMA)
 
 
-def _proxy(method_name):
+def _file_proxy(method_name):
     def method(_self, *args, **_kwargs):
         _path, rest, fileobj = args[0], args[1:-1], args[-1]
         try:
@@ -223,23 +242,23 @@ class File(metaclass=abc.ABCMeta):
     Methods are optional to implement, except release().
     '''
 
-    # pylint: disable=missing-docstring
+    # pylint: disable=missing-docstring, no-self-use
 
     @abc.abstractmethod
     def release(self, flags: int) -> None:
         raise NotImplementedError()
 
     def read(self, length: int, offset: int) -> bytes:
-        raise NotImplementedError()
+        raise OptionalError()
 
     def write(self, data: bytes, offset: int) -> int:
-        raise NotImplementedError()
+        raise OptionalError()
 
     def fgetattr(self) -> fuse.Stat:
-        raise NotImplementedError()
+        raise OptionalError()
 
     def ftruncate(self, length: int) -> None:
-        raise NotImplementedError()
+        raise OptionalError()
 
 
 class FileProxyMixin:
@@ -265,11 +284,49 @@ class FileProxyMixin:
                 return MyFile(path, flags, ...)
     '''
 
-    read = _proxy('read')
-    write = _proxy('write')
-    fsync = _proxy('fsync')
-    release = _proxy('release')
-    # flush = _proxy('flush')
-    fgetattr = _proxy('fgetattr')
-    ftruncate = _proxy('ftruncate')
-    # lock = _proxy('lock')
+    read = _file_proxy('read')
+    write = _file_proxy('write')
+    fsync = _file_proxy('fsync')
+    release = _file_proxy('release')
+    # flush = _file_proxy('flush')
+    fgetattr = _file_proxy('fgetattr')
+    ftruncate = _file_proxy('ftruncate')
+    # lock = _file_proxy('lock')
+
+
+def _inner_proxy(method_name):
+    def method(self, *args, **kwargs):
+        return getattr(self.inner, method_name)(*args, **kwargs)
+
+    method.__name__ = method_name
+    return method
+
+
+class StorageBackendWrapper(StorageBackend):
+    '''
+    A generic wrapper for a storage backend. Subclass to implement your own
+    wrapper.
+    '''
+
+    def __init__(self, inner: StorageBackend):
+        super().__init__(read_only=inner.read_only)
+        self.inner = inner
+        self.params = inner.params
+
+    mount = _inner_proxy('mount')
+    refresh = _inner_proxy('refresh')
+
+    open = _inner_proxy('open')
+    create = _inner_proxy('create')
+    release = _inner_proxy('release')
+    read = _inner_proxy('read')
+    write = _inner_proxy('write')
+    fgetattr = _inner_proxy('fgetattr')
+    ftruncate = _inner_proxy('ftruncate')
+
+    getattr = _inner_proxy('getattr')
+    readdir = _inner_proxy('readdir')
+    truncate = _inner_proxy('truncate')
+    unlink = _inner_proxy('unlink')
+    mkdir = _inner_proxy('mkdir')
+    rmdir = _inner_proxy('rmdir')
