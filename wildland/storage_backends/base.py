@@ -143,13 +143,11 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def release(self, _path: PurePosixPath, _flags: int, _obj) -> None:
         return
 
-    @abc.abstractmethod
     def read(self, path: PurePosixPath, length: int, offset: int, obj) -> bytes:
-        raise NotImplementedError()
+        raise OptionalError()
 
-    @abc.abstractmethod
     def write(self, path: PurePosixPath, data: bytes, offset: int, obj) -> int:
-        raise NotImplementedError()
+        raise OptionalError()
 
     def fgetattr(self, path: PurePosixPath, _obj) -> fuse.Stat:
         return self.getattr(path)
@@ -186,6 +184,20 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         '''
         Retrieve information about all files and directories.
+        '''
+
+        raise OptionalError()
+
+    def extra_read_full(self, path: PurePosixPath, handle) -> bytes:
+        '''
+        Retrieve the whole file.
+        '''
+
+        raise OptionalError()
+
+    def extra_write_full(self, path: PurePosixPath, data: bytes, handle) -> int:
+        '''
+        Save the whole file.
         '''
 
         raise OptionalError()
@@ -260,6 +272,12 @@ class File(metaclass=abc.ABCMeta):
     def ftruncate(self, length: int) -> None:
         raise OptionalError()
 
+    def extra_read_full(self) -> bytes:
+        raise OptionalError()
+
+    def extra_write_full(self, data: bytes) -> int:
+        raise OptionalError()
+
 
 class FileProxyMixin:
     '''
@@ -292,6 +310,8 @@ class FileProxyMixin:
     fgetattr = _file_proxy('fgetattr')
     ftruncate = _file_proxy('ftruncate')
     # lock = _file_proxy('lock')
+    extra_read_full = _file_proxy('extra_read_full')
+    extra_write_full = _file_proxy('extra_read_full')
 
 
 def _inner_proxy(method_name):
@@ -330,3 +350,7 @@ class StorageBackendWrapper(StorageBackend):
     unlink = _inner_proxy('unlink')
     mkdir = _inner_proxy('mkdir')
     rmdir = _inner_proxy('rmdir')
+
+    extra_info_all = _inner_proxy('extra_info_all')
+    extra_read_full = _inner_proxy('extra_read_full')
+    extra_write_full = _inner_proxy('extra_write_full')

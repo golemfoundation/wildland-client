@@ -30,6 +30,7 @@ import fuse
 import click
 
 from .cached2 import CachedStorageBackend
+from .buffered import BufferedStorageBackend
 from .base import StorageBackend
 from ..manifest.schema import Schema
 
@@ -62,7 +63,8 @@ class LocalCachedStorageBackend(StorageBackend):
 
     @classmethod
     def add_wrappers(cls, backend):
-        return CachedStorageBackend(backend)
+        return BufferedStorageBackend(
+            CachedStorageBackend(backend), page_size=16)
 
     @classmethod
     def cli_options(cls):
@@ -139,16 +141,14 @@ class LocalCachedStorageBackend(StorageBackend):
         local.write_bytes(b'')
         return object()
 
-    def read(self, path: PurePosixPath, length: int, offset: int, _obj) -> bytes:
+    def extra_read_full(self, path: PurePosixPath, _handle) -> bytes:
         with open(self._local(path), 'rb') as f:
-            f.seek(offset)
-            return f.read(length)
+            return f.read()
 
-    def write(self, path: PurePosixPath, data: bytes, offset: int, _obj) -> int:
+    def extra_write_full(self, path: PurePosixPath, data: bytes, _handle) -> int:
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         with open(self._local(path), 'wb') as f:
-            f.seek(offset)
             return f.write(data)
 
     def truncate(self, path: PurePosixPath, length: int) -> None:

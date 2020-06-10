@@ -48,7 +48,7 @@ class CachedStorageBackend(StorageBackendWrapper):
     '''
     A storage backend that caches results about files.
 
-    Requires to implement extra_info_all().
+    The inner backend must implement extra_info_all().
     '''
 
     CACHE_TIMEOUT = 3.
@@ -75,7 +75,7 @@ class CachedStorageBackend(StorageBackendWrapper):
 
         logger.info(self.getattr_cache)
 
-        self.expiry = time.time()
+        self.expiry = time.time() + self.CACHE_TIMEOUT
 
     def _update(self):
         if self.expiry < time.time():
