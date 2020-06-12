@@ -25,6 +25,8 @@ import abc
 import errno
 from pathlib import PurePosixPath
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
+import os
+
 import click
 import yaml
 import fuse
@@ -163,9 +165,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def readdir(self, path: PurePosixPath) -> Iterable[str]:
         raise OptionalError()
 
-    @abc.abstractmethod
     def truncate(self, path: PurePosixPath, length: int) -> None:
-        raise NotImplementedError()
+        raise OptionalError()
 
     @abc.abstractmethod
     def unlink(self, path: PurePosixPath) -> None:

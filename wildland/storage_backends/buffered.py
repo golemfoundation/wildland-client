@@ -44,12 +44,13 @@ class BufferedFile(File):
     def __init__(self,
                  inner: StorageBackend,
                  path: PurePosixPath,
-                 handle):
+                 handle,
+                 attr: fuse.Stat):
         self.inner = inner
         self.path = path
         self.handle = handle
 
-        self.attr = self.inner.fgetattr(path, self.handle)
+        self.attr = attr
         self.buf = bytearray()
         self.loaded = self.attr.st_size == 0
         self.dirty = False
@@ -105,10 +106,15 @@ class BufferedStorageBackend(FileProxyMixin, StorageBackendWrapper):
         super().__init__(inner)
         self.page_size = page_size
 
+    # If possible, call getattr() before opening the file, so that we do not
+    # invalidate the cache.
+
     def open(self, path: PurePosixPath, mode: int) -> BufferedFile:
+        attr = self.inner.getattr(path)
         handle = self.inner.open(path, mode)
-        return BufferedFile(self.inner, path, handle)
+        return BufferedFile(self.inner, path, handle, attr)
 
     def create(self, path: PurePosixPath, flags: int, mode: int) -> BufferedFile:
         handle = self.inner.create(path, flags, mode)
-        return BufferedFile(self.inner, path, handle)
+        attr = self.inner.getattr(path)
+        return BufferedFile(self.inner, path, handle, attr)

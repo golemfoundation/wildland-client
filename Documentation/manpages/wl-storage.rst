@@ -63,9 +63,9 @@ Create local storage.
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --bucket <bucket>
+.. option:: --url <url>
 
-   S3 bucket. Required
+   S3 URL, of the form ``s3://bucket/`` or ``s3://bucket/path/``. Required.
 
 .. program:: wl-storage-create-webdav
 .. _wl-storage-create-webdav:
