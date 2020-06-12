@@ -25,7 +25,7 @@ import abc
 import errno
 from pathlib import PurePosixPath
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
-import os
+import stat
 
 import click
 import yaml
@@ -72,6 +72,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
                  read_only: bool = False,
+                 uid: int,
+                 gid: int,
                  **kwds):
         # pylint: disable=redefined-builtin, unused-argument
         self.read_only = False
@@ -83,6 +85,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         if read_only:
             self.read_only = True
+
+        self.uid = uid
+        self.gid = gid
 
     @classmethod
     def add_wrappers(cls, backend: 'StorageBackend') -> 'StorageBackend':
@@ -202,6 +207,40 @@ class StorageBackend(metaclass=abc.ABCMeta):
         '''
 
         raise OptionalError()
+
+    # Helpers
+
+    def simple_file_stat(self, size: int, timestamp: int) -> fuse.Stat:
+        '''
+        Create a fuse.Stat object for a regular file.
+        '''
+
+        return fuse.Stat(
+            st_mode=stat.S_IFREG | 0o644,
+            st_nlink=1,
+            st_uid=self.uid,
+            st_gid=self.gid,
+            st_size=size,
+            st_atime=timestamp,
+            st_mtime=timestamp,
+            st_ctime=timestamp,
+        )
+
+    def simple_dir_stat(self, size: int = 0, timestamp: int = 0) -> fuse.Stat:
+        '''
+        Create a fuse.Stat object for a directory.
+        '''
+
+        return fuse.Stat(
+            st_mode=stat.S_IFDIR | 0o755,
+            st_nlink=1,
+            st_uid=self.uid,
+            st_gid=self.gid,
+            st_size=size,
+            st_atime=timestamp,
+            st_mtime=timestamp,
+            st_ctime=timestamp,
+        )
 
     @staticmethod
     def from_params(params, uid, gid, read_only=False) -> 'StorageBackend':
@@ -330,7 +369,7 @@ class StorageBackendWrapper(StorageBackend):
     '''
 
     def __init__(self, inner: StorageBackend):
-        super().__init__(read_only=inner.read_only)
+        super().__init__(read_only=inner.read_only, uid=inner.uid, gid=inner.gid)
         self.inner = inner
         self.params = inner.params
 

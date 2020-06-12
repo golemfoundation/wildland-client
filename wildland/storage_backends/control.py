@@ -84,10 +84,8 @@ class ControlStorageBackend(FileProxyMixin, StorageBackend):
     file_class = ControlFile
 
     def __init__(self, fs, uid, gid):
-        super().__init__()
+        super().__init__(uid=uid, gid=gid)
         self.fs = fs
-        self.uid = uid
-        self.gid = gid
 
     @classmethod
     def cli_options(cls):

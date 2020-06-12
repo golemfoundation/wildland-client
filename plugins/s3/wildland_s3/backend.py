@@ -27,7 +27,6 @@ from typing import Iterable, Tuple, Set
 import mimetypes
 import logging
 from urllib.parse import urlparse
-import stat
 
 import boto3
 import botocore
@@ -71,11 +70,8 @@ class S3StorageBackend(StorageBackend):
     })
     TYPE = 's3'
 
-    def __init__(self, *, uid, gid, **kwds):
+    def __init__(self, **kwds):
         super().__init__(**kwds)
-
-        self.uid = uid
-        self.gid = gid
 
         credentials = self.params['credentials']
         session = boto3.Session(
@@ -144,16 +140,7 @@ class S3StorageBackend(StorageBackend):
             size = obj.size
         else:
             size = obj.content_length
-        return fuse.Stat(
-            st_mode=stat.S_IFREG | 0o644,
-            st_nlink=1,
-            st_uid=self.uid,
-            st_gid=self.gid,
-            st_size=size,
-            st_atime=timestamp,
-            st_mtime=timestamp,
-            st_ctime=timestamp,
-        )
+        return self.simple_file_stat(size, timestamp)
 
     def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         for obj_summary in self.bucket.objects.all():
@@ -171,12 +158,7 @@ class S3StorageBackend(StorageBackend):
         self.s3_dirs.add(PurePosixPath('.'))
 
         for dir_path in self.s3_dirs:
-            yield dir_path, fuse.Stat(
-                st_mode=stat.S_IFDIR | 0o644,
-                st_nlink=1,
-                st_uid=self.uid,
-                st_gid=self.gid,
-            )
+            yield dir_path, self.simple_dir_stat()
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:
