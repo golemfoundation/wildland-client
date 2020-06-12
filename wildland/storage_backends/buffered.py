@@ -21,7 +21,6 @@
 BufferedStorageBackend wrapper
 '''
 
-from typing import Dict, List, Tuple, Iterable, Set, Optional
 from pathlib import PurePosixPath
 import logging
 
