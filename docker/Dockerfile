@@ -5,6 +5,8 @@ FROM wildland-fuse-ci
 
 USER root
 
+RUN apt-get -qy update
+
 RUN apt-get install -y \
       strace \
       sudo \
