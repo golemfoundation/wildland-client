@@ -12,7 +12,8 @@ RUN apt-get install -y \
       sudo \
       nano \
       fish \
-      nginx
+      nginx \
+      libnginx-mod-http-dav-ext
 
 # Enable sudo
 
