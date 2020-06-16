@@ -5,12 +5,15 @@ FROM wildland-fuse-ci
 
 USER root
 
+RUN apt-get -qy update
+
 RUN apt-get install -y \
       strace \
       sudo \
       nano \
       fish \
-      nginx
+      nginx \
+      libnginx-mod-http-dav-ext
 
 # Enable sudo
 
