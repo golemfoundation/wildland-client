@@ -70,10 +70,6 @@ class ConflictResolver(metaclass=abc.ABCMeta):
     SUFFIX_FORMAT = '{}.wl.{}'
     SUFFIX_RE = re.compile(r'^(.*).wl.(\d+)$')
 
-    def __init__(self, uid, gid):
-        self.uid = uid
-        self.gid = gid
-
     @abc.abstractmethod
     def get_storage_paths(self) -> Dict[int, List[PurePosixPath]]:
         '''
@@ -126,8 +122,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         return fuse.Stat(
             st_mode=stat.S_IFDIR | 0o555,
             st_nlink=1,
-            st_uid=self.uid,
-            st_gid=self.gid,
+            st_uid=None,
+            st_gid=None,
         )
 
     def readdir(self, path: PurePosixPath) -> List[str]:
@@ -262,8 +258,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             st = fuse.Stat(
                 st_mode=stat.S_IFDIR | 0o555,
                 st_nlink=1,
-                st_uid=self.uid,
-                st_gid=self.gid,
+                st_uid=None,
+                st_gid=None,
             )
             return (st, None)
 

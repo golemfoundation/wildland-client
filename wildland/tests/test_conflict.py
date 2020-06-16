@@ -35,7 +35,7 @@ from ..conflict import ConflictResolver
 
 class TestFS(ConflictResolver):
     def __init__(self, *storages):
-        super().__init__(uid=1000, gid=1000)
+        super().__init__()
         self.storages = storages
 
     def get_storage_paths(self):

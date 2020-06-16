@@ -32,6 +32,7 @@ from lxml import etree
 import click
 import fuse
 
+from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached2 import CachedStorageMixin
@@ -162,9 +163,9 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
                 size = int(content_length)
 
             if is_dir:
-                yield path, self.simple_dir_stat(size, timestamp)
+                yield path, simple_dir_stat(size, timestamp)
             else:
-                yield path, self.simple_file_stat(size, timestamp)
+                yield path, simple_file_stat(size, timestamp)
 
     def make_url(self, path: PurePosixPath) -> str:
         '''

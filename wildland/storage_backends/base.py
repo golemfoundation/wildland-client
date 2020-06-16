@@ -97,8 +97,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
                  read_only: bool = False,
-                 uid: int,
-                 gid: int,
                  **kwds):
         # pylint: disable=redefined-builtin, unused-argument
         self.read_only = False
@@ -110,9 +108,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         if read_only:
             self.read_only = True
-
-        self.uid = uid
-        self.gid = gid
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -203,42 +198,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def rmdir(self, path: PurePosixPath) -> None:
         raise NotImplementedError()
 
-    # Helpers
-
-    def simple_file_stat(self, size: int, timestamp: int) -> fuse.Stat:
-        '''
-        Create a fuse.Stat object for a regular file.
-        '''
-
-        return fuse.Stat(
-            st_mode=stat.S_IFREG | 0o644,
-            st_nlink=1,
-            st_uid=self.uid,
-            st_gid=self.gid,
-            st_size=size,
-            st_atime=timestamp,
-            st_mtime=timestamp,
-            st_ctime=timestamp,
-        )
-
-    def simple_dir_stat(self, size: int = 0, timestamp: int = 0) -> fuse.Stat:
-        '''
-        Create a fuse.Stat object for a directory.
-        '''
-
-        return fuse.Stat(
-            st_mode=stat.S_IFDIR | 0o755,
-            st_nlink=1,
-            st_uid=self.uid,
-            st_gid=self.gid,
-            st_size=size,
-            st_atime=timestamp,
-            st_mtime=timestamp,
-            st_ctime=timestamp,
-        )
-
     @staticmethod
-    def from_params(params, uid, gid, read_only=False) -> 'StorageBackend':
+    def from_params(params, read_only=False) -> 'StorageBackend':
         '''
         Construct a Storage from fields originating from manifest.
 
@@ -247,7 +208,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
-        backend = cls(params=params, uid=uid, gid=gid, read_only=read_only)
+        backend = cls(params=params, read_only=read_only)
         return backend
 
     @staticmethod

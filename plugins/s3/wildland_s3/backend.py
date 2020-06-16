@@ -33,6 +33,7 @@ import botocore
 import click
 import fuse
 
+from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached2 import CachedStorageMixin
@@ -151,7 +152,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         '''
         return str((self.base_path / path).relative_to('/'))
 
-    def _stat(self, obj) -> fuse.Stat:
+    @staticmethod
+    def _stat(obj) -> fuse.Stat:
         '''
         Convert Amazon's Obj or ObjSummary to Info.
         '''
@@ -160,7 +162,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             size = obj.size
         else:
             size = obj.content_length
-        return self.simple_file_stat(size, timestamp)
+        return simple_file_stat(size, timestamp)
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         for obj_summary in self.bucket.objects.all():
@@ -178,7 +180,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         self.s3_dirs.add(PurePosixPath('.'))
 
         for dir_path in self.s3_dirs:
-            yield dir_path, self.simple_dir_stat()
+            yield dir_path, simple_dir_stat()
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:

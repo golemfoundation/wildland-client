@@ -47,7 +47,7 @@ class Info:
     size: int = 0
     timestamp: int = 0
 
-    def as_fuse_stat(self, uid, gid, read_only) -> fuse.Stat:
+    def as_fuse_stat(self, read_only) -> fuse.Stat:
         '''
         Convert to a fuse.Stat object.
         '''
@@ -62,9 +62,9 @@ class Info:
 
         return fuse.Stat(
             st_mode=st_mode,
+            st_uid=None,
+            st_gid=None,
             st_nlink=1,
-            st_uid=uid,
-            st_gid=gid,
             st_size=self.size,
             st_atime=self.timestamp,
             st_mtime=self.timestamp,
@@ -91,10 +91,8 @@ class CachedStorageBackend(StorageBackend):
 
     REFRESH_TIMEOUT_SECONDS = 3
 
-    def __init__(self, *, uid, gid, **kwds):
+    def __init__(self, **kwds):
         super().__init__(**kwds)
-        self.uid = uid
-        self.gid = gid
 
         # Currently known files and directories
         self.files: Dict[PurePosixPath, Info] = {}
@@ -298,17 +296,17 @@ class CachedStorageBackend(StorageBackend):
         path = PurePosixPath(path)
 
         if path in self.dirs:
-            return self.dirs[path].as_fuse_stat(self.uid, self.gid, self.read_only)
+            return self.dirs[path].as_fuse_stat(self.read_only)
         if path in self.files:
             self.update_size(path)
-            return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
+            return self.files[path].as_fuse_stat(self.read_only)
         raise FileNotFoundError(errno.ENOENT, str(path))
 
     def fgetattr(self, path, _handle):
         path = PurePosixPath(path)
 
         self.update_size(path)
-        return self.files[path].as_fuse_stat(self.uid, self.gid, self.read_only)
+        return self.files[path].as_fuse_stat(self.read_only)
 
     def readdir(self, path):
         self.check()
