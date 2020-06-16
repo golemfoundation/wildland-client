@@ -5,7 +5,8 @@ all: update
 .PHONY: update
 update: env
 	./env/bin/pip-sync
-	./env/bin/pip install -e . plugins/*
+	./env/bin/pip install -e .
+	for m in plugins/*; do ./env/bin/pip install -e $$m; done
 
 .PHONY: compile
 compile: env
