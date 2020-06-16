@@ -309,9 +309,9 @@ sphinx-autodoc-typehints==1.10.3 \
     --hash=sha256:27c9e6ef4f4451766ab8d08b2d8520933b97beb21c913f3df9ab2e59b56e6c6c \
     --hash=sha256:a6b3180167479aca2c4d1ed3b5cb044a70a76cccd6b38662d39288ebd9f0dff0 \
     # via -r requirements.in
-sphinx==3.1.1 \
-    --hash=sha256:74fbead182a611ce1444f50218a1c5fc70b6cc547f64948f5182fb30a2a20258 \
-    --hash=sha256:97c9e3bcce2f61d9f5edf131299ee9d1219630598d9f9a8791459a4d9e815be5 \
+sphinx==3.0.4 \
+    --hash=sha256:779a519adbd3a70fc7c468af08c5e74829868b0a5b34587b33340e010291856c \
+    --hash=sha256:ea64df287958ee5aac46be7ac2b7277305b0381d213728c3a49d8bb9b8415807 \
     # via -r requirements.in, sphinx-autodoc-typehints
 sphinxcontrib-applehelp==1.0.2 \
     --hash=sha256:806111e5e962be97c29ec4c1e7fe277bfd19e9652fb1a4392105b43e01af885a \
