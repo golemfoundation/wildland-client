@@ -30,9 +30,28 @@ import fuse
 import click
 
 from .cached2 import CachedStorageBackend
-from .buffered import BufferedStorageBackend
+from .buffered import FullBufferedFile
 from .base import StorageBackend
 from ..manifest.schema import Schema
+
+
+class LocalCachedFile(FullBufferedFile):
+    '''
+    A fully buffered local file.
+    '''
+
+    def __init__(self, local_path: Path, attr: fuse.Stat):
+        super().__init__(attr)
+        self.local_path = local_path
+
+    def read_full(self) -> bytes:
+        with open(self.local_path, 'rb') as f:
+            return f.read()
+
+    def write_full(self, data: bytes) -> int:
+        with open(self.local_path, 'wb') as f:
+            return f.write(data)
+
 
 
 class LocalCachedStorageBackend(StorageBackend):
@@ -63,8 +82,7 @@ class LocalCachedStorageBackend(StorageBackend):
 
     @classmethod
     def add_wrappers(cls, backend):
-        return BufferedStorageBackend(
-            CachedStorageBackend(backend), page_size=16)
+        return CachedStorageBackend(backend)
 
     @classmethod
     def cli_options(cls):
@@ -132,6 +150,10 @@ class LocalCachedStorageBackend(StorageBackend):
                     continue
                 yield rel_root / file_name, self._stat(st)
 
+    def open(self, path: PurePosixPath, _flags: int) -> LocalCachedFile:
+        attr = self.getattr(path)
+        return LocalCachedFile(self._local(path), attr)
+
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
@@ -139,17 +161,9 @@ class LocalCachedStorageBackend(StorageBackend):
         if local.exists():
             raise IOError(errno.EEXIST, str(path))
         local.write_bytes(b'')
-        return object()
 
-    def extra_read_full(self, path: PurePosixPath, _handle) -> bytes:
-        with open(self._local(path), 'rb') as f:
-            return f.read()
-
-    def extra_write_full(self, path: PurePosixPath, data: bytes, _handle) -> int:
-        if self.read_only:
-            raise IOError(errno.EROFS, str(path))
-        with open(self._local(path), 'wb') as f:
-            return f.write(data)
+        attr = self.getattr(path)
+        return LocalCachedFile(self._local(path), attr)
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
         if self.read_only:

@@ -22,7 +22,6 @@ Abstract classes for storage
 '''
 
 import abc
-import errno
 from pathlib import PurePosixPath
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 import stat
@@ -42,6 +41,38 @@ class OptionalError(NotImplementedError):
     This is a hack to stop pylint from complaining about methods that do not
     have to be implemented.
     '''
+
+
+class File(metaclass=abc.ABCMeta):
+    '''
+    Abstract base class for a file. To be returned from open() and create().
+
+    Methods are optional to implement, except release().
+    '''
+
+    # pylint: disable=missing-docstring, no-self-use
+
+    @abc.abstractmethod
+    def release(self, flags: int) -> None:
+        raise NotImplementedError()
+
+    def read(self, length: int, offset: int) -> bytes:
+        raise OptionalError()
+
+    def write(self, data: bytes, offset: int) -> int:
+        raise OptionalError()
+
+    def fgetattr(self) -> fuse.Stat:
+        raise OptionalError()
+
+    def ftruncate(self, length: int) -> None:
+        raise OptionalError()
+
+    def extra_read_full(self) -> bytes:
+        raise OptionalError()
+
+    def extra_write_full(self, data: bytes) -> int:
+        raise OptionalError()
 
 
 class StorageBackend(metaclass=abc.ABCMeta):
@@ -136,31 +167,32 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def refresh(self) -> None:
         pass
 
-    # FUSE file operations. You can return an arbitrary object as a file handle
-    # from open() / create(), and receive it as obj.
-    # Can be implemented using FileProxyMixin, see below.
+    # FUSE file operations. Return a File instance.
 
-    def open(self, _path: PurePosixPath, _flags: int):
-        return object()
+    @abc.abstractmethod
+    def open(self, path: PurePosixPath, flags: int) -> File:
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def create(self, path: PurePosixPath, flags: int, mode: int):
         raise NotImplementedError()
 
-    def release(self, _path: PurePosixPath, _flags: int, _obj) -> None:
-        return
+    # Method proxied to the File instance
 
-    def read(self, path: PurePosixPath, length: int, offset: int, obj) -> bytes:
-        raise OptionalError()
+    def release(self, _path: PurePosixPath, flags: int, obj: File) -> None:
+        obj.release(flags)
 
-    def write(self, path: PurePosixPath, data: bytes, offset: int, obj) -> int:
-        raise OptionalError()
+    def read(self, _path: PurePosixPath, length: int, offset: int, obj: File) -> bytes:
+        return obj.read(length, offset)
 
-    def fgetattr(self, path: PurePosixPath, _obj) -> fuse.Stat:
-        return self.getattr(path)
+    def write(self, _path: PurePosixPath, data: bytes, offset: int, obj: File) -> int:
+        return obj.write(data, offset)
 
-    def ftruncate(self, path: PurePosixPath, length: int, _obj) -> None:
-        self.truncate(path, length)
+    def fgetattr(self, _path: PurePosixPath, obj: File) -> fuse.Stat:
+        return obj.fgetattr()
+
+    def ftruncate(self, _path: PurePosixPath, length: int, obj: File) -> None:
+        return obj.ftruncate(length)
 
     # Other FUSE operations
 
@@ -190,20 +222,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         '''
         Retrieve information about all files and directories.
-        '''
-
-        raise OptionalError()
-
-    def extra_read_full(self, path: PurePosixPath, handle) -> bytes:
-        '''
-        Retrieve the whole file.
-        '''
-
-        raise OptionalError()
-
-    def extra_write_full(self, path: PurePosixPath, data: bytes, handle) -> int:
-        '''
-        Save the whole file.
         '''
 
         raise OptionalError()
@@ -272,86 +290,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = manifest.fields['type']
         cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
-
-
-def _file_proxy(method_name):
-    def method(_self, *args, **_kwargs):
-        _path, rest, fileobj = args[0], args[1:-1], args[-1]
-        try:
-            return getattr(fileobj, method_name)(*rest)
-        except NotImplementedError:
-            raise OSError(errno.ENOSYS, '')
-
-    method.__name__ = method_name
-
-    return method
-
-
-class File(metaclass=abc.ABCMeta):
-    '''
-    Abstract base class for a file. Subclass and use with FileProxyMixin.
-
-    Methods are optional to implement, except release().
-    '''
-
-    # pylint: disable=missing-docstring, no-self-use
-
-    @abc.abstractmethod
-    def release(self, flags: int) -> None:
-        raise NotImplementedError()
-
-    def read(self, length: int, offset: int) -> bytes:
-        raise OptionalError()
-
-    def write(self, data: bytes, offset: int) -> int:
-        raise OptionalError()
-
-    def fgetattr(self) -> fuse.Stat:
-        raise OptionalError()
-
-    def ftruncate(self, length: int) -> None:
-        raise OptionalError()
-
-    def extra_read_full(self) -> bytes:
-        raise OptionalError()
-
-    def extra_write_full(self, data: bytes) -> int:
-        raise OptionalError()
-
-
-class FileProxyMixin:
-    '''
-    A mixin to use if you want to work with object-based files.
-    Make sure that your open() and create() methods return objects.
-
-    Example:
-
-        class MyFile(File):
-            def __init__(self, path, flags, mode=0, ...):
-                ...
-
-            def read(self, length, offset):
-                ...
-
-
-        class MyStorageBackend(FileProxyMixin, StorageBackend):
-            def open(self, path, flags):
-                return MyFile(path, flags, ...)
-
-            def create(self, path, flags, mode):
-                return MyFile(path, flags, ...)
-    '''
-
-    read = _file_proxy('read')
-    write = _file_proxy('write')
-    fsync = _file_proxy('fsync')
-    release = _file_proxy('release')
-    # flush = _file_proxy('flush')
-    fgetattr = _file_proxy('fgetattr')
-    ftruncate = _file_proxy('ftruncate')
-    # lock = _file_proxy('lock')
-    extra_read_full = _file_proxy('extra_read_full')
-    extra_write_full = _file_proxy('extra_read_full')
 
 
 def _inner_proxy(method_name):

@@ -33,9 +33,39 @@ import click
 import fuse
 
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.buffered import BufferedStorageBackend
+from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached2 import CachedStorageBackend
 from wildland.manifest.schema import Schema
+
+
+class WebdavFile(FullBufferedFile):
+    '''
+    A buffered WebDAV file.
+    '''
+
+    def __init__(self, session: requests.Session, url: str, attr: fuse.Stat):
+        super().__init__(attr)
+        self.session = session
+        self.url = url
+        self.attr = attr
+
+    def read_full(self) -> bytes:
+        resp = self.session.request(
+            method='GET',
+            url=self.url,
+            headers={'Accept': '*/*'}
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    def write_full(self, data: bytes) -> int:
+        resp = self.session.request(
+            method='PUT',
+            url=self.url,
+            data=data,
+        )
+        resp.raise_for_status()
+        return len(data)
 
 
 class WebdavStorageBackend(StorageBackend):
@@ -78,8 +108,7 @@ class WebdavStorageBackend(StorageBackend):
 
     @classmethod
     def add_wrappers(cls, backend):
-        return BufferedStorageBackend(
-            CachedStorageBackend(backend))
+        return CachedStorageBackend(backend)
 
     @classmethod
     def cli_options(cls):
@@ -149,13 +178,21 @@ class WebdavStorageBackend(StorageBackend):
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))
 
+    def open(self, path: PurePosixPath, _flags: int):
+        # TODO
+        attr = self.simple_file_stat(1, 0)
+        return WebdavFile(self.session, self.make_url(path), attr)
+
     def create(self, path: PurePosixPath, flags: int, mode: int):
-        self.extra_write_full(path, b'', None)
+        self.session.request(method='PUT', url=self.make_url(path), data=b'')
+        # TODO
+        attr = self.simple_file_stat(0, 0)
+        return WebdavFile(self.session, self.make_url(path), attr)
 
     def truncate(self, path: PurePosixPath, length: int):
         if length > 0:
             raise NotImplementedError()
-        self.extra_write_full(path, b'', None)
+        self.session.request(method='PUT', url=self.make_url(path), data=b'')
 
     def mkdir(self, path: PurePosixPath, _mode: int) -> None:
         resp = self.session.request(
@@ -163,24 +200,6 @@ class WebdavStorageBackend(StorageBackend):
             url=self.make_url(path),
         )
         resp.raise_for_status()
-
-    def extra_read_full(self, path: PurePosixPath, _handle) -> bytes:
-        resp = self.session.request(
-            method='GET',
-            url=self.make_url(path),
-            headers={'Accept': '*/*'}
-        )
-        resp.raise_for_status()
-        return resp.content
-
-    def extra_write_full(self, path: PurePosixPath, data: bytes, _handle) -> int:
-        resp = self.session.request(
-            method='PUT',
-            url=self.make_url(path),
-            data=data,
-        )
-        resp.raise_for_status()
-        return len(data)
 
     def unlink(self, path: PurePosixPath):
         resp = self.session.request(

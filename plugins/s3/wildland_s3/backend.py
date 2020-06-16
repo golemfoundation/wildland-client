@@ -34,12 +34,37 @@ import click
 import fuse
 
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.buffered import BufferedStorageBackend
+from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached2 import CachedStorageBackend
 from wildland.manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')
+
+
+class S3File(FullBufferedFile):
+    '''
+    A buffered S3 file.
+    '''
+
+    def __init__(self, obj, content_type, attr):
+        super().__init__(attr)
+        self.obj = obj
+        self.content_type = content_type
+
+    def read_full(self) -> bytes:
+        buf = BytesIO()
+        self.obj.download_fileobj(buf)
+        return buf.getvalue()
+
+    def write_full(self, data: bytes) -> int:
+        # Set the Content-Type again, otherwise it will get overwritten with
+        # application/octet-stream.
+        self.obj.upload_fileobj(
+            BytesIO(data),
+            ExtraArgs={'ContentType': self.content_type})
+        return len(data)
+
 
 
 class S3StorageBackend(StorageBackend):
@@ -97,8 +122,7 @@ class S3StorageBackend(StorageBackend):
 
     @classmethod
     def add_wrappers(cls, backend):
-        return BufferedStorageBackend(
-            CachedStorageBackend(backend))
+        return CachedStorageBackend(backend)
 
     @classmethod
     def cli_options(cls):
@@ -143,6 +167,7 @@ class S3StorageBackend(StorageBackend):
         return self.simple_file_stat(size, timestamp)
 
     def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+        logger.info('extra_info_all')
         for obj_summary in self.bucket.objects.all():
             full_path = PurePosixPath('/') / obj_summary.key
             try:
@@ -169,31 +194,19 @@ class S3StorageBackend(StorageBackend):
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
 
-    def open(self, path: PurePosixPath, _flags: int):
-        return self.bucket.Object(self.key(path))
+    def open(self, path: PurePosixPath, _flags: int) -> S3File:
+        content_type = self.get_content_type(path)
+        obj = self.bucket.Object(self.key(path))
+        attr = self._stat(obj)
+        return S3File(obj, content_type, attr)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int):
+    def create(self, path: PurePosixPath, _flags: int, _mode: int) -> S3File:
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
         obj = self.bucket.put_object(Key=self.key(path),
                                      ContentType=content_type)
-        return obj
-
-    def fgetattr(self, path: PurePosixPath, handle) -> fuse.Stat:
-        return self._stat(handle)
-
-    def extra_read_full(self, _path: PurePosixPath, handle) -> bytes:
-        buf = BytesIO()
-        handle.download_fileobj(buf)
-        return buf.getvalue()
-
-    def extra_write_full(self, path: PurePosixPath, data: bytes, handle) -> int:
-        # Set the Content-Type again, otherwise it will get overwritten with
-        # application/octet-stream.
-        content_type = self.get_content_type(path)
-        handle.upload_fileobj(BytesIO(data),
-                              ExtraArgs={'ContentType': content_type})
-        return len(data)
+        attr = self._stat(obj)
+        return S3File(obj, content_type, attr)
 
     def unlink(self, path: PurePosixPath):
         self.bucket.Object(self.key(path)).delete()
@@ -208,4 +221,6 @@ class S3StorageBackend(StorageBackend):
         if length > 0:
             raise NotImplementedError()
         obj = self.bucket.Object(self.key(path))
-        self.extra_write_full(path, b'', obj)
+        obj.upload_fileobj(
+            BytesIO(b''),
+            ExtraArgs={'ContentType': self.get_content_type(path)})

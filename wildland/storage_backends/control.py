@@ -30,7 +30,7 @@ import posix
 
 import fuse
 
-from .base import StorageBackend, File, FileProxyMixin
+from .base import StorageBackend, File
 from ..exc import WildlandError
 
 
@@ -79,7 +79,7 @@ class ControlFile(File):
         pass
 
 
-class ControlStorageBackend(FileProxyMixin, StorageBackend):
+class ControlStorageBackend(StorageBackend):
     '''Control pseudo-storage'''
     file_class = ControlFile
 

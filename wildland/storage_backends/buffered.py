@@ -18,50 +18,62 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-BufferedStorageBackend wrapper
+File buffering classes
 '''
 
-from pathlib import PurePosixPath
 import logging
+import abc
 
 import fuse
 
-from .base import File, FileProxyMixin, StorageBackend, StorageBackendWrapper
+from .base import File
 
 
 logger = logging.getLogger('storage-buffered')
 
 
-class BufferedFile(File):
+class FullBufferedFile(File, metaclass=abc.ABCMeta):
     '''
-    A file class that buffers reads and writes.
+    A file class that buffers reads and writes. Stores the full file content
+    in memory.
 
-    TODO: The current implementation does not evict pages from cache, and
-    saves everything at the end.
+    Requires you to implement read_full() and write_full().
     '''
 
-    def __init__(self,
-                 inner: StorageBackend,
-                 path: PurePosixPath,
-                 handle,
-                 attr: fuse.Stat):
-        self.inner = inner
-        self.path = path
-        self.handle = handle
-
+    def __init__(self, attr: fuse.Stat):
         self.attr = attr
         self.buf = bytearray()
         self.loaded = self.attr.st_size == 0
         self.dirty = False
 
+    @abc.abstractmethod
+    def read_full(self) -> bytes:
+        '''
+        Read the full file.
+        '''
+
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def write_full(self, data: bytes) -> int:
+        '''
+        Replace the current file content.
+        '''
+
+        raise NotImplementedError()
+
     def release(self, _flags: int):
+        '''
+        Save pending changes on release. If overriding, make sure to call
+        super().release() first.
+        '''
+
         if self.dirty:
-            self.inner.extra_write_full(self.path, bytes(self.buf), self.handle)
-        self.inner.release(self.path, 0, self.handle)
+            self.write_full(bytes(self.buf))
 
     def _load(self) -> None:
         if not self.loaded:
-            self.buf = bytearray(self.inner.extra_read_full(self.path, self.handle))
+            self.buf = bytearray(self.read_full())
             self.loaded = True
 
     def read(self, length: int, offset: int) -> bytes:
@@ -82,38 +94,3 @@ class BufferedFile(File):
         if length < len(self.buf):
             self.buf = self.buf[:length]
             self.dirty = True
-
-    def extra_read_full(self) -> bytes:
-        return bytes(self.buf)
-
-    def extra_write_full(self, data: bytes) -> int:
-        self.buf = bytearray(data)
-        self.dirty = True
-        return len(data)
-
-
-class BufferedStorageBackend(FileProxyMixin, StorageBackendWrapper):
-    '''
-    A wrapper that adds simple file buffering to a StorageBackend.
-
-    The inner backend must implement extra_read_full() and extra_write_full().
-    '''
-
-    PAGE_SIZE = 128 * 1024 * 1024
-
-    def __init__(self, inner: StorageBackend, page_size: int = PAGE_SIZE):
-        super().__init__(inner)
-        self.page_size = page_size
-
-    # If possible, call getattr() before opening the file, so that we do not
-    # invalidate the cache.
-
-    def open(self, path: PurePosixPath, mode: int) -> BufferedFile:
-        attr = self.inner.getattr(path)
-        handle = self.inner.open(path, mode)
-        return BufferedFile(self.inner, path, handle, attr)
-
-    def create(self, path: PurePosixPath, flags: int, mode: int) -> BufferedFile:
-        handle = self.inner.create(path, flags, mode)
-        attr = self.inner.getattr(path)
-        return BufferedFile(self.inner, path, handle, attr)
