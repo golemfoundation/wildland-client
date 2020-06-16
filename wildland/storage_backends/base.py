@@ -23,7 +23,7 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
+from typing import Optional, Dict, Type, Any, List, Iterable
 import stat
 
 import click
@@ -66,12 +66,6 @@ class File(metaclass=abc.ABCMeta):
         raise OptionalError()
 
     def ftruncate(self, length: int) -> None:
-        raise OptionalError()
-
-    def extra_read_full(self) -> bytes:
-        raise OptionalError()
-
-    def extra_write_full(self, data: bytes) -> int:
         raise OptionalError()
 
 
@@ -119,14 +113,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         self.uid = uid
         self.gid = gid
-
-    @classmethod
-    def add_wrappers(cls, backend: 'StorageBackend') -> 'StorageBackend':
-        '''
-        Add necessary wrappers after creating the class.
-        '''
-
-        return backend
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -217,15 +203,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def rmdir(self, path: PurePosixPath) -> None:
         raise NotImplementedError()
 
-    # Extra, optional operations
-
-    def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
-        '''
-        Retrieve information about all files and directories.
-        '''
-
-        raise OptionalError()
-
     # Helpers
 
     def simple_file_stat(self, size: int, timestamp: int) -> fuse.Stat:
@@ -271,7 +248,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, uid=uid, gid=gid, read_only=read_only)
-        backend = cls.add_wrappers(backend)
         return backend
 
     @staticmethod
@@ -298,37 +274,3 @@ def _inner_proxy(method_name):
 
     method.__name__ = method_name
     return method
-
-
-class StorageBackendWrapper(StorageBackend):
-    '''
-    A generic wrapper for a storage backend. Subclass to implement your own
-    wrapper.
-    '''
-
-    def __init__(self, inner: StorageBackend):
-        super().__init__(read_only=inner.read_only, uid=inner.uid, gid=inner.gid)
-        self.inner = inner
-        self.params = inner.params
-
-    mount = _inner_proxy('mount')
-    refresh = _inner_proxy('refresh')
-
-    open = _inner_proxy('open')
-    create = _inner_proxy('create')
-    release = _inner_proxy('release')
-    read = _inner_proxy('read')
-    write = _inner_proxy('write')
-    fgetattr = _inner_proxy('fgetattr')
-    ftruncate = _inner_proxy('ftruncate')
-
-    getattr = _inner_proxy('getattr')
-    readdir = _inner_proxy('readdir')
-    truncate = _inner_proxy('truncate')
-    unlink = _inner_proxy('unlink')
-    mkdir = _inner_proxy('mkdir')
-    rmdir = _inner_proxy('rmdir')
-
-    extra_info_all = _inner_proxy('extra_info_all')
-    extra_read_full = _inner_proxy('extra_read_full')
-    extra_write_full = _inner_proxy('extra_write_full')

@@ -34,7 +34,7 @@ import fuse
 
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.buffered import FullBufferedFile
-from wildland.storage_backends.cached2 import CachedStorageBackend
+from wildland.storage_backends.cached2 import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
 
@@ -68,7 +68,7 @@ class WebdavFile(FullBufferedFile):
         return len(data)
 
 
-class WebdavStorageBackend(StorageBackend):
+class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
     '''
     WebDAV storage.
     '''
@@ -107,10 +107,6 @@ class WebdavStorageBackend(StorageBackend):
         self.base_path = PurePosixPath(urlparse(self.base_url).path)
 
     @classmethod
-    def add_wrappers(cls, backend):
-        return CachedStorageBackend(backend)
-
-    @classmethod
     def cli_options(cls):
         return [
             click.Option(['--url'], metavar='URL', required=True),
@@ -128,7 +124,7 @@ class WebdavStorageBackend(StorageBackend):
             }
         }
 
-    def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         path = PurePosixPath('.')
         depth = 'infinity'
         resp = self.session.request(
@@ -179,14 +175,13 @@ class WebdavStorageBackend(StorageBackend):
         return urljoin(self.base_url, quote(str(full_path)))
 
     def open(self, path: PurePosixPath, _flags: int):
-        # TODO
-        attr = self.simple_file_stat(1, 0)
+        attr = self.getattr(path)
         return WebdavFile(self.session, self.make_url(path), attr)
 
-    def create(self, path: PurePosixPath, flags: int, mode: int):
+    def create(self, path: PurePosixPath, _flags: int, _mode: int):
         self.session.request(method='PUT', url=self.make_url(path), data=b'')
-        # TODO
-        attr = self.simple_file_stat(0, 0)
+        self.clear()
+        attr = self.getattr(path)
         return WebdavFile(self.session, self.make_url(path), attr)
 
     def truncate(self, path: PurePosixPath, length: int):
@@ -200,6 +195,7 @@ class WebdavStorageBackend(StorageBackend):
             url=self.make_url(path),
         )
         resp.raise_for_status()
+        self.clear()
 
     def unlink(self, path: PurePosixPath):
         resp = self.session.request(
@@ -207,6 +203,7 @@ class WebdavStorageBackend(StorageBackend):
             url=self.make_url(path),
         )
         resp.raise_for_status()
+        self.clear()
 
     def rmdir(self, path: PurePosixPath):
         self.unlink(path)

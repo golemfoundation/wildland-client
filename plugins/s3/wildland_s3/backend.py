@@ -35,7 +35,7 @@ import fuse
 
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.buffered import FullBufferedFile
-from wildland.storage_backends.cached2 import CachedStorageBackend
+from wildland.storage_backends.cached2 import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
 
@@ -67,7 +67,7 @@ class S3File(FullBufferedFile):
 
 
 
-class S3StorageBackend(StorageBackend):
+class S3StorageBackend(CachedStorageMixin, StorageBackend):
     '''
     Amazon S3 storage.
     '''
@@ -121,10 +121,6 @@ class S3StorageBackend(StorageBackend):
         mimetypes.init()
 
     @classmethod
-    def add_wrappers(cls, backend):
-        return CachedStorageBackend(backend)
-
-    @classmethod
     def cli_options(cls):
         return [
             click.Option(['--url'], metavar='URL', required=True)
@@ -166,8 +162,7 @@ class S3StorageBackend(StorageBackend):
             size = obj.content_length
         return self.simple_file_stat(size, timestamp)
 
-    def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
-        logger.info('extra_info_all')
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         for obj_summary in self.bucket.objects.all():
             full_path = PurePosixPath('/') / obj_summary.key
             try:
@@ -206,10 +201,12 @@ class S3StorageBackend(StorageBackend):
         obj = self.bucket.put_object(Key=self.key(path),
                                      ContentType=content_type)
         attr = self._stat(obj)
+        self.clear()
         return S3File(obj, content_type, attr)
 
     def unlink(self, path: PurePosixPath):
         self.bucket.Object(self.key(path)).delete()
+        self.clear()
 
     def mkdir(self, path: PurePosixPath, _mode: int):
         self.s3_dirs.add(path)
@@ -224,3 +221,4 @@ class S3StorageBackend(StorageBackend):
         obj.upload_fileobj(
             BytesIO(b''),
             ExtraArgs={'ContentType': self.get_content_type(path)})
+        self.clear()

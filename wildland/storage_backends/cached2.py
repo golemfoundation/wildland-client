@@ -21,7 +21,7 @@
 Cached storage
 '''
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Iterable
 import time
 from pathlib import PurePosixPath
 import errno
@@ -29,45 +29,47 @@ import logging
 
 import fuse
 
-from .base import StorageBackend, StorageBackendWrapper
-
 
 logger = logging.getLogger('storage-cached')
 
 
-def _clear_proxy(method_name):
-    def method(self, *args, **kwargs):
-        self._clear()
-        return getattr(self.inner, method_name)(*args, **kwargs)
-
-    method.__name__ = method_name
-    return method
-
-
-class CachedStorageBackend(StorageBackendWrapper):
+class CachedStorageMixin:
     '''
-    A storage backend that caches results about files.
+    A mixin for caching file information.
 
-    The inner backend must implement extra_info_all().
+    You need to implement info_all(), and invalidate cache (by calling clear())
+    in all operations that might change the result
     '''
 
     CACHE_TIMEOUT = 3.
 
-    def __init__(self, inner: StorageBackend):
-        super().__init__(inner)
+    def __init__(self, *args, **kwargs):
+        # Silence mypy: https://github.com/python/mypy/issues/5887
+        super().__init__(*args, **kwargs) # type: ignore
+
         self.info: List[Tuple[PurePosixPath, fuse.Stat]] = []
         self.getattr_cache: Dict[PurePosixPath, fuse.Stat] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
         self.expiry = 0.
 
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+        '''
+        Retrieve information about all files in the storage.
+        '''
+
+        raise NotImplementedError()
+
     def refresh(self):
+        '''
+        Refresh cache.
+        '''
+
         logger.info('refresh')
 
-        self.inner.refresh()
         self.getattr_cache.clear()
         self.readdir_cache.clear()
 
-        self.info = list(self.inner.extra_info_all())
+        self.info = list(self.info_all())
         for path, attr in self.info:
             self.getattr_cache[path] = attr
             if path != PurePosixPath('.'):
@@ -81,16 +83,20 @@ class CachedStorageBackend(StorageBackendWrapper):
         if self.expiry < time.time():
             self.refresh()
 
-    def _clear(self):
+    def clear(self):
+        '''
+        Invalidate cache.
+        '''
+
         self.getattr_cache.clear()
         self.readdir_cache.clear()
         self.expiry = 0.
 
-    def extra_info_all(self):
-        self._update()
-        return self.info
-
     def getattr(self, path: PurePosixPath) -> fuse.Stat:
+        '''
+        Cached implementation of getattr().
+        '''
+
         self._update()
 
         if path not in self.getattr_cache:
@@ -99,15 +105,12 @@ class CachedStorageBackend(StorageBackendWrapper):
         return self.getattr_cache[path]
 
     def readdir(self, path: PurePosixPath) -> List[str]:
+        '''
+        Cached implementation of readdir().
+        '''
+
         self._update()
         if path not in self.readdir_cache:
             raise FileNotFoundError(errno.ENOENT, str(path))
 
         return sorted(self.readdir_cache[path])
-
-    create = _clear_proxy('create')
-    release = _clear_proxy('release')
-    truncate = _clear_proxy('truncate')
-    unlink = _clear_proxy('unlink')
-    mkdir = _clear_proxy('mkdir')
-    rmdir = _clear_proxy('rmdir')

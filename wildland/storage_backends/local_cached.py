@@ -29,7 +29,7 @@ import errno
 import fuse
 import click
 
-from .cached2 import CachedStorageBackend
+from .cached2 import CachedStorageMixin
 from .buffered import FullBufferedFile
 from .base import StorageBackend
 from ..manifest.schema import Schema
@@ -54,7 +54,7 @@ class LocalCachedFile(FullBufferedFile):
 
 
 
-class LocalCachedStorageBackend(StorageBackend):
+class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
     '''
     A cached storage backed by local files. Used mostly to test the caching
     scheme.
@@ -79,10 +79,6 @@ class LocalCachedStorageBackend(StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.base_path = Path(self.params['path'])
-
-    @classmethod
-    def add_wrappers(cls, backend):
-        return CachedStorageBackend(backend)
 
     @classmethod
     def cli_options(cls):
@@ -121,7 +117,7 @@ class LocalCachedStorageBackend(StorageBackend):
     def _local(self, path: PurePosixPath) -> Path:
         return self.base_path / path
 
-    def extra_info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         '''
         Load information about all files and directories.
         '''
@@ -162,6 +158,7 @@ class LocalCachedStorageBackend(StorageBackend):
             raise IOError(errno.EEXIST, str(path))
         local.write_bytes(b'')
 
+        self.clear()
         attr = self.getattr(path)
         return LocalCachedFile(self._local(path), attr)
 
@@ -169,21 +166,22 @@ class LocalCachedStorageBackend(StorageBackend):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         os.truncate(self._local(path), length)
+        self.clear()
 
     def unlink(self, path: PurePosixPath):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         self._local(path).unlink()
+        self.clear()
 
     def mkdir(self, path: PurePosixPath, mode: int):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         self._local(path).mkdir(mode)
+        self.clear()
 
     def rmdir(self, path: PurePosixPath):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         self._local(path).rmdir()
-
-    def getattr(self, path: PurePosixPath) -> fuse.Stat:
-        return self._stat(os.stat(self._local(path)))
+        self.clear()
