@@ -24,7 +24,6 @@ Abstract classes for storage
 import abc
 from pathlib import PurePosixPath
 from typing import Optional, Dict, Type, Any, List, Iterable
-import stat
 
 import click
 import yaml
