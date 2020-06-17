@@ -30,16 +30,15 @@ import posix
 
 import fuse
 
-from .base import StorageBackend, FileProxyMixin
+from .base import StorageBackend, File
 from ..exc import WildlandError
 
-class ControlFile:
+
+class ControlFile(File):
     '''Control file handler'''
-    def __init__(self, node, *, uid, gid, need_read, need_write):
+    def __init__(self, node, *, need_read, need_write):
         # pylint: disable=unused-argument
         self.node = node
-        self.uid = uid
-        self.gid = gid
 
         self.buffer = self.node() if need_read else None
 
@@ -54,8 +53,6 @@ class ControlFile:
         return fuse.Stat(
             st_mode=0o644 | stat.S_IFREG,
             st_nlink=1,
-            st_uid=self.uid,
-            st_gid=self.gid,
             st_size=0,
         )
 
@@ -64,29 +61,27 @@ class ControlFile:
             raise OSError(errno.EINVAL, '')
         return self.buffer[offset:offset+length]
 
-    def write(self, buf, offset):
+    def write(self, data, offset):
         assert offset == 0
         try:
-            self.node(buf)
+            self.node(data)
         except WildlandError:
             # libfuse will return EINVAL anyway, but make it explicit here.
             logging.exception('control write error')
             raise OSError(errno.EINVAL, '')
-        return len(buf)
+        return len(data)
 
     def ftruncate(self, length):
         pass
 
 
-class ControlStorageBackend(FileProxyMixin, StorageBackend):
+class ControlStorageBackend(StorageBackend):
     '''Control pseudo-storage'''
     file_class = ControlFile
 
-    def __init__(self, fs, uid, gid):
+    def __init__(self, fs):
         super().__init__()
         self.fs = fs
-        self.uid = uid
-        self.gid = gid
 
     @classmethod
     def cli_options(cls):
@@ -181,7 +176,7 @@ class ControlStorageBackend(FileProxyMixin, StorageBackend):
         node = self.get_node_for_path(
             path, need_file=True,
             need_read=read, need_write=write)
-        return ControlFile(node, uid=self.uid, gid=self.gid,
+        return ControlFile(node,
                            need_read=read,
                            need_write=write)
 
@@ -195,8 +190,8 @@ class ControlStorageBackend(FileProxyMixin, StorageBackend):
             return fuse.Stat(
                 st_mode=stat.S_IFDIR | 0o755,
                 st_nlink=2, # XXX +number of subdirectories
-                st_uid=self.uid,
-                st_gid=self.gid,
+                st_uid=None,
+                st_gid=None,
             )
 
         st_mode = stat.S_IFREG
@@ -208,9 +203,9 @@ class ControlStorageBackend(FileProxyMixin, StorageBackend):
         return fuse.Stat(
             st_mode=st_mode,
             st_nlink=1,
-            st_uid=self.uid,
-            st_gid=self.gid,
             st_size=0,
+            st_uid=None,
+            st_gid=None,
         )
 
     def readdir(self, path):

@@ -100,6 +100,7 @@ nitpick_ignore = [
     ('envvar', 'VISUAL'),
     ('py:class', 'T'),
     ('py:class', 'click.core.Option'),
+    ('py:class', 'fuse.Stat'),
 ]
 
 todo_include_todos = True

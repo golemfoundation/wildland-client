@@ -53,6 +53,16 @@ class WildlandFSClient:
         self.mount_dir = mount_dir
         self.control_dir = self.mount_dir / '.control'
 
+        self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
+        self.manifest_cache: Dict[int, dict] = {}
+
+    def clear_cache(self):
+        '''
+        Clear cached information after changing mount state of the system.
+        '''
+        self.path_cache = None
+        self.manifest_cache.clear()
+
     def mount(self, foreground=False, debug=False) -> subprocess.Popen:
         '''
         Mount the Wildland filesystem and wait until it is mounted.
@@ -63,6 +73,8 @@ class WildlandFSClient:
             foreground: Run in foreground instead of daemonizing
             debug: Enable debug logs (only in case of foreground)
         '''
+        self.clear_cache()
+
         cmd = [sys.executable, '-m', 'wildland.fs', str(self.mount_dir)]
         options = []
 
@@ -96,6 +108,7 @@ class WildlandFSClient:
         '''
         Unmount the Wildland filesystem.
         '''
+        self.clear_cache()
         cmd = ['umount', str(self.mount_dir)]
         try:
             subprocess.run(cmd, check=True)
@@ -165,8 +178,7 @@ class WildlandFSClient:
         Mount a container, assuming a storage has been already selected.
         '''
 
-        if self.find_storage_id(container) is not None:
-            raise WildlandFSError('Already mounted')
+        self.clear_cache()
         command = self.get_command_for_mount_container(container, storage, is_default_user)
         self.write_control('mount', json.dumps(command).encode())
 
@@ -175,6 +187,7 @@ class WildlandFSClient:
         Unmount a container with given storage ID.
         '''
 
+        self.clear_cache()
         self.write_control('unmount', str(storage_id).encode())
 
     def find_storage_id(self, container: Container) -> Optional[int]:
@@ -268,22 +281,31 @@ class WildlandFSClient:
         '''
         Read a path -> container ID mapping.
         '''
+        if self.path_cache is not None:
+            return self.path_cache
+
         data = json.loads(self.read_control('paths'))
-        return {
+        self.path_cache = {
             PurePosixPath(p): ident
             for p, ident in data.items()
         }
+        return self.path_cache
 
     def get_storage_manifest(self, storage_id: int) -> Optional[dict]:
         '''
         Read a storage manifest for a mounted storage.
         '''
 
+        if storage_id in self.manifest_cache:
+            return self.manifest_cache[storage_id]
+
         control_path = self.control_dir / f'storage/{storage_id}/manifest.yaml'
         if not control_path.exists():
             return None
         data = control_path.read_bytes()
-        return yaml.safe_load(data)
+        ret = yaml.safe_load(data)
+        self.manifest_cache[storage_id] = ret
+        return ret
 
     def get_command_for_mount_container(self,
                                         container: Container,

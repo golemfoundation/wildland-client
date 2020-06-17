@@ -29,7 +29,7 @@ import click
 
 import fuse
 
-from .base import StorageBackend, FileProxyMixin
+from .base import StorageBackend, File
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 
@@ -59,11 +59,12 @@ def fuse_stat(st: os.stat_result, read_only: bool) -> fuse.Stat:
     )
 
 
-class LocalFile:
+class LocalFile(File):
     '''A file on disk
 
     (does not need to be a regular file)
     '''
+
     def __init__(self, path, realpath, flags, mode=0, read_only=False):
         self.path = path
         self.realpath = realpath
@@ -90,12 +91,12 @@ class LocalFile:
         self.file.seek(offset)
         return self.file.read(length)
 
-    def write(self, buf, offset):
+    def write(self, data, offset):
         if self.read_only:
             raise PermissionError(errno.EROFS, '')
 
         self.file.seek(offset)
-        return self.file.write(buf)
+        return self.file.write(data)
 
     def ftruncate(self, length):
         if self.read_only:
@@ -104,7 +105,7 @@ class LocalFile:
         return self.file.truncate(length)
 
 
-class LocalStorageBackend(FileProxyMixin, StorageBackend):
+class LocalStorageBackend(StorageBackend):
     '''Local, file-based storage'''
     SCHEMA = Schema({
         "type": "object",

@@ -54,6 +54,7 @@ class WildlandFS(fuse.Fuse):
 
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
+        self.storage_counter = 0
 
         self.uid = None
         self.gid = None
@@ -70,7 +71,7 @@ class WildlandFS(fuse.Fuse):
         # See 'man 8 mount.fuse' for details.
         self.fuse_args.add('direct_io')
 
-        self.resolver = WildlandFSConflictResolver(self, 0, 0)
+        self.resolver = WildlandFSConflictResolver(self)
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
@@ -85,12 +86,9 @@ class WildlandFS(fuse.Fuse):
 
         self.init_logging(self.cmdline[0])
 
-        self.resolver.uid = self.uid
-        self.resolver.gid = self.gid
-
         self.mount_storage(
             [PurePosixPath('/.control')],
-            ControlStorageBackend(fs=self, uid=self.uid, gid=self.gid))
+            ControlStorageBackend(fs=self))
 
         super().main(args)
 
@@ -113,9 +111,8 @@ class WildlandFS(fuse.Fuse):
         logging.info('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
 
-        ident = 0
-        while ident in self.storages:
-            ident += 1
+        ident = self.storage_counter
+        self.storage_counter += 1
 
         storage.mount()
 
@@ -149,7 +146,7 @@ class WildlandFS(fuse.Fuse):
         paths = [PurePosixPath(p) for p in params['paths']]
         storage_params = params['storage']
         read_only = params.get('read_only')
-        storage = StorageBackend.from_params(storage_params, self.uid, self.gid, read_only)
+        storage = StorageBackend.from_params(storage_params, read_only)
         self.mount_storage(paths, storage)
 
     @control_file('unmount', read=False, write=True)
@@ -180,6 +177,12 @@ class WildlandFS(fuse.Fuse):
         for ident, storage in self.storages.items():
             yield str(ident), storage
 
+    def add_uid_gid(self, attr: fuse.Stat) -> fuse.Stat:
+        if attr.st_uid is None:
+            attr.st_uid = self.uid
+        if attr.st_gid is None:
+            attr.st_gid = self.gid
+        return attr
 
     #
     # FUSE API
@@ -222,7 +225,7 @@ class WildlandFS(fuse.Fuse):
         return self.proxy('create', path, flags, mode, parent=True)
 
     def getattr(self, path):
-        return self.resolver.getattr(PurePosixPath(path))
+        return self.add_uid_gid(self.resolver.getattr(PurePosixPath(path)))
 
     def readdir(self, path, _offset):
         names = ['.', '..'] + self.resolver.readdir(PurePosixPath(path))
@@ -245,8 +248,8 @@ class WildlandFS(fuse.Fuse):
     def flush(self, *args):
         return self.proxy('flush', *args)
 
-    def fgetattr(self, *args):
-        return self.proxy('fgetattr', *args)
+    def fgetattr(self, path, *args):
+        return self.add_uid_gid(self.proxy('fgetattr', path, *args))
 
     def ftruncate(self, *args):
         return self.proxy('ftruncate', *args)
@@ -323,8 +326,7 @@ class WildlandFSConflictResolver(ConflictResolver):
     WildlandFS adapter for ConflictResolver.
     '''
 
-    def __init__(self, fs: WildlandFS, *args):
-        super().__init__(*args)
+    def __init__(self, fs: WildlandFS):
         self.fs = fs
 
     def get_storage_paths(self):

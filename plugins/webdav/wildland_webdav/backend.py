@@ -24,19 +24,52 @@ WebDAV storage backend
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote, unquote
-import errno
 
 import dateutil.parser
 import requests
 import requests.auth
 from lxml import etree
 import click
+import fuse
 
-from wildland.storage_backends.cached import CachedStorageBackend, Info
+from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
+from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.buffered import FullBufferedFile
+from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
 
-class WebdavStorageBackend(CachedStorageBackend):
+class WebdavFile(FullBufferedFile):
+    '''
+    A buffered WebDAV file.
+    '''
+
+    def __init__(self, session: requests.Session, url: str, attr: fuse.Stat):
+        super().__init__(attr)
+        self.session = session
+        self.url = url
+        self.attr = attr
+
+    def read_full(self) -> bytes:
+        resp = self.session.request(
+            method='GET',
+            url=self.url,
+            headers={'Accept': '*/*'}
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    def write_full(self, data: bytes) -> int:
+        resp = self.session.request(
+            method='PUT',
+            url=self.url,
+            data=data,
+        )
+        resp.raise_for_status()
+        return len(data)
+
+
+class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
     '''
     WebDAV storage.
     '''
@@ -92,25 +125,9 @@ class WebdavStorageBackend(CachedStorageBackend):
             }
         }
 
-    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
-        return self.propfind(PurePosixPath('.'), 'infinity')
-
-    def backend_info_single(self, path: PurePosixPath) -> Info:
-        '''
-        Retrieve information about a single path.
-        '''
-
-        props = list(self.propfind(path, '0'))
-        if not props:
-            raise FileNotFoundError(errno.ENOENT, str(path))
-        return props[0][1]
-
-    def propfind(self, path: PurePosixPath, depth: str) -> \
-        Iterable[Tuple[PurePosixPath, Info]]:
-        '''
-        Make a WebDAV PROPFIND request.
-        '''
-
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+        path = PurePosixPath('.')
+        depth = 'infinity'
         resp = self.session.request(
             method='PROPFIND',
             url=self.make_url(path),
@@ -145,7 +162,10 @@ class WebdavStorageBackend(CachedStorageBackend):
             if content_length:
                 size = int(content_length)
 
-            yield path, Info(is_dir=is_dir, size=size, timestamp=timestamp)
+            if is_dir:
+                yield path, simple_dir_stat(size, timestamp)
+            else:
+                yield path, simple_file_stat(size, timestamp)
 
     def make_url(self, path: PurePosixPath) -> str:
         '''
@@ -155,41 +175,36 @@ class WebdavStorageBackend(CachedStorageBackend):
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))
 
-    def backend_create_file(self, path: PurePosixPath) -> Info:
-        return self.backend_save_file(path, b'')
+    def open(self, path: PurePosixPath, _flags: int):
+        attr = self.getattr(path)
+        return WebdavFile(self.session, self.make_url(path), attr)
 
-    def backend_create_dir(self, path: PurePosixPath) -> Info:
+    def create(self, path: PurePosixPath, _flags: int, _mode: int):
+        self.session.request(method='PUT', url=self.make_url(path), data=b'')
+        self.clear()
+        attr = self.getattr(path)
+        return WebdavFile(self.session, self.make_url(path), attr)
+
+    def truncate(self, path: PurePosixPath, length: int):
+        if length > 0:
+            raise NotImplementedError()
+        self.session.request(method='PUT', url=self.make_url(path), data=b'')
+
+    def mkdir(self, path: PurePosixPath, _mode: int) -> None:
         resp = self.session.request(
             method='MKCOL',
             url=self.make_url(path),
         )
         resp.raise_for_status()
-        return self.backend_info_single(path)
+        self.clear()
 
-    def backend_load_file(self, path: PurePosixPath) -> bytes:
-        resp = self.session.request(
-            method='GET',
-            url=self.make_url(path),
-            headers={'Accept': '*/*'}
-        )
-        resp.raise_for_status()
-        return resp.content
-
-    def backend_save_file(self, path: PurePosixPath, data: bytes) -> Info:
-        resp = self.session.request(
-            method='PUT',
-            url=self.make_url(path),
-            data=data,
-        )
-        resp.raise_for_status()
-        return self.backend_info_single(path)
-
-    def backend_delete_file(self, path: PurePosixPath):
+    def unlink(self, path: PurePosixPath):
         resp = self.session.request(
             method='DELETE',
             url=self.make_url(path),
         )
         resp.raise_for_status()
+        self.clear()
 
-    def backend_delete_dir(self, path: PurePosixPath):
-        return self.backend_delete_file(path)
+    def rmdir(self, path: PurePosixPath):
+        self.unlink(path)

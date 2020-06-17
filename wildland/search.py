@@ -147,7 +147,7 @@ class Search:
         # TODO: resolve manifest path in the context of the container
         # TODO: accept local storage only as long as the whole chain is local
         storage = self.client.select_storage(step.container)
-        return storage, StorageBackend.from_params(storage.params, uid=0, gid=0)
+        return storage, StorageBackend.from_params(storage.params)
 
     def _resolve_first(self):
         '''

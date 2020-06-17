@@ -31,15 +31,44 @@ from urllib.parse import urlparse
 import boto3
 import botocore
 import click
+import fuse
 
-from wildland.storage_backends.cached import CachedStorageBackend, Info
+from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
+from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.buffered import FullBufferedFile
+from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')
 
 
-class S3StorageBackend(CachedStorageBackend):
+class S3File(FullBufferedFile):
+    '''
+    A buffered S3 file.
+    '''
+
+    def __init__(self, obj, content_type, attr):
+        super().__init__(attr)
+        self.obj = obj
+        self.content_type = content_type
+
+    def read_full(self) -> bytes:
+        buf = BytesIO()
+        self.obj.download_fileobj(buf)
+        return buf.getvalue()
+
+    def write_full(self, data: bytes) -> int:
+        # Set the Content-Type again, otherwise it will get overwritten with
+        # application/octet-stream.
+        self.obj.upload_fileobj(
+            BytesIO(data),
+            ExtraArgs={'ContentType': self.content_type})
+        return len(data)
+
+
+
+class S3StorageBackend(CachedStorageMixin, StorageBackend):
     '''
     Amazon S3 storage.
     '''
@@ -85,17 +114,17 @@ class S3StorageBackend(CachedStorageBackend):
         self.bucket = s3.Bucket(bucket_name)
         self.base_path = PurePosixPath(url.path)
 
-        # Persist created directories between refreshes. This is because S3
-        # doesn't have information about directories, and we might want to
-        # create/remove them manually.
-        self.s3_dirs: Set[PurePosixPath] = set()
+        # Persist created directories. This is because S3 doesn't have
+        # information about directories, and we might want to create/remove
+        # them manually.
+        self.s3_dirs: Set[PurePosixPath] = {PurePosixPath('.')}
 
         mimetypes.init()
 
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--bucket'], metavar='BUCKET', required=True)
+            click.Option(['--url'], metavar='URL', required=True)
         ]
 
     @classmethod
@@ -110,7 +139,7 @@ class S3StorageBackend(CachedStorageBackend):
         click.echo(f'Credentials found by method: {credentials.method}')
 
         return {
-            'bucket': data['bucket'],
+            'url': data['url'],
             'credentials': {
                 'access_key': credentials.access_key,
                 'secret_key': credentials.secret_key,
@@ -124,7 +153,7 @@ class S3StorageBackend(CachedStorageBackend):
         return str((self.base_path / path).relative_to('/'))
 
     @staticmethod
-    def info(obj) -> Info:
+    def _stat(obj) -> fuse.Stat:
         '''
         Convert Amazon's Obj or ObjSummary to Info.
         '''
@@ -133,9 +162,9 @@ class S3StorageBackend(CachedStorageBackend):
             size = obj.size
         else:
             size = obj.content_length
-        return Info(is_dir=False, size=size, timestamp=timestamp)
+        return simple_file_stat(size, timestamp)
 
-    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         for obj_summary in self.bucket.objects.all():
             full_path = PurePosixPath('/') / obj_summary.key
             try:
@@ -143,7 +172,7 @@ class S3StorageBackend(CachedStorageBackend):
             except ValueError:
                 continue
 
-            yield obj_path, self.info(obj_summary)
+            yield obj_path, self._stat(obj_summary)
             for parent in obj_path.parents:
                 self.s3_dirs.add(parent)
 
@@ -151,7 +180,7 @@ class S3StorageBackend(CachedStorageBackend):
         self.s3_dirs.add(PurePosixPath('.'))
 
         for dir_path in self.s3_dirs:
-            yield dir_path, Info(is_dir=True)
+            yield dir_path, simple_dir_stat()
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:
@@ -162,34 +191,36 @@ class S3StorageBackend(CachedStorageBackend):
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
 
-    def backend_create_file(self, path: PurePosixPath) -> Info:
+    def open(self, path: PurePosixPath, _flags: int) -> S3File:
+        content_type = self.get_content_type(path)
+        obj = self.bucket.Object(self.key(path))
+        attr = self._stat(obj)
+        return S3File(obj, content_type, attr)
+
+    def create(self, path: PurePosixPath, _flags: int, _mode: int) -> S3File:
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
         obj = self.bucket.put_object(Key=self.key(path),
                                      ContentType=content_type)
-        return self.info(obj)
+        attr = self._stat(obj)
+        self.clear()
+        return S3File(obj, content_type, attr)
 
-    def backend_create_dir(self, path: PurePosixPath) -> Info:
-        self.s3_dirs.add(path)
-        return Info(is_dir=True)
-
-    def backend_load_file(self, path: PurePosixPath) -> bytes:
-        buf = BytesIO()
-        obj = self.bucket.Object(self.key(path))
-        obj.download_fileobj(buf)
-        return buf.getvalue()
-
-    def backend_save_file(self, path: PurePosixPath, data: bytes) -> Info:
-        # Set the Content-Type again, otherwise it will get overwritten with
-        # application/octet-stream.
-        content_type = self.get_content_type(path)
-        obj = self.bucket.Object(self.key(path))
-        obj.upload_fileobj(BytesIO(data),
-                           ExtraArgs={'ContentType': content_type})
-        return self.info(obj)
-
-    def backend_delete_file(self, path: PurePosixPath):
+    def unlink(self, path: PurePosixPath):
         self.bucket.Object(self.key(path)).delete()
+        self.clear()
 
-    def backend_delete_dir(self, path: PurePosixPath):
+    def mkdir(self, path: PurePosixPath, _mode: int):
+        self.s3_dirs.add(path)
+
+    def rmdir(self, path: PurePosixPath):
         self.s3_dirs.remove(path)
+
+    def truncate(self, path: PurePosixPath, length: int):
+        if length > 0:
+            raise NotImplementedError()
+        obj = self.bucket.Object(self.key(path))
+        obj.upload_fileobj(
+            BytesIO(b''),
+            ExtraArgs={'ContentType': self.get_content_type(path)})
+        self.clear()

@@ -137,9 +137,16 @@ def mount(obj: ContextObj, container_names):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
+    containers = []
     for container_name in container_names:
         container = obj.client.load_container_from(container_name)
+        click.echo(f'Loaded: {container.local_path}')
+        containers.append(container)
 
+        if obj.fs_client.find_storage_id(container) is not None:
+            raise CliError('Already mounted: {container.local_path}')
+
+    for container in containers:
         click.echo(f'Mounting: {container.local_path}')
         is_default_user = container.signer == obj.client.config.get('default_user')
         storage = obj.client.select_storage(container)

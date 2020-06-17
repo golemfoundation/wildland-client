@@ -22,9 +22,10 @@ Bear storage backend
 '''
 
 from pathlib import PurePosixPath
-from typing import Iterable, Tuple, Optional, List, Set
+from typing import Iterable, Optional, List, Set
 import logging
 from dataclasses import dataclass
+from functools import partial
 import errno
 
 import sqlite3
@@ -32,7 +33,9 @@ import click
 
 from wildland.storage import Storage
 from wildland.container import Container
-from wildland.storage_backends.cached import ReadOnlyCachedStorageBackend, Info
+from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.generated import \
+    GeneratedStorageMixin, FuncDirEntry, FuncFileEntry, CachedDirEntry
 from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
 
@@ -128,7 +131,7 @@ class BearDB:
         return [tag_row['ZTITLE'] for tag_row in cursor.fetchall()]
 
 
-class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
+class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
     '''
     Main BearDB storage that serves individual manifests.
 
@@ -157,6 +160,8 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
         self.bear_db = BearDB(self.params['path'])
         self.with_content = self.params.get('with_content', False)
 
+        self.root = CachedDirEntry('.', self._dir_root)
+
     @classmethod
     def cli_options(cls):
         return [
@@ -174,7 +179,7 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
             'with_content': data['with_content'],
         }
 
-    def make_storage_manifest(self, note: BearNote) -> Manifest:
+    def _make_storage_manifest(self, note: BearNote) -> Manifest:
         '''
         Create a storage manifest for a single note.
         '''
@@ -193,13 +198,13 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
         manifest.skip_signing()
         return manifest
 
-    def make_container_manifest(self, note: BearNote) -> Manifest:
+    def _make_container_manifest(self, note: BearNote) -> Manifest:
         '''
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
         '''
 
-        storage_manifest = self.make_storage_manifest(note)
+        storage_manifest = self._make_storage_manifest(note)
         paths = [PurePosixPath(f'/.uuid/{note.ident}')] + note.get_paths()
         container = Container(
             signer=self.params['signer'],
@@ -210,7 +215,21 @@ class BearDBStorageBackend(ReadOnlyCachedStorageBackend):
         manifest.skip_signing()
         return manifest
 
-    def get_readme(self) -> bytes:
+    def get_root(self):
+        # TODO function for a single entry
+        return self.root
+
+    def _dir_root(self):
+        for ident in self.bear_db.get_note_idents():
+            yield FuncDirEntry(ident, partial(self._dir_note, ident))
+
+    def _dir_note(self, ident: str):
+        yield FuncFileEntry('container.yaml', partial(self._get_manifest, ident))
+        yield FuncFileEntry('README.md', self._get_readme)
+        if self.with_content:
+            yield FuncFileEntry('note.md', partial(self._get_note, ident))
+
+    def _get_readme(self) -> bytes:
         '''
         Get the contents of note README.md file.
         '''
@@ -232,40 +251,20 @@ The note files (currently just `note.md`) are also visible here.
 
         return readme.encode()
 
-    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
-        yield PurePosixPath('.'), Info(is_dir=True)
-
-        for ident in self.bear_db.get_note_idents():
-            note = self.bear_db.get_note(ident)
-            if not note:
-                continue
-            path = PurePosixPath(note.ident)
-            yield path, Info(is_dir=True)
-            yield path / 'container.yaml', Info(is_dir=False)
-            yield path / 'README.md', Info(is_dir=False)
-            if self.with_content:
-                yield path / 'note.md', Info(is_dir=False)
-
-    def backend_load_file(self, path: PurePosixPath) -> bytes:
-        # we should be called by CachedStorage only with paths from backend_info_all()
-        assert len(path.parts) == 2
-
-        ident = path.parts[0]
+    def _get_manifest(self, ident):
         note = self.bear_db.get_note(ident)
         if not note:
-            raise FileNotFoundError(errno.ENOENT, str(path))
+            raise FileNotFoundError(errno.ENOENT, '')
+        return self._make_container_manifest(note).to_bytes()
 
-        if path.name == 'container.yaml':
-            return self.make_container_manifest(note).to_bytes()
-        if path.name == 'README.md':
-            return self.get_readme()
-        if path.name == 'note.md' and self.with_content:
-            return note.get_md()
-
-        raise FileNotFoundError(errno.ENOENT, str(path))
+    def _get_note(self, ident):
+        note = self.bear_db.get_note(ident)
+        if not note:
+            raise FileNotFoundError(errno.ENOENT, '')
+        return note.get_md()
 
 
-class BearNoteStorageBackend(ReadOnlyCachedStorageBackend):
+class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
     '''
     A backend responsible for serving an individual Bear note.
     '''
@@ -291,7 +290,6 @@ class BearNoteStorageBackend(ReadOnlyCachedStorageBackend):
 
         self.bear_db = BearDB(self.params['path'])
         self.ident = self.params['note']
-        self.note: Optional[BearNote] = None
 
     @classmethod
     def cli_options(cls):
@@ -311,18 +309,14 @@ class BearNoteStorageBackend(ReadOnlyCachedStorageBackend):
             'note': data['note'],
         }
 
-    def backend_info_all(self) -> Iterable[Tuple[PurePosixPath, Info]]:
-        self.note = self.bear_db.get_note(self.ident)
-        if not self.note:
-            return
+    def get_root(self):
+        return FuncDirEntry('.', self._dir_root)
 
-        yield PurePosixPath('.'), Info(is_dir=True)
-        yield PurePosixPath(f'note-{self.ident}.md'), Info(is_dir=False)
+    def _dir_root(self):
+        yield FuncFileEntry(f'note-{self.ident}.md', self._get_note)
 
-    def backend_load_file(self, path: PurePosixPath) -> bytes:
-        assert len(path.parts) == 1
-
-        if path.name == f'note-{self.ident}.md' and self.note is not None:
-            return self.note.get_md()
-
-        raise FileNotFoundError(errno.ENOENT, str(path))
+    def _get_note(self):
+        note = self.bear_db.get_note(self.ident)
+        if not note:
+            raise FileNotFoundError(errno.ENOENT, '')
+        return note.get_md()
