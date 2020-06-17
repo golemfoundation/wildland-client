@@ -54,6 +54,7 @@ class WildlandFS(fuse.Fuse):
 
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
+        self.storage_counter = 0
 
         self.uid = None
         self.gid = None
@@ -110,9 +111,8 @@ class WildlandFS(fuse.Fuse):
         logging.info('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
 
-        ident = 0
-        while ident in self.storages:
-            ident += 1
+        ident = self.storage_counter
+        self.storage_counter += 1
 
         storage.mount()
 
