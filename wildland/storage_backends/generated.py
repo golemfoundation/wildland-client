@@ -24,8 +24,9 @@ Generated storage - for auto-generated file lists
 from pathlib import PurePosixPath
 import abc
 import errno
-from typing import Iterable, Callable, Optional
+from typing import Iterable, Callable, Optional, Dict
 import stat
+import time
 
 import fuse
 
@@ -124,15 +125,18 @@ class CachedDirEntry(FuncDirEntry):
 
     def __init__(self, name: str,
                  get_entries_func: Callable[[], Iterable[Entry]],
-                 timestamp: int = 0):
-        # TODO cache expirty
+                 timestamp: int = 0,
+                 timeout_seconds: float = 3):
         super().__init__(name, get_entries_func)
-        self.entries = None
+        self.entries: Dict[str, Entry] = {}
+        self.expiry: float = 0
+        self.timeout_seconds = timeout_seconds
 
     def _update(self):
-        if self.entries is None:
+        if time.time() > self.expiry:
             self.entries = {entry.name: entry
                             for entry in self.get_entries_func()}
+            self.expiry = time.time() + self.timeout_seconds
 
     def get_entries(self) -> Iterable[Entry]:
         self._update()
