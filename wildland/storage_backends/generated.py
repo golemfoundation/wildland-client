@@ -103,17 +103,42 @@ class FuncDirEntry(DirEntry):
     d = DirEntry('dir', get_entries)
     '''
 
-    def __init__(self, name: str, func: Callable[[], Iterable[Entry]],
+    def __init__(self, name: str,
+                 get_entries_func: Callable[[], Iterable[Entry]],
+                 get_entry_func: Optional[Callable[[str], Entry]] = None,
                  timestamp: int = 0):
         super().__init__(name)
-        self.func = func
+        self.get_entries_func = get_entries_func
+        self.get_entry_func = get_entry_func
         self.timestamp = timestamp
 
     def get_entries(self) -> Iterable[Entry]:
-        return self.func()
+        return self.get_entries_func()
+
+    def get_entry(self, name: str) -> Entry:
+        if self.get_entry_func:
+            return self.get_entry_func(name)
+        return super().get_entry(name)
 
     def getattr(self) -> fuse.Stat:
         return simple_dir_stat(timestamp=self.timestamp)
+
+
+class StaticFile(File):
+    '''
+    A read-only file with pre-determined content.
+    '''
+
+    def __init__(self, data: bytes, attr: fuse.Stat):
+        self.data = data
+        self.attr = attr
+        self.attr.st_size = len(data)
+
+    def read(self, length, offset):
+        return self.data[offset:offset+length]
+
+    def release(self, flags):
+        pass
 
 
 class FuncFileEntry(FileEntry):
@@ -137,6 +162,7 @@ class FuncFileEntry(FileEntry):
         super().__init__(name)
         self.on_read = on_read
         self.on_write = on_write
+        assert self.on_read or self.on_write
         self.timestamp = timestamp
 
     def getattr(self) -> fuse.Stat:
@@ -149,7 +175,12 @@ class FuncFileEntry(FileEntry):
         return attr
 
     def open(self, flags: int) -> File:
-        raise NotImplementedError()
+        if self.on_write:
+            raise NotImplementedError()
+        assert self.on_read
+        data = self.on_read()
+        attr = self.getattr()
+        return StaticFile(data, attr)
 
 
 class GeneratedStorageMixin:

@@ -153,9 +153,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def open(self, path: PurePosixPath, flags: int) -> File:
         raise NotImplementedError()
 
-    @abc.abstractmethod
     def create(self, path: PurePosixPath, flags: int, mode: int):
-        raise NotImplementedError()
+        raise OptionalError()
 
     # Method proxied to the File instance
 
@@ -185,17 +184,14 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def truncate(self, path: PurePosixPath, length: int) -> None:
         raise OptionalError()
 
-    @abc.abstractmethod
     def unlink(self, path: PurePosixPath) -> None:
-        raise NotImplementedError()
+        raise OptionalError()
 
-    @abc.abstractmethod
     def mkdir(self, path: PurePosixPath, mode: int) -> None:
-        raise NotImplementedError()
+        raise OptionalError()
 
-    @abc.abstractmethod
     def rmdir(self, path: PurePosixPath) -> None:
-        raise NotImplementedError()
+        raise OptionalError()
 
     @staticmethod
     def from_params(params, read_only=False) -> 'StorageBackend':
