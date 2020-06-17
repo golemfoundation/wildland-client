@@ -17,6 +17,7 @@ pytest
 pytest-cov
 pylint
 mypy
+python-lorem
 
 # Documentation
 sphinx
