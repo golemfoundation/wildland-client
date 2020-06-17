@@ -105,23 +105,42 @@ class FuncDirEntry(DirEntry):
 
     def __init__(self, name: str,
                  get_entries_func: Callable[[], Iterable[Entry]],
-                 get_entry_func: Optional[Callable[[str], Entry]] = None,
                  timestamp: int = 0):
         super().__init__(name)
         self.get_entries_func = get_entries_func
-        self.get_entry_func = get_entry_func
         self.timestamp = timestamp
 
     def get_entries(self) -> Iterable[Entry]:
         return self.get_entries_func()
 
-    def get_entry(self, name: str) -> Entry:
-        if self.get_entry_func:
-            return self.get_entry_func(name)
-        return super().get_entry(name)
-
     def getattr(self) -> fuse.Stat:
         return simple_dir_stat(timestamp=self.timestamp)
+
+
+class CachedDirEntry(FuncDirEntry):
+    '''
+    A version of FuncDirEntry that cached its results.
+    '''
+
+    def __init__(self, name: str,
+                 get_entries_func: Callable[[], Iterable[Entry]],
+                 timestamp: int = 0):
+        # TODO cache expirty
+        super().__init__(name, get_entries_func)
+        self.entries = None
+
+    def _update(self):
+        if self.entries is None:
+            self.entries = {entry.name: entry
+                            for entry in self.get_entries_func()}
+
+    def get_entries(self) -> Iterable[Entry]:
+        self._update()
+        return self.entries.values()
+
+    def get_entry(self, name: str) -> Entry:
+        self._update()
+        return self.entries[name]
 
 
 class StaticFile(File):

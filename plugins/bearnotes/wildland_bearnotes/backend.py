@@ -34,7 +34,8 @@ import click
 from wildland.storage import Storage
 from wildland.container import Container
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.generated import GeneratedStorageMixin, FuncDirEntry, FuncFileEntry
+from wildland.storage_backends.generated import \
+    GeneratedStorageMixin, FuncDirEntry, FuncFileEntry, CachedDirEntry
 from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
 
@@ -159,6 +160,8 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         self.bear_db = BearDB(self.params['path'])
         self.with_content = self.params.get('with_content', False)
 
+        self.root = CachedDirEntry('.', self._dir_root)
+
     @classmethod
     def cli_options(cls):
         return [
@@ -214,8 +217,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def get_root(self):
         # TODO function for a single entry
-        # TODO caching
-        return FuncDirEntry('.', self._dir_root)
+        return self.root
 
     def _dir_root(self):
         for ident in self.bear_db.get_note_idents():
