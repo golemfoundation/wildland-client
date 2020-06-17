@@ -29,7 +29,7 @@ import errno
 import fuse
 import click
 
-from .cached2 import CachedStorageMixin
+from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
 from .base import StorageBackend
 from ..manifest.schema import Schema

@@ -35,7 +35,7 @@ import fuse
 from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.buffered import FullBufferedFile
-from wildland.storage_backends.cached2 import CachedStorageMixin
+from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
 
