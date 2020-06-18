@@ -24,7 +24,7 @@ Conflict resolution
 import abc
 import stat
 from pathlib import PurePosixPath
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Set, Tuple, Optional, Iterable
 import re
 import dataclasses
 import errno
@@ -40,12 +40,103 @@ class Resolved:
     # Storage ID
     ident: int
 
-    # Whether we're inside (not just on a mount path)
-    is_inside: bool
-
     # Relative path inside (if inside), or relative path of the mount path
     # (if not inside)
     relpath: PurePosixPath
+
+
+class MountDir:
+    '''
+    A prefix tree for storing information about mounted storages.
+    '''
+
+    def __init__(self):
+        self.storage_ids: Set[int] = set()
+        self.children: Dict[str, 'MountDir'] = {}
+
+    def is_empty(self):
+        '''
+        Is this node ready for deletion (i.e. no storages left)?
+        '''
+
+        return len(self.children) == 0 and len(self.storage_ids) == 0
+
+    def mount(self, path: PurePosixPath, storage_id: int):
+        '''
+        Add a storage under the given path.
+        '''
+
+        if not path.parts:
+            self.storage_ids.add(storage_id)
+            return
+
+        first = path.parts[0]
+        rest = path.relative_to(path.parts[0])
+        if first not in self.children:
+            self.children[first] = MountDir()
+        self.children[first].mount(rest, storage_id)
+
+    def unmount(self, path: PurePosixPath, storage_id: int):
+        '''
+        Remove a storage from a given path.
+        '''
+
+        if not path.parts:
+            self.storage_ids.remove(storage_id)
+            return
+
+        first = path.parts[0]
+        rest = path.relative_to(path.parts[0])
+        self.children[first].unmount(rest, storage_id)
+        if self.children[first].is_empty():
+            del self.children[first]
+
+    def is_synthetic(self, path: PurePosixPath) -> bool:
+        '''
+        Is this a synthetic directory?
+
+        A synthetic directory is one where either more than one storage is
+        mounted, or there are storages mounted on the path deeper.
+        '''
+
+        if not path.parts:
+            if len(self.children) == 0 and len(self.storage_ids) == 1:
+                return False
+            return True
+
+        first = path.parts[0]
+        if first in self.children:
+            rest = path.relative_to(first)
+            return self.children[first].is_synthetic(rest)
+        return False
+
+    def readdir(self, path: PurePosixPath) -> Optional[Iterable[str]]:
+        '''
+        List synthetic sub-directories under path.
+        '''
+
+        if not path.parts:
+            return self.children.keys()
+
+        first = path.parts[0]
+        if first in self.children:
+            rest = path.relative_to(first)
+            return self.children[first].readdir(rest)
+        return None
+
+    def resolve(self, path: PurePosixPath) -> Iterable[Resolved]:
+        '''
+        Find all storages that could be responsible for a given path.
+        '''
+
+        for storage_id in self.storage_ids:
+            yield Resolved(storage_id, path)
+
+        if path.parts:
+            first = path.parts[0]
+            if first in self.children:
+                rest = path.relative_to(first)
+                yield from self.children[first].resolve(rest)
 
 
 class ConflictResolver(metaclass=abc.ABCMeta):
@@ -70,13 +161,22 @@ class ConflictResolver(metaclass=abc.ABCMeta):
     SUFFIX_FORMAT = '{}.wl.{}'
     SUFFIX_RE = re.compile(r'^(.*).wl.(\d+)$')
 
-    @abc.abstractmethod
-    def get_storage_paths(self) -> Dict[int, List[PurePosixPath]]:
+    def __init__(self):
+        self.root: MountDir = MountDir()
+
+    def mount(self, path: PurePosixPath, storage_id: int):
         '''
-        Get list of mounted storages along with their mount paths.
+        Add information about a mounted storage.
         '''
 
-        raise NotImplementedError()
+        self.root.mount(path, storage_id)
+
+    def unmount(self, path: PurePosixPath, storage_id: int):
+        '''
+        Remove information about a mounted storage.
+        '''
+
+        self.root.unmount(path, storage_id)
 
     @abc.abstractmethod
     def storage_getattr(self, ident: int, relpath: PurePosixPath) \
@@ -100,49 +200,32 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
         raise NotImplementedError()
 
-    def _resolve(self, path: PurePosixPath) -> \
-        List[Resolved]:
-        result = []
-        for ident, mount_paths in self.get_storage_paths().items():
-            for mount_path in mount_paths:
-                if mount_path == path or mount_path in path.parents:
-                    result.append(Resolved(ident, True, path.relative_to(mount_path)))
-                elif path in mount_path.parents:
-                    result.append(Resolved(ident, False, mount_path.relative_to(path)))
-        return result
-
-    def _storage_readdir(self, res: Resolved):
-        if res.is_inside:
-            return self.storage_readdir(res.ident, res.relpath)
-        return [res.relpath.parts[0]]
-
-    def _storage_getattr(self, res: Resolved):
-        if res.is_inside:
-            return self.storage_getattr(res.ident, res.relpath)
-        return fuse.Stat(
-            st_mode=stat.S_IFDIR | 0o555,
-            st_nlink=1,
-            st_uid=None,
-            st_gid=None,
-        )
-
     def readdir(self, path: PurePosixPath) -> List[str]:
         '''
         List directory.
 
         Raise IOError if the path cannot be accessed.
         '''
-        resolved = self._resolve(path)
-        if len(resolved) == 0:
+
+        resolved = list(self.root.resolve(path))
+        synthetic = self.root.readdir(path)
+
+        if len(resolved) == 0 and synthetic is None:
             raise FileNotFoundError(errno.ENOENT, '')
 
+        result: Set[str] = set()
+        if synthetic is not None:
+            result.update(synthetic)
+
+        # Only one storage to list, no need to disambiguate files
         if len(resolved) == 1:
-            return sorted(self._storage_readdir(resolved[0]))
+            result.update(self.storage_readdir(resolved[0].ident, resolved[0].relpath))
+            return sorted(result)
 
         res_dirs = []
         res_files = []
         for res in resolved:
-            st = handle_io_error(self._storage_getattr, res)
+            st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
             if st is None:
                 continue
             if stat.S_ISDIR(st.st_mode):
@@ -150,7 +233,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             else:
                 res_files.append(res)
 
-        if len(res_dirs) == 0:
+        if len(res_dirs) == 0 and not result:
             if len(res_files) == 0:
                 # Nothing found
                 raise FileNotFoundError(errno.ENOENT, '')
@@ -160,33 +243,32 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             # There are multiple files with that name, they will be renamed
             raise FileNotFoundError(errno.ENOENT, '')
 
+        # Only one directory storage to list, no need to disambiguate files
         if len(res_dirs) == 1:
-            return sorted(self._storage_readdir(res_dirs[0]))
+            result.update(self.storage_readdir(res_dirs[0].ident, res_dirs[0].relpath))
+            return sorted(result)
 
         seen: Dict[str, List[Resolved]] = {}
         for res in res_dirs:
-            names = handle_io_error(self._storage_readdir, res) or []
+            names = handle_io_error(self.storage_readdir, res.ident, res.relpath) or []
             for name in names:
                 seen.setdefault(name, []).append(res)
 
-        result: Set[str] = set()
         for name, resolved in seen.items():
-            if len(resolved) == 1:
+            # No conflict, just add the name without changing.
+            if len(resolved) == 1 and name not in result:
                 result.add(name)
                 continue
+
             for res in resolved:
-                if res.is_inside:
-                    st = handle_io_error(self.storage_getattr, res.ident, res.relpath / name)
-                    if st is None:
-                        # Treat inaccessible files as files, not directories.
-                        result.add(self.SUFFIX_FORMAT.format(name, res.ident))
-                    elif stat.S_ISDIR(st.st_mode):
-                        result.add(name)
-                    else:
-                        result.add(self.SUFFIX_FORMAT.format(name, res.ident))
+                st = handle_io_error(self.storage_getattr, res.ident, res.relpath / name)
+                if st is None:
+                    # Treat inaccessible files as files, not directories.
+                    result.add(self.SUFFIX_FORMAT.format(name, res.ident))
+                elif stat.S_ISDIR(st.st_mode):
+                    result.add(name)
                 else:
-                    # This is a subdirectory under a synthetic path.
-                    result.add(res.relpath.parts[0])
+                    result.add(self.SUFFIX_FORMAT.format(name, res.ident))
 
         return sorted(result)
 
@@ -217,7 +299,15 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             real_path = path
             suffix = None
 
-        resolved = self._resolve(real_path)
+        if self.root.is_synthetic(real_path):
+            return fuse.Stat(
+                st_mode=stat.S_IFDIR | 0o555,
+                st_nlink=1,
+                st_uid=None,
+                st_gid=None,
+            ), None
+
+        resolved = list(self.root.resolve(real_path))
         if len(resolved) == 0:
             raise FileNotFoundError(errno.ENOENT, '')
 
@@ -229,13 +319,13 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             # can be propagated to caller.
 
             res = resolved[0]
-            st = self._storage_getattr(res)
+            st = self.storage_getattr(res.ident, res.relpath)
             return (st, res)
 
         file_results: List[Tuple[fuse.Stat, Resolved]] = []
         dir_results: List[Tuple[fuse.Stat, Resolved]] = []
         for res in resolved:
-            st = handle_io_error(self._storage_getattr, res)
+            st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
             if st is None:
                 continue
             if stat.S_ISDIR(st.st_mode):

@@ -37,12 +37,8 @@ class TestFS(ConflictResolver):
     def __init__(self, *storages):
         super().__init__()
         self.storages = storages
-
-    def get_storage_paths(self):
-        result = {}
         for ident, (mount_path, _data) in enumerate(self.storages):
-            result[ident] = [mount_path]
-        return result
+            self.mount(mount_path, ident)
 
     @staticmethod
     def get(data, relpath):

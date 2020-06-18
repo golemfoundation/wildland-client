@@ -118,6 +118,8 @@ class WildlandFS(fuse.Fuse):
 
         self.storages[ident] = storage
         self.storage_paths[ident] = paths
+        for path in paths:
+            self.resolver.mount(path, ident)
 
     def unmount_storage(self, ident: int):
         '''Unmount a storage'''
@@ -132,6 +134,8 @@ class WildlandFS(fuse.Fuse):
         # TODO check open files?
         del self.storages[ident]
         del self.storage_paths[ident]
+        for path in paths:
+            self.resolver.unmount(path, ident)
 
     # pylint: disable=missing-docstring
 
@@ -208,7 +212,7 @@ class WildlandFS(fuse.Fuse):
         to_resolve = path.parent if parent else path
 
         _st, res = self.resolver.getattr_extended(to_resolve)
-        if not (res and res.is_inside):
+        if not res:
             return -errno.EACCES
 
         storage = self.storages[res.ident]
@@ -327,10 +331,8 @@ class WildlandFSConflictResolver(ConflictResolver):
     '''
 
     def __init__(self, fs: WildlandFS):
+        super().__init__()
         self.fs = fs
-
-    def get_storage_paths(self):
-        return self.fs.storage_paths
 
     def storage_getattr(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
         return self.fs.storages[ident].getattr(relpath)
