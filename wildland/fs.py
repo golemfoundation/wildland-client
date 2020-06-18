@@ -72,6 +72,7 @@ class WildlandFS(fuse.Fuse):
         self.fuse_args.add('direct_io')
 
         self.resolver = WildlandFSConflictResolver(self)
+        self.control = ControlStorageBackend(fs=self)
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
@@ -86,9 +87,7 @@ class WildlandFS(fuse.Fuse):
 
         self.init_logging(self.cmdline[0])
 
-        self.mount_storage(
-            [PurePosixPath('/.control')],
-            ControlStorageBackend(fs=self))
+        self.mount_storage([PurePosixPath('/.control')], self.control)
 
         super().main(args)
 
@@ -121,6 +120,8 @@ class WildlandFS(fuse.Fuse):
         for path in paths:
             self.resolver.mount(path, ident)
 
+        self.control.refresh()
+
     def unmount_storage(self, ident: int):
         '''Unmount a storage'''
 
@@ -138,6 +139,8 @@ class WildlandFS(fuse.Fuse):
         del self.storage_paths[ident]
         for path in paths:
             self.resolver.unmount(path, ident)
+
+        self.control.refresh()
 
     # pylint: disable=missing-docstring
 

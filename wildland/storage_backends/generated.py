@@ -27,11 +27,13 @@ import errno
 from typing import Iterable, Callable, Optional, Dict
 import stat
 import time
+import logging
 
 import fuse
 
 from .base import File
 from .util import simple_dir_stat, simple_file_stat
+from ..exc import WildlandError
 
 
 class Entry(metaclass=abc.ABCMeta):
@@ -132,6 +134,13 @@ class CachedDirEntry(FuncDirEntry):
         self.expiry: float = 0
         self.timeout_seconds = timeout_seconds
 
+    def refresh(self):
+        '''
+        Invalidate cache.
+        '''
+
+        self.expiry = 0
+
     def _update(self):
         if time.time() > self.expiry:
             self.entries = {entry.name: entry
@@ -163,6 +172,36 @@ class StaticFile(File):
     def release(self, flags):
         pass
 
+    def fgetattr(self):
+        return self.attr
+
+
+class CommandFile(File):
+    '''
+    A write-only file that triggers a callback.
+    '''
+
+    def __init__(self,
+                 on_write: Callable[[bytes], None],
+                 attr: fuse.Stat):
+        self.on_write = on_write
+        self.attr = attr
+
+    def write(self, data: bytes, offset):
+        try:
+            self.on_write(data)
+        except WildlandError:
+            logging.exception('control write error')
+            raise OSError(errno.EINVAL, '')
+        return len(data)
+
+    def release(self, flags):
+        pass
+
+    def fgetattr(self):
+        return self.attr
+
+
 
 class FuncFileEntry(FileEntry):
     '''
@@ -182,10 +221,12 @@ class FuncFileEntry(FileEntry):
                  on_read: Optional[Callable[[], bytes]] = None,
                  on_write: Optional[Callable[[bytes], None]] = None,
                  timestamp: int = 0):
+        assert bool(on_read) + bool(on_write) == 1, \
+            'exactly one of on_read or on_write expected'
+
         super().__init__(name)
         self.on_read = on_read
         self.on_write = on_write
-        assert self.on_read or self.on_write
         self.timestamp = timestamp
 
     def getattr(self) -> fuse.Stat:
@@ -198,11 +239,11 @@ class FuncFileEntry(FileEntry):
         return attr
 
     def open(self, flags: int) -> File:
+        attr = self.getattr()
         if self.on_write:
-            raise NotImplementedError()
+            return CommandFile(self.on_write, attr)
         assert self.on_read
         data = self.on_read()
-        attr = self.getattr()
         return StaticFile(data, attr)
 
 
