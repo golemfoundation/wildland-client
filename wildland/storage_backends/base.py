@@ -67,6 +67,9 @@ class File(metaclass=abc.ABCMeta):
     def ftruncate(self, length: int) -> None:
         raise OptionalError()
 
+    def flush(self) -> None:
+        pass
+
 
 class StorageBackend(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
@@ -175,6 +178,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     def ftruncate(self, _path: PurePosixPath, length: int, obj: File) -> None:
         return obj.ftruncate(length)
+
+    def flush(self, _path: PurePosixPath, obj: File) -> None:
+        obj.flush()
 
     # Other FUSE operations
 
