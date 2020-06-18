@@ -22,7 +22,7 @@ Bear storage backend
 '''
 
 from pathlib import PurePosixPath
-from typing import Iterable, Optional, List, Set, Dict
+from typing import Iterable, Optional, List, Set, Dict, Tuple
 import logging
 from dataclasses import dataclass
 from functools import partial
@@ -54,29 +54,30 @@ class BearNote:
     text: str
     tags: List[str]
 
-    def get_paths(self) -> List[PurePosixPath]:
-        '''
-        Get the list of paths this not should be mounted under, based on tags.
-
-        This includes only leaf tags, i.e. for tags 'tests', 'tests/cat',
-        'tests/cat/subcat', only the last one will be used.
-        '''
-
-        result: Set[PurePosixPath] = set()
-        for tag in sorted(self.tags, key=len):
-            path = PurePosixPath('/') / PurePosixPath(tag)
-            for parent in path.parents:
-                if parent in result:
-                    result.remove(parent)
-            result.add(path)
-        return sorted(result)
-
     def get_md(self) -> bytes:
         '''
         Get the contents of note Markdown file.
         '''
         content = 'title: ' + self.title + '\n---\n' + self.text + '\n'
         return content.encode('utf-8')
+
+
+def get_note_paths(tags: List[str]) -> List[PurePosixPath]:
+    '''
+    Get the list of paths a note should be mounted under, based on tags.
+
+    This includes only leaf tags, i.e. for tags 'tests', 'tests/cat',
+    'tests/cat/subcat', only the last one will be used.
+    '''
+
+    result: Set[PurePosixPath] = set()
+    for tag in sorted(tags, key=len):
+        path = PurePosixPath('/') / PurePosixPath(tag)
+        for parent in path.parents:
+            if parent in result:
+                result.remove(parent)
+        result.add(path)
+    return sorted(result)
 
 
 class BearDB:
@@ -131,6 +132,29 @@ class BearDB:
         cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
         for row in cursor.fetchall():
             yield row['ZUNIQUEIDENTIFIER']
+
+    def get_note_idents_with_tags(self) -> Iterable[Tuple[str, List[str]]]:
+        '''
+        Retrieve list of note IDs, along with tags.
+        '''
+
+        assert self.db
+        cursor = self.db.cursor()
+
+        result: Dict[str, List[str]] = {
+            ident: []
+            for ident in self.get_note_idents()
+        }
+        cursor.execute('''
+            SELECT ZUNIQUEIDENTIFIER, ZSFNOTETAG.ZTITLE FROM ZSFNOTE
+            JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ZSFNOTE.Z_PK
+            JOIN ZSFNOTETAG ON Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
+        ''')
+        for row in cursor.fetchall():
+            ident = row['ZUNIQUEIDENTIFIER']
+            tag = row['ZTITLE']
+            result.setdefault(ident, []).append(tag)
+        return result.items()
 
     def get_note(self, ident: str) -> Optional[BearNote]:
         '''
@@ -221,7 +245,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             'with_content': data['with_content'],
         }
 
-    def _make_storage_manifest(self, note: BearNote) -> Manifest:
+    def _make_storage_manifest(self, ident: str) -> Manifest:
         '''
         Create a storage manifest for a single note.
         '''
@@ -229,25 +253,25 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         storage = Storage(
             signer=self.params['signer'],
             storage_type='bear-note',
-            container_path=PurePosixPath(f'/.uuid/{note.ident}'),
+            container_path=PurePosixPath(f'/.uuid/{ident}'),
             trusted=False,
             params={
                 'path': self.params['path'],
-                'note': note.ident,
+                'note': ident,
             })
         storage.validate()
         manifest = storage.to_unsigned_manifest()
         manifest.skip_signing()
         return manifest
 
-    def _make_container_manifest(self, note: BearNote) -> Manifest:
+    def _make_container_manifest(self, ident: str, tags: List[str]) -> Manifest:
         '''
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
         '''
 
-        storage_manifest = self._make_storage_manifest(note)
-        paths = [PurePosixPath(f'/.uuid/{note.ident}')] + note.get_paths()
+        storage_manifest = self._make_storage_manifest(ident)
+        paths = [PurePosixPath(f'/.uuid/{ident}')] + get_note_paths(tags)
         container = Container(
             signer=self.params['signer'],
             paths=paths,
@@ -258,15 +282,14 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         return manifest
 
     def get_root(self):
-        # TODO function for a single entry
         return self.root
 
     def _dir_root(self):
-        for ident in self.bear_db.get_note_idents():
-            yield FuncDirEntry(ident, partial(self._dir_note, ident))
+        for ident, tags in self.bear_db.get_note_idents_with_tags():
+            yield FuncDirEntry(ident, partial(self._dir_note, ident, tags))
 
-    def _dir_note(self, ident: str):
-        yield FuncFileEntry('container.yaml', partial(self._get_manifest, ident))
+    def _dir_note(self, ident: str, tags: List[str]):
+        yield FuncFileEntry('container.yaml', partial(self._get_manifest, ident, tags))
         yield FuncFileEntry('README.md', self._get_readme)
         if self.with_content:
             yield FuncFileEntry('note.md', partial(self._get_note, ident))
@@ -293,11 +316,8 @@ The note files (currently just `note.md`) are also visible here.
 
         return readme.encode()
 
-    def _get_manifest(self, ident):
-        note = self.bear_db.get_note(ident)
-        if not note:
-            raise FileNotFoundError(errno.ENOENT, '')
-        return self._make_container_manifest(note).to_bytes()
+    def _get_manifest(self, ident, tags):
+        return self._make_container_manifest(ident, tags).to_bytes()
 
     def _get_note(self, ident):
         note = self.bear_db.get_note(ident)
