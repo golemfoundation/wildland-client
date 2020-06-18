@@ -151,12 +151,16 @@ class WildlandFS(fuse.Fuse):
 
     @control_file('mount', read=False, write=True)
     def control_mount(self, content: bytes):
-        params = json.loads(content)
-        paths = [PurePosixPath(p) for p in params['paths']]
-        storage_params = params['storage']
-        read_only = params.get('read_only')
-        storage = StorageBackend.from_params(storage_params, read_only)
-        self.mount_storage(paths, storage)
+        cmd = json.loads(content)
+        if not isinstance(cmd, list):
+            cmd = [cmd]
+
+        for params in cmd:
+            paths = [PurePosixPath(p) for p in params['paths']]
+            storage_params = params['storage']
+            read_only = params.get('read_only')
+            storage = StorageBackend.from_params(storage_params, read_only)
+            self.mount_storage(paths, storage)
 
     @control_file('unmount', read=False, write=True)
     def control_unmount(self, content: bytes):

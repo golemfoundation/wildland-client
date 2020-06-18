@@ -90,11 +90,18 @@ class FuseEnv:
         pytest.fail('Timed out waiting for mount', pytrace=False)
 
     def mount_storage(self, paths, storage):
-        with open(self.mnt_dir / '.control/mount', 'w') as f:
-            f.write(json.dumps({
+        self.mount_multiple_storages([(paths, storage)])
+
+    def mount_multiple_storages(self, storages):
+        cmd = []
+        for paths, storage in storages:
+            cmd.append({
                 'paths': [str(p) for p in paths],
                 'storage': storage
-            }))
+            })
+
+        with open(self.mnt_dir / '.control/mount', 'w') as f:
+            f.write(json.dumps(cmd))
 
     def unmount_storage(self, ident):
         with open(self.mnt_dir / '.control/unmount', 'w') as f:

@@ -26,7 +26,7 @@ import time
 from pathlib import Path, PurePosixPath
 import subprocess
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable, Tuple
 import json
 import sys
 
@@ -178,9 +178,21 @@ class WildlandFSClient:
         Mount a container, assuming a storage has been already selected.
         '''
 
+        self.mount_multiple_containers([(container, storage, is_default_user)])
+
+    def mount_multiple_containers(
+            self,
+            params: Iterable[Tuple[Container, Storage, bool]]):
+        '''
+        Mount multiple containers using a single command.
+        '''
+
         self.clear_cache()
-        command = self.get_command_for_mount_container(container, storage, is_default_user)
-        self.write_control('mount', json.dumps(command).encode())
+        commands = [
+            self.get_command_for_mount_container(container, storage, is_default_user)
+            for container, storage, is_default_user in params
+        ]
+        self.write_control('mount', json.dumps(commands).encode())
 
     def unmount_container(self, storage_id: int):
         '''

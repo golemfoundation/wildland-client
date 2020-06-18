@@ -22,12 +22,14 @@ Manage containers
 '''
 
 from pathlib import PurePosixPath
+from typing import List, Tuple
 
 import click
 
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
+from ..storage import Storage
 
 
 @aliased_group('container', short_help='container management')
@@ -146,11 +148,19 @@ def mount(obj: ContextObj, container_names):
         if obj.fs_client.find_storage_id(container) is not None:
             raise CliError('Already mounted: {container.local_path}')
 
+    click.echo('Determining storage')
+
+    params: List[Tuple[Container, Storage, bool]] = []
     for container in containers:
-        click.echo(f'Mounting: {container.local_path}')
         is_default_user = container.signer == obj.client.config.get('default_user')
         storage = obj.client.select_storage(container)
-        obj.fs_client.mount_container(container, storage, is_default_user)
+        params.append((container, storage, is_default_user))
+
+    if len(params) > 0:
+        click.echo(f'Mounting {len(params)} containers')
+    else:
+        click.echo('Mounting container')
+    obj.fs_client.mount_multiple_containers(params)
 
 
 @container_.command(short_help='unmount container', alias=['umount'])

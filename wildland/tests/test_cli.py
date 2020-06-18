@@ -250,8 +250,8 @@ def test_container_mount(cli, base_dir):
     # The command should write container manifest to .control/mount.
     with open(base_dir / 'mnt/.control/mount') as f:
         command = json.load(f)
-    assert command['storage']['signer'] == '0xaaa'
-    assert command['paths'] == [
+    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
         path,
@@ -264,8 +264,8 @@ def test_container_mount(cli, base_dir):
     cli('container', 'mount', 'Container')
     with open(base_dir / 'mnt/.control/mount') as f:
         command = json.load(f)
-    assert command['storage']['signer'] == '0xaaa'
-    assert command['paths'] == [
+    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
     ]
@@ -289,9 +289,9 @@ def test_container_mount_inline_storage(cli, base_dir):
     # The command should write container manifest to .control/mount.
     with open(base_dir / 'mnt/.control/mount') as f:
         command = json.load(f)
-    assert command['storage']['signer'] == '0xaaa'
-    assert command['storage']['path'] == '/STORAGE'
-    assert command['paths'] == [
+    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['storage']['path'] == '/STORAGE'
+    assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
         path,

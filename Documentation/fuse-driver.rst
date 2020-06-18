@@ -66,6 +66,8 @@ by Widland CLI. Structured data is passed using JSON.
         }
       }
 
+  Can be also passed an array of such commands.
+
 * ``.control/unmount`` (write-only) - unmount a storage by number. Input data
   is a single number.
 
