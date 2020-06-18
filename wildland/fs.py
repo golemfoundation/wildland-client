@@ -131,6 +131,8 @@ class WildlandFS(fuse.Fuse):
         logging.info('unmounting storage %r from paths: %s',
                      storage, [str(p) for p in paths])
 
+        storage.unmount()
+
         # TODO check open files?
         del self.storages[ident]
         del self.storage_paths[ident]

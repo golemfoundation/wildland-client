@@ -22,7 +22,7 @@ Bear storage backend
 '''
 
 from pathlib import PurePosixPath
-from typing import Iterable, Optional, List, Set
+from typing import Iterable, Optional, List, Set, Dict
 import logging
 from dataclasses import dataclass
 from functools import partial
@@ -84,15 +84,49 @@ class BearDB:
     An class for accessing the Bear SQLite database.
     '''
 
+    conn_cache: Dict[str, sqlite3.Connection] = {}
+    conn_refcount: Dict[str, int] = {}
+
     def __init__(self, path):
-        self.db = sqlite3.connect(path)
-        self.db.row_factory = sqlite3.Row
+        self.path = path
+        self.db = None
+
+    def connect(self):
+        '''
+        Connect to database, reusing existing connection if necessary.
+        '''
+
+        assert not self.db
+
+        if self.path in self.conn_cache:
+            self.db = self.conn_cache[self.path]
+            self.conn_refcount[self.path] += 1
+        else:
+            self.db = sqlite3.connect(self.path)
+            self.db.row_factory = sqlite3.Row
+            self.conn_cache[self.path] = self.db
+            self.conn_refcount[self.path] = 1
+
+    def disconnect(self):
+        '''
+        Close database connection, if necessary.
+        '''
+
+        assert self.db
+
+        self.conn_refcount[self.path] -= 1
+        if self.conn_refcount[self.path] == 0:
+            del self.conn_refcount[self.path]
+            del self.conn_cache[self.path]
+            self.db.close()
+        self.db = None
 
     def get_note_idents(self) -> Iterable[str]:
         '''
         Retrieve list of note IDs.
         '''
 
+        assert self.db
         cursor = self.db.cursor()
         cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
         for row in cursor.fetchall():
@@ -103,6 +137,7 @@ class BearDB:
         Retrieve a single note.
         '''
 
+        assert self.db
         cursor = self.db.cursor()
         cursor.execute('''
             SELECT Z_PK, ZTITLE, ZTEXT FROM ZSFNOTE
@@ -121,6 +156,7 @@ class BearDB:
         Retrieve a list of tags for a note.
         '''
 
+        assert self.db
         cursor = self.db.cursor()
         cursor.execute('''
             SELECT ZTITLE FROM ZSFNOTETAG
@@ -161,6 +197,12 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         self.with_content = self.params.get('with_content', False)
 
         self.root = CachedDirEntry('.', self._dir_root)
+
+    def mount(self):
+        self.bear_db.connect()
+
+    def unmount(self):
+        self.bear_db.disconnect()
 
     @classmethod
     def cli_options(cls):
@@ -290,6 +332,12 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
 
         self.bear_db = BearDB(self.params['path'])
         self.ident = self.params['note']
+
+    def mount(self):
+        self.bear_db.connect()
+
+    def unmount(self):
+        self.bear_db.disconnect()
 
     @classmethod
     def cli_options(cls):

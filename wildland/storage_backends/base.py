@@ -144,6 +144,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def mount(self) -> None:
         pass
 
+    def unmount(self) -> None:
+        pass
+
     def refresh(self) -> None:
         pass
 
