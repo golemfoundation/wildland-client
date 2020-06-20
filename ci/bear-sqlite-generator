@@ -170,22 +170,31 @@ class BearGenerator:
 
     def list_tags(self):
         cursor = self._db.cursor()
-        cursor.execute("SELECT Z_PK FROM ZSFNOTETAG")
+        cursor.execute("SELECT Z_PK, ZTITLE FROM ZSFNOTETAG")
 
-        for note in cursor.fetchall():
-            yield note['Z_PK']
+        tags = {}
+        for tag in cursor.fetchall():
+            tags[tag['ZTITLE']] = tag['Z_PK']
+
+        return tags
 
     def assign_tags(self, min_tags, max_tags):
-        all_tags = list(self.list_tags())
+        all_tags = self.list_tags()
+        all_tags_list = list(all_tags)
 
         tag_mappings = []
         for note in self.list_notes():
             tags_count = random.randint(min_tags, max_tags)
-            tags = random.sample(all_tags, tags_count)
+            tags = random.sample(all_tags_list, tags_count)
             for tag in tags:
-                tag_mappings.append((note, tag))
+                tag_mappings.append((note, all_tags[tag]))
+                # and parent tags:
+                while tag.count('/'):
+                    tag = tag.rsplit('/', 1)[0]
+                    tag_id = all_tags[tag]
+                    tag_mappings.append((note, tag_id))
 
-        self._db.executemany("INSERT INTO Z_7TAGS(Z_7NOTES, Z_14TAGS) VALUES (?, ?)", tag_mappings)
+        self._db.executemany("INSERT INTO Z_7TAGS(Z_7NOTES, Z_14TAGS) VALUES (?, ?)", set(tag_mappings))
 
     def close_database(self):
         self._db.commit()
