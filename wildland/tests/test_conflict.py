@@ -218,3 +218,25 @@ def test_readdir_file_and_dir():
         'file5',
         'file6',
     ]
+
+
+def test_readdir_mounted_subdir():
+    fs = TestFS(
+        (PurePosixPath('/foo'), {
+            'dir1': {},
+            'file1': None,
+        }),
+        (PurePosixPath('/foo/bar/baz'), {
+            'dir2': {},
+            'file2': None,
+        }),
+    )
+
+    assert fs.dir('/') == ['foo']
+    assert fs.dir('/foo') == ['bar', 'dir1', 'file1']
+
+    # This should return 'baz' even though the only 'real' storage will reply
+    # ENOENT for the 'bar' directory.
+    assert fs.dir('/foo/bar') == ['baz']
+
+    assert fs.dir('/foo/bar/baz') == ['dir2', 'file2']

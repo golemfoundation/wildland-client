@@ -217,9 +217,12 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         if synthetic is not None:
             result.update(synthetic)
 
-        # Only one storage to list, no need to disambiguate files
-        if len(resolved) == 1:
-            result.update(self.storage_readdir(resolved[0].ident, resolved[0].relpath))
+        # Only one storage to list, and no synthetic storages.
+        # Note that this is the only case where we do NOT call
+        # handle_io_error(), but allow the error to fall through.
+        if len(resolved) == 1 and not result:
+            names = self.storage_readdir(resolved[0].ident, resolved[0].relpath)
+            result.update(names or [])
             return sorted(result)
 
         res_dirs = []
@@ -245,7 +248,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
         # Only one directory storage to list, no need to disambiguate files
         if len(res_dirs) == 1:
-            result.update(self.storage_readdir(res_dirs[0].ident, res_dirs[0].relpath))
+            names = handle_io_error(self.storage_readdir, res_dirs[0].ident, res_dirs[0].relpath)
+            result.update(names or [])
             return sorted(result)
 
         seen: Dict[str, List[Resolved]] = {}

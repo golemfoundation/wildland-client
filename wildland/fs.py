@@ -185,6 +185,10 @@ class WildlandFS(fuse.Fuse):
                 result.setdefault(str(path), []).append(ident)
         return (json.dumps(result, indent=2) + '\n').encode()
 
+    @control_file('pdb', write=True)
+    def control_pdb(self):
+        import pdb; pdb.set_trace()
+
     @control_directory('storage')
     def control_containers(self):
         for ident, storage in self.storages.items():
