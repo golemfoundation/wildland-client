@@ -23,6 +23,7 @@ File buffering classes
 
 import logging
 import abc
+from typing import Dict, Set, Tuple, Iterable, List
 
 import fuse
 
@@ -30,6 +31,159 @@ from .base import File
 
 
 logger = logging.getLogger('storage-buffered')
+
+
+class Buffer:
+    '''
+    A buffer class for caching parts of a file.
+    '''
+
+    def __init__(self, size: int, page_size: int):
+        self.pages: Dict[int, bytearray] = {}
+        self.dirty: Set[int] = set()
+        self.size = size
+        self.page_size = page_size
+
+    def _page_range(self, length, start) -> Iterable[int]:
+        start_page = start // self.page_size
+        end_page = (start + length + self.page_size - 1) // self.page_size
+        return range(start_page, end_page)
+
+    def set_read(self, data: bytes, length: int, start: int) -> None:
+        '''
+        Set retrieved parts of a file (after calling get_needed_ranges() and
+        retrieving the data.).
+        '''
+
+        assert start % self.page_size == 0
+
+        for page_num in self._page_range(length, start):
+            page = bytearray(self.page_size)
+            page_data = data[
+                page_num * self.page_size - start:
+                (page_num+1) * self.page_size - start
+            ]
+            page[:len(page_data)] = page_data
+            self.pages[page_num] = page
+
+    def write(self, data: bytes, start: int) -> None:
+        '''
+        Write new data to buffer. The necessary pages must be loaded first.
+        '''
+
+        for page_num in self._page_range(len(data), start):
+            page_start = page_num * self.page_size
+            page_end = (page_num + 1) * self.page_size
+
+            part_start = max(page_start, start)
+            part_end = min(page_end, start + len(data))
+
+            if page_num not in self.pages:
+                assert part_start >= self.size, 'writing to a page that is not loaded'
+                self.pages[page_num] = bytearray(self.page_size)
+
+            page = self.pages[page_num]
+            page_data = data[
+                part_start-start:
+                part_end-start
+            ]
+            page[
+                part_start-page_start:
+                part_end-page_start
+            ] = page_data
+
+            self.dirty.add(page_num)
+
+        self.size = max(self.size, start + len(data))
+
+    def get_needed_ranges(self, length: int, start: int) -> List[Tuple[int, int]]:
+        '''
+        Returns a list of ranges (length, start) necessary to load before reading
+        or writing to a file.
+        '''
+
+        if start + length > self.size:
+            length = self.size - start
+
+        if length == 0:
+            return []
+
+        ranges: List[Tuple[int, int]] = []
+        for page_num in self._page_range(length, start):
+            if page_num not in self.pages:
+                page_start = page_num * self.page_size
+                page_end = (page_num + 1) * self.page_size
+                ranges.append((page_end - page_start, page_start))
+        return ranges
+
+    def get_dirty_data(self) -> List[Tuple[bytes, int]]:
+        '''
+        Returns a list of data chunks (data, start) that need to be saved back
+        to the file.
+        '''
+
+        result: List[Tuple[bytes, int]] = []
+        for page_num in sorted(self.dirty):
+            assert page_num in self.pages
+
+            part_start = page_start = page_num * self.page_size
+            page_end = (page_num + 1) * self.page_size
+            part_end = min(page_end, self.size)
+
+            page = self.pages[page_num]
+            page_data = page[
+                part_start-page_start:
+                part_end-page_start
+            ]
+            result.append((bytes(page_data), part_start))
+        return result
+
+    def read(self, length: int, start: int) -> bytes:
+        '''
+        Read data from buffer. The necessary pages must be loaded first.
+        '''
+
+        if start + length > self.size:
+            length = self.size - start
+
+        result = bytearray(length)
+        for page_num in self._page_range(length, start):
+            page_start = page_num * self.page_size
+            page_end = (page_num + 1) * self.page_size
+
+            part_start = max(page_start, start)
+            part_end = min(page_end, start + length)
+
+            assert page_num in self.pages, 'reading from a page that is not loaded'
+            page = self.pages[page_num]
+            page_data = page[
+                part_start-page_start:
+                part_end-page_start
+            ]
+            result[
+                part_start-start:
+                part_end-start
+            ] = page_data
+
+        return bytes(result)
+
+    def truncate(self, new_size: int) -> None:
+        '''
+        Truncate the buffer to a smaller size, throwing away unnecessary data.
+        '''
+
+        if self.size <= new_size:
+            return
+
+        end_page = (self.size + self.page_size - 1) // self.page_size
+        new_end_page = (new_size + self.page_size - 1) // self.page_size
+        for page_num in range(new_end_page, end_page):
+            if page_num in self.pages:
+                del self.pages[page_num]
+            if page_num in self.dirty:
+                self.dirty.remove(page_num)
+
+        self.size = new_size
 
 
 class FullBufferedFile(File, metaclass=abc.ABCMeta):
