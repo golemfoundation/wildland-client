@@ -75,8 +75,6 @@ class CachedStorageMixin:
             if path != PurePosixPath('.'):
                 self.readdir_cache.setdefault(path.parent, []).append(path.name)
 
-        logger.info(self.getattr_cache)
-
         self.expiry = time.time() + self.CACHE_TIMEOUT
 
     def _update(self):
