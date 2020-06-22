@@ -48,7 +48,7 @@ class ControlStorageBackend(GeneratedStorageMixin, StorageBackend):
         return self.root
 
     def refresh(self):
-        self.root.refresh()
+        self.root.invalidate()
 
     def _get_obj_entries(self, obj):
         for name, node in self.node_list(obj):

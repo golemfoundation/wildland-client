@@ -27,6 +27,7 @@ import logging
 from dataclasses import dataclass
 from functools import partial
 import errno
+import os
 
 import sqlite3
 import click
@@ -78,6 +79,25 @@ def get_note_paths(tags: List[str]) -> List[PurePosixPath]:
                 result.remove(parent)
         result.add(path)
     return sorted(result)
+
+
+class FileCachedDirEntry(CachedDirEntry):
+    '''
+    A CachedDirEntry that refreshes only when the underlying file is modified
+    (by checking file modification time).
+    '''
+
+    def __init__(self, path, *args, **kwargs):
+        self.path = path
+        super().__init__(*args, **kwargs)
+
+        self.mtime: float = 0.
+
+    def _update(self):
+        mtime = os.stat(self.path).st_mtime
+        if mtime != self.mtime:
+            self._refresh()
+            self.mtime = mtime
 
 
 class BearDB:
@@ -220,7 +240,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         self.bear_db = BearDB(self.params['path'])
         self.with_content = self.params.get('with_content', False)
 
-        self.root = CachedDirEntry('.', self._dir_root)
+        self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
 
     def mount(self):
         self.bear_db.connect()
@@ -283,6 +303,9 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def get_root(self):
         return self.root
+
+    def refresh(self):
+        self.root.invalidate()
 
     def _dir_root(self):
         for ident, tags in self.bear_db.get_note_idents_with_tags():

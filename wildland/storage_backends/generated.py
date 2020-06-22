@@ -134,7 +134,7 @@ class CachedDirEntry(FuncDirEntry):
         self.expiry: float = 0
         self.timeout_seconds = timeout_seconds
 
-    def refresh(self):
+    def invalidate(self):
         '''
         Invalidate cache.
         '''
@@ -143,9 +143,12 @@ class CachedDirEntry(FuncDirEntry):
 
     def _update(self):
         if time.time() > self.expiry:
-            self.entries = {entry.name: entry
-                            for entry in self.get_entries_func()}
+            self._refresh()
             self.expiry = time.time() + self.timeout_seconds
+
+    def _refresh(self):
+        self.entries = {entry.name: entry
+                        for entry in self.get_entries_func()}
 
     def get_entries(self) -> Iterable[Entry]:
         self._update()
