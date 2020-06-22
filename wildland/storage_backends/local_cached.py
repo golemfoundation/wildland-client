@@ -21,7 +21,7 @@
 A cached version of local storage.
 '''
 
-from typing import Iterable, Tuple, List
+from typing import Iterable, Tuple
 from pathlib import Path, PurePosixPath
 import os
 import errno
