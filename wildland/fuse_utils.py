@@ -67,6 +67,11 @@ def debug_repr(obj):
     Return a representation for FUSE operation result, for logging.
     '''
 
+    if isinstance(obj, bytes):
+        if len(obj) > 128:
+            return f'<{len(obj)} bytes>'
+        return repr(obj)
+
     if isinstance(obj, int):
         try:
             return '-' + errno.errorcode[-obj]

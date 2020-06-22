@@ -23,7 +23,7 @@ File buffering classes
 
 import logging
 import abc
-from typing import Dict, Set, Tuple, Iterable, List
+from typing import Dict, Tuple, Iterable, List
 
 import fuse
 
@@ -40,7 +40,6 @@ class Buffer:
 
     def __init__(self, size: int, page_size: int):
         self.pages: Dict[int, bytearray] = {}
-        self.dirty: Set[int] = set()
         self.size = size
         self.page_size = page_size
 
@@ -66,36 +65,6 @@ class Buffer:
             page[:len(page_data)] = page_data
             self.pages[page_num] = page
 
-    def write(self, data: bytes, start: int) -> None:
-        '''
-        Write new data to buffer. The necessary pages must be loaded first.
-        '''
-
-        for page_num in self._page_range(len(data), start):
-            page_start = page_num * self.page_size
-            page_end = (page_num + 1) * self.page_size
-
-            part_start = max(page_start, start)
-            part_end = min(page_end, start + len(data))
-
-            if page_num not in self.pages:
-                assert part_start >= self.size, 'writing to a page that is not loaded'
-                self.pages[page_num] = bytearray(self.page_size)
-
-            page = self.pages[page_num]
-            page_data = data[
-                part_start-start:
-                part_end-start
-            ]
-            page[
-                part_start-page_start:
-                part_end-page_start
-            ] = page_data
-
-            self.dirty.add(page_num)
-
-        self.size = max(self.size, start + len(data))
-
     def get_needed_ranges(self, length: int, start: int) -> List[Tuple[int, int]]:
         '''
         Returns a list of ranges (length, start) necessary to load before reading
@@ -116,27 +85,6 @@ class Buffer:
                 ranges.append((page_end - page_start, page_start))
         return ranges
 
-    def get_dirty_data(self) -> List[Tuple[bytes, int]]:
-        '''
-        Returns a list of data chunks (data, start) that need to be saved back
-        to the file.
-        '''
-
-        result: List[Tuple[bytes, int]] = []
-        for page_num in sorted(self.dirty):
-            assert page_num in self.pages
-
-            part_start = page_start = page_num * self.page_size
-            page_end = (page_num + 1) * self.page_size
-            part_end = min(page_end, self.size)
-
-            page = self.pages[page_num]
-            page_data = page[
-                part_start-page_start:
-                part_end-page_start
-            ]
-            result.append((bytes(page_data), part_start))
-        return result
 
     def read(self, length: int, start: int) -> bytes:
         '''
@@ -167,23 +115,43 @@ class Buffer:
 
         return bytes(result)
 
-    def truncate(self, new_size: int) -> None:
+
+class PagedFile(File, metaclass=abc.ABCMeta):
+    '''
+    A read-only file class that stores parts of file in memory. Assumes that
+    you are able to read a file by ranges (read_ranges()).
+    '''
+
+    def __init__(self, attr: fuse.Stat, page_size: int):
+        self.attr = attr
+        self.buf = Buffer(attr.st_size, page_size)
+
+    @abc.abstractmethod
+    def read_ranges(self, ranges: Iterable[Tuple[int, int]]) -> Iterable[bytes]:
         '''
-        Truncate the buffer to a smaller size, throwing away unnecessary data.
+        Read a list of ranges (length, start) from a file.
+
+        This can use e.g. HTTP GET with a Range header and multiple ranges, if
+        supported, or read ranges one-by-one otherwise.
         '''
 
-        if self.size <= new_size:
-            return
+        raise NotImplementedError()
 
-        end_page = (self.size + self.page_size - 1) // self.page_size
-        new_end_page = (new_size + self.page_size - 1) // self.page_size
-        for page_num in range(new_end_page, end_page):
-            if page_num in self.pages:
-                del self.pages[page_num]
-            if page_num in self.dirty:
-                self.dirty.remove(page_num)
+    def read(self, length: int, offset: int) -> bytes:
+        ranges = self.buf.get_needed_ranges(length, offset)
+        if ranges:
+            logger.debug('loading ranges: %s', ranges)
+            data = self.read_ranges(ranges)
+            for (range_length, range_start), range_data in zip(ranges, data):
+                self.buf.set_read(range_data, range_length, range_start)
 
-        self.size = new_size
+        return self.buf.read(length, offset)
+
+    def fgetattr(self) -> fuse.Stat:
+        return self.attr
+
+    def release(self, flags):
+        pass
 
 
 class FullBufferedFile(File, metaclass=abc.ABCMeta):

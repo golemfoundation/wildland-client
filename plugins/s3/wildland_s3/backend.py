@@ -27,6 +27,7 @@ from typing import Iterable, Tuple, Set
 import mimetypes
 import logging
 from urllib.parse import urlparse
+import os
 
 import boto3
 import botocore
@@ -35,7 +36,7 @@ import fuse
 
 from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.buffered import FullBufferedFile
+from wildland.storage_backends.buffered import FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
@@ -67,6 +68,20 @@ class S3File(FullBufferedFile):
         return len(data)
 
 
+class PagedS3File(PagedFile):
+    '''
+    A read-only paged S3 file.
+    '''
+
+    def __init__(self, obj, attr, page_size):
+        super().__init__(attr, page_size)
+        self.obj = obj
+
+    def read_ranges(self, ranges) -> Iterable[bytes]:
+        for length, start in ranges:
+            range_header = 'bytes={}-{}'.format(start, start+length-1)
+            response = self.obj.get(Range=range_header)
+            yield response['Body'].read()
 
 class S3StorageBackend(CachedStorageMixin, StorageBackend):
     '''
@@ -191,11 +206,15 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
 
-    def open(self, path: PurePosixPath, _flags: int) -> S3File:
-        content_type = self.get_content_type(path)
+    def open(self, path: PurePosixPath, flags: int) -> S3File:
         obj = self.bucket.Object(self.key(path))
         attr = self._stat(obj)
-        return S3File(obj, content_type, attr)
+        if flags & (os.O_WRONLY | os.O_RDWR):
+            content_type = self.get_content_type(path)
+            return S3File(obj, content_type, attr)
+
+        page_size = 8 * 1024 * 1024
+        return PagedS3File(obj, attr, page_size)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int) -> S3File:
         content_type = self.get_content_type(path)
