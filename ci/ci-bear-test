@@ -4,7 +4,7 @@
 pip install . plugins/*
 
 # Generate a test database
-time ./ci/bear-sqlite-generator /tmp/bear.sqlite
+time -p ./ci/bear-sqlite-generator /tmp/bear.sqlite
 
 # Create a Bear macro-container and mount it
 ./wl user create User
@@ -13,11 +13,20 @@ time ./ci/bear-sqlite-generator /tmp/bear.sqlite
 ./wl mount
 ./wl container mount BearDB
 
+# Benchmark:
+# (use 'chronic' command from moreutils to suppress output unless the command
+# fails)
+
 # List contents of macro-container
-time -p tree $HOME/wildland/bear >/dev/null
+time -p chronic tree $HOME/wildland/bear
 
 # Mount all containers
-time -p ./wl container mount $HOME/wildland/bear/*/container.yaml 
+# (suppress 'set -x' because the * expansion is huge)
+set +x
+echo
+echo './wl container mount $HOME/wildland/bear/*/container.yaml'
+time -p chronic ./wl container mount $HOME/wildland/bear/*/container.yaml
+set -x
 
 # List full Wildland FS contents
-time -p tree $HOME/wildland/ >/dev/null
+time -p chronic tree $HOME/wildland/

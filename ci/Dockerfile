@@ -21,7 +21,8 @@ RUN apt-get install -y \
       libfuse-dev \
       pkg-config \
       time \
-      tree
+      tree \
+      moreutils
 
 RUN useradd --create-home user
 
