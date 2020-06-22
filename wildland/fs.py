@@ -52,6 +52,9 @@ class WildlandFS(fuse.Fuse):
         self.parser.add_option(mountopt='log', metavar='PATH',
             help='path to log file, use - for stderr')
 
+        self.parser.add_option(mountopt='breakpoint', action='store_true',
+            help='enable .control/breakpoint')
+
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
         self.storage_counter = 0
@@ -88,6 +91,9 @@ class WildlandFS(fuse.Fuse):
         self.init_logging(self.cmdline[0])
 
         self.mount_storage([PurePosixPath('/.control')], self.control)
+
+        if not self.cmdline[0].breakpoint:
+            self.control_breakpoint = None
 
         super().main(args)
 
@@ -184,6 +190,12 @@ class WildlandFS(fuse.Fuse):
             for path in paths:
                 result.setdefault(str(path), []).append(ident)
         return (json.dumps(result, indent=2) + '\n').encode()
+
+    @control_file('breakpoint', write=True)
+    def control_breakpoint(self):
+        # Disabled in main() unless an option is given.
+        # pylint: disable=method-hidden
+        breakpoint()
 
     @control_directory('storage')
     def control_containers(self):

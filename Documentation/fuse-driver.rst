@@ -20,22 +20,20 @@ Mount a storage::
    echo '{ "paths": ["/foo", "/bar"], "storage": {"type": "local", "path": "/tmp", "signer": "0xaaa"}}' \
        > ./mnt/.control/mount
 
-After you're done, unmount:
+After you're done, unmount::
 
    fusermount -u ./mnt
+
+Usually, you will not use the driver directly, but mount it using CLI (by
+running ``wl mount``).
 
 Options
 -------
 
-Command-line options for ``wildland-fuse``:
-
-* ``-f``: make the driver run in foreground (you can't Ctrl-C it, though, you
-  have to unmount)
-* ``-d``: show debug information (implies ``-f``)
-
 Mount options (passed with ``-o``):
 
 * ``log=PATH``: log to a file (`-` means stderr)
+* ``breakpoint``: enable ``.control/breakpoint`` (see below)
 
 Control interface
 -----------------
@@ -74,3 +72,14 @@ by Widland CLI. Structured data is passed using JSON.
 * ``.control/refresh`` (write-only) - refresh a storage by number. This causes
   the storage to reload cached data. (The cache is currently very short-lived,
   so this enpoint is useful mostly for testing).
+
+* ``.control/breakpoint`` (write-only) - drop into debugger (``pdb``). This is
+  enabled when the driver is running in foreground::
+
+      $ wl mount -d
+
+      # in another terminal:
+      $ echo > ~/wildland/.control/breakpoint
+
+  Be careful - while in debugger, access to the Wildland filesystem will be
+  blocked, which may freeze other programs.

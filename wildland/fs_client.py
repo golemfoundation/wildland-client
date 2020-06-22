@@ -80,6 +80,7 @@ class WildlandFSClient:
 
         if foreground:
             options.append('log=-')
+            options.append('breakpoint')
             cmd.append('-f')
             if debug:
                 cmd.append('-d')
