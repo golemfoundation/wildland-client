@@ -73,8 +73,8 @@ class PagedS3File(PagedFile):
     A read-only paged S3 file.
     '''
 
-    def __init__(self, obj, attr, page_size):
-        super().__init__(attr, page_size)
+    def __init__(self, obj, attr, page_size, max_pages):
+        super().__init__(attr, page_size, max_pages)
         self.obj = obj
 
     def read_ranges(self, ranges) -> Iterable[bytes]:
@@ -214,7 +214,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             return S3File(obj, content_type, attr)
 
         page_size = 8 * 1024 * 1024
-        return PagedS3File(obj, attr, page_size)
+        max_pages = 8
+        return PagedS3File(obj, attr, page_size, max_pages)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int) -> S3File:
         content_type = self.get_content_type(path)

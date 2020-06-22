@@ -26,7 +26,7 @@ Tests for Buffer class
 from ..storage_backends.buffered import Buffer
 
 def test_get_needed_ranges():
-    buf = Buffer(size=11, page_size=2)
+    buf = Buffer(size=11, page_size=2, max_pages=10)
     buf.pages = {
         0: bytearray(2),
         1: bytearray(2),
@@ -40,7 +40,7 @@ def test_get_needed_ranges():
 
 
 def test_read():
-    buf = Buffer(size=10, page_size=4)
+    buf = Buffer(size=10, page_size=4, max_pages=10)
     buf.pages = {
         0: bytearray(b'abcd'),
         1: bytearray(b'efgh'),
@@ -48,3 +48,16 @@ def test_read():
     }
     assert buf.read(5, 3) == b'defgh'
     assert buf.read(10, 3) == b'defghij'
+
+
+def test_set_read_trim():
+    buf = Buffer(size=10, page_size=4, max_pages=2)
+    buf.set_read(b'abcd', 4, 0)
+    buf.set_read(b'efgh', 4, 4)
+    buf.set_read(b'ij\0\0', 4, 8)
+
+    assert len(buf.pages) == 3
+
+    assert buf.read(5, 3) == b'defgh'
+    assert len(buf.pages) == 2
+    assert 2 not in buf.pages

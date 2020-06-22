@@ -24,6 +24,7 @@ File buffering classes
 import logging
 import abc
 from typing import Dict, Tuple, Iterable, List
+import heapq
 
 import fuse
 
@@ -38,15 +39,36 @@ class Buffer:
     A buffer class for caching parts of a file.
     '''
 
-    def __init__(self, size: int, page_size: int):
+    def __init__(self, size: int, page_size: int, max_pages: int):
         self.pages: Dict[int, bytearray] = {}
         self.size = size
         self.page_size = page_size
+        self.max_pages = max_pages
+        self.last_used: Dict[int, int] = {}
+        self.counter = 0
 
     def _page_range(self, length, start) -> Iterable[int]:
         start_page = start // self.page_size
         end_page = (start + length + self.page_size - 1) // self.page_size
         return range(start_page, end_page)
+
+    def _trim(self):
+        '''
+        Remove least recently used pages to maintain at most max_pages pages.
+        '''
+
+        too_many = len(self.pages) - self.max_pages
+        if too_many <= 0:
+            return
+
+        smallest = heapq.nsmallest(
+            too_many, self.last_used.keys(),
+            key=lambda page_num: self.last_used[page_num])
+
+        for page_num in smallest:
+            logger.debug('deleting page %s', page_num)
+            del self.pages[page_num]
+            del self.last_used[page_num]
 
     def set_read(self, data: bytes, length: int, start: int) -> None:
         '''
@@ -64,6 +86,8 @@ class Buffer:
             ]
             page[:len(page_data)] = page_data
             self.pages[page_num] = page
+            self.last_used[page_num] = self.counter
+            self.counter += 1
 
     def get_needed_ranges(self, length: int, start: int) -> List[Tuple[int, int]]:
         '''
@@ -84,7 +108,6 @@ class Buffer:
                 page_end = (page_num + 1) * self.page_size
                 ranges.append((page_end - page_start, page_start))
         return ranges
-
 
     def read(self, length: int, start: int) -> bytes:
         '''
@@ -113,6 +136,12 @@ class Buffer:
                 part_end-start
             ] = page_data
 
+            self.last_used[page_num] = self.counter
+            self.counter += 1
+
+        # Trim here, so that we never delete pages before reading.
+        self._trim()
+
         return bytes(result)
 
 
@@ -122,9 +151,9 @@ class PagedFile(File, metaclass=abc.ABCMeta):
     you are able to read a file by ranges (read_ranges()).
     '''
 
-    def __init__(self, attr: fuse.Stat, page_size: int):
+    def __init__(self, attr: fuse.Stat, page_size: int, max_pages: int):
         self.attr = attr
-        self.buf = Buffer(attr.st_size, page_size)
+        self.buf = Buffer(attr.st_size, page_size, max_pages)
 
     @abc.abstractmethod
     def read_ranges(self, ranges: Iterable[Tuple[int, int]]) -> Iterable[bytes]:
