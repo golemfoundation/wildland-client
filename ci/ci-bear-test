@@ -1,0 +1,32 @@
+#!/bin/sh -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/*
+
+# Generate a test database
+time -p ./ci/bear-sqlite-generator /tmp/bear.sqlite
+
+# Create a Bear macro-container and mount it
+./wl user create User
+./wl container create BearDB --path /bear
+./wl storage create bear-db --container BearDB --inline --path /tmp/bear.sqlite --trusted
+./wl mount
+./wl container mount BearDB
+
+# Benchmark:
+# (use 'chronic' command from moreutils to suppress output unless the command
+# fails)
+
+# List contents of macro-container
+time -p chronic tree $HOME/wildland/bear
+
+# Mount all containers
+# (suppress 'set -x' because the * expansion is huge)
+set +x
+echo
+echo './wl container mount $HOME/wildland/bear/*/container.yaml'
+time -p chronic ./wl container mount $HOME/wildland/bear/*/container.yaml
+set -x
+
+# List full Wildland FS contents
+time -p chronic tree $HOME/wildland/

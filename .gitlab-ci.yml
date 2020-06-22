@@ -27,6 +27,16 @@ pytest:
       - htmlcov/
   coverage: '/TOTAL.*\s(\d+)%/'
 
+bear-test:
+  stage: test
+  image: docker/compose:latest
+  services:
+    - docker:dind
+  script:
+    - cd ci
+    - docker-compose build
+    - docker-compose run wildland-fuse-ci ./ci/ci-bear-test
+
 smoke-test:
   stage: test
   image: docker/compose:latest
