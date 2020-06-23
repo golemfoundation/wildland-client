@@ -23,15 +23,18 @@ from pathlib import PurePosixPath
 import os
 import shutil
 import json
-import yaml
+from functools import partial
 
+import yaml
 import pytest
 
 from ..client import Client
+from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
+from ..storage_backends.generated import GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
 from ..wlpath import WildlandPath, PathError
 from ..manifest.manifest import ManifestError
-from ..search import Search
+from ..search import Search, storage_glob
 
 
 ## Path
@@ -230,3 +233,50 @@ def test_read_file_traverse_user(base_dir, client):
                     '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
+
+
+
+## Wildcard matching
+
+class TestBackend(GeneratedStorageMixin, StorageBackend):
+    '''
+    A data-driven storage backend for tests.
+    '''
+
+    def __init__(self, content):
+        super().__init__()
+        self.content = content
+
+    def get_root(self):
+        return FuncDirEntry('.', partial(self._dir, self.content))
+
+    def _dir(self, content):
+        for k, v in content.items():
+            if v is None:
+                yield FuncFileEntry(k, lambda: b'file')
+            else:
+                yield FuncDirEntry(k, partial(self._dir, v))
+
+
+def test_glob_simple():
+    backend = TestBackend({
+        'foo': {
+            'bar.yaml': None,
+            'baz.yaml': None,
+            'README.txt': None,
+        },
+        'foo2': {
+            'bar.yaml': None,
+        },
+    })
+
+    assert list(storage_glob(backend, '/foo/bar.yaml')) == [PurePosixPath('foo/bar.yaml')]
+    assert list(storage_glob(backend, '/foo/*.yaml')) == [
+        PurePosixPath('foo/bar.yaml'),
+        PurePosixPath('foo/baz.yaml'),
+    ]
+    assert list(storage_glob(backend, '/*/*.yaml')) == [
+        PurePosixPath('foo/bar.yaml'),
+        PurePosixPath('foo/baz.yaml'),
+        PurePosixPath('foo2/bar.yaml'),
+    ]

@@ -36,6 +36,8 @@ class Storage:
 
     BASE_SCHEMA = Schema('storage')
 
+    DEFAULT_MANIFEST_PATH = {'type': 'wildcard', 'path': '*/*.yaml'}
+
     def __init__(self,
                  signer: str,
                  storage_type: str,
@@ -49,6 +51,7 @@ class Storage:
         self.params = params
         self.trusted = trusted
         self.local_path = local_path
+        self.manifest_path: Optional[Dict[str, Any]] = params.get('manifest_path')
 
     def validate(self):
         '''
@@ -88,6 +91,8 @@ class Storage:
         }
         if self.trusted:
             fields['trusted'] = True
+        if self.manifest_path:
+            fields['manifest_path'] = self.manifest_path
         return fields
 
     def to_unsigned_manifest(self) -> Manifest:

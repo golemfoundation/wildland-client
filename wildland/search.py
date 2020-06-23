@@ -22,10 +22,11 @@ Utilities for URL resolving and traversing the path
 '''
 
 from pathlib import PurePosixPath
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Iterable
 import os
 import logging
 from dataclasses import dataclass
+import re
 
 from .user import User
 from .client import Client
@@ -282,3 +283,41 @@ def storage_write_file(data, storage, relpath):
         storage.write(relpath, data, 0, obj)
     finally:
         storage.release(relpath, 0, obj)
+
+
+def storage_find_manifests(storage, manifest_path, query) -> Iterable[PurePosixPath]:
+    mp_type = manifest_path['type']
+    if mp_type == 'glob':
+        glob_path = manifest_path['path'].replace('{path}', query)
+        return storage_glob(storage, glob_path)
+    raise WildlandError(f'Unknown manifest_path: {mp_type}')
+
+
+def storage_glob(storage, glob_path: str) \
+    -> Iterable[PurePosixPath]:
+
+    path = PurePosixPath(glob_path)
+    if path.parts[0] != '/':
+        raise WildlandError(f'manifest_path should be absolute: {path}')
+    return _find(storage, PurePosixPath('.'), path.relative_to(PurePosixPath('/')))
+
+
+def _find(storage: StorageBackend, prefix: PurePosixPath, path: PurePosixPath) \
+    -> Iterable[PurePosixPath]:
+
+    assert len(path.parts) > 0, 'empty path'
+    try:
+        names = list(storage.readdir(prefix))
+    except IOError:
+        return
+
+    part = path.parts[0]
+    sub_path = path.relative_to(part)
+    regex = re.compile('^' + part.replace('.', r'\.').replace('*', '.*') + '$')
+    for name in names:
+        if regex.match(name):
+            sub_prefix = prefix / name
+            if sub_path.parts:
+                yield from _find(storage, sub_prefix, sub_path)
+            else:
+                yield sub_prefix
