@@ -77,11 +77,11 @@ class PagedS3File(PagedFile):
         super().__init__(attr, page_size, max_pages)
         self.obj = obj
 
-    def read_ranges(self, ranges) -> Iterable[bytes]:
-        for length, start in ranges:
-            range_header = 'bytes={}-{}'.format(start, start+length-1)
-            response = self.obj.get(Range=range_header)
-            yield response['Body'].read()
+    def read_range(self, length, start) -> bytes:
+        range_header = 'bytes={}-{}'.format(start, start+length-1)
+        response = self.obj.get(Range=range_header)
+        return response['Body'].read()
+
 
 class S3StorageBackend(CachedStorageMixin, StorageBackend):
     '''

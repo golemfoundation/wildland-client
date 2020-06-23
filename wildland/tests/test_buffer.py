@@ -25,18 +25,23 @@ Tests for Buffer class
 
 from ..storage_backends.buffered import Buffer
 
-def test_get_needed_ranges():
+def test_get_needed_range():
     buf = Buffer(size=11, page_size=2, max_pages=10)
     buf.pages = {
         0: bytearray(2),
         1: bytearray(2),
         4: bytearray(2),
     }
-    assert buf.get_needed_ranges(16, 3) == [
-        (2, 4),
-        (2, 6),
-        (2, 10),
-    ]
+
+    # all pages present
+    assert buf.get_needed_range(3, 1) is None
+
+    # need pages 2..4 (exclusive)
+    assert buf.get_needed_range(7, 1) == (4, 4)
+
+    # need pages 2..6
+    # (even though page 4 is loaded)
+    assert buf.get_needed_range(16, 3) == (8, 4)
 
 
 def test_read():

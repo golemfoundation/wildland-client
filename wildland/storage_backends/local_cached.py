@@ -62,11 +62,10 @@ class LocalCachedPagedFile(PagedFile):
         super().__init__(attr, page_size, max_pages)
         self.local_path = local_path
 
-    def read_ranges(self, ranges) -> Iterable[bytes]:
+    def read_range(self, length, start) -> bytes:
         with open(self.local_path, 'rb') as f:
-            for length, start in ranges:
-                f.seek(start)
-                yield f.read(length)
+            f.seek(start)
+            return f.read(length)
 
 
 class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
