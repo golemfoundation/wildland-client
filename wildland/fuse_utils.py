@@ -46,7 +46,7 @@ def debug_handler(func, bound=False):
             args_to_display = args if bound else args[1:]
 
             logger.debug('%s(%s)', func.__name__, ', '.join(itertools.chain(
-                (repr(i) for i in args_to_display),
+                (debug_repr(i) for i in args_to_display),
                 (f'{k}={v!r}' for k, v in kwds.items()))))
 
             ret = func(*args, **kwds)
