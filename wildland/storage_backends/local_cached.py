@@ -30,7 +30,7 @@ import fuse
 import click
 
 from .cached import CachedStorageMixin
-from .buffered import FullBufferedFile
+from .buffered import FullBufferedFile, PagedFile, File
 from .base import StorageBackend
 from ..manifest.schema import Schema
 
@@ -52,6 +52,20 @@ class LocalCachedFile(FullBufferedFile):
         with open(self.local_path, 'wb') as f:
             return f.write(data)
 
+
+class LocalCachedPagedFile(PagedFile):
+    '''
+    A paged, read-only local file.
+    '''
+
+    def __init__(self, local_path: Path, attr: fuse.Stat, page_size: int, max_pages: int):
+        super().__init__(attr, page_size, max_pages)
+        self.local_path = local_path
+
+    def read_range(self, length, start) -> bytes:
+        with open(self.local_path, 'rb') as f:
+            f.seek(start)
+            return f.read(length)
 
 
 class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
@@ -146,9 +160,13 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
                     continue
                 yield rel_root / file_name, self._stat(st)
 
-    def open(self, path: PurePosixPath, _flags: int) -> LocalCachedFile:
+    def open(self, path: PurePosixPath, flags: int) -> File:
         attr = self.getattr(path)
-        return LocalCachedFile(self._local(path), attr)
+        if flags & (os.O_WRONLY | os.O_RDWR):
+            return LocalCachedFile(self._local(path), attr)
+        page_size = 4
+        max_pages = 4
+        return LocalCachedPagedFile(self._local(path), attr, page_size, max_pages)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
         if self.read_only:

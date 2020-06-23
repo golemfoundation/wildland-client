@@ -356,3 +356,21 @@ def test_read_only(env, storage_type):
         os.mkdir(env.mnt_dir / 'container1/dir-new')
     with pytest.raises(OSError):
         os.rmdir(env.mnt_dir / 'container1/dir')
+
+
+# Test the paging while reading a file.
+def test_read_buffered(env, storage_type):
+    data = bytes(range(256))
+    env.create_dir('storage/storage1')
+    env.create_file('storage/storage1/big_file', data)
+    storage1 = storage_manifest(env, 'storage/storage1', storage_type)
+    env.mount_storage(['/container1/'], storage1)
+
+    with open(env.mnt_dir / 'container1/big_file', 'rb', buffering=0) as f:
+        assert f.read(5) == b'\x00\x01\x02\x03\x04'
+
+        f.seek(0x7f)
+        assert f.read(5) == b'\x7f\x80\x81\x82\x83'
+
+        f.seek(0)
+        assert f.read() == data

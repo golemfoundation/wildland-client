@@ -23,6 +23,8 @@ File buffering classes
 
 import logging
 import abc
+from typing import Dict, Tuple, Iterable, List, Optional
+import heapq
 
 import fuse
 
@@ -30,6 +32,157 @@ from .base import File
 
 
 logger = logging.getLogger('storage-buffered')
+
+
+class Buffer:
+    '''
+    A buffer class for caching parts of a file.
+    '''
+
+    def __init__(self, size: int, page_size: int, max_pages: int):
+        self.pages: Dict[int, bytearray] = {}
+        self.size = size
+        self.page_size = page_size
+        self.max_pages = max_pages
+        self.last_used: Dict[int, int] = {}
+        self.counter = 0
+
+    def _page_range(self, length, start) -> Iterable[int]:
+        start_page = start // self.page_size
+        end_page = (start + length + self.page_size - 1) // self.page_size
+        return range(start_page, end_page)
+
+    def _trim(self):
+        '''
+        Remove least recently used pages to maintain at most max_pages pages.
+        '''
+
+        too_many = len(self.pages) - self.max_pages
+        if too_many <= 0:
+            return
+
+        smallest = heapq.nsmallest(
+            too_many, self.last_used.keys(),
+            key=lambda page_num: self.last_used[page_num])
+
+        for page_num in smallest:
+            logger.debug('deleting page %s', page_num)
+            del self.pages[page_num]
+            del self.last_used[page_num]
+
+    def set_read(self, data: bytes, length: int, start: int) -> None:
+        '''
+        Set retrieved parts of a file (after calling get_needed_range() and
+        retrieving the data.).
+        '''
+
+        assert start % self.page_size == 0
+
+        for page_num in self._page_range(length, start):
+            page = bytearray(self.page_size)
+            page_data = data[
+                page_num * self.page_size - start:
+                (page_num+1) * self.page_size - start
+            ]
+            page[:len(page_data)] = page_data
+            self.pages[page_num] = page
+            self.last_used[page_num] = self.counter
+            self.counter += 1
+
+    def get_needed_range(self, length: int, start: int) -> Optional[Tuple[int, int]]:
+        '''
+        Returns a range (length, start) necessary to load before reading
+        or writing to a file, or None if everything is loaded already.
+        '''
+
+        if start + length > self.size:
+            length = self.size - start
+
+        if length == 0:
+            return None
+
+        pages: List[int] = []
+        for page_num in self._page_range(length, start):
+            if page_num not in self.pages:
+                pages.append(page_num)
+
+        if not pages:
+            return None
+
+        start = pages[0] * self.page_size
+        end = (pages[-1] + 1) * self.page_size
+        return end-start, start
+
+    def read(self, length: int, start: int) -> bytes:
+        '''
+        Read data from buffer. The necessary pages must be loaded first.
+        '''
+
+        if start + length > self.size:
+            length = self.size - start
+
+        result = bytearray(length)
+        for page_num in self._page_range(length, start):
+            page_start = page_num * self.page_size
+            page_end = (page_num + 1) * self.page_size
+
+            part_start = max(page_start, start)
+            part_end = min(page_end, start + length)
+
+            assert page_num in self.pages, 'reading from a page that is not loaded'
+            page = self.pages[page_num]
+            page_data = page[
+                part_start-page_start:
+                part_end-page_start
+            ]
+            result[
+                part_start-start:
+                part_end-start
+            ] = page_data
+
+            self.last_used[page_num] = self.counter
+            self.counter += 1
+
+        # Trim here, so that we never delete pages before reading.
+        self._trim()
+
+        return bytes(result)
+
+
+class PagedFile(File, metaclass=abc.ABCMeta):
+    '''
+    A read-only file class that stores parts of file in memory. Assumes that
+    you are able to read a range of bytes from a file.
+    '''
+
+    def __init__(self, attr: fuse.Stat, page_size: int, max_pages: int):
+        self.attr = attr
+        self.buf = Buffer(attr.st_size, page_size, max_pages)
+
+    @abc.abstractmethod
+    def read_range(self, length: int, start: int) -> bytes:
+        '''
+        Read a range from a file. This is essentially read(), but renamed here
+        so that read() proper can use the buffer.
+        '''
+
+        raise NotImplementedError()
+
+    def read(self, length: int, offset: int) -> bytes:
+        needed_range = self.buf.get_needed_range(length, offset)
+        if needed_range:
+            range_length, range_start = needed_range
+            logger.debug('loading range: %s, %s', range_length, range_start)
+            data = self.read_range(range_length, range_start)
+            self.buf.set_read(data, range_length, range_start)
+
+        return self.buf.read(length, offset)
+
+    def fgetattr(self) -> fuse.Stat:
+        return self.attr
+
+    def release(self, flags):
+        pass
 
 
 class FullBufferedFile(File, metaclass=abc.ABCMeta):

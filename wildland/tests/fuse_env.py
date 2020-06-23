@@ -116,8 +116,10 @@ class FuseEnv:
 
     def create_file(self, name, content='', mode=None):
         path = self.test_dir / name
-        with open(path, 'w') as f:
-            f.write(content)
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content)
         if mode is not None:
             os.chmod(path, mode)
 
