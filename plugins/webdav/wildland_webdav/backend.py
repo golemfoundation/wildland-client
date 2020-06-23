@@ -24,6 +24,7 @@ WebDAV storage backend
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote, unquote
+import os
 
 import dateutil.parser
 import requests
@@ -34,7 +35,7 @@ import fuse
 
 from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.buffered import FullBufferedFile
+from wildland.storage_backends.buffered import FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
@@ -48,7 +49,6 @@ class WebdavFile(FullBufferedFile):
         super().__init__(attr)
         self.session = session
         self.url = url
-        self.attr = attr
 
     def read_full(self) -> bytes:
         resp = self.session.request(
@@ -67,6 +67,33 @@ class WebdavFile(FullBufferedFile):
         )
         resp.raise_for_status()
         return len(data)
+
+
+class PagedWebdavFile(PagedFile):
+    '''
+    A read-only paged WebDAV file.
+    '''
+
+    def __init__(self, session: requests.Session, url: str,
+                 attr: fuse.Stat,
+                 page_size: int, max_pages: int):
+        super().__init__(attr, page_size, max_pages)
+        self.session = session
+        self.url = url
+
+    def read_range(self, length, start) -> bytes:
+        range_header = 'bytes={}-{}'.format(start, start+length-1)
+
+        resp = self.session.request(
+            method='GET',
+            url=self.url,
+            headers={
+                'Accept': '*/*',
+                'Range': range_header
+            }
+        )
+        resp.raise_for_status()
+        return resp.content
 
 
 class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
@@ -175,9 +202,15 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))
 
-    def open(self, path: PurePosixPath, _flags: int):
+    def open(self, path: PurePosixPath, flags: int):
         attr = self.getattr(path)
-        return WebdavFile(self.session, self.make_url(path), attr)
+
+        if flags & (os.O_WRONLY | os.O_RDWR):
+            return WebdavFile(self.session, self.make_url(path), attr)
+
+        page_size = 8 * 1024 * 1024
+        max_pages = 8
+        return PagedWebdavFile(self.session, self.make_url(path), attr, page_size, max_pages)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
         self.session.request(method='PUT', url=self.make_url(path), data=b'')
