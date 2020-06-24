@@ -106,6 +106,10 @@ class Search:
         Read a file under the Wildland path.
         '''
 
+        # If there are multiple containers, this method uses the first
+        # one. Perhaps it should try them all until it finds a container where
+        # the file exists.
+
         if self.wlpath.file_path is None:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
