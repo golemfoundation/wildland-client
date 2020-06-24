@@ -37,7 +37,8 @@
                 },
                 "path": {
                     "type": "string",
-                    "description": "A path that can contain '*' and '{path}'. Default is '{path}.yaml'."
+                    "description": "An absolute path that can contain '*' and '{path}'. Default is '/{path}.yaml'.",
+                    "pattern": "^/.*$"
                 }
             },
             "additionalProperties": false
