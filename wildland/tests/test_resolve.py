@@ -23,15 +23,18 @@ from pathlib import PurePosixPath
 import os
 import shutil
 import json
-import yaml
+from functools import partial
 
+import yaml
 import pytest
 
 from ..client import Client
+from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
+from ..storage_backends.generated import GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
 from ..wlpath import WildlandPath, PathError
 from ..manifest.manifest import ManifestError
-from ..search import Search
+from ..search import Search, storage_glob
 
 
 ## Path
@@ -108,7 +111,8 @@ def setup(base_dir, cli):
 
     cli('container', 'create', 'Container2',
         '--path', '/path/subpath',
-        '--path', '/other/path')
+        '--path', '/other/path',
+        '--path', '/unsigned')
     cli('storage', 'create', 'local', 'Storage2',
         '--path', base_dir / 'storage2',
         '--container', 'Container2')
@@ -147,18 +151,18 @@ def client(setup, base_dir):
 
 def test_resolve_first(base_dir, client):
     search = Search(client, WildlandPath.from_str(':/path:'), '0xaaa')
-    search._resolve_first()
-    assert search.steps[0].container_path == PurePosixPath('/path')
+    step = list(search._resolve_first())[0]
+    assert step.container.paths[1] == PurePosixPath('/path')
 
-    _, backend = search._find_storage()
+    _, backend = search._find_storage(step)
     assert isinstance(backend, LocalStorageBackend)
     assert backend.root == base_dir / 'storage1'
 
     search = Search(client, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
-    search._resolve_first()
-    assert search.steps[0].container_path == PurePosixPath('/path/subpath')
+    step = list(search._resolve_first())[0]
+    assert step.container.paths[1] == PurePosixPath('/path/subpath')
 
-    _, backend = search._find_storage()
+    _, backend = search._find_storage(step)
     assert isinstance(backend, LocalStorageBackend)
     assert backend.root == base_dir / 'storage2'
 
@@ -230,3 +234,89 @@ def test_read_file_traverse_user(base_dir, client):
                     '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
+
+## Manifest pattern
+
+@pytest.fixture
+def setup_pattern(base_dir, cli):
+    os.mkdir(base_dir / 'storage1')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    cli('container', 'create', 'Container1', '--path', '/path')
+    cli('storage', 'create', 'local', 'Storage1',
+        '--path', base_dir / 'storage1',
+        '--container', 'Container1',
+        '--inline',
+        '--manifest-pattern', '/manifests/*.yaml')
+
+    cli('container', 'create', 'Container2',
+        '--path', '/path1')
+    cli('container', 'create', 'Container3',
+        '--path', '/path2')
+
+    os.mkdir(base_dir / 'storage1/manifests/')
+    shutil.copyfile(base_dir / 'containers/Container2.yaml',
+                    base_dir / 'storage1/manifests/Container2.yaml')
+    shutil.copyfile(base_dir / 'containers/Container3.yaml',
+                    base_dir / 'storage1/manifests/Container3.yaml')
+
+
+def test_read_container_traverse_pattern(setup_pattern, base_dir):
+    # pylint: disable=unused-argument
+    client = Client(base_dir=base_dir)
+    client.recognize_users()
+
+    search = Search(client, WildlandPath.from_str(':/path:/path1:'), '0xaaa')
+    container = search.read_container(remote=True)
+    assert PurePosixPath('/path1') in container.paths
+
+    search = Search(client, WildlandPath.from_str(':/path:/path2:'), '0xaaa')
+    container = search.read_container(remote=True)
+    assert PurePosixPath('/path2') in container.paths
+
+
+## Wildcard matching
+
+class TestBackend(GeneratedStorageMixin, StorageBackend):
+    '''
+    A data-driven storage backend for tests.
+    '''
+
+    def __init__(self, content):
+        super().__init__()
+        self.content = content
+
+    def get_root(self):
+        return FuncDirEntry('.', partial(self._dir, self.content))
+
+    def _dir(self, content):
+        for k, v in content.items():
+            if v is None:
+                yield FuncFileEntry(k, lambda: b'file')
+            else:
+                yield FuncDirEntry(k, partial(self._dir, v))
+
+
+def test_glob_simple():
+    backend = TestBackend({
+        'foo': {
+            'bar.yaml': None,
+            'baz.yaml': None,
+            'README.txt': None,
+        },
+        'foo2': {
+            'bar.yaml': None,
+        },
+    })
+
+    assert list(storage_glob(backend, '/foo/bar.yaml')) == [PurePosixPath('foo/bar.yaml')]
+    assert list(storage_glob(backend, '/foo/*.yaml')) == [
+        PurePosixPath('foo/bar.yaml'),
+        PurePosixPath('foo/baz.yaml'),
+    ]
+    assert list(storage_glob(backend, '/*/*.yaml')) == [
+        PurePosixPath('foo/bar.yaml'),
+        PurePosixPath('foo/baz.yaml'),
+        PurePosixPath('foo2/bar.yaml'),
+    ]

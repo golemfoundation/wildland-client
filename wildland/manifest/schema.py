@@ -61,8 +61,8 @@ class Schema:
                 self.schema = json.load(f)
         else:
             self.schema = arg
-        jsonschema.Draft4Validator.check_schema(self.schema)
-        self.validator = jsonschema.Draft4Validator(self.schema)
+        jsonschema.Draft6Validator.check_schema(self.schema)
+        self.validator = jsonschema.Draft6Validator(self.schema)
         self.validator.resolver.store.update(load_common_files())
 
     def validate(self, data):

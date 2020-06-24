@@ -60,6 +60,8 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--inline'], is_flag=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file'),
+        click.Option(['--manifest-pattern'], metavar='GLOB',
+                     help='Set the manifest pattern for storage'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -87,6 +89,7 @@ def _do_create(
         container,
         update_container,
         trusted,
+        manifest_pattern,
         inline,
         **data):
 
@@ -106,12 +109,20 @@ def _do_create(
 
     params = backend.cli_create(data)
 
+    manifest_pattern_dict = None
+    if manifest_pattern:
+        manifest_pattern_dict = {
+            'type': 'glob',
+            'path': manifest_pattern,
+        }
+
     storage = Storage(
         storage_type=backend.TYPE,
         signer=container.signer,
         container_path=container_mount_path,
         params=params,
-        trusted=trusted,
+        trusted=params.get('trusted', trusted),
+        manifest_pattern=params.get('manifest_pattern', manifest_pattern_dict),
     )
     storage.validate()
 

@@ -229,6 +229,15 @@ Fields:
 * ``trusted`` (optional): This is a trusted storage, manifests inside this
   storage will be accepted without signature, as long as they have the same
   ``signer`` value. See "Unsigned manifests and trusted storage" above.
+* ``manifest_pattern`` (optional): how to determine manifest paths for path
+  traversal. Currently, one type of pattern is supported::
+
+      manifest_pattern:
+        type: glob
+        path: /manifests/{path}/*.yaml
+
+  The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
+  ``{path}`` is expanded to the container path we are looking for.
 
 Local storage (``local``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~

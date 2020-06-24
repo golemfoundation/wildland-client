@@ -19,6 +19,29 @@
         "trusted": {
             "type": "boolean",
             "description": "Allow loading unsigned manifests (for the same signer) from this storage"
+        },
+        "manifest_pattern": {
+            "oneOf": [
+                { "$ref": "#/definitions/pattern_glob" }
+            ],
+            "description": "A strategy for finding manifests in this storage, based on path."
+        }
+    },
+    "definitions": {
+        "pattern_glob": {
+            "type": "object",
+            "required": ["type", "path"],
+            "properties": {
+                "type": {
+                    "const": "glob"
+                },
+                "path": {
+                    "type": "string",
+                    "description": "An absolute path that can contain '*' and '{path}'. Default is '/{path}.yaml'.",
+                    "pattern": "^/.*$"
+                }
+            },
+            "additionalProperties": false
         }
     }
 }

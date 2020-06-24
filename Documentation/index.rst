@@ -14,6 +14,7 @@ Welcome to Wildland's documentation!
    fuse-driver
    conflict
    manifests
+   paths
    cli
    internals
 
