@@ -20,15 +20,15 @@
             "type": "boolean",
             "description": "Allow loading unsigned manifests (for the same signer) from this storage"
         },
-        "manifest_path": {
+        "manifest_pattern": {
             "oneOf": [
-                { "$ref": "#/definitions/path_glob" }
+                { "$ref": "#/definitions/pattern_glob" }
             ],
             "description": "A strategy for finding manifests in this storage, based on path."
         }
     },
     "definitions": {
-        "path_glob": {
+        "pattern_glob": {
             "type": "object",
             "required": ["type", "path"],
             "properties": {

@@ -36,7 +36,7 @@ class Storage:
 
     BASE_SCHEMA = Schema('storage')
 
-    DEFAULT_MANIFEST_PATH = {'type': 'wildcard', 'path': '*/*.yaml'}
+    DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '{path}.yaml'}
 
     def __init__(self,
                  signer: str,
@@ -44,6 +44,7 @@ class Storage:
                  container_path: PurePosixPath,
                  trusted: bool,
                  params: Dict[str, Any],
+                 manifest_pattern: Optional[Dict[str, Any]] = None,
                  local_path: Optional[Path] = None):
         self.signer = signer
         self.storage_type = storage_type
@@ -51,7 +52,7 @@ class Storage:
         self.params = params
         self.trusted = trusted
         self.local_path = local_path
-        self.manifest_path: Optional[Dict[str, Any]] = params.get('manifest_path')
+        self.manifest_pattern = manifest_pattern
 
     def validate(self):
         '''
@@ -78,6 +79,7 @@ class Storage:
             storage_type=manifest.fields['type'],
             container_path=PurePosixPath(manifest.fields['container_path']),
             trusted=manifest.fields.get('trusted', False),
+            manifest_pattern=manifest.fields.get('manifest_pattern'),
             params=manifest.fields,
             local_path=local_path,
         )
@@ -91,8 +93,8 @@ class Storage:
         }
         if self.trusted:
             fields['trusted'] = True
-        if self.manifest_path:
-            fields['manifest_path'] = self.manifest_path
+        if self.manifest_pattern:
+            fields['manifest_pattern'] = self.manifest_pattern
         return fields
 
     def to_unsigned_manifest(self) -> Manifest:

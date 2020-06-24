@@ -263,6 +263,8 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         return {
             'path': data['path'],
             'with_content': data['with_content'],
+            'trusted': True,
+            'manifest_pattern': {'type': 'glob', 'path': '/*/container.yaml'},
         }
 
     def _make_storage_manifest(self, ident: str) -> Manifest:
