@@ -13,15 +13,21 @@ time -p ./ci/bear-sqlite-generator /tmp/bear.sqlite
 ./wl mount
 ./wl container mount BearDB
 
+refresh() {
+    echo > $HOME/wildland/.control/refresh
+}
+
 # Benchmark:
 # (use 'chronic' command from moreutils to suppress output unless the command
 # fails)
 
 # List contents of macro-container
+refresh
 time -p chronic tree $HOME/wildland/bear
 
 # Mount all containers
 # (suppress 'set -x' because the * expansion is huge)
+refresh
 set +x
 echo
 echo './wl container mount $HOME/wildland/bear/*/container.yaml'
@@ -29,10 +35,13 @@ time -p chronic ./wl container mount $HOME/wildland/bear/*/container.yaml
 set -x
 
 # List full Wildland FS contents
+refresh
 time -p chronic tree $HOME/wildland/
 
 # List main directory (readdir)
+refresh
 time -p chronic ls $HOME/wildland/
 
 # List main directory (readdir + getattr)
+refresh
 time -p chronic ls -l $HOME/wildland/
