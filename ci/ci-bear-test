@@ -30,3 +30,9 @@ set -x
 
 # List full Wildland FS contents
 time -p chronic tree $HOME/wildland/
+
+# List main directory (readdir)
+time -p chronic ls $HOME/wildland/
+
+# List main directory (readdir + getattr)
+time -p chronic ls -l $HOME/wildland/
