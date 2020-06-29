@@ -14,5 +14,4 @@ services:
       - /dev/fuse
     volumes:
       - ..:/home/user/wildland-fuse:ro
-      - ../htmlcov/:/home/user/wildland-fuse/htmlcov:rw
-      - ../Documentation/_build:/home/user/wildland-fuse/Documentation/_build:rw
+      - ../artifacts/:/home/user/wildland-fuse/artifacts:rw
