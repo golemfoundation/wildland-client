@@ -106,7 +106,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if params:
             assert params['type'] == self.TYPE
             self.params = params
-            self.read_only = params.get('read_only', False)
+            self.read_only = params.get('read-only', False)
 
         if read_only:
             self.read_only = True

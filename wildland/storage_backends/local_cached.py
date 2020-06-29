@@ -83,7 +83,7 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
         "required": ["path"],
         "properties": {
             "path": {
-                "$ref": "types.json#abs_path",
+                "$ref": "types.json#abs-path",
                 "description": "Path in the local filesystem"
             }
         }

@@ -1,28 +1,28 @@
 {
-    "abs_path": {
+    "abs-path": {
         "type": "string",
         "description": "Absolute path",
         "pattern": "^/.*$"
     },
-    "rel_path": {
+    "rel-path": {
         "type": "string",
         "description": "Relative path",
         "pattern": "^[^/].*$"
     },
-    "http_url": {
+    "http-url": {
         "type": "string",
         "description": "HTTP(S) address",
         "pattern": "^https?://.*$"
     },
-    "file_url": {
+    "file-url": {
         "type": "string",
         "description": "File URL, possibly with hostname",
         "pattern": "^file://[^/]*/.*$"
     },
     "url": {
         "oneOf": [
-            { "$ref": "#/http_url" },
-            { "$ref": "#/file_url" }
+            { "$ref": "#/http-url" },
+            { "$ref": "#/file-url" }
         ]
     },
     "fingerprint": {
