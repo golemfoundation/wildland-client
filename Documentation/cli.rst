@@ -67,7 +67,11 @@ supported fields:
 * ``key-dir``: path for key pairs, default ``~/.config/wildland/keys``
 * ``mount-dir``: path to mount Wildland in, default ``~/wildland``
 * ``dummy``: if true, use dummy signatures instead of Signify
-* ``default-user`` (as key fingerprint): default user for newly created manifests
+* ``'@default'`` (as key fingerprint): default user for mounting
+* ``'@default-signer'`` (as key fingerprint): default user for newly created containers
+
+Note that the ``@default`` and ``@default-signer`` keys have to be quoted in
+YAML.
 
 Keys and signatures
 -------------------

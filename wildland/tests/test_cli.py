@@ -50,7 +50,8 @@ def test_user_create(cli, base_dir):
 
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
-    assert "default-user: '0xaaa'" in config
+    assert "'@default': '0xaaa'" in config
+    assert "'@default-signer': '0xaaa'" in config
 
 
 def test_user_create_generate_key(cli, base_dir):
@@ -258,7 +259,7 @@ def test_container_mount(cli, base_dir):
         '/PATH',
     ]
 
-    modify_file(base_dir / 'config.yaml', "default-user: '0xaaa'", '')
+    modify_file(base_dir / 'config.yaml', "'@default': '0xaaa'", '')
 
     # The command should not contain the default path.
     cli('container', 'mount', 'Container')

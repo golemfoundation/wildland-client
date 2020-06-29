@@ -118,17 +118,23 @@ class Client:
 
         return self.session.load_user(path.read_bytes(), path)
 
-    def load_user_from(self, name: Optional[str]) -> User:
+    def load_user_from(self, name: str) -> User:
         '''
         Load a user based on a (potentially ambiguous) name.
         '''
 
         # Default user
-        if name is None:
-            default_user = self.config.get('default-user')
+        if name == '@default':
+            default_user = self.config.get('@default')
             if default_user is None:
-                raise WildlandError('user not specified and default-user not set')
+                raise WildlandError('user not specified and @default not set')
             return self.load_user_from(default_user)
+
+        if name == '@default-signer':
+            default_signer = self.config.get('@default-signer')
+            if default_signer is None:
+                raise WildlandError('user not specified and @default-signer not set')
+            return self.load_user_from(default_signer)
 
         # Short name
         if not name.endswith('.yaml'):

@@ -10,7 +10,10 @@ It has the following form::
     0xabcd:/path/one:/path/two:/path/to/file.txt
 
 * The first part (before ``:``) is the signer. It can be omitted, in which case
-  the ``default-user`` (from configuration) will be used.
+  the ``@default`` (from configuration) will be used.
+
+  The ``@default`` and ``@default-signer`` values are also supported, and
+  resolved according to configuration.
 
 * The next parts are container paths. The first container has to be known
   locally (i.e. available in ``~/.config/wildland/containers``), the next ones
