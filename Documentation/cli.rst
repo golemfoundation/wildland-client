@@ -61,13 +61,17 @@ Configuration file
 The file ``~/.config/wildland/config.yaml`` specifies all the defaults. Here are the
 supported fields:
 
-* ``user_dir``: path for user manifests, default ``~/.config/wildland/users``
-* ``storage_dir``: path for storage manifests, default ``~/.config/wildland/storage``
-* ``container_dir``: path for container manifests, default ``~/.config/wildland/containers``
-* ``key_dir``: path for key pairs, default ``~/.config/wildland/keys``
-* ``mount_dir``: path to mount Wildland in, default ``~/wildland``
+* ``user-dir``: path for user manifests, default ``~/.config/wildland/users``
+* ``storage-dir``: path for storage manifests, default ``~/.config/wildland/storage``
+* ``container-dir``: path for container manifests, default ``~/.config/wildland/containers``
+* ``key-dir``: path for key pairs, default ``~/.config/wildland/keys``
+* ``mount-dir``: path to mount Wildland in, default ``~/wildland``
 * ``dummy``: if true, use dummy signatures instead of Signify
-* ``default_user`` (as key fingerprint): default user for newly created manifests
+* ``'@default'`` (as key fingerprint): default user for mounting
+* ``'@default-signer'`` (as key fingerprint): default user for newly created containers
+
+Note that the ``@default`` and ``@default-signer`` keys have to be quoted in
+YAML.
 
 Keys and signatures
 -------------------
@@ -76,7 +80,7 @@ Public key cryptography is handled by `Signify
 <https://github.com/aperezdc/signify>`_, OpenBSD's tool for signing and
 verification.
 
-After generating, the keys are stored in ``key_dir`` (by default,
+After generating, the keys are stored in ``key-dir`` (by default,
 ``~/.config/wildland/keys``). The public-private key pair is stured in
 ``<fingerprint>.pub`` and ``<fingerprint>.sec`` files.
 

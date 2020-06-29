@@ -10,7 +10,10 @@ It has the following form::
     0xabcd:/path/one:/path/two:/path/to/file.txt
 
 * The first part (before ``:``) is the signer. It can be omitted, in which case
-  the ``default_user`` (from configuration) will be used.
+  the ``@default`` (from configuration) will be used.
+
+  The ``@default`` and ``@default-signer`` values are also supported, and
+  resolved according to configuration.
 
 * The next parts are container paths. The first container has to be known
   locally (i.e. available in ``~/.config/wildland/containers``), the next ones
@@ -29,8 +32,8 @@ resolution algorithm needs to traverse from one container to the next.
 Suppose that our path is ``:/path/one:/path/two:``, and we have found the
 container (and associated storage) for ``/path/one``.
 
-* First, we determine the ``manifest_pattern`` for the storage (see "Manifests"
-  for details). The ``manifest_pattern`` describes how to look for container
+* First, we determine the ``manifest-pattern`` for the storage (see "Manifests"
+  for details). The ``manifest-pattern`` describes how to look for container
   manifests.
 
   The default pattern uses the container path directly, meaning we would look
@@ -38,7 +41,7 @@ container (and associated storage) for ``/path/one``.
   complex, for instance ``/manifests/*.yaml``, we would list all files in the
   ``/manifests/`` directory.
 
-* We determine the files based on ``manifest_pattern``, and examine them.
+* We determine the files based on ``manifest-pattern``, and examine them.
 
   If there is a container manifest with the right path (in this case,
   ``/path/two``), we use that container. The signer has to be the same as for

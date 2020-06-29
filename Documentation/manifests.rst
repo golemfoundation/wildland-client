@@ -175,7 +175,7 @@ Example:
         - type: local
           path: '/path/to/storage'
           signer: '0x5a7a224844d80b086445'
-          container_path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
 
 Fields:
 
@@ -209,7 +209,7 @@ Example:
    ---
    signer: '0x5a7a224844d80b086445'
    type: local
-   container_path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+   container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    path: /path/to/storage/
 
 Fields:
@@ -219,17 +219,17 @@ Fields:
 * ``type``: Type of storage backend. The backend might be unsupported, in which
   case the Wildland driver will skip loading the storage manifest and move on
   to the next one.
-* ``container_path``: One of the paths in Wildland namespace for the container
+* ``container-path``: One of the paths in Wildland namespace for the container
   (by convention, the one with UUID).
 
   This is in order to prevent attaching a storage to a container it wasn't
   intended for.
-* ``read_only`` (optional): This is a read-only storage, editing or deleting
+* ``read-only`` (optional): This is a read-only storage, editing or deleting
   files is not possible.
 * ``trusted`` (optional): This is a trusted storage, manifests inside this
   storage will be accepted without signature, as long as they have the same
   ``signer`` value. See "Unsigned manifests and trusted storage" above.
-* ``manifest_pattern`` (optional): how to determine manifest paths for path
+* ``manifest-pattern`` (optional): how to determine manifest paths for path
   traversal. Currently, one type of pattern is supported::
 
       manifest_pattern:

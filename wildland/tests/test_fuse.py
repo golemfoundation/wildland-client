@@ -168,7 +168,7 @@ def storage_manifest(env, path, storage_type, read_only=False):
         'signer': '0x3333',
         'type': storage_type,
         'path': str(env.test_dir / path),
-        'read_only': read_only,
+        'read-only': read_only,
     }
 
 

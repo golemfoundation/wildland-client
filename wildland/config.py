@@ -78,12 +78,12 @@ class Config:
         if uid is not None:
             self.override_fields['gid'] = gid
 
-    def update_and_save(self, **kwargs):
+    def update_and_save(self, values: Dict[str, Any]):
         '''
         Set new values and save to a file.
         '''
 
-        self.file_fields.update(kwargs)
+        self.file_fields.update(values)
         with open(self.path, 'w') as f:
             yaml.dump(self.file_fields, f)
 
@@ -126,15 +126,16 @@ class Config:
         '''
 
         return {
-            'user_dir': base_dir / 'users',
-            'storage_dir': base_dir / 'storage',
-            'container_dir': base_dir / 'containers',
-            'key_dir': base_dir / 'keys',
-            'mount_dir': home_dir / 'wildland',
+            'user-dir': base_dir / 'users',
+            'storage-dir': base_dir / 'storage',
+            'container-dir': base_dir / 'containers',
+            'key-dir': base_dir / 'keys',
+            'mount-dir': home_dir / 'wildland',
             'dummy': False,
-            'default_user': None,
+            '@default': None,
+            '@default-signer': None,
             'uid': os.getuid(),
             'gid': os.getgid(),
-            'local_hostname': 'localhost',
-            'local_signers': [],
+            'local-hostname': 'localhost',
+            'local-signers': [],
         }

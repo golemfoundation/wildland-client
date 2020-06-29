@@ -100,10 +100,10 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             },
             "credentials": {
                 "type": "object",
-                "required": ["access_key", "secret_key"],
+                "required": ["access-key", "secret-key"],
                 "properties": {
-                    "access_key": {"type": "string"},
-                    "secret_key": {"type": "string"}
+                    "access-key": {"type": "string"},
+                    "secret-key": {"type": "string"}
                 },
                 "additionalProperties": False
             }
@@ -156,8 +156,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         return {
             'url': data['url'],
             'credentials': {
-                'access_key': credentials.access_key,
-                'secret_key': credentials.secret_key,
+                'access-key': credentials.access_key,
+                'secret-key': credentials.secret_key,
             }
         }
 

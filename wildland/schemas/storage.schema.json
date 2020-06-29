@@ -1,18 +1,18 @@
 {
     "title": "Storage manifest (common schema)",
     "type": "object",
-    "required": ["signer", "type", "container_path"],
+    "required": ["signer", "type", "container-path"],
     "properties": {
         "signer": { "$ref": "types.json#fingerprint" },
         "type": {
             "type": "string",
             "description": "Storage backend. The manifest should contain backend-specific parameters"
         },
-        "container_path": {
-            "$ref": "types.json#abs_path",
+        "container-path": {
+            "$ref": "types.json#abs-path",
             "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
         },
-        "read_only": {
+        "read-only": {
             "type": "boolean",
             "description": "Mount as read-only"
         },
@@ -20,15 +20,15 @@
             "type": "boolean",
             "description": "Allow loading unsigned manifests (for the same signer) from this storage"
         },
-        "manifest_pattern": {
+        "manifest-pattern": {
             "oneOf": [
-                { "$ref": "#/definitions/pattern_glob" }
+                { "$ref": "#/definitions/pattern-glob" }
             ],
             "description": "A strategy for finding manifests in this storage, based on path."
         }
     },
     "definitions": {
-        "pattern_glob": {
+        "pattern-glob": {
             "type": "object",
             "required": ["type", "path"],
             "properties": {

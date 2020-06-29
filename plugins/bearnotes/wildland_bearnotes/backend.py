@@ -223,10 +223,10 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         "required": ["path"],
         "properties": {
             "path": {
-                "$ref": "types.json#abs_path",
+                "$ref": "types.json#abs-path",
                 "description": "Path to the Bear SQLite database",
             },
-            "with_content": {
+            "with-content": {
                 "type": "boolean",
                 "description": "Serve note content, not only manifests",
             },
@@ -238,7 +238,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         super().__init__(**kwds)
 
         self.bear_db = BearDB(self.params['path'])
-        self.with_content = self.params.get('with_content', False)
+        self.with_content = self.params.get('with-content', False)
 
         self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
 
@@ -262,7 +262,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
     def cli_create(cls, data):
         return {
             'path': data['path'],
-            'with_content': data['with_content'],
+            'with-content': data['with_content'],
             'trusted': True,
             'manifest_pattern': {'type': 'glob', 'path': '/*/container.yaml'},
         }
@@ -361,7 +361,7 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
         "required": ["path"],
         "properties": {
             "path": {
-                "$ref": "types.json#abs_path",
+                "$ref": "types.json#abs-path",
                 "description": "Path to the Bear SQLite database",
             },
             "note": {

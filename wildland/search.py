@@ -71,12 +71,23 @@ class Search:
     '''
 
     def __init__(self, client: Client, wlpath: WildlandPath,
-                 default_signer: Optional[str] = None):
+                 default_user: Optional[str] = None):
         self.client = client
         self.wlpath = wlpath
-        self.initial_signer = wlpath.signer or default_signer or client.config.get('default_user')
+
+        if wlpath.signer is None:
+            self.initial_signer = client.config.get('@default')
+        elif wlpath.signer.startswith('@'):
+            if wlpath.signer in ['@default', '@default-signer']:
+                self.initial_signer = client.config.get(wlpath.signer)
+            else:
+                raise PathError(f'Unknown alias: {wlpath.signer}')
+
         if self.initial_signer is None:
-            raise PathError('Could not find default user for path: {wlpath}')
+            if default_user:
+                self.initial_signer = default_user
+            else:
+                raise PathError(f'Could not find default user for path: {wlpath}')
 
     def read_container(self, remote: bool) -> Container:
         '''

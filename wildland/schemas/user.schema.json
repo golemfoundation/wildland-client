@@ -6,7 +6,7 @@
         "signer": { "$ref": "types.json#fingerprint" },
         "paths": {
             "type": "array",
-            "items": { "$ref": "types.json#abs_path" },
+            "items": { "$ref": "types.json#abs-path" },
             "minItems": 1
         },
         "containers": {

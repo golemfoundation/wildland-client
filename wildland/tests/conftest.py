@@ -21,7 +21,7 @@ def base_dir():
         os.mkdir(base_dir / 'mnt/.control')
         with open(base_dir / 'config.yaml', 'w') as f:
             yaml.dump({
-                'mount_dir': str(base_dir / 'mnt'),
+                'mount-dir': str(base_dir / 'mnt'),
                 'dummy': True,
             }, f)
         yield base_dir

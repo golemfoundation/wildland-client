@@ -77,9 +77,9 @@ class Storage:
         return cls(
             signer=manifest.fields['signer'],
             storage_type=manifest.fields['type'],
-            container_path=PurePosixPath(manifest.fields['container_path']),
+            container_path=PurePosixPath(manifest.fields['container-path']),
             trusted=manifest.fields.get('trusted', False),
-            manifest_pattern=manifest.fields.get('manifest_pattern'),
+            manifest_pattern=manifest.fields.get('manifest-pattern'),
             params=manifest.fields,
             local_path=local_path,
         )
@@ -89,12 +89,12 @@ class Storage:
             **self.params,
             'signer': self.signer,
             'type': self.storage_type,
-            'container_path': str(self.container_path),
+            'container-path': str(self.container_path),
         }
         if self.trusted:
             fields['trusted'] = True
         if self.manifest_pattern:
-            fields['manifest_pattern'] = self.manifest_pattern
+            fields['manifest-pattern'] = self.manifest_pattern
         return fields
 
     def to_unsigned_manifest(self) -> Manifest:

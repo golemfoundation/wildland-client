@@ -51,6 +51,16 @@ def test_path_from_str():
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
+    wlpath = WildlandPath.from_str('@default:/foo/bar:/baz/quux:')
+    assert wlpath.signer == '@default'
+    assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
+    assert wlpath.file_path is None
+
+    wlpath = WildlandPath.from_str('@default-signer:/foo/bar:/baz/quux:')
+    assert wlpath.signer == '@default-signer'
+    assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
+    assert wlpath.file_path is None
+
     wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:/some/file.txt')
     assert wlpath.signer == '0xabcd'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]

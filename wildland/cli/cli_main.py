@@ -126,7 +126,7 @@ def mount(obj: ContextObj, remount, debug, container):
         for name in container:
             container = obj.client.load_container_from(name)
             storage = obj.client.select_storage(container)
-            is_default_user = container.signer == obj.client.config.get('default_user')
+            is_default_user = container.signer == obj.client.config.get('@default')
             to_mount.append((container.local_path,
                 obj.fs_client.get_command_for_mount_container(container, storage, is_default_user)))
 

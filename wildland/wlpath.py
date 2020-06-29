@@ -51,7 +51,8 @@ class WildlandPath:
 
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
-    WLPATH_RE = re.compile(r'^(0x[0-9a-f]+)?:')
+    ALIAS_RE = re.compile(r'^@[a-z-]+$')
+    WLPATH_RE = re.compile(r'^(0x[0-9a-f]+|@[a-z-]+)?:')
 
     def __init__(
         self,
@@ -89,7 +90,7 @@ class WildlandPath:
         split = s.split(':')
         if split[0] == '':
             signer = None
-        elif cls.FINGERPRINT_RE.match(split[0]):
+        elif cls.FINGERPRINT_RE.match(split[0]) or cls.ALIAS_RE.match(split[0]):
             signer = split[0]
         else:
             raise PathError('Unrecognized signer field: {!r}'.format(split[0]))
