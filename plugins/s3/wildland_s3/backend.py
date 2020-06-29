@@ -116,8 +116,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         credentials = self.params['credentials']
         session = boto3.Session(
-            aws_access_key_id=credentials['access_key'],
-            aws_secret_access_key=credentials['secret_key'],
+            aws_access_key_id=credentials['access-key'],
+            aws_secret_access_key=credentials['secret-key'],
         )
         s3 = session.resource('s3')
 
