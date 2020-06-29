@@ -25,6 +25,8 @@ pytest:
   artifacts:
     paths:
       - artifacts/htmlcov/
+    reports:
+      junit: artifacts/wildland.xml
   coverage: '/TOTAL.*\s(\d+)%/'
 
 bear-test:
