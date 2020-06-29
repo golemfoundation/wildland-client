@@ -74,7 +74,7 @@ class Search:
                  default_signer: Optional[str] = None):
         self.client = client
         self.wlpath = wlpath
-        self.initial_signer = wlpath.signer or default_signer or client.config.get('default_user')
+        self.initial_signer = wlpath.signer or default_signer or client.config.get('default-user')
         if self.initial_signer is None:
             raise PathError('Could not find default user for path: {wlpath}')
 

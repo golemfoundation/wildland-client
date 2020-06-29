@@ -60,18 +60,18 @@ class Client:
             config.override(**config_kwargs)
         self.config = config
 
-        self.user_dir = Path(self.config.get('user_dir'))
-        self.container_dir = Path(self.config.get('container_dir'))
-        self.storage_dir = Path(self.config.get('storage_dir'))
+        self.user_dir = Path(self.config.get('user-dir'))
+        self.container_dir = Path(self.config.get('container-dir'))
+        self.storage_dir = Path(self.config.get('storage-dir'))
 
-        mount_dir = Path(self.config.get('mount_dir'))
+        mount_dir = Path(self.config.get('mount-dir'))
         self.fs_client = WildlandFSClient(mount_dir)
 
         if sig is None:
             if self.config.get('dummy'):
                 sig = DummySigContext()
             else:
-                key_dir = Path(self.config.get('key_dir'))
+                key_dir = Path(self.config.get('key-dir'))
                 sig = SignifySigContext(key_dir)
 
         self.session: Session = Session(sig)
@@ -125,9 +125,9 @@ class Client:
 
         # Default user
         if name is None:
-            default_user = self.config.get('default_user')
+            default_user = self.config.get('default-user')
             if default_user is None:
-                raise WildlandError('user not specified and default_user not set')
+                raise WildlandError('user not specified and default-user not set')
             return self.load_user_from(default_user)
 
         # Short name
@@ -396,8 +396,8 @@ class Client:
         parse_result = urlparse(url)
         if parse_result.scheme == 'file':
             hostname = parse_result.netloc or 'localhost'
-            local_hostname = self.config.get('local_hostname')
-            local_signers = self.config.get('local_signers')
+            local_hostname = self.config.get('local-hostname')
+            local_signers = self.config.get('local-signers')
 
             if hostname != local_hostname:
                 raise WildlandError(
@@ -426,4 +426,4 @@ class Client:
         '''
 
         assert path.is_absolute
-        return 'file://' + self.config.get('local_hostname') + quote(str(path))
+        return 'file://' + self.config.get('local-hostname') + quote(str(path))

@@ -152,7 +152,7 @@ def mount(obj: ContextObj, container_names):
 
     params: List[Tuple[Container, Storage, bool]] = []
     for container in containers:
-        is_default_user = container.signer == obj.client.config.get('default_user')
+        is_default_user = container.signer == obj.client.config.get('default-user')
         storage = obj.client.select_storage(container)
         params.append((container, storage, is_default_user))
 
