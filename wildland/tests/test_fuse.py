@@ -184,6 +184,29 @@ def test_cmd_mount(env, container, storage_type):
         'container2',
     ]
 
+def test_cmd_mount_already_mounted(env, container, storage_type):
+    storage = storage_manifest(env, 'storage/storage2', storage_type)
+    env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
+    with pytest.raises(IOError):
+        env.mount_storage(['/.uuid/XYZ', '/container3'], storage)
+
+
+def test_cmd_mount_remount(env, container, storage_type):
+    storage = storage_manifest(env, 'storage/storage2', storage_type)
+    env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
+
+    storage = storage_manifest(env, 'storage/storage3', storage_type)
+    env.mount_storage(['/.uuid/XYZ', '/container3'], storage, remount=True)
+    assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == [
+        '0', '1', '3'
+    ]
+    assert sorted(os.listdir(env.mnt_dir)) == [
+        '.control',
+        '.uuid',
+        'container1',
+        'container3',
+    ]
+
 
 def test_cmd_unmount(env, container):
     env.unmount_storage(1)

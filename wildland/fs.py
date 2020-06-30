@@ -57,6 +57,7 @@ class WildlandFS(fuse.Fuse):
 
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
+        self.main_paths: Dict[PurePosixPath, int] = {}
         self.storage_counter = 0
 
         self.uid = None
@@ -108,13 +109,24 @@ class WildlandFS(fuse.Fuse):
         else:
             init_logging(console=False, file_path=log_path)
 
-    def mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend):
+    def mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend,
+                      remount=False):
         '''
         Mount a storage under a set of paths.
         '''
 
         logging.info('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
+
+        main_path = paths[0]
+        current_ident = self.main_paths.get(main_path)
+        if current_ident is not None:
+            if remount:
+                logging.info('Unmounting current storage: %s, for main path: %s',
+                             current_ident, main_path)
+                self.unmount_storage(current_ident)
+            else:
+                raise WildlandError('Storage already mounted under main path: %s')
 
         ident = self.storage_counter
         self.storage_counter += 1
@@ -123,6 +135,7 @@ class WildlandFS(fuse.Fuse):
 
         self.storages[ident] = storage
         self.storage_paths[ident] = paths
+        self.main_paths[main_path] = ident
         for path in paths:
             self.resolver.mount(path, ident)
 
@@ -143,6 +156,7 @@ class WildlandFS(fuse.Fuse):
         # TODO check open files?
         del self.storages[ident]
         del self.storage_paths[ident]
+        del self.main_paths[paths[0]]
         for path in paths:
             self.resolver.unmount(path, ident)
 
@@ -164,8 +178,9 @@ class WildlandFS(fuse.Fuse):
             paths = [PurePosixPath(p) for p in params['paths']]
             storage_params = params['storage']
             read_only = params.get('read_only')
+            remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only)
-            self.mount_storage(paths, storage)
+            self.mount_storage(paths, storage, remount)
 
     @control_file('unmount', read=False, write=True)
     def control_unmount(self, content: bytes):

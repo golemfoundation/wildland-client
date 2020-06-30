@@ -62,6 +62,7 @@ multiple ``write()`` calls.
 
       {
         "paths": ["/path1", "path2" ...],
+        "remount": true,
         "storage": {
            "type": ...
            ...
@@ -69,6 +70,9 @@ multiple ``write()`` calls.
       }
 
   (remember two newlines at the end)
+
+  With ``remount`` set to true, will also replace existing storage (as
+  determined by the first path on the list).
 
   Can be also passed an array of such commands.
 

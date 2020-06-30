@@ -183,14 +183,16 @@ class WildlandFSClient:
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, Storage, bool]]):
+            params: Iterable[Tuple[Container, Storage, bool]],
+            remount: bool = False):
         '''
         Mount multiple containers using a single command.
         '''
 
         self.clear_cache()
         commands = [
-            self.get_command_for_mount_container(container, storage, is_default_user)
+            self.get_command_for_mount_container(
+                container, storage, is_default_user, remount=remount)
             for container, storage, is_default_user in params
         ]
         self.write_control('mount', json.dumps(commands).encode() + b'\n\n')
@@ -323,7 +325,8 @@ class WildlandFSClient:
     def get_command_for_mount_container(self,
                                         container: Container,
                                         storage: Storage,
-                                        is_default_user: bool):
+                                        is_default_user: bool,
+                                        remount: bool = False):
         '''
         Prepare command to be written to :file:`/.control/mount` to mount
         a container
@@ -341,6 +344,7 @@ class WildlandFSClient:
         return {
             'paths': paths,
             'storage': storage.params,
+            'remount': remount,
         }
 
     @staticmethod

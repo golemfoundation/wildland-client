@@ -127,9 +127,11 @@ container_.add_command(edit)
 
 
 @container_.command(short_help='mount container')
+@click.option('--remount/--no-remount', '-r/-n', default=True,
+              help='Remount existing container, if found')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names):
+def mount(obj: ContextObj, container_names, remount):
     '''
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -145,7 +147,7 @@ def mount(obj: ContextObj, container_names):
         click.echo(f'Loaded: {container.local_path}')
         containers.append(container)
 
-        if obj.fs_client.find_storage_id(container) is not None:
+        if not remount and obj.fs_client.find_storage_id(container) is not None:
             raise CliError('Already mounted: {container.local_path}')
 
     click.echo('Determining storage')
@@ -160,7 +162,7 @@ def mount(obj: ContextObj, container_names):
         click.echo(f'Mounting {len(params)} containers')
     else:
         click.echo('Mounting container')
-    obj.fs_client.mount_multiple_containers(params)
+    obj.fs_client.mount_multiple_containers(params, remount=remount)
 
 
 @container_.command(short_help='unmount container', alias=['umount'])

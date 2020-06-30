@@ -89,15 +89,16 @@ class FuseEnv:
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
 
-    def mount_storage(self, paths, storage):
-        self.mount_multiple_storages([(paths, storage)])
+    def mount_storage(self, paths, storage, remount=False):
+        self.mount_multiple_storages([(paths, storage)], remount)
 
-    def mount_multiple_storages(self, storages):
+    def mount_multiple_storages(self, storages, remount=False):
         cmd = []
         for paths, storage in storages:
             cmd.append({
                 'paths': [str(p) for p in paths],
-                'storage': storage
+                'storage': storage,
+                'remount': remount,
             })
 
         with open(self.mnt_dir / '.control/mount', 'w') as f:

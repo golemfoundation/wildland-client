@@ -79,11 +79,21 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount <container>`
------------------------------------------
+:command:`wl container mount [--remount/--no-remount] <container>`
+------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl mount <wl-mount>`.
+
+.. option:: -r, --remount
+
+   Replace the container currently mounted, if any. The container is identified
+   by its first path.
+
+.. option:: -n, --no-remount
+
+   Don't replace existing container. If the container is already mounted, the
+   command will fail. This is the default.
 
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
