@@ -39,7 +39,7 @@ import fuse
 
 from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.buffered import FullBufferedFile, PagedFile
+from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 
@@ -240,7 +240,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
 
-    def open(self, path: PurePosixPath, flags: int) -> S3File:
+    def open(self, path: PurePosixPath, flags: int) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.ENOENT, str(path))
 
@@ -254,7 +254,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         max_pages = 8
         return PagedS3File(obj, attr, page_size, max_pages)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int) -> S3File:
+    def create(self, path: PurePosixPath, _flags: int, _mode: int) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.EPERM, str(path))
 
