@@ -14,7 +14,7 @@ time -p ./ci/bear-sqlite-generator /tmp/bear.sqlite
 ./wl container mount BearDB
 
 refresh() {
-    echo > $HOME/wildland/.control/refresh
+    echo > $HOME/wildland/.control/clear-cache
 }
 
 # Benchmark:

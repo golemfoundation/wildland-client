@@ -177,6 +177,12 @@ class WildlandFS(fuse.Fuse):
 
     @control_file('clear-cache', read=False, write=True)
     def control_clear_cache(self, content: bytes):
+        if content.strip() == b'':
+            for ident, storage in self.storages.items():
+                logging.info('clearing cache for storage: %s', ident)
+                storage.clear_cache()
+            return
+
         ident = int(content)
         if ident not in self.storages:
             raise WildlandError(f'storage not found: {ident}')
