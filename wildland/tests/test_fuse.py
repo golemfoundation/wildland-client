@@ -41,7 +41,7 @@ def env():
 
 
 
-@pytest.fixture(params=['local', 'local-cached'])
+@pytest.fixture(params=['local', 'local-cached', 'local-dir-cached'])
 def storage_type(request):
     '''
     Parametrize the tests by storage type
@@ -213,9 +213,11 @@ def test_mount_no_directory(env, container, storage_type):
         'container2',
     ]
 
-    # It's not possible to list the directory, or create a file...
-    with pytest.raises(IOError):
-        os.listdir(env.mnt_dir / 'container2')
+    # It's not possible to list the directory (except local-dir-cached),
+    # or create a file...
+    if storage_type != 'local-dir-cached':
+        with pytest.raises(IOError):
+            os.listdir(env.mnt_dir / 'container2')
     with pytest.raises(IOError):
         open(env.mnt_dir / 'container2/file1', 'w')
 

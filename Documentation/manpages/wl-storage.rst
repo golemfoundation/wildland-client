@@ -55,11 +55,35 @@ Create local storage.
 
 .. option:: --path <path>
 
+.. program:: wl-storage-create-local-dir-cached
+.. _wl-storage-create-local-dir-cached:
+
+:command:`wl storage create local-dir-cached --container <container> [-u] [--user <user>] --path <path> <storage>`
+------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --path <path>
+
+.. program:: wl-storage-create-http-index
+.. _wl-storage-create-http-index:
+
+:command:`wl storage create http-index --container <container> [-u] [--user <user>] --url <url> <storage>`
+----------------------------------------------------------------------------------------------------------
+
+This is a HTTP storage that relies on directory listings. Currently used for buckets published using S3.
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --url <url>
+
+   HTTP URL.
+
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
 
-:command:`wl storage create s3 --container <container> [-u] [--user <user>] --bucket <bucket> <storage>`
---------------------------------------------------------------------------------------------------------
+:command:`wl storage create s3 --container <container> [-u] [--user <user>] --url <url> <storage>`
+--------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 

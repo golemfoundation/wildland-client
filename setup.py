@@ -9,6 +9,8 @@ setup(
         'wildland.storage_backends': [
             'local = wildland.storage_backends.local:LocalStorageBackend',
             'local_cached = wildland.storage_backends.local_cached:LocalCachedStorageBackend',
+            ('local_dir_cached = '
+             'wildland.storage_backends.local_cached:LocalDirectoryCachedStorageBackend'),
         ]
     }
 )

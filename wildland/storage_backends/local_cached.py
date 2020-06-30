@@ -29,7 +29,7 @@ import errno
 import fuse
 import click
 
-from .cached import CachedStorageMixin
+from .cached import CachedStorageMixin, DirectoryCachedStorageMixin
 from .buffered import FullBufferedFile, PagedFile, File
 from .base import StorageBackend
 from ..manifest.schema import Schema
@@ -68,7 +68,7 @@ class LocalCachedPagedFile(PagedFile):
             return f.read(length)
 
 
-class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
+class BaseCached(StorageBackend):
     '''
     A cached storage backed by local files. Used mostly to test the caching
     scheme.
@@ -88,7 +88,6 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
             }
         }
     })
-    TYPE = 'local-cached'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
@@ -130,35 +129,6 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
 
     def _local(self, path: PurePosixPath) -> Path:
         return self.base_path / path
-
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
-        '''
-        Load information about all files and directories.
-        '''
-
-        try:
-            st = os.stat(self.base_path)
-        except IOError:
-            return
-
-        yield PurePosixPath('.'), self._stat(st)
-
-        for root_s, dirs, files in os.walk(self.base_path):
-            root = Path(root_s)
-            rel_root = PurePosixPath(root.relative_to(self.base_path))
-            for dir_name in dirs:
-                try:
-                    st = os.stat(root / dir_name)
-                except IOError:
-                    continue
-                yield rel_root / dir_name, self._stat(st)
-
-            for file_name in files:
-                try:
-                    st = os.stat(root / file_name)
-                except IOError:
-                    continue
-                yield rel_root / file_name, self._stat(st)
 
     def open(self, path: PurePosixPath, flags: int) -> File:
         attr = self.getattr(path)
@@ -203,3 +173,57 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.EROFS, str(path))
         self._local(path).rmdir()
         self.clear_cache()
+
+
+class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
+    '''
+    A cached storage that uses info_all().
+    '''
+
+    TYPE = 'local-cached'
+
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+        '''
+        Load information about all files and directories.
+        '''
+
+        try:
+            st = os.stat(self.base_path)
+        except IOError:
+            return
+
+        yield PurePosixPath('.'), self._stat(st)
+
+        for root_s, dirs, files in os.walk(self.base_path):
+            root = Path(root_s)
+            rel_root = PurePosixPath(root.relative_to(self.base_path))
+            for dir_name in dirs:
+                try:
+                    st = os.stat(root / dir_name)
+                except IOError:
+                    continue
+                yield rel_root / dir_name, self._stat(st)
+
+            for file_name in files:
+                try:
+                    st = os.stat(root / file_name)
+                except IOError:
+                    continue
+                yield rel_root / file_name, self._stat(st)
+
+
+class LocalDirectoryCachedStorageBackend(DirectoryCachedStorageMixin, BaseCached):
+    '''
+    A cached storage that uses info_dir().
+    '''
+
+    TYPE = 'local-dir-cached'
+
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
+        '''
+        Load information about a single directory.
+        '''
+
+        for name in os.listdir(self._local(path)):
+            attr = self._stat(os.stat(self._local(path) / name))
+            yield name, attr

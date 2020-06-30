@@ -7,6 +7,7 @@ setup(
     entry_points={
         'wildland.storage_backends': [
             's3 = wildland_s3.backend:S3StorageBackend',
+            'http-index = wildland_s3.backend_http:HttpIndexStorageBackend',
         ]
     }
 )
