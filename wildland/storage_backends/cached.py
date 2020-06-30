@@ -37,7 +37,7 @@ class CachedStorageMixin:
     '''
     A mixin for caching file information.
 
-    You need to implement info_all(), and invalidate cache (by calling clear())
+    You need to implement info_all(), and invalidate cache (by calling clear_cache())
     in all operations that might change the result
     '''
 
@@ -81,7 +81,7 @@ class CachedStorageMixin:
         if self.expiry < time.time():
             self.refresh()
 
-    def clear(self):
+    def clear_cache(self):
         '''
         Invalidate cache.
         '''

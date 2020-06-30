@@ -108,7 +108,7 @@ class FuseEnv:
             f.write(str(ident))
 
     def refresh_storage(self, ident):
-        with open(self.mnt_dir / '.control/refresh', 'w') as f:
+        with open(self.mnt_dir / '.control/clear-cache', 'w') as f:
             f.write(str(ident))
 
     def create_dir(self, name):

@@ -176,7 +176,7 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.EEXIST, str(path))
         local.write_bytes(b'')
 
-        self.clear()
+        self.clear_cache()
         attr = self.getattr(path)
         return LocalCachedFile(self._local(path), attr)
 
@@ -184,22 +184,22 @@ class LocalCachedStorageBackend(CachedStorageMixin, StorageBackend):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         os.truncate(self._local(path), length)
-        self.clear()
+        self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         self._local(path).unlink()
-        self.clear()
+        self.clear_cache()
 
     def mkdir(self, path: PurePosixPath, mode: int):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         self._local(path).mkdir(mode)
-        self.clear()
+        self.clear_cache()
 
     def rmdir(self, path: PurePosixPath):
         if self.read_only:
             raise IOError(errno.EROFS, str(path))
         self._local(path).rmdir()
-        self.clear()
+        self.clear_cache()

@@ -214,7 +214,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
         self.session.request(method='PUT', url=self.make_url(path), data=b'')
-        self.clear()
+        self.clear_cache()
         attr = self.getattr(path)
         return WebdavFile(self.session, self.make_url(path), attr)
 
@@ -229,7 +229,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
             url=self.make_url(path),
         )
         resp.raise_for_status()
-        self.clear()
+        self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
         resp = self.session.request(
@@ -237,7 +237,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
             url=self.make_url(path),
         )
         resp.raise_for_status()
-        self.clear()
+        self.clear_cache()
 
     def rmdir(self, path: PurePosixPath):
         self.unlink(path)

@@ -126,7 +126,7 @@ class WildlandFS(fuse.Fuse):
         for path in paths:
             self.resolver.mount(path, ident)
 
-        self.control.refresh()
+        self.control.clear_cache()
 
     def unmount_storage(self, ident: int):
         '''Unmount a storage'''
@@ -146,7 +146,7 @@ class WildlandFS(fuse.Fuse):
         for path in paths:
             self.resolver.unmount(path, ident)
 
-        self.control.refresh()
+        self.control.clear_cache()
 
     # pylint: disable=missing-docstring
 
@@ -175,13 +175,13 @@ class WildlandFS(fuse.Fuse):
             raise WildlandError(f'storage not found: {ident}')
         self.unmount_storage(ident)
 
-    @control_file('refresh', read=False, write=True)
-    def control_refresh(self, content: bytes):
+    @control_file('clear-cache', read=False, write=True)
+    def control_clear_cache(self, content: bytes):
         ident = int(content)
         if ident not in self.storages:
             raise WildlandError(f'storage not found: {ident}')
-        logging.info('refreshing storage: %s', ident)
-        self.storages[ident].refresh()
+        logging.info('clearing cache for storage: %s', ident)
+        self.storages[ident].clear_cache()
 
     @control_file('paths')
     def control_paths(self):

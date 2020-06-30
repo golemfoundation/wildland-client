@@ -145,13 +145,19 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return yaml.dump(self.params).encode('ascii')
 
     def mount(self) -> None:
-        pass
+        '''
+        Initialize. Called when mounting.
+        '''
 
     def unmount(self) -> None:
-        pass
+        '''
+        Clen up. Called when unmounting.
+        '''
 
-    def refresh(self) -> None:
-        pass
+    def clear_cache(self) -> None:
+        '''
+        Clear cache, if any.
+        '''
 
     # FUSE file operations. Return a File instance.
 

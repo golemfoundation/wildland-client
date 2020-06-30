@@ -306,8 +306,8 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
     def get_root(self):
         return self.root
 
-    def refresh(self):
-        self.root.invalidate()
+    def clear_cache(self):
+        self.root.clear_cache()
 
     def _dir_root(self):
         for ident, tags in self.bear_db.get_note_idents_with_tags():

@@ -69,9 +69,9 @@ by Widland CLI. Structured data is passed using JSON.
 * ``.control/unmount`` (write-only) - unmount a storage by number. Input data
   is a single number.
 
-* ``.control/refresh`` (write-only) - refresh a storage by number. This causes
-  the storage to reload cached data. (The cache is currently very short-lived,
-  so this enpoint is useful mostly for testing).
+* ``.control/clear-cache`` (write-only) - clear cache for a storage by number.
+  This invalidates the cached data in storage. (The cache is currently very
+  short-lived, so this enpoint is useful mostly for testing).
 
 * ``.control/breakpoint`` (write-only) - drop into debugger (``pdb``). This is
   enabled when the driver is running in foreground::

@@ -134,7 +134,7 @@ class CachedDirEntry(FuncDirEntry):
         self.expiry: float = 0
         self.timeout_seconds = timeout_seconds
 
-    def invalidate(self):
+    def clear_cache(self):
         '''
         Invalidate cache.
         '''

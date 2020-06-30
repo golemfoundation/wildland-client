@@ -263,7 +263,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         obj = self.bucket.put_object(Key=self.key(path),
                                      ContentType=content_type)
         attr = self._stat(obj)
-        self.clear()
+        self.clear_cache()
         self._update_index(path.parent)
         return S3File(obj, content_type, attr)
 
@@ -272,7 +272,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.EPERM, str(path))
 
         self.bucket.Object(self.key(path)).delete()
-        self.clear()
+        self.clear_cache()
         self._update_index(path.parent)
 
     def mkdir(self, path: PurePosixPath, _mode: int):
@@ -280,7 +280,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.EPERM, str(path))
 
         self.s3_dirs.add(path)
-        self.clear()
+        self.clear_cache()
         self._update_index(path)
         self._update_index(path.parent)
 
@@ -289,7 +289,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.EPERM, str(path))
 
         self.s3_dirs.remove(path)
-        self.clear()
+        self.clear_cache()
         self._remove_index(path)
         self._update_index(path.parent)
 
@@ -303,7 +303,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         obj.upload_fileobj(
             BytesIO(b''),
             ExtraArgs={'ContentType': self.get_content_type(path)})
-        self.clear()
+        self.clear_cache()
 
     def _remove_index(self, path):
         if not self.with_index:
