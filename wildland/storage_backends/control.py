@@ -24,8 +24,42 @@ Synthetic storage, which services :path:`/.control` directory
 from functools import partial
 import errno
 
+import json
+
 from .base import StorageBackend
 from .generated import GeneratedStorageMixin, CachedDirEntry, FuncFileEntry
+
+
+class JsonCommandFileEntry(FuncFileEntry):
+    '''
+    A file that accepts JSON commands.  The commands are buffered, and accepted
+    whenever we encounter a separator (double newline). This is in order to
+    handle multiple commands, and documents spanning more than one write().
+    '''
+
+    SEPARATOR = b'\n\n'
+
+    def __init__(self, name, on_json):
+        super().__init__(name, on_write=self.handle_write)
+        self.on_json = on_json
+        self.buf = bytearray()
+
+    def handle_write(self, data: bytes):
+        '''
+        Process a single write(). Run the callback if we have a new full
+        document.
+        '''
+        self.buf.extend(data)
+
+        while True:
+            i = self.buf.find(self.SEPARATOR)
+            if i == -1:
+                return
+            part = self.buf[:i]
+            self.buf = self.buf[i+len(self.SEPARATOR):]
+
+            command = json.loads(part)
+            self.on_json(command)
 
 
 class ControlStorageBackend(GeneratedStorageMixin, StorageBackend):
@@ -58,7 +92,10 @@ class ControlStorageBackend(GeneratedStorageMixin, StorageBackend):
                 yield FuncFileEntry(name, on_read=node)
             else:
                 assert node._control_write
-                yield FuncFileEntry(name, on_write=node)
+                if node._control_json:
+                    yield JsonCommandFileEntry(name, on_json=node)
+                else:
+                    yield FuncFileEntry(name, on_write=node)
 
     @staticmethod
     def node_list(obj):

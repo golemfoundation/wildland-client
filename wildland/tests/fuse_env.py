@@ -101,7 +101,7 @@ class FuseEnv:
             })
 
         with open(self.mnt_dir / '.control/mount', 'w') as f:
-            f.write(json.dumps(cmd))
+            f.write(json.dumps(cmd) + '\n\n')
 
     def unmount_storage(self, ident):
         with open(self.mnt_dir / '.control/unmount', 'w') as f:

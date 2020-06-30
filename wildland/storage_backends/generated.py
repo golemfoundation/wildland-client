@@ -27,13 +27,11 @@ import errno
 from typing import Iterable, Callable, Optional, Dict
 import stat
 import time
-import logging
 
 import fuse
 
 from .base import File
 from .util import simple_dir_stat, simple_file_stat
-from ..exc import WildlandError
 
 
 class Entry(metaclass=abc.ABCMeta):
@@ -184,51 +182,25 @@ class CommandFile(File):
     A write-only file that triggers a callback.
     '''
 
-    # HACK: The callback is on flush(), because:
-    # 1. we might want to receive more data than fits in one write(),
-    # 2. throwing an error in flush() will pass it back to userspace, unlike
-    #    close().
-    #
-    # The downside is that it will not work if there are multiple flushes, or
-    # we are on a system that doesn't call flush() before close(). See the
-    # FUSE documentation on flush():
-    #   https://libfuse.github.io/doxygen/structfuse__operations.html
-
     def __init__(self,
                  on_write: Callable[[bytes], None],
                  attr: fuse.Stat):
         self.on_write = on_write
         self.attr = attr
-        self.buf = bytearray()
         self.flushed = False
 
-    def write(self, data: bytes, offset):
-        self.buf[offset:offset+len(data)] = data
+    def write(self, data: bytes, _offset):
+        self.on_write(data)
         return len(data)
 
     def release(self, flags):
-        if not self.flushed:
-            logging.warning('control close() without flush()')
-            self.flush()
+        pass
 
     def fgetattr(self):
-        self.attr.st_size = len(self.buf)
         return self.attr
 
     def ftruncate(self, length):
-        self.buf = self.buf[:length]
-
-    def flush(self):
-        # Only handle the first flush.
-        if self.flushed:
-            return
-
-        self.flushed = True
-        try:
-            self.on_write(bytes(self.buf))
-        except WildlandError:
-            logging.exception('control write error')
-            raise OSError(errno.EINVAL, '')
+        pass
 
 
 class FuncFileEntry(FileEntry):

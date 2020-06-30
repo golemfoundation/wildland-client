@@ -193,7 +193,7 @@ class WildlandFSClient:
             self.get_command_for_mount_container(container, storage, is_default_user)
             for container, storage, is_default_user in params
         ]
-        self.write_control('mount', json.dumps(commands).encode())
+        self.write_control('mount', json.dumps(commands).encode() + b'\n\n')
 
     def unmount_container(self, storage_id: int):
         '''

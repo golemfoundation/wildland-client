@@ -105,7 +105,8 @@ class BaseCached(StorageBackend):
     def cli_create(cls, data):
         return {'path': data['path']}
 
-    def _stat(self, st: os.stat_result) -> fuse.Stat:
+    @staticmethod
+    def _stat(st: os.stat_result) -> fuse.Stat:
         '''
         Convert os.stat_result to fuse.Stat.
         '''

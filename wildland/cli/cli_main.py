@@ -89,7 +89,7 @@ def _do_mount_containers(to_mount):
         print(f'Mounting: {path}')
         try:
             with open(ctx.obj.mount_dir / '.control/mount', 'wb') as f:
-                f.write(json.dumps(command).encode())
+                f.write(json.dumps(command).encode() + b'\n\n')
         except IOError as e:
             ctx.obj.fs_client.unmount()
             raise click.ClickException(f'Failed to mount {path}: {e}')

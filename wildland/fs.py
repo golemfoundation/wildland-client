@@ -155,9 +155,8 @@ class WildlandFS(fuse.Fuse):
     # .control API
     #
 
-    @control_file('mount', read=False, write=True)
-    def control_mount(self, content: bytes):
-        cmd = json.loads(content)
+    @control_file('mount', read=False, write=True, json=True)
+    def control_mount(self, cmd):
         if not isinstance(cmd, list):
             cmd = [cmd]
 

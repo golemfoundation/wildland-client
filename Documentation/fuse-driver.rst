@@ -39,7 +39,11 @@ Control interface
 -----------------
 
 There is a procfs-like interface under ``.control/``. It's intended to be used
-by Widland CLI. Structured data is passed using JSON.
+by Widland CLI.
+
+Structured data is passed using JSON. However, a JSON document has to end with
+two newlines (``\\n\\n``). This is so that we can handle large document spanning
+multiple ``write()`` calls.
 
 * ``.control/paths`` - paths and corresponding storages, by number::
 
@@ -53,7 +57,7 @@ by Widland CLI. Structured data is passed using JSON.
 
   * ``manifest.yaml`` - unsigned
 
-* ``.control/mount`` (write-only) - mount a storage under a list of
+* ``.control/mount`` (write-only, JSON) - mount a storage under a list of
   paths. Expects storage manifest fields under ``storage``::
 
       {
@@ -63,6 +67,8 @@ by Widland CLI. Structured data is passed using JSON.
            ...
         }
       }
+
+  (remember two newlines at the end)
 
   Can be also passed an array of such commands.
 

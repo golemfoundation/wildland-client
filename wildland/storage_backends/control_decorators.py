@@ -41,7 +41,7 @@ def control_directory(name):
 
     return decorator
 
-def control_file(name, *, read=True, write=False):
+def control_file(name, *, read=True, write=False, json=False):
     '''Decorator for creating control files
 
     When the file is *read*, decorated function will be called without argument
@@ -51,16 +51,20 @@ def control_file(name, *, read=True, write=False):
 
     Args:
         name (str): file name
-        read (bool): if :obj:`True`, the file is writable
-        write (bool): if :obj:`True`, the file is readable
+        read (bool): if :obj:`True`, the file is readable
+        write (bool): if :obj:`True`, the file is writable
+        json (bool):  if :obj:`True`, the file accepts JSON commands
     '''
     assert '/' not in name
     assert read or write
+    if json:
+        assert write, 'json=True needs write=True'
 
     def decorator(func):
         func._control_name = name
         func._control_read = read
         func._control_write = write
+        func._control_json = json
         func._control_directory = False
         return func
 
