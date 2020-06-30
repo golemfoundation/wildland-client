@@ -158,15 +158,9 @@ class LocalStorageBackend(StorageBackend):
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
-        if self.read_only and (flags & (os.O_RDWR | os.O_WRONLY)):
-            raise PermissionError(errno.EROFS, str(path))
-
         return LocalFile(path, self._path(path), flags, read_only=self.read_only)
 
     def create(self, path, flags, mode):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, str(path))
-
         return LocalFile(path, self._path(path), flags, mode)
 
     def getattr(self, path):
@@ -176,25 +170,13 @@ class LocalStorageBackend(StorageBackend):
         return os.listdir(self._path(path))
 
     def truncate(self, path, length):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, str(path))
-
         return os.truncate(self._path(path), length)
 
     def unlink(self, path):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, str(path))
-
         return os.unlink(self._path(path))
 
     def mkdir(self, path, mode):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, str(path))
-
         return os.mkdir(self._path(path), mode)
 
     def rmdir(self, path):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, str(path))
-
         return os.rmdir(self._path(path))

@@ -110,12 +110,8 @@ class BaseCached(StorageBackend):
         Convert os.stat_result to fuse.Stat.
         '''
 
-        mode = st.st_mode
-        if self.read_only:
-            mode &= ~0o222
-
         return fuse.Stat(
-            st_mode=mode,
+            st_mode=st.st_mode,
             st_ino=st.st_ino,
             st_dev=st.st_dev,
             st_nlink=st.st_nlink,
@@ -139,8 +135,6 @@ class BaseCached(StorageBackend):
         return LocalCachedPagedFile(self._local(path), attr, page_size, max_pages)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
-        if self.read_only:
-            raise IOError(errno.EROFS, str(path))
         local = self._local(path)
         if local.exists():
             raise IOError(errno.EEXIST, str(path))
@@ -151,26 +145,18 @@ class BaseCached(StorageBackend):
         return LocalCachedFile(self._local(path), attr)
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
-        if self.read_only:
-            raise IOError(errno.EROFS, str(path))
         os.truncate(self._local(path), length)
         self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
-        if self.read_only:
-            raise IOError(errno.EROFS, str(path))
         self._local(path).unlink()
         self.clear_cache()
 
     def mkdir(self, path: PurePosixPath, mode: int):
-        if self.read_only:
-            raise IOError(errno.EROFS, str(path))
         self._local(path).mkdir(mode)
         self.clear_cache()
 
     def rmdir(self, path: PurePosixPath):
-        if self.read_only:
-            raise IOError(errno.EROFS, str(path))
         self._local(path).rmdir()
         self.clear_cache()
 

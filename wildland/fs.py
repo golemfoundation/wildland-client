@@ -227,12 +227,16 @@ class WildlandFS(fuse.Fuse):
 
     def proxy(self, method_name, path, *args,
               parent=False,
+              modify=False,
               **kwargs):
         '''
         Proxy a call to corresponding Storage.
 
         If parent is true, resolve the path based on parent. This will apply
         for calls that create a file or otherwise modify the parent directory.
+
+        If modify is true, this is an operation that should not be proxied to
+        read-only storage.
         '''
 
         path = PurePosixPath(path)
@@ -240,23 +244,34 @@ class WildlandFS(fuse.Fuse):
 
         _st, res = self.resolver.getattr_extended(to_resolve)
         if not res:
-            return -errno.EACCES
+            raise IOError(errno.EACCES, str(path))
 
         storage = self.storages[res.ident]
         if not hasattr(storage, method_name):
-            return -errno.ENOSYS
+            raise IOError(errno.ENOSYS, str(path))
+
+        if modify and storage.read_only:
+            raise IOError(errno.EROFS, str(path))
 
         relpath = res.relpath / path.name if parent else res.relpath
         return getattr(storage, method_name)(relpath, *args, **kwargs)
 
     def open(self, path, flags):
-        return self.proxy('open', path, flags)
+        modify = bool(flags & (os.O_RDWR | os.O_WRONLY))
+        return self.proxy('open', path, flags, modify=modify)
 
     def create(self, path, flags, mode):
-        return self.proxy('create', path, flags, mode, parent=True)
+        return self.proxy('create', path, flags, mode, parent=True, modify=True)
 
     def getattr(self, path):
-        return self.add_uid_gid(self.resolver.getattr(PurePosixPath(path)))
+        st, res = self.resolver.getattr_extended(PurePosixPath(path))
+        st = self.add_uid_gid(st)
+        if not res:
+            return st
+        storage = self.storages[res.ident]
+        if storage.read_only:
+            st.st_mode &= ~0o222
+        return st
 
     def readdir(self, path, _offset):
         names = ['.', '..'] + self.resolver.readdir(PurePosixPath(path))
@@ -268,7 +283,7 @@ class WildlandFS(fuse.Fuse):
         return self.proxy('read', *args)
 
     def write(self, *args):
-        return self.proxy('write', *args)
+        return self.proxy('write', *args, modify=True)
 
     def fsync(self, *args):
         return self.proxy('fsync', *args)
@@ -280,10 +295,18 @@ class WildlandFS(fuse.Fuse):
         return self.proxy('flush', *args)
 
     def fgetattr(self, path, *args):
-        return self.add_uid_gid(self.proxy('fgetattr', path, *args))
+        _st, res = self.resolver.getattr_extended(PurePosixPath(path))
+        if not res:
+            raise IOError(errno.EACCES, str(path))
+        storage = self.storages[res.ident]
+        st = storage.fgetattr(path, *args)
+        if storage.read_only:
+            st.st_mode &= ~0o222
+        st = self.add_uid_gid(st)
+        return st
 
     def ftruncate(self, *args):
-        return self.proxy('ftruncate', *args)
+        return self.proxy('ftruncate', *args, modify=True)
 
     def lock(self, *args, **kwargs):
         return self.proxy('lock', *args, **kwargs)
@@ -313,7 +336,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def mkdir(self, path, mode):
-        return self.proxy('mkdir', path, mode, parent=True)
+        return self.proxy('mkdir', path, mode, parent=True, modify=True)
 
     def mknod(self, *args):
         return -errno.ENOSYS
@@ -328,7 +351,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def rmdir(self, path):
-        return self.proxy('rmdir', path, parent=True)
+        return self.proxy('rmdir', path, parent=True, modify=True)
 
     def setxattr(self, *args):
         return -errno.ENOSYS
@@ -340,10 +363,10 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def truncate(self, path, length):
-        return self.proxy('truncate', path, length)
+        return self.proxy('truncate', path, length, modify=True)
 
     def unlink(self, path):
-        return self.proxy('unlink', path, parent=True)
+        return self.proxy('unlink', path, parent=True, modify=True)
 
     def utime(self, *args):
         return -errno.ENOSYS

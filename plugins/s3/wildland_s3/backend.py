@@ -306,14 +306,14 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         self.clear_cache()
 
     def _remove_index(self, path):
-        if not self.with_index:
+        if self.read_only or not self.with_index:
             return
 
         obj = self.bucket.Object(self.key(path / self.INDEX_NAME))
         obj.delete()
 
     def _update_index(self, path):
-        if not self.with_index:
+        if self.read_only or not self.with_index:
             return
 
         obj = self.bucket.Object(self.key(path / self.INDEX_NAME))
