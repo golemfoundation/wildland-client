@@ -67,6 +67,13 @@ Create local storage.
 
    S3 URL, of the form ``s3://bucket/`` or ``s3://bucket/path/``. Required.
 
+.. option:: --with-index
+
+   Generate index pages. When this option is enabled, Wildland will maintain an
+   `index.html` file with directory listing in every directory. These files
+   will be invisible in the mounted filesystem, but they can be used to browse
+   the S3 bucket when it's exposed using public HTTP.
+
 .. program:: wl-storage-create-webdav
 .. _wl-storage-create-webdav:
 

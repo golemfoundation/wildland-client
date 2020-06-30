@@ -23,11 +23,14 @@ S3 storage backend
 
 from pathlib import PurePosixPath
 from io import BytesIO
-from typing import Iterable, Tuple, Set
+from typing import Iterable, Tuple, Set, List
 import mimetypes
 import logging
 from urllib.parse import urlparse
 import os
+import errno
+import stat
+import html
 
 import boto3
 import botocore
@@ -106,13 +109,21 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
                     "secret-key": {"type": "string"}
                 },
                 "additionalProperties": False
+            },
+            "with-index": {
+                "type": "boolean",
+                "description": "Maintain index.html files with directory listings",
             }
         }
     })
     TYPE = 's3'
 
+    INDEX_NAME = 'index.html'
+
     def __init__(self, **kwds):
         super().__init__(**kwds)
+
+        self.with_index = self.params.get('with-index', False)
 
         credentials = self.params['credentials']
         session = boto3.Session(
@@ -139,7 +150,9 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--url'], metavar='URL', required=True)
+            click.Option(['--url'], metavar='URL', required=True),
+            click.Option(['--with-index'], is_flag=True,
+                         help='Maintain index.html files with directory listings'),
         ]
 
     @classmethod
@@ -158,14 +171,32 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             'credentials': {
                 'access-key': credentials.access_key,
                 'secret-key': credentials.secret_key,
-            }
+            },
+            'with-index': data['with_index'],
         }
+
+    def mount(self):
+        '''
+        Regenerate index files on mount.
+        '''
+
+        if self.with_index and not self.read_only:
+            self.refresh()
+            print(self.s3_dirs)
+            for path in list(self.s3_dirs):
+                self._update_index(path)
 
     def key(self, path: PurePosixPath) -> str:
         '''
         Convert path to S3 object key.
         '''
         return str((self.base_path / path).relative_to('/'))
+
+    def url(self, path: PurePosixPath) -> str:
+        '''
+        Convert path to relative S3 URL.
+        '''
+        return str(self.base_path / path)
 
     @staticmethod
     def _stat(obj) -> fuse.Stat:
@@ -187,7 +218,10 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             except ValueError:
                 continue
 
-            yield obj_path, self._stat(obj_summary)
+            if not (self.with_index and obj_path.name == self.INDEX_NAME):
+                yield obj_path, self._stat(obj_summary)
+
+            # Add path to s3_dirs even if we just see index.html.
             for parent in obj_path.parents:
                 self.s3_dirs.add(parent)
 
@@ -207,6 +241,9 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         return content_type or 'application/octet-stream'
 
     def open(self, path: PurePosixPath, flags: int) -> S3File:
+        if self.with_index and path.name == self.INDEX_NAME:
+            raise IOError(errno.ENOENT, str(path))
+
         obj = self.bucket.Object(self.key(path))
         attr = self._stat(obj)
         if flags & (os.O_WRONLY | os.O_RDWR):
@@ -218,25 +255,48 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         return PagedS3File(obj, attr, page_size, max_pages)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int) -> S3File:
+        if self.with_index and path.name == self.INDEX_NAME:
+            raise IOError(errno.EPERM, str(path))
+
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
         obj = self.bucket.put_object(Key=self.key(path),
                                      ContentType=content_type)
         attr = self._stat(obj)
         self.clear()
+        self._update_index(path.parent)
         return S3File(obj, content_type, attr)
 
     def unlink(self, path: PurePosixPath):
+        if self.with_index and path.name == self.INDEX_NAME:
+            raise IOError(errno.EPERM, str(path))
+
         self.bucket.Object(self.key(path)).delete()
         self.clear()
+        self._update_index(path.parent)
 
     def mkdir(self, path: PurePosixPath, _mode: int):
+        if self.with_index and path.name == self.INDEX_NAME:
+            raise IOError(errno.EPERM, str(path))
+
         self.s3_dirs.add(path)
+        self.clear()
+        self._update_index(path)
+        self._update_index(path.parent)
 
     def rmdir(self, path: PurePosixPath):
+        if not path.parts:
+            raise IOError(errno.EPERM, str(path))
+
         self.s3_dirs.remove(path)
+        self.clear()
+        self._remove_index(path)
+        self._update_index(path.parent)
 
     def truncate(self, path: PurePosixPath, length: int):
+        if self.with_index and path.name == self.INDEX_NAME:
+            raise IOError(errno.EPERM, str(path))
+
         if length > 0:
             raise NotImplementedError()
         obj = self.bucket.Object(self.key(path))
@@ -244,3 +304,85 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             BytesIO(b''),
             ExtraArgs={'ContentType': self.get_content_type(path)})
         self.clear()
+
+    def _remove_index(self, path):
+        if not self.with_index:
+            return
+
+        obj = self.bucket.Object(self.key(path / self.INDEX_NAME))
+        obj.delete()
+
+    def _update_index(self, path):
+        if not self.with_index:
+            return
+
+        obj = self.bucket.Object(self.key(path / self.INDEX_NAME))
+
+        entries = self._get_index_entries(path)
+        data = self._generate_index(path, entries)
+
+        obj.upload_fileobj(
+            BytesIO(data.encode()),
+            ExtraArgs={'ContentType': 'text/html'})
+
+    def _get_index_entries(self, path):
+        # (name, url, is_dir)
+        entries: List[Tuple[str, str, bool]] = []
+        if path != PurePosixPath('.'):
+            entries.append(('..', self.url(path.parent), True))
+
+        try:
+            names = list(self.readdir(path))
+        except IOError:
+            return entries
+
+        for name in names:
+            try:
+                is_dir = stat.S_ISDIR(self.getattr(path / name).st_mode)
+            except IOError:
+                continue
+            entry = (name, self.url(path / name), is_dir)
+            entries.append(entry)
+
+        # Sort directories first
+        def key(entry):
+            name, _url, is_dir = entry
+            return (0 if is_dir else 1), name
+
+        entries.sort(key=key)
+        return entries
+
+    @staticmethod
+    def _generate_index(path, entries) -> str:
+        title = str(PurePosixPath('/') / path)
+
+        data = '''\
+<!DOCTYPE html>
+<style>
+  main {
+    font-size: 16px;
+    font-family: monospace;
+  }
+  a { text-decoration: none; }
+</style>'''
+        data += '<title>Directory: {}</title>\n'.format(html.escape(title))
+        data += '<h1>Directory: {}</h1>\n'.format(html.escape(title))
+        data += '<main>\n'
+
+        for name, url, is_dir in entries:
+            if is_dir:
+                icon = '&#x1F4C1;'
+                name += '/'
+                if url != '/':
+                    url += '/'
+            else:
+                icon = '&#x1F4C4;'
+
+            data += '<a href="{}">{} {}</a><br>\n'.format(
+                html.escape(url, quote=True),
+                icon,
+                html.escape(name),
+            )
+        data += '</main>\n'
+
+        return data
