@@ -165,9 +165,11 @@ def verify(ctx, input_file):
 @click.command(short_help='edit manifest in external tool')
 @click.option('--editor', metavar='EDITOR',
     help='custom editor')
+@click.option('--remount/--no-remount', '-r/-n', default=True,
+    help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def edit(ctx, editor, input_file):
+def edit(ctx, editor, input_file, remount):
     '''
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
@@ -200,3 +202,13 @@ def edit(ctx, editor, input_file):
     with open(path, 'wb') as f:
         f.write(signed_data)
     click.echo(f'Saved: {path}')
+
+    if remount and manifest_type == 'container' and obj.fs_client.is_mounted():
+        container = obj.client.load_container_from_path(path)
+        if obj.fs_client.find_storage_id(container) is not None:
+            click.echo('Container is mounted, remounting')
+
+            is_default_user = container.signer == obj.client.config.get('@default')
+            storage = obj.client.select_storage(container)
+            obj.fs_client.mount_container(
+                container, storage, is_default_user, remount)

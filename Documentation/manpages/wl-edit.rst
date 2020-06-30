@@ -25,3 +25,12 @@ Options
 
    Use custom editor instead of the one configured with usual :envvar:`VISUAL`
    or :envvar:`EDITOR` variables.
+
+.. option:: -r, --remount
+
+   If editing a container, attempt to remount it afterwards. This is the
+   default
+
+.. option:: -n, --no-remount
+
+   If editing a container, do not attempt to remount it afterwards.

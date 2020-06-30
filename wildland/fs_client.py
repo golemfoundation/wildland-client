@@ -174,12 +174,14 @@ class WildlandFSClient:
     def mount_container(self,
                         container: Container,
                         storage: Storage,
-                        is_default_user: bool = False):
+                        is_default_user: bool = False,
+                        remount: bool = False):
         '''
         Mount a container, assuming a storage has been already selected.
         '''
 
-        self.mount_multiple_containers([(container, storage, is_default_user)])
+        self.mount_multiple_containers([(container, storage, is_default_user)],
+                                       remount=remount)
 
     def mount_multiple_containers(
             self,
