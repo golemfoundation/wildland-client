@@ -2,4 +2,7 @@
 
 . /home/user/env/bin/activate
 pip install . plugins/*
-pytest -v --cov=wildland --cov-report term --cov-report html "$@"
+pytest -v \
+    --cov wildland --cov-report term --cov-report html:artifacts/htmlcov \
+    --junitxml=artifacts/wildland.xml \
+    "$@"

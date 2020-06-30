@@ -18,13 +18,15 @@ pytest:
   services:
     - docker:dind
   script:
-    - mkdir --mode=0777 htmlcov/
+    - mkdir -p --mode=0777 artifacts artifacts/htmlcov
     - cd ci
     - docker-compose build
     - docker-compose run wildland-fuse-ci ./ci/ci-pytest
   artifacts:
     paths:
-      - htmlcov/
+      - artifacts/htmlcov/
+    reports:
+      junit: artifacts/wildland.xml
   coverage: '/TOTAL.*\s(\d+)%/'
 
 bear-test:
@@ -55,13 +57,13 @@ pages-test:
   services:
     - docker:dind
   script:
-    - mkdir --mode=0777 Documentation/_build
+    - mkdir -p --mode=0777 artifacts artifacts/docs
     - cd ci
     - docker-compose build
     - docker-compose run wildland-fuse-ci ./ci/ci-docs
   artifacts:
     paths:
-      - Documentation/_build
+      - artifacts/docs
 
 pages:
   stage: docs
@@ -73,13 +75,13 @@ pages:
   services:
     - docker:dind
   script:
-    - mkdir --mode=0777 Documentation/_build
+    - mkdir -p --mode=0777 artifacts artifacts/docs
     - cd ci
     - docker-compose build
     - docker-compose run wildland-fuse-ci ./ci/ci-docs
-    - cp -r ../Documentation/_build/html ../public
-    - cp -r ../Documentation/_build/man ../public/man
-    - cp -r ../htmlcov ../public/coverage
+    - cp -r ../artifacts/docs/html ../public
+    - cp -r ../artifacts/docs/man ../public/man
+    - cp -r ../artifacts/htmlcov ../public/coverage
   artifacts:
     paths:
       - public/
