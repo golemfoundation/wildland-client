@@ -51,14 +51,19 @@ def debug_handler(func, bound=False):
 
             ret = func(*args, **kwds)
             ret_repr = debug_repr(ret)
-            logger.debug('%s → %s', func.__name__, ret_repr)
+            if isinstance(ret, int) and ret < 0:
+                logger.warning('%s → %s', func.__name__, ret_repr)
+            else:
+                logger.debug('%s → %s', func.__name__, ret_repr)
             return ret
         except OSError as err:
-            logger.debug('%s !→ %s', func.__name__, err)
+            logger.warning('%s !→ %s %s', func.__name__,
+                           errno.errorcode[err.errno],
+                           err.strerror)
             raise
         except Exception:
             logger.exception('error while handling %s', func.__name__)
-            raise
+            return -errno.EINVAL
     return wrapper
 
 

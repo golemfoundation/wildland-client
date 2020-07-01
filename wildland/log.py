@@ -24,6 +24,50 @@ Logging
 import logging.config
 
 
+class ConsoleFormatter(logging.Formatter):
+    '''
+    A formatter that colors messages in console.
+    '''
+
+    default_time_format = '%H:%M:%S'
+    # https://en.wikipedia.org/wiki/ANSI_escape_code
+    colors = {
+        'grey': '\x1b[38;5;246m',
+        'green': '\x1b[32m',
+        'yellow': '\x1b[93;1m',
+        'red': '\x1b[91;1m',
+        'cyan': '\x1b[96m',
+        'reset': '\x1b[0m',
+    }
+
+    def __init__(self, fmt, *args, **kwargs):
+        fmt = ('{grey}%(asctime)s '
+               '{green}[%(threadName)s] '
+               '{cyan}[%(name)s] '
+               '$COLOR%(message)s'
+               '{reset}')
+
+        fmt = fmt.format(**self.colors)
+        super().__init__(fmt, *args, **kwargs)
+
+    def format(self, record):
+        result = super().format(record)
+        level_color = {
+            'DEBUG': 'grey',
+            'INFO': 'reset',
+            'WARNING': 'yellow',
+            'ERROR': 'red',
+            'CRITICAL': 'red',
+        }.get(record.levelname, 'reset')
+        result = result.replace('$COLOR', self.colors[level_color])
+        return result
+
+    def formatException(self, ei):
+        result = super().formatException(ei)
+        result = '{red}{result}{reset}'.format(result=result, **self.colors)
+        return result
+
+
 def init_logging(console=True, file_path=None, level='DEBUG'):
     '''
     Configure logging module.
@@ -37,12 +81,15 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
                 'class': 'logging.Formatter',
                 'format': '%(asctime)s [%(threadName)s] %(levelname)s [%(name)s] %(message)s',
             },
+            'console': {
+                'class': 'wildland.log.ConsoleFormatter',
+            },
         },
         'handlers': {
             'console': {
                 'class': 'logging.StreamHandler',
                 'stream': 'ext://sys.stderr',
-                'formatter': 'default',
+                'formatter': 'console',
             },
         },
         'root': {
