@@ -40,6 +40,9 @@ from .exc import WildlandError
 from .log import init_logging
 
 
+logger = logging.getLogger('fuse')
+
+
 class WildlandFS(fuse.Fuse):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
@@ -95,6 +98,11 @@ class WildlandFS(fuse.Fuse):
 
         self.init_logging(self.cmdline[0])
 
+        if self.multithreaded:
+            logger.warning(
+                'Running FUSE in multi-threaded mode. '
+                'This is a work in progress and things will break.')
+
         self.mount_storage([PurePosixPath('/.control')], self.control)
 
         if not self.cmdline[0].breakpoint:
@@ -119,14 +127,14 @@ class WildlandFS(fuse.Fuse):
         Mount a storage under a set of paths.
         '''
 
-        logging.info('Mounting storage %r under paths: %s',
+        logger.info('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
 
         main_path = paths[0]
         current_ident = self.main_paths.get(main_path)
         if current_ident is not None:
             if remount:
-                logging.info('Unmounting current storage: %s, for main path: %s',
+                logger.info('Unmounting current storage: %s, for main path: %s',
                              current_ident, main_path)
                 self.unmount_storage(current_ident)
             else:
@@ -152,7 +160,7 @@ class WildlandFS(fuse.Fuse):
         assert ident in self.storage_paths
         storage = self.storages[ident]
         paths = self.storage_paths[ident]
-        logging.info('unmounting storage %r from paths: %s',
+        logger.info('unmounting storage %r from paths: %s',
                      storage, [str(p) for p in paths])
 
         storage.unmount()
@@ -197,14 +205,14 @@ class WildlandFS(fuse.Fuse):
     def control_clear_cache(self, content: bytes):
         if content.strip() == b'':
             for ident, storage in self.storages.items():
-                logging.info('clearing cache for storage: %s', ident)
+                logger.info('clearing cache for storage: %s', ident)
                 storage.clear_cache()
             return
 
         ident = int(content)
         if ident not in self.storages:
             raise WildlandError(f'storage not found: {ident}')
-        logging.info('clearing cache for storage: %s', ident)
+        logger.info('clearing cache for storage: %s', ident)
         self.storages[ident].clear_cache()
 
     @control_file('paths')
@@ -238,10 +246,10 @@ class WildlandFS(fuse.Fuse):
     #
 
     def fsinit(self):
-        logging.info('mounting wildland')
+        logger.info('mounting wildland')
 
     def fsdestroy(self):
-        logging.info('unmounting wildland')
+        logger.info('unmounting wildland')
 
     def proxy(self, method_name, path, *args,
               parent=False,

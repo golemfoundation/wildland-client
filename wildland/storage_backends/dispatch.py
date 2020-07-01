@@ -35,7 +35,7 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
 
     result = {}
     for ep in entrypoints.get_group_all('wildland.storage_backends'):
-        logging.info('storage: %s', ep)
+        logging.debug('storage: %s', ep)
         cls: Type[StorageBackend] = ep.load()
         result[cls.TYPE] = cls
 
