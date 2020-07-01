@@ -102,7 +102,7 @@ class LocalFile(File):
         if self.read_only:
             raise PermissionError(errno.EROFS, '')
 
-        return self.file.truncate(length)
+        self.file.truncate(length)
 
 
 class LocalStorageBackend(StorageBackend):
