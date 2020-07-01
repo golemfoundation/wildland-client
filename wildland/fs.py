@@ -70,6 +70,10 @@ class WildlandFS(fuse.Fuse):
         # (TODO: make code coverage work in multi-threaded mode)
         self.multithreaded = False
 
+        # For development:
+        if os.environ.get('WL_MULTITHREADED'):
+            self.multithreaded = True
+
         # Disable file caching, so that we don't have to report the right file
         # size in getattr(), for example for auto-generated files.
         # See 'man 8 mount.fuse' for details.
