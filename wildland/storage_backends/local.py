@@ -84,8 +84,14 @@ class LocalFile(File):
 
         Without this method, at least :meth:`read` does not work.
         '''
-        return fuse_stat(os.fstat(self.file.fileno()),
-                         self.read_only)
+        st = fuse_stat(os.fstat(self.file.fileno()),
+                       self.read_only)
+        # Make sure to return the correct size.
+        # TODO: Unfortunately this is not enough, as fstat() causes FUSE to
+        # call getattr(), not fgetattr():
+        # https://github.com/libfuse/libfuse/issues/62
+        st.st_size = self.file.seek(0, 2)
+        return st
 
     def read(self, length, offset):
         self.file.seek(offset)
