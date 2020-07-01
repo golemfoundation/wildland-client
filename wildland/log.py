@@ -35,7 +35,7 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         'formatters': {
             'default': {
                 'class': 'logging.Formatter',
-                'format': '%(asctime)s %(levelname)s [%(name)s] %(message)s',
+                'format': '%(asctime)s [%(threadName)s] %(levelname)s [%(name)s] %(message)s',
             },
         },
         'handlers': {
