@@ -94,7 +94,6 @@ class WildlandFS(fuse.Fuse):
 
         self.init_logging(self.cmdline[0])
 
-        # TODO: make code coverage work in multi-threaded mode
         self.multithreaded = not self.cmdline[0].single_thread
 
         with self.mount_lock:

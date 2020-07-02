@@ -27,6 +27,7 @@ import itertools
 import logging
 import os
 import sys
+import threading
 
 from typing import Dict, Callable
 
@@ -35,6 +36,35 @@ import fuse
 
 logger = logging.getLogger('fuse')
 
+fuse_thread_local = threading.local()
+
+
+def start_coverage():
+    '''
+    If we are running with coverage, start coverage from FUSE-created thread.
+    '''
+
+    if not threading.current_thread().name.startswith('Dummy'):
+        return
+    if hasattr(fuse_thread_local, 'coverage_started'):
+        return
+
+    try:
+        # pylint: disable=import-outside-toplevel
+        from coverage.control import Coverage
+    except ImportError:
+        return
+
+    cov = Coverage.current()
+    if not cov:
+        return
+
+    logger.debug('starting coverage')
+    cov._collector._start_tracer()
+
+    fuse_thread_local.coverage_started = True
+
+
 def debug_handler(func, bound=False):
     '''A decorator for wrapping FUSE API.
 
@@ -42,6 +72,8 @@ def debug_handler(func, bound=False):
     '''
     @functools.wraps(func)
     def wrapper(*args, **kwds):
+        start_coverage()
+
         try:
             args_to_display = args if bound else args[1:]
 
