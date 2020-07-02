@@ -24,7 +24,6 @@ Local storage, similar to :command:`mount --bind`
 import os
 from pathlib import Path, PurePosixPath
 import logging
-import errno
 import click
 
 import fuse
@@ -36,17 +35,13 @@ from ..manifest.schema import Schema
 __all__ = ['LocalStorageBackend']
 
 
-def fuse_stat(st: os.stat_result, read_only: bool) -> fuse.Stat:
+def fuse_stat(st: os.stat_result) -> fuse.Stat:
     '''
     Convert os.stat_result to fuse.Stat.
     '''
 
-    mode = st.st_mode
-    if read_only:
-        mode &= ~0o222
-
     return fuse.Stat(
-        st_mode=mode,
+        st_mode=st.st_mode,
         st_ino=st.st_ino,
         st_dev=st.st_dev,
         st_nlink=st.st_nlink,
@@ -65,14 +60,13 @@ class LocalFile(File):
     (does not need to be a regular file)
     '''
 
-    def __init__(self, path, realpath, flags, mode=0, read_only=False):
+    def __init__(self, path, realpath, flags, mode=0):
         self.path = path
         self.realpath = realpath
 
         self.file = os.fdopen(
             os.open(realpath, flags, mode),
             flags_to_mode(flags))
-        self.read_only = read_only
 
     # pylint: disable=missing-docstring
 
@@ -84,8 +78,7 @@ class LocalFile(File):
 
         Without this method, at least :meth:`read` does not work.
         '''
-        st = fuse_stat(os.fstat(self.file.fileno()),
-                       self.read_only)
+        st = fuse_stat(os.fstat(self.file.fileno()))
         # Make sure to return the correct size.
         # TODO: Unfortunately this is not enough, as fstat() causes FUSE to
         # call getattr(), not fgetattr():
@@ -98,16 +91,10 @@ class LocalFile(File):
         return self.file.read(length)
 
     def write(self, data, offset):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, '')
-
         self.file.seek(offset)
         return self.file.write(data)
 
     def ftruncate(self, length):
-        if self.read_only:
-            raise PermissionError(errno.EROFS, '')
-
         self.file.truncate(length)
 
 
@@ -164,13 +151,13 @@ class LocalStorageBackend(StorageBackend):
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
-        return LocalFile(path, self._path(path), flags, read_only=self.read_only)
+        return LocalFile(path, self._path(path), flags)
 
     def create(self, path, flags, mode):
         return LocalFile(path, self._path(path), flags, mode)
 
     def getattr(self, path):
-        return fuse_stat(os.lstat(self._path(path)), self.read_only)
+        return fuse_stat(os.lstat(self._path(path)))
 
     def readdir(self, path):
         return os.listdir(self._path(path))
