@@ -48,17 +48,15 @@ class PagedHttpFile(PagedFile):
     '''
 
     def __init__(self,
-                 session: requests.Session,
                  url: str,
                  attr):
         super().__init__(attr)
-        self.session = session
         self.url = url
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
 
-        resp = self.session.request(
+        resp = requests.request(
             method='GET',
             url=self.url,
             headers={
@@ -91,7 +89,6 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
 
-        self.session = requests.Session()
         self.url = urlparse(self.params['url'])
         self.read_only = True
 
@@ -120,7 +117,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
         url = self.make_url(path)
-        resp = self.session.request(
+        resp = requests.request(
             method='GET',
             url=url,
             headers={
@@ -157,7 +154,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     def open(self, path: PurePosixPath, flags: int) -> PagedHttpFile:
         url = self.make_url(path)
-        resp = self.session.request(
+        resp = requests.request(
             method='HEAD',
             url=url,
             headers={
@@ -168,4 +165,4 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
         size = int(resp.headers['Content-Length'])
         attr = simple_file_stat(size, 0)
-        return PagedHttpFile(self.session, url, attr)
+        return PagedHttpFile(url, attr)
