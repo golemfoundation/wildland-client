@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from functools import partial
 import errno
 import os
+import threading
 
 import sqlite3
 import click
@@ -105,12 +106,18 @@ class BearDB:
     An class for accessing the Bear SQLite database.
     '''
 
+    # Maintain a single SQLite connection per database.
+    # Note that this prevents multi-threaded access to the database.
+    # A better solution would be to maintain a thread-local connection.
+    global_lock = threading.Lock()
     conn_cache: Dict[str, sqlite3.Connection] = {}
+    conn_locks: Dict[str, threading.RLock] = {}
     conn_refcount: Dict[str, int] = {}
 
     def __init__(self, path):
         self.path = path
         self.db = None
+        self.db_lock = None
 
     def connect(self):
         '''
@@ -119,96 +126,110 @@ class BearDB:
 
         assert not self.db
 
-        if self.path in self.conn_cache:
-            self.db = self.conn_cache[self.path]
-            self.conn_refcount[self.path] += 1
-        else:
-            self.db = sqlite3.connect(self.path)
-            self.db.row_factory = sqlite3.Row
-            self.conn_cache[self.path] = self.db
-            self.conn_refcount[self.path] = 1
+        with self.global_lock:
+            if self.path in self.conn_cache:
+                self.db = self.conn_cache[self.path]
+                self.db_lock = self.conn_locks[self.path]
+                self.conn_refcount[self.path] += 1
+            else:
+                self.db = sqlite3.connect(self.path, check_same_thread=False)
+                self.db.row_factory = sqlite3.Row
+                self.db_lock = threading.RLock()
+                self.conn_cache[self.path] = self.db
+                self.conn_locks[self.path] = self.db_lock
+                self.conn_refcount[self.path] = 1
 
     def disconnect(self):
         '''
         Close database connection, if necessary.
         '''
 
-        assert self.db
+        assert self.db and self.db_lock
 
-        self.conn_refcount[self.path] -= 1
-        if self.conn_refcount[self.path] == 0:
-            del self.conn_refcount[self.path]
-            del self.conn_cache[self.path]
-            self.db.close()
-        self.db = None
+        with self.global_lock, self.db_lock:
+            self.conn_refcount[self.path] -= 1
+            if self.conn_refcount[self.path] == 0:
+                del self.conn_refcount[self.path]
+                del self.conn_cache[self.path]
+                del self.conn_locks[self.path]
+                self.db.close()
+            self.db = None
+            self.db_lock = None
 
     def get_note_idents(self) -> Iterable[str]:
         '''
         Retrieve list of note IDs.
         '''
 
-        assert self.db
-        cursor = self.db.cursor()
-        cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
-        for row in cursor.fetchall():
-            yield row['ZUNIQUEIDENTIFIER']
+        assert self.db and self.db_lock
+
+        with self.db_lock:
+            cursor = self.db.cursor()
+            cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
+            return [row['ZUNIQUEIDENTIFIER'] for row in cursor.fetchall()]
 
     def get_note_idents_with_tags(self) -> Iterable[Tuple[str, List[str]]]:
         '''
         Retrieve list of note IDs, along with tags.
         '''
 
-        assert self.db
-        cursor = self.db.cursor()
+        assert self.db and self.db_lock
 
-        result: Dict[str, List[str]] = {
-            ident: []
-            for ident in self.get_note_idents()
-        }
-        cursor.execute('''
-            SELECT ZUNIQUEIDENTIFIER, ZSFNOTETAG.ZTITLE FROM ZSFNOTE
-            JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ZSFNOTE.Z_PK
-            JOIN ZSFNOTETAG ON Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
-        ''')
-        for row in cursor.fetchall():
-            ident = row['ZUNIQUEIDENTIFIER']
-            tag = row['ZTITLE']
-            result.setdefault(ident, []).append(tag)
-        return result.items()
+        with self.db_lock:
+            cursor = self.db.cursor()
+
+            result: Dict[str, List[str]] = {
+                ident: []
+                for ident in self.get_note_idents()
+            }
+            cursor.execute('''
+                SELECT ZUNIQUEIDENTIFIER, ZSFNOTETAG.ZTITLE FROM ZSFNOTE
+                JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ZSFNOTE.Z_PK
+                JOIN ZSFNOTETAG ON Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
+            ''')
+            for row in cursor.fetchall():
+                ident = row['ZUNIQUEIDENTIFIER']
+                tag = row['ZTITLE']
+                result.setdefault(ident, []).append(tag)
+            return result.items()
 
     def get_note(self, ident: str) -> Optional[BearNote]:
         '''
         Retrieve a single note.
         '''
 
-        assert self.db
-        cursor = self.db.cursor()
-        cursor.execute('''
-            SELECT Z_PK, ZTITLE, ZTEXT FROM ZSFNOTE
-            WHERE ZUNIQUEIDENTIFIER = ?
-        ''', [ident])
-        row = cursor.fetchone()
-        if not row:
-            return None
+        assert self.db and self.db_lock
 
-        tags = self.get_tags(row['Z_PK'])
-        return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'],
-                        tags=tags)
+        with self.db_lock:
+            cursor = self.db.cursor()
+            cursor.execute('''
+                SELECT Z_PK, ZTITLE, ZTEXT FROM ZSFNOTE
+                WHERE ZUNIQUEIDENTIFIER = ?
+            ''', [ident])
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            tags = self.get_tags(row['Z_PK'])
+            return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'],
+                            tags=tags)
 
     def get_tags(self, pk: int) -> List[str]:
         '''
         Retrieve a list of tags for a note.
         '''
 
-        assert self.db
-        cursor = self.db.cursor()
-        cursor.execute('''
-            SELECT ZTITLE FROM ZSFNOTETAG
-            JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ?
-            AND Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
-        ''', [pk])
+        assert self.db and self.db_lock
 
-        return [tag_row['ZTITLE'] for tag_row in cursor.fetchall()]
+        with self.db_lock:
+            cursor = self.db.cursor()
+            cursor.execute('''
+                SELECT ZTITLE FROM ZSFNOTETAG
+                JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ?
+                AND Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
+            ''', [pk])
+
+            return [tag_row['ZTITLE'] for tag_row in cursor.fetchall()]
 
 
 class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
