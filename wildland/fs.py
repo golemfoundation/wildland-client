@@ -59,6 +59,9 @@ class WildlandFS(fuse.Fuse):
         self.parser.add_option(mountopt='breakpoint', action='store_true',
             help='enable .control/breakpoint')
 
+        self.parser.add_option(mountopt='single_thread', action='store_true',
+            help='run single-threaded')
+
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
@@ -69,16 +72,6 @@ class WildlandFS(fuse.Fuse):
         self.uid = None
         self.gid = None
         self.install_debug_handler()
-
-        # Run FUSE in single-threaded mode.
-        # (TODO: verify what is needed for multi-threaded, what guarantees FUSE
-        # gives us, etc.)
-        # (TODO: make code coverage work in multi-threaded mode)
-        self.multithreaded = False
-
-        # For development:
-        if os.environ.get('WL_MULTITHREADED'):
-            self.multithreaded = True
 
         # Disable file caching, so that we don't have to report the right file
         # size in getattr(), for example for auto-generated files.
@@ -101,10 +94,8 @@ class WildlandFS(fuse.Fuse):
 
         self.init_logging(self.cmdline[0])
 
-        if self.multithreaded:
-            logger.warning(
-                'Running FUSE in multi-threaded mode. '
-                'This is a work in progress and things will break.')
+        # TODO: make code coverage work in multi-threaded mode
+        self.multithreaded = not self.cmdline[0].single_thread
 
         with self.mount_lock:
             self._mount_storage([PurePosixPath('/.control')], self.control)

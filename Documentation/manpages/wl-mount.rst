@@ -7,7 +7,7 @@
 Synopsis
 --------
 
-:command:`wl mount [--debug] [--remount] [--container <container>]`
+:command:`wl mount [--debug] [--remount] [--container <container>] [--single-thread]`
 
 Options
 -------
@@ -23,3 +23,7 @@ Options
 .. option:: --container <container>, -c <container>
 
    Container to mount. Can be repeated.
+
+.. option:: --single-thread, -s
+
+   Run single-threaded.
