@@ -100,10 +100,12 @@ def _do_mount_containers(to_mount):
     help='if mounted already, remount')
 @click.option('--debug', '-d', count=True,
     help='debug mode: run in foreground (repeat for more verbosity)')
+@click.option('--single-thread', '-s', is_flag=True,
+    help='run single-threaded')
 @click.option('--container', '-c', metavar='CONTAINER', multiple=True,
     help='Container to mount (can be repeated)')
 @click.pass_obj
-def mount(obj: ContextObj, remount, debug, container):
+def mount(obj: ContextObj, remount, debug, container, single_thread):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -131,14 +133,14 @@ def mount(obj: ContextObj, remount, debug, container):
                 obj.fs_client.get_command_for_mount_container(container, storage, is_default_user)))
 
     if not debug:
-        obj.fs_client.mount()
+        obj.fs_client.mount(single_thread=single_thread)
         _do_mount_containers(to_mount)
         return
 
     print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
 
-    p = obj.fs_client.mount(foreground=True, debug=(debug > 1))
+    p = obj.fs_client.mount(foreground=True, debug=(debug > 1), single_thread=single_thread)
     _do_mount_containers(to_mount)
     try:
         p.wait()

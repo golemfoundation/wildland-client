@@ -48,19 +48,15 @@ class PagedHttpFile(PagedFile):
     '''
 
     def __init__(self,
-                 session: requests.Session,
                  url: str,
-                 attr,
-                 page_size,
-                 max_pages):
-        super().__init__(attr, page_size, max_pages)
-        self.session = session
+                 attr):
+        super().__init__(attr)
         self.url = url
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
 
-        resp = self.session.request(
+        resp = requests.request(
             method='GET',
             url=self.url,
             headers={
@@ -93,7 +89,6 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
 
-        self.session = requests.Session()
         self.url = urlparse(self.params['url'])
         self.read_only = True
 
@@ -122,7 +117,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
         url = self.make_url(path)
-        resp = self.session.request(
+        resp = requests.request(
             method='GET',
             url=url,
             headers={
@@ -130,11 +125,9 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             }
         )
         resp.raise_for_status()
-        print(resp.content)
 
         parser = etree.HTMLParser()
         tree = etree.parse(BytesIO(resp.content), parser)
-        print(tree)
         for a_element in tree.findall('.//a'):
             try:
                 href = a_element.attrib['href']
@@ -149,8 +142,6 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             except ValueError:
                 continue
 
-            print(rel_path)
-
             if rel_path.parent != path:
                 continue
 
@@ -163,7 +154,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     def open(self, path: PurePosixPath, flags: int) -> PagedHttpFile:
         url = self.make_url(path)
-        resp = self.session.request(
+        resp = requests.request(
             method='HEAD',
             url=url,
             headers={
@@ -174,6 +165,4 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
         size = int(resp.headers['Content-Length'])
         attr = simple_file_stat(size, 0)
-        page_size = 8 * 1024 * 1024
-        max_pages = 8
-        return PagedHttpFile(self.session, url, attr, page_size, max_pages)
+        return PagedHttpFile(url, attr)

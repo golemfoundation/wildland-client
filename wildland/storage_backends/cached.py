@@ -26,6 +26,7 @@ import time
 from pathlib import PurePosixPath
 import errno
 import logging
+import threading
 
 import fuse
 
@@ -53,6 +54,7 @@ class CachedStorageMixin:
         self.getattr_cache: Dict[PurePosixPath, fuse.Stat] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
         self.expiry = 0.
+        self.cache_lock = threading.Lock()
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         '''
@@ -66,6 +68,10 @@ class CachedStorageMixin:
         Refresh cache.
         '''
 
+        with self.cache_lock:
+            self._refresh()
+
+    def _refresh(self):
         logger.info('refresh')
 
         self.getattr_cache.clear()
@@ -81,39 +87,42 @@ class CachedStorageMixin:
 
     def _update(self):
         if self.expiry < time.time():
-            self.refresh()
+            self._refresh()
 
     def clear_cache(self):
         '''
         Invalidate cache.
         '''
 
-        self.getattr_cache.clear()
-        self.readdir_cache.clear()
-        self.expiry = 0.
+        with self.cache_lock:
+            self.getattr_cache.clear()
+            self.readdir_cache.clear()
+            self.expiry = 0.
 
     def getattr(self, path: PurePosixPath) -> fuse.Stat:
         '''
         Cached implementation of getattr().
         '''
 
-        self._update()
+        with self.cache_lock:
+            self._update()
 
-        if path not in self.getattr_cache:
-            raise FileNotFoundError(errno.ENOENT, str(path))
+            if path not in self.getattr_cache:
+                raise FileNotFoundError(errno.ENOENT, str(path))
 
-        return self.getattr_cache[path]
+            return self.getattr_cache[path]
 
     def readdir(self, path: PurePosixPath) -> List[str]:
         '''
         Cached implementation of readdir().
         '''
 
-        self._update()
-        if path not in self.readdir_cache:
-            raise FileNotFoundError(errno.ENOENT, str(path))
+        with self.cache_lock:
+            self._update()
+            if path not in self.readdir_cache:
+                raise FileNotFoundError(errno.ENOENT, str(path))
 
-        return sorted(self.readdir_cache[path])
+            return sorted(self.readdir_cache[path])
 
 
 class DirectoryCachedStorageMixin:
@@ -133,6 +142,7 @@ class DirectoryCachedStorageMixin:
         self.getattr_cache: Dict[PurePosixPath, fuse.Stat] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
         self.dir_expiry: Dict[PurePosixPath, float] = {}
+        self.cache_lock = threading.Lock()
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
         '''
@@ -178,9 +188,10 @@ class DirectoryCachedStorageMixin:
         Invalidate cache.
         '''
 
-        self.getattr_cache.clear()
-        self.readdir_cache.clear()
-        self.dir_expiry.clear()
+        with self.cache_lock:
+            self.getattr_cache.clear()
+            self.readdir_cache.clear()
+            self.dir_expiry.clear()
 
     def getattr(self, path: PurePosixPath) -> fuse.Stat:
         '''
@@ -192,21 +203,23 @@ class DirectoryCachedStorageMixin:
         if path == PurePosixPath('.'):
             return simple_dir_stat()
 
-        self._update_dir(path.parent)
+        with self.cache_lock:
+            self._update_dir(path.parent)
 
-        if path not in self.getattr_cache:
-            raise FileNotFoundError(errno.ENOENT, str(path))
+            if path not in self.getattr_cache:
+                raise FileNotFoundError(errno.ENOENT, str(path))
 
-        return self.getattr_cache[path]
+            return self.getattr_cache[path]
 
     def readdir(self, path: PurePosixPath) -> List[str]:
         '''
         Cached implementation of readdir().
         '''
 
-        self._update_dir(path)
+        with self.cache_lock:
+            self._update_dir(path)
 
-        if path not in self.readdir_cache:
-            raise FileNotFoundError(errno.ENOENT, str(path))
+            if path not in self.readdir_cache:
+                raise FileNotFoundError(errno.ENOENT, str(path))
 
-        return sorted(self.readdir_cache[path])
+            return sorted(self.readdir_cache[path])

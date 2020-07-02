@@ -45,25 +45,27 @@ class WebdavFile(FullBufferedFile):
     A buffered WebDAV file.
     '''
 
-    def __init__(self, session: requests.Session, url: str, attr: fuse.Stat):
+    def __init__(self, auth, url: str, attr: fuse.Stat):
         super().__init__(attr)
-        self.session = session
+        self.auth = auth
         self.url = url
 
     def read_full(self) -> bytes:
-        resp = self.session.request(
+        resp = requests.request(
             method='GET',
             url=self.url,
-            headers={'Accept': '*/*'}
+            headers={'Accept': '*/*'},
+            auth=self.auth,
         )
         resp.raise_for_status()
         return resp.content
 
     def write_full(self, data: bytes) -> int:
-        resp = self.session.request(
+        resp = requests.request(
             method='PUT',
             url=self.url,
             data=data,
+            auth=self.auth,
         )
         resp.raise_for_status()
         return len(data)
@@ -74,23 +76,23 @@ class PagedWebdavFile(PagedFile):
     A read-only paged WebDAV file.
     '''
 
-    def __init__(self, session: requests.Session, url: str,
-                 attr: fuse.Stat,
-                 page_size: int, max_pages: int):
-        super().__init__(attr, page_size, max_pages)
-        self.session = session
+    def __init__(self, auth, url: str,
+                 attr: fuse.Stat):
+        super().__init__(attr)
+        self.auth = auth
         self.url = url
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
 
-        resp = self.session.request(
+        resp = requests.request(
             method='GET',
             url=self.url,
             headers={
                 'Accept': '*/*',
                 'Range': range_header
-            }
+            },
+            auth=self.auth,
         )
         resp.raise_for_status()
         return resp.content
@@ -126,10 +128,8 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         super().__init__(**kwds)
 
         credentials = self.params['credentials']
-        auth = requests.auth.HTTPBasicAuth(
+        self.auth = requests.auth.HTTPBasicAuth(
             credentials['login'], credentials['password'])
-        self.session = requests.Session()
-        self.session.auth = auth
 
         self.base_url = self.params['url']
         self.base_path = PurePosixPath(urlparse(self.base_url).path)
@@ -155,10 +155,11 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
     def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
         path = PurePosixPath('.')
         depth = 'infinity'
-        resp = self.session.request(
+        resp = requests.request(
             method='PROPFIND',
             url=self.make_url(path),
-            headers={'Accept': '*/*', 'Depth': depth}
+            headers={'Accept': '*/*', 'Depth': depth},
+            auth=self.auth,
         )
         resp.raise_for_status()
 
@@ -206,35 +207,41 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         attr = self.getattr(path)
 
         if flags & (os.O_WRONLY | os.O_RDWR):
-            return WebdavFile(self.session, self.make_url(path), attr)
+            return WebdavFile(self.auth, self.make_url(path), attr)
 
-        page_size = 8 * 1024 * 1024
-        max_pages = 8
-        return PagedWebdavFile(self.session, self.make_url(path), attr, page_size, max_pages)
+        return PagedWebdavFile(self.auth, self.make_url(path), attr)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
-        self.session.request(method='PUT', url=self.make_url(path), data=b'')
+        resp = requests.request(
+            method='PUT', url=self.make_url(path), data=b'',
+            auth=self.auth)
+        resp.raise_for_status()
         self.clear_cache()
         attr = self.getattr(path)
-        return WebdavFile(self.session, self.make_url(path), attr)
+        return WebdavFile(self.auth, self.make_url(path), attr)
 
     def truncate(self, path: PurePosixPath, length: int):
         if length > 0:
             raise NotImplementedError()
-        self.session.request(method='PUT', url=self.make_url(path), data=b'')
+        resp = requests.request(
+            method='PUT', url=self.make_url(path), data=b'',
+            auth=self.auth)
+        resp.raise_for_status()
 
     def mkdir(self, path: PurePosixPath, _mode: int) -> None:
-        resp = self.session.request(
+        resp = requests.request(
             method='MKCOL',
             url=self.make_url(path),
+            auth=self.auth,
         )
         resp.raise_for_status()
         self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
-        resp = self.session.request(
+        resp = requests.request(
             method='DELETE',
             url=self.make_url(path),
+            auth=self.auth,
         )
         resp.raise_for_status()
         self.clear_cache()

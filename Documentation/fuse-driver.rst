@@ -34,6 +34,7 @@ Mount options (passed with ``-o``):
 
 * ``log=PATH``: log to a file (`-` means stderr)
 * ``breakpoint``: enable ``.control/breakpoint`` (see below)
+* ``single_thread``: run FUSE in single-threaded mode
 
 Control interface
 -----------------
