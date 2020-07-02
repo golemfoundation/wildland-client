@@ -31,6 +31,7 @@ import os
 import errno
 import stat
 import html
+import threading
 
 import boto3
 import botocore
@@ -52,22 +53,28 @@ class S3File(FullBufferedFile):
     A buffered S3 file.
     '''
 
-    def __init__(self, obj, content_type, attr):
+    def __init__(self, client, bucket, key, content_type, attr):
         super().__init__(attr)
-        self.obj = obj
+        self.client = client
+        self.bucket = bucket
+        self.key = key
         self.content_type = content_type
 
     def read_full(self) -> bytes:
-        buf = BytesIO()
-        self.obj.download_fileobj(buf)
-        return buf.getvalue()
+        response = self.client.get_object(
+            Bucket=self.bucket,
+            Key=self.key,
+        )
+        return response['Body'].read()
 
     def write_full(self, data: bytes) -> int:
         # Set the Content-Type again, otherwise it will get overwritten with
         # application/octet-stream.
-        self.obj.upload_fileobj(
-            BytesIO(data),
-            ExtraArgs={'ContentType': self.content_type})
+        self.client.put_object(
+            Bucket=self.bucket,
+            Key=self.key,
+            Body=BytesIO(data),
+            ContentType=self.content_type)
         return len(data)
 
 
@@ -76,14 +83,21 @@ class PagedS3File(PagedFile):
     A read-only paged S3 file.
     '''
 
-    def __init__(self, obj, attr, page_size, max_pages):
+    def __init__(self, client, bucket, key, attr, page_size, max_pages):
         super().__init__(attr, page_size, max_pages)
-        self.obj = obj
+        self.client = client
+        self.bucket = bucket
+        self.key = key
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
-        response = self.obj.get(Range=range_header)
+        response = self.client.get_object(
+            Bucket=self.bucket,
+            Key=self.key,
+            Range=range_header,
+        )
         return response['Body'].read()
+
 
 
 class S3StorageBackend(CachedStorageMixin, StorageBackend):
@@ -130,19 +144,27 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             aws_access_key_id=credentials['access-key'],
             aws_secret_access_key=credentials['secret-key'],
         )
-        s3 = session.resource('s3')
+
+        # S3 Client documentation:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client
+        #
+        # Note that the client is thread-safe:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/resources.html
+        # "Low-level clients *are* thread safe. When using a low-level client,
+        # it is recommended to instantiate your client then pass that client
+        # object to each of your threads."
+        self.client = session.client('s3')
 
         url = urlparse(self.params['url'])
         assert url.scheme == 's3'
 
-        bucket_name = url.netloc
-        # pylint: disable=no-member
-        self.bucket = s3.Bucket(bucket_name)
+        self.bucket = url.netloc
         self.base_path = PurePosixPath(url.path)
 
         # Persist created directories. This is because S3 doesn't have
         # information about directories, and we might want to create/remove
         # them manually.
+        self.s3_dirs_lock = threading.Lock()
         self.s3_dirs: Set[PurePosixPath] = {PurePosixPath('.')}
 
         mimetypes.init()
@@ -182,8 +204,9 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         if self.with_index and not self.read_only:
             self.refresh()
-            print(self.s3_dirs)
-            for path in list(self.s3_dirs):
+            with self.s3_dirs_lock:
+                s3_dirs = list(self.s3_dirs)
+            for path in s3_dirs:
                 self._update_index(path)
 
     def key(self, path: PurePosixPath) -> str:
@@ -201,34 +224,59 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
     @staticmethod
     def _stat(obj) -> fuse.Stat:
         '''
-        Convert Amazon's Obj or ObjSummary to Info.
+        Convert Amazon's object summary, as returned by list_objects_v2 or
+        head_object.
         '''
-        timestamp = int(obj.last_modified.timestamp())
-        if hasattr(obj, 'size'):
-            size = obj.size
+        timestamp = int(obj['LastModified'].timestamp())
+        if 'Size' in obj:
+            size = obj['Size']
         else:
-            size = obj.content_length
+            size = obj['ContentLength']
         return simple_file_stat(size, timestamp)
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
-        for obj_summary in self.bucket.objects.all():
-            full_path = PurePosixPath('/') / obj_summary.key
-            try:
-                obj_path = full_path.relative_to(self.base_path)
-            except ValueError:
-                continue
+        new_s3_dirs = set()
 
-            if not (self.with_index and obj_path.name == self.INDEX_NAME):
-                yield obj_path, self._stat(obj_summary)
+        token = None
+        while True:
+            if token:
+                resp = self.client.list_objects_v2(
+                    Bucket=self.bucket,
+                    ContinuationToken=token,
+                )
+            else:
+                resp = self.client.list_objects_v2(
+                    Bucket=self.bucket,
+                )
 
-            # Add path to s3_dirs even if we just see index.html.
-            for parent in obj_path.parents:
-                self.s3_dirs.add(parent)
+            for summary in resp['Contents']:
+
+                full_path = PurePosixPath('/') / summary['Key']
+                try:
+                    obj_path = full_path.relative_to(self.base_path)
+                except ValueError:
+                    continue
+
+                if not (self.with_index and obj_path.name == self.INDEX_NAME):
+                    yield obj_path, self._stat(summary)
+
+                # Add path to s3_dirs even if we just see index.html.
+                for parent in obj_path.parents:
+                    new_s3_dirs.add(parent)
+
+            if resp['IsTruncated']:
+                token = resp['NextContinuationToken']
+            else:
+                break
 
         # In case we haven't found any files
-        self.s3_dirs.add(PurePosixPath('.'))
+        new_s3_dirs.add(PurePosixPath('.'))
 
-        for dir_path in self.s3_dirs:
+        with self.s3_dirs_lock:
+            self.s3_dirs.update(new_s3_dirs)
+            all_s3_dirs = list(self.s3_dirs)
+
+        for dir_path in all_s3_dirs:
             yield dir_path, simple_dir_stat()
 
     @staticmethod
@@ -244,15 +292,21 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.ENOENT, str(path))
 
-        obj = self.bucket.Object(self.key(path))
-        attr = self._stat(obj)
+        head = self.client.head_object(
+            Bucket=self.bucket,
+            Key=self.key(path),
+        )
+        attr = self._stat(head)
         if flags & (os.O_WRONLY | os.O_RDWR):
             content_type = self.get_content_type(path)
-            return S3File(obj, content_type, attr)
+            return S3File(
+                self.client, self.bucket, self.key(path),
+                content_type, attr)
 
         page_size = 8 * 1024 * 1024
         max_pages = 8
-        return PagedS3File(obj, attr, page_size, max_pages)
+        return PagedS3File(self.client, self.bucket, self.key(path),
+                           attr, page_size, max_pages)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
@@ -260,18 +314,23 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
-        obj = self.bucket.put_object(Key=self.key(path),
-                                     ContentType=content_type)
-        attr = self._stat(obj)
+        head = self.client.put_object(
+            Bucket=self.bucket,
+            Key=self.key(path),
+            ContentType=content_type)
+        attr = self._stat(head)
         self.clear_cache()
         self._update_index(path.parent)
-        return S3File(obj, content_type, attr)
+        return S3File(self.client, self.bucket, self.key(path),
+                      content_type, attr)
 
     def unlink(self, path: PurePosixPath):
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.EPERM, str(path))
 
-        self.bucket.Object(self.key(path)).delete()
+        self.client.delete_object(
+            Bucket=self.bucket,
+            Key=self.key(path))
         self.clear_cache()
         self._update_index(path.parent)
 
@@ -299,31 +358,32 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         if length > 0:
             raise NotImplementedError()
-        obj = self.bucket.Object(self.key(path))
-        obj.upload_fileobj(
-            BytesIO(b''),
-            ExtraArgs={'ContentType': self.get_content_type(path)})
+        self.client.put_object(
+            Bucket=self.bucket,
+            Key=self.key(path),
+            ContentType=self.get_content_type(path))
         self.clear_cache()
 
     def _remove_index(self, path):
         if self.read_only or not self.with_index:
             return
 
-        obj = self.bucket.Object(self.key(path / self.INDEX_NAME))
-        obj.delete()
+        self.client.delete_object(
+            Bucket=self.bucket,
+            Key=self.key(path / self.INDEX_NAME))
 
     def _update_index(self, path):
         if self.read_only or not self.with_index:
             return
 
-        obj = self.bucket.Object(self.key(path / self.INDEX_NAME))
-
         entries = self._get_index_entries(path)
         data = self._generate_index(path, entries)
 
-        obj.upload_fileobj(
-            BytesIO(data.encode()),
-            ExtraArgs={'ContentType': 'text/html'})
+        self.client.put_object(
+            Bucket=self.bucket,
+            Key=self.key(path / self.INDEX_NAME),
+            Body=BytesIO(data.encode()),
+            ContentType='text/html')
 
     def _get_index_entries(self, path):
         # (name, url, is_dir)
