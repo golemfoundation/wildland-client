@@ -128,11 +128,9 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             }
         )
         resp.raise_for_status()
-        print(resp.content)
 
         parser = etree.HTMLParser()
         tree = etree.parse(BytesIO(resp.content), parser)
-        print(tree)
         for a_element in tree.findall('.//a'):
             try:
                 href = a_element.attrib['href']
@@ -146,8 +144,6 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 rel_path = PurePosixPath(href).relative_to(self.base_path)
             except ValueError:
                 continue
-
-            print(rel_path)
 
             if rel_path.parent != path:
                 continue
