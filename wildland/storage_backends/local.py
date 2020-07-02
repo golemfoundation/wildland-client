@@ -25,6 +25,7 @@ import os
 from pathlib import Path, PurePosixPath
 import logging
 import click
+import threading
 
 import fuse
 
@@ -67,6 +68,7 @@ class LocalFile(File):
         self.file = os.fdopen(
             os.open(realpath, flags, mode),
             flags_to_mode(flags))
+        self.lock = threading.Lock()
 
     # pylint: disable=missing-docstring
 
@@ -78,24 +80,28 @@ class LocalFile(File):
 
         Without this method, at least :meth:`read` does not work.
         '''
-        st = fuse_stat(os.fstat(self.file.fileno()))
-        # Make sure to return the correct size.
-        # TODO: Unfortunately this is not enough, as fstat() causes FUSE to
-        # call getattr(), not fgetattr():
-        # https://github.com/libfuse/libfuse/issues/62
-        st.st_size = self.file.seek(0, 2)
+        with self.lock:
+            st = fuse_stat(os.fstat(self.file.fileno()))
+            # Make sure to return the correct size.
+            # TODO: Unfortunately this is not enough, as fstat() causes FUSE to
+            # call getattr(), not fgetattr():
+            # https://github.com/libfuse/libfuse/issues/62
+            st.st_size = self.file.seek(0, 2)
         return st
 
     def read(self, length, offset):
-        self.file.seek(offset)
-        return self.file.read(length)
+        with self.lock:
+            self.file.seek(offset)
+            return self.file.read(length)
 
     def write(self, data, offset):
-        self.file.seek(offset)
-        return self.file.write(data)
+        with self.lock:
+            self.file.seek(offset)
+            return self.file.write(data)
 
     def ftruncate(self, length):
-        self.file.truncate(length)
+        with self.lock:
+            self.file.truncate(length)
 
 
 class LocalStorageBackend(StorageBackend):

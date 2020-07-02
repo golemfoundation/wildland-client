@@ -25,6 +25,7 @@ import logging
 import abc
 from typing import Dict, Tuple, Iterable, List, Optional
 import heapq
+import threading
 
 import fuse
 
@@ -79,6 +80,10 @@ class Buffer:
         assert start % self.page_size == 0
 
         for page_num in self._page_range(length, start):
+            if page_num in self.pages:
+                logger.warning('page %d already loaded, discarding', page_num)
+                continue
+
             page = bytearray(self.page_size)
             page_data = data[
                 page_num * self.page_size - start:
@@ -158,6 +163,7 @@ class PagedFile(File, metaclass=abc.ABCMeta):
     def __init__(self, attr: fuse.Stat, page_size: int, max_pages: int):
         self.attr = attr
         self.buf = Buffer(attr.st_size, page_size, max_pages)
+        self.buf_lock = threading.Lock()
 
     @abc.abstractmethod
     def read_range(self, length: int, start: int) -> bytes:
@@ -169,14 +175,19 @@ class PagedFile(File, metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     def read(self, length: int, offset: int) -> bytes:
-        needed_range = self.buf.get_needed_range(length, offset)
+        with self.buf_lock:
+            needed_range = self.buf.get_needed_range(length, offset)
+
         if needed_range:
             range_length, range_start = needed_range
             logger.debug('loading range: %s, %s', range_length, range_start)
             data = self.read_range(range_length, range_start)
-            self.buf.set_read(data, range_length, range_start)
 
-        return self.buf.read(length, offset)
+            with self.buf_lock:
+                self.buf.set_read(data, range_length, range_start)
+
+        with self.buf_lock:
+            return self.buf.read(length, offset)
 
     def fgetattr(self) -> fuse.Stat:
         return self.attr
@@ -198,6 +209,7 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
         self.buf = bytearray()
         self.loaded = self.attr.st_size == 0
         self.dirty = False
+        self.buf_lock = threading.Lock()
 
     @abc.abstractmethod
     def read_full(self) -> bytes:
@@ -221,8 +233,9 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
         super().release() first.
         '''
 
-        if self.dirty:
-            self.write_full(bytes(self.buf))
+        with self.buf_lock:
+            if self.dirty:
+                self.write_full(bytes(self.buf))
 
     def _load(self) -> None:
         if not self.loaded:
@@ -230,20 +243,24 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
             self.loaded = True
 
     def read(self, length: int, offset: int) -> bytes:
-        self._load()
-        return bytes(self.buf[offset:offset+length])
+        with self.buf_lock:
+            self._load()
+            return bytes(self.buf[offset:offset+length])
 
     def write(self, data: bytes, offset: int) -> int:
-        self._load()
-        self.buf[offset:offset+len(data)] = data
-        self.dirty = True
+        with self.buf_lock:
+            self._load()
+            self.buf[offset:offset+len(data)] = data
+            self.dirty = True
         return len(data)
 
     def fgetattr(self) -> fuse.Stat:
-        self.attr.size = len(self.buf)
+        with self.buf_lock:
+            self.attr.size = len(self.buf)
         return self.attr
 
     def ftruncate(self, length: int) -> None:
-        if length < len(self.buf):
-            self.buf = self.buf[:length]
-            self.dirty = True
+        with self.buf_lock:
+            if length < len(self.buf):
+                self.buf = self.buf[:length]
+                self.dirty = True

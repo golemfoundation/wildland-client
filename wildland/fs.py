@@ -27,6 +27,7 @@ import os
 from pathlib import PurePosixPath
 import json
 from typing import List, Dict
+import threading
 
 import fuse
 fuse.fuse_python_api = 0, 2
@@ -58,10 +59,12 @@ class WildlandFS(fuse.Fuse):
         self.parser.add_option(mountopt='breakpoint', action='store_true',
             help='enable .control/breakpoint')
 
+        # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
         self.main_paths: Dict[PurePosixPath, int] = {}
         self.storage_counter = 0
+        self.mount_lock = threading.Lock()
 
         self.uid = None
         self.gid = None
@@ -103,7 +106,8 @@ class WildlandFS(fuse.Fuse):
                 'Running FUSE in multi-threaded mode. '
                 'This is a work in progress and things will break.')
 
-        self.mount_storage([PurePosixPath('/.control')], self.control)
+        with self.mount_lock:
+            self._mount_storage([PurePosixPath('/.control')], self.control)
 
         if not self.cmdline[0].breakpoint:
             self.control_breakpoint = None
@@ -121,11 +125,13 @@ class WildlandFS(fuse.Fuse):
         else:
             init_logging(console=False, file_path=log_path)
 
-    def mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend,
+    def _mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend,
                       remount=False):
         '''
         Mount a storage under a set of paths.
         '''
+
+        assert self.mount_lock.locked()
 
         logger.info('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
@@ -136,7 +142,7 @@ class WildlandFS(fuse.Fuse):
             if remount:
                 logger.info('Unmounting current storage: %s, for main path: %s',
                              current_ident, main_path)
-                self.unmount_storage(current_ident)
+                self._unmount_storage(current_ident)
             else:
                 raise WildlandError('Storage already mounted under main path: %s')
 
@@ -153,14 +159,16 @@ class WildlandFS(fuse.Fuse):
 
         self.control.clear_cache()
 
-    def unmount_storage(self, ident: int):
+    def _unmount_storage(self, ident: int):
         '''Unmount a storage'''
+
+        assert self.mount_lock.locked()
 
         assert ident in self.storages
         assert ident in self.storage_paths
         storage = self.storages[ident]
         paths = self.storage_paths[ident]
-        logger.info('unmounting storage %r from paths: %s',
+        logger.info('Unmounting storage %r from paths: %s',
                      storage, [str(p) for p in paths])
 
         storage.unmount()
@@ -192,36 +200,40 @@ class WildlandFS(fuse.Fuse):
             read_only = params.get('read_only')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only)
-            self.mount_storage(paths, storage, remount)
+            with self.mount_lock:
+                self._mount_storage(paths, storage, remount)
 
     @control_file('unmount', read=False, write=True)
     def control_unmount(self, content: bytes):
-        ident = int(content)
-        if ident not in self.storages:
-            raise WildlandError(f'storage not found: {ident}')
-        self.unmount_storage(ident)
+        with self.mount_lock:
+            ident = int(content)
+            if ident not in self.storages:
+                raise WildlandError(f'storage not found: {ident}')
+            self._unmount_storage(ident)
 
     @control_file('clear-cache', read=False, write=True)
     def control_clear_cache(self, content: bytes):
-        if content.strip() == b'':
-            for ident, storage in self.storages.items():
-                logger.info('clearing cache for storage: %s', ident)
-                storage.clear_cache()
-            return
+        with self.mount_lock:
+            if content.strip() == b'':
+                for ident, storage in self.storages.items():
+                    logger.info('clearing cache for storage: %s', ident)
+                    storage.clear_cache()
+                return
 
-        ident = int(content)
-        if ident not in self.storages:
-            raise WildlandError(f'storage not found: {ident}')
-        logger.info('clearing cache for storage: %s', ident)
-        self.storages[ident].clear_cache()
+            ident = int(content)
+            if ident not in self.storages:
+                raise WildlandError(f'storage not found: {ident}')
+            logger.info('clearing cache for storage: %s', ident)
+            self.storages[ident].clear_cache()
 
     @control_file('paths')
     def control_paths(self):
-        result: Dict[str, List[int]] = {}
-        for ident, paths in self.storage_paths.items():
-            for path in paths:
-                result.setdefault(str(path), []).append(ident)
-        return (json.dumps(result, indent=2) + '\n').encode()
+        with self.mount_lock:
+            result: Dict[str, List[int]] = {}
+            for ident, paths in self.storage_paths.items():
+                for path in paths:
+                    result.setdefault(str(path), []).append(ident)
+            return (json.dumps(result, indent=2) + '\n').encode()
 
     @control_file('breakpoint', write=True)
     def control_breakpoint(self):
@@ -231,8 +243,11 @@ class WildlandFS(fuse.Fuse):
 
     @control_directory('storage')
     def control_containers(self):
-        for ident, storage in self.storages.items():
-            yield str(ident), storage
+        with self.mount_lock:
+            return [
+                (str(ident), storage)
+                for ident, storage in self.storages.items()
+            ]
 
     def add_uid_gid(self, attr: fuse.Stat) -> fuse.Stat:
         if attr.st_uid is None:
@@ -272,7 +287,9 @@ class WildlandFS(fuse.Fuse):
         if not res:
             raise IOError(errno.EACCES, str(path))
 
-        storage = self.storages[res.ident]
+        with self.mount_lock:
+            storage = self.storages[res.ident]
+
         if not hasattr(storage, method_name):
             raise IOError(errno.ENOSYS, str(path))
 
@@ -294,7 +311,8 @@ class WildlandFS(fuse.Fuse):
         st = self.add_uid_gid(st)
         if not res:
             return st
-        storage = self.storages[res.ident]
+        with self.mount_lock:
+            storage = self.storages[res.ident]
         if storage.read_only:
             st.st_mode &= ~0o222
         return st
@@ -324,7 +342,8 @@ class WildlandFS(fuse.Fuse):
         _st, res = self.resolver.getattr_extended(PurePosixPath(path))
         if not res:
             raise IOError(errno.EACCES, str(path))
-        storage = self.storages[res.ident]
+        with self.mount_lock:
+            storage = self.storages[res.ident]
         st = storage.fgetattr(path, *args)
         if storage.read_only:
             st.st_mode &= ~0o222
@@ -411,10 +430,14 @@ class WildlandFSConflictResolver(ConflictResolver):
         self.fs = fs
 
     def storage_getattr(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
-        return self.fs.storages[ident].getattr(relpath)
+        with self.fs.mount_lock:
+            storage = self.fs.storages[ident]
+        return storage.getattr(relpath)
 
     def storage_readdir(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
-        return self.fs.storages[ident].readdir(relpath)
+        with self.fs.mount_lock:
+            storage = self.fs.storages[ident]
+        return storage.readdir(relpath)
 
 
 

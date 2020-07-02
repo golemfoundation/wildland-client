@@ -27,6 +27,7 @@ import errno
 from typing import Iterable, Callable, Optional, Dict
 import stat
 import time
+import threading
 
 import fuse
 
@@ -131,13 +132,15 @@ class CachedDirEntry(FuncDirEntry):
         self.entries: Dict[str, Entry] = {}
         self.expiry: float = 0
         self.timeout_seconds = timeout_seconds
+        self.cache_lock = threading.Lock()
 
     def clear_cache(self):
         '''
         Invalidate cache.
         '''
 
-        self.expiry = 0
+        with self.cache_lock:
+            self.expiry = 0
 
     def _update(self):
         if time.time() > self.expiry:
@@ -149,12 +152,14 @@ class CachedDirEntry(FuncDirEntry):
                         for entry in self.get_entries_func()}
 
     def get_entries(self) -> Iterable[Entry]:
-        self._update()
-        return self.entries.values()
+        with self.cache_lock:
+            self._update()
+            return self.entries.values()
 
     def get_entry(self, name: str) -> Entry:
-        self._update()
-        return self.entries[name]
+        with self.cache_lock:
+            self._update()
+            return self.entries[name]
 
 
 class StaticFile(File):
@@ -187,7 +192,6 @@ class CommandFile(File):
                  attr: fuse.Stat):
         self.on_write = on_write
         self.attr = attr
-        self.flushed = False
 
     def write(self, data: bytes, _offset):
         self.on_write(data)
