@@ -24,9 +24,9 @@ Local storage, similar to :command:`mount --bind`
 import os
 from pathlib import Path, PurePosixPath
 import logging
-import click
 import threading
 
+import click
 import fuse
 
 from .base import StorageBackend, File

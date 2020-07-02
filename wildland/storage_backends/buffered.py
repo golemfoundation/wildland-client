@@ -158,11 +158,18 @@ class PagedFile(File, metaclass=abc.ABCMeta):
     '''
     A read-only file class that stores parts of file in memory. Assumes that
     you are able to read a range of bytes from a file.
+
+    TODO: This currently performs only 1 concurrent read. A better
+    implementation would allow parallel reads, but would need to ensure that a
+    given part is read only once.
     '''
 
-    def __init__(self, attr: fuse.Stat, page_size: int, max_pages: int):
+    page_size = 8 * 1024 * 1024
+    max_pages = 8
+
+    def __init__(self, attr: fuse.Stat):
         self.attr = attr
-        self.buf = Buffer(attr.st_size, page_size, max_pages)
+        self.buf = Buffer(attr.st_size, self.page_size, self.max_pages)
         self.buf_lock = threading.Lock()
 
     @abc.abstractmethod
@@ -178,15 +185,13 @@ class PagedFile(File, metaclass=abc.ABCMeta):
         with self.buf_lock:
             needed_range = self.buf.get_needed_range(length, offset)
 
-        if needed_range:
-            range_length, range_start = needed_range
-            logger.debug('loading range: %s, %s', range_length, range_start)
-            data = self.read_range(range_length, range_start)
+            if needed_range:
+                range_length, range_start = needed_range
+                logger.debug('loading range: %s, %s', range_length, range_start)
+                data = self.read_range(range_length, range_start)
 
-            with self.buf_lock:
                 self.buf.set_read(data, range_length, range_start)
 
-        with self.buf_lock:
             return self.buf.read(length, offset)
 
     def fgetattr(self) -> fuse.Stat:

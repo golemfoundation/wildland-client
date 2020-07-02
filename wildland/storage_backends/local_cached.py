@@ -58,8 +58,11 @@ class LocalCachedPagedFile(PagedFile):
     A paged, read-only local file.
     '''
 
-    def __init__(self, local_path: Path, attr: fuse.Stat, page_size: int, max_pages: int):
-        super().__init__(attr, page_size, max_pages)
+    page_size = 4
+    max_pages = 4
+
+    def __init__(self, local_path: Path, attr: fuse.Stat):
+        super().__init__(attr)
         self.local_path = local_path
 
     def read_range(self, length, start) -> bytes:
@@ -131,9 +134,7 @@ class BaseCached(StorageBackend):
         attr = self.getattr(path)
         if flags & (os.O_WRONLY | os.O_RDWR):
             return LocalCachedFile(self._local(path), attr)
-        page_size = 4
-        max_pages = 4
-        return LocalCachedPagedFile(self._local(path), attr, page_size, max_pages)
+        return LocalCachedPagedFile(self._local(path), attr)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
         local = self._local(path)

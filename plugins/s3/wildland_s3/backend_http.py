@@ -50,10 +50,8 @@ class PagedHttpFile(PagedFile):
     def __init__(self,
                  session: requests.Session,
                  url: str,
-                 attr,
-                 page_size,
-                 max_pages):
-        super().__init__(attr, page_size, max_pages)
+                 attr):
+        super().__init__(attr)
         self.session = session
         self.url = url
 
@@ -174,6 +172,4 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
         size = int(resp.headers['Content-Length'])
         attr = simple_file_stat(size, 0)
-        page_size = 8 * 1024 * 1024
-        max_pages = 8
-        return PagedHttpFile(self.session, url, attr, page_size, max_pages)
+        return PagedHttpFile(self.session, url, attr)

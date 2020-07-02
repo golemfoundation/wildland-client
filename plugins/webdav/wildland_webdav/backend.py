@@ -77,9 +77,8 @@ class PagedWebdavFile(PagedFile):
     '''
 
     def __init__(self, auth, url: str,
-                 attr: fuse.Stat,
-                 page_size: int, max_pages: int):
-        super().__init__(attr, page_size, max_pages)
+                 attr: fuse.Stat):
+        super().__init__(attr)
         self.auth = auth
         self.url = url
 
@@ -210,9 +209,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         if flags & (os.O_WRONLY | os.O_RDWR):
             return WebdavFile(self.auth, self.make_url(path), attr)
 
-        page_size = 8 * 1024 * 1024
-        max_pages = 8
-        return PagedWebdavFile(self.auth, self.make_url(path), attr, page_size, max_pages)
+        return PagedWebdavFile(self.auth, self.make_url(path), attr)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int):
         resp = requests.request(

@@ -83,8 +83,8 @@ class PagedS3File(PagedFile):
     A read-only paged S3 file.
     '''
 
-    def __init__(self, client, bucket, key, attr, page_size, max_pages):
-        super().__init__(attr, page_size, max_pages)
+    def __init__(self, client, bucket, key, attr):
+        super().__init__(attr)
         self.client = client
         self.bucket = bucket
         self.key = key
@@ -303,10 +303,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
                 self.client, self.bucket, self.key(path),
                 content_type, attr)
 
-        page_size = 8 * 1024 * 1024
-        max_pages = 8
-        return PagedS3File(self.client, self.bucket, self.key(path),
-                           attr, page_size, max_pages)
+        return PagedS3File(self.client, self.bucket, self.key(path), attr)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
