@@ -34,7 +34,7 @@ fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver
-from .storage_backends.base import StorageBackend
+from .storage_backends.base import StorageBackend, Attr
 from .storage_backends.control import ControlStorageBackend
 from .storage_backends.control_decorators import control_directory, control_file
 from .exc import WildlandError
@@ -239,12 +239,17 @@ class WildlandFS(fuse.Fuse):
                 for ident, storage in self.storages.items()
             ]
 
-    def add_uid_gid(self, attr: fuse.Stat) -> fuse.Stat:
-        if attr.st_uid is None:
-            attr.st_uid = self.uid
-        if attr.st_gid is None:
-            attr.st_gid = self.gid
-        return attr
+    def _stat(self, attr: Attr) -> fuse.Stat:
+        return fuse.Stat(
+            st_mode=attr.mode,
+            st_nlink=1,
+            st_uid=self.uid,
+            st_gid=self.gid,
+            st_size=attr.size,
+            st_atime=attr.timestamp,
+            st_mtime=attr.timestamp,
+            st_ctime=attr.timestamp,
+        )
 
     #
     # FUSE API
@@ -297,8 +302,8 @@ class WildlandFS(fuse.Fuse):
         return self.proxy('create', path, flags, mode, parent=True, modify=True)
 
     def getattr(self, path):
-        st, res = self.resolver.getattr_extended(PurePosixPath(path))
-        st = self.add_uid_gid(st)
+        attr, res = self.resolver.getattr_extended(PurePosixPath(path))
+        st = self._stat(attr)
         if not res:
             return st
         with self.mount_lock:
@@ -334,10 +339,10 @@ class WildlandFS(fuse.Fuse):
             raise IOError(errno.EACCES, str(path))
         with self.mount_lock:
             storage = self.storages[res.ident]
-        st = storage.fgetattr(path, *args)
+        attr = storage.fgetattr(path, *args)
+        st = self._stat(attr)
         if storage.read_only:
             st.st_mode &= ~0o222
-        st = self.add_uid_gid(st)
         return st
 
     def ftruncate(self, *args):
@@ -419,15 +424,15 @@ class WildlandFSConflictResolver(ConflictResolver):
         super().__init__()
         self.fs = fs
 
-    def storage_getattr(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
+    def storage_getattr(self, ident: int, relpath: PurePosixPath) -> Attr:
         with self.fs.mount_lock:
             storage = self.fs.storages[ident]
         return storage.getattr(relpath)
 
-    def storage_readdir(self, ident: int, relpath: PurePosixPath) -> fuse.Stat:
+    def storage_readdir(self, ident: int, relpath: PurePosixPath) -> List[str]:
         with self.fs.mount_lock:
             storage = self.fs.storages[ident]
-        return storage.readdir(relpath)
+        return list(storage.readdir(relpath))
 
 
 

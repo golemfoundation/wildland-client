@@ -36,10 +36,8 @@ import threading
 import boto3
 import botocore
 import click
-import fuse
 
-from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
-from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
@@ -222,7 +220,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         return str(self.base_path / path)
 
     @staticmethod
-    def _stat(obj) -> fuse.Stat:
+    def _stat(obj) -> Attr:
         '''
         Convert Amazon's object summary, as returned by list_objects_v2 or
         head_object.
@@ -232,9 +230,9 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             size = obj['Size']
         else:
             size = obj['ContentLength']
-        return simple_file_stat(size, timestamp)
+        return Attr.file(size, timestamp)
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         new_s3_dirs = set()
 
         token = None
@@ -277,7 +275,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             all_s3_dirs = list(self.s3_dirs)
 
         for dir_path in all_s3_dirs:
-            yield dir_path, simple_dir_stat()
+            yield dir_path, Attr.dir()
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:
@@ -395,7 +393,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         for name in names:
             try:
-                is_dir = stat.S_ISDIR(self.getattr(path / name).st_mode)
+                is_dir = stat.S_ISDIR(self.getattr(path / name).mode)
             except IOError:
                 continue
             entry = (name, self.url(path / name), is_dir)

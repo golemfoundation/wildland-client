@@ -29,7 +29,7 @@ import re
 import dataclasses
 import errno
 
-import fuse
+from .storage_backends.base import Attr
 
 
 @dataclasses.dataclass
@@ -180,7 +180,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def storage_getattr(self, ident: int, relpath: PurePosixPath) \
-        -> fuse.Stat:
+        -> Attr:
         '''
         Execute getattr() on a path in storage.
         Raise an IOError if the file cannot be accessed.
@@ -231,7 +231,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
             if st is None:
                 continue
-            if stat.S_ISDIR(st.st_mode):
+            if stat.S_ISDIR(st.mode):
                 res_dirs.append(res)
             else:
                 res_files.append(res)
@@ -269,14 +269,14 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 if st is None:
                     # Treat inaccessible files as files, not directories.
                     result.add(self.SUFFIX_FORMAT.format(name, res.ident))
-                elif stat.S_ISDIR(st.st_mode):
+                elif stat.S_ISDIR(st.mode):
                     result.add(name)
                 else:
                     result.add(self.SUFFIX_FORMAT.format(name, res.ident))
 
         return sorted(result)
 
-    def getattr(self, path: PurePosixPath) -> fuse.Stat:
+    def getattr(self, path: PurePosixPath) -> Attr:
         '''
         Get file attributes. Raise FileNotFoundError if necessary.
         '''
@@ -284,13 +284,13 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         return st
 
     def getattr_extended(self, path: PurePosixPath) -> \
-        Tuple[fuse.Stat, Optional[Resolved]]:
+        Tuple[Attr, Optional[Resolved]]:
         '''
         Resolve the path to the right storage and run getattr() on the right
         storage(s). Raises FileNotFoundError if file cannot be found.
 
         Returns a tuple (st, res):
-          st (fuse.Stat): file attributes; possibly overriden to be read-only
+          st (Attr): file attributes; possibly overriden to be read-only
           res (Resolved): resolution result (if there is exactly one)
         '''
 
@@ -304,11 +304,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             suffix = None
 
         if self.root.is_synthetic(real_path):
-            return fuse.Stat(
-                st_mode=stat.S_IFDIR | 0o555,
-                st_nlink=1,
-                st_uid=None,
-                st_gid=None,
+            return Attr(
+                mode=stat.S_IFDIR | 0o555,
             ), None
 
         resolved = list(self.root.resolve(real_path))
@@ -326,13 +323,13 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             st = self.storage_getattr(res.ident, res.relpath)
             return (st, res)
 
-        file_results: List[Tuple[fuse.Stat, Resolved]] = []
-        dir_results: List[Tuple[fuse.Stat, Resolved]] = []
+        file_results: List[Tuple[Attr, Resolved]] = []
+        dir_results: List[Tuple[Attr, Resolved]] = []
         for res in resolved:
             st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
             if st is None:
                 continue
-            if stat.S_ISDIR(st.st_mode):
+            if stat.S_ISDIR(st.mode):
                 dir_results.append((st, res))
             else:
                 file_results.append((st, res))
@@ -349,11 +346,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             if suffix is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
-            st = fuse.Stat(
-                st_mode=stat.S_IFDIR | 0o555,
-                st_nlink=1,
-                st_uid=None,
-                st_gid=None,
+            st = Attr(
+                mode=stat.S_IFDIR | 0o555,
             )
             return (st, None)
 

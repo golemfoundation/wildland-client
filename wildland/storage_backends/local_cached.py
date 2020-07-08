@@ -26,12 +26,11 @@ from pathlib import Path, PurePosixPath
 import os
 import errno
 
-import fuse
 import click
 
 from .cached import CachedStorageMixin, DirectoryCachedStorageMixin
 from .buffered import FullBufferedFile, PagedFile, File
-from .base import StorageBackend
+from .base import StorageBackend, Attr
 from ..manifest.schema import Schema
 
 
@@ -40,7 +39,7 @@ class LocalCachedFile(FullBufferedFile):
     A fully buffered local file.
     '''
 
-    def __init__(self, local_path: Path, attr: fuse.Stat):
+    def __init__(self, local_path: Path, attr: Attr):
         super().__init__(attr)
         self.local_path = local_path
 
@@ -61,7 +60,7 @@ class LocalCachedPagedFile(PagedFile):
     page_size = 4
     max_pages = 4
 
-    def __init__(self, local_path: Path, attr: fuse.Stat):
+    def __init__(self, local_path: Path, attr: Attr):
         super().__init__(attr)
         self.local_path = local_path
 
@@ -109,22 +108,15 @@ class BaseCached(StorageBackend):
         return {'path': data['path']}
 
     @staticmethod
-    def _stat(st: os.stat_result) -> fuse.Stat:
+    def _stat(st: os.stat_result) -> Attr:
         '''
-        Convert os.stat_result to fuse.Stat.
+        Convert os.stat_result to Attr.
         '''
 
-        return fuse.Stat(
-            st_mode=st.st_mode,
-            st_ino=st.st_ino,
-            st_dev=st.st_dev,
-            st_nlink=st.st_nlink,
-            st_uid=st.st_uid,
-            st_gid=st.st_gid,
-            st_size=st.st_size,
-            st_atime=st.st_atime,
-            st_mtime=st.st_mtime,
-            st_ctime=st.st_ctime,
+        return Attr(
+            mode=st.st_mode,
+            size=st.st_size,
+            timestamp=int(st.st_mtime),
         )
 
     def _local(self, path: PurePosixPath) -> Path:
@@ -170,7 +162,7 @@ class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
 
     TYPE = 'local-cached'
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         '''
         Load information about all files and directories.
         '''
@@ -207,7 +199,7 @@ class LocalDirectoryCachedStorageBackend(DirectoryCachedStorageMixin, BaseCached
 
     TYPE = 'local-dir-cached'
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
         '''
         Load information about a single directory.
         '''

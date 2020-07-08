@@ -28,12 +28,10 @@ import logging
 from io import BytesIO
 
 import click
-import fuse
 from lxml import etree
 import requests
 
-from wildland.storage_backends.util import simple_dir_stat, simple_file_stat
-from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import PagedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
@@ -115,7 +113,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
         url = self.make_url(path)
         resp = requests.request(
             method='GET',
@@ -146,9 +144,9 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 continue
 
             if href.endswith('/'):
-                attr = simple_dir_stat()
+                attr = Attr.dir()
             else:
-                attr = simple_file_stat(0, 0)
+                attr = Attr.file()
 
             yield rel_path.name, attr
 
@@ -164,5 +162,5 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         resp.raise_for_status()
 
         size = int(resp.headers['Content-Length'])
-        attr = simple_file_stat(size, 0)
+        attr = Attr.file(size, 0)
         return PagedHttpFile(url, attr)

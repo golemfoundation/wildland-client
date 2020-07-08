@@ -28,9 +28,7 @@ import errno
 import logging
 import threading
 
-import fuse
-
-from .util import simple_dir_stat
+from .base import Attr
 
 
 logger = logging.getLogger('storage-cached')
@@ -50,13 +48,13 @@ class CachedStorageMixin:
         # Silence mypy: https://github.com/python/mypy/issues/5887
         super().__init__(*args, **kwargs) # type: ignore
 
-        self.info: List[Tuple[PurePosixPath, fuse.Stat]] = []
-        self.getattr_cache: Dict[PurePosixPath, fuse.Stat] = {}
+        self.info: List[Tuple[PurePosixPath, Attr]] = []
+        self.getattr_cache: Dict[PurePosixPath, Attr] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
         self.expiry = 0.
         self.cache_lock = threading.Lock()
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         '''
         Retrieve information about all files in the storage.
         '''
@@ -99,7 +97,7 @@ class CachedStorageMixin:
             self.readdir_cache.clear()
             self.expiry = 0.
 
-    def getattr(self, path: PurePosixPath) -> fuse.Stat:
+    def getattr(self, path: PurePosixPath) -> Attr:
         '''
         Cached implementation of getattr().
         '''
@@ -139,12 +137,12 @@ class DirectoryCachedStorageMixin:
         # Silence mypy: https://github.com/python/mypy/issues/5887
         super().__init__(*args, **kwargs) # type: ignore
 
-        self.getattr_cache: Dict[PurePosixPath, fuse.Stat] = {}
+        self.getattr_cache: Dict[PurePosixPath, Attr] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
         self.dir_expiry: Dict[PurePosixPath, float] = {}
         self.cache_lock = threading.Lock()
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, fuse.Stat]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
         '''
         Retrieve information about files in a directory (readdir + getattr).
         '''
@@ -193,7 +191,7 @@ class DirectoryCachedStorageMixin:
             self.readdir_cache.clear()
             self.dir_expiry.clear()
 
-    def getattr(self, path: PurePosixPath) -> fuse.Stat:
+    def getattr(self, path: PurePosixPath) -> Attr:
         '''
         Cached implementation of getattr().
         '''
@@ -201,7 +199,7 @@ class DirectoryCachedStorageMixin:
         # We don't retrieve any information about the root directory's
         # attributes.
         if path == PurePosixPath('.'):
-            return simple_dir_stat()
+            return Attr.dir()
 
         with self.cache_lock:
             self._update_dir(path.parent)

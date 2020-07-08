@@ -29,10 +29,7 @@ import stat
 import time
 import threading
 
-import fuse
-
-from .base import File
-from .util import simple_dir_stat, simple_file_stat
+from .base import File, Attr
 
 
 class Entry(metaclass=abc.ABCMeta):
@@ -44,7 +41,7 @@ class Entry(metaclass=abc.ABCMeta):
         self.name = name
 
     @abc.abstractmethod
-    def getattr(self) -> fuse.Stat:
+    def getattr(self) -> Attr:
         '''
         File attributes.
         '''
@@ -115,8 +112,8 @@ class FuncDirEntry(DirEntry):
     def get_entries(self) -> Iterable[Entry]:
         return self.get_entries_func()
 
-    def getattr(self) -> fuse.Stat:
-        return simple_dir_stat(timestamp=self.timestamp)
+    def getattr(self) -> Attr:
+        return Attr.dir(timestamp=self.timestamp)
 
 
 class CachedDirEntry(FuncDirEntry):
@@ -167,10 +164,10 @@ class StaticFile(File):
     A read-only file with pre-determined content.
     '''
 
-    def __init__(self, data: bytes, attr: fuse.Stat):
+    def __init__(self, data: bytes, attr: Attr):
         self.data = data
         self.attr = attr
-        self.attr.st_size = len(data)
+        self.attr.size = len(data)
 
     def read(self, length, offset):
         return self.data[offset:offset+length]
@@ -189,7 +186,7 @@ class CommandFile(File):
 
     def __init__(self,
                  on_write: Callable[[bytes], None],
-                 attr: fuse.Stat):
+                 attr: Attr):
         self.on_write = on_write
         self.attr = attr
 
@@ -233,13 +230,13 @@ class FuncFileEntry(FileEntry):
         self.on_write = on_write
         self.timestamp = timestamp
 
-    def getattr(self) -> fuse.Stat:
-        attr = simple_file_stat(size=0, timestamp=self.timestamp)
-        attr.st_mode = stat.S_IFREG
+    def getattr(self) -> Attr:
+        attr = Attr.file(size=0, timestamp=self.timestamp)
+        attr.mode = stat.S_IFREG
         if self.on_read:
-            attr.st_mode |= 0o444
+            attr.mode |= 0o444
         if self.on_write:
-            attr.st_mode |= 0o200
+            attr.mode |= 0o200
         return attr
 
     def open(self, flags: int) -> File:
@@ -295,7 +292,7 @@ class GeneratedStorageMixin:
             raise IOError(errno.ENOTDIR, str(path))
         return (sub_entry.name for sub_entry in entry.get_entries())
 
-    def getattr(self, path: PurePosixPath) -> fuse.Stat:
+    def getattr(self, path: PurePosixPath) -> Attr:
         '''
         getattr() for generated storage
         '''

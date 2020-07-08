@@ -31,10 +31,8 @@ import requests
 import requests.auth
 from lxml import etree
 import click
-import fuse
 
-from wildland.storage_backends.util import simple_file_stat, simple_dir_stat
-from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
@@ -45,7 +43,7 @@ class WebdavFile(FullBufferedFile):
     A buffered WebDAV file.
     '''
 
-    def __init__(self, auth, url: str, attr: fuse.Stat):
+    def __init__(self, auth, url: str, attr: Attr):
         super().__init__(attr)
         self.auth = auth
         self.url = url
@@ -77,7 +75,7 @@ class PagedWebdavFile(PagedFile):
     '''
 
     def __init__(self, auth, url: str,
-                 attr: fuse.Stat):
+                 attr: Attr):
         super().__init__(attr)
         self.auth = auth
         self.url = url
@@ -152,7 +150,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
             }
         }
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, fuse.Stat]]:
+    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         path = PurePosixPath('.')
         depth = 'infinity'
         resp = requests.request(
@@ -191,9 +189,9 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
                 size = int(content_length)
 
             if is_dir:
-                yield path, simple_dir_stat(size, timestamp)
+                yield path, Attr.dir(size, timestamp)
             else:
-                yield path, simple_file_stat(size, timestamp)
+                yield path, Attr.file(size, timestamp)
 
     def make_url(self, path: PurePosixPath) -> str:
         '''

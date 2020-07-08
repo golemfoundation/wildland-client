@@ -309,7 +309,7 @@ def storage_read_file(storage, relpath) -> bytes:
     obj = storage.open(relpath, os.O_RDONLY)
     try:
         st = storage.fgetattr(relpath, obj)
-        return storage.read(relpath, st.st_size, 0, obj)
+        return storage.read(relpath, st.size, 0, obj)
     finally:
         storage.release(relpath, 0, obj)
 

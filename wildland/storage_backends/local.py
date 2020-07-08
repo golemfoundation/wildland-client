@@ -27,31 +27,23 @@ import logging
 import threading
 
 import click
-import fuse
 
-from .base import StorageBackend, File
+from .base import StorageBackend, File, Attr
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 
 __all__ = ['LocalStorageBackend']
 
 
-def fuse_stat(st: os.stat_result) -> fuse.Stat:
+def to_attr(st: os.stat_result) -> Attr:
     '''
-    Convert os.stat_result to fuse.Stat.
+    Convert os.stat_result to Attr.
     '''
 
-    return fuse.Stat(
-        st_mode=st.st_mode,
-        st_ino=st.st_ino,
-        st_dev=st.st_dev,
-        st_nlink=st.st_nlink,
-        st_uid=st.st_uid,
-        st_gid=st.st_gid,
-        st_size=st.st_size,
-        st_atime=st.st_atime,
-        st_mtime=st.st_mtime,
-        st_ctime=st.st_ctime,
+    return Attr(
+        mode=st.st_mode,
+        size=st.st_size,
+        timestamp=int(st.st_mtime),
     )
 
 
@@ -81,12 +73,12 @@ class LocalFile(File):
         Without this method, at least :meth:`read` does not work.
         '''
         with self.lock:
-            st = fuse_stat(os.fstat(self.file.fileno()))
+            st = to_attr(os.fstat(self.file.fileno()))
             # Make sure to return the correct size.
             # TODO: Unfortunately this is not enough, as fstat() causes FUSE to
             # call getattr(), not fgetattr():
             # https://github.com/libfuse/libfuse/issues/62
-            st.st_size = self.file.seek(0, 2)
+            st.size = self.file.seek(0, 2)
         return st
 
     def read(self, length, offset):
@@ -163,7 +155,7 @@ class LocalStorageBackend(StorageBackend):
         return LocalFile(path, self._path(path), flags, mode)
 
     def getattr(self, path):
-        return fuse_stat(os.lstat(self._path(path)))
+        return to_attr(os.lstat(self._path(path)))
 
     def readdir(self, path):
         return os.listdir(self._path(path))

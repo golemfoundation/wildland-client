@@ -27,9 +27,7 @@ from typing import Dict, Tuple, Iterable, List, Optional
 import heapq
 import threading
 
-import fuse
-
-from .base import File
+from .base import File, Attr
 
 
 logger = logging.getLogger('storage-buffered')
@@ -167,9 +165,9 @@ class PagedFile(File, metaclass=abc.ABCMeta):
     page_size = 8 * 1024 * 1024
     max_pages = 8
 
-    def __init__(self, attr: fuse.Stat):
+    def __init__(self, attr: Attr):
         self.attr = attr
-        self.buf = Buffer(attr.st_size, self.page_size, self.max_pages)
+        self.buf = Buffer(attr.size, self.page_size, self.max_pages)
         self.buf_lock = threading.Lock()
 
     @abc.abstractmethod
@@ -194,7 +192,7 @@ class PagedFile(File, metaclass=abc.ABCMeta):
 
             return self.buf.read(length, offset)
 
-    def fgetattr(self) -> fuse.Stat:
+    def fgetattr(self) -> Attr:
         return self.attr
 
     def release(self, flags):
@@ -209,10 +207,10 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
     Requires you to implement read_full() and write_full().
     '''
 
-    def __init__(self, attr: fuse.Stat):
+    def __init__(self, attr: Attr):
         self.attr = attr
         self.buf = bytearray()
-        self.loaded = self.attr.st_size == 0
+        self.loaded = self.attr.size == 0
         self.dirty = False
         self.buf_lock = threading.Lock()
 
@@ -259,7 +257,7 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
             self.dirty = True
         return len(data)
 
-    def fgetattr(self) -> fuse.Stat:
+    def fgetattr(self) -> Attr:
         with self.buf_lock:
             self.attr.size = len(self.buf)
         return self.attr

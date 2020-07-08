@@ -24,10 +24,11 @@ Abstract classes for storage
 import abc
 from pathlib import PurePosixPath
 from typing import Optional, Dict, Type, Any, List, Iterable
+from dataclasses import dataclass
+import stat
 
 import click
 import yaml
-import fuse
 
 from ..manifest.schema import Schema
 from .control_decorators import control_file
@@ -40,6 +41,39 @@ class OptionalError(NotImplementedError):
     This is a hack to stop pylint from complaining about methods that do not
     have to be implemented.
     '''
+
+
+@dataclass
+class Attr:
+    '''
+    File attributes. A subset of statinfo.
+    '''
+
+    mode: int
+    size: int = 0
+    timestamp: int = 0
+
+    @staticmethod
+    def file(size: int = 0, timestamp: int = 0) -> 'Attr':
+        '''
+        Simple file with default access mode
+        '''
+
+        return Attr(
+            mode=stat.S_IFREG | 0o644,
+            size=size,
+            timestamp=timestamp)
+
+    @staticmethod
+    def dir(size: int = 0, timestamp: int = 0) -> 'Attr':
+        '''
+        Simple directory with default access mode
+        '''
+
+        return Attr(
+            mode=stat.S_IFDIR | 0o755,
+            size=size,
+            timestamp=timestamp)
 
 
 class File(metaclass=abc.ABCMeta):
@@ -61,7 +95,7 @@ class File(metaclass=abc.ABCMeta):
     def write(self, data: bytes, offset: int) -> int:
         raise OptionalError()
 
-    def fgetattr(self) -> fuse.Stat:
+    def fgetattr(self) -> Attr:
         raise OptionalError()
 
     def ftruncate(self, length: int) -> None:
@@ -179,7 +213,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def write(self, _path: PurePosixPath, data: bytes, offset: int, obj: File) -> int:
         return obj.write(data, offset)
 
-    def fgetattr(self, _path: PurePosixPath, obj: File) -> fuse.Stat:
+    def fgetattr(self, _path: PurePosixPath, obj: File) -> Attr:
         return obj.fgetattr()
 
     def ftruncate(self, _path: PurePosixPath, length: int, obj: File) -> None:
@@ -190,7 +224,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     # Other FUSE operations
 
-    def getattr(self, path: PurePosixPath) -> fuse.Stat:
+    def getattr(self, path: PurePosixPath) -> Attr:
         raise OptionalError()
 
     def readdir(self, path: PurePosixPath) -> Iterable[str]:

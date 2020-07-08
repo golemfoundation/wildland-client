@@ -28,9 +28,9 @@ import stat
 import errno
 
 import pytest
-import fuse
 
 from ..conflict import ConflictResolver
+from ..storage_backends.base import Attr
 
 
 class TestFS(ConflictResolver):
@@ -52,8 +52,8 @@ class TestFS(ConflictResolver):
         _, data = self.storages[ident]
         data = self.get(data, relpath)
         if isinstance(data, dict):
-            return fuse.Stat(st_mode=stat.S_IFDIR | 0o755)
-        return fuse.Stat(st_mode=stat.S_IFREG | 0o644)
+            return Attr(mode=stat.S_IFDIR | 0o755)
+        return Attr(mode=stat.S_IFREG | 0o644)
 
     def storage_readdir(self, ident, relpath):
         _, data = self.storages[ident]
@@ -68,7 +68,7 @@ class TestFS(ConflictResolver):
         return self.readdir(PurePosixPath(path))
 
     def mode(self, path: str):
-        return self.getattr(PurePosixPath(path)).st_mode
+        return self.getattr(PurePosixPath(path)).mode
 
 
 def test_simple():
