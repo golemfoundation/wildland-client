@@ -82,6 +82,8 @@ class Search:
                 self.initial_signer = client.config.get(wlpath.signer)
             else:
                 raise PathError(f'Unknown alias: {wlpath.signer}')
+        else:
+            self.initial_signer = wlpath.signer
 
         if self.initial_signer is None:
             if default_user:
