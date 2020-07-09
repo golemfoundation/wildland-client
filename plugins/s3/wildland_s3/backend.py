@@ -32,6 +32,7 @@ import errno
 import stat
 import html
 import threading
+import time
 
 import boto3
 import botocore
@@ -309,11 +310,11 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
-        head = self.client.put_object(
+        self.client.put_object(
             Bucket=self.bucket,
             Key=self.key(path),
             ContentType=content_type)
-        attr = self._stat(head)
+        attr = Attr.file(size=0, timestamp=int(time.time()))
         self.clear_cache()
         self._update_index(path.parent)
         return S3File(self.client, self.bucket, self.key(path),
