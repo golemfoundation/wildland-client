@@ -35,3 +35,4 @@ Repository structure
   * ``wildland/schemas/``: Manifest schemas in `JSON Schema <https://json-schema.org/>`_
     format
   * ``wildland/tests/``: Tests (in Pytest framework)
+* ``plugins/``: storage backends (as separate Python packages)
