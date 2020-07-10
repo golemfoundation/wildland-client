@@ -5,9 +5,9 @@ FROM wildland-fuse-ci
 
 USER root
 
-RUN apt-get -qy update
-
-RUN apt-get install -y \
+# Run update && install as one command:
+# https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#apt-get
+RUN apt-get -qy update && apt-get install -y \
       strace \
       sudo \
       nano \
