@@ -12,6 +12,7 @@ RUN apt-get -qy update && apt-get install -y \
       sudo \
       nano \
       fish \
+      vim \
       nginx \
       libnginx-mod-http-dav-ext
 
