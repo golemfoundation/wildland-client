@@ -21,7 +21,7 @@ sudo chown -R user.user ~/.config ~/storage
 if ! [ -f ~/.config/wildland/config.yaml ]; then
    # fresh start?
    mkdir -p ~/.config/wildland
-   echo "mount_dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
+   echo "mount-dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
 fi
 
 cd /home/user
