@@ -10,11 +10,11 @@ USER root
 RUN apt-get -qy update && apt-get install -y \
       strace \
       sudo \
-      nano \
       fish \
-      vim \
-      nginx \
-      libnginx-mod-http-dav-ext
+      procps htop \
+      less nano vim \
+      ranger \
+      nginx libnginx-mod-http-dav-ext
 
 # Enable sudo
 
