@@ -50,8 +50,8 @@ Subcommands
 :ref:`wl-verify <wl-verify>`
 :ref:`wl-edit <wl-edit>`
 
-:ref:`wl-mount <wl-mount>`
-:ref:`wl-unmount <wl-unmount>`
+:ref:`wl-start <wl-start>`
+:ref:`wl-stop <wl-stop>`
 
 :ref:`wl-get <wl-get>`
 :ref:`wl-put <wl-put>`
