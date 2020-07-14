@@ -29,7 +29,6 @@ import logging
 from urllib.parse import urlparse
 import os
 import errno
-import stat
 import html
 import threading
 import time
@@ -385,7 +384,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         # (name, url, is_dir)
         entries: List[Tuple[str, str, bool]] = []
         if path != PurePosixPath('.'):
-            entries.append(('..', self.url(path.parent), True))
+            entries.append(('..', self.url(path.parent), Attr.dir()))
 
         try:
             names = list(self.readdir(path))
@@ -394,16 +393,16 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         for name in names:
             try:
-                is_dir = stat.S_ISDIR(self.getattr(path / name).mode)
+                attr = self.getattr(path / name)
             except IOError:
                 continue
-            entry = (name, self.url(path / name), is_dir)
+            entry = (name, self.url(path / name), attr)
             entries.append(entry)
 
         # Sort directories first
         def key(entry):
-            name, _url, is_dir = entry
-            return (0 if is_dir else 1), name
+            name, _url, attr = entry
+            return (0 if attr.is_dir() else 1), name
 
         entries.sort(key=key)
         return entries
@@ -425,8 +424,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         data += '<h1>Directory: {}</h1>\n'.format(html.escape(title))
         data += '<main>\n'
 
-        for name, url, is_dir in entries:
-            if is_dir:
+        for name, url, attr in entries:
+            if attr.is_dir():
                 icon = '&#x1F4C1;'
                 name += '/'
                 if url != '/':
@@ -434,10 +433,15 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             else:
                 icon = '&#x1F4C4;'
 
-            data += '<a href="{}">{} {}</a><br>\n'.format(
-                html.escape(url, quote=True),
-                icon,
-                html.escape(name),
+            data += (
+                '<a data-size="{size}" data-timestamp="{timestamp}" '
+                'href="{href}">{icon} {name}</a><br>\n'
+            ).format(
+                size=attr.size,
+                timestamp=attr.timestamp,
+                href=html.escape(url, quote=True),
+                icon=icon,
+                name=html.escape(name),
             )
         data += '</main>\n'
 

@@ -53,6 +53,13 @@ class Attr:
     size: int = 0
     timestamp: int = 0
 
+    def is_dir(self) -> bool:
+        '''
+        Convenience method to check if this is a directory.
+        '''
+
+        return stat.S_ISDIR(self.mode)
+
     @staticmethod
     def file(size: int = 0, timestamp: int = 0) -> 'Attr':
         '''

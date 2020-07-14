@@ -143,10 +143,20 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             if rel_path.parent != path:
                 continue
 
+            try:
+                size = int(a_element.attrib['data-size'])
+            except (KeyError, ValueError):
+                size = 0
+
+            try:
+                timestamp = int(a_element.attrib['data-timestamp'])
+            except (KeyError, ValueError):
+                timestamp = 0
+
             if href.endswith('/'):
-                attr = Attr.dir()
+                attr = Attr.dir(size, timestamp)
             else:
-                attr = Attr.file()
+                attr = Attr.file(size, timestamp)
 
             yield rel_path.name, attr
 
