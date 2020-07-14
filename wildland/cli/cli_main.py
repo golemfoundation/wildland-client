@@ -105,7 +105,7 @@ def _do_mount_containers(to_mount):
 @click.option('--container', '-c', metavar='CONTAINER', multiple=True,
     help='Container to mount (can be repeated)')
 @click.pass_obj
-def mount(obj: ContextObj, remount, debug, container, single_thread):
+def start(obj: ContextObj, remount, debug, container, single_thread):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -151,9 +151,18 @@ def mount(obj: ContextObj, remount, debug, container, single_thread):
     if p.returncode != 0:
         raise CliError('FUSE driver exited with failure')
 
-@main.command(short_help='unmount Wildland filesystem', alias=['umount'])
+
+@main.command(short_help='renamed to "start"')
+def mount():
+    '''
+    Renamed to "start" command.
+    '''
+    raise CliError('The "wl mount" command has been renamed to "wl start"')
+
+
+@main.command(short_help='unmount Wildland filesystem', alias=['umount', 'unmount'])
 @click.pass_obj
-def unmount(obj: ContextObj):
+def stop(obj: ContextObj):
     '''
     Unmount the Wildland filesystem.
     '''

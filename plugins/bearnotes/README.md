@@ -46,8 +46,9 @@ wl storage create beardb --container bear-notes \
 
 To mount and expose the notes via WL FS tree, one needs to do:
 ```
-wl mount --container bear-notes
-wl mount --container ~/wildland/mynotes/*/*.yaml
+wl start
+wl container mount bear-notes
+wl container mount ~/wildland/mynotes/*/*.yaml
 ```
 
 The first command mounts the macro-container, which contains the

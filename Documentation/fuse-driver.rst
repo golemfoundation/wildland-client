@@ -25,7 +25,7 @@ After you're done, unmount::
    fusermount -u ./mnt
 
 Usually, you will not use the driver directly, but mount it using CLI (by
-running ``wl mount``).
+running ``wl start``).
 
 Options
 -------
@@ -87,7 +87,7 @@ multiple ``write()`` calls.
 * ``.control/breakpoint`` (write-only) - drop into debugger (``pdb``). This is
   enabled when the driver is running in foreground::
 
-      $ wl mount -d
+      $ wl start -d
 
       # in another terminal:
       $ echo > ~/wildland/.control/breakpoint

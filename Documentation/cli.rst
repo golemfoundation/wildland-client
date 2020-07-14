@@ -41,7 +41,7 @@ and then attach storage to it::
 
 Mount it all::
 
-   $ ./wl mount
+   $ ./wl start
    Mounting: /home/user/wildland
 
    $ ./wl container mount Container

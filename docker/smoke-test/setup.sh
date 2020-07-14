@@ -23,4 +23,4 @@ $WL storage create local-cached storage21 --path $STORAGE/storage21 \
 
 cp ~/.config/wildland/containers/container2.yaml $STORAGE/storage11/container2.yaml
 
-$WL mount --container container1
+$WL start --container container1

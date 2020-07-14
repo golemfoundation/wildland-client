@@ -183,16 +183,20 @@ man_pages = [
     ('manpages/wl-verify', 'wl-verify', 'Verify signatures', [author], 1),
     ('manpages/wl-edit', 'wl-edit', 'Edit manifests', [author], 1),
 
-    ('manpages/wl-mount', 'wl-mount', 'Mount the whole Wildland FUSE filesystem', [author], 1),
-    ('manpages/wl-unmount', 'wl-unmount', 'Unmount the whole Wildland FUSE filesystem', [author], 1),
+    ('manpages/wl-start', 'wl-start', 'Mount the whole Wildland FUSE filesystem', [author], 1),
+    ('manpages/wl-stop', 'wl-stop', 'Unmount the whole Wildland FUSE filesystem', [author], 1),
+    ('manpages/wl-mount', 'wl-mount',
+     'Mount the whole Wildland FUSE filesystem (renamed to start))', [author], 1),
 
     ('manpages/wl-get', 'wl-get', 'Get a file from wildland', [author], 1),
     ('manpages/wl-put', 'wl-put', 'Put a file into wildland', [author], 1),
 ]
 
 # what should be documented:
-cnt_subcommands = collections.Counter(f'manpages/wl-{subcmd}'
-    for subcmd in CMD_MAIN.commands)
+cnt_subcommands = collections.Counter(
+    f'manpages/wl-{subcmd}'
+    for subcmd in CMD_MAIN.commands
+)
 cnt_subcommands['manpages/wl'] = 1
 cnt_man_pages = collections.Counter(source
     for source, *_ in man_pages)

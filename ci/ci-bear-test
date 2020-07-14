@@ -10,7 +10,7 @@ time -p ./ci/bear-sqlite-generator /tmp/bear.sqlite
 ./wl user create User
 ./wl container create BearDB --path /bear
 ./wl storage create bear-db --container BearDB --inline --path /tmp/bear.sqlite --trusted
-./wl mount
+./wl start
 ./wl container mount BearDB
 
 refresh() {
