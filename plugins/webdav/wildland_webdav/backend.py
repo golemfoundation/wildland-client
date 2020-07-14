@@ -137,7 +137,9 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         return [
             click.Option(['--url'], metavar='URL', required=True),
             click.Option(['--login'], metavar='LOGIN', required=True),
-            click.Option(['--password'], metavar='PASSWORD', required=True),
+            click.Option(['--password'], metavar='PASSWORD', required=True,
+                         help='Password (omit for a password prompt)',
+                         prompt=True, hide_input=True),
         ]
 
     @classmethod
