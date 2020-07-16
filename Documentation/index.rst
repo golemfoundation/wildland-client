@@ -18,7 +18,6 @@ Welcome to Wildland's documentation!
    cli
    internals
 
-
 Indices and tables
 ==================
 

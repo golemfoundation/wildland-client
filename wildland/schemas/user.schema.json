@@ -7,11 +7,13 @@
         "paths": {
             "type": "array",
             "items": { "$ref": "types.json#abs-path" },
-            "minItems": 1
+            "minItems": 1,
+            "description": "list of paths for this user"
         },
         "containers": {
             "type": "array",
-            "items": { "$ref": "types.json#url" }
+            "items": { "$ref": "types.json#url" },
+            "description": "list of container URLs (for finding this user's manifests)"
         }
     },
     "additionalProperties": false

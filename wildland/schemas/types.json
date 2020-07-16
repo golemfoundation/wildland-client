@@ -1,12 +1,12 @@
 {
     "abs-path": {
         "type": "string",
-        "description": "Absolute path",
+        "description": "absolute path",
         "pattern": "^/.*$"
     },
     "rel-path": {
         "type": "string",
-        "description": "Relative path",
+        "description": "relative path",
         "pattern": "^[^/].*$"
     },
     "http-url": {
@@ -16,10 +16,11 @@
     },
     "file-url": {
         "type": "string",
-        "description": "File URL, possibly with hostname",
+        "description": "file:// URL",
         "pattern": "^file://[^/]*/.*$"
     },
     "url": {
+        "description": "HTTP or file URL",
         "oneOf": [
             { "$ref": "#/http-url" },
             { "$ref": "#/file-url" }
@@ -27,7 +28,7 @@
     },
     "fingerprint": {
         "type": "string",
-        "description": "Public key fingerprint (in '0xcoffee' format)",
+        "description": "fingerprint",
         "pattern": "^0x[0-9a-f]+$"
     }
 }

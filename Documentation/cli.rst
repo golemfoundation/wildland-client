@@ -59,19 +59,12 @@ Configuration file
 ------------------
 
 The file ``~/.config/wildland/config.yaml`` specifies all the defaults. Here are the
-supported fields:
-
-* ``user-dir``: path for user manifests, default ``~/.config/wildland/users``
-* ``storage-dir``: path for storage manifests, default ``~/.config/wildland/storage``
-* ``container-dir``: path for container manifests, default ``~/.config/wildland/containers``
-* ``key-dir``: path for key pairs, default ``~/.config/wildland/keys``
-* ``mount-dir``: path to mount Wildland in, default ``~/wildland``
-* ``dummy``: if true, use dummy signatures instead of Signify
-* ``'@default'`` (as key fingerprint): default user for mounting
-* ``'@default-signer'`` (as key fingerprint): default user for newly created containers
+supported fields.
 
 Note that the ``@default`` and ``@default-signer`` keys have to be quoted in
 YAML.
+
+.. schema:: config.schema.json
 
 Keys and signatures
 -------------------

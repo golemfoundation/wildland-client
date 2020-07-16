@@ -7,7 +7,8 @@
         "paths": {
             "type": "array",
             "items": { "$ref": "types.json#abs-path" },
-            "minItems": 1
+            "minItems": 1,
+            "description": "list of paths for this container, should start with a unique /.uuid/UUID path"
         },
         "backends": {
             "type": "object",
@@ -20,7 +21,8 @@
                             { "$ref": "types.json#url" },
                             { "$ref": "storage.schema.json" }
                         ]
-                    }
+                    },
+                    "description": "list of storage backend URLs, or inlined storage manifests"
                 }
             },
             "additionalProperties": false

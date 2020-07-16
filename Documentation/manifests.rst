@@ -149,8 +149,7 @@ Example:
 
 Fields:
 
-* ``signer`` (fingerprint): Signer of the manifest.
-* ``containers`` (list of URLs): Containers associated with that user.
+.. schema:: user.schema.json
 
 Container manifest
 ------------------
@@ -179,21 +178,7 @@ Example:
 
 Fields:
 
-* ``signer`` (fingerprint): Signer of the manifest
-* ``paths`` (list of absolute paths): Paths in the Wildland namespace where the
-  container will be available. The paths are per-signer.
-
-  The first path is recommended to be ``/.uuid/UUID``, but it's a convention,
-  not a requirement.
-
-* ``backends``:
-
-  * ``storage`` (list): List of storage manifests. Each can be one of the
-    following:
-
-    * a URL pointing to a storage manifest,
-    * an inline storage manifest, i.e. a dictionary with all the necessary
-      fields.
+.. schema:: container.schema.json
 
 Storage manifest
 ----------------
@@ -214,30 +199,20 @@ Example:
 
 Fields:
 
-* ``signer`` (fingerprint): Signer of the manifest. Needs to match the signer
-  of the container.
-* ``type``: Type of storage backend. The backend might be unsupported, in which
-  case the Wildland driver will skip loading the storage manifest and move on
-  to the next one.
-* ``container-path``: One of the paths in Wildland namespace for the container
-  (by convention, the one with UUID).
+.. schema:: storage.schema.json
 
-  This is in order to prevent attaching a storage to a container it wasn't
-  intended for.
-* ``read-only`` (optional): This is a read-only storage, editing or deleting
-  files is not possible.
-* ``trusted`` (optional): This is a trusted storage, manifests inside this
-  storage will be accepted without signature, as long as they have the same
-  ``signer`` value. See "Unsigned manifests and trusted storage" above.
-* ``manifest-pattern`` (optional): how to determine manifest paths for path
-  traversal. Currently, one type of pattern is supported::
+For more information on ``trusted`` field, see See "Unsigned manifests and
+trusted storage" above.
 
-      manifest_pattern:
-        type: glob
-        path: /manifests/{path}/*.yaml
+The ``manifest-pattern`` field specifies how to determine manifest paths for
+path traversal. Currently, one type of pattern is supported::
 
-  The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
-  ``{path}`` is expanded to the container path we are looking for.
+    manifest-pattern:
+      type: glob
+      path: /manifests/{path}/*.yaml
+
+The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
+``{path}`` is expanded to the container path we are looking for.
 
 Local storage (``local``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~

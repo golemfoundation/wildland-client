@@ -3,7 +3,10 @@
     "type": "object",
     "required": ["signer", "type", "container-path"],
     "properties": {
-        "signer": { "$ref": "types.json#fingerprint" },
+        "signer": {
+            "$ref": "types.json#fingerprint",
+            "description": "Signer of the manifest. Needs to match the signer of the container."
+        },
         "type": {
             "type": "string",
             "description": "Storage backend. The manifest should contain backend-specific parameters"
