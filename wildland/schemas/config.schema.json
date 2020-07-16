@@ -1,0 +1,53 @@
+{
+    "title": "Wildland configuration",
+    "type": "object",
+    "properties": {
+        "user-dir": {
+            "$ref": "types.json#abs-path",
+            "description": "Path to user manifests (default: $HOME/.config/wildland/users)"
+        },
+        "storage-dir": {
+            "$ref": "types.json#abs-path",
+            "description": "Path to storage manifests (default: $HOME/.config/wildland/storage)"
+        },
+        "container-dir": {
+            "$ref": "types.json#abs-path",
+            "description": "Path to container manifests (default: $HOME/.config/wildland/users)"
+        },
+        "key-dir": {
+            "$ref": "types.json#abs-path",
+            "description": "Path to Signify private keys (default: $HOME/.config/wildland/keys)"
+        },
+        "mount-dir": {
+            "$ref": "types.json#abs-path",
+            "description": "FUSE mount path (default: $HOME/wildland)"
+        },
+
+        "dummy": {
+            "type": "boolean",
+            "description": "Use 'dummy' keys and signatures instead of Signify"
+        },
+
+        "@default": {
+            "$ref": "types.json#fingerprint",
+            "description": "Default user for mounted containers"
+        },
+        "@default-signer": {
+            "$ref": "types.json#fingerprint",
+            "description": "Default user for newly created containers"
+        },
+
+        "local-hostname": {
+            "type": "string",
+            "description": "Hostname recognized for file:// URLs on this machine (default: localhost)"
+        },
+        "local-signers": {
+            "type": "array",
+            "items": {
+                "$ref": "types.json#fingerprint"
+            },
+            "description": "List of signers for which file:// URLs are recognized on this machine"
+        }
+    },
+    "additionalProperties": false
+}

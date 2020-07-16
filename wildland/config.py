@@ -26,8 +26,10 @@ from pathlib import Path
 from typing import Dict, Any
 import os
 
-
 import yaml
+
+from .manifest.schema import Schema, SchemaError
+from .exc import WildlandError
 
 
 class Config:
@@ -40,6 +42,7 @@ class Config:
     - override_fields (provided from command line)
     '''
 
+    schema = Schema('config')
     filename = 'config.yaml'
 
     def __init__(self,
@@ -67,16 +70,12 @@ class Config:
             return self.file_fields[name]
         return self.default_fields[name]
 
-    def override(self, *, dummy=False, uid=None, gid=None):
+    def override(self, *, dummy=False):
         '''
         Override configuration based on command line arguments.
         '''
         if dummy:
             self.override_fields['dummy'] = True
-        if uid is not None:
-            self.override_fields['uid'] = uid
-        if uid is not None:
-            self.override_fields['gid'] = gid
 
     def update_and_save(self, values: Dict[str, Any]):
         '''
@@ -117,6 +116,13 @@ class Config:
                     file_fields = {}
         else:
             file_fields = {}
+
+        try:
+            cls.schema.validate(file_fields)
+        except SchemaError as e:
+            raise WildlandError(
+                f'Error validating configuration file: {e}'
+            )
         return cls(base_dir, path, default_fields, file_fields)
 
     @classmethod
@@ -134,8 +140,6 @@ class Config:
             'dummy': False,
             '@default': None,
             '@default-signer': None,
-            'uid': os.getuid(),
-            'gid': os.getgid(),
             'local-hostname': 'localhost',
             'local-signers': [],
         }
