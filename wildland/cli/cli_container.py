@@ -143,12 +143,12 @@ def mount(obj: ContextObj, container_names, remount):
 
     containers = []
     for container_name in container_names:
-        container = obj.client.load_container_from(container_name)
-        click.echo(f'Loaded: {container.local_path}')
-        containers.append(container)
+        for container in obj.client.load_containers_from(container_name):
+            click.echo(f'Loaded: {container.local_path}')
+            containers.append(container)
 
-        if not remount and obj.fs_client.find_storage_id(container) is not None:
-            raise CliError('Already mounted: {container.local_path}')
+            if not remount and obj.fs_client.find_storage_id(container) is not None:
+                raise CliError('Already mounted: {container.local_path}')
 
     click.echo('Determining storage')
 
