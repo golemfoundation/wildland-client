@@ -297,6 +297,29 @@ def test_container_mount_glob(cli, base_dir):
     assert command[1]['paths'][1] == '/.users/0xaaa/PATH2'
 
 
+def test_container_mount_save(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+
+    cli('container', 'mount', '--save', 'Container')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = yaml.load(f)
+    assert config['default-containers'] == ['Container']
+
+    # Will not add the same container twice
+    cli('container', 'mount', '--save', 'Container')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = yaml.load(f)
+    assert config['default-containers'] == ['Container']
+
+
 def test_container_mount_inline_storage(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')

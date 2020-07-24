@@ -95,6 +95,11 @@ be mounted first, see :ref:`wl start <wl-start>`.
    Don't replace existing container. If the container is already mounted, the
    command will fail. This is the default.
 
+.. option:: -s, --save
+
+   Add the containers to ``default-containers`` in configuration file, so
+   that they will be mounted at startup.
+
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
