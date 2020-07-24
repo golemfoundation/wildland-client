@@ -78,22 +78,29 @@ main.add_command(cli_transfer.get)
 main.add_command(cli_transfer.put)
 
 
-def _do_mount_containers(to_mount):
+def _do_mount_containers(obj: ContextObj, to_mount):
     '''
     Issue a series of .control/mount commands.
     '''
     if not to_mount:
         return
 
-    ctx = click.get_current_context()
+    fs_client = obj.fs_client
 
-    fs_client = ctx.obj.fs_client
-    click.echo(f'Mounting {len(to_mount)} containers')
-    try:
-        fs_client.mount_multiple_containers(to_mount)
-    except IOError as e:
-        ctx.obj.fs_client.unmount()
-        raise click.ClickException(f'Failed to mount containers: {e}')
+    for name in to_mount:
+        click.echo(f'Resolving containers: {name}')
+        commands = []
+        for container in obj.client.load_containers_from(name):
+            storage = obj.client.select_storage(container)
+            is_default_user = container.signer == obj.client.config.get('@default')
+            commands.append((container, storage, is_default_user))
+
+        click.echo(f'Mounting {len(to_mount)}')
+        try:
+            fs_client.mount_multiple_containers(commands)
+        except IOError as e:
+            fs_client.unmount()
+            raise click.ClickException(f'Failed to mount containers: {e}')
 
 
 @main.command(short_help='mount Wildland filesystem')
@@ -127,30 +134,23 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
             raise CliError('Already mounted')
 
     obj.client.recognize_users()
-    container_names = []
     to_mount = []
     if mount_containers:
-        container_names += mount_containers
+        to_mount += mount_containers
 
     if not skip_default_containers:
-        container_names += obj.client.config.get('default-containers')
-
-    for name in container_names:
-        for container in obj.client.load_containers_from(name):
-            storage = obj.client.select_storage(container)
-            is_default_user = container.signer == obj.client.config.get('@default')
-            to_mount.append((container, storage, is_default_user))
+        to_mount += obj.client.config.get('default-containers')
 
     if not debug:
         obj.fs_client.mount(single_thread=single_thread)
-        _do_mount_containers(to_mount)
+        _do_mount_containers(obj, to_mount)
         return
 
     print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
 
     p = obj.fs_client.mount(foreground=True, debug=(debug > 1), single_thread=single_thread)
-    _do_mount_containers(to_mount)
+    _do_mount_containers(obj, to_mount)
     try:
         p.wait()
     except KeyboardInterrupt:
