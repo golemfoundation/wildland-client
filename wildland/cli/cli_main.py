@@ -23,7 +23,6 @@ Wildland command-line interface.
 
 import os
 from pathlib import Path
-import json
 
 import click
 
@@ -83,16 +82,18 @@ def _do_mount_containers(to_mount):
     '''
     Issue a series of .control/mount commands.
     '''
+    if not to_mount:
+        return
+
     ctx = click.get_current_context()
 
-    for path, command in to_mount:
-        print(f'Mounting: {path}')
-        try:
-            with open(ctx.obj.mount_dir / '.control/mount', 'wb') as f:
-                f.write(json.dumps(command).encode() + b'\n\n')
-        except IOError as e:
-            ctx.obj.fs_client.unmount()
-            raise click.ClickException(f'Failed to mount {path}: {e}')
+    fs_client = ctx.obj.fs_client
+    click.echo(f'Mounting {len(to_mount)} containers')
+    try:
+        fs_client.mount_multiple_containers(to_mount)
+    except IOError as e:
+        ctx.obj.fs_client.unmount()
+        raise click.ClickException(f'Failed to mount containers: {e}')
 
 
 @main.command(short_help='mount Wildland filesystem')
@@ -100,12 +101,14 @@ def _do_mount_containers(to_mount):
     help='if mounted already, remount')
 @click.option('--debug', '-d', count=True,
     help='debug mode: run in foreground (repeat for more verbosity)')
-@click.option('--single-thread', '-s', is_flag=True,
+@click.option('--single-thread', '-S', is_flag=True,
     help='run single-threaded')
 @click.option('--container', '-c', metavar='CONTAINER', multiple=True,
     help='Container to mount (can be repeated)')
+@click.option('--skip-default-containers', '-s', is_flag=True,
+    help='skip mounting default-containers from config')
 @click.pass_obj
-def start(obj: ContextObj, remount, debug, container, single_thread):
+def start(obj: ContextObj, remount, debug, container, single_thread, skip_default_containers):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -123,14 +126,19 @@ def start(obj: ContextObj, remount, debug, container, single_thread):
             raise CliError('Already mounted')
 
     obj.client.recognize_users()
+    container_names = []
     to_mount = []
     if container:
-        for name in container:
-            container = obj.client.load_container_from(name)
-            storage = obj.client.select_storage(container)
-            is_default_user = container.signer == obj.client.config.get('@default')
-            to_mount.append((container.local_path,
-                obj.fs_client.get_command_for_mount_container(container, storage, is_default_user)))
+        container_names += container
+
+    if not skip_default_containers:
+        container_names += obj.client.config.get('default-containers')
+
+    for name in container_names:
+        container = obj.client.load_container_from(name)
+        storage = obj.client.select_storage(container)
+        is_default_user = container.signer == obj.client.config.get('@default')
+        to_mount.append((container, storage, is_default_user))
 
     if not debug:
         obj.fs_client.mount(single_thread=single_thread)

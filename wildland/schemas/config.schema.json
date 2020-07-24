@@ -47,6 +47,14 @@
                 "$ref": "types.json#fingerprint"
             },
             "description": "list of signers for which file:// URLs are recognized on this machine"
+        },
+
+        "default-containers": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl mount'"
         }
     },
     "additionalProperties": false

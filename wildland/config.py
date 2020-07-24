@@ -142,4 +142,5 @@ class Config:
             '@default-signer': None,
             'local-hostname': 'localhost',
             'local-signers': [],
+            'default-containers': [],
         }
