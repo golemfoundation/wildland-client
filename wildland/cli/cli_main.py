@@ -23,7 +23,6 @@ Wildland command-line interface.
 
 import os
 from pathlib import Path
-import json
 
 import click
 
@@ -79,20 +78,29 @@ main.add_command(cli_transfer.get)
 main.add_command(cli_transfer.put)
 
 
-def _do_mount_containers(to_mount):
+def _do_mount_containers(obj: ContextObj, to_mount):
     '''
     Issue a series of .control/mount commands.
     '''
-    ctx = click.get_current_context()
+    if not to_mount:
+        return
 
-    for path, command in to_mount:
-        print(f'Mounting: {path}')
+    fs_client = obj.fs_client
+
+    for name in to_mount:
+        click.echo(f'Resolving containers: {name}')
+        commands = []
+        for container in obj.client.load_containers_from(name):
+            storage = obj.client.select_storage(container)
+            is_default_user = container.signer == obj.client.config.get('@default')
+            commands.append((container, storage, is_default_user))
+
+        click.echo(f'Mounting {len(to_mount)}')
         try:
-            with open(ctx.obj.mount_dir / '.control/mount', 'wb') as f:
-                f.write(json.dumps(command).encode() + b'\n\n')
+            fs_client.mount_multiple_containers(commands)
         except IOError as e:
-            ctx.obj.fs_client.unmount()
-            raise click.ClickException(f'Failed to mount {path}: {e}')
+            fs_client.unmount()
+            raise click.ClickException(f'Failed to mount containers: {e}')
 
 
 @main.command(short_help='mount Wildland filesystem')
@@ -100,12 +108,15 @@ def _do_mount_containers(to_mount):
     help='if mounted already, remount')
 @click.option('--debug', '-d', count=True,
     help='debug mode: run in foreground (repeat for more verbosity)')
-@click.option('--single-thread', '-s', is_flag=True,
+@click.option('--single-thread', '-S', is_flag=True,
     help='run single-threaded')
-@click.option('--container', '-c', metavar='CONTAINER', multiple=True,
+@click.option('--container', '-c', 'mount_containers', metavar='CONTAINER', multiple=True,
     help='Container to mount (can be repeated)')
+@click.option('--skip-default-containers', '-s', is_flag=True,
+    help='skip mounting default-containers from config')
 @click.pass_obj
-def start(obj: ContextObj, remount, debug, container, single_thread):
+def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
+          skip_default_containers):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -124,24 +135,22 @@ def start(obj: ContextObj, remount, debug, container, single_thread):
 
     obj.client.recognize_users()
     to_mount = []
-    if container:
-        for name in container:
-            container = obj.client.load_container_from(name)
-            storage = obj.client.select_storage(container)
-            is_default_user = container.signer == obj.client.config.get('@default')
-            to_mount.append((container.local_path,
-                obj.fs_client.get_command_for_mount_container(container, storage, is_default_user)))
+    if mount_containers:
+        to_mount += mount_containers
+
+    if not skip_default_containers:
+        to_mount += obj.client.config.get('default-containers')
 
     if not debug:
         obj.fs_client.mount(single_thread=single_thread)
-        _do_mount_containers(to_mount)
+        _do_mount_containers(obj, to_mount)
         return
 
     print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
 
     p = obj.fs_client.mount(foreground=True, debug=(debug > 1), single_thread=single_thread)
-    _do_mount_containers(to_mount)
+    _do_mount_containers(obj, to_mount)
     try:
         p.wait()
     except KeyboardInterrupt:

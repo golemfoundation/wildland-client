@@ -134,7 +134,7 @@ class WildlandFS(fuse.Fuse):
                              current_ident, main_path)
                 self._unmount_storage(current_ident)
             else:
-                raise WildlandError('Storage already mounted under main path: %s')
+                raise WildlandError(f'Storage already mounted under main path: {main_path}')
 
         ident = self.storage_counter
         self.storage_counter += 1

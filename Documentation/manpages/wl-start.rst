@@ -24,6 +24,11 @@ Options
 
    Container to mount after starting. Can be repeated.
 
-.. option:: --single-thread, -s
+.. option:: --single-thread, -S
 
    Run single-threaded.
+
+.. option:: --skip-default-containers, -s
+
+   Don't mount ``default-containers`` from configuration file. The default is
+   to mount them.

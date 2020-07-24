@@ -25,6 +25,8 @@ from pathlib import Path
 import logging
 from typing import Optional, Iterator, List
 from urllib.parse import urlparse, quote
+import glob
+import os
 
 import yaml
 
@@ -190,6 +192,26 @@ class Client:
         from .search import Search
         search = Search(self, wlpath)
         return search.read_container(remote=True)
+
+    def load_containers_from(self, name: str) -> Iterator[Container]:
+        '''
+        Load a list of containers. Currently supports glob patterns (*) and
+        tilde (~), but only in case of local files.
+        '''
+
+        if '*' not in name and '~' not in name:
+            yield self.load_container_from(name)
+            return
+
+        assert not WildlandPath.match(name), \
+            'glob patterns in WildlandPath are not supported'
+
+        paths = sorted(glob.glob(os.path.expanduser(name)))
+        logger.debug('expanded %r to %s', name, paths)
+        if not paths:
+            raise ManifestError(f'No container found matching pattern: {name}')
+        for path in paths:
+            yield self.load_container_from_path(Path(path))
 
     def load_container_from(self, name: str) -> Container:
         '''

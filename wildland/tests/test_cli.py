@@ -271,6 +271,54 @@ def test_container_mount(cli, base_dir):
         '/.users/0xaaa/PATH',
     ]
 
+def test_container_mount_glob(cli, base_dir):
+    # The glob pattern will be normally expanded by shell,
+    # but this feature is also used with default_containers.
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container1', '--path', '/PATH1')
+    cli('container', 'create', 'Container2', '--path', '/PATH2')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container1')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container2')
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+
+    cli('container', 'mount', base_dir / 'containers' / '*.yaml')
+
+    # The command should write container manifest to .control/mount.
+    with open(base_dir / 'mnt/.control/mount') as f:
+        command = json.load(f)
+
+    assert len(command) == 2
+    assert command[0]['paths'][1] == '/.users/0xaaa/PATH1'
+    assert command[1]['paths'][1] == '/.users/0xaaa/PATH2'
+
+
+def test_container_mount_save(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+
+    cli('container', 'mount', '--save', 'Container')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = yaml.load(f)
+    assert config['default-containers'] == ['Container']
+
+    # Will not add the same container twice
+    cli('container', 'mount', '--save', 'Container')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = yaml.load(f)
+    assert config['default-containers'] == ['Container']
+
 
 def test_container_mount_inline_storage(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')

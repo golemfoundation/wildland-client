@@ -129,9 +129,11 @@ container_.add_command(edit)
 @container_.command(short_help='mount container')
 @click.option('--remount/--no-remount', '-r/-n', default=True,
               help='Remount existing container, if found')
+@click.option('--save', '-s', is_flag=True,
+              help='Save the container to be mounted at startup')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount):
+def mount(obj: ContextObj, container_names, remount, save):
     '''
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -143,12 +145,12 @@ def mount(obj: ContextObj, container_names, remount):
 
     containers = []
     for container_name in container_names:
-        container = obj.client.load_container_from(container_name)
-        click.echo(f'Loaded: {container.local_path}')
-        containers.append(container)
+        for container in obj.client.load_containers_from(container_name):
+            click.echo(f'Loaded: {container.local_path}')
+            containers.append(container)
 
-        if not remount and obj.fs_client.find_storage_id(container) is not None:
-            raise CliError('Already mounted: {container.local_path}')
+            if not remount and obj.fs_client.find_storage_id(container) is not None:
+                raise CliError('Already mounted: {container.local_path}')
 
     click.echo('Determining storage')
 
@@ -163,6 +165,21 @@ def mount(obj: ContextObj, container_names, remount):
     else:
         click.echo('Mounting container')
     obj.fs_client.mount_multiple_containers(params, remount=remount)
+
+    if save:
+        default_containers = obj.client.config.get('default-containers')
+        default_containers_set = set(default_containers)
+        new_default_containers = default_containers.copy()
+        for container_name in container_names:
+            if container_name in default_containers_set:
+                click.echo(f'Already in default-containers: {container_name}')
+                continue
+            click.echo(f'Adding to default-containers: {container_name}')
+            default_containers_set.add(container_name)
+            new_default_containers.append(container_name)
+        if len(new_default_containers) > len(default_containers):
+            obj.client.config.update_and_save(
+                {'default-containers': new_default_containers})
 
 
 @container_.command(short_help='unmount container', alias=['umount'])
