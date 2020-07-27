@@ -37,7 +37,7 @@ from wildland.storage import Storage
 from wildland.container import Container
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.generated import \
-    GeneratedStorageMixin, FuncDirEntry, FuncFileEntry, CachedDirEntry, \
+    GeneratedStorageMixin, FuncFileEntry, CachedDirEntry, \
     StaticFileEntry
 from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
@@ -333,7 +333,8 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         for ident, tags in self.bear_db.get_note_idents_with_tags():
-            yield CachedDirEntry(ident, partial(self._dir_note, ident, tags))
+            yield FileCachedDirEntry(self.bear_db.path,
+                                     ident, partial(self._dir_note, ident, tags))
 
     def _dir_note(self, ident: str, tags: List[str]):
         yield StaticFileEntry('container.yaml', self._get_manifest(ident, tags))
@@ -400,6 +401,9 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
         self.bear_db = BearDB(self.params['path'])
         self.ident = self.params['note']
         self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
+
+    def clear_cache(self):
+        self.root.clear_cache()
 
     def mount(self):
         self.bear_db.connect()
