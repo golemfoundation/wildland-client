@@ -37,7 +37,8 @@ from wildland.storage import Storage
 from wildland.container import Container
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.generated import \
-    GeneratedStorageMixin, FuncDirEntry, FuncFileEntry, CachedDirEntry
+    GeneratedStorageMixin, FuncDirEntry, FuncFileEntry, CachedDirEntry, \
+    StaticFileEntry
 from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
 
@@ -332,11 +333,11 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         for ident, tags in self.bear_db.get_note_idents_with_tags():
-            yield FuncDirEntry(ident, partial(self._dir_note, ident, tags))
+            yield CachedDirEntry(ident, partial(self._dir_note, ident, tags))
 
     def _dir_note(self, ident: str, tags: List[str]):
-        yield FuncFileEntry('container.yaml', partial(self._get_manifest, ident, tags))
-        yield FuncFileEntry('README.md', self._get_readme)
+        yield StaticFileEntry('container.yaml', self._get_manifest(ident, tags))
+        yield StaticFileEntry('README.md', self._get_readme())
         if self.with_content:
             yield FuncFileEntry('note.md', partial(self._get_note, ident))
 
@@ -398,6 +399,7 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
 
         self.bear_db = BearDB(self.params['path'])
         self.ident = self.params['note']
+        self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
 
     def mount(self):
         self.bear_db.connect()
@@ -424,10 +426,10 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
         }
 
     def get_root(self):
-        return FuncDirEntry('.', self._dir_root)
+        return self.root
 
     def _dir_root(self):
-        yield FuncFileEntry(f'note-{self.ident}.md', self._get_note)
+        yield StaticFileEntry(f'note-{self.ident}.md', self._get_note())
 
     def _get_note(self):
         note = self.bear_db.get_note(self.ident)

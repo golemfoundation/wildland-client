@@ -204,6 +204,30 @@ class CommandFile(File):
         pass
 
 
+class StaticFileEntry(FileEntry):
+    '''
+    Shortcut for creating static files.
+    '''
+
+    def __init__(self,
+                 name: str,
+                 data: bytes,
+                 timestamp: int = 0):
+        super().__init__(name)
+        self.data = data
+        self.attr = Attr(
+            size=len(self.data),
+            timestamp=timestamp,
+            mode=stat.S_IFREG | 0o444
+        )
+
+    def getattr(self) -> Attr:
+        return self.attr
+
+    def open(self, flags: int) -> File:
+        return StaticFile(self.data, self.attr)
+
+
 class FuncFileEntry(FileEntry):
     '''
     Shortcut for creating function-based files.
