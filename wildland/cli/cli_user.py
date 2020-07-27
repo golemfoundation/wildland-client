@@ -26,7 +26,7 @@ import click
 
 from ..user import User
 
-from .cli_base import aliased_group, ContextObj
+from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 
 @aliased_group('user', short_help='user management')
@@ -98,6 +98,67 @@ def list_(obj: ContextObj):
         for user_container in user.containers:
             click.echo(f'  container: {user_container}')
         click.echo()
+
+
+@user_.command('delete', short_help='delete a user', alias=['rm'])
+@click.pass_obj
+@click.option('--force', '-f', is_flag=True,
+              help='delete even if still has containers/storage')
+@click.option('--cascade', is_flag=True,
+              help='remove all containers and storage as well')
+@click.argument('name', metavar='NAME')
+def delete(obj: ContextObj, name, force, cascade):
+    '''
+    Delete a user.
+    '''
+    # TODO consider also deleting keys (~/.config/wildland/keys)
+    # TODO check config file (aliases, etc.)
+
+    obj.client.recognize_users()
+
+    user = obj.client.load_user_from(name)
+    if not user.local_path:
+        raise CliError('Can only delete a local manifest')
+
+    # Check if this is the only manifest with such signer
+    other_count = 0
+    for other_user in obj.client.load_users():
+        if (other_user.local_path != user.local_path and
+            other_user.signer == user.signer):
+            other_count += 1
+
+    used = False
+
+    for container in obj.client.load_containers():
+        assert container.local_path is not None
+        if container.signer == user.signer:
+            if cascade:
+                click.echo('Deleting container: {}'.format(container.local_path))
+                container.local_path.unlink()
+            else:
+                click.echo('Found container: {}'.format(container.local_path))
+                used = True
+
+    for storage in obj.client.load_storages():
+        assert storage.local_path is not None
+        if storage.signer == user.signer:
+            if cascade:
+                click.echo('Deleting storage: {}'.format(storage.local_path))
+                storage.local_path.unlink()
+            else:
+                click.echo('Found storage: {}'.format(storage.local_path))
+                used = True
+
+    if used and other_count > 0:
+        click.echo(
+            'Found manifests for user, but this is not the only user '
+            'manifest. Proceeding.')
+    elif used and other_count == 0 and not force:
+        raise CliError('User still has manifests, not deleting '
+                       '(use --force or --cascade)')
+
+    click.echo(f'Deleting: {user.local_path}')
+    user.local_path.unlink()
 
 
 user_.add_command(sign)

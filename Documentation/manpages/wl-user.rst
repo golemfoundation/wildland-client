@@ -52,6 +52,26 @@ directory (``~/.config/wildland/keys``), as ``<fingerprint>.pub`` and
 Specify a path in Wildland namespace (such as ``/users/User``) for the
 user. Can be repeated.
 
+.. program:: wl-user-delete
+.. _wl-user-delete:
+
+:command:`wl user delete [--force] [--cascade] NAME`
+-------------------------------------------------------
+
+Delete a user from local filesystem.
+
+This will consider manifests in the local filesystem (stored in
+``~/.config/wildland/``) signed by the user. However, it will not delete
+locally stored key pairs (``~/.config/wildland/keys/``).
+
+.. option:: --force, -f
+
+   Delete even if there are manifests (containers/storage) signed by the user.
+
+.. option:: --cascade
+
+   Delete together with manifests (containers/storage) signed by the user.
+
 .. _wl-user-sign:
 .. _wl-user-verify:
 .. _wl-user-edit:

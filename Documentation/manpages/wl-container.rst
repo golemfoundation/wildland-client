@@ -36,6 +36,22 @@ Commands
 
 List known containers.
 
+.. program:: wl-container-delete
+.. _wl-container-delete:
+
+:command:`wl container delete [--force] [--cascade] NAME`
+---------------------------------------------------------
+
+Delete a container from local filesystem.
+
+.. option:: --force, -f
+
+   Delete even if the container refers to local storage manifests.
+
+.. option:: --cascade
+
+   Delete together with all local storage manifests.
+
 .. program:: wl-container-create
 .. _wl-container-create:
 

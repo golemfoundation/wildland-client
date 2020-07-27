@@ -421,24 +421,10 @@ class Client:
         settings.
         '''
 
-        parse_result = urlparse(url)
-        if parse_result.scheme == 'file':
-            hostname = parse_result.netloc or 'localhost'
-            local_hostname = self.config.get('local-hostname')
-            local_signers = self.config.get('local-signers')
-
-            if hostname != local_hostname:
-                raise WildlandError(
-                    'Unrecognized file URL hostname: {} (expected {})'.format(
-                        url, local_hostname))
-
-            if signer not in local_signers:
-                raise WildlandError(
-                    'Trying to load file URL for invalid signer: {} (expected {})'.format(
-                        signer, local_signers))
-
+        local_path = self.parse_file_url(url, signer)
+        if local_path:
             try:
-                return Path(parse_result.path).read_bytes()
+                return local_path.read_bytes()
             except IOError as e:
                 raise WildlandError('Error retrieving file URL: {}: {}'.format(
                     url, e))
@@ -455,3 +441,30 @@ class Client:
 
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
+
+    def parse_file_url(self, url: str, signer: str) -> Optional[Path]:
+        '''
+        Retrieve path from a given file URL, if it's applicable.
+        Checks the 'local_hostname' and 'local_signers' settings.
+        '''
+        parse_result = urlparse(url)
+        if parse_result.scheme != 'file':
+            return None
+
+        hostname = parse_result.netloc or 'localhost'
+        local_hostname = self.config.get('local-hostname')
+        local_signers = self.config.get('local-signers')
+
+        if hostname != local_hostname:
+            logger.warning(
+                'Unrecognized file URL hostname: %s (expected %s)',
+                url, local_hostname)
+            return None
+
+        if signer not in local_signers:
+            logger.warning(
+                'Trying to load file URL for invalid signer: %s (expected %s)',
+                signer, local_signers)
+            return None
+
+        return Path(parse_result.path)

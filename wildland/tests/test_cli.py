@@ -27,6 +27,7 @@ import pytest
 import yaml
 
 from ..manifest.manifest import ManifestError
+from ..cli.cli_base import CliError
 
 
 def modify_file(path, pattern, replacement):
@@ -79,6 +80,47 @@ def test_user_list(cli, base_dir):
         '  path: /users/User2',
         ''
     ]
+
+
+def test_user_delete(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    user_path = base_dir / 'users/User.yaml'
+    assert user_path.exists()
+    container_path = base_dir / 'containers/Container.yaml'
+    assert container_path.exists()
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+
+    with pytest.raises(CliError, match='User still has manifests'):
+        cli('user', 'delete', 'User')
+
+    cli('user', 'delete', '--force', 'User')
+    assert not user_path.exists()
+    assert container_path.exists()
+    assert storage_path.exists()
+
+
+def test_user_delete_cascade(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    user_path = base_dir / 'users/User.yaml'
+    assert user_path.exists()
+    container_path = base_dir / 'containers/Container.yaml'
+    assert container_path.exists()
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+
+    cli('user', 'delete', '--cascade', 'User')
+    assert not user_path.exists()
+    assert not container_path.exists()
+    assert not storage_path.exists()
 
 
 def test_user_verify(cli):
@@ -170,6 +212,38 @@ def test_storage_create_inline(cli, base_dir):
     assert '/STORAGE' in data
 
 
+def test_storage_delete(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+
+    with pytest.raises(CliError, match='Storage is still used'):
+        cli('storage', 'delete', 'Storage')
+
+    cli('storage', 'delete', '--force', 'Storage')
+    assert not storage_path.exists()
+
+
+def test_storage_delete_cascade(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+    container_path = base_dir / 'containers/Container.yaml'
+    assert str(storage_path) in container_path.read_text()
+
+    cli('storage', 'delete', '--cascade', 'Storage')
+    assert not storage_path.exists()
+    assert str(storage_path) not in container_path.read_text()
+
+
 def test_storage_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -221,6 +295,61 @@ def test_container_update(cli, base_dir):
 
     storage_path = base_dir / 'storage/Storage.yaml'
     assert str(storage_path) in data
+
+
+def test_container_delete(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    container_path = base_dir / 'containers/Container.yaml'
+    assert container_path.exists()
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+
+    with pytest.raises(CliError, match='Container refers to local manifests'):
+        cli('container', 'delete', 'Container')
+
+    # Should not complain if the storage manifest does not exist
+    storage_path.unlink()
+    cli('container', 'delete', 'Container')
+    assert not container_path.exists()
+
+
+def test_container_delete_force(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    container_path = base_dir / 'containers/Container.yaml'
+    assert container_path.exists()
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+
+    cli('container', 'delete', '--force', 'Container')
+    assert not container_path.exists()
+    assert storage_path.exists()
+
+
+def test_container_delete_cascade(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    container_path = base_dir / 'containers/Container.yaml'
+    assert container_path.exists()
+    storage_path = base_dir / 'storage/Storage.yaml'
+    assert storage_path.exists()
+
+    cli('container', 'delete', '--cascade', 'Container')
+    assert not container_path.exists()
+    assert not storage_path.exists()
 
 
 def test_container_list(cli, base_dir):

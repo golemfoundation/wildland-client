@@ -120,6 +120,44 @@ def list_(obj: ContextObj):
             click.echo(f'  storage: {storage_path}')
         click.echo()
 
+@container_.command('delete', short_help='delete a container', alias=['rm'])
+@click.pass_obj
+@click.option('--force', '-f', is_flag=True,
+              help='delete even when using local storage manifests')
+@click.option('--cascade', is_flag=True,
+              help='also delete local storage manifests')
+@click.argument('name', metavar='NAME')
+def delete(obj: ContextObj, name, force, cascade):
+    '''
+    Delete a container.
+    '''
+    # TODO: also consider detecting user-container link (i.e. user's main
+    # container).
+    obj.client.recognize_users()
+
+    container = obj.client.load_container_from(name)
+    if not container.local_path:
+        raise CliError('Can only delete a local manifest')
+
+    has_local = False
+    for url_or_dict in list(container.backends):
+        if isinstance(url_or_dict, str):
+            path = obj.client.parse_file_url(url_or_dict, container.signer)
+            if path and path.exists():
+                if cascade:
+                    click.echo('Deleting storage: {}'.format(path))
+                    path.unlink()
+                else:
+                    click.echo('Container refers to a local manifest: {}'.format(path))
+                    has_local = True
+
+    if has_local and not force:
+        raise CliError('Container refers to local manifests, not deleting '
+                       '(use --force or --cascade)')
+
+    click.echo(f'Deleting: {container.local_path}')
+    container.local_path.unlink()
+
 
 container_.add_command(sign)
 container_.add_command(verify)

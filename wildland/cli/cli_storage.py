@@ -26,7 +26,7 @@ import functools
 
 import click
 
-from .cli_base import aliased_group, ContextObj
+from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..storage import Storage
 
@@ -156,6 +156,54 @@ def list_(obj: ContextObj):
         click.echo(f'  type: {storage.storage_type}')
         if storage.storage_type == 'local':
             click.echo(f'  path: {storage.params["path"]}')
+
+
+@storage_.command('delete', short_help='delete a storage', alias=['rm'])
+@click.pass_obj
+@click.option('--force', '-f', is_flag=True,
+              help='delete even if used by containers')
+@click.option('--cascade', is_flag=True,
+              help='remove reference from containers')
+@click.argument('name', metavar='NAME')
+def delete(obj: ContextObj, name, force, cascade):
+    '''
+    Delete a storage.
+    '''
+
+    obj.client.recognize_users()
+
+    storage = obj.client.load_storage_from(name)
+    if not storage.local_path:
+        raise CliError('Can only delete a local manifest')
+
+    used_by = []
+    for container in obj.client.load_containers():
+        assert container.local_path
+        modified = False
+        for url_or_dict in list(container.backends):
+            if (isinstance(url_or_dict, str) and
+                obj.client.parse_file_url(url_or_dict, container.signer) ==
+                storage.local_path):
+
+                if cascade:
+                    click.echo('Removing {} from {}'.format(
+                        url_or_dict, container.local_path))
+                    container.backends.remove(url_or_dict)
+                    modified = True
+                else:
+                    click.echo('Storage used in container: {}'.format(
+                        container.local_path))
+                    used_by.append(container)
+        if modified:
+            click.echo(f'Saving: {container.local_path}')
+            obj.client.save_container(container)
+
+    if used_by and not force:
+        raise CliError('Storage is still used, not deleting '
+                       '(use --force or --cascade)')
+
+    click.echo(f'Deleting: {storage.local_path}')
+    storage.local_path.unlink()
 
 
 storage_.add_command(sign)

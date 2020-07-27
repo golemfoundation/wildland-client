@@ -29,7 +29,24 @@ Commands
 :command:`wl storage list`
 --------------------------
 
-Display know storages.
+Display known storages.
+
+.. program:: wl-storage-delete
+.. _wl-storage-delete:
+
+:command:`wl storage delete [--force] [--cascade] NAME`
+-------------------------------------------------------
+
+Delete a storage from local filesystem.
+
+.. option:: --force, -f
+
+   Delete even if the storage is used by containers. The containers in Widland
+   directory (``~/.config/wildland/containers/``) will be examined.
+
+.. option:: --cascade
+
+   Delete the reference to storage from containers.
 
 .. program:: wl-storage-create-local
 .. _wl-storage-create-local:
