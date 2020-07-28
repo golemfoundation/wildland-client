@@ -21,7 +21,7 @@
 Cached storage
 '''
 
-from typing import Dict, List, Tuple, Iterable
+from typing import Dict, List, Tuple, Iterable, Set
 import time
 from pathlib import PurePosixPath
 import errno
@@ -50,7 +50,7 @@ class CachedStorageMixin:
 
         self.info: List[Tuple[PurePosixPath, Attr]] = []
         self.getattr_cache: Dict[PurePosixPath, Attr] = {}
-        self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
+        self.readdir_cache: Dict[PurePosixPath, Set[str]] = {}
         self.expiry = 0.
         self.cache_lock = threading.Lock()
 
@@ -74,12 +74,20 @@ class CachedStorageMixin:
 
         self.getattr_cache.clear()
         self.readdir_cache.clear()
+        self.readdir_cache[PurePosixPath('.')] = set()
 
         self.info = list(self.info_all())
         for path, attr in self.info:
             self.getattr_cache[path] = attr
-            if path != PurePosixPath('.'):
-                self.readdir_cache.setdefault(path.parent, []).append(path.name)
+
+            # Add all intermediate directories, in case info_all()
+            # didn't include them.
+            for i in range(len(path.parts)):
+                self.readdir_cache.setdefault(
+                    PurePosixPath(*path.parts[:i]), set()).add(
+                    path.parts[i])
+
+        print(self.readdir_cache)
 
         self.expiry = time.time() + self.CACHE_TIMEOUT
 
@@ -106,6 +114,10 @@ class CachedStorageMixin:
             self._update()
 
             if path not in self.getattr_cache:
+                # Synthetic directory
+                if path in self.readdir_cache:
+                    return Attr.dir()
+
                 raise FileNotFoundError(errno.ENOENT, str(path))
 
             return self.getattr_cache[path]

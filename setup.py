@@ -11,6 +11,7 @@ setup(
             'local_cached = wildland.storage_backends.local_cached:LocalCachedStorageBackend',
             ('local_dir_cached = '
              'wildland.storage_backends.local_cached:LocalDirectoryCachedStorageBackend'),
+            'date_proxy = wildland.storage_backends.date_proxy:DateProxyStorageBackend',
         ]
     }
 )

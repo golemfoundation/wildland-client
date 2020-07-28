@@ -257,6 +257,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Assume the fields have been validated before.
         '''
 
+        # Recursively handle proxy storages
+        if 'storage' in params:
+            params['storage'] = StorageBackend.from_params(params['storage'])
+
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)

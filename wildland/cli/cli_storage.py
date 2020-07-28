@@ -79,7 +79,10 @@ def _make_create_command(backend: Type[StorageBackend]):
 
 def _add_create_commands(group):
     for backend in get_storage_backends().values():
-        command = _make_create_command(backend)
+        try:
+            command = _make_create_command(backend)
+        except NotImplementedError:
+            continue
         group.add_command(command)
 
 
