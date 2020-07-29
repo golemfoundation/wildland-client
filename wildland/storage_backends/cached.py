@@ -87,8 +87,6 @@ class CachedStorageMixin:
                     PurePosixPath(*path.parts[:i]), set()).add(
                     path.parts[i])
 
-        print(self.readdir_cache)
-
         self.expiry = time.time() + self.CACHE_TIMEOUT
 
     def _update(self):

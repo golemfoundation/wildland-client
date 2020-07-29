@@ -366,12 +366,18 @@ class Client:
                 return path
             i += 1
 
-    def select_storage(self, container: Container) -> Storage:
+    def select_storage(self, container: Container, backends=None) -> Storage:
         '''
-        Select a storage to mount for a container.
+        Select and load a storage to mount for a container.
+
+        In case of proxy storage, this will also load an inner storage and
+        inline the manifest.
         '''
 
-        for url_or_dict in container.backends:
+        if backends is None:
+            backends = container.backends
+
+        for url_or_dict in backends:
             if isinstance(url_or_dict, str):
                 name = url_or_dict
                 try:
@@ -389,7 +395,7 @@ class Client:
 
 
             if storage.signer != container.signer:
-                logging.error(
+                logger.error(
                     '%s: signer field mismatch: storage %s, container %s',
                     name,
                     storage.signer,
@@ -398,7 +404,7 @@ class Client:
                 continue
 
             if storage.container_path not in container.paths:
-                logging.error(
+                logger.error(
                     '%s: unrecognized container path for storage: %s, %s',
                     name,
                     storage.container_path,
@@ -409,6 +415,17 @@ class Client:
             if not StorageBackend.is_type_supported(storage.storage_type):
                 logging.warning('Unsupported storage manifest: %s', name)
                 continue
+
+            # If there is a 'storage' parameter with a backend URL, convert it
+            # to an inline manifest.
+            if 'storage' in storage.params:
+                inner = storage.params['storage']
+                if isinstance(inner, str):
+                    logger.info('resolving inner storage URL: %s', inner)
+                    inner_storage = self.select_storage(container, [inner])
+                    inner_manifest = inner_storage.to_unsigned_manifest()
+                    inner_manifest.skip_signing()
+                    storage.params['storage'] = inner_manifest.fields
 
             return storage
 

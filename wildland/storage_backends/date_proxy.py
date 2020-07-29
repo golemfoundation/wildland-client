@@ -23,6 +23,8 @@ from pathlib import PurePosixPath
 import errno
 import datetime
 
+import click
+
 from .base import StorageBackend, File, Attr
 from .cached import CachedStorageMixin
 from ..manifest.schema import Schema
@@ -36,15 +38,19 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     All files will have a 'year/month/day' prefix prepended to their path.
     Directory timestamps will be ignored, and empty directories will not be
     taken into account.
+
+    The 'storage' parameter specifies inner storage, either as URL, or as an
+    inline manifest. When creating the object instance, the actual inner
+    backend needs to be instantiated and passed in params['storage'].
     '''
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["path"],
+        "required": ["storage"],
         "properties": {
             "storage": {
                 "oneOf": [
-                    # {"$ref": "types.json#url"},
+                    {"$ref": "types.json#url"},
                     {"$ref": "storage.schema.json"}
                 ],
                 "description": "Storage backend to be used, either as URL or as an inlined manifest"
@@ -57,6 +63,18 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         super().__init__(**kwds)
         self.inner = params['storage']
         self.read_only = True
+
+    @classmethod
+    def cli_options(cls):
+        return [
+            click.Option(['--storage-url'], metavar='URL',
+                          help='URL for inner storage manifest',
+                         required=True),
+        ]
+
+    @classmethod
+    def cli_create(cls, data):
+        return {'storage': data['storage_url']}
 
     def mount(self):
         self.inner.mount()
