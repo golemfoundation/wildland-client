@@ -82,6 +82,19 @@ Create local storage.
 
 .. option:: --path <path>
 
+.. program:: wl-storage-create-date-proxy
+.. _wl-storage-create-date-proxy:
+
+:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --storage-url <url>  <storage>`
+-------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --storage-url <url>
+
+   Inner storage URL. Needs to be also associated with the same container
+   (``container-url`` manifest field).
+
 .. program:: wl-storage-create-http-index
 .. _wl-storage-create-http-index:
 

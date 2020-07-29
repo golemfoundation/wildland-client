@@ -17,6 +17,7 @@ Welcome to Wildland's documentation!
    paths
    cli
    internals
+   proxy
 
 Indices and tables
 ==================
