@@ -236,15 +236,20 @@ def test_mount_no_directory(env, container, storage_type):
         'container2',
     ]
 
-    # It's not possible to list the directory (except local-dir-cached),
-    # or create a file...
-    if storage_type != 'local-dir-cached':
+    # In case of the local backend, you can't list the mount directory.
+    # The other (cached) backends will generate a synthetic one.
+    if storage_type == 'local':
         with pytest.raises(IOError):
             os.listdir(env.mnt_dir / 'container2')
+    else:
+        os.listdir(env.mnt_dir / 'container2')
+
+    # It's not possible to create a file.
     with pytest.raises(IOError):
         open(env.mnt_dir / 'container2/file1', 'w')
 
-    # ... until you create the backing directory
+    # After creating the backing directory, you can list the mount directory
+    # and create aa file
     os.mkdir(env.test_dir / 'storage/storage2')
     env.refresh_storage(2)
     with open(env.mnt_dir / 'container2/file1', 'w') as f:
