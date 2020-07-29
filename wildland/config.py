@@ -84,7 +84,7 @@ class Config:
 
         self.file_fields.update(values)
         with open(self.path, 'w') as f:
-            yaml.dump(self.file_fields, f)
+            yaml.dump(self.file_fields, f, sort_keys=False)
 
     @classmethod
     def load(cls, base_dir=None):

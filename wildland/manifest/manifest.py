@@ -87,7 +87,7 @@ class Manifest:
 
         if not isinstance(fields, dict) or 'signer' not in fields:
             raise ManifestError('signer field not found')
-        data = yaml.dump(fields, encoding='utf-8')
+        data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
         return Manifest(None, fields, data)
 
     @classmethod
