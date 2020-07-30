@@ -93,6 +93,9 @@ def debug_handler(func, bound=False):
                            errno.errorcode[err.errno],
                            err.strerror)
             raise
+        except NotImplementedError:
+            logger.warning('%s !→ ENOSYS (NotImplementedError)', func.__name__)
+            return -errno.ENOSYS
         except Exception:
             logger.exception('error while handling %s', func.__name__)
             return -errno.EINVAL
