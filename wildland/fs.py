@@ -39,6 +39,7 @@ from .storage_backends.control import ControlStorageBackend
 from .storage_backends.control_decorators import control_directory, control_file
 from .exc import WildlandError
 from .log import init_logging
+from .control_server import ControlServer
 
 
 logger = logging.getLogger('fuse')
@@ -55,6 +56,9 @@ class WildlandFS(fuse.Fuse):
 
         self.parser.add_option(mountopt='log', metavar='PATH',
             help='path to log file, use - for stderr')
+
+        self.parser.add_option(mountopt='socket', metavar='SOCKET',
+            help='path to control socket file')
 
         self.parser.add_option(mountopt='breakpoint', action='store_true',
             help='enable .control/breakpoint')
@@ -81,6 +85,7 @@ class WildlandFS(fuse.Fuse):
 
         self.resolver = WildlandFSConflictResolver(self)
         self.control = ControlStorageBackend(fs=self)
+        self.control_server = ControlServer()
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
@@ -102,6 +107,9 @@ class WildlandFS(fuse.Fuse):
 
         if not self.cmdline[0].breakpoint:
             self.control_breakpoint = None
+
+        socket_path = self.cmdline[0].socket or '/tmp/wlfuse.sock'
+        self.control_server.start(socket_path)
 
         super().main(args)
 
@@ -296,6 +304,7 @@ class WildlandFS(fuse.Fuse):
 
     def fsdestroy(self):
         logger.info('unmounting wildland')
+        self.control_server.stop()
 
     def proxy(self, method_name, path, *args,
               parent=False,

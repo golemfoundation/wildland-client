@@ -59,8 +59,9 @@ class WildlandFSClient:
     A class to communicate with Wildland filesystem over the .control API.
     '''
 
-    def __init__(self, mount_dir: Path):
+    def __init__(self, mount_dir: Path, socket_path: Path):
         self.mount_dir = mount_dir
+        self.socket_path = socket_path
         self.control_dir = self.mount_dir / '.control'
 
         self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
@@ -89,7 +90,9 @@ class WildlandFSClient:
         self.clear_cache()
 
         cmd = [sys.executable, '-m', 'wildland.fs', str(self.mount_dir)]
-        options = []
+        options = [
+            'socket=' + str(self.socket_path)
+        ]
 
         if foreground:
             options.append('log=-')

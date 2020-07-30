@@ -22,6 +22,10 @@
             "$ref": "types.json#abs-path",
             "description": "FUSE mount path (default: $HOME/wildland)"
         },
+        "socket-path": {
+            "$ref": "types.json#abs-path",
+            "description": "Path to control socket (default: $HOME/.config/wildland/wlfuse.sock)"
+        },
 
         "dummy": {
             "type": "boolean",
