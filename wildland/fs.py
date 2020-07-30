@@ -85,7 +85,7 @@ class WildlandFS(fuse.Fuse):
 
         self.resolver = WildlandFSConflictResolver(self)
         self.control = ControlStorageBackend(fs=self)
-        self.control_server = ControlServer()
+        self.control_server = ControlServer(fs=self)
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
