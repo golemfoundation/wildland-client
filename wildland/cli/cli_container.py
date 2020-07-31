@@ -228,9 +228,9 @@ def mount(obj: ContextObj, container_names, remount, save):
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
     help='mount path to search for')
-@click.argument('cont', metavar='CONTAINER', required=False)
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
-def unmount(obj: ContextObj, path: str, cont):
+def unmount(obj: ContextObj, path: str, container_names):
     '''
     Unmount a container_ You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
@@ -239,17 +239,28 @@ def unmount(obj: ContextObj, path: str, cont):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
-    if bool(cont) + bool(path) != 1:
+    if bool(container_names) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
 
-    if cont:
-        container = obj.client.load_container_from(cont)
-        storage_id = obj.fs_client.find_storage_id(container)
+    if container_names:
+        storage_ids = []
+        for container_name in container_names:
+            for container in obj.client.load_containers_from(container_name):
+                storage_id = obj.fs_client.find_storage_id(container)
+                if storage_id is None:
+                    click.echo(f'Not mounted: {container.paths[0]}')
+                else:
+                    click.echo(f'Will unmount: {container.paths[0]}')
+                    storage_ids.append(storage_id)
     else:
         storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
+        if storage_id is None:
+            raise click.ClickException('Container not mounted')
+        storage_ids = [storage_id]
 
-    if storage_id is None:
-        raise click.ClickException('Container not mounted')
+    if not storage_ids:
+        raise click.ClickException('No containers mounted')
 
-    click.echo(f'Unmounting storage {storage_id}')
-    obj.fs_client.unmount_container(storage_id)
+    click.echo(f'Unmounting {len(storage_ids)} containers')
+    for storage_id in storage_ids:
+        obj.fs_client.unmount_container(storage_id)
