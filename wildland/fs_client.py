@@ -145,7 +145,6 @@ class WildlandFSClient:
         Write to a .control file.
         '''
 
-        logger.info('write %s: %s', name, data)
         control_path = self.control_dir / name
         try:
             with open(control_path, 'wb') as f:
@@ -161,9 +160,7 @@ class WildlandFSClient:
         control_path = self.control_dir / name
         try:
             with open(control_path, 'rb') as f:
-                data = f.read()
-                logger.info('read %s: %s', control_path, data)
-                return data
+                return f.read()
         except IOError as e:
             raise WildlandFSError(f'Reading control file failed: {control_path}: {e}')
 
@@ -355,6 +352,27 @@ class WildlandFSClient:
             for ident_str, storage in data.items()
         }
         return self.info_cache
+
+    def should_remount(self, container: Container, storage: Storage,
+                       is_default_user: bool) -> bool:
+        '''
+        Check if a storage has to be remounted.
+        '''
+
+        storage_id = self.find_storage_id(container)
+        if storage_id is None:
+            return True
+
+        paths = [
+            os.fspath(self.get_user_path(container.signer, path))
+            for path in container.paths
+        ]
+        if is_default_user:
+            paths.extend(os.fspath(p) for p in container.paths)
+
+        info = self.get_info()
+        tag = self.get_storage_tag(paths, storage.params)
+        return info[storage_id]['tag'] != tag
 
     def get_command_for_mount_container(self,
                                         container: Container,

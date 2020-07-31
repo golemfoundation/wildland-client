@@ -181,28 +181,33 @@ def mount(obj: ContextObj, container_names, remount, save):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
-    containers = []
+    params: List[Tuple[Container, Storage, bool]] = []
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
-            click.echo(f'Loaded: {container.local_path}')
-            containers.append(container)
+            is_default_user = container.signer == obj.client.config.get('@default')
+            storage = obj.client.select_storage(container)
+            param_tuple = (container, storage, is_default_user)
 
-            if not remount and obj.fs_client.find_storage_id(container) is not None:
+            if obj.fs_client.find_storage_id(container) is None:
+                print(f'new: {container.local_path}')
+                params.append(param_tuple)
+            elif remount:
+                if obj.fs_client.should_remount(container, storage, is_default_user):
+                    print(f'changed: {container.local_path}')
+                    params.append(param_tuple)
+                else:
+                    print(f'not changed: {container.local_path}')
+            else:
                 raise CliError('Already mounted: {container.local_path}')
 
-    click.echo('Determining storage')
-
-    params: List[Tuple[Container, Storage, bool]] = []
-    for container in containers:
-        is_default_user = container.signer == obj.client.config.get('@default')
-        storage = obj.client.select_storage(container)
-        params.append((container, storage, is_default_user))
-
-    if len(params) > 0:
+    if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
+        obj.fs_client.mount_multiple_containers(params, remount=remount)
+    elif len(params) > 0:
+        click.echo('Mounting 1 container')
+        obj.fs_client.mount_multiple_containers(params, remount=remount)
     else:
-        click.echo('Mounting container')
-    obj.fs_client.mount_multiple_containers(params, remount=remount)
+        click.echo('No containers need remounting')
 
     if save:
         default_containers = obj.client.config.get('default-containers')
