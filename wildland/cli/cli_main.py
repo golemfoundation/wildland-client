@@ -161,6 +161,28 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
         raise CliError('FUSE driver exited with failure')
 
 
+@main.command(short_help='display mounted containers')
+@click.pass_obj
+def status(obj: ContextObj):
+    '''
+    Display all mounted containers.
+    '''
+    obj.fs_client.ensure_mounted()
+
+    click.echo('Mounted containers:')
+    click.echo()
+
+    # Skip first storage (.control)
+    storages = list(obj.fs_client.get_info().values())[1:]
+    for storage in storages:
+        main_path = storage['paths'][0]
+        click.echo(main_path)
+        click.echo(f'  storage: {storage["type"]}')
+        click.echo('  paths:')
+        for path in storage['paths']:
+            click.echo(f'    {path}')
+        click.echo()
+
 @main.command(short_help='renamed to "start"')
 def mount():
     '''

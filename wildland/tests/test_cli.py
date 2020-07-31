@@ -571,7 +571,6 @@ def test_container_unmount(cli, base_dir):
 
 
 def test_container_unmount_by_path(cli, base_dir):
-
     with open(base_dir / 'mnt/.control/paths', 'w') as f:
         json.dump({
             '/PATH': [101],
@@ -582,3 +581,39 @@ def test_container_unmount_by_path(cli, base_dir):
     with open(base_dir / 'mnt/.control/unmount') as f:
         data = f.read()
     assert data == '102'
+
+
+## Status
+
+
+def test_status(cli, base_dir):
+    with open(base_dir / 'mnt/.control/info', 'w') as f:
+        json.dump({
+            '0': {
+                'paths': ['/.control'],
+                'type': '',
+                'extra': {},
+            },
+            '1': {
+                'paths': ['/path1', '/path1.1'],
+                'type': 'local',
+                'extra': {},
+            },
+            '2': {
+                'paths': ['/path2', '/path2.1'],
+                'type': 's3',
+                'extra': {},
+            },
+        }, f)
+
+    result = cli('status', capture=True)
+    out_lines = result.splitlines()
+    assert '/.control' not in out_lines
+    assert '/path1' in out_lines
+    assert '  storage: local' in out_lines
+    assert '    /path1' in out_lines
+    assert '    /path1.1' in out_lines
+    assert '/path2' in out_lines
+    assert '  storage: s3' in out_lines
+    assert '    /path2' in out_lines
+    assert '    /path2.1' in out_lines
