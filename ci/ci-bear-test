@@ -53,3 +53,11 @@ echo
 echo './wl container mount $HOME/wildland/bear/*/container.yaml'
 time -p chronic ./wl container mount $HOME/wildland/bear/*/container.yaml
 set -x
+
+# Unmount all containers
+refresh
+set +x
+echo
+echo './wl container unmount $HOME/wildland/bear/*/container.yaml'
+time -p chronic ./wl container unmount $HOME/wildland/bear/*/container.yaml
+set -x
