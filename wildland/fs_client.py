@@ -30,8 +30,7 @@ from typing import Dict, List, Optional, Iterable, Tuple
 import json
 import sys
 import hashlib
-
-import yaml
+import dataclasses
 
 from .container import Container
 from .storage import Storage
@@ -39,6 +38,16 @@ from .exc import WildlandError
 
 
 logger = logging.getLogger('fs_client')
+
+
+@dataclasses.dataclass
+class PathTree:
+    '''
+    A prefix tree for efficient determining of mounted storages.
+    '''
+
+    storage_ids: List[int]
+    children: Dict[str, 'PathTree']
 
 
 class WildlandFSError(WildlandError):
@@ -55,6 +64,7 @@ class WildlandFSClient:
         self.control_dir = self.mount_dir / '.control'
 
         self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
+        self.path_tree: Optional[PathTree] = None
         self.info_cache: Optional[Dict[int, Dict]] = None
 
     def clear_cache(self):
@@ -62,6 +72,7 @@ class WildlandFSClient:
         Clear cached information after changing mount state of the system.
         '''
         self.path_cache = None
+        self.path_tree = None
         self.info_cache = None
 
     def mount(self, foreground=False, debug=False, single_thread=False) -> subprocess.Popen:
@@ -245,10 +256,13 @@ class WildlandFSClient:
         '''
 
         result = []
-        paths = self.get_paths()
-        for mount_path, storage_ids in paths.items():
-            if path == mount_path or mount_path in path.parents:
-                result.extend(storage_ids)
+        tree = self.get_path_tree()
+        assert not tree.storage_ids  # root has no storages
+        for part in path.parts:
+            if part not in tree.children:
+                break
+            tree = tree.children[part]
+            result.extend(tree.storage_ids)
 
         return result
 
@@ -299,15 +313,34 @@ class WildlandFSClient:
 
         data = json.loads(self.read_control('paths'))
         self.path_cache = {
-            PurePosixPath(p): ident
-            for p, ident in data.items()
+            PurePosixPath(p): storage_ids
+            for p, storage_ids in data.items()
         }
         return self.path_cache
+
+    def get_path_tree(self) -> PathTree:
+        '''
+        Return a path prefix tree, computing it if necessary.
+        '''
+
+        if self.path_tree is not None:
+            return self.path_tree
+
+        self.path_tree = PathTree([], {})
+        for path, storage_ids in self.get_paths().items():
+            tree = self.path_tree
+            for part in path.parts:
+                if part not in tree.children:
+                    tree.children[part] = PathTree([], {})
+                tree = tree.children[part]
+            tree.storage_ids.extend(storage_ids)
+        return self.path_tree
 
     def get_info(self) -> Dict[int, Dict]:
         '''
         Read storage info served by FUSE driver.
         '''
+
         if self.info_cache is not None:
             return self.info_cache
 
