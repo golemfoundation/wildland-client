@@ -153,6 +153,22 @@ def test_control_paths(env, container):
     }
 
 
+def test_control_info(env, container, storage_type):
+    text = (env.mnt_dir / '.control/info').read_text()
+    assert json.loads(text) == {
+        '0': {
+            'paths': ['/.control'],
+            'type': '',
+            'extra': {},
+        },
+        '1': {
+            'paths': ['/container1'],
+            'type': storage_type,
+            'extra': {},
+        },
+    }
+
+
 def test_control_storage(env, container):
     storage_dir = env.mnt_dir / '.control/storage'
     assert sorted(os.listdir(storage_dir)) == ['0', '1']

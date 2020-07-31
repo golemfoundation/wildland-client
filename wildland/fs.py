@@ -26,7 +26,7 @@ import logging
 import os
 from pathlib import PurePosixPath
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional
 import threading
 
 import fuse
@@ -64,6 +64,7 @@ class WildlandFS(fuse.Fuse):
 
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
+        self.storage_extra: Dict[int, Dict] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
         self.main_paths: Dict[PurePosixPath, int] = {}
         self.storage_counter = 0
@@ -116,7 +117,7 @@ class WildlandFS(fuse.Fuse):
             init_logging(console=False, file_path=log_path)
 
     def _mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend,
-                      remount=False):
+                       extra: Optional[Dict] = None, remount=False):
         '''
         Mount a storage under a set of paths.
         '''
@@ -142,6 +143,7 @@ class WildlandFS(fuse.Fuse):
         storage.mount()
 
         self.storages[ident] = storage
+        self.storage_extra[ident] = extra or {}
         self.storage_paths[ident] = paths
         self.main_paths[main_path] = ident
         for path in paths:
@@ -188,10 +190,11 @@ class WildlandFS(fuse.Fuse):
             paths = [PurePosixPath(p) for p in params['paths']]
             storage_params = params['storage']
             read_only = params.get('read_only')
+            extra = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only)
             with self.mount_lock:
-                self._mount_storage(paths, storage, remount)
+                self._mount_storage(paths, storage, extra, remount)
 
     @control_file('unmount', read=False, write=True)
     def control_unmount(self, content: bytes):
@@ -218,11 +221,44 @@ class WildlandFS(fuse.Fuse):
 
     @control_file('paths')
     def control_paths(self):
+        '''
+        Mounted storages by path, for example:
+
+            {"/foo": [0], "/bar/baz": [0, 1]}
+        '''
+
         with self.mount_lock:
             result: Dict[str, List[int]] = {}
             for ident, paths in self.storage_paths.items():
                 for path in paths:
                     result.setdefault(str(path), []).append(ident)
+            return (json.dumps(result, indent=2) + '\n').encode()
+
+    @control_file('info')
+    def control_info(self):
+        '''
+        Storage info by main path, for example:
+
+            {
+                "/foo": {
+                    "paths": ["/foo", "/bar/baz"],
+                    "type": "local",
+                    "trusted_signer": null,
+                    "extra": {}
+                }
+            }
+        '''
+
+        with self.mount_lock:
+            result: Dict[str, Dict] = {}
+            for ident in self.storages:
+
+
+                result[str(ident)] = {
+                    "paths": [str(path) for path in self.storage_paths[ident]],
+                    "type": self.storages[ident].TYPE,
+                    "extra": self.storage_extra[ident],
+                }
             return (json.dumps(result, indent=2) + '\n').encode()
 
     @control_file('breakpoint', write=True)

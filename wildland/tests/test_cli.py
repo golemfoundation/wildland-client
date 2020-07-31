@@ -399,6 +399,25 @@ def test_container_mount(cli, base_dir):
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
     ]
+    assert command[0]['extra']['trusted_signer'] is None
+
+
+def test_container_mount_store_trusted_signer(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container', '--trusted')
+
+    with open(base_dir / 'mnt/.control/paths', 'w') as f:
+        json.dump({}, f)
+
+    cli('container', 'mount', 'Container')
+
+    with open(base_dir / 'mnt/.control/mount') as f:
+        command = json.load(f)
+    assert command[0]['extra']['trusted_signer'] == '0xaaa'
+
+
 
 def test_container_mount_glob(cli, base_dir):
     # The glob pattern will be normally expanded by shell,
@@ -477,13 +496,12 @@ def test_container_mount_inline_storage(cli, base_dir):
     ]
 
 
-def test_container_mount_trusted_signer(cli, base_dir):
+def test_container_mount_check_trusted_signer(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    control_path = base_dir / 'mnt/.control/storage/1/manifest.yaml'
     manifest_path = base_dir / 'mnt/trusted/Container.yaml'
 
     # Write an unsigned container manifest to mnt/trusted/
@@ -491,10 +509,19 @@ def test_container_mount_trusted_signer(cli, base_dir):
     content = (base_dir / 'containers/Container.yaml').read_text()
     content = content[content.index('---'):]
     os.mkdir(base_dir / 'mnt/trusted')
-    with open(base_dir / 'mnt/trusted/Container.yaml', 'w') as f:
+    with open(manifest_path, 'w') as f:
         f.write(content)
 
     # Prepare data in .control
+
+    def make_info(trusted_signer):
+        return {
+            '1': {
+                'paths': ['/PATH'],
+                'type': 'local',
+                'extra': {'trusted_signer': trusted_signer}
+            }
+        }
 
     os.mkdir(base_dir / 'mnt/.control/storage')
     os.mkdir(base_dir / 'mnt/.control/storage/1')
@@ -503,19 +530,22 @@ def test_container_mount_trusted_signer(cli, base_dir):
 
     # Should not mount if the storage is not trusted
 
-    control_path.write_text('signer: "0xaaa"')
+    with open(base_dir / 'mnt/.control/info', 'w') as f:
+        json.dump(make_info(None), f)
     with pytest.raises(ManifestError, match='Signature expected'):
         cli('container', 'mount', manifest_path)
 
     # Should not mount if the signer is different
 
-    control_path.write_text('signer: "0xbbb"\ntrusted: yes')
+    with open(base_dir / 'mnt/.control/info', 'w') as f:
+        json.dump(make_info('0xbbb'), f)
     with pytest.raises(ManifestError, match='Wrong signer for manifest without signature'):
         cli('container', 'mount', manifest_path)
 
     # Should mount if the storage is trusted and with right signer
 
-    control_path.write_text('signer: "0xaaa"\ntrusted: yes')
+    with open(base_dir / 'mnt/.control/info', 'w') as f:
+        json.dump(make_info('0xaaa'), f)
     cli('container', 'mount', manifest_path)
 
 

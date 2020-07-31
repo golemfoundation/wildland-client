@@ -29,6 +29,7 @@ import logging
 from typing import Dict, List, Optional, Iterable, Tuple
 import json
 import sys
+import hashlib
 
 import yaml
 
@@ -54,14 +55,14 @@ class WildlandFSClient:
         self.control_dir = self.mount_dir / '.control'
 
         self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
-        self.manifest_cache: Dict[int, dict] = {}
+        self.info_cache: Optional[Dict[int, Dict]] = None
 
     def clear_cache(self):
         '''
         Clear cached information after changing mount state of the system.
         '''
         self.path_cache = None
-        self.manifest_cache.clear()
+        self.info_cache = None
 
     def mount(self, foreground=False, debug=False, single_thread=False) -> subprocess.Popen:
         '''
@@ -276,23 +277,12 @@ class WildlandFSClient:
             # Outside of any storage
             return None
 
+        info = self.get_info()
         trusted_signers = set()
         for storage_id in storage_ids:
-            manifest = self.get_storage_manifest(storage_id)
-            if not manifest:
-                # No manifest
-                return None
-
-            if not manifest.get('trusted'):
-                # Not a trusted storage
-                return None
-
-            signer = manifest.get('signer')
-            if not signer:
-                # No signer
-                return None
-
-            trusted_signers.add(signer)
+            trusted_signer = info[storage_id]['trusted_signer']
+            if trusted_signer is not None:
+                trusted_signers.add(trusted_signer)
 
         if len(trusted_signers) != 1:
             # More than one trusted signer
@@ -314,21 +304,24 @@ class WildlandFSClient:
         }
         return self.path_cache
 
-    def get_storage_manifest(self, storage_id: int) -> Optional[dict]:
+    def get_info(self) -> Dict[int, Dict]:
         '''
-        Read a storage manifest for a mounted storage.
+        Read storage info served by FUSE driver.
         '''
+        if self.info_cache is not None:
+            return self.info_cache
 
-        if storage_id in self.manifest_cache:
-            return self.manifest_cache[storage_id]
-
-        control_path = self.control_dir / f'storage/{storage_id}/manifest.yaml'
-        if not control_path.exists():
-            return None
-        data = control_path.read_bytes()
-        ret = yaml.safe_load(data)
-        self.manifest_cache[storage_id] = ret
-        return ret
+        data = json.loads(self.read_control('info'))
+        self.info_cache = {
+            int(ident_str): {
+                'paths': [PurePosixPath(p) for p in storage['paths']],
+                'type': storage['type'],
+                'tag': storage['extra'].get('tag', None),
+                'trusted_signer': storage['extra'].get('trusted_signer', None),
+            }
+            for ident_str, storage in data.items()
+        }
+        return self.info_cache
 
     def get_command_for_mount_container(self,
                                         container: Container,
@@ -349,11 +342,34 @@ class WildlandFSClient:
         if is_default_user:
             paths.extend(os.fspath(p) for p in container.paths)
 
+        trusted_signer: Optional[str]
+        if storage.params.get('trusted'):
+            trusted_signer = storage.signer
+        else:
+            trusted_signer = None
+
         return {
             'paths': paths,
             'storage': storage.params,
+            'extra': {
+                'tag': self.get_storage_tag(paths, storage.params),
+                'trusted_signer': trusted_signer,
+            },
             'remount': remount,
         }
+
+    @staticmethod
+    def get_storage_tag(paths, params):
+        '''
+        Compute a hash of storage params, to decide if a storage needs to be
+        remounted.
+        '''
+
+        param_str = json.dumps({
+            'params': params,
+            'paths': paths,
+        }, sort_keys=True)
+        return hashlib.sha1(param_str.encode()).hexdigest()
 
     @staticmethod
     def get_user_path(signer, path: PurePosixPath) -> PurePosixPath:
