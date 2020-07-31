@@ -45,3 +45,11 @@ time -p chronic ls $HOME/wildland/
 # List main directory (readdir + getattr)
 refresh
 time -p chronic ls -l $HOME/wildland/
+
+# Remount all containers
+refresh
+set +x
+echo
+echo './wl container mount $HOME/wildland/bear/*/container.yaml'
+time -p chronic ./wl container mount $HOME/wildland/bear/*/container.yaml
+set -x
