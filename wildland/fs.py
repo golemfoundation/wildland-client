@@ -222,7 +222,7 @@ class WildlandFS(fuse.Fuse):
     @control_file('paths')
     def control_paths(self):
         '''
-        Mounted storages by path, for example:
+        Mounted storages by path, for example::
 
             {"/foo": [0], "/bar/baz": [0, 1]}
         '''
@@ -237,7 +237,7 @@ class WildlandFS(fuse.Fuse):
     @control_file('info')
     def control_info(self):
         '''
-        Storage info by main path, for example:
+        Storage info by main path, for example::
 
             {
                 "/foo": {
