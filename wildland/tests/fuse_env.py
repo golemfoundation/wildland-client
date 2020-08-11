@@ -27,6 +27,7 @@ from pathlib import Path
 import traceback
 import time
 import json
+import socket
 
 import pytest
 
@@ -52,6 +53,7 @@ class FuseEnv:
     def __init__(self):
         self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
         self.mnt_dir = self.test_dir / 'mnt'
+        self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False
         self.proc = None
 
@@ -62,7 +64,7 @@ class FuseEnv:
         assert not self.mounted, 'only one mount() at a time'
         mnt_dir = self.test_dir / 'mnt'
 
-        options = ['log=-']
+        options = ['log=-', 'socket=' + str(self.socket_path)]
 
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
@@ -140,3 +142,18 @@ class FuseEnv:
             except Exception:
                 traceback.print_exc()
         shutil.rmtree(self.test_dir)
+
+    def run_control_command(self, name: str, args: dict):
+        '''
+        Connect to the control server and run a command.
+        '''
+
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.connect(str(self.socket_path))
+            conn.sendall(json.dumps({'cmd': name, 'args': args}).encode() + b'\n\n')
+
+            response_bytes = conn.recv(1024)
+            response = json.loads(response_bytes)
+            if 'error' in response:
+                return response['error']
+            return response['result']

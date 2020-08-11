@@ -188,6 +188,10 @@ def storage_manifest(env, path, storage_type, read_only=False):
     }
 
 
+def test_cmd_test(env):
+    assert env.run_control_command('test', {'foo': 'bar'}) == {'kwargs': {'foo': 'bar'}}
+
+
 def test_cmd_mount(env, container, storage_type):
     storage = storage_manifest(env, 'storage/storage2', storage_type)
     env.mount_storage(['/container2'], storage)

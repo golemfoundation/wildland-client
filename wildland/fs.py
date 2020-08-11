@@ -24,7 +24,7 @@ Wildland Filesystem
 import errno
 import logging
 import os
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
 import json
 from typing import List, Dict, Optional
 import threading
@@ -39,7 +39,7 @@ from .storage_backends.control import ControlStorageBackend
 from .storage_backends.control_decorators import control_directory, control_file
 from .exc import WildlandError
 from .log import init_logging
-from .control_server import ControlServer
+from .control_server import ControlServer, control_command
 
 
 logger = logging.getLogger('fuse')
@@ -85,7 +85,8 @@ class WildlandFS(fuse.Fuse):
 
         self.resolver = WildlandFSConflictResolver(self)
         self.control = ControlStorageBackend(fs=self)
-        self.control_server = ControlServer(fs=self)
+        self.control_server = ControlServer()
+        self.control_server.register_commands(self)
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
@@ -109,7 +110,7 @@ class WildlandFS(fuse.Fuse):
             self.control_breakpoint = None
 
         socket_path = self.cmdline[0].socket or '/tmp/wlfuse.sock'
-        self.control_server.start(socket_path)
+        self.control_server.start(Path(socket_path))
 
         super().main(args)
 
@@ -282,6 +283,10 @@ class WildlandFS(fuse.Fuse):
                 (str(ident), storage)
                 for ident, storage in self.storages.items()
             ]
+
+    @control_command('test')
+    def control_test(self, **kwargs):
+        return {'kwargs': kwargs}
 
     def _stat(self, attr: Attr) -> fuse.Stat:
         return fuse.Stat(
