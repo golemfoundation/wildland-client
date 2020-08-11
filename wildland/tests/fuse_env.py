@@ -63,6 +63,7 @@ class FuseEnv:
         self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False
         self.proc = None
+        self.conn = None
 
         os.mkdir(self.test_dir / 'mnt')
         os.mkdir(self.test_dir / 'storage')
@@ -80,6 +81,8 @@ class FuseEnv:
         ], cwd=PROJECT_PATH)
         try:
             self.wait_for_mount()
+            self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.conn.connect(str(self.socket_path))
         except Exception:
             self.unmount()
             raise
@@ -133,7 +136,10 @@ class FuseEnv:
     def unmount(self):
         assert self.mounted
         assert self.proc
+        assert self.conn
 
+        self.conn.close()
+        self.conn = None
         subprocess.run(['fusermount', '-u', self.mnt_dir], check=False)
         self.proc.wait()
         self.proc = False
@@ -152,18 +158,18 @@ class FuseEnv:
         Connect to the control server and run a command.
         '''
 
+        assert self.conn
+
         request = {'cmd': name}
         if args is not None:
             request['args'] = args
 
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-            conn.connect(str(self.socket_path))
-            conn.sendall(json.dumps(request).encode() + b'\n\n')
+        self.conn.sendall(json.dumps(request).encode() + b'\n\n')
 
-            response_bytes = conn.recv(1024)
-            response = json.loads(response_bytes)
-            if 'error' in response:
-                error_class = response['error']['class']
-                error_desc = response['error']['desc']
-                raise FuseError(f'{error_class}: {error_desc}')
-            return response['result']
+        response_bytes = self.conn.recv(1024)
+        response = json.loads(response_bytes)
+        if 'error' in response:
+            error_class = response['error']['class']
+            error_desc = response['error']['desc']
+            raise FuseError(f'{error_class}: {error_desc}')
+        return response['result']
