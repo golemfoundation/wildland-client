@@ -25,7 +25,6 @@ import errno
 import logging
 import os
 from pathlib import PurePosixPath, Path
-import json
 from typing import List, Dict, Optional
 import threading
 
@@ -35,8 +34,6 @@ fuse.fuse_python_api = 0, 2
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver
 from .storage_backends.base import StorageBackend, Attr
-from .storage_backends.control import ControlStorageBackend
-from .storage_backends.control_decorators import control_directory, control_file
 from .exc import WildlandError
 from .log import init_logging
 from .control_server import ControlServer, control_command
@@ -71,7 +68,7 @@ class WildlandFS(fuse.Fuse):
         self.storage_extra: Dict[int, Dict] = {}
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
         self.main_paths: Dict[PurePosixPath, int] = {}
-        self.storage_counter = 0
+        self.storage_counter = 1
         self.mount_lock = threading.Lock()
 
         self.uid = None
@@ -84,7 +81,6 @@ class WildlandFS(fuse.Fuse):
         self.fuse_args.add('direct_io')
 
         self.resolver = WildlandFSConflictResolver(self)
-        self.control = ControlStorageBackend(fs=self)
         self.control_server = ControlServer()
         self.control_server.register_commands(self)
 
@@ -103,14 +99,11 @@ class WildlandFS(fuse.Fuse):
 
         self.multithreaded = not self.cmdline[0].single_thread
 
-        with self.mount_lock:
-            self._mount_storage([PurePosixPath('/.control')], self.control)
-
         if not self.cmdline[0].breakpoint:
             self.control_breakpoint = None
 
-        socket_path = self.cmdline[0].socket or '/tmp/wlfuse.sock'
-        self.control_server.start(Path(socket_path))
+        socket_path = Path(self.cmdline[0].socket or '/tmp/wlfuse.sock')
+        self.control_server.start(socket_path)
 
         super().main(args)
 
@@ -158,8 +151,6 @@ class WildlandFS(fuse.Fuse):
         for path in paths:
             self.resolver.mount(path, ident)
 
-        self.control.clear_cache()
-
     def _unmount_storage(self, ident: int):
         '''Unmount a storage'''
 
@@ -181,8 +172,6 @@ class WildlandFS(fuse.Fuse):
         for path in paths:
             self.resolver.unmount(path, ident)
 
-        self.control.clear_cache()
-
     # pylint: disable=missing-docstring
 
 
@@ -190,12 +179,9 @@ class WildlandFS(fuse.Fuse):
     # .control API
     #
 
-    @control_file('mount', read=False, write=True, json=True)
-    def control_mount(self, cmd):
-        if not isinstance(cmd, list):
-            cmd = [cmd]
-
-        for params in cmd:
+    @control_command('mount')
+    def control_mount(self, items):
+        for params in items:
             paths = [PurePosixPath(p) for p in params['paths']]
             storage_params = params['storage']
             read_only = params.get('read_only')
@@ -205,30 +191,28 @@ class WildlandFS(fuse.Fuse):
             with self.mount_lock:
                 self._mount_storage(paths, storage, extra, remount)
 
-    @control_file('unmount', read=False, write=True)
-    def control_unmount(self, content: bytes):
+    @control_command('unmount')
+    def control_unmount(self, storage_id: int):
+        if storage_id not in self.storages:
+            raise WildlandError(f'storage not found: {storage_id}')
         with self.mount_lock:
-            ident = int(content)
-            if ident not in self.storages:
-                raise WildlandError(f'storage not found: {ident}')
-            self._unmount_storage(ident)
+            self._unmount_storage(storage_id)
 
-    @control_file('clear-cache', read=False, write=True)
-    def control_clear_cache(self, content: bytes):
+    @control_command('clear-cache')
+    def control_clear_cache(self, storage_id=None):
         with self.mount_lock:
-            if content.strip() == b'':
+            if storage_id is None:
                 for ident, storage in self.storages.items():
                     logger.info('clearing cache for storage: %s', ident)
                     storage.clear_cache()
                 return
 
-            ident = int(content)
-            if ident not in self.storages:
-                raise WildlandError(f'storage not found: {ident}')
-            logger.info('clearing cache for storage: %s', ident)
-            self.storages[ident].clear_cache()
+            if storage_id not in self.storages:
+                raise WildlandError(f'storage not found: {storage_id}')
+            logger.info('clearing cache for storage: %s', storage_id)
+            self.storages[storage_id].clear_cache()
 
-    @control_file('paths')
+    @control_command('paths')
     def control_paths(self):
         '''
         Mounted storages by path, for example::
@@ -236,14 +220,14 @@ class WildlandFS(fuse.Fuse):
             {"/foo": [0], "/bar/baz": [0, 1]}
         '''
 
+        result: Dict[str, List[int]] = {}
         with self.mount_lock:
-            result: Dict[str, List[int]] = {}
             for ident, paths in self.storage_paths.items():
                 for path in paths:
                     result.setdefault(str(path), []).append(ident)
-            return (json.dumps(result, indent=2) + '\n').encode()
+        return result
 
-    @control_file('info')
+    @control_command('info')
     def control_info(self):
         '''
         Storage info by main path, for example::
@@ -258,31 +242,22 @@ class WildlandFS(fuse.Fuse):
             }
         '''
 
+        result: Dict[str, Dict] = {}
         with self.mount_lock:
-            result: Dict[str, Dict] = {}
             for ident in self.storages:
-
-
                 result[str(ident)] = {
                     "paths": [str(path) for path in self.storage_paths[ident]],
                     "type": self.storages[ident].TYPE,
                     "extra": self.storage_extra[ident],
                 }
-            return (json.dumps(result, indent=2) + '\n').encode()
+        return result
 
-    @control_file('breakpoint', write=True)
+    @control_command('breakpoint')
     def control_breakpoint(self):
         # Disabled in main() unless an option is given.
+        # (TODO: not necessary with socket server?)
         # pylint: disable=method-hidden
         breakpoint()
-
-    @control_directory('storage')
-    def control_containers(self):
-        with self.mount_lock:
-            return [
-                (str(ident), storage)
-                for ident, storage in self.storages.items()
-            ]
 
     @control_command('test')
     def control_test(self, **kwargs):

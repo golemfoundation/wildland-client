@@ -203,4 +203,4 @@ class ControlServer:
             logger.exception('error when handling: %r', request or request_str)
             response = {'error': {'class': type(e).__name__, 'desc': str(e)}}
 
-        return json.dumps(response) + '\n\n'
+        return json.dumps(response, indent=2) + '\n\n'

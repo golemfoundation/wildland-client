@@ -35,6 +35,10 @@ PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
+class FuseError(Exception):
+    pass
+
+
 class FuseEnv:
     '''
     A class for testing wildland-fuse. Usage:
@@ -48,6 +52,9 @@ class FuseEnv:
             env.destroy()
 
     The above can be wrapped in a Pytest fixture, see tests.py.
+
+    This roughly corresponds to WildlandFSClient (fs_client.py), but
+    intentionally does not depend on the rest of Wildland code.
     '''
 
     def __init__(self):
@@ -95,24 +102,21 @@ class FuseEnv:
         self.mount_multiple_storages([(paths, storage)], remount)
 
     def mount_multiple_storages(self, storages, remount=False):
-        cmd = []
+        items = []
         for paths, storage in storages:
-            cmd.append({
+            items.append({
                 'paths': [str(p) for p in paths],
                 'storage': storage,
                 'remount': remount,
             })
 
-        with open(self.mnt_dir / '.control/mount', 'w') as f:
-            f.write(json.dumps(cmd) + '\n\n')
+        self.run_control_command('mount', {'items': items})
 
     def unmount_storage(self, ident):
-        with open(self.mnt_dir / '.control/unmount', 'w') as f:
-            f.write(str(ident))
+        self.run_control_command('unmount', {'storage-id': ident})
 
     def refresh_storage(self, ident):
-        with open(self.mnt_dir / '.control/clear-cache', 'w') as f:
-            f.write(str(ident))
+        self.run_control_command('clear-cache', {'storage-id': ident})
 
     def create_dir(self, name):
         os.mkdir(self.test_dir / name)
@@ -143,17 +147,23 @@ class FuseEnv:
                 traceback.print_exc()
         shutil.rmtree(self.test_dir)
 
-    def run_control_command(self, name: str, args: dict):
+    def run_control_command(self, name: str, args=None):
         '''
         Connect to the control server and run a command.
         '''
 
+        request = {'cmd': name}
+        if args is not None:
+            request['args'] = args
+
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
             conn.connect(str(self.socket_path))
-            conn.sendall(json.dumps({'cmd': name, 'args': args}).encode() + b'\n\n')
+            conn.sendall(json.dumps(request).encode() + b'\n\n')
 
             response_bytes = conn.recv(1024)
             response = json.loads(response_bytes)
             if 'error' in response:
-                return response['error']
+                error_class = response['error']['class']
+                error_desc = response['error']['desc']
+                raise FuseError(f'{error_class}: {error_desc}')
             return response['result']

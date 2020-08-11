@@ -21,13 +21,11 @@
 
 import os
 import stat
-import errno
 import subprocess
-import json
 
 import pytest
 
-from .fuse_env import FuseEnv
+from .fuse_env import FuseEnv, FuseError
 
 
 @pytest.fixture
@@ -64,7 +62,6 @@ def container(env, storage_type):
 
 def test_list(env, container):
     assert sorted(os.listdir(env.mnt_dir)) == [
-        '.control',
         container
     ]
 
@@ -75,7 +72,6 @@ def test_list_contains_dots(env, container):
     assert sorted(ls_output.decode().split()) == [
         '.',
         '..',
-        '.control',
         container,
     ]
 
@@ -120,7 +116,7 @@ def test_container_read_file(env, container):
 def test_container_create_file(env, container):
     with open(env.mnt_dir / container / 'file1', 'w') as f:
         f.write('hello world')
-    env.refresh_storage(1)
+    os.sync()
     with open(env.test_dir / 'storage/storage1/file1', 'r') as f:
         content = f.read()
     assert content == 'hello world'
@@ -145,38 +141,20 @@ def test_container_mkdir_rmdir(env, container):
         os.stat(dirpath)
 
 
-def test_control_paths(env, container):
-    text = (env.mnt_dir / '.control/paths').read_text()
-    assert json.loads(text) == {
-        '/.control': [0],
+def test_cmd_paths(env, container):
+    assert env.run_control_command('paths') == {
         '/' + container: [1],
     }
 
 
-def test_control_info(env, container, storage_type):
-    text = (env.mnt_dir / '.control/info').read_text()
-    assert json.loads(text) == {
-        '0': {
-            'paths': ['/.control'],
-            'type': '',
-            'extra': {},
-        },
+def test_cmd_info(env, container, storage_type):
+    assert env.run_control_command('info') == {
         '1': {
             'paths': ['/container1'],
             'type': storage_type,
             'extra': {},
         },
     }
-
-
-def test_control_storage(env, container):
-    storage_dir = env.mnt_dir / '.control/storage'
-    assert sorted(os.listdir(storage_dir)) == ['0', '1']
-
-    with open(storage_dir / '1/manifest.yaml') as f:
-        manifest_content = f.read()
-    assert "signer: '0x3333'" in manifest_content
-    assert '/storage1' in manifest_content
 
 
 def storage_manifest(env, path, storage_type, read_only=False):
@@ -195,11 +173,7 @@ def test_cmd_test(env):
 def test_cmd_mount(env, container, storage_type):
     storage = storage_manifest(env, 'storage/storage2', storage_type)
     env.mount_storage(['/container2'], storage)
-    assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == [
-        '0', '1', '2'
-    ]
     assert sorted(os.listdir(env.mnt_dir)) == [
-        '.control',
         'container1',
         'container2',
     ]
@@ -207,7 +181,7 @@ def test_cmd_mount(env, container, storage_type):
 def test_cmd_mount_already_mounted(env, container, storage_type):
     storage = storage_manifest(env, 'storage/storage2', storage_type)
     env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
-    with pytest.raises(IOError):
+    with pytest.raises(FuseError):
         env.mount_storage(['/.uuid/XYZ', '/container3'], storage)
 
 
@@ -217,11 +191,7 @@ def test_cmd_mount_remount(env, container, storage_type):
 
     storage = storage_manifest(env, 'storage/storage3', storage_type)
     env.mount_storage(['/.uuid/XYZ', '/container3'], storage, remount=True)
-    assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == [
-        '0', '1', '3'
-    ]
     assert sorted(os.listdir(env.mnt_dir)) == [
-        '.control',
         '.uuid',
         'container1',
         'container3',
@@ -230,18 +200,15 @@ def test_cmd_mount_remount(env, container, storage_type):
 
 def test_cmd_unmount(env, container):
     env.unmount_storage(1)
-    assert sorted(os.listdir(env.mnt_dir / '.control/storage')) == ['0']
-    assert sorted(os.listdir(env.mnt_dir)) == ['.control']
+    assert sorted(os.listdir(env.mnt_dir)) == []
 
 
 def test_cmd_unmount_error(env, container):
-    with pytest.raises(IOError) as e:
+    with pytest.raises(FuseError):
         env.unmount_storage(2)
-    assert e.value.errno == errno.EINVAL
 
-    with pytest.raises(IOError) as e:
+    with pytest.raises(FuseError):
         env.unmount_storage('XXX')
-    assert e.value.errno == errno.EINVAL
 
 
 def test_mount_no_directory(env, container, storage_type):
@@ -251,7 +218,6 @@ def test_mount_no_directory(env, container, storage_type):
     # The container should mount, with the directory visible but empty
     env.mount_storage(['/container2'], storage)
     assert sorted(os.listdir(env.mnt_dir)) == [
-        '.control',
         'container1',
         'container2',
     ]
@@ -271,7 +237,7 @@ def test_mount_no_directory(env, container, storage_type):
     # After creating the backing directory, you can list the mount directory
     # and create aa file
     os.mkdir(env.test_dir / 'storage/storage2')
-    env.refresh_storage(2)
+    env.refresh_storage(1)
     with open(env.mnt_dir / 'container2/file1', 'w') as f:
         f.write('hello world')
     os.sync()
