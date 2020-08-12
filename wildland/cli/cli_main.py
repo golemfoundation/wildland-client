@@ -172,8 +172,7 @@ def status(obj: ContextObj):
     click.echo('Mounted containers:')
     click.echo()
 
-    # Skip first storage (.control)
-    storages = list(obj.fs_client.get_info().values())[1:]
+    storages = list(obj.fs_client.get_info().values())
     for storage in storages:
         main_path = storage['paths'][0]
         click.echo(main_path)

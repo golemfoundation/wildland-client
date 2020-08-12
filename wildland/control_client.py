@@ -100,6 +100,8 @@ class ControlClient:
             error_class = response['error']['class']
             error_desc = response['error']['desc']
 
+            logger.debug('%s -> %s: %s', name, error_class, error_desc)
             raise ControlClientError(f'{error_class}: {error_desc}')
 
+        logger.debug('%s -> %s', name, response['result'])
         return response['result']

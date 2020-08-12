@@ -22,7 +22,6 @@
 from pathlib import PurePosixPath
 import os
 import shutil
-import json
 from functools import partial
 
 import yaml
@@ -216,23 +215,23 @@ def test_read_container_unsigned(client):
         search.read_container(remote=True)
 
 
-def test_mount_traverse(cli, client, base_dir):
+def test_mount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({}, f)
+    control_client.expect('paths', {})
+    control_client.expect('mount')
     cli('container', 'mount', ':/path:/other/path:')
 
 
-def test_unmount_traverse(cli, client, base_dir):
+def test_unmount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
     with open(base_dir / 'containers/Container2.yaml') as f:
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({
-            f'/.users/0xaaa{path}': [101],
-        }, f)
+    control_client.expect('paths', {
+        f'/.users/0xaaa{path}': [101],
+    })
+    control_client.expect('unmount')
     cli('container', 'unmount', ':/path:/other/path:')
 
 

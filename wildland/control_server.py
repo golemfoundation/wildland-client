@@ -25,7 +25,6 @@ from pathlib import Path
 import logging
 import threading
 from socketserver import ThreadingMixIn, UnixStreamServer, BaseRequestHandler
-import os
 from contextlib import closing
 import json
 

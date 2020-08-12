@@ -28,7 +28,6 @@ from dataclasses import dataclass
 import stat
 
 import click
-import yaml
 
 from ..manifest.schema import Schema
 

@@ -35,7 +35,7 @@ import dataclasses
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError
-
+from .control_client import ControlClient
 
 logger = logging.getLogger('fs_client')
 
@@ -62,7 +62,6 @@ class WildlandFSClient:
     def __init__(self, mount_dir: Path, socket_path: Path):
         self.mount_dir = mount_dir
         self.socket_path = socket_path
-        self.control_dir = self.mount_dir / '.control'
 
         self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
         self.path_tree: Optional[PathTree] = None
@@ -141,38 +140,35 @@ class WildlandFSClient:
         '''
         Check if Wildland is currently mounted.
         '''
-        return os.path.isdir(self.control_dir)
 
-    def write_control(self, name: str, data: bytes):
-        '''
-        Write to a .control file.
-        '''
-
-        control_path = self.control_dir / name
+        client = ControlClient()
         try:
-            with open(control_path, 'wb') as f:
-                f.write(data)
-        except IOError as e:
-            raise WildlandFSError(f'Control command failed: {control_path}: {e}')
+            client.connect(self.socket_path)
+        except IOError:
+            return False
+        client.disconnect()
+        return True
 
-    def read_control(self, name: str) -> bytes:
+    def run_control_command(self, name, **kwargs):
         '''
-        Read a .control file.
+        Run a command using the control socket.
         '''
 
-        control_path = self.control_dir / name
+        # TODO: This creates a new connection for every command. Improve
+        # performance by keeping an open connection.
+        client = ControlClient()
+        client.connect(self.socket_path)
         try:
-            with open(control_path, 'rb') as f:
-                return f.read()
-        except IOError as e:
-            raise WildlandFSError(f'Reading control file failed: {control_path}: {e}')
+            return client.run_command(name, **kwargs)
+        finally:
+            client.disconnect()
 
     def ensure_mounted(self):
         '''
         Check that Wildland is mounted, and raise an exception otherwise.
         '''
 
-        if not os.path.isdir(self.mount_dir / '.control'):
+        if not self.is_mounted():
             raise WildlandFSError(
                 f'Wildland not mounted at {self.mount_dir}')
 
@@ -215,7 +211,7 @@ class WildlandFSClient:
                 container, storage, is_default_user, remount=remount)
             for container, storage, is_default_user in params
         ]
-        self.write_control('mount', json.dumps(commands).encode() + b'\n\n')
+        self.run_control_command('mount', items=commands)
 
     def unmount_container(self, storage_id: int):
         '''
@@ -223,7 +219,7 @@ class WildlandFSClient:
         '''
 
         self.clear_cache()
-        self.write_control('unmount', str(storage_id).encode())
+        self.run_control_command('unmount', storage_id=storage_id)
 
     def find_storage_id(self, container: Container) -> Optional[int]:
         '''
@@ -311,7 +307,7 @@ class WildlandFSClient:
         if self.path_cache is not None:
             return self.path_cache
 
-        data = json.loads(self.read_control('paths'))
+        data = self.run_control_command('paths')
         self.path_cache = {
             PurePosixPath(p): storage_ids
             for p, storage_ids in data.items()
@@ -344,7 +340,7 @@ class WildlandFSClient:
         if self.info_cache is not None:
             return self.info_cache
 
-        data = json.loads(self.read_control('info'))
+        data = self.run_control_command('info')
         self.info_cache = {
             int(ident_str): {
                 'paths': [PurePosixPath(p) for p in storage['paths']],
@@ -383,11 +379,14 @@ class WildlandFSClient:
                                         is_default_user: bool,
                                         remount: bool = False):
         '''
-        Prepare command to be written to :file:`/.control/mount` to mount
-        a container
+        Prepare parameters for the control client to mount a container
 
         Args:
             container (Container): the container to be mounted
+            storage (Storage): the storage selected for container
+            is_default_user: mount in default user's namespace
+            remount: remount if mounted already (otherwise, will fail if
+            mounted already)
         '''
         paths = [
             os.fspath(self.get_user_path(container.signer, path))
