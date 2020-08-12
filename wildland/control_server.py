@@ -136,6 +136,7 @@ class ControlServer:
 
     def _serve_forever(self):
         assert self.socket_server
+        logger.debug('serve_forever')
         try:
             self.socket_server.serve_forever()
         except Exception:

@@ -102,9 +102,6 @@ class WildlandFS(fuse.Fuse):
         if not self.cmdline[0].breakpoint:
             self.control_breakpoint = None
 
-        socket_path = Path(self.cmdline[0].socket or '/tmp/wlfuse.sock')
-        self.control_server.start(socket_path)
-
         super().main(args)
 
     def init_logging(self, args):
@@ -281,6 +278,8 @@ class WildlandFS(fuse.Fuse):
 
     def fsinit(self):
         logger.info('mounting wildland')
+        socket_path = Path(self.cmdline[0].socket or '/tmp/wlfuse.sock')
+        self.control_server.start(socket_path)
 
     def fsdestroy(self):
         logger.info('unmounting wildland')
