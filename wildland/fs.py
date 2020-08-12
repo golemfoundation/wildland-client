@@ -181,7 +181,7 @@ class WildlandFS(fuse.Fuse):
         for params in items:
             paths = [PurePosixPath(p) for p in params['paths']]
             storage_params = params['storage']
-            read_only = params.get('read_only')
+            read_only = params.get('read-only')
             extra = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only)
