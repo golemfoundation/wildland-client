@@ -80,23 +80,22 @@ class FuseEnv:
             '-o', ','.join(options),
         ], cwd=PROJECT_PATH)
         try:
-            self.wait_for_mount()
             self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.conn.connect(str(self.socket_path))
+            self.wait_for_mount(self.conn)
         except Exception:
             self.unmount()
             raise
         self.mounted = True
 
-    def wait_for_mount(self, timeout=1):
+    def wait_for_mount(self, conn, timeout=1):
         start = time.time()
         now = start
         while now - start < timeout:
-            with open('/etc/mtab') as f:
-                for line in f.readlines():
-                    if 'wildland-fuse {} '.format(self.mnt_dir) in line:
-                        return
-
+            try:
+                conn.connect(str(self.socket_path))
+                return
+            except IOError:
+                pass
             time.sleep(0.05)
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
