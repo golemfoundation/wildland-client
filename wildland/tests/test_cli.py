@@ -20,7 +20,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name
 
 import shutil
-import json
 import os
 
 import pytest
@@ -362,7 +361,7 @@ def test_container_list(cli, base_dir):
     assert '  path: /PATH' in out_lines
 
 
-def test_container_mount(cli, base_dir):
+def test_container_mount(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
@@ -372,14 +371,12 @@ def test_container_mount(cli, base_dir):
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({}, f)
+    control_client.expect('paths', {})
+    control_client.expect('mount')
 
     cli('container', 'mount', 'Container')
 
-    # The command should write container manifest to .control/mount.
-    with open(base_dir / 'mnt/.control/mount') as f:
-        command = json.load(f)
+    command = control_client.calls['mount']['items']
     assert command[0]['storage']['signer'] == '0xaaa'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
@@ -392,8 +389,8 @@ def test_container_mount(cli, base_dir):
 
     # The command should not contain the default path.
     cli('container', 'mount', 'Container')
-    with open(base_dir / 'mnt/.control/mount') as f:
-        command = json.load(f)
+
+    command = control_client.calls['mount']['items']
     assert command[0]['storage']['signer'] == '0xaaa'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
@@ -402,24 +399,22 @@ def test_container_mount(cli, base_dir):
     assert command[0]['extra']['trusted_signer'] is None
 
 
-def test_container_mount_store_trusted_signer(cli, base_dir):
+def test_container_mount_store_trusted_signer(cli, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container', '--trusted')
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({}, f)
+    control_client.expect('paths', {})
+    control_client.expect('mount')
 
     cli('container', 'mount', 'Container')
 
-    with open(base_dir / 'mnt/.control/mount') as f:
-        command = json.load(f)
+    command = control_client.calls['mount']['items']
     assert command[0]['extra']['trusted_signer'] == '0xaaa'
 
 
-
-def test_container_mount_glob(cli, base_dir):
+def test_container_mount_glob(cli, base_dir, control_client):
     # The glob pattern will be normally expanded by shell,
     # but this feature is also used with default_containers.
 
@@ -431,28 +426,25 @@ def test_container_mount_glob(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container2')
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({}, f)
+    control_client.expect('paths', {})
+    control_client.expect('mount')
 
     cli('container', 'mount', base_dir / 'containers' / '*.yaml')
 
-    # The command should write container manifest to .control/mount.
-    with open(base_dir / 'mnt/.control/mount') as f:
-        command = json.load(f)
-
+    command = control_client.calls['mount']['items']
     assert len(command) == 2
     assert command[0]['paths'][1] == '/.users/0xaaa/PATH1'
     assert command[1]['paths'][1] == '/.users/0xaaa/PATH2'
 
 
-def test_container_mount_save(cli, base_dir):
+def test_container_mount_save(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({}, f)
+    control_client.expect('paths', {})
+    control_client.expect('mount')
 
     cli('container', 'mount', '--save', 'Container')
 
@@ -468,7 +460,7 @@ def test_container_mount_save(cli, base_dir):
     assert config['default-containers'] == ['Container']
 
 
-def test_container_mount_inline_storage(cli, base_dir):
+def test_container_mount_inline_storage(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
@@ -478,14 +470,12 @@ def test_container_mount_inline_storage(cli, base_dir):
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({}, f)
+    control_client.expect('paths', {})
+    control_client.expect('mount')
 
     cli('container', 'mount', 'Container')
 
-    # The command should write container manifest to .control/mount.
-    with open(base_dir / 'mnt/.control/mount') as f:
-        command = json.load(f)
+    command = control_client.calls['mount']['items']
     assert command[0]['storage']['signer'] == '0xaaa'
     assert command[0]['storage']['path'] == '/STORAGE'
     assert command[0]['paths'] == [
@@ -496,7 +486,7 @@ def test_container_mount_inline_storage(cli, base_dir):
     ]
 
 
-def test_container_mount_check_trusted_signer(cli, base_dir):
+def test_container_mount_check_trusted_signer(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
@@ -525,31 +515,28 @@ def test_container_mount_check_trusted_signer(cli, base_dir):
 
     os.mkdir(base_dir / 'mnt/.control/storage')
     os.mkdir(base_dir / 'mnt/.control/storage/1')
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({'/trusted': [1]}, f)
+    control_client.expect('paths', {'/trusted': [1]})
+    control_client.expect('mount')
 
     # Should not mount if the storage is not trusted
 
-    with open(base_dir / 'mnt/.control/info', 'w') as f:
-        json.dump(make_info(None), f)
+    control_client.expect('info', make_info(None))
     with pytest.raises(ManifestError, match='Signature expected'):
         cli('container', 'mount', manifest_path)
 
     # Should not mount if the signer is different
 
-    with open(base_dir / 'mnt/.control/info', 'w') as f:
-        json.dump(make_info('0xbbb'), f)
+    control_client.expect('info', make_info('0xbbb'))
     with pytest.raises(ManifestError, match='Wrong signer for manifest without signature'):
         cli('container', 'mount', manifest_path)
 
     # Should mount if the storage is trusted and with right signer
 
-    with open(base_dir / 'mnt/.control/info', 'w') as f:
-        json.dump(make_info('0xaaa'), f)
+    control_client.expect('info', make_info('0xaaa'))
     cli('container', 'mount', manifest_path)
 
 
-def test_container_unmount(cli, base_dir):
+def test_container_unmount(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
@@ -557,58 +544,47 @@ def test_container_unmount(cli, base_dir):
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({
-            f'/.users/0xaaa{path}': [101],
-            path: [102],
-            '/PATH2': [103],
-        }, f)
+    control_client.expect('paths', {
+        f'/.users/0xaaa{path}': [101],
+        path: [102],
+        '/PATH2': [103],
+    })
+    control_client.expect('unmount')
     cli('container', 'unmount', 'Container')
 
-    with open(base_dir / 'mnt/.control/unmount') as f:
-        data = f.read()
-    assert data == '101'
+    assert control_client.calls['unmount']['storage_id'] == 101
 
 
-def test_container_unmount_by_path(cli, base_dir):
-    with open(base_dir / 'mnt/.control/paths', 'w') as f:
-        json.dump({
-            '/PATH': [101],
-            '/PATH2': [102],
-        }, f)
+def test_container_unmount_by_path(cli, control_client):
+    control_client.expect('paths', {
+        '/PATH': [101],
+        '/PATH2': [102],
+    })
+    control_client.expect('unmount')
     cli('container', 'unmount', '--path', '/PATH2')
 
-    with open(base_dir / 'mnt/.control/unmount') as f:
-        data = f.read()
-    assert data == '102'
+    assert control_client.calls['unmount']['storage_id'] == 102
 
 
 ## Status
 
 
-def test_status(cli, base_dir):
-    with open(base_dir / 'mnt/.control/info', 'w') as f:
-        json.dump({
-            '0': {
-                'paths': ['/.control'],
-                'type': '',
-                'extra': {},
-            },
-            '1': {
-                'paths': ['/path1', '/path1.1'],
-                'type': 'local',
-                'extra': {},
-            },
-            '2': {
-                'paths': ['/path2', '/path2.1'],
-                'type': 's3',
-                'extra': {},
-            },
-        }, f)
+def test_status(cli, control_client):
+    control_client.expect('info', {
+        '1': {
+            'paths': ['/path1', '/path1.1'],
+            'type': 'local',
+            'extra': {},
+        },
+        '2': {
+            'paths': ['/path2', '/path2.1'],
+            'type': 's3',
+            'extra': {},
+        },
+    })
 
     result = cli('status', capture=True)
     out_lines = result.splitlines()
-    assert '/.control' not in out_lines
     assert '/path1' in out_lines
     assert '  storage: local' in out_lines
     assert '    /path1' in out_lines

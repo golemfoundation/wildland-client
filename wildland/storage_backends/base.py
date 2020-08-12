@@ -28,10 +28,8 @@ from dataclasses import dataclass
 import stat
 
 import click
-import yaml
 
 from ..manifest.schema import Schema
-from .control_decorators import control_file
 
 
 class OptionalError(NotImplementedError):
@@ -180,10 +178,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return StorageBackend._types
 
     # pylint: disable=missing-docstring, no-self-use
-
-    @control_file('manifest.yaml')
-    def control_manifest_read(self) -> bytes:
-        return yaml.dump(self.params).encode('ascii')
 
     def mount(self) -> None:
         '''

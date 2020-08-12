@@ -4,6 +4,7 @@ import tempfile
 import shutil
 from pathlib import Path
 import os
+from unittest import mock
 
 import yaml
 import pytest
@@ -58,3 +59,69 @@ def cli_fail(cli):
         with pytest.raises(Exception):
             cli(*args)
     return cli_fail
+
+
+class TestControlClient:
+    '''
+    A test version of ControlClient.
+
+    Usage:
+
+        # Set up:
+        client = TestControlClient()
+        client.expect('foo', 1)
+        client.expect('bar')
+
+        # Run (in code under test):
+        client.run_command('foo')         # 1
+        client.run_command('bar', baz=2)  # None
+
+        # Examine:
+        client.calls['foo']   # {}
+        client.calls['bar']   # {'baz': 2}
+        client.check()
+    '''
+
+    # pylint: disable=missing-docstring
+    def __init__(self):
+        self.calls = {}
+        self.results = {}
+
+    def connect(self, socket_path):
+        pass
+
+    def disconnect(self):
+        pass
+
+    def run_command(self, name, **kwargs):
+        assert name in self.results, f'unrecognized command: {name}'
+        self.calls[name] = kwargs
+        return self.results[name]
+
+    def expect(self, name, result=None):
+        '''
+        Add a command to a list of expected commands, with a result to be
+        returned.
+        '''
+
+        self.results[name] = result
+
+    def check(self):
+        '''
+        Check if all expected commands have been executed.
+        '''
+        unseen = set(self.results) - set(self.calls)
+        assert not unseen, f'some commands have not been called: {unseen}'
+
+
+@pytest.fixture
+def control_client():
+    '''
+    Mock the ControlClient and return a mock run_command.
+    '''
+
+    control_client = TestControlClient()
+    with mock.patch('wildland.fs_client.ControlClient') as mock_class:
+        mock_class.return_value = control_client
+        yield control_client
+    control_client.check()

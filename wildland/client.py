@@ -67,7 +67,8 @@ class Client:
         self.storage_dir = Path(self.config.get('storage-dir'))
 
         mount_dir = Path(self.config.get('mount-dir'))
-        self.fs_client = WildlandFSClient(mount_dir)
+        socket_path = Path(self.config.get('socket-path'))
+        self.fs_client = WildlandFSClient(mount_dir, socket_path)
 
         if sig is None:
             if self.config.get('dummy'):

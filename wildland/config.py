@@ -137,6 +137,7 @@ class Config:
             'container-dir': base_dir / 'containers',
             'key-dir': base_dir / 'keys',
             'mount-dir': home_dir / 'wildland',
+            'socket-path': base_dir / 'wlfuse.sock',
             'dummy': False,
             '@default': None,
             '@default-signer': None,

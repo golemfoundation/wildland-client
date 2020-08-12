@@ -14,7 +14,8 @@ time -p ./ci/bear-sqlite-generator /tmp/bear.sqlite
 ./wl container mount BearDB
 
 refresh() {
-    echo > $HOME/wildland/.control/clear-cache
+    # TODO: this suppresses errors returned from wlfuse
+    echo '{"cmd": "clear-cache"}' | nc -NU $HOME/.config/wildland/wlfuse.sock >/dev/null
 }
 
 # Benchmark:

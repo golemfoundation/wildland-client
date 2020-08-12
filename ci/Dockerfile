@@ -22,6 +22,7 @@ RUN apt-get -qy update && apt-get install -y \
       pkg-config \
       time \
       tree \
+      netcat-openbsd \
       moreutils
 
 RUN useradd --create-home user

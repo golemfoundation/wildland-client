@@ -211,6 +211,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         synthetic = self.root.readdir(path)
 
         if len(resolved) == 0 and synthetic is None:
+            if path == PurePosixPath('/'):
+                return []
             raise FileNotFoundError(errno.ENOENT, '')
 
         result: Set[str] = set()
@@ -293,6 +295,11 @@ class ConflictResolver(metaclass=abc.ABCMeta):
           st (Attr): file attributes; possibly overriden to be read-only
           res (Resolved): resolution result (if there is exactly one)
         '''
+
+        if path == PurePosixPath('/'):
+            return Attr(
+                mode=stat.S_IFDIR | 0o555,
+            ), None
 
         m = re.match(r'^(.*).wl.(\d+)$', path.name)
         suffix: Optional[int]

@@ -27,11 +27,16 @@ from pathlib import Path
 import traceback
 import time
 import json
+import socket
 
 import pytest
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
+
+
+class FuseError(Exception):
+    pass
 
 
 class FuseEnv:
@@ -47,13 +52,18 @@ class FuseEnv:
             env.destroy()
 
     The above can be wrapped in a Pytest fixture, see tests.py.
+
+    This roughly corresponds to WildlandFSClient (fs_client.py), but
+    intentionally does not depend on the rest of Wildland code.
     '''
 
     def __init__(self):
         self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
         self.mnt_dir = self.test_dir / 'mnt'
+        self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False
         self.proc = None
+        self.conn = None
 
         os.mkdir(self.test_dir / 'mnt')
         os.mkdir(self.test_dir / 'storage')
@@ -62,7 +72,7 @@ class FuseEnv:
         assert not self.mounted, 'only one mount() at a time'
         mnt_dir = self.test_dir / 'mnt'
 
-        options = ['log=-']
+        options = ['log=-', 'socket=' + str(self.socket_path)]
 
         self.proc = subprocess.Popen([
             ENTRY_POINT, mnt_dir,
@@ -70,21 +80,22 @@ class FuseEnv:
             '-o', ','.join(options),
         ], cwd=PROJECT_PATH)
         try:
-            self.wait_for_mount()
+            self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.wait_for_mount(self.conn)
         except Exception:
             self.unmount()
             raise
         self.mounted = True
 
-    def wait_for_mount(self, timeout=1):
+    def wait_for_mount(self, conn, timeout=1):
         start = time.time()
         now = start
         while now - start < timeout:
-            with open('/etc/mtab') as f:
-                for line in f.readlines():
-                    if 'wildland-fuse {} '.format(self.mnt_dir) in line:
-                        return
-
+            try:
+                conn.connect(str(self.socket_path))
+                return
+            except IOError:
+                pass
             time.sleep(0.05)
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
@@ -93,24 +104,21 @@ class FuseEnv:
         self.mount_multiple_storages([(paths, storage)], remount)
 
     def mount_multiple_storages(self, storages, remount=False):
-        cmd = []
+        items = []
         for paths, storage in storages:
-            cmd.append({
+            items.append({
                 'paths': [str(p) for p in paths],
                 'storage': storage,
                 'remount': remount,
             })
 
-        with open(self.mnt_dir / '.control/mount', 'w') as f:
-            f.write(json.dumps(cmd) + '\n\n')
+        self.run_control_command('mount', {'items': items})
 
     def unmount_storage(self, ident):
-        with open(self.mnt_dir / '.control/unmount', 'w') as f:
-            f.write(str(ident))
+        self.run_control_command('unmount', {'storage-id': ident})
 
     def refresh_storage(self, ident):
-        with open(self.mnt_dir / '.control/clear-cache', 'w') as f:
-            f.write(str(ident))
+        self.run_control_command('clear-cache', {'storage-id': ident})
 
     def create_dir(self, name):
         os.mkdir(self.test_dir / name)
@@ -127,7 +135,10 @@ class FuseEnv:
     def unmount(self):
         assert self.mounted
         assert self.proc
+        assert self.conn
 
+        self.conn.close()
+        self.conn = None
         subprocess.run(['fusermount', '-u', self.mnt_dir], check=False)
         self.proc.wait()
         self.proc = False
@@ -140,3 +151,24 @@ class FuseEnv:
             except Exception:
                 traceback.print_exc()
         shutil.rmtree(self.test_dir)
+
+    def run_control_command(self, name: str, args=None):
+        '''
+        Connect to the control server and run a command.
+        '''
+
+        assert self.conn
+
+        request = {'cmd': name}
+        if args is not None:
+            request['args'] = args
+
+        self.conn.sendall(json.dumps(request).encode() + b'\n\n')
+
+        response_bytes = self.conn.recv(1024)
+        response = json.loads(response_bytes)
+        if 'error' in response:
+            error_class = response['error']['class']
+            error_desc = response['error']['desc']
+            raise FuseError(f'{error_class}: {error_desc}')
+        return response['result']
