@@ -390,3 +390,36 @@ def test_read_buffered(env, storage_type):
 
         f.seek(0)
         assert f.read() == data
+
+
+def test_watch(env, storage_type):
+    env.create_dir('storage/storage1')
+    storage1 = storage_manifest(env, 'storage/storage1', storage_type)
+    env.mount_storage(['/container1/'], storage1)
+
+    watch_id = env.run_control_command(
+        'add-watch', {'pattern': '/container1/*.txt'})
+    with open(env.mnt_dir / 'container1/file1.txt', 'w') as f:
+        event = env.recv_event()
+        assert event == {
+            'type': 'create',
+            'path': '/container1/file1.txt',
+            'watch-id': watch_id,
+        }
+
+        f.write('hello')
+        f.flush()
+        event = env.recv_event()
+        assert event == {
+            'type': 'modify',
+            'path': '/container1/file1.txt',
+            'watch-id': watch_id,
+        }
+
+    os.unlink(env.mnt_dir / 'container1/file1.txt')
+    event = env.recv_event()
+    assert event == {
+        'type': 'delete',
+        'path': '/container1/file1.txt',
+        'watch-id': watch_id,
+    }

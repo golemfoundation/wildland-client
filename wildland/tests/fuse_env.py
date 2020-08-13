@@ -172,3 +172,15 @@ class FuseEnv:
             error_desc = response['error']['desc']
             raise FuseError(f'{error_class}: {error_desc}')
         return response['result']
+
+    def recv_event(self):
+        '''
+        Receive an event from control server.
+        '''
+
+        assert self.conn
+
+        response_bytes = self.conn.recv(1024)
+        response = json.loads(response_bytes)
+        assert 'event' in response, 'expecting an event'
+        return response['event']

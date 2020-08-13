@@ -27,6 +27,7 @@ import os
 from pathlib import PurePosixPath, Path
 from typing import List, Dict, Optional
 import threading
+from dataclasses import dataclass
 
 import fuse
 fuse.fuse_python_api = 0, 2
@@ -36,10 +37,21 @@ from .conflict import ConflictResolver
 from .storage_backends.base import StorageBackend, Attr
 from .exc import WildlandError
 from .log import init_logging
-from .control_server import ControlServer, control_command
+from .control_server import ControlServer, ControlHandler, control_command
 
 
 logger = logging.getLogger('fuse')
+
+
+@dataclass
+class Watch:
+    '''
+    A watch added by a connected user.
+    '''
+
+    id: int
+    pattern: str
+    handler: ControlHandler
 
 
 class WildlandFS(fuse.Fuse):
@@ -69,7 +81,11 @@ class WildlandFS(fuse.Fuse):
         self.storage_paths: Dict[int, List[PurePosixPath]] = {}
         self.main_paths: Dict[PurePosixPath, int] = {}
         self.storage_counter = 1
+
         self.mount_lock = threading.Lock()
+
+        self.watches: Dict[int, Watch] = {}
+        self.watch_counter = 1
 
         self.uid = None
         self.gid = None
@@ -249,6 +265,22 @@ class WildlandFS(fuse.Fuse):
                 }
         return result
 
+    @control_command('add-watch')
+    def control_add_watch(self, handler: ControlHandler, pattern):
+        if not pattern.startswith('/'):
+            raise WildlandError('Pattern should start with /')
+        with self.mount_lock:
+            watch = Watch(
+                id=self.watch_counter,
+                pattern=pattern,
+                handler=handler,
+            )
+            logger.info('adding watch %d for %r', watch.id, pattern)
+            self.watches[watch.id] = watch
+            self.watch_counter += 1
+            handler.on_close(lambda: self._remove_watch(watch.id))
+            return watch.id
+
     @control_command('breakpoint')
     def control_breakpoint(self, _handler):
         # Disabled in main() unless an option is given.
@@ -271,6 +303,47 @@ class WildlandFS(fuse.Fuse):
             st_mtime=attr.timestamp,
             st_ctime=attr.timestamp,
         )
+
+    def _notify_storage_watches(self, method_name, relpath, storage_id):
+        with self.mount_lock:
+            if not self.watches:
+                return
+
+        for storage_path in self.storage_paths[storage_id]:
+            path = storage_path / relpath
+            self._notify_watches(method_name, path)
+
+    def _notify_watches(self, method_name, path):
+        watches = []
+        with self.mount_lock:
+            for watch in self.watches.values():
+                if path.match(watch.pattern):
+                    watches.append(watch)
+
+        if not watches:
+            return
+
+        event_type = {
+            'create': 'create',
+            'mkdir': 'mkdir',
+            'unlink': 'delete',
+            'rmdir': 'delete',
+        }.get(method_name, 'modify')
+        for watch in watches:
+            event = {
+                'type': event_type,
+                'path': str(path),
+                'watch-id': watch.id,
+            }
+            logger.info('notify watch %d (%r): %s %s',
+                        watch.id, watch.pattern, event_type, path)
+            watch.handler.send_event(event)
+
+    def _remove_watch(self, watch_id):
+        with self.mount_lock:
+            logger.info('removing watch %d for %r',
+                        watch_id, self.watches[watch_id].pattern)
+            del self.watches[watch_id]
 
     #
     # FUSE API
@@ -316,7 +389,11 @@ class WildlandFS(fuse.Fuse):
             raise IOError(errno.EROFS, str(path))
 
         relpath = res.relpath / path.name if parent else res.relpath
-        return getattr(storage, method_name)(relpath, *args, **kwargs)
+        result = getattr(storage, method_name)(relpath, *args, **kwargs)
+        # If successful, notify watches.
+        if modify:
+            self._notify_storage_watches(method_name, relpath, res.ident)
+        return result
 
     def open(self, path, flags):
         modify = bool(flags & (os.O_RDWR | os.O_WRONLY))

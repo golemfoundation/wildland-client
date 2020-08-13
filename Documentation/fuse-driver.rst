@@ -52,7 +52,9 @@ Messages are passed using JSON. A JSON document has to end with two newlines
 A **request** is a JSON message with the following keys:
 
 * ``cmd`` - command name,
-* ``args`` - a dictionary of command arguments, can be omitted if empty.
+* ``args`` (optional) - a dictionary of command arguments, can be omitted if
+  empty,
+* ``id`` (optional) - a request ID.
 
 By convention, command name and arguments are all lower-case, with words
 separated by dashes (``-``). This is the same as in Wildland manifests.
@@ -67,17 +69,20 @@ A **response** can be a successful response or an error:
 * An error response contains an ``error`` dictionary, with ``class`` and
   ``desc`` fields.
 
+If the request contains an ``id`` field, the corresponding response will
+contain an ``id`` field with the same value.
+
 Example request::
 
-   { "cmd": "unmount", "args": { "storage_id": 1 }}
+   { "cmd": "unmount", "args": { "storage_id": 1 }, "id": 123 }
 
 Example successful response::
 
-   { "result": null }
+   { "result": null, "id": 123 }
 
 Example error response::
 
-   { "error": { "class": "WildlandError", "desc": "Storage not found" }}
+   { "error": { "class": "WildlandError", "desc": "Storage not found" }, "id": 123 }
 
 To connect to control interface interactively (for debugging purposes), you can
 use netcat::
@@ -92,6 +97,14 @@ After typing the request, followed by an empty line, you will see the result::
 (Note that ``netcat-openbsd`` requires also the ``-N`` option to close
 connection on local EOF).
 
+Events
+^^^^^^
+
+The server can also send asynchronous events sent by the server, if the user
+subscribes to them. In such case, when receiving messages, you must be prepared
+to receive an event before the command response.
+
+An event message is a JSON message with ``event`` field.
 
 Commands
 ^^^^^^^^
@@ -146,3 +159,24 @@ The commands are currently implemented in ``wildland/fs.py``.
 
   Be careful - while in debugger, access to the Wildland filesystem will be
   blocked, which may freeze other programs.
+
+* ``add-watch(pattern)`` - watch for changes to files in Wildland filesystem.
+  The pattern is a glob-style pattern, such as ``/*/container.yaml``. It has to
+  be absolute (i.e. begin with a slash).
+
+  The result is an integer watch ID.
+
+  After adding a watch, the server will send events whenever a file or
+  directory matching the pattern is changed, for example::
+
+      {
+        "type": "create",
+        "path": "/path/to/file",
+        "watch-id": 123
+      }
+
+  The event type can be ``create``, ``delete`` or ``modify``.
+
+  Note that unless the storage backend provides special support, the FUSE
+  driver will report only locally originated changes, not changes to underlying
+  storage (e.g. made from another device).
