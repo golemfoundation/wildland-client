@@ -34,20 +34,21 @@ class TestObj:
     # pylint: disable=no-self-use
 
     @control_command('hello')
-    def control_hello(self):
+    def control_hello(self, handler):
         return 'hello world'
 
-    @control_command('add')
-    def control_add(self, a, b, c=0):
-        return a + b + c
-
     @control_command('test-args')
-    def control_test_args(self, test_arg):
+    def control_test_args(self, handler, test_arg):
         return test_arg
 
     @control_command('boom')
-    def control_boom(self):
+    def control_boom(self, handler):
         raise ValueError('boom')
+
+    @control_command('send-event')
+    def control_event(self, handler):
+        handler.send_event('this is event')
+        return 'this is result'
 
 
 @pytest.fixture
@@ -83,52 +84,79 @@ def client(server, socket_path):
         client.disconnect()
 
 
-def test_control_server(server, socket_path):
+@pytest.fixture
+def conn(server, socket_path):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
         conn.connect(str(socket_path))
-
-        conn.sendall(json.dumps({'cmd': 'hello'}).encode())
-        conn.sendall(b'\n\n')
-
-        response_bytes = conn.recv(1024)
-        assert response_bytes.endswith(b'\n\n')
-        response = json.loads(response_bytes)
-        assert response == {'result': 'hello world'}
-
-        conn.sendall(json.dumps({'cmd': 'test-args', 'args': {'test-arg': 123}}).encode())
-        conn.sendall(b'\n\n')
-
-        response = json.loads(conn.recv(1024))
-        assert response == {'result': 123}
-
-        conn.sendall(json.dumps({'cmd': 'add', 'args': {'a': 1, 'b': 2}}).encode())
-        conn.shutdown(socket.SHUT_WR)
-
-        response = json.loads(conn.recv(1024))
-        assert response == {'result': 3}
+        yield conn
 
 
-def test_control_server_error(server, socket_path):
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-        conn.connect(str(socket_path))
+def test_server_simple_command(conn):
+    conn.sendall(json.dumps({'cmd': 'hello'}).encode())
+    conn.sendall(b'\n\n')
 
-        conn.sendall(b'malformed\n\n')
+    response_bytes = conn.recv(1024)
+    assert response_bytes.endswith(b'\n\n')
+    response = json.loads(response_bytes)
+    assert response == {'result': 'hello world'}
 
-        response = json.loads(conn.recv(1024))
-        assert response['error']['class'] == 'JSONDecodeError'
 
-        conn.sendall(json.dumps({'cmd': 'boom'}).encode())
-        conn.sendall(b'\n\n')
+def test_server_request_id(conn):
+    conn.sendall(json.dumps({'cmd': 'hello', 'id': 123}).encode())
+    conn.sendall(b'\n\n')
 
-        response = json.loads(conn.recv(1024))
-        assert response['error']['class'] == 'ValueError'
-        assert response['error']['desc'] == 'boom'
+    response = json.loads(conn.recv(1024))
+    assert response == {'result': 'hello world', 'id': 123}
+
+
+def test_server_argument(conn):
+    conn.sendall(json.dumps({'cmd': 'test-args', 'args': {'test-arg': 123}}).encode())
+    conn.sendall(b'\n\n')
+
+    response = json.loads(conn.recv(1024))
+    assert response == {'result': 123}
+
+
+def test_server_events(conn):
+    conn.sendall(json.dumps({'cmd': 'send-event'}).encode())
+    conn.sendall(b'\n\n')
+
+    response = json.loads(conn.recv(1024))
+    assert response == {'event': 'this is event'}
+
+    response = json.loads(conn.recv(1024))
+    assert response == {'result': 'this is result'}
+
+
+def test_server_eof(conn):
+    conn.sendall(json.dumps({'cmd': 'hello'}).encode())
+    conn.shutdown(socket.SHUT_WR)
+
+    response = json.loads(conn.recv(1024))
+    assert response == {'result': 'hello world'}
+
+
+def test_server_error(conn):
+    conn.sendall(b'malformed\n\n')
+
+    response = json.loads(conn.recv(1024))
+    assert response['error']['class'] == 'JSONDecodeError'
+
+    conn.sendall(json.dumps({'cmd': 'boom', 'id': 123}).encode())
+    conn.sendall(b'\n\n')
+
+    response = json.loads(conn.recv(1024))
+    assert response['error']['class'] == 'ValueError'
+    assert response['error']['desc'] == 'boom'
+    assert response['id'] == 123
 
 
 def test_control_client(client: ControlClient):
     assert client.run_command('hello') == 'hello world'
-    assert client.run_command('add', a=1, b=2) == 3
     assert client.run_command('test-args', test_arg=123) == 123
+
+    assert client.run_command('send-event') == 'this is result'
+    assert client.wait_for_events() == ['this is event']
 
 
 def test_control_client_error(client: ControlClient):

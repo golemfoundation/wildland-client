@@ -25,6 +25,7 @@ from pathlib import Path
 import socket
 import json
 import logging
+from typing import Optional, List, Iterator
 
 from .exc import WildlandError
 
@@ -45,6 +46,8 @@ class ControlClient:
     def __init__(self):
         self.conn = None
         self.conn_file = None
+        self.pending_events = []
+        self.id_counter = 1
 
     def connect(self, path: Path):
         '''
@@ -81,20 +84,26 @@ class ControlClient:
         assert self.conn_file
 
         args = {key.replace('_', '-'): value for key, value in kwargs.items()}
-        request = {'cmd': name, 'args': args}
+        request = {'cmd': name, 'args': args, 'id': self.id_counter}
         logger.debug('cmd: %s', request)
         self.conn.sendall(json.dumps(request).encode() + b'\n\n')
 
-        lines = []
-        for line in self.conn_file:
-            lines.append(line)
-            if line == '\n':
-                break
-        response_str = ''.join(lines)
-        if response_str.strip() == '':
-            raise ControlClientError('Empty response from server')
+        self.id_counter += 1
 
-        response = json.loads(response_str)
+        response = None
+        while response is None:
+            message = self._recv_message()
+            if message is None:
+                raise ControlClientError('No response from server')
+            if 'event' in message:
+                self.pending_events.append(message['event'])
+            else:
+                response = message
+
+        response_id = response.get('id')
+        if response_id != request['id']:
+            raise ControlClientError(
+                f'Wrong response ID: expected {request["id"]}, got {response_id}')
 
         if 'error' in response:
             error_class = response['error']['class']
@@ -105,3 +114,53 @@ class ControlClient:
 
         logger.debug('%s -> %s', name, response['result'])
         return response['result']
+
+    def wait_for_events(self) -> List[dict]:
+        '''
+        Wait for the server to send events (or return pending events).
+
+        Empty list means the connection has been closed.
+        '''
+
+        if self.pending_events:
+            events = self.pending_events
+            self.pending_events = []
+            return events
+
+        message = self._recv_message()
+        if not message:
+            return []
+        if 'event' not in message:
+            raise ControlClientError(f'Unexpected message: {message}')
+        return [message['event']]
+
+    def iter_events(self) -> Iterator[dict]:
+        '''
+        Iterate over events from server.
+        '''
+
+        while True:
+            events = self.wait_for_events()
+            if not events:
+                break
+            yield from events
+
+    def _recv_message(self) -> Optional[dict]:
+        '''
+        Receive a message from the server. Returns None on EOF
+        '''
+
+        assert self.conn_file
+
+        lines = []
+        for line in self.conn_file:
+            lines.append(line)
+            if line == '\n':
+                break
+        # TODO: this doesn't distinguish empty lines from EOF
+        # (in case of empty lines, we should raise an error).
+        response_str = ''.join(lines)
+        if response_str.strip() == '':
+            return None
+
+        return json.loads(response_str)

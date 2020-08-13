@@ -177,7 +177,7 @@ class WildlandFS(fuse.Fuse):
     #
 
     @control_command('mount')
-    def control_mount(self, items):
+    def control_mount(self, _handler, items):
         for params in items:
             paths = [PurePosixPath(p) for p in params['paths']]
             storage_params = params['storage']
@@ -189,14 +189,14 @@ class WildlandFS(fuse.Fuse):
                 self._mount_storage(paths, storage, extra, remount)
 
     @control_command('unmount')
-    def control_unmount(self, storage_id: int):
+    def control_unmount(self, _handler, storage_id: int):
         if storage_id not in self.storages:
             raise WildlandError(f'storage not found: {storage_id}')
         with self.mount_lock:
             self._unmount_storage(storage_id)
 
     @control_command('clear-cache')
-    def control_clear_cache(self, storage_id=None):
+    def control_clear_cache(self, _handler, storage_id=None):
         with self.mount_lock:
             if storage_id is None:
                 for ident, storage in self.storages.items():
@@ -210,7 +210,7 @@ class WildlandFS(fuse.Fuse):
             self.storages[storage_id].clear_cache()
 
     @control_command('paths')
-    def control_paths(self):
+    def control_paths(self, _handler):
         '''
         Mounted storages by path, for example::
 
@@ -225,7 +225,7 @@ class WildlandFS(fuse.Fuse):
         return result
 
     @control_command('info')
-    def control_info(self):
+    def control_info(self, _handler):
         '''
         Storage info by main path, for example::
 
@@ -250,14 +250,14 @@ class WildlandFS(fuse.Fuse):
         return result
 
     @control_command('breakpoint')
-    def control_breakpoint(self):
+    def control_breakpoint(self, _handler):
         # Disabled in main() unless an option is given.
         # (TODO: not necessary with socket server?)
         # pylint: disable=method-hidden
         breakpoint()
 
     @control_command('test')
-    def control_test(self, **kwargs):
+    def control_test(self, _handler, **kwargs):
         return {'kwargs': kwargs}
 
     def _stat(self, attr: Attr) -> fuse.Stat:

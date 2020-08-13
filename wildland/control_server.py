@@ -42,7 +42,7 @@ def control_command(name):
     Example:
 
         @command('get-manifest')
-        def control_get_manifest(container_id):
+        def control_get_manifest(handler, container_id):
             return [...]
 
     This will correspond to a command taking the following JSON request:
@@ -57,13 +57,90 @@ def control_command(name):
     return _wrapper
 
 
-class RequestHandler(BaseRequestHandler):
+class ControlHandler(BaseRequestHandler):
     '''
-    A glue class to proxy the requests back to our ControlServer class.
+    A class that handles a single client connection.
     '''
 
+    def __init__(self, request, client_address, server):
+        self.commands = server.commands
+        self.lock = threading.Lock()
+        self.close_handlers = []
+
+        # Apparently this calls handle() already.
+        super().__init__(request, client_address, server)
+
+    def on_close(self, close_handler):
+        '''
+        Register a callback to be called when the connection is finished.
+        '''
+
+        self.close_handlers.append(close_handler)
+
+    def send_event(self, event):
+        '''
+        Send an asynchronous event to the user. Connection errors will be
+        ignored, because the connection might be closed already.
+        '''
+
+        try:
+            self._send_message({'event': event})
+        except IOError:
+            logger.exception('error while sending event')
+
     def handle(self):
-        self.server.control_handle(self.request)  # type: ignore
+        try:
+            with closing(self.request.makefile()) as f:
+                lines = []
+                for line in f:
+                    lines.append(line)
+                    if line == '\n':
+                        request = ''.join(lines)
+                        if request.strip() != '':
+                            lines.clear()
+                            self._handle_request(request)
+
+                # The last request can end with EOF instead of separator.
+                request = ''.join(lines)
+                if request.strip() != '':
+                    self._handle_request(request)
+        finally:
+            with self.lock:
+                self.request.close()
+            for close_handler in self.close_handlers:
+                close_handler()
+
+    def _send_message(self, message):
+        message_bytes = json.dumps(message, indent=2).encode() + b'\n\n'
+        with self.lock:
+            self.request.sendall(message_bytes)
+
+    def _handle_request(self, request_str: str):
+        request = None
+        try:
+            request = json.loads(request_str)
+
+            assert isinstance(request, dict), 'expecting a dictionary'
+            assert 'cmd' in request, 'expecting "cmd" key'
+
+            cmd = request['cmd']
+            assert cmd in self.commands, f'unknown command: {cmd}'
+
+            args = request.get('args') or {}
+            args = {key.replace('-', '_'): value for key, value in args.items()}
+
+            result = self.commands[cmd](self, **args)
+
+            response = {'result': result}
+            logger.debug('%r -> %r', request, result)
+        except Exception as e:
+            logger.exception('error when handling: %r', request or request_str)
+            response = {'error': {'class': type(e).__name__, 'desc': str(e)}}
+
+        if request and 'id' in request:
+            response['id'] = request['id']
+
+        self._send_message(response)
 
 
 class SocketServer(ThreadingMixIn, UnixStreamServer):
@@ -88,17 +165,18 @@ class ControlServer:
 
     The request format is (TODO: request IDs):
 
-        {"cmd": "<name>", "args": {<arguments>}}
+        {"cmd": "<name>", "args": {<arguments>}, "id": 10}
 
-    The "args" is an optional dictionary of command arguments.
+    The "args" is an optional dictionary of command arguments, and "id" is an
+    optional request token (if present, it will be included in response).
 
     The response format is:
 
-        {"result": <result>}
+        {"result": <result>, "id": 10}
 
     In case of error:
 
-        {"error": {"class": "<class>", "desc": "<description>"}}
+        {"error": {"class": "<class>", "desc": "<description>"}, "id": 10}
     '''
 
     def __init__(self):
@@ -125,9 +203,9 @@ class ControlServer:
         logger.info('starting server at %s', path)
         if path.exists():
             path.unlink()
-        self.socket_server = SocketServer(str(path), RequestHandler)
+        self.socket_server = SocketServer(str(path), ControlHandler)
         # pylint: disable=attribute-defined-outside-init
-        self.socket_server.control_handle = self._handle_connection  # type: ignore
+        self.socket_server.commands = self.commands  # type: ignore
 
         self.server_thread = threading.Thread(
             name='control-server',
@@ -159,48 +237,3 @@ class ControlServer:
 
         self.socket_server = None
         self.server_thread = None
-
-    def _handle_connection(self, conn):
-        try:
-            with closing(conn), closing(conn.makefile()) as f:
-                lines = []
-                for line in f:
-                    lines.append(line)
-                    if line == '\n':
-                        request = ''.join(lines)
-                        if request.strip() != '':
-                            lines.clear()
-                            response = self._handle_request(request)
-                            conn.sendall(response.encode())
-
-                # The last request can end with EOF instead of separator.
-                request = ''.join(lines)
-                if request.strip() != '':
-                    response = self._handle_request(request)
-                    conn.sendall(response.encode())
-        except Exception:
-            logger.exception('error in connection handler')
-
-    def _handle_request(self, request_str: str) -> str:
-        request = None
-        try:
-            request = json.loads(request_str)
-
-            assert isinstance(request, dict), 'expecting a dictionary'
-            assert 'cmd' in request, 'expecting "cmd" key'
-
-            cmd = request['cmd']
-            assert cmd in self.commands, f'unknown command: {cmd}'
-
-            args = request.get('args') or {}
-            args = {key.replace('-', '_'): value for key, value in args.items()}
-
-            result = self.commands[cmd](**args)
-
-            response = {'result': result}
-            logger.debug('%r -> %r', request, result)
-        except Exception as e:
-            logger.exception('error when handling: %r', request or request_str)
-            response = {'error': {'class': type(e).__name__, 'desc': str(e)}}
-
-        return json.dumps(response, indent=2) + '\n\n'
