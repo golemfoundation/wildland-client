@@ -193,6 +193,8 @@ man_pages = [
 
     ('manpages/wl-get', 'wl-get', 'Get a file from wildland', [author], 1),
     ('manpages/wl-put', 'wl-put', 'Put a file into wildland', [author], 1),
+
+    ('manpages/wl-watch', 'wl-watch', 'Watch for changes', [author], 1),
 ]
 
 # what should be documented:

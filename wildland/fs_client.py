@@ -26,7 +26,7 @@ import time
 from pathlib import Path, PurePosixPath
 import subprocess
 import logging
-from typing import Dict, List, Optional, Iterable, Tuple
+from typing import Dict, List, Optional, Iterable, Tuple, Iterator
 import json
 import sys
 import hashlib
@@ -48,6 +48,16 @@ class PathTree:
 
     storage_ids: List[int]
     children: Dict[str, 'PathTree']
+
+
+@dataclasses.dataclass
+class WatchEvent:
+    '''
+    A file change event.
+    '''
+
+    event_type: str
+    path: PurePosixPath
 
 
 class WildlandFSError(WildlandError):
@@ -430,3 +440,22 @@ class WildlandFSClient:
         Prepend an absolute path with signer namespace.
         '''
         return PurePosixPath('/.users/') / signer / path.relative_to('/')
+
+    def watch(self, patterns: List[str]) -> Iterator[WatchEvent]:
+        '''
+        Watch for changes under the provided paths. Provides a stream of
+        WatchEvent objects.
+        '''
+
+        client = ControlClient()
+        client.connect(self.socket_path)
+        try:
+            for pattern in patterns:
+                client.run_command('add-watch', pattern=pattern)
+
+            for event in client.iter_events():
+                event_type = event['type']
+                path = PurePosixPath(event['path'])
+                yield WatchEvent(event_type, path)
+        finally:
+            client.disconnect()

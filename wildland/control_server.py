@@ -225,6 +225,9 @@ class ControlServer:
         Shut down the server. Will wait for all connections to finish.
         '''
 
+        # TODO: This should shut down existing connections, because now any
+        # connected clients prevent unmount from succeeding.
+
         assert self.socket_server
         assert self.server_thread
 

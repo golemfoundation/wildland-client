@@ -201,5 +201,19 @@ def stop(obj: ContextObj):
     obj.fs_client.unmount()
 
 
+@main.command(short_help='watch for changes')
+@click.argument('patterns', metavar='PATH',
+                nargs=-1, required=True)
+@click.pass_obj
+def watch(obj: ContextObj, patterns):
+    '''
+    Watch for changes in inside mounted Wildland filesystem.
+    '''
+
+    obj.fs_client.ensure_mounted()
+    for event in obj.fs_client.watch(patterns):
+        print(f'{event.event_type}: {event.path}')
+
+
 if __name__ == '__main__':
     main() # pylint: disable=no-value-for-parameter

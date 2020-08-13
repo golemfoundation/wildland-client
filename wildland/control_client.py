@@ -96,6 +96,7 @@ class ControlClient:
             if message is None:
                 raise ControlClientError('No response from server')
             if 'event' in message:
+                logger.debug('event (pending): %s', message['event'])
                 self.pending_events.append(message['event'])
             else:
                 response = message
@@ -132,6 +133,7 @@ class ControlClient:
             return []
         if 'event' not in message:
             raise ControlClientError(f'Unexpected message: {message}')
+        logger.debug('event: %s', message['event'])
         return [message['event']]
 
     def iter_events(self) -> Iterator[dict]:
