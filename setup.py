@@ -12,6 +12,7 @@ setup(
             ('local_dir_cached = '
              'wildland.storage_backends.local_cached:LocalDirectoryCachedStorageBackend'),
             'date_proxy = wildland.storage_backends.date_proxy:DateProxyStorageBackend',
+            'zip_archive = wildland.storage_backends.zip_archive:ZipArchiveStorageBackend',
         ]
     }
 )
