@@ -77,6 +77,9 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         self.zip_path = Path(self.params['path'])
         self.read_only = True
 
+        self.last_mtime = 0.
+        self.last_size = -1
+
     @classmethod
     def cli_options(cls):
         return [
@@ -90,6 +93,20 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         return {
             'path': data['path'],
         }
+
+    def _update(self):
+        # Update when the ZIP file changes.
+        st = self.zip_path.stat()
+        if self.last_mtime != st.st_mtime or self.last_size != st.st_size:
+            self._refresh()
+            self.last_mtime = st.st_mtime
+            self.last_size = st.st_size
+
+    def clear_cache(self):
+        super().clear_cache()
+        with self.cache_lock:
+            self.last_mtime = 0.
+            self.last_size = -1
 
     @staticmethod
     def _attr(zinfo: zipfile.ZipInfo) -> Attr:
