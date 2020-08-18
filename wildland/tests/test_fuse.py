@@ -398,12 +398,13 @@ def test_watch(env, storage_type):
     env.mount_storage(['/container1/'], storage1)
 
     watch_id = env.run_control_command(
-        'add-watch', {'pattern': '/container1/*.txt'})
+        'add-watch', {'storage-id': 1, 'pattern': '*.txt'})
     with open(env.mnt_dir / 'container1/file1.txt', 'w') as f:
         event = env.recv_event()
         assert event == {
             'type': 'create',
-            'path': '/container1/file1.txt',
+            'path': 'file1.txt',
+            'storage-id': 1,
             'watch-id': watch_id,
         }
 
@@ -412,7 +413,8 @@ def test_watch(env, storage_type):
         event = env.recv_event()
         assert event == {
             'type': 'modify',
-            'path': '/container1/file1.txt',
+            'path': 'file1.txt',
+            'storage-id': 1,
             'watch-id': watch_id,
         }
 
@@ -420,6 +422,7 @@ def test_watch(env, storage_type):
     event = env.recv_event()
     assert event == {
         'type': 'delete',
-        'path': '/container1/file1.txt',
+        'path': 'file1.txt',
+        'storage-id': 1,
         'watch-id': watch_id,
     }

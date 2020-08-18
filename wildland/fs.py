@@ -25,7 +25,7 @@ import errno
 import logging
 import os
 from pathlib import PurePosixPath, Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 import threading
 from dataclasses import dataclass
 
@@ -50,6 +50,7 @@ class Watch:
     '''
 
     id: int
+    storage_id: int
     pattern: str
     handler: ControlHandler
 
@@ -85,6 +86,7 @@ class WildlandFS(fuse.Fuse):
         self.mount_lock = threading.Lock()
 
         self.watches: Dict[int, Watch] = {}
+        self.storage_watches: Dict[int, Set[int]] = {}
         self.watch_counter = 1
 
         self.uid = None
@@ -164,26 +166,30 @@ class WildlandFS(fuse.Fuse):
         for path in paths:
             self.resolver.mount(path, ident)
 
-    def _unmount_storage(self, ident: int):
+    def _unmount_storage(self, storage_id: int):
         '''Unmount a storage'''
 
         assert self.mount_lock.locked()
 
-        assert ident in self.storages
-        assert ident in self.storage_paths
-        storage = self.storages[ident]
-        paths = self.storage_paths[ident]
+        if storage_id in self.storage_watches:
+            for watch_id in list(self.storage_watches[storage_id]):
+                self._remove_watch(watch_id)
+
+        assert storage_id in self.storages
+        assert storage_id in self.storage_paths
+        storage = self.storages[storage_id]
+        paths = self.storage_paths[storage_id]
         logger.info('Unmounting storage %r from paths: %s',
                      storage, [str(p) for p in paths])
 
         storage.unmount()
 
         # TODO check open files?
-        del self.storages[ident]
-        del self.storage_paths[ident]
+        del self.storages[storage_id]
+        del self.storage_paths[storage_id]
         del self.main_paths[paths[0]]
         for path in paths:
-            self.resolver.unmount(path, ident)
+            self.resolver.unmount(path, storage_id)
 
     # pylint: disable=missing-docstring
 
@@ -266,19 +272,25 @@ class WildlandFS(fuse.Fuse):
         return result
 
     @control_command('add-watch')
-    def control_add_watch(self, handler: ControlHandler, pattern):
-        if not pattern.startswith('/'):
-            raise WildlandError('Pattern should start with /')
+    def control_add_watch(self, handler: ControlHandler, storage_id, pattern):
+        if pattern.startswith('/'):
+            raise WildlandError('Pattern should not start with /')
+        if storage_id not in self.storages:
+            raise WildlandError(f'No storage: {storage_id}')
         with self.mount_lock:
             watch = Watch(
                 id=self.watch_counter,
+                storage_id=storage_id,
                 pattern=pattern,
                 handler=handler,
             )
-            logger.info('adding watch %d for %r', watch.id, pattern)
+            logger.info('adding watch %d for %d:%r', watch.id, storage_id, pattern)
             self.watches[watch.id] = watch
+            if storage_id not in self.storage_watches:
+                self.storage_watches[storage_id] = set()
+            self.storage_watches[storage_id].add(watch.id)
             self.watch_counter += 1
-            handler.on_close(lambda: self._remove_watch(watch.id))
+            handler.on_close(lambda: self._cleanup_watch(watch.id))
             return watch.id
 
     @control_command('breakpoint')
@@ -306,19 +318,11 @@ class WildlandFS(fuse.Fuse):
 
     def _notify_storage_watches(self, method_name, relpath, storage_id):
         with self.mount_lock:
-            if not self.watches:
+            if storage_id not in self.storage_watches:
                 return
 
-        for storage_path in self.storage_paths[storage_id]:
-            path = storage_path / relpath
-            self._notify_watches(method_name, path)
-
-    def _notify_watches(self, method_name, path):
-        watches = []
-        with self.mount_lock:
-            for watch in self.watches.values():
-                if path.match(watch.pattern):
-                    watches.append(watch)
+            watches = [self.watches[watch_id]
+                       for watch_id in self.storage_watches[storage_id]]
 
         if not watches:
             return
@@ -332,18 +336,29 @@ class WildlandFS(fuse.Fuse):
         for watch in watches:
             event = {
                 'type': event_type,
-                'path': str(path),
+                'path': str(relpath),
                 'watch-id': watch.id,
+                'storage-id': watch.storage_id,
             }
-            logger.info('notify watch %d (%r): %s %s',
-                        watch.id, watch.pattern, event_type, path)
+            logger.info('notify watch %d for %d:%r: %s %s',
+                        watch.id, watch.storage_id, watch.pattern,
+                        event_type, relpath)
             watch.handler.send_event(event)
 
-    def _remove_watch(self, watch_id):
+    def _cleanup_watch(self, watch_id):
         with self.mount_lock:
-            logger.info('removing watch %d for %r',
-                        watch_id, self.watches[watch_id].pattern)
-            del self.watches[watch_id]
+            # Could be removed earlier, when unmounting storage.
+            if watch_id in self.watches:
+                self._remove_watch(watch_id)
+
+    def _remove_watch(self, watch_id):
+        assert self.mount_lock.locked()
+
+        watch = self.watches[watch_id]
+        logger.info('removing watch %d for %d:%r',
+                    watch_id, watch.storage_id, watch.pattern)
+        self.storage_watches[watch.storage_id].remove(watch_id)
+        del self.watches[watch_id]
 
     #
     # FUSE API

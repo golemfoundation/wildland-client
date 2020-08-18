@@ -22,7 +22,7 @@ Wildland command-line interface.
 '''
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import click
 
@@ -211,7 +211,18 @@ def watch(obj: ContextObj, patterns):
     '''
 
     obj.fs_client.ensure_mounted()
-    for event in obj.fs_client.watch(patterns):
+
+    items = []
+    for pattern in patterns:
+        found = list(obj.fs_client.find_all_storage_ids_for_path(
+            PurePosixPath(pattern)))
+        if not found:
+            raise CliError(f"couldn't resolve to storage: {pattern}")
+        for storage_id, relpath in found:
+            print(f'{pattern} -> {storage_id}:{relpath}')
+            items.append((storage_id, str(relpath)))
+
+    for event in obj.fs_client.watch(items):
         print(f'{event.event_type}: {event.path}')
 
 

@@ -57,6 +57,7 @@ class WatchEvent:
     '''
 
     event_type: str
+    storage_id: int
     path: PurePosixPath
 
 
@@ -252,7 +253,8 @@ class WildlandFSClient:
             logger.warning('multiple storages found for path: %s', path)
         return storage_ids[0]
 
-    def find_all_storage_ids_for_path(self, path: PurePosixPath):
+    def find_all_storage_ids_for_path(self, path: PurePosixPath) \
+        -> Iterable[Tuple[int, PurePosixPath]]:
         '''
         Given a path, retrieve all mounted storages this path is inside.
 
@@ -261,16 +263,15 @@ class WildlandFSClient:
         included as a storage for /a/b and /a/b/c, but not for /a.
         '''
 
-        result = []
         tree = self.get_path_tree()
         assert not tree.storage_ids  # root has no storages
-        for part in path.parts:
+        for i, part in enumerate(path.parts):
             if part not in tree.children:
                 break
             tree = tree.children[part]
-            result.extend(tree.storage_ids)
-
-        return result
+            relpath = PurePosixPath(*path.parts[i+1:])
+            for storage_id in tree.storage_ids:
+                yield storage_id, relpath
 
     def find_trusted_signer(self, local_path: Path) -> Optional[str]:
         '''
@@ -292,7 +293,9 @@ class WildlandFSClient:
             return None
 
         path = PurePosixPath('/') / relpath
-        storage_ids = self.find_all_storage_ids_for_path(path)
+        storage_ids = [
+            storage_id
+            for storage_id, _relpath in self.find_all_storage_ids_for_path(path)]
         if len(storage_ids) == 0:
             # Outside of any storage
             return None
@@ -441,21 +444,24 @@ class WildlandFSClient:
         '''
         return PurePosixPath('/.users/') / signer / path.relative_to('/')
 
-    def watch(self, patterns: List[str]) -> Iterator[WatchEvent]:
+    def watch(self, items: Iterable[Tuple[int, str]]) -> Iterator[WatchEvent]:
         '''
-        Watch for changes under the provided paths. Provides a stream of
+        Watch for changes under the provided list of locations
+        (as tuples (storage_id, pattern)). Provides a stream of
         WatchEvent objects.
         '''
 
         client = ControlClient()
         client.connect(self.socket_path)
         try:
-            for pattern in patterns:
-                client.run_command('add-watch', pattern=pattern)
+            for storage_id, pattern in items:
+                client.run_command(
+                    'add-watch', storage_id=storage_id, pattern=pattern)
 
             for event in client.iter_events():
                 event_type = event['type']
+                storage_id = event['storage-id']
                 path = PurePosixPath(event['path'])
-                yield WatchEvent(event_type, path)
+                yield WatchEvent(event_type, storage_id, path)
         finally:
             client.disconnect()
