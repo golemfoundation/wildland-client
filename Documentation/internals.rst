@@ -50,3 +50,6 @@ FUSE driver
 
 .. autoclass:: wildland.storage_backends.base.StorageBackend
    :members:
+
+.. autoclass:: wildland.storage_backends.base.StorageWatcher
+   :members:
