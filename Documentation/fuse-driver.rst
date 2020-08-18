@@ -160,9 +160,9 @@ The commands are currently implemented in ``wildland/fs.py``.
   Be careful - while in debugger, access to the Wildland filesystem will be
   blocked, which may freeze other programs.
 
-* ``add-watch(pattern)`` - watch for changes to files in Wildland filesystem.
-  The pattern is a glob-style pattern, such as ``/*/container.yaml``. It has to
-  be absolute (i.e. begin with a slash).
+* ``add-watch(storage-id, pattern)`` - watch for changes to files in a storage.
+  The pattern is a glob-style pattern, such as ``*/container.yaml``. It has to
+  be relative and is interpreted in the context of the storage.
 
   The result is an integer watch ID.
 
@@ -171,7 +171,8 @@ The commands are currently implemented in ``wildland/fs.py``.
 
       {
         "type": "create",
-        "path": "/path/to/file",
+        "path": "path/to/file",
+        "storage-id": 1,
         "watch-id": 123
       }
 
