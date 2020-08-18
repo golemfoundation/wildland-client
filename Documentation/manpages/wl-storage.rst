@@ -95,6 +95,18 @@ Create local storage.
    Inner storage URL. Needs to be also associated with the same container
    (``container-url`` manifest field).
 
+.. program:: wl-storage-create-zip-archive
+.. _wl-storage-create-zip-archive:
+
+:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --path <path>  <storage>`
+-------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --path <path>
+
+   Path to ZIP archive.
+
 .. program:: wl-storage-create-http-index
 .. _wl-storage-create-http-index:
 
