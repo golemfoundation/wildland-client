@@ -21,12 +21,11 @@
 A ZIP file storage.
 '''
 
-from typing import Iterable, Tuple, Iterator, List
+from typing import Iterable, Tuple, List, Optional
 import zipfile
 from pathlib import Path, PurePosixPath
 from datetime import datetime
 import errno
-import threading
 import logging
 
 import click
@@ -34,7 +33,7 @@ import click
 from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr, FileEvent
+from .base import StorageBackend, Attr, FileEvent, StorageWatcher
 
 
 logger = logging.getLogger('zip-archive')
@@ -56,6 +55,68 @@ class ZipArchiveFile(FullBufferedFile):
 
     def write_full(self, data):
         raise IOError(errno.EROFS, str(self.path))
+
+
+class ZipArchiveWatcher(StorageWatcher):
+    '''
+    A watcher for the ZIP file.
+    '''
+
+    def __init__(self, handler, backend):
+        super().__init__(handler)
+        self.backend = backend
+        self.zip_path = self.backend.zip_path
+
+        self.stat = None
+        self.info = None
+
+    def init(self):
+        self.stat = self._get_stat()
+        self.info = self._get_info()
+
+    def wait(self) -> Optional[List[FileEvent]]:
+        self.stop_event.wait(1)
+        new_stat = self._get_stat()
+        if new_stat != self.stat:
+            logger.debug('file changed')
+            new_info = self._get_info()
+            result = list(self._compare_info(self.info, new_info))
+
+            self.stat = new_stat
+            self.info = new_info
+            if result:
+                self.backend.clear_cache()
+                return result
+            return None
+        return None
+
+    def shutdown(self):
+        pass
+
+    def _get_stat(self):
+        try:
+            st = self.zip_path.stat()
+        except FileNotFoundError:
+            return None
+        return (st.st_size, st.st_mtime)
+
+    def _get_info(self):
+        try:
+            return dict(self.backend.info_all())
+        except FileNotFoundError:
+            return {}
+
+    @staticmethod
+    def _compare_info(current_info, new_info):
+        current_paths = set(current_info)
+        new_paths = set(new_info)
+        for path in current_paths - new_paths:
+            yield FileEvent('delete', path)
+        for path in new_paths - current_paths:
+            yield FileEvent('create', path)
+        for path in current_paths & new_paths:
+            if current_info[path] != new_info[path]:
+                yield FileEvent('modify', path)
 
 
 class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
@@ -98,6 +159,9 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
             'path': data['path'],
         }
 
+    def watcher(self, handler):
+        return ZipArchiveWatcher(handler, self)
+
     def _update(self):
         # Update when the ZIP file changes.
         st = self.zip_path.stat()
@@ -111,44 +175,6 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         with self.cache_lock:
             self.last_mtime = 0.
             self.last_size = -1
-
-    def watch(self, stop: threading.Event) -> Iterator[List[FileEvent]]:
-        current_stat = self._file_stat()
-        current_info = self._file_info()
-        while not stop.is_set():
-            new_stat = self._file_stat()
-            if new_stat != current_stat:
-                logger.debug('file changed')
-                new_info = self._file_info()
-                self.clear_cache()
-                yield list(self._compare_info(current_info, new_info))
-                current_stat, current_info = new_stat, new_info
-            stop.wait(1)
-
-    @staticmethod
-    def _compare_info(current_info, new_info):
-        current_paths = set(current_info)
-        new_paths = set(new_info)
-        for path in current_paths - new_paths:
-            yield FileEvent('delete', path)
-        for path in new_paths - current_paths:
-            yield FileEvent('create', path)
-        for path in current_paths & new_paths:
-            if current_info[path] != new_info[path]:
-                yield FileEvent('modify', path)
-
-    def _file_stat(self):
-        try:
-            st = self.zip_path.stat()
-        except FileNotFoundError:
-            return None
-        return (st.st_size, st.st_mtime)
-
-    def _file_info(self):
-        try:
-            return dict(self.info_all())
-        except FileNotFoundError:
-            return {}
 
     @staticmethod
     def _attr(zinfo: zipfile.ZipInfo) -> Attr:

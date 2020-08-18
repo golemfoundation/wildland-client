@@ -23,10 +23,11 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterator, Iterable
+from typing import Optional, Dict, Type, Any, List, Iterable, Callable
 from dataclasses import dataclass
 import stat
 import threading
+import logging
 
 import click
 
@@ -121,6 +122,63 @@ class File(metaclass=abc.ABCMeta):
         pass
 
 
+class StorageWatcher(metaclass=abc.ABCMeta):
+    '''
+    An object that watches for changes on a separate thread.
+    '''
+
+    def __init__(self, handler: Callable[[List[FileEvent]], None]):
+        self.handler = handler
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(name='Watch', target=self._run)
+
+    def start(self):
+        '''
+        Start the watcher on a separate thread.
+        '''
+
+        self.init()
+        self.thread.start()
+
+    def _run(self):
+        try:
+            while not self.stop_event.is_set():
+                events = self.wait()
+                if events:
+                    self.handler(events)
+        except Exception:
+            logging.exception('error in watcher')
+
+    def stop(self):
+        '''
+        Stop the watching thread.
+        '''
+
+        self.stop_event.set()
+        self.thread.join()
+        self.shutdown()
+
+    @abc.abstractmethod
+    def init(self) -> None:
+        '''
+        Initialize the watcher. This will be called synchronously (before
+        starting a separate thread).
+        '''
+
+    @abc.abstractmethod
+    def wait(self) -> Optional[List[FileEvent]]:
+        '''
+        Wait for a list of change events. This should return as soon as
+        self.stop_event is set.
+        '''
+
+    @abc.abstractmethod
+    def shutdown(self) -> None:
+        '''
+        Clean up.
+        '''
+
+
 class StorageBackend(metaclass=abc.ABCMeta):
     '''Abstract storage implementation.
 
@@ -205,25 +263,15 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Clear cache, if any.
         '''
 
-    def watch(self, stop: threading.Event) -> Iterator[List[FileEvent]]:
+    def watcher(self, _handler: Callable[[List[FileEvent]], None]) -> Optional[StorageWatcher]:
         '''
-        Watch the underlying storage for changes from outside. Finish when the
-        stop event is set. If implemented, this method will be iterated over in
-        a separate thread.
-
-        Example:
-
-            def watch(self, stop: threading.Event) -> Iterator[FileEvent]:
-                while not stop.is_set():
-                    # check for changes, notify
-                    yield [FileEvent(...), FileEvent(...)]
-                    stop.wait(1)
+        Create a StorageWatcher for this storage, if supported.
 
         Note that changes originating from FUSE are reported without using this
         mechanism.
         '''
 
-        raise OptionalError()
+        return None
 
     # FUSE file operations. Return a File instance.
 

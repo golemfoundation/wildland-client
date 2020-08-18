@@ -34,7 +34,7 @@ fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver
-from .storage_backends.base import StorageBackend, Attr, FileEvent
+from .storage_backends.base import StorageBackend, Attr, FileEvent, StorageWatcher
 from .exc import WildlandError
 from .log import init_logging
 from .control_server import ControlServer, ControlHandler, control_command
@@ -53,8 +53,6 @@ class Watch:
     storage_id: int
     pattern: str
     handler: ControlHandler
-    stop: Optional[threading.Event]
-    thread: Optional[threading.Thread]
 
     def __str__(self):
         return f'{self.storage_id}:{self.pattern}'
@@ -92,6 +90,7 @@ class WildlandFS(fuse.Fuse):
 
         self.watches: Dict[int, Watch] = {}
         self.storage_watches: Dict[int, Set[int]] = {}
+        self.watchers: Dict[int, StorageWatcher] = {}
         self.watch_counter = 1
 
         self.uid = None
@@ -337,8 +336,6 @@ class WildlandFS(fuse.Fuse):
             storage_id=storage_id,
             pattern=pattern,
             handler=handler,
-            stop=None,
-            thread=None,
         )
         logger.info('adding watch: %s', watch)
         self.watches[watch.id] = watch
@@ -350,29 +347,25 @@ class WildlandFS(fuse.Fuse):
 
         handler.on_close(lambda: self._cleanup_watch(watch.id))
 
-        # Start a watch thread, but only if the storage provides watch() method
-        stop = threading.Event()
-        try:
-            storage_watcher = self.storages[storage_id].watch(stop)
-        except NotImplementedError:
-            pass
-        else:
-            thread = threading.Thread(
-                name=f'Watch-{watch.id}',
-                target=lambda: self._watch_thread(watch, storage_watcher))
-            thread.start()
-            watch.stop = stop
-            watch.thread = thread
+        # Start a watch thread, but only if the storage provides watcher() method
+        if len(self.storage_watches[storage_id]) == 1:
+            watcher = self.storages[storage_id].watcher(
+                lambda events: self._watch_handler(storage_id, events))
+            if watcher:
+                logger.info('starting watcher for storage %d', storage_id)
+                self.watchers[storage_id] = watcher
+                watcher.start()
 
         return watch.id
 
-    def _watch_thread(self, watch, storage_watcher):
-        try:
-            logger.info('started watch thread: %s', watch)
-            for events in storage_watcher:
-                self._notify_watch(watch, events)
-        except Exception:
-            logger.exception('error in watch thread')
+    def _watch_handler(self, storage_id: int, events: List[FileEvent]):
+        logger.debug('events from %d: %s', storage_id, events)
+        with self.mount_lock:
+            watches = [self.watches[watch_id]
+                       for watch_id in self.storage_watches.get(storage_id, [])]
+
+        for watch in watches:
+            self._notify_watch(watch, events)
 
     def _notify_watch(self, watch: Watch, events: List[FileEvent]):
         events = [event for event in events
@@ -400,11 +393,13 @@ class WildlandFS(fuse.Fuse):
 
         watch = self.watches[watch_id]
         logger.info('removing watch: %s', watch)
-        if watch.thread:
-            assert watch.stop
-            logger.info('stopping watch thread: %s', watch)
-            watch.stop.set()
-            watch.thread.join()
+
+        if (len(self.storage_watches[watch.storage_id]) == 1 and
+            watch.storage_id in self.watchers):
+
+            logger.info('stopping watcher for storage: %s', watch.storage_id)
+            self.watchers[watch.storage_id].stop()
+            del self.watchers[watch.storage_id]
 
         self.storage_watches[watch.storage_id].remove(watch_id)
         del self.watches[watch_id]
@@ -601,7 +596,6 @@ class WildlandFSConflictResolver(ConflictResolver):
         with self.fs.mount_lock:
             storage = self.fs.storages[ident]
         return list(storage.readdir(relpath))
-
 
 
 def main():
