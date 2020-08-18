@@ -25,7 +25,7 @@ import errno
 import logging
 import os
 from pathlib import PurePosixPath, Path
-from typing import List, Dict, Optional, Set, List
+from typing import List, Dict, Optional, Set
 import threading
 from dataclasses import dataclass
 
@@ -375,6 +375,11 @@ class WildlandFS(fuse.Fuse):
             logger.exception('error in watch thread')
 
     def _notify_watch(self, watch: Watch, events: List[FileEvent]):
+        events = [event for event in events
+                  if event.path.match(watch.pattern)]
+        if not events:
+            return
+
         logger.info('notify watch: %s: %s', watch, events)
         data = [{
             'type': event.type,
