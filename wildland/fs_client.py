@@ -444,11 +444,11 @@ class WildlandFSClient:
         '''
         return PurePosixPath('/.users/') / signer / path.relative_to('/')
 
-    def watch(self, items: Iterable[Tuple[int, str]]) -> Iterator[WatchEvent]:
+    def watch(self, items: Iterable[Tuple[int, str]]) -> Iterator[List[WatchEvent]]:
         '''
         Watch for changes under the provided list of locations
         (as tuples (storage_id, pattern)). Provides a stream of
-        WatchEvent objects.
+        lists of WatchEvent objects (so that simultaneous events can be grouped).
         '''
 
         client = ControlClient()
@@ -458,10 +458,13 @@ class WildlandFSClient:
                 client.run_command(
                     'add-watch', storage_id=storage_id, pattern=pattern)
 
-            for event in client.iter_events():
-                event_type = event['type']
-                storage_id = event['storage-id']
-                path = PurePosixPath(event['path'])
-                yield WatchEvent(event_type, storage_id, path)
+            for events in client.iter_events():
+                watch_events = []
+                for event in events:
+                    event_type = event['type']
+                    storage_id = event['storage-id']
+                    path = PurePosixPath(event['path'])
+                    watch_events.append(WatchEvent(event_type, storage_id, path))
+                yield watch_events
         finally:
             client.disconnect()

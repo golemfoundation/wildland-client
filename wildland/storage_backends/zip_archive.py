@@ -21,19 +21,23 @@
 A ZIP file storage.
 '''
 
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Iterator, List
 import zipfile
 from pathlib import Path, PurePosixPath
 from datetime import datetime
 import errno
+import threading
+import logging
 
 import click
 
 from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr
+from .base import StorageBackend, Attr, FileEvent
 
+
+logger = logging.getLogger('zip-archive')
 
 
 class ZipArchiveFile(FullBufferedFile):
@@ -107,6 +111,44 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         with self.cache_lock:
             self.last_mtime = 0.
             self.last_size = -1
+
+    def watch(self, stop: threading.Event) -> Iterator[List[FileEvent]]:
+        current_stat = self._file_stat()
+        current_info = self._file_info()
+        while not stop.is_set():
+            new_stat = self._file_stat()
+            if new_stat != current_stat:
+                logger.debug('file changed')
+                new_info = self._file_info()
+                self.clear_cache()
+                yield list(self._compare_info(current_info, new_info))
+                current_stat, current_info = new_stat, new_info
+            stop.wait(1)
+
+    @staticmethod
+    def _compare_info(current_info, new_info):
+        current_paths = set(current_info)
+        new_paths = set(new_info)
+        for path in current_paths - new_paths:
+            yield FileEvent('delete', path)
+        for path in new_paths - current_paths:
+            yield FileEvent('create', path)
+        for path in current_paths & new_paths:
+            if current_info[path] != new_info[path]:
+                yield FileEvent('modify', path)
+
+    def _file_stat(self):
+        try:
+            st = self.zip_path.stat()
+        except FileNotFoundError:
+            return None
+        return (st.st_size, st.st_mtime)
+
+    def _file_info(self):
+        try:
+            return dict(self.info_all())
+        except FileNotFoundError:
+            return {}
 
     @staticmethod
     def _attr(zinfo: zipfile.ZipInfo) -> Attr:

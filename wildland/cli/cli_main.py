@@ -222,8 +222,9 @@ def watch(obj: ContextObj, patterns):
             print(f'{pattern} -> {storage_id}:{relpath}')
             items.append((storage_id, str(relpath)))
 
-    for event in obj.fs_client.watch(items):
-        print(f'{event.event_type}: {event.path}')
+    for events in obj.fs_client.watch(items):
+        for event in events:
+            print(f'{event.event_type}: {event.path}')
 
 
 if __name__ == '__main__':

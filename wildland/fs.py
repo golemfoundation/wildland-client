@@ -25,7 +25,7 @@ import errno
 import logging
 import os
 from pathlib import PurePosixPath, Path
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, List
 import threading
 from dataclasses import dataclass
 
@@ -34,7 +34,7 @@ fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver
-from .storage_backends.base import StorageBackend, Attr
+from .storage_backends.base import StorageBackend, Attr, FileEvent
 from .exc import WildlandError
 from .log import init_logging
 from .control_server import ControlServer, ControlHandler, control_command
@@ -325,16 +325,9 @@ class WildlandFS(fuse.Fuse):
             'unlink': 'delete',
             'rmdir': 'delete',
         }.get(method_name, 'modify')
+        event = FileEvent(event_type, relpath)
         for watch in watches:
-            event = {
-                'type': event_type,
-                'path': str(relpath),
-                'watch-id': watch.id,
-                'storage-id': watch.storage_id,
-            }
-            logger.info('notify watch: %s: %s %s',
-                        watch, event_type, relpath)
-            watch.handler.send_event(event)
+            self._notify_watch(watch, [event])
 
     def _add_watch(self, storage_id: int, pattern: str, handler: ControlHandler):
         assert self.mount_lock.locked()
@@ -376,11 +369,20 @@ class WildlandFS(fuse.Fuse):
     def _watch_thread(self, watch, storage_watcher):
         try:
             logger.info('started watch thread: %s', watch)
-            for event in storage_watcher:
-                logger.info('watch event: %s: %r', watch, event)
-                # TODO
+            for events in storage_watcher:
+                self._notify_watch(watch, events)
         except Exception:
             logger.exception('error in watch thread')
+
+    def _notify_watch(self, watch: Watch, events: List[FileEvent]):
+        logger.info('notify watch: %s: %s', watch, events)
+        data = [{
+            'type': event.type,
+            'path': str(event.path),
+            'watch-id': watch.id,
+            'storage-id': watch.storage_id,
+        } for event in events]
+        watch.handler.send_event(data)
 
     def _cleanup_watch(self, watch_id):
         with self.mount_lock:

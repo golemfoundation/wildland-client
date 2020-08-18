@@ -401,28 +401,28 @@ def test_watch(env, storage_type):
         'add-watch', {'storage-id': 1, 'pattern': '*.txt'})
     with open(env.mnt_dir / 'container1/file1.txt', 'w') as f:
         event = env.recv_event()
-        assert event == {
+        assert event == [{
             'type': 'create',
             'path': 'file1.txt',
             'storage-id': 1,
             'watch-id': watch_id,
-        }
+        }]
 
         f.write('hello')
         f.flush()
         event = env.recv_event()
-        assert event == {
+        assert event == [{
             'type': 'modify',
             'path': 'file1.txt',
             'storage-id': 1,
             'watch-id': watch_id,
-        }
+        }]
 
     os.unlink(env.mnt_dir / 'container1/file1.txt')
     event = env.recv_event()
-    assert event == {
+    assert event == [{
         'type': 'delete',
         'path': 'file1.txt',
         'storage-id': 1,
         'watch-id': watch_id,
-    }
+    }]

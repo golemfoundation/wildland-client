@@ -166,15 +166,15 @@ The commands are currently implemented in ``wildland/fs.py``.
 
   The result is an integer watch ID.
 
-  After adding a watch, the server will send events whenever a file or
-  directory matching the pattern is changed, for example::
+  After adding a watch, the server will send a list of events whenever a file
+  or directory matching the pattern is changed, for example::
 
-      {
+      [{
         "type": "create",
         "path": "path/to/file",
         "storage-id": 1,
         "watch-id": 123
-      }
+      }]
 
   The event type can be ``create``, ``delete`` or ``modify``.
 
