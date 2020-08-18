@@ -23,9 +23,10 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterable
+from typing import Optional, Dict, Type, Any, List, Iterator, Iterable
 from dataclasses import dataclass
 import stat
+import threading
 
 import click
 
@@ -79,6 +80,16 @@ class Attr:
             mode=stat.S_IFDIR | 0o755,
             size=size,
             timestamp=timestamp)
+
+
+@dataclass
+class FileEvent:
+    '''
+    File change event.
+    '''
+
+    type: str  # 'create', 'delete', 'modify'
+    path: PurePosixPath
 
 
 class File(metaclass=abc.ABCMeta):
@@ -186,13 +197,33 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     def unmount(self) -> None:
         '''
-        Clen up. Called when unmounting.
+        Clean up. Called when unmounting.
         '''
 
     def clear_cache(self) -> None:
         '''
         Clear cache, if any.
         '''
+
+    def watch(self, stop: threading.Event) -> Iterator[List[FileEvent]]:
+        '''
+        Watch the underlying storage for changes from outside. Finish when the
+        stop event is set. If implemented, this method will be iterated over in
+        a separate thread.
+
+        Example:
+
+            def watch(self, stop: threading.Event) -> Iterator[FileEvent]:
+                while not stop.is_set():
+                    # check for changes, notify
+                    yield [FileEvent(...), FileEvent(...)]
+                    stop.wait(1)
+
+        Note that changes originating from FUSE are reported without using this
+        mechanism.
+        '''
+
+        raise OptionalError()
 
     # FUSE file operations. Return a File instance.
 

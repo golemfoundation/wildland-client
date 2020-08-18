@@ -53,6 +53,11 @@ class Watch:
     storage_id: int
     pattern: str
     handler: ControlHandler
+    stop: Optional[threading.Event]
+    thread: Optional[threading.Thread]
+
+    def __str__(self):
+        return f'{self.storage_id}:{self.pattern}'
 
 
 class WildlandFS(fuse.Fuse):
@@ -278,20 +283,7 @@ class WildlandFS(fuse.Fuse):
         if storage_id not in self.storages:
             raise WildlandError(f'No storage: {storage_id}')
         with self.mount_lock:
-            watch = Watch(
-                id=self.watch_counter,
-                storage_id=storage_id,
-                pattern=pattern,
-                handler=handler,
-            )
-            logger.info('adding watch %d for %d:%r', watch.id, storage_id, pattern)
-            self.watches[watch.id] = watch
-            if storage_id not in self.storage_watches:
-                self.storage_watches[storage_id] = set()
-            self.storage_watches[storage_id].add(watch.id)
-            self.watch_counter += 1
-            handler.on_close(lambda: self._cleanup_watch(watch.id))
-            return watch.id
+            return self._add_watch(storage_id, pattern, handler)
 
     @control_command('breakpoint')
     def control_breakpoint(self, _handler):
@@ -340,10 +332,55 @@ class WildlandFS(fuse.Fuse):
                 'watch-id': watch.id,
                 'storage-id': watch.storage_id,
             }
-            logger.info('notify watch %d for %d:%r: %s %s',
-                        watch.id, watch.storage_id, watch.pattern,
-                        event_type, relpath)
+            logger.info('notify watch: %s: %s %s',
+                        watch, event_type, relpath)
             watch.handler.send_event(event)
+
+    def _add_watch(self, storage_id: int, pattern: str, handler: ControlHandler):
+        assert self.mount_lock.locked()
+
+        watch = Watch(
+            id=self.watch_counter,
+            storage_id=storage_id,
+            pattern=pattern,
+            handler=handler,
+            stop=None,
+            thread=None,
+        )
+        logger.info('adding watch: %s', watch)
+        self.watches[watch.id] = watch
+        if storage_id not in self.storage_watches:
+            self.storage_watches[storage_id] = set()
+
+        self.storage_watches[storage_id].add(watch.id)
+        self.watch_counter += 1
+
+        handler.on_close(lambda: self._cleanup_watch(watch.id))
+
+        # Start a watch thread, but only if the storage provides watch() method
+        stop = threading.Event()
+        try:
+            storage_watcher = self.storages[storage_id].watch(stop)
+        except NotImplementedError:
+            pass
+        else:
+            thread = threading.Thread(
+                name=f'Watch-{watch.id}',
+                target=lambda: self._watch_thread(watch, storage_watcher))
+            thread.start()
+            watch.stop = stop
+            watch.thread = thread
+
+        return watch.id
+
+    def _watch_thread(self, watch, storage_watcher):
+        try:
+            logger.info('started watch thread: %s', watch)
+            for event in storage_watcher:
+                logger.info('watch event: %s: %r', watch, event)
+                # TODO
+        except Exception:
+            logger.exception('error in watch thread')
 
     def _cleanup_watch(self, watch_id):
         with self.mount_lock:
@@ -355,8 +392,13 @@ class WildlandFS(fuse.Fuse):
         assert self.mount_lock.locked()
 
         watch = self.watches[watch_id]
-        logger.info('removing watch %d for %d:%r',
-                    watch_id, watch.storage_id, watch.pattern)
+        logger.info('removing watch: %s', watch)
+        if watch.thread:
+            assert watch.stop
+            logger.info('stopping watch thread: %s', watch)
+            watch.stop.set()
+            watch.thread.join()
+
         self.storage_watches[watch.storage_id].remove(watch_id)
         del self.watches[watch_id]
 
@@ -372,6 +414,9 @@ class WildlandFS(fuse.Fuse):
     def fsdestroy(self):
         logger.info('unmounting wildland')
         self.control_server.stop()
+        with self.mount_lock:
+            for storage_id in list(self.storages):
+                self._unmount_storage(storage_id)
 
     def proxy(self, method_name, path, *args,
               parent=False,
