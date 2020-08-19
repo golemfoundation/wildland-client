@@ -134,7 +134,7 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         self.stop_event.wait(1)
         new_token = self.get_token()
         if new_token != self.token:
-            logger.debug('something changed')
+            logger.debug('storage changed...')
             self.backend.clear_cache()
             new_info = self._get_info()
             result = list(self._compare_info(self.info, new_info))
@@ -142,7 +142,9 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
             self.token = new_token
             self.info = new_info
             if result:
+                logger.debug('file changes detected')
                 return result
+            logger.debug('file no changes detected')
             return None
         return None
 

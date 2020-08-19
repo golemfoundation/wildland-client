@@ -21,7 +21,7 @@
 Bear storage backend
 '''
 
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
 from typing import Iterable, Optional, List, Set, Dict, Tuple
 import logging
 from dataclasses import dataclass
@@ -39,6 +39,7 @@ from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, FuncFileEntry, CachedDirEntry, \
     StaticFileEntry
+from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
 
@@ -233,6 +234,23 @@ class BearDB:
             return [tag_row['ZTITLE'] for tag_row in cursor.fetchall()]
 
 
+class BearDBWatcher(SimpleStorageWatcher):
+    '''
+    A watcher for the Bear database.
+    '''
+
+    def __init__(self, backend: 'BearDBStorageBackend'):
+        super().__init__(backend)
+        self.db_path = Path(backend.bear_db.path)
+
+    def get_token(self):
+        try:
+            st = self.db_path.stat()
+        except FileNotFoundError:
+            return None
+        return (st.st_size, st.st_mtime)
+
+
 class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
     '''
     Main BearDB storage that serves individual manifests.
@@ -269,6 +287,9 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def unmount(self):
         self.bear_db.disconnect()
+
+    def watcher(self):
+        return BearDBWatcher(self)
 
     @classmethod
     def cli_options(cls):
