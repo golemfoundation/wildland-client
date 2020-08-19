@@ -21,8 +21,10 @@
 Manage containers
 '''
 
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
 from typing import List, Tuple
+import os
+import glob
 
 import click
 
@@ -264,3 +266,21 @@ def unmount(obj: ContextObj, path: str, container_names):
     click.echo(f'Unmounting {len(storage_ids)} containers')
     for storage_id in storage_ids:
         obj.fs_client.unmount_container(storage_id)
+
+
+@container_.command('mount-watch', short_help='mount container')
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
+@click.pass_obj
+def mount_watch(obj: ContextObj, container_names):
+    obj.fs_client.ensure_mounted()
+    obj.client.recognize_users()
+
+    patterns = []
+    for name in container_names:
+        path = Path(os.path.expanduser(name)).resolve()
+        relpath = path.relative_to(obj.fs_client.mount_dir)
+        patterns.append(str(PurePosixPath('/') / relpath))
+
+    click.echo(f'Using patterns: {patterns}')
+    for event in obj.fs_client.watch(patterns, with_initial=True):
+        print(event)
