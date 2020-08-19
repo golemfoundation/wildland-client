@@ -28,6 +28,7 @@ from socketserver import ThreadingMixIn, UnixStreamServer, BaseRequestHandler
 from contextlib import closing
 import json
 from typing import Dict, Callable
+import socket
 
 logger = logging.getLogger('control-server')
 
@@ -240,11 +241,8 @@ class ControlServer:
 
     def stop(self):
         '''
-        Shut down the server. Will wait for all connections to finish.
+        Shut down the server, closing existing connections.
         '''
-
-        # TODO: This should shut down existing connections, because now any
-        # connected clients prevent unmount from succeeding.
 
         assert self.socket_server
         assert self.server_thread
@@ -255,6 +253,20 @@ class ControlServer:
         if self.server_thread.is_alive():
             self.socket_server.shutdown()
             self.server_thread.join()
+
+        # Close connection for all threads and wait for them
+        for thread in self.socket_server._threads:
+            if thread.ident is None:
+                # Not started yet
+                continue
+
+            # Stopped threads do not have _args anymore
+            args = getattr(thread, '_args', None)
+            if args:
+                request = args[0]
+                request.shutdown(socket.SHUT_RDWR)
+                request.close()
+            thread.join()
 
         self.socket_server = None
         self.server_thread = None
