@@ -80,6 +80,9 @@ class CachedStorageMixin:
         for path, attr in self.info:
             self.getattr_cache[path] = attr
 
+            if attr.is_dir():
+                self.readdir_cache.setdefault(path, set())
+
             # Add all intermediate directories, in case info_all()
             # didn't include them.
             for i in range(len(path.parts)):
@@ -128,6 +131,9 @@ class CachedStorageMixin:
         with self.cache_lock:
             self._update()
             if path not in self.readdir_cache:
+
+                print(self.getattr_cache)
+                print(self.readdir_cache)
                 raise FileNotFoundError(errno.ENOENT, str(path))
 
             return sorted(self.readdir_cache[path])

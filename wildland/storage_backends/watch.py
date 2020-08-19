@@ -21,12 +21,17 @@
 Watching for changes.
 '''
 
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Dict
 from pathlib import PurePosixPath
 import threading
 import logging
 from dataclasses import dataclass
 import abc
+
+from .base import StorageBackend, Attr
+
+
+logger = logging.getLogger('watch')
 
 
 @dataclass
@@ -66,7 +71,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
                 if events:
                     self.handler(events)
         except Exception:
-            logging.exception('error in watcher')
+            logger.exception('error in watcher')
 
     def stop(self):
         '''
@@ -96,3 +101,84 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         '''
         Clean up.
         '''
+
+
+class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
+    '''
+    An implementation of storage watcher that uses the backend to enumerate all
+    files.
+
+    To use, override get_token() with something that will change when the
+    storage needs to be examined again (such as last modification time of
+    backing storage).
+    '''
+
+    def __init__(self, backend: StorageBackend):
+        super().__init__()
+        self.backend = backend
+
+        self.token = None
+        self.info: Dict[PurePosixPath, Attr] = {}
+
+    @abc.abstractmethod
+    def get_token(self):
+        '''
+        Retrieve token to be compared, such as file modification info.
+        '''
+
+    def init(self):
+        self.token = self.get_token()
+        self.info = self._get_info()
+
+    def wait(self) -> Optional[List[FileEvent]]:
+        self.stop_event.wait(1)
+        new_token = self.get_token()
+        if new_token != self.token:
+            logger.debug('something changed')
+            self.backend.clear_cache()
+            new_info = self._get_info()
+            result = list(self._compare_info(self.info, new_info))
+
+            self.token = new_token
+            self.info = new_info
+            if result:
+                return result
+            return None
+        return None
+
+    def shutdown(self):
+        pass
+
+    def _get_info(self) -> Dict[PurePosixPath, Attr]:
+        return dict(self._walk(PurePosixPath('.')))
+
+    def _walk(self, dir_path: PurePosixPath):
+        try:
+            names = list(self.backend.readdir(dir_path))
+        except IOError:
+            logger.exception('error in readdir %s', dir_path)
+            return
+
+        for name in names:
+            file_path = dir_path / name
+            try:
+                attr = self.backend.getattr(file_path)
+            except IOError:
+                logger.exception('error in getattr %s', file_path)
+                continue
+
+            yield file_path, attr
+            if attr.is_dir():
+                yield from self._walk(file_path)
+
+    @staticmethod
+    def _compare_info(current_info, new_info):
+        current_paths = set(current_info)
+        new_paths = set(new_info)
+        for path in current_paths - new_paths:
+            yield FileEvent('delete', path)
+        for path in new_paths - current_paths:
+            yield FileEvent('create', path)
+        for path in current_paths & new_paths:
+            if current_info[path] != new_info[path]:
+                yield FileEvent('modify', path)

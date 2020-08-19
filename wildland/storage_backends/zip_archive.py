@@ -21,7 +21,7 @@
 A ZIP file storage.
 '''
 
-from typing import Iterable, Tuple, List, Optional
+from typing import Iterable, Tuple
 import zipfile
 from pathlib import Path, PurePosixPath
 from datetime import datetime
@@ -34,7 +34,7 @@ from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
 from .base import StorageBackend, Attr
-from .watch import StorageWatcher, FileEvent
+from .watch import SimpleStorageWatcher
 
 
 logger = logging.getLogger('zip-archive')
@@ -58,66 +58,21 @@ class ZipArchiveFile(FullBufferedFile):
         raise IOError(errno.EROFS, str(self.path))
 
 
-class ZipArchiveWatcher(StorageWatcher):
+class ZipArchiveWatcher(SimpleStorageWatcher):
     '''
     A watcher for the ZIP file.
     '''
 
-    def __init__(self, backend):
-        super().__init__()
-        self.backend = backend
-        self.zip_path = self.backend.zip_path
+    def __init__(self, backend: 'ZipArchiveStorageBackend'):
+        super().__init__(backend)
+        self.zip_path = backend.zip_path
 
-        self.stat = None
-        self.info = None
-
-    def init(self):
-        self.stat = self._get_stat()
-        self.info = self._get_info()
-
-    def wait(self) -> Optional[List[FileEvent]]:
-        self.stop_event.wait(1)
-        new_stat = self._get_stat()
-        if new_stat != self.stat:
-            logger.debug('file changed')
-            new_info = self._get_info()
-            result = list(self._compare_info(self.info, new_info))
-
-            self.stat = new_stat
-            self.info = new_info
-            if result:
-                self.backend.clear_cache()
-                return result
-            return None
-        return None
-
-    def shutdown(self):
-        pass
-
-    def _get_stat(self):
+    def get_token(self):
         try:
             st = self.zip_path.stat()
         except FileNotFoundError:
             return None
         return (st.st_size, st.st_mtime)
-
-    def _get_info(self):
-        try:
-            return dict(self.backend.info_all())
-        except FileNotFoundError:
-            return {}
-
-    @staticmethod
-    def _compare_info(current_info, new_info):
-        current_paths = set(current_info)
-        new_paths = set(new_info)
-        for path in current_paths - new_paths:
-            yield FileEvent('delete', path)
-        for path in new_paths - current_paths:
-            yield FileEvent('create', path)
-        for path in current_paths & new_paths:
-            if current_info[path] != new_info[path]:
-                yield FileEvent('modify', path)
 
 
 class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
