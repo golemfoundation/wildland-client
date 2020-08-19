@@ -33,7 +33,8 @@ import click
 from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr, FileEvent, StorageWatcher
+from .base import StorageBackend, Attr
+from .watch import StorageWatcher, FileEvent
 
 
 logger = logging.getLogger('zip-archive')
@@ -62,8 +63,8 @@ class ZipArchiveWatcher(StorageWatcher):
     A watcher for the ZIP file.
     '''
 
-    def __init__(self, handler, backend):
-        super().__init__(handler)
+    def __init__(self, backend):
+        super().__init__()
         self.backend = backend
         self.zip_path = self.backend.zip_path
 
@@ -159,8 +160,8 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
             'path': data['path'],
         }
 
-    def watcher(self, handler):
-        return ZipArchiveWatcher(handler, self)
+    def watcher(self):
+        return ZipArchiveWatcher(self)
 
     def _update(self):
         # Update when the ZIP file changes.

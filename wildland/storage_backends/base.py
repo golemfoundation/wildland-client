@@ -23,11 +23,9 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterable, Callable
+from typing import Optional, Dict, Type, Any, List, Iterable
 from dataclasses import dataclass
 import stat
-import threading
-import logging
 
 import click
 
@@ -83,16 +81,6 @@ class Attr:
             timestamp=timestamp)
 
 
-@dataclass
-class FileEvent:
-    '''
-    File change event.
-    '''
-
-    type: str  # 'create', 'delete', 'modify'
-    path: PurePosixPath
-
-
 class File(metaclass=abc.ABCMeta):
     '''
     Abstract base class for a file. To be returned from open() and create().
@@ -120,63 +108,6 @@ class File(metaclass=abc.ABCMeta):
 
     def flush(self) -> None:
         pass
-
-
-class StorageWatcher(metaclass=abc.ABCMeta):
-    '''
-    An object that watches for changes on a separate thread.
-    '''
-
-    def __init__(self, handler: Callable[[List[FileEvent]], None]):
-        self.handler = handler
-        self.stop_event = threading.Event()
-        self.thread = threading.Thread(name='Watch', target=self._run)
-
-    def start(self):
-        '''
-        Start the watcher on a separate thread.
-        '''
-
-        self.init()
-        self.thread.start()
-
-    def _run(self):
-        try:
-            while not self.stop_event.is_set():
-                events = self.wait()
-                if events:
-                    self.handler(events)
-        except Exception:
-            logging.exception('error in watcher')
-
-    def stop(self):
-        '''
-        Stop the watching thread.
-        '''
-
-        self.stop_event.set()
-        self.thread.join()
-        self.shutdown()
-
-    @abc.abstractmethod
-    def init(self) -> None:
-        '''
-        Initialize the watcher. This will be called synchronously (before
-        starting a separate thread).
-        '''
-
-    @abc.abstractmethod
-    def wait(self) -> Optional[List[FileEvent]]:
-        '''
-        Wait for a list of change events. This should return as soon as
-        self.stop_event is set.
-        '''
-
-    @abc.abstractmethod
-    def shutdown(self) -> None:
-        '''
-        Clean up.
-        '''
 
 
 class StorageBackend(metaclass=abc.ABCMeta):
@@ -263,9 +194,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Clear cache, if any.
         '''
 
-    def watcher(self, _handler: Callable[[List[FileEvent]], None]) -> Optional[StorageWatcher]:
+    def watcher(self):
         '''
-        Create a StorageWatcher for this storage, if supported.
+        Create a StorageWatcher (see watch.py) for this storage, if supported.
 
         Note that changes originating from FUSE are reported without using this
         mechanism.

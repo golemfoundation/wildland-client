@@ -34,7 +34,8 @@ fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver
-from .storage_backends.base import StorageBackend, Attr, FileEvent, StorageWatcher
+from .storage_backends.base import StorageBackend, Attr
+from .storage_backends.watch import FileEvent, StorageWatcher
 from .exc import WildlandError
 from .log import init_logging
 from .control_server import ControlServer, ControlHandler, control_command
@@ -355,12 +356,12 @@ class WildlandFS(fuse.Fuse):
 
         # Start a watch thread, but only if the storage provides watcher() method
         if len(self.storage_watches[storage_id]) == 1:
-            watcher = self.storages[storage_id].watcher(
-                lambda events: self._watch_handler(storage_id, events))
+            watcher = self.storages[storage_id].watcher()
             if watcher:
                 logger.info('starting watcher for storage %d', storage_id)
                 self.watchers[storage_id] = watcher
-                watcher.start()
+                handler = lambda events: self._watch_handler(storage_id, events)
+                watcher.start(handler)
 
         return watch.id
 
