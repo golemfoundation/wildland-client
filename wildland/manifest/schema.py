@@ -20,7 +20,7 @@
 # TODO pylint: disable=missing-docstring
 
 import json
-from typing import Union
+from typing import Union, Dict
 import pkg_resources
 
 import jsonschema
@@ -64,6 +64,20 @@ class Schema:
         jsonschema.Draft6Validator.check_schema(self.schema)
         self.validator = jsonschema.Draft6Validator(self.schema)
         self.validator.resolver.store.update(load_common_files())
+
+    @classmethod
+    def load_dict(cls, name: str, root_key: str) -> Dict[str, 'Schema']:
+        '''
+        Load a dictionary of schemas from a file.
+        '''
+
+        path = f'schemas/{name}'
+        with pkg_resources.resource_stream('wildland', path) as f:
+            data = json.load(f)
+        return {
+            key: cls(value)
+            for key, value in data[root_key].items()
+        }
 
     def validate(self, data):
         errors = list(self.validator.iter_errors(data))

@@ -11,30 +11,30 @@ class SchemaDirective(Directive):
     has_content = True
 
     def run(self):
-        file_name = ''.join(self.content)
+        content = ''.join(self.content)
+        file_name, *keys = content.split()
         file_path = self._path(file_name)
         assert file_path.exists(), f'not found: {file_path}'
 
         schema = json.loads(file_path.read_bytes())
-        required = schema.get('required', [])
-        properties = schema.get('properties', {})
+        for key in keys:
+            schema = schema[key]
+
+        return [self._prop_list(schema)]
+
+    def _prop_list(self, definition, prefix=''):
+        required = definition.get('required', [])
+        properties = definition.get('properties', {})
 
         prop_list = nodes.bullet_list()
-        for key, definition in properties.items():
+        for key, sub_definition in properties.items():
             is_required = key in required
-            for item in self._describe(key, definition, is_required=is_required):
+            for item in self._describe(key, sub_definition, prefix=prefix,
+                                       is_required=is_required):
                 prop_list += item
-
-        return [prop_list]
+        return prop_list
 
     def _describe(self, key, definition, prefix='', is_required=False):
-        properties = definition.get('properties')
-        if properties:
-            sub_prefix = f'{prefix}{key}.'
-            for sub_key, sub_definition in properties.items():
-                yield from self._describe(sub_key, sub_definition, sub_prefix)
-            return
-
         item = nodes.list_item()
 
         item += nodes.literal(text=prefix + key)
@@ -59,6 +59,16 @@ class SchemaDirective(Directive):
         if 'description' in definition:
             desc = definition['description']
             item += nodes.inline(text=f': {desc}')
+
+        # Nested properties
+        if definition.get('properties'):
+            sub_prefix = f'{prefix}{key}.'
+            item += self._prop_list(definition, sub_prefix)
+
+        # Nested properties for array items
+        if definition.get('items') and definition['items'].get('properties'):
+            sub_prefix = f'{prefix}{key}[].'
+            item += self._prop_list(definition['items'], sub_prefix)
 
         yield item
 

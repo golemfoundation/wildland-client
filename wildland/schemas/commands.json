@@ -1,0 +1,90 @@
+{
+    "description": "Argument schemas for control commands",
+    "args": {
+        "mount": {
+            "type": "object",
+            "required": ["items"],
+            "additionalProperties": false,
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "description": "array of mount commands",
+                    "items": {
+                        "type": "object",
+                        "required": ["paths", "storage"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "paths": {
+                                "type": "array",
+                                "items": { "$ref": "types.json#abs-path" },
+                                "minItems": 1,
+                                "description": "list of absolute paths in Wildland namespace"
+                            },
+                            "storage": {
+                                "type": "object",
+                                "description": "parameters for the storage backend"
+                            },
+                            "read-only": {
+                                "type": "boolean",
+                                "description": "mount as read-only"
+                            },
+                            "extra": {
+                                "description": "extra data to be stored and returned with ``info``"
+                            },
+                            "remount": {
+                                "type": "boolean",
+                                "description": "if true, will also replace existing storage (as determined by the first path on the list)"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        "unmount": {
+            "type": "object",
+            "required": ["storage-id"],
+            "additionalProperties": false,
+            "properties": {
+                "storage-id": {
+                    "type": "number",
+                    "description": "storage ID, as returned by ``paths``"
+                }
+            }
+        },
+
+        "clear-cache": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "storage-id": {
+                    "type": "number",
+                    "description": "storage ID, as returned by ``paths``. If absent, clear cache for all storages"
+                }
+            }
+        },
+
+        "add-watch": {
+            "type": "object",
+            "required": ["storage-id", "pattern"],
+            "additionalProperties": false,
+            "properties": {
+                "storage-id": {
+                    "type": "number",
+                    "description": "storage ID, as returned by ``paths``"
+                },
+                "pattern": {
+                    "type": "string",
+                    "description": "a glob-style pattern"
+                }
+            }
+        },
+
+
+        "paths": { "type": "object", "additionalProperties": false },
+        "info": { "type": "object", "additionalProperties": false },
+        "breakpoint": { "type": "object", "additionalProperties": false },
+        "test": { "type": "object" }
+
+    }
+}

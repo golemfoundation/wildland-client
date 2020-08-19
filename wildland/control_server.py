@@ -27,6 +27,7 @@ import threading
 from socketserver import ThreadingMixIn, UnixStreamServer, BaseRequestHandler
 from contextlib import closing
 import json
+from typing import Dict, Callable
 
 logger = logging.getLogger('control-server')
 
@@ -64,6 +65,7 @@ class ControlHandler(BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
         self.commands = server.commands
+        self.validators = server.validators
         self.lock = threading.Lock()
         self.close_handlers = []
 
@@ -127,6 +129,11 @@ class ControlHandler(BaseRequestHandler):
             assert cmd in self.commands, f'unknown command: {cmd}'
 
             args = request.get('args') or {}
+            if self.validators is not None:
+                assert cmd in self.validators, f'no validator for command: {cmd}'
+                validator = self.validators[cmd]
+                validator(args)
+
             args = {key.replace('-', '_'): value for key, value in args.items()}
 
             result = self.commands[cmd](self, **args)
@@ -183,6 +190,7 @@ class ControlServer:
         self.socket_server = None
         self.server_thread = None
         self.commands = {}
+        self.validators = None
 
     def register_commands(self, obj):
         '''
@@ -195,6 +203,15 @@ class ControlServer:
             if name is not None:
                 self.commands[name] = val
 
+    def register_validators(self, validators: Dict[str, Callable]):
+        '''
+        Register a dictionary of schemas to be checked. For a command ``cmd``
+        with arguments ``args``, the server will call
+        ``validators[cmd](args)``.
+        '''
+
+        self.validators = validators
+
     def start(self, path: Path):
         '''
         Start listening on a provided path.
@@ -206,6 +223,7 @@ class ControlServer:
         self.socket_server = SocketServer(str(path), ControlHandler)
         # pylint: disable=attribute-defined-outside-init
         self.socket_server.commands = self.commands  # type: ignore
+        self.socket_server.validators = self.validators  # type: ignore
 
         self.server_thread = threading.Thread(
             name='control-server',

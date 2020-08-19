@@ -109,24 +109,30 @@ An event message is a JSON message with ``event`` field.
 Commands
 ^^^^^^^^
 
-Here is a list of supported commands. A description like ``name(arg1, arg2,
-arg3)`` specifies the following command::
+Here is a list of supported commands, with their arguments.
 
-    { "cmd": "name", "args": { "arg1": ..., "arg2": ..., "arg3": ... }}
+The commands are currently implemented in ``wildland/fs.py``. The arguments are
+validated, see ``wildland/schemas/commands.json``.
 
-The commands are currently implemented in ``wildland/fs.py``.
-
-* ``paths()`` - return paths and corresponding storages, by number::
+* ``paths`` - return paths and corresponding storages, by number::
 
       {
         "/container1": [1],
         "/container2": [2, 3],
       }
 
-* ``info()`` - return detailed storage information for each storage
+  .. schema:: commands.json args paths
 
-* ``mount(items)`` mount storages. ``items`` is an array of items in the
-  following format::
+
+* ``info`` - return detailed storage information for each storage
+
+  .. schema:: commands.json args info
+
+* ``mount`` - mount storages
+
+  .. schema:: commands.json args mount
+
+  Example ``items`` array::
 
       {
         "paths": ["/path1", "/path2" ...],
@@ -138,31 +144,32 @@ The commands are currently implemented in ``wildland/fs.py``.
         },
       }
 
-  * ``paths``: list of absolute paths in Wildland namespace
-  * ``storage``: parameters to be passed to storage backend
-  * ``remount`` (optional):  if true, will also replace existing storage (as
-    determined by the first path on the list)
-  * ``extra`` (optional): extra data to be stored and returned by ``info``
-  * ``read-only`` (optional): mount as read only
 
-* ``unmount(storage-id)``- unmount a storage by number
+* ``unmount``- unmount a storage by number
 
-* ``clear-cache(storage-id)`` - clear cache for a storage by number.
-  This invalidates the cached data in storage. (The cache is currently very
-  short-lived, so this endpoint is useful mostly for testing).
+  .. schema:: commands.json args unmount
 
-* ``clear-cache()`` - without arguments, will clear cache for all storages
 
-* ``breakpoint()`` (write-only) - drop into debugger (``pdb``). This is enabled
+* ``clear-cache`` - clear cache for a storage by number.  This invalidates the
+  cached data in storage. (The cache is currently very short-lived, so this
+  endpoint is useful mostly for testing).
+
+  .. schema:: commands.json args clear-cache
+
+* ``breakpoint`` - drop into debugger (``pdb``). This is enabled
   when the driver is running in foreground, and in single-thread mode
   (``wl start -d -S``).
+
+  .. schema:: commands.json args breakpoint
 
   Be careful - while in debugger, access to the Wildland filesystem will be
   blocked, which may freeze other programs.
 
-* ``add-watch(storage-id, pattern)`` - watch for changes to files in a storage.
+* ``add-watch`` - watch for changes to files in a storage.
   The pattern is a glob-style pattern, such as ``*/container.yaml``. It has to
   be relative and is interpreted in the context of the storage.
+
+  .. schema:: commands.json args add-watch
 
   The result is an integer watch ID.
 

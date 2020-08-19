@@ -38,6 +38,7 @@ from .storage_backends.base import StorageBackend, Attr, FileEvent, StorageWatch
 from .exc import WildlandError
 from .log import init_logging
 from .control_server import ControlServer, ControlHandler, control_command
+from .manifest.schema import Schema
 
 
 logger = logging.getLogger('fuse')
@@ -105,6 +106,11 @@ class WildlandFS(fuse.Fuse):
         self.resolver = WildlandFSConflictResolver(self)
         self.control_server = ControlServer()
         self.control_server.register_commands(self)
+
+        command_schemas = Schema.load_dict('commands.json', 'args')
+        self.control_server.register_validators({
+            cmd: schema.validate for cmd, schema in command_schemas.items()
+        })
 
     def install_debug_handler(self):
         '''Decorate all python-fuse entry points'''
