@@ -31,6 +31,7 @@ import json
 import sys
 import hashlib
 import dataclasses
+import glob
 
 from .container import Container
 from .storage import Storage
@@ -56,9 +57,8 @@ class WatchEvent:
     A file change event.
     '''
 
-    event_type: str
-    storage_id: int
-    path: PurePosixPath
+    event_type: str  # create, modify, delete
+    path: PurePosixPath  # absolute path in Wildland namespace
 
 
 class WildlandFSError(WildlandError):
@@ -254,7 +254,7 @@ class WildlandFSClient:
         return storage_ids[0]
 
     def find_all_storage_ids_for_path(self, path: PurePosixPath) \
-        -> Iterable[Tuple[int, PurePosixPath]]:
+        -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
         '''
         Given a path, retrieve all mounted storages this path is inside.
 
@@ -269,9 +269,10 @@ class WildlandFSClient:
             if part not in tree.children:
                 break
             tree = tree.children[part]
+            storage_path = PurePosixPath(*path.parts[:i+1])
             relpath = PurePosixPath(*path.parts[i+1:])
             for storage_id in tree.storage_ids:
-                yield storage_id, relpath
+                yield storage_id, storage_path, relpath
 
     def find_trusted_signer(self, local_path: Path) -> Optional[str]:
         '''
@@ -295,7 +296,7 @@ class WildlandFSClient:
         path = PurePosixPath('/') / relpath
         storage_ids = [
             storage_id
-            for storage_id, _relpath in self.find_all_storage_ids_for_path(path)]
+            for storage_id, _storage_path, _relpath in self.find_all_storage_ids_for_path(path)]
         if len(storage_ids) == 0:
             # Outside of any storage
             return None
@@ -444,27 +445,50 @@ class WildlandFSClient:
         '''
         return PurePosixPath('/.users/') / signer / path.relative_to('/')
 
-    def watch(self, items: Iterable[Tuple[int, str]]) -> Iterator[List[WatchEvent]]:
+    def watch(self, patterns: Iterable[str], with_initial=False) -> \
+        Iterator[List[WatchEvent]]:
         '''
-        Watch for changes under the provided list of locations
-        (as tuples (storage_id, pattern)). Provides a stream of
+        Watch for changes under the provided list of patterns (as absolute paths).
         lists of WatchEvent objects (so that simultaneous events can be grouped).
+
+        If ``with_initial`` is true, also include initial synthetic events for
+        files already found.
         '''
 
         client = ControlClient()
         client.connect(self.socket_path)
         try:
-            for storage_id, pattern in items:
-                client.run_command(
-                    'add-watch', storage_id=storage_id, pattern=pattern)
+            watches = {}
+            for pattern in patterns:
+                found = list(self.find_all_storage_ids_for_path(
+                    PurePosixPath(pattern)))
+                if not found:
+                    raise WildlandError(f"couldn't resolve to storage: {pattern}")
+                for storage_id, storage_path, relpath in found:
+                    logger.debug('watching %d:%s', storage_id, relpath)
+                    watch_id = client.run_command(
+                        'add-watch', storage_id=storage_id, pattern=str(relpath))
+                    watches[watch_id] = storage_path
+
+            if with_initial:
+                initial = []
+                for pattern in patterns:
+                    local_path = self.mount_dir / (PurePosixPath(pattern).relative_to('/'))
+                    for file_path in glob.glob(str(local_path)):
+                        fs_path = PurePosixPath('/') / Path(file_path).relative_to(
+                            self.mount_dir)
+                        initial.append(WatchEvent('create', fs_path))
+                if initial:
+                    yield initial
 
             for events in client.iter_events():
                 watch_events = []
                 for event in events:
+                    watch_id = event['watch-id']
+                    storage_path = watches[watch_id]
                     event_type = event['type']
-                    storage_id = event['storage-id']
                     path = PurePosixPath(event['path'])
-                    watch_events.append(WatchEvent(event_type, storage_id, path))
+                    watch_events.append(WatchEvent(event_type, storage_path / path))
                 yield watch_events
         finally:
             client.disconnect()

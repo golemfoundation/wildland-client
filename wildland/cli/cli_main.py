@@ -202,27 +202,18 @@ def stop(obj: ContextObj):
 
 
 @main.command(short_help='watch for changes')
+@click.option('--with-initial', is_flag=True, help='include initial files')
 @click.argument('patterns', metavar='PATH',
                 nargs=-1, required=True)
 @click.pass_obj
-def watch(obj: ContextObj, patterns):
+def watch(obj: ContextObj, patterns, with_initial):
     '''
     Watch for changes in inside mounted Wildland filesystem.
     '''
 
     obj.fs_client.ensure_mounted()
 
-    items = []
-    for pattern in patterns:
-        found = list(obj.fs_client.find_all_storage_ids_for_path(
-            PurePosixPath(pattern)))
-        if not found:
-            raise CliError(f"couldn't resolve to storage: {pattern}")
-        for storage_id, relpath in found:
-            print(f'{pattern} -> {storage_id}:{relpath}')
-            items.append((storage_id, str(relpath)))
-
-    for events in obj.fs_client.watch(items):
+    for events in obj.fs_client.watch(patterns, with_initial):
         for event in events:
             print(f'{event.event_type}: {event.path}')
 
