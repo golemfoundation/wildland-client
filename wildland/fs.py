@@ -314,7 +314,7 @@ class WildlandFS(fuse.Fuse):
             st_ctime=attr.timestamp,
         )
 
-    def _notify_storage_watches(self, method_name, relpath, storage_id):
+    def _notify_storage_watches(self, event_type, relpath, storage_id):
         with self.mount_lock:
             if storage_id not in self.storage_watches:
                 return
@@ -325,12 +325,6 @@ class WildlandFS(fuse.Fuse):
         if not watches:
             return
 
-        event_type = {
-            'create': 'create',
-            'mkdir': 'mkdir',
-            'unlink': 'delete',
-            'rmdir': 'delete',
-        }.get(method_name, 'modify')
         event = FileEvent(event_type, relpath)
         for watch in watches:
             self._notify_watch(watch, [event])
@@ -360,8 +354,8 @@ class WildlandFS(fuse.Fuse):
             if watcher:
                 logger.info('starting watcher for storage %d', storage_id)
                 self.watchers[storage_id] = watcher
-                handler = lambda events: self._watch_handler(storage_id, events)
-                watcher.start(handler)
+                watch_handler = lambda events: self._watch_handler(storage_id, events)
+                watcher.start(watch_handler)
 
         return watch.id
 
@@ -430,15 +424,20 @@ class WildlandFS(fuse.Fuse):
     def proxy(self, method_name, path, *args,
               parent=False,
               modify=False,
+              event_type=None,
               **kwargs):
         '''
         Proxy a call to corresponding Storage.
 
-        If parent is true, resolve the path based on parent. This will apply
-        for calls that create a file or otherwise modify the parent directory.
+        Flags:
+          parent: if true, resolve the path based on parent. This will
+          apply for calls that create a file or otherwise modify the parent
+          directory.
 
-        If modify is true, this is an operation that should not be proxied to
-        read-only storage.
+          modify: if true, this is an operation that should not be proxied
+          to read-only storage.
+
+          event_type: event to notify about (create, update, delete).
         '''
 
         path = PurePosixPath(path)
@@ -460,16 +459,21 @@ class WildlandFS(fuse.Fuse):
         relpath = res.relpath / path.name if parent else res.relpath
         result = getattr(storage, method_name)(relpath, *args, **kwargs)
         # If successful, notify watches.
-        if modify:
-            self._notify_storage_watches(method_name, relpath, res.ident)
+
+        if event_type is not None:
+            self._notify_storage_watches(event_type, relpath, res.ident)
         return result
 
     def open(self, path, flags):
         modify = bool(flags & (os.O_RDWR | os.O_WRONLY))
-        return self.proxy('open', path, flags, modify=modify)
+        obj = self.proxy('open', path, flags, modify=modify)
+        obj._created = False
+        return obj
 
     def create(self, path, flags, mode):
-        return self.proxy('create', path, flags, mode, parent=True, modify=True)
+        obj = self.proxy('create', path, flags, mode, parent=True, modify=True)
+        obj._created = True
+        return obj
 
     def getattr(self, path):
         attr, res = self.resolver.getattr_extended(PurePosixPath(path))
@@ -497,8 +501,14 @@ class WildlandFS(fuse.Fuse):
     def fsync(self, *args):
         return self.proxy('fsync', *args)
 
-    def release(self, *args):
-        return self.proxy('release', *args)
+    def release(self, path, flags, obj):
+        # Notify if the file was created, or open for writing.
+        event_type: Optional[str] = None
+        if obj._created:
+            event_type = 'create'
+        elif flags & (os.O_RDWR | os.O_WRONLY):
+            event_type = 'modify'
+        return self.proxy('release', path, flags, obj, event_type=event_type)
 
     def flush(self, *args):
         return self.proxy('flush', *args)
@@ -546,7 +556,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def mkdir(self, path, mode):
-        return self.proxy('mkdir', path, mode, parent=True, modify=True)
+        return self.proxy('mkdir', path, mode, parent=True, modify=True, event_type='create')
 
     def mknod(self, *args):
         return -errno.ENOSYS
@@ -561,7 +571,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def rmdir(self, path):
-        return self.proxy('rmdir', path, parent=True, modify=True)
+        return self.proxy('rmdir', path, parent=True, modify=True, event_type='delete')
 
     def setxattr(self, *args):
         return -errno.ENOSYS
@@ -573,10 +583,10 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def truncate(self, path, length):
-        return self.proxy('truncate', path, length, modify=True)
+        return self.proxy('truncate', path, length, modify=True, event_type='modify')
 
     def unlink(self, path):
-        return self.proxy('unlink', path, parent=True, modify=True)
+        return self.proxy('unlink', path, parent=True, modify=True, event_type='delete')
 
     def utime(self, *args):
         return -errno.ENOSYS

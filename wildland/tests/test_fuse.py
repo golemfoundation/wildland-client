@@ -399,24 +399,34 @@ def test_watch(env, storage_type):
 
     watch_id = env.run_control_command(
         'add-watch', {'storage-id': 1, 'pattern': '*.txt'})
-    with open(env.mnt_dir / 'container1/file1.txt', 'w') as f:
-        event = env.recv_event()
-        assert event == [{
-            'type': 'create',
-            'path': 'file1.txt',
-            'storage-id': 1,
-            'watch-id': watch_id,
-        }]
 
+    # Create a new file (generates a 'create' event)
+
+    with open(env.mnt_dir / 'container1/file1.txt', 'w') as f:
+        pass
+
+    event = env.recv_event()
+    assert event == [{
+        'type': 'create',
+        'path': 'file1.txt',
+        'storage-id': 1,
+        'watch-id': watch_id,
+    }]
+
+    # Append to file (generates a 'modify' event after close)
+
+    with open(env.mnt_dir / 'container1/file1.txt', 'a') as f:
         f.write('hello')
-        f.flush()
-        event = env.recv_event()
-        assert event == [{
-            'type': 'modify',
-            'path': 'file1.txt',
-            'storage-id': 1,
-            'watch-id': watch_id,
-        }]
+
+    event = env.recv_event()
+    assert event == [{
+        'type': 'modify',
+        'path': 'file1.txt',
+        'storage-id': 1,
+        'watch-id': watch_id,
+    }]
+
+    # Delete file (generates a 'delete' event)
 
     os.unlink(env.mnt_dir / 'container1/file1.txt')
     event = env.recv_event()
