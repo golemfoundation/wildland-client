@@ -22,7 +22,7 @@ Wildland command-line interface.
 '''
 
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import click
 
