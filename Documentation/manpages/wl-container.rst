@@ -95,8 +95,8 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount [--remount/--no-remount] <container>`
-------------------------------------------------------------------
+:command:`wl container mount [--remount/--no-remount] <container> [<container>...]`
+-----------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl start <wl-start>`.
@@ -115,6 +115,29 @@ be mounted first, see :ref:`wl start <wl-start>`.
 
    Add the containers to ``default-containers`` in configuration file, so
    that they will be mounted at startup.
+
+
+.. program:: wl-container-mount-watch
+.. _wl-container-mount-watch:
+
+:command:`wl container mount-watch <pattern> [<pattern>...]`
+------------------------------------------------------------
+
+Mount a list of containers from manifests in Wildland filesystem, then watch
+the filesystem for change.
+
+The Wildland system has to be mounted first, see :ref:`wl start <wl-start>`.
+
+Example::
+
+    wl container mount-watch '~/wildland/mynotes/*/*.yaml'
+
+This will attempt to mount, unmount and remount containers as the files matched
+by ``/*/*.yaml`` change.
+
+Make sure to use quotation marks, or the wildcard patterns will be expanded
+by the shell.
+
 
 .. program:: wl-container-unmount
 .. _wl-container-unmount:

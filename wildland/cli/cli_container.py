@@ -22,9 +22,9 @@ Manage containers
 '''
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional
 import os
-import glob
+import traceback
 
 import click
 
@@ -32,6 +32,8 @@ from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
 from ..storage import Storage
+from ..client import Client
+from ..fs_client import WildlandFSClient, WatchEvent
 
 
 @aliased_group('container', short_help='container management')
@@ -268,19 +270,129 @@ def unmount(obj: ContextObj, path: str, container_names):
         obj.fs_client.unmount_container(storage_id)
 
 
+class Remounter:
+    '''
+    A class for watching files and remounting if necessary.
+    '''
+
+    def __init__(self, client: Client, fs_client: WildlandFSClient,
+                 container_names: List[str]):
+        self.client = client
+        self.fs_client = fs_client
+
+        self.patterns: List[str] = []
+        for name in container_names:
+            path = Path(os.path.expanduser(name)).resolve()
+            relpath = path.relative_to(self.fs_client.mount_dir)
+            self.patterns.append(str(PurePosixPath('/') / relpath))
+
+        # Queued operations
+        self.to_mount: List[Tuple[Container, Storage, bool]] = []
+        self.to_unmount: List[int] = []
+
+        # manifest path -> main container path
+        self.main_paths: Dict[PurePosixPath, PurePosixPath] = {}
+
+    def run(self):
+        '''
+        Run the main loop.
+        '''
+
+        click.echo(f'Using patterns: {self.patterns}')
+        for events in self.fs_client.watch(self.patterns, with_initial=True):
+            click.echo()
+            for event in events:
+                try:
+                    self.handle_event(event)
+                except Exception:
+                    click.echo('error in handle_event')
+                    traceback.print_exc()
+
+            self.unmount_pending()
+            self.mount_pending()
+
+    def handle_event(self, event: WatchEvent):
+        '''
+        Handle a single file change event. Queue mount/unmount operations in
+        self.to_mount and self.to_unmount.
+        '''
+
+        click.echo(f'{event.event_type}: {event.path}')
+
+        # Find out if we've already seen the file, and can match it to a
+        # mounted storage.
+        storage_id: Optional[int] = None
+        if event.path in self.main_paths:
+            storage_id = self.fs_client.find_storage_id_by_path(
+                self.main_paths[event.path])
+
+        # Handle delete: unmount if the file was mounted.
+        if event.event_type == 'delete':
+            # Stop tracking the file
+            if event.path in self.main_paths:
+                del self.main_paths[event.path]
+
+            if storage_id is not None:
+                click.echo(f'  (unmount {storage_id})')
+                self.to_unmount.append(storage_id)
+            else:
+                click.echo('  (not mounted)')
+
+        # Handle create/modify:
+        if event.event_type in ['create', 'modify']:
+            local_path = self.fs_client.mount_dir / event.path.relative_to('/')
+            container = self.client.load_container_from_path(local_path)
+
+            # Start tracking the file
+            self.main_paths[event.path] = self.fs_client.get_user_path(
+                container.signer, container.paths[0])
+
+            # Check if the container is NOT detected as currently mounted under
+            # this path. This might happen if the modified file changes UUID.
+            # In this case, we want to unmount the old one.
+            current_storage_id = self.fs_client.find_storage_id(container)
+            if storage_id is not None and storage_id != current_storage_id:
+                click.echo(f'  (unmount old: {storage_id})')
+
+            # Call should_remount to determine if we should mount this
+            # container.
+            is_default_user = container.signer == self.client.config.get('@default')
+            storage = self.client.select_storage(container)
+            if self.fs_client.should_remount(container, storage, is_default_user):
+                click.echo('  (mount)')
+                self.to_mount.append((container, storage, is_default_user))
+            else:
+                click.echo('  (no change)')
+
+    def unmount_pending(self):
+        '''
+        Unmount queued containers.
+        '''
+
+        for storage_id in self.to_unmount:
+            self.fs_client.unmount_container(storage_id)
+        self.to_unmount.clear()
+
+    def mount_pending(self):
+        '''
+        Mount queued containers.
+        '''
+
+        self.fs_client.mount_multiple_containers(self.to_mount, remount=True)
+        self.to_mount.clear()
+
+
 @container_.command('mount-watch', short_help='mount container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
 def mount_watch(obj: ContextObj, container_names):
+    '''
+    Watch for manifest files inside Wildland, and keep the filesystem mount
+    state in sync.
+    '''
+
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
-    patterns = []
-    for name in container_names:
-        path = Path(os.path.expanduser(name)).resolve()
-        relpath = path.relative_to(obj.fs_client.mount_dir)
-        patterns.append(str(PurePosixPath('/') / relpath))
-
-    click.echo(f'Using patterns: {patterns}')
-    for event in obj.fs_client.watch(patterns, with_initial=True):
-        print(event)
+    remounter = Remounter(obj.client, obj.fs_client, container_names)
+    remounter.run()

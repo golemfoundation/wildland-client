@@ -56,3 +56,18 @@ automatically-generated manifests for every Bear note found in the BearDB.
 
 The second command instructs WL client to mount all these micro-containers and
 expose them in the filesystem.
+
+## Keeping the notes in sync
+
+Alternatively, you can use the `mount-watch` command to keep the filesystem in
+sync with changing database:
+
+
+```
+wl start
+wl container mount bear-notes
+wl container mount-watch '~/wildland/mynotes/*/*.yaml'
+```
+
+Make sure to use the quotation marks, or the wildcard pattern (`*/*.yaml`) will
+be expanded by the shell.

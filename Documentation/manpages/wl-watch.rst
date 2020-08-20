@@ -17,6 +17,10 @@ patterns to prevent shell from expanding them.
 (This is a helper command for debugging. Run it with logging enabled
 (``wl -vv watch``) to see more of the internals.)
 
+.. option:: --with-initial
+
+   Generate initial events (``create`` for the matched files) on command start.
+
 Example
 -------
 

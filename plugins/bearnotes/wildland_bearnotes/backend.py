@@ -353,9 +353,13 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         self.root.clear_cache()
 
     def _dir_root(self):
-        for ident, tags in self.bear_db.get_note_idents_with_tags():
-            yield FileCachedDirEntry(self.bear_db.path,
-                                     ident, partial(self._dir_note, ident, tags))
+        try:
+            for ident, tags in self.bear_db.get_note_idents_with_tags():
+                yield FileCachedDirEntry(self.bear_db.path,
+                                         ident, partial(self._dir_note, ident, tags))
+        except sqlite3.DatabaseError:
+            logger.exception('error loading database')
+            return
 
     def _dir_note(self, ident: str, tags: List[str]):
         yield StaticFileEntry('container.yaml', self._get_manifest(ident, tags))
