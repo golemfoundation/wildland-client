@@ -20,7 +20,10 @@ class SchemaDirective(Directive):
         for key in keys:
             schema = schema[key]
 
-        return [self._prop_list(schema)]
+        prop_list = self._prop_list(schema)
+        if prop_list:
+            return [prop_list]
+        return []
 
     def _prop_list(self, definition, prefix=''):
         required = definition.get('required', [])
@@ -32,7 +35,9 @@ class SchemaDirective(Directive):
             for item in self._describe(key, sub_definition, prefix=prefix,
                                        is_required=is_required):
                 prop_list += item
-        return prop_list
+        if prop_list.children:
+            return prop_list
+        return None
 
     def _describe(self, key, definition, prefix='', is_required=False):
         item = nodes.list_item()
