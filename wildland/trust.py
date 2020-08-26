@@ -1,0 +1,78 @@
+# Wildland Project
+#
+# Copyright (C) 2020 Golem Foundation,
+#                    Paweł Marczewski <pawel@invisiblethingslab.com>,
+#                    Wojtek Porczyk <woju@invisiblethingslab.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+'''
+The container
+'''
+
+from pathlib import PurePosixPath, Path
+from typing import Optional, List
+
+from .manifest.manifest import Manifest
+from .manifest.schema import Schema
+
+
+class Trust:
+    '''
+    Trust object: a wrapper for user manifests.
+    '''
+
+    SCHEMA = Schema('trust')
+
+    def __init__(self, *,
+                 signer: str,
+                 user_path: str,
+                 user_pubkey: str,
+                 paths: List[PurePosixPath],
+                 local_path: Optional[Path] = None):
+        self.signer = signer
+        self.user_path = user_path
+        self.user_pubkey = user_pubkey
+        self.paths = paths
+        self.local_path = local_path
+
+    @classmethod
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Trust':
+        '''
+        Construct a Container instance from a manifest.
+        '''
+
+        manifest.apply_schema(cls.SCHEMA)
+        return cls(
+            signer=manifest.fields['signer'],
+            user_path=manifest.fields['user'],
+            user_pubkey=manifest.fields['pubkey'],
+            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
+            local_path=local_path,
+        )
+
+    def to_unsigned_manifest(self) -> Manifest:
+        '''
+        Create a manifest based on Trust's data.
+        Has to be signed separately.
+        '''
+
+        manifest = Manifest.from_fields(dict(
+            signer=self.signer,
+            user=self.user_path,
+            pubkey=self.user_pubkey,
+            paths=[str(p) for p in self.paths],
+        ))
+        manifest.apply_schema(self.SCHEMA)
+        return manifest

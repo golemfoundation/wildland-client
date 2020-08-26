@@ -29,6 +29,7 @@ from .manifest.sig import SigContext
 from .user import User
 from .container import Container
 from .storage import Storage
+from .trust import Trust
 
 
 class Session:
@@ -57,7 +58,7 @@ class Session:
             trusted_signer: Optional[str] = None,
     ) -> Union[Container, User]:
         '''
-        Load a manifest that cal be either a container or user manifest.
+        Load a manifest that can be either a container or user manifest.
         '''
 
         manifest = Manifest.from_bytes(
@@ -137,5 +138,31 @@ class Session:
         '''
 
         manifest = storage.to_unsigned_manifest()
+        manifest.sign(self.sig)
+        return manifest.to_bytes()
+
+    def load_trust(
+        self,
+        data: bytes,
+        local_path: Optional[Path] = None,
+        trusted_signer: Optional[str] = None,
+    ) -> Trust:
+        '''
+        Load a trust manifest, creating a Trust object.
+        '''
+
+        manifest = Manifest.from_bytes(
+            data,
+            self.sig,
+            self_signed=Manifest.DISALLOW,
+            trusted_signer=trusted_signer)
+        return Trust.from_manifest(manifest, local_path)
+
+    def dump_trust(self, trust: Trust) -> bytes:
+        '''
+        Create a signed manifest out of a Trust object.
+        '''
+
+        manifest = trust.to_unsigned_manifest()
         manifest.sign(self.sig)
         return manifest.to_bytes()

@@ -26,6 +26,13 @@
             { "$ref": "#/file-url" }
         ]
     },
+    "url-or-relpath": {
+        "description": "URL or relative path",
+        "oneOf": [
+            { "$ref": "#/url" },
+            { "$ref": "#/rel-path" }
+        ]
+    },
     "fingerprint": {
         "type": "string",
         "description": "fingerprint",
