@@ -44,7 +44,9 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     '''
 
-    if manifest_type is not None and not name.endswith('.yaml'):
+    if (manifest_type in ['user', 'container', 'storage'] and
+        not name.endswith('.yaml')):
+
         base_dir = {
             'user': client.user_dir,
             'container': client.container_dir,

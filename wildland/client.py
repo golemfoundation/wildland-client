@@ -33,6 +33,7 @@ import yaml
 from .user import User
 from .container import Container
 from .storage import Storage
+from .trust import Trust
 from .wlpath import WildlandPath
 from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError
@@ -297,6 +298,16 @@ class Client:
 
         raise ManifestError(f'Storage not found: {name}')
 
+    def load_trust_from_path(self, path: Path) -> Trust:
+        '''
+        Load a trust from a local file.
+        '''
+
+        trusted_signer = self.fs_client.find_trusted_signer(path)
+        return self.session.load_trust(
+            path.read_bytes(), path,
+            trusted_signer=trusted_signer)
+
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
         '''
         Save a user manifest. If path is None, the user has to have
@@ -352,6 +363,16 @@ class Client:
         path = self._new_path(self.storage_dir, name or storage.container_path.name)
         path.write_bytes(self.session.dump_storage(storage))
         storage.local_path = path
+        return path
+
+    def save_new_trust(self, trust: Trust, path: Path) -> Path:
+        '''
+        Save a new trust. Unlike when creating other objects, here the user
+        needs to provide a specific path.
+        '''
+
+        path.write_bytes(self.session.dump_trust(trust))
+        trust.local_path = path
         return path
 
     @staticmethod
