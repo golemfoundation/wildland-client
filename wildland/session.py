@@ -51,24 +51,23 @@ class Session:
             data, self.sig, self_signed=Manifest.REQUIRE)
         return User.from_manifest(manifest, local_path)
 
-    def load_container_or_user(
+    def load_container_or_trust(
             self,
             data: bytes,
             local_path: Optional[Path] = None,
             trusted_signer: Optional[str] = None,
-    ) -> Union[Container, User]:
+    ) -> Union[Container, Trust]:
         '''
-        Load a manifest that can be either a container or user manifest.
+        Load a manifest that can be either a container or trust manifest.
         '''
 
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.ALLOW,
             trusted_signer=trusted_signer)
-        assert manifest.header
-        if manifest.header.pubkey is not None:
-            return User.from_manifest(manifest, local_path)
+        # Unfortunately, there is no clean way of distinguishing the two.
+        if 'user' in manifest.fields:
+            return Trust.from_manifest(manifest, local_path)
         return Container.from_manifest(manifest, local_path)
 
     def recognize_user(self, user: User):

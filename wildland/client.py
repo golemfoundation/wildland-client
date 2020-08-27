@@ -23,7 +23,7 @@ Client class
 
 from pathlib import Path
 import logging
-from typing import Optional, Iterator, List
+from typing import Optional, Iterator, List, Tuple
 from urllib.parse import urlparse, quote
 import glob
 import os
@@ -82,14 +82,15 @@ class Client:
 
         self.users: List[User] = []
 
-    def sub_client_with_key(self, pubkey: str) -> 'Client':
+    def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         '''
         Create a copy of the current Client, with a public key imported.
+        Returns a tuple (client, signer).
         '''
 
         sig = self.session.sig.copy()
-        sig.add_pubkey(pubkey)
-        return Client(config=self.config, sig=sig)
+        signer = sig.add_pubkey(pubkey)
+        return Client(config=self.config, sig=sig), signer
 
     def recognize_users(self):
         '''
@@ -468,10 +469,6 @@ class Client:
                 raise WildlandError('Error retrieving file URL: {}: {}'.format(
                     url, e))
         raise WildlandError(f'Unrecognized URL: {url}')
-
-    @staticmethod
-    def _is_url(url: str):
-        return '://' in url
 
     def local_url(self, path: Path) -> str:
         '''
