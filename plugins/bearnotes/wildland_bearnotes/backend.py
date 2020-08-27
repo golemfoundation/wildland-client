@@ -37,7 +37,7 @@ from wildland.storage import Storage
 from wildland.container import Container
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.generated import \
-    GeneratedStorageMixin, FuncFileEntry, CachedDirEntry, \
+    GeneratedStorageMixin, CachedDirEntry, \
     StaticFileEntry
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.manifest import Manifest
@@ -365,7 +365,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         yield StaticFileEntry('container.yaml', self._get_manifest(ident, tags))
         yield StaticFileEntry('README.md', self._get_readme())
         if self.with_content:
-            yield FuncFileEntry('note.md', partial(self._get_note, ident))
+            yield StaticFileEntry('note.md', self._get_note(ident))
 
     def _get_readme(self) -> bytes:
         '''
