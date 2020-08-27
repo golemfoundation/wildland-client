@@ -145,10 +145,6 @@ def setup(base_dir, cli):
     (base_dir / 'storage1/unsigned.yaml').write_text(content)
     (base_dir / 'storage2/unsigned.yaml').write_text(content)
 
-    os.mkdir(base_dir / 'storage1/users/')
-    shutil.copyfile(base_dir / 'users/User2.yaml',
-                    base_dir / 'storage1/users/User2.yaml')
-
 
 @pytest.fixture
 def client(setup, base_dir):
@@ -235,7 +231,22 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
     cli('container', 'unmount', ':/path:/other/path:')
 
 
-def test_read_file_traverse_user(base_dir, client):
+@pytest.mark.parametrize('location_type', ['local', 'remote'])
+def test_read_file_traverse_user(cli, base_dir, client, location_type):
+    os.mkdir(base_dir / 'storage1/users/')
+    shutil.copyfile(base_dir / 'users/User2.yaml',
+                    base_dir / 'storage1/users/User2.user.yaml')
+
+    if location_type == 'local':
+        location = './User2.user.yaml'
+    else:
+        location = 'file://localhost' + str(base_dir / 'users/User2.yaml')
+
+    cli('trust', 'create', '--user', 'User',
+        '--ref-user', 'User2',
+        '--ref-user-location', location,
+        base_dir / 'storage1/users/User2.yaml')
+
     with open(base_dir / 'storage3/file.txt', 'w') as f:
         f.write('Hello world')
     search = Search(client,
@@ -243,6 +254,7 @@ def test_read_file_traverse_user(base_dir, client):
                     '0xaaa')
     data = search.read_file()
     assert data == b'Hello world'
+
 
 ## Manifest pattern
 

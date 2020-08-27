@@ -50,6 +50,16 @@ class SigContext:
     identifiers, serving as key fingerprints.
     '''
 
+    def __init__(self):
+        self.use_local_keys = False
+
+    def recognize_local_keys(self):
+        '''
+        Recognize local keys (i.e. ones found using find()) while loading.
+        '''
+
+        self.use_local_keys = True
+
     def copy(self: T) -> T:
         '''
         Create a copy of the current context.
@@ -105,6 +115,7 @@ class DummySigContext(SigContext):
     '''
 
     def __init__(self):
+        super().__init__()
         self.signers = set()
 
     def copy(self) -> 'DummySigContext':
@@ -138,7 +149,7 @@ class DummySigContext(SigContext):
                 'Expected dummy.* signature, got {!r}'.format(signature))
 
         signer = signature[len('dummy.'):]
-        if signer not in self.signers:
+        if not (signer in self.signers or self.use_local_keys):
             raise SigError('Unknown signer: {!r}'.format(signer))
         return signer
 
@@ -152,6 +163,7 @@ class SignifySigContext(SigContext):
     '''
 
     def __init__(self, key_dir: Path):
+        super().__init__()
         self.key_dir = key_dir
         self.binary: str = self._find_binary()
         self.signers: Dict[str, str] = {}
@@ -209,16 +221,12 @@ class SignifySigContext(SigContext):
         '''
         Find a key by name.
 
-        Looks for <name>.pub and <name>.sec files in the specified key
-        directory.
+        Looks for <name>.pub file in the specified key directory.
         '''
 
         public_path = self.key_dir / f'{key_id}.pub'
-        secret_path = self.key_dir / f'{key_id}.sec'
         if not public_path.exists():
             raise SigError(f'File not found: {public_path}')
-        if not secret_path.exists():
-            raise SigError(f'File not found: {secret_path}')
 
         pubkey = public_path.read_text()
         signer = self.fingerprint(pubkey)
@@ -239,10 +247,21 @@ class SignifySigContext(SigContext):
         '''
         Get a public key by signer ID.
         '''
-        try:
-            return self.signers[signer]
-        except KeyError:
+
+        if signer not in self.signers and self.use_local_keys:
+            try:
+                found_signer, found_pubkey = self.find(signer)
+            except SigError:
+                pass
+            else:
+                if found_signer == signer:
+                    self.signers[signer] = found_pubkey
+
+        if signer not in self.signers:
             raise SigError(f'Public key not found: {signer}')
+
+        return self.signers[signer]
+
 
     def sign(self, signer: str, data: bytes) -> str:
         '''
@@ -277,11 +296,10 @@ class SignifySigContext(SigContext):
         Verify signature for data, returning the recognized signer.
         If self_signed, ignore that a signer is not recognized.
         '''
-        signer = self.fingerprint(signature)
-        if signer not in self.signers:
-            raise SigError(f'Unrecognized signer: {signer}')
 
-        pubkey = self.signers[signer]
+        signer = self.fingerprint(signature)
+        pubkey = self.get_pubkey(signer)
+
         with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
             message_file = Path(d) / 'message'
             signature_file = Path(d) / 'message.sig'

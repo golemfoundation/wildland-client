@@ -29,6 +29,7 @@ from .manifest.sig import SigContext
 from .user import User
 from .container import Container
 from .storage import Storage
+from .trust import Trust
 
 
 class Session:
@@ -41,33 +42,33 @@ class Session:
 
     def load_user(self,
                   data: bytes,
-                  local_path: Optional[Path] = None) -> User:
+                  local_path: Optional[Path] = None,
+    ) -> User:
         '''
         Load a user manifest, creating a User object.
         '''
 
-        manifest = Manifest.from_bytes(
-            data, self.sig, self_signed=Manifest.REQUIRE)
-        return User.from_manifest(manifest, local_path)
+        manifest = Manifest.from_bytes(data, self.sig)
+        pubkey = self.sig.get_pubkey(manifest.fields['signer'])
+        return User.from_manifest(manifest, pubkey, local_path)
 
-    def load_container_or_user(
+    def load_container_or_trust(
             self,
             data: bytes,
             local_path: Optional[Path] = None,
             trusted_signer: Optional[str] = None,
-    ) -> Union[Container, User]:
+    ) -> Union[Container, Trust]:
         '''
-        Load a manifest that cal be either a container or user manifest.
+        Load a manifest that can be either a container or trust manifest.
         '''
 
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.ALLOW,
             trusted_signer=trusted_signer)
-        assert manifest.header
-        if manifest.header.pubkey is not None:
-            return User.from_manifest(manifest, local_path)
+        # Unfortunately, there is no clean way of distinguishing the two.
+        if 'user' in manifest.fields:
+            return Trust.from_manifest(manifest, local_path)
         return Container.from_manifest(manifest, local_path)
 
     def recognize_user(self, user: User):
@@ -85,7 +86,7 @@ class Session:
         manifest = user.to_unsigned_manifest()
         sig_temp = self.sig.copy()
         sig_temp.add_pubkey(user.pubkey)
-        manifest.sign(sig_temp, attach_pubkey=True)
+        manifest.sign(sig_temp)
         return manifest.to_bytes()
 
     def load_container(
@@ -101,7 +102,6 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.DISALLOW,
             trusted_signer=trusted_signer)
         return Container.from_manifest(manifest, local_path)
 
@@ -127,7 +127,6 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.DISALLOW,
             trusted_signer=trusted_signer)
         return Storage.from_manifest(manifest, local_path)
 
@@ -137,5 +136,30 @@ class Session:
         '''
 
         manifest = storage.to_unsigned_manifest()
+        manifest.sign(self.sig)
+        return manifest.to_bytes()
+
+    def load_trust(
+        self,
+        data: bytes,
+        local_path: Optional[Path] = None,
+        trusted_signer: Optional[str] = None,
+    ) -> Trust:
+        '''
+        Load a trust manifest, creating a Trust object.
+        '''
+
+        manifest = Manifest.from_bytes(
+            data,
+            self.sig,
+            trusted_signer=trusted_signer)
+        return Trust.from_manifest(manifest, local_path)
+
+    def dump_trust(self, trust: Trust) -> bytes:
+        '''
+        Create a signed manifest out of a Trust object.
+        '''
+
+        manifest = trust.to_unsigned_manifest()
         manifest.sign(self.sig)
         return manifest.to_bytes()

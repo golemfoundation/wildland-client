@@ -18,65 +18,61 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-User manifest and user management
+The container
 '''
 
-from pathlib import Path, PurePosixPath
-from typing import List, Optional
+from pathlib import PurePosixPath, Path
+from typing import Optional, List
 
 from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 
 
-class User:
+class Trust:
     '''
-    A data transfer object representing Wildland user.
-    Can be converted from/to a self-signed user manifest.
+    Trust object: a wrapper for user manifests.
     '''
 
-    SCHEMA = Schema('user')
+    SCHEMA = Schema('trust')
 
     def __init__(self, *,
                  signer: str,
-                 pubkey: str,
+                 user_location: str,
+                 user_pubkey: str,
                  paths: List[PurePosixPath],
-                 containers: List[str],
                  local_path: Optional[Path] = None):
         self.signer = signer
-        self.pubkey = pubkey
+        self.user_location = user_location
+        self.user_pubkey = user_pubkey
         self.paths = paths
-        self.containers = containers
         self.local_path = local_path
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, pubkey: str, local_path=None) -> 'User':
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Trust':
         '''
-        Construct a User instance from a manifest.
-        A public key needs to be provided as well.
+        Construct a Container instance from a manifest.
         '''
 
-        # TODO: local_path should be also part of Manifest?
-
-        signer = manifest.fields['signer']
         manifest.apply_schema(cls.SCHEMA)
         return cls(
-            signer=signer,
-            pubkey=pubkey,
+            signer=manifest.fields['signer'],
+            user_location=manifest.fields['user'],
+            user_pubkey=manifest.fields['pubkey'],
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            containers=manifest.fields['containers'],
             local_path=local_path,
         )
 
     def to_unsigned_manifest(self) -> Manifest:
         '''
-        Create a manifest based on User's data.
+        Create a manifest based on Trust's data.
         Has to be signed separately.
         '''
 
         manifest = Manifest.from_fields(dict(
             signer=self.signer,
+            user=self.user_location,
+            pubkey=self.user_pubkey,
             paths=[str(p) for p in self.paths],
-            containers=self.containers,
         ))
         manifest.apply_schema(self.SCHEMA)
         return manifest

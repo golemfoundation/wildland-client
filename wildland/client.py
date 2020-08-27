@@ -23,7 +23,7 @@ Client class
 
 from pathlib import Path
 import logging
-from typing import Optional, Iterator, List
+from typing import Optional, Iterator, List, Tuple
 from urllib.parse import urlparse, quote
 import glob
 import os
@@ -33,6 +33,7 @@ import yaml
 from .user import User
 from .container import Container
 from .storage import Storage
+from .trust import Trust
 from .wlpath import WildlandPath
 from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError
@@ -81,14 +82,15 @@ class Client:
 
         self.users: List[User] = []
 
-    def sub_client_with_key(self, pubkey: str) -> 'Client':
+    def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         '''
         Create a copy of the current Client, with a public key imported.
+        Returns a tuple (client, signer).
         '''
 
         sig = self.session.sig.copy()
-        sig.add_pubkey(pubkey)
-        return Client(config=self.config, sig=sig)
+        signer = sig.add_pubkey(pubkey)
+        return Client(config=self.config, sig=sig), signer
 
     def recognize_users(self):
         '''
@@ -104,10 +106,14 @@ class Client:
         Load users from the users directory.
         '''
 
+        sig = self.session.sig.copy()
+        sig.recognize_local_keys()
+        sub_client = Client(config=self.config, sig=sig)
+
         if self.user_dir.exists():
             for path in sorted(self.user_dir.glob('*.yaml')):
                 try:
-                    user = self.load_user_from_path(path)
+                    user = sub_client.load_user_from_path(path)
                 except WildlandError as e:
                     logger.warning('error loading user manifest: %s: %s',
                                    path, e)
@@ -297,6 +303,16 @@ class Client:
 
         raise ManifestError(f'Storage not found: {name}')
 
+    def load_trust_from_path(self, path: Path) -> Trust:
+        '''
+        Load a trust from a local file.
+        '''
+
+        trusted_signer = self.fs_client.find_trusted_signer(path)
+        return self.session.load_trust(
+            path.read_bytes(), path,
+            trusted_signer=trusted_signer)
+
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
         '''
         Save a user manifest. If path is None, the user has to have
@@ -352,6 +368,16 @@ class Client:
         path = self._new_path(self.storage_dir, name or storage.container_path.name)
         path.write_bytes(self.session.dump_storage(storage))
         storage.local_path = path
+        return path
+
+    def save_new_trust(self, trust: Trust, path: Path) -> Path:
+        '''
+        Save a new trust. Unlike when creating other objects, here the user
+        needs to provide a specific path.
+        '''
+
+        path.write_bytes(self.session.dump_trust(trust))
+        trust.local_path = path
         return path
 
     @staticmethod
@@ -447,10 +473,6 @@ class Client:
                 raise WildlandError('Error retrieving file URL: {}: {}'.format(
                     url, e))
         raise WildlandError(f'Unrecognized URL: {url}')
-
-    @staticmethod
-    def _is_url(url: str):
-        return '://' in url
 
     def local_url(self, path: Path) -> str:
         '''

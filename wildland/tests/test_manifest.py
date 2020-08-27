@@ -45,13 +45,11 @@ def signer(sig):
 
 
 
-def make_header(sig, signer, test_data, attach_pubkey=False):
+def make_header(sig, signer, test_data):
     signature = sig.sign(signer, test_data)
-    pubkey = None
-    if attach_pubkey:
-        pubkey = sig.get_pubkey(signer)
-    header = Header(signature.strip(), pubkey)
+    header = Header(signature.strip())
     return header.to_bytes()
+
 
 def test_parse(sig, signer):
     test_data = f'''
@@ -94,20 +92,3 @@ key2: "value2"
 
     with pytest.raises(ManifestError, match='Signer field mismatch'):
         Manifest.from_bytes(data, sig)
-
-
-def test_parse_self_signed(sig, signer):
-    test_data = f'''
-signer: "{signer}"
-key1: value1
-key2: "value2"
-'''.encode()
-
-    data = (make_header(sig, signer, test_data, attach_pubkey=True) +
-            b'\n---\n' + test_data)
-    manifest = Manifest.from_bytes(data, sig, self_signed=Manifest.REQUIRE)
-    assert manifest.fields['signer'] == signer
-    assert manifest.fields['key1'] == 'value1'
-    assert manifest.fields['key2'] == 'value2'
-
-    print(data.decode())

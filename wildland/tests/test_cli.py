@@ -45,22 +45,12 @@ def test_user_create(cli, base_dir):
     with open(base_dir / 'users/User.yaml') as f:
         data = f.read()
 
-    assert "key.0xaaa" in data
     assert "signer: '0xaaa'" in data
 
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "'@default': '0xaaa'" in config
     assert "'@default-signer': '0xaaa'" in config
-
-
-def test_user_create_generate_key(cli, base_dir):
-    cli('user', 'create', 'User')
-    with open(base_dir / 'users/User.yaml') as f:
-        data = f.read()
-
-    assert "key.0xfff" in data
-    assert "signer: '0xfff'" in data
 
 
 def test_user_list(cli, base_dir):
@@ -593,3 +583,24 @@ def test_status(cli, control_client):
     assert '  storage: s3' in out_lines
     assert '    /path2' in out_lines
     assert '    /path2.1' in out_lines
+
+
+## Trust
+
+
+def test_trust_create(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'RefUser', '--key', '0xbbb', '--path', '/OriginalPath')
+
+    trust_path = base_dir / 'trust.yaml'
+    cli('trust', 'create', trust_path,
+        '--ref-user', 'RefUser',
+        '--ref-user-location', 'https://example.com/RefUser.yaml',
+        '--ref-user-path', '/ModifiedPath',
+    )
+
+    data = trust_path.read_text()
+    assert 'user: https://example.com/RefUser.yaml' in data
+    assert 'pubkey: key.0xbbb' in data
+    assert '- /ModifiedPath' in data
+    assert '- /OriginalPath' not in data

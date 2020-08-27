@@ -1,0 +1,23 @@
+{
+    "title": "Trust manifest",
+    "type": "object",
+    "required": ["signer", "user", "pubkey", "paths"],
+    "properties": {
+        "signer": { "$ref": "types.json#fingerprint" },
+        "user": {
+            "$ref": "types.json#url-or-relpath",
+            "description": "path to user manifest"
+        },
+        "pubkey": {
+            "type": "string",
+            "description": "public key of the user (has to match the user manifest)"
+        },
+        "paths": {
+            "type": "array",
+            "items": { "$ref": "types.json#abs-path" },
+            "minItems": 1,
+            "description": "list of paths this user is visible under"
+        }
+    },
+    "additionalProperties": false
+}

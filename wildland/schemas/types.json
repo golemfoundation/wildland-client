@@ -6,8 +6,8 @@
     },
     "rel-path": {
         "type": "string",
-        "description": "relative path",
-        "pattern": "^[^/].*$"
+        "description": "relative path (must begin with './' or '../')",
+        "pattern": "^\\.\\.?/.*$"
     },
     "http-url": {
         "type": "string",
@@ -24,6 +24,13 @@
         "oneOf": [
             { "$ref": "#/http-url" },
             { "$ref": "#/file-url" }
+        ]
+    },
+    "url-or-relpath": {
+        "description": "URL or relative path",
+        "oneOf": [
+            { "$ref": "#/url" },
+            { "$ref": "#/rel-path" }
         ]
     },
     "fingerprint": {

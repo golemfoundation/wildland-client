@@ -23,6 +23,7 @@ Classes for handling signed Wildland manifests
 
 from typing import Tuple, Optional, Dict
 import re
+import logging
 
 import yaml
 
@@ -30,6 +31,8 @@ from .schema import Schema
 from .sig import SigContext, SigError
 from ..exc import WildlandError
 
+
+logger = logging.getLogger('manifest')
 
 HEADER_SEPARATOR = b'\n---\n'
 HEADER_SEPARATOR_EMPTY = b'---\n'
@@ -48,11 +51,6 @@ class Manifest:
     The data (fields) should not be modified, because it needs to match the
     return signature.
     '''
-
-    # Values for self_signed parameter
-    DISALLOW = 0
-    ALLOW = 1
-    REQUIRE = 2
 
     def __init__(self, header: Optional['Header'], fields,
                  original_data: bytes):
@@ -108,7 +106,7 @@ class Manifest:
             raise ManifestError('signer field not found')
         return cls(None, fields, data)
 
-    def sign(self, sig_context: SigContext, attach_pubkey: bool = False):
+    def sign(self, sig_context: SigContext):
         '''
         Sign a previously unsigned manifest.
         If attach_pubkey is true, attach the public key to the signature.
@@ -119,22 +117,18 @@ class Manifest:
 
         signer = self._fields['signer']
         signature = sig_context.sign(signer, self.original_data)
-        pubkey = None
-        if attach_pubkey:
-            pubkey = sig_context.get_pubkey(signer)
-        self.header = Header(signature, pubkey)
+        self.header = Header(signature)
 
     def skip_signing(self):
         '''
         Explicitly mark the manifest as unsigned, and allow using it.
         '''
 
-        self.header = Header(None, None)
+        self.header = Header(None)
 
     @classmethod
     def from_file(cls, path, sig_context: SigContext,
                   schema: Optional[Schema] = None,
-                  self_signed: int = DISALLOW,
                   trusted_signer: Optional[str] = None) -> 'Manifest':
         '''
         Load a manifest from YAML file, verifying it.
@@ -143,20 +137,17 @@ class Manifest:
             path: path to YAML file
             sig_context: a SigContext to use for signature verification
             schema: a Schema to validate the fields with
-            self_signed: ignore that a signer is unknown to the SigContext
-                (useful for bootstrapping)
             trusted_signer: accept signature-less manifest from this signer
         '''
 
         with open(path, 'rb') as f:
             data = f.read()
         return cls.from_bytes(
-            data, sig_context, schema, self_signed, trusted_signer)
+            data, sig_context, schema, trusted_signer)
 
     @classmethod
     def from_bytes(cls, data: bytes, sig_context: SigContext,
                    schema: Optional[Schema] = None,
-                   self_signed: int = DISALLOW,
                    trusted_signer: Optional[str] = None) -> 'Manifest':
         '''
         Load a manifest from YAML content, verifying it.
@@ -165,8 +156,6 @@ class Manifest:
             data: existing manifest content
             sig_context: a SigContext to use for signature verification
             schema: a Schema to validate the fields with
-            self_signed: ignore that a signer is unknown to the SigContext
-                (useful for bootstrapping)
             trusted_signer: accept signature-less manifest from this signer
         '''
 
@@ -175,7 +164,7 @@ class Manifest:
 
         try:
             header_signer = header.verify_rest(
-                rest_data, sig_context, self_signed, trusted_signer)
+                rest_data, sig_context, trusted_signer)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e))
@@ -226,42 +215,18 @@ class Header:
     Manifest header (signer and signature).
     '''
 
-    def __init__(self, signature: Optional[str], pubkey: Optional[str]):
+    def __init__(self, signature: Optional[str]):
         self.signature = None
-        self.pubkey = None
 
         if signature is not None:
             self.signature = signature.rstrip('\n')
-        if pubkey is not None:
-            self.pubkey = pubkey.rstrip('\n')
 
     def verify_rest(self, rest_data: bytes, sig_context: SigContext,
-                    self_signed: int, trusted_signer: Optional[str]) -> str:
+                    trusted_signer: Optional[str]) -> str:
         '''
         Verify the signature against manifest content (without parsing it).
         Return signer.
         '''
-
-        # Verify pubkey presence/absence
-        if self_signed == Manifest.REQUIRE and self.pubkey is None:
-            raise SigError('Expecting the header to contain pubkey')
-
-        if self_signed == Manifest.DISALLOW and self.pubkey is not None:
-            raise SigError('Not expecting the header to contain pubkey')
-
-        # Verify against public key, if provided
-        if self.pubkey is not None:
-            if self.signature is None:
-                raise SigError('Signature is always required when providing pubkey')
-
-            sig_temp = sig_context.copy()
-            pubkey_signer = sig_temp.add_pubkey(self.pubkey)
-            signer = sig_temp.verify(self.signature, rest_data)
-            if signer != pubkey_signer:
-                raise SigError(
-                    'Signer does not match pubkey (signature {!r}, pubkey {!r})'.format(
-                        signer, pubkey_signer))
-            return signer
 
         # Handle lack of signature, if allowed
         if self.signature is None:
@@ -279,7 +244,9 @@ class Header:
 
         parser = HeaderParser(data)
         fields = parser.parse('signature', 'pubkey')
-        return cls(fields.get('signature'), fields.get('pubkey'))
+        if 'pubkey' in fields:
+            logger.warning('deprecated pubkey field found in header, ignoring')
+        return cls(fields.get('signature'))
 
     def to_bytes(self):
         '''
@@ -290,11 +257,6 @@ class Header:
         if self.signature is not None:
             lines.append('signature: |')
             for sig_line in self.signature.splitlines():
-                lines.append('  ' + sig_line)
-
-        if self.pubkey is not None:
-            lines.append('pubkey: |')
-            for sig_line in self.pubkey.splitlines():
                 lines.append('  ' + sig_line)
 
         data = '\n'.join(lines).encode()
@@ -313,9 +275,6 @@ class Header:
             raise Exception('Header serialization error')
         if header.signature != self.signature:
             print(repr(header.signature), repr(self.signature))
-            raise Exception('Header serialization error')
-        if header.pubkey != self.pubkey:
-            print(repr(header.pubkey), repr(self.pubkey))
             raise Exception('Header serialization error')
 
 

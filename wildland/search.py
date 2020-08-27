@@ -31,6 +31,7 @@ import re
 from .user import User
 from .client import Client
 from .container import Container
+from .trust import Trust
 from .storage import Storage
 from .storage_backends.base import StorageBackend
 from .wlpath import WildlandPath, PathError
@@ -224,35 +225,32 @@ class Search:
                     logger.warning('Could not read %s: %s', manifest_path, e)
                     continue
 
-                container_or_user = self.client.session.load_container_or_user(
+                container_or_trust = self.client.session.load_container_or_trust(
                     manifest_content, trusted_signer=trusted_signer)
 
-                if isinstance(container_or_user, Container):
+                if isinstance(container_or_trust, Container):
                     logger.info('%s: container manifest: %s', query_path, manifest_path)
                     yield from self._container_step(
-                        step, query_path, manifest_path, container_or_user)
+                        step, query_path, container_or_trust)
                 else:
-                    logger.info('%s: user manifest: %s', query_path, manifest_path)
-                    yield from self._user_step(
-                        step, query_path, manifest_path, container_or_user)
+                    logger.info('%s: trust manifest: %s', query_path, manifest_path)
+                    yield from self._trust_step(
+                        step, query_path, manifest_path, storage_backend,
+                        container_or_trust)
         finally:
             storage_backend.unmount()
 
+    # pylint: disable=no-self-use
 
-    @staticmethod
-    def _container_step(step: Step,
+    def _container_step(self,
+                        step: Step,
                         part: PurePosixPath,
-                        manifest_path: PurePosixPath,
                         container: Container) -> Iterable[Step]:
 
-        if container.signer != step.signer:
-            raise PathError(
-                'Unexpected signer for {}: {} (expected {})'.format(
-                    manifest_path, container.signer, step.signer
-                ))
+        self._verify_signer(container, step.signer)
+
         if part not in container.paths:
-            logger.debug('%s: path not found in manifest: %s, skipping',
-                         part, manifest_path)
+            logger.debug('%s: path not found in manifest, skipping', part)
             return
 
         yield Step(
@@ -262,16 +260,60 @@ class Search:
             user=None,
         )
 
-    @staticmethod
-    def _user_step(step: Step,
+    def _trust_step(self,
+                    step: Step,
+                    part: PurePosixPath,
+                    manifest_path: PurePosixPath,
+                    storage_backend: StorageBackend,
+                    trust: Trust) -> Iterable[Step]:
+
+        self._verify_signer(trust, step.signer)
+
+        if part not in trust.paths:
+            return
+
+        client, signer = step.client.sub_client_with_key(trust.user_pubkey)
+
+        location = trust.user_location
+        if (location.startswith('./') or location.startswith('../')):
+
+            # Treat location as relative path
+            user_manifest_path = manifest_path.parent / location
+            try:
+                user_manifest_content = storage_read_file(
+                    storage_backend, user_manifest_path)
+            except IOError as e:
+                logger.warning('Could not read local user manifest %s: %s',
+                               user_manifest_path, e)
+                return
+            logger.debug('%s: local user manifest: %s',
+                         part, user_manifest_path)
+        else:
+            # Treat location as URL
+            try:
+                user_manifest_content = client.read_from_url(location, signer)
+            except WildlandError as e:
+                logger.warning('Could not read user manifest %s: %s',
+                               location, e)
+                return
+            logger.debug('%s: remote user manifest: %s',
+                         part, location)
+
+        user = client.session.load_user(user_manifest_content)
+
+        yield from self._user_step(
+            part, user, signer, client)
+
+    def _user_step(self,
                    part: PurePosixPath,
-                   manifest_path: PurePosixPath,
-                   user: User) -> Iterable[Step]:
+                   user: User,
+                   signer: str,
+                   client: Client) -> Iterable[Step]:
+
+        self._verify_signer(user, signer)
 
         found_container: Optional[Container] = None
         found_container_url: Optional[str] = None
-
-        client = step.client.sub_client_with_key(user.pubkey)
 
         for container_url in user.containers:
             try:
@@ -279,15 +321,13 @@ class Search:
             except WildlandError:
                 logger.warning('cannot load container: %s', container_url)
                 continue
-            container = client.session.load_container(manifest_content)
-            if part in container.paths:
-                found_container = container
-                found_container_url = container_url
-                break
+
+            found_container = client.session.load_container(manifest_content)
+            found_container_url = container_url
+            break
 
         if not found_container:
-            logger.debug('Cannot find container with path: %s for user: %s',
-                         part, manifest_path)
+            logger.debug('Cannot find container with path: %s for user', part)
             return
 
         if found_container.signer != user.signer:
@@ -298,9 +338,16 @@ class Search:
         yield Step(
             signer=user.signer,
             client=client,
-            container=container,
+            container=found_container,
             user=user,
         )
+
+    def _verify_signer(self, obj, expected_signer):
+        if obj.signer != expected_signer:
+            raise PathError(
+                'Unexpected signer for manifest: {} (expected {})'.format(
+                    obj.signer, expected_signer
+                ))
 
 
 def storage_read_file(storage, relpath) -> bytes:
