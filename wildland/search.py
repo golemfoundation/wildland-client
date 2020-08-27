@@ -269,6 +269,9 @@ class Search:
 
         self._verify_signer(trust, step.signer)
 
+        if part not in trust.paths:
+            return
+
         client, signer = step.client.sub_client_with_key(trust.user_pubkey)
 
         location = trust.user_location
@@ -318,11 +321,10 @@ class Search:
             except WildlandError:
                 logger.warning('cannot load container: %s', container_url)
                 continue
-            container = client.session.load_container(manifest_content)
-            if part in container.paths:
-                found_container = container
-                found_container_url = container_url
-                break
+
+            found_container = client.session.load_container(manifest_content)
+            found_container_url = container_url
+            break
 
         if not found_container:
             logger.debug('Cannot find container with path: %s for user', part)
@@ -336,7 +338,7 @@ class Search:
         yield Step(
             signer=user.signer,
             client=client,
-            container=container,
+            container=found_container,
             user=user,
         )
 
