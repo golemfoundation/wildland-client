@@ -42,14 +42,15 @@ class Session:
 
     def load_user(self,
                   data: bytes,
-                  local_path: Optional[Path] = None) -> User:
+                  local_path: Optional[Path] = None,
+    ) -> User:
         '''
         Load a user manifest, creating a User object.
         '''
 
-        manifest = Manifest.from_bytes(
-            data, self.sig, self_signed=Manifest.REQUIRE)
-        return User.from_manifest(manifest, local_path)
+        manifest = Manifest.from_bytes(data, self.sig)
+        pubkey = self.sig.get_pubkey(manifest.fields['signer'])
+        return User.from_manifest(manifest, pubkey, local_path)
 
     def load_container_or_trust(
             self,
@@ -85,7 +86,7 @@ class Session:
         manifest = user.to_unsigned_manifest()
         sig_temp = self.sig.copy()
         sig_temp.add_pubkey(user.pubkey)
-        manifest.sign(sig_temp, attach_pubkey=True)
+        manifest.sign(sig_temp)
         return manifest.to_bytes()
 
     def load_container(
@@ -101,7 +102,6 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.DISALLOW,
             trusted_signer=trusted_signer)
         return Container.from_manifest(manifest, local_path)
 
@@ -127,7 +127,6 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.DISALLOW,
             trusted_signer=trusted_signer)
         return Storage.from_manifest(manifest, local_path)
 
@@ -153,7 +152,6 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            self_signed=Manifest.DISALLOW,
             trusted_signer=trusted_signer)
         return Trust.from_manifest(manifest, local_path)
 

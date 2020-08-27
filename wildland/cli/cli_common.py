@@ -115,7 +115,7 @@ def sign(ctx, input_file, output_file, in_place):
 
     obj.client.recognize_users()
 
-    manifest.sign(obj.client.session.sig, attach_pubkey=(manifest_type == 'user'))
+    manifest.sign(obj.client.session.sig)
     signed_data = manifest.to_bytes()
 
     if in_place:
@@ -154,9 +154,7 @@ def verify(ctx, input_file):
 
     obj.client.recognize_users()
     try:
-        self_signed = Manifest.REQUIRE if manifest_type == 'user' else Manifest.DISALLOW
-        manifest = Manifest.from_bytes(data, obj.client.session.sig,
-                                       self_signed=self_signed)
+        manifest = Manifest.from_bytes(data, obj.client.session.sig)
         if manifest_type:
             validate_manifest(manifest, manifest_type)
     except ManifestError as e:
@@ -199,7 +197,7 @@ def edit(ctx, editor, input_file, remount):
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
-    manifest.sign(obj.client.session.sig, attach_pubkey=(manifest_type == 'user'))
+    manifest.sign(obj.client.session.sig)
     signed_data = manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)

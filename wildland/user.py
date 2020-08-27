@@ -49,19 +49,19 @@ class User:
         self.local_path = local_path
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'User':
+    def from_manifest(cls, manifest: Manifest, pubkey: str, local_path=None) -> 'User':
         '''
         Construct a User instance from a manifest.
+        A public key needs to be provided as well.
         '''
 
         # TODO: local_path should be also part of Manifest?
 
-        assert manifest.header
-        assert manifest.header.pubkey
+        signer = manifest.fields['signer']
         manifest.apply_schema(cls.SCHEMA)
         return cls(
-            signer=manifest.fields['signer'],
-            pubkey=manifest.header.pubkey,
+            signer=signer,
+            pubkey=pubkey,
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             containers=manifest.fields['containers'],
             local_path=local_path,

@@ -45,22 +45,12 @@ def test_user_create(cli, base_dir):
     with open(base_dir / 'users/User.yaml') as f:
         data = f.read()
 
-    assert "key.0xaaa" in data
     assert "signer: '0xaaa'" in data
 
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "'@default': '0xaaa'" in config
     assert "'@default-signer': '0xaaa'" in config
-
-
-def test_user_create_generate_key(cli, base_dir):
-    cli('user', 'create', 'User')
-    with open(base_dir / 'users/User.yaml') as f:
-        data = f.read()
-
-    assert "key.0xfff" in data
-    assert "signer: '0xfff'" in data
 
 
 def test_user_list(cli, base_dir):

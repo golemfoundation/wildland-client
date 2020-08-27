@@ -106,10 +106,14 @@ class Client:
         Load users from the users directory.
         '''
 
+        sig = self.session.sig.copy()
+        sig.recognize_local_keys()
+        sub_client = Client(config=self.config, sig=sig)
+
         if self.user_dir.exists():
             for path in sorted(self.user_dir.glob('*.yaml')):
                 try:
-                    user = self.load_user_from_path(path)
+                    user = sub_client.load_user_from_path(path)
                 except WildlandError as e:
                     logger.warning('error loading user manifest: %s: %s',
                                    path, e)

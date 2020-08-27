@@ -81,7 +81,7 @@ def test_verify_unknown_signer(sig, signer):
     signature = sig.sign(signer, test_data)
 
     sig_2 = SignifySigContext(sig.key_dir)
-    with pytest.raises(SigError, match='Unrecognized signer'):
+    with pytest.raises(SigError, match='Public key not found'):
         sig_2.verify(signature, test_data)
 
 
