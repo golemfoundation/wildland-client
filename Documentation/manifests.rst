@@ -36,8 +36,7 @@ Here is an example of a signed manifest:
 
 Note that we recognize an **extremely limited YAML subset** in the header:
 
-* there has to be either only a ``signature`` field, or ``signature`` and
-  ``pubkey`` fields, in that order
+* currently, the only header field is ``signature``
 * fields have to be either double quoted (``"foo"``), with exact character
   subset to be determined, or
 * multi-line fields have to use a block format with ``|`` as in the example
@@ -130,17 +129,16 @@ they are loaded from a specific directory (``$HOME/.config/wildland/users``).
 All the other manifests have to be verified against known users, i.e. their
 ``signer`` field has to correspond to the one in user manifest.
 
-The user manifests also contain a ``pubkey`` field in the header, containing
-the user's public key. The public key has to
-match both the manifest signature and the ``signer`` field.
+In order to be loaded, the system has to know a public key for a user. For
+local manifests, that means a corresponding key is in the keys directory
+(``$HOME/.config/wildland/keys``). Otherwise, the key is loaded from a trust
+manifest.
 
 Example:
 
 .. code-block:: yaml
 
     signature: |
-      ...
-    pubkey: |
       ...
     ---
     signer: '0x5a7a224844d80b086445'
@@ -214,7 +212,29 @@ path traversal. Currently, one type of pattern is supported::
 The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
 ``{path}`` is expanded to the container path we are looking for.
 
-Local storage (``local``)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Trust manifest
+--------------
 
-* ``path``: Absolute path in local filesystem.
+Trust manifests introduce a new user. A trust manifest is usually stored in a
+container, and has to be signed by the container's signer. For more
+information, see :doc:`Wildland paths </paths>`.
+
+Example:
+
+.. code-block:: yaml
+
+   signature: ...
+   ---
+   signer: '0x5a7a224844d80b086445'
+   user: ./User.yaml
+   pubkey: 'untrusted comment: signify public key
+
+    RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
+
+    '
+   paths:
+   - /users/User
+
+Fields:
+
+.. schema:: trust.schema.json
