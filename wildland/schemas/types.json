@@ -19,11 +19,17 @@
         "description": "file:// URL",
         "pattern": "^file://[^/]*/.*$"
     },
+    "wildland-url": {
+        "type": "string",
+        "description": "wildland: URL",
+        "pattern": "^wildland:.*$"
+    },
     "url": {
         "description": "HTTP or file URL",
         "oneOf": [
             { "$ref": "#/http-url" },
-            { "$ref": "#/file-url" }
+            { "$ref": "#/file-url" },
+            { "$ref": "#/wildland-url" }
         ]
     },
     "url-or-relpath": {

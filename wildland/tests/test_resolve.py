@@ -309,6 +309,42 @@ def test_read_container_traverse_pattern(setup_pattern, base_dir):
     assert PurePosixPath('/path2') in container.paths
 
 
+## Manifests with wildland paths
+
+def test_container_with_storage_path(base_dir, cli):
+    os.mkdir(base_dir / 'storage1')
+    os.mkdir(base_dir / 'storage2')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    cli('container', 'create', 'Container1', '--path', '/path1')
+    cli('storage', 'create', 'local', 'Storage1',
+        '--path', base_dir / 'storage1',
+        '--container', 'Container1',
+        '--inline')
+
+    cli('container', 'create', 'Container2', '--path', '/path2')
+    cli('storage', 'create', 'local', 'Storage2',
+        '--path', base_dir / 'storage2',
+        '--container', 'Container2')
+
+    os.rename(
+        base_dir / 'storage/Storage2.yaml',
+        base_dir / 'storage1/Storage2.yaml')
+
+    with open(base_dir / 'storage2/testfile', 'w') as file:
+        file.write('test\n')
+
+    with open(base_dir / 'containers/Container2.yaml') as file:
+        lines = list(file)
+    with open(base_dir / 'containers/Container2.yaml', 'w') as file:
+        for line in lines:
+            if line.startswith('  - file://'):
+                line = '  - wildland:0xaaa:/path1:/Storage2.yaml\n'
+            file.write(line)
+
+    cli('get', '0xaaa:/path2:/testfile')
+
 ## Wildcard matching
 
 class TestBackend(GeneratedStorageMixin, StorageBackend):

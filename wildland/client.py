@@ -46,6 +46,8 @@ from .exc import WildlandError
 logger = logging.getLogger('client')
 
 
+_WILDLAND_URL_PREFIX = 'wildland:'  # XXX or 'wildland://'?
+
 class Client:
     '''
     A high-level interface for operating on Wildland objects.
@@ -509,6 +511,19 @@ class Client:
         are recognized based on the 'local_hostname' and 'local_signers'
         settings.
         '''
+
+        if url.startswith(_WILDLAND_URL_PREFIX):
+            wlpath = WildlandPath.from_str(url[len(_WILDLAND_URL_PREFIX):])
+            if not wlpath.signer:
+                raise WildlandError(
+                    'Wildland path in URL context has to have explicit signer')
+
+            # TODO: Still a circular dependency with search
+            # pylint: disable=import-outside-toplevel, cyclic-import
+            from .search import Search
+
+            search = Search(self, wlpath, {})
+            return search.read_file()
 
         local_path = self.parse_file_url(url, signer)
         if local_path:
