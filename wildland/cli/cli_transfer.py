@@ -21,8 +21,6 @@
 Transfer commands (get, put)
 '''
 
-import sys
-
 import click
 
 from .cli_base import ContextObj
