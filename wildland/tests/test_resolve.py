@@ -238,7 +238,7 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
                     base_dir / 'storage1/users/User2.user.yaml')
 
     if location_type == 'local':
-        location = './User2.user.yaml'
+        location = 'User2.user.yaml'
     else:
         location = 'file://localhost' + str(base_dir / 'users/User2.yaml')
 

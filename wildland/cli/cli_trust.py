@@ -27,7 +27,7 @@ from typing import List
 import click
 
 from ..trust import Trust
-from .cli_base import aliased_group, ContextObj
+from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 
 
@@ -62,6 +62,16 @@ def create(obj: ContextObj,
 
     obj.client.recognize_users()
     user = obj.client.load_user_from(user_name or '@default-signer')
+
+    # Ensure the path is relative and starts with './' or '../'.
+    # TODO better way of detection
+    is_url = '://' in ref_user_location or ref_user_location.startswith('wl:')
+    if not is_url:
+        if ref_user_location.startswith('/'):
+            raise CliError('URL should be relative: {ref_user_location')
+        if not (ref_user_location.startswith('./') or
+                ref_user_location.startswith('../')):
+            ref_user_location = './' + ref_user_location
 
     ref_user = obj.client.load_user_from(ref_user_name)
     if ref_user_paths:
