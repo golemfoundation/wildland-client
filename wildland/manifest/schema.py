@@ -28,7 +28,11 @@ import jsonschema
 from ..exc import WildlandError
 
 
-COMMON_FILES = ['types.json', 'storage.schema.json']
+COMMON_FILES = [
+    'types.json',
+    'storage.schema.json',
+    'container.schema.json',
+]
 
 
 def load_common_files():

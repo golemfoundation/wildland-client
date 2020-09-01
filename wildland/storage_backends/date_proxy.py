@@ -42,21 +42,27 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     Directory timestamps will be ignored, and empty directories will not be
     taken into account.
 
-    The 'storage' parameter specifies inner storage, either as URL, or as an
-    inline manifest. When creating the object instance, the actual inner
-    backend needs to be instantiated and passed in params['storage'].
+    The 'inner-container' parameter specifies inner container, either as URL,
+    or as an inline manifest. When creating the object instance:
+
+    1. First, the storage parameters for the inner container will be resolved
+    (see Client.select_storage()),
+
+    2. Then, the inner storage backend will be instantiated and passed as
+    params['storage'] (see StorageBackend.from_params()).
     '''
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["storage"],
+        "required": ["inner-container"],
         "properties": {
-            "storage": {
+            "inner-container": {
                 "oneOf": [
                     {"$ref": "types.json#url"},
-                    {"$ref": "storage.schema.json"}
+                    {"$ref": "container.schema.json"}
                 ],
-                "description": "Storage backend to be used, either as URL or as an inlined manifest"
+                "description": ("Container to be used, either as URL "
+                                "or as an inlined manifest"),
             },
         }
     })
@@ -70,14 +76,14 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--storage-url'], metavar='URL',
-                          help='URL for inner storage manifest',
+            click.Option(['--inner-container-url'], metavar='URL',
+                          help='URL for inner container manifest',
                          required=True),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'storage': data['storage_url']}
+        return {'inner-container': data['inner_container_url']}
 
     def mount(self):
         self.inner.mount()

@@ -23,7 +23,7 @@ Client class
 
 from pathlib import Path
 import logging
-from typing import Optional, Iterator, List, Tuple
+from typing import Optional, Iterator, List, Tuple, Union, Dict
 from urllib.parse import urlparse, quote
 import glob
 import os
@@ -199,6 +199,23 @@ class Client:
         from .search import Search
         search = Search(self, wlpath)
         return search.read_container(remote=True)
+
+    def load_container_from_url(self, url: str, signer: str) -> Container:
+        '''
+        Load container from URL.
+        '''
+
+        return self.session.load_container(self.read_from_url(url, signer))
+
+    def load_container_from_dict(self, dict_: dict, signer: str) -> Container:
+        '''
+        Load container from a dictionary. Used when a container manifest is inlined
+        in another manifest.
+        '''
+
+        content = ('---\n' + yaml.dump(dict_)).encode()
+        trusted_signer = signer
+        return self.session.load_container(content, trusted_signer=trusted_signer)
 
     def load_containers_from(self, name: str) -> Iterator[Container]:
         '''
@@ -443,20 +460,48 @@ class Client:
                 logging.warning('Unsupported storage manifest: %s', name)
                 continue
 
-            # If there is a 'storage' parameter with a backend URL, convert it
-            # to an inline manifest.
-            if 'storage' in storage.params:
-                inner = storage.params['storage']
-                if isinstance(inner, str):
-                    logger.info('resolving inner storage URL: %s', inner)
-                    inner_storage = self.select_storage(container, [inner])
-                    inner_manifest = inner_storage.to_unsigned_manifest()
-                    inner_manifest.skip_signing()
-                    storage.params['storage'] = inner_manifest.fields
+            # If there is a 'container' parameter with a backend URL, convert
+            # it to an inline manifest.
+            if 'inner-container' in storage.params:
+                storage.params['storage'] = self._select_inner_storage(
+                    storage.params['inner-container'], container.signer
+                )
+                if storage.params['storage'] is None:
+                    continue
 
             return storage
 
         raise ManifestError('no supported storage manifest')
+
+    def _select_inner_storage(
+            self,
+            container_url_or_dict: Union[str, Dict],
+            signer: str) -> Optional[Dict]:
+        '''
+        Select an "inner" storage based on URL or dictionary. This resolves a
+        container specification and then selects storage for the container.
+        '''
+
+        if isinstance(container_url_or_dict, str):
+            container = self.load_container_from_url(
+                container_url_or_dict, signer
+            )
+
+        else:
+            container = self.load_container_from_dict(
+                container_url_or_dict, signer
+            )
+
+        if container.signer != signer:
+            logger.error(
+                'signer field mismatch for inner container: outer %s, inner %s',
+                signer, container.signer)
+            return None
+
+        inner_storage = self.select_storage(container)
+        inner_manifest = inner_storage.to_unsigned_manifest()
+        inner_manifest.skip_signing()
+        return inner_manifest.fields
 
     def read_from_url(self, url: str, signer: str) -> bytes:
         '''

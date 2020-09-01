@@ -16,28 +16,29 @@ Create a user, if you haven't done that yet::
 
    $ ./wl user create User
 
-Create a container::
 
-   $ ./wl container create Proxy --path /proxy
+Create the "inner" container, and directory with files::
 
-Create the "inner" storage, and directory with files::
+   $ ./wl container create Inner --path /inner
 
    $ ./wl storage create local Inner --path $HOME/proxy-data \
-       --container Proxy --no-update-container
+       --container Inner
    $ mkdir ~/proxy-data
    $ touch ~/proxy-data/file1.txt -t 202005010000
    $ touch ~/proxy-data/file2.txt -t 201905010000
 
-Create the proxy storage::
+Create the proxy container storage::
+
+   $ ./wl container create Proxy --path /proxy
 
    $ ./wl storage create date-proxy Proxy \
-       --storage-url file://$HOME/.config/wildland/storage/Inner.yaml \
+       --inner-container-url file://$HOME/.config/wildland/containers/Inner.yaml \
        --container Proxy
 
 Mount::
 
    $ ./wl start
-   $ ./wl container mount Container
+   $ ./wl container mount Proxy
 
 You should be able to see the files::
 
@@ -55,7 +56,7 @@ You should be able to see the files::
 Example (self-contained manifest
 --------------------------------
 
-Both storage manifests can be inlined. You can create a ``container.yaml``
+All manifests can be inlined. You can create a ``container.yaml``
 file (or edit existing one using ``wl container edit``)
 
 .. code-block:: yaml
@@ -66,14 +67,20 @@ file (or edit existing one using ``wl container edit``)
      - /proxy
 
    backends:
-      storage:
-        - type: date-proxy
-          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-          signer: <SIGNER>
-          storage:
-             type: local
-             container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-             path: /home/user/proxy-data
+     storage:
+       - type: date-proxy
+         container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+         signer: <SIGNER>
+         inner-container:
+           signer: <SIGNER>
+           paths:
+             - /inner
+           backends:
+             storage:
+               - type: local
+                 container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+                 signer: <SIGNER>
+                 path: /home/user/proxy-data
 
 This file can be signed with ``wl container sign`` (the edit command will do
 that automatically), then mounted using ``wl container mount``.

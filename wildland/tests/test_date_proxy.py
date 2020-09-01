@@ -32,24 +32,25 @@ from ..client import Client
 
 def test_date_proxy_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'InnerStorage', '--path', '/PATH',
-        '--container', 'Container', '--no-update-container')
+    cli('container', 'create', 'InnerContainer', '--path', '/INNER_PATH')
+    cli('storage', 'create', 'local', 'InnerStorage', '--path', '/tmp/local-path',
+        '--container', 'InnerContainer')
 
-    inner_path = base_dir / 'storage/InnerStorage.yaml'
+    inner_path = base_dir / 'containers/InnerContainer.yaml'
     assert inner_path.exists()
     inner_url = f'file://{inner_path}'
 
+    cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'date-proxy', 'ProxyStorage',
-        '--storage-url', inner_url,
+        '--inner-container-url', inner_url,
         '--container', 'Container')
 
     client = Client(base_dir)
     client.recognize_users()
 
-    # When loaded directly, the storage manifest contains URL...
+    # When loaded directly, the storage manifest contains container URL...
     storage = client.load_storage_from('ProxyStorage')
-    assert storage.params['storage'] == inner_url
+    assert storage.params['inner-container'] == inner_url
 
     # But select_storage loads also the inner manifest
     container = client.load_container_from('Container')
