@@ -23,9 +23,13 @@ User manifest and user management
 
 from pathlib import Path, PurePosixPath
 from typing import List, Optional
+import logging
 
 from .manifest.manifest import Manifest
 from .manifest.schema import Schema
+
+
+logger = logging.getLogger('user')
 
 
 class User:
@@ -59,11 +63,16 @@ class User:
 
         signer = manifest.fields['signer']
         manifest.apply_schema(cls.SCHEMA)
+
+        if 'containers' in manifest.fields:
+            logger.warning("deprecated 'containers' field in user manifest "
+                           "(renamed to 'infrastructure-containers'), ignoring")
+
         return cls(
             signer=signer,
             pubkey=pubkey,
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            containers=manifest.fields['containers'],
+            containers=manifest.fields.get('infrastructure-containers', []),
             local_path=local_path,
         )
 
@@ -73,10 +82,10 @@ class User:
         Has to be signed separately.
         '''
 
-        manifest = Manifest.from_fields(dict(
-            signer=self.signer,
-            paths=[str(p) for p in self.paths],
-            containers=self.containers,
-        ))
+        manifest = Manifest.from_fields({
+            'signer': self.signer,
+            'paths': [str(p) for p in self.paths],
+            'infrastructure-containers': self.containers,
+        })
         manifest.apply_schema(self.SCHEMA)
         return manifest

@@ -7,6 +7,10 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2020-09-01) The ``containers`` field in user manifest has been renamed to
+  ``infrastructure-containers``. For backwards compatibility, both fields are
+  permitted when loading a manifest, but only the latter one is used.
+
 * (2020-08-27) The user manifests should no longer contain public keys in a
   header. Instead, a key is taken either from a bridge manifest, or from a
   local directory (``$HOME/.config/wildland/keys/``).

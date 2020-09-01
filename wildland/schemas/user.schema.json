@@ -1,7 +1,7 @@
 {
     "title": "User manifest",
     "type": "object",
-    "required": ["signer", "paths", "containers"],
+    "required": ["signer", "paths"],
     "properties": {
         "signer": { "$ref": "types.json#fingerprint" },
         "paths": {
@@ -11,6 +11,11 @@
             "description": "list of paths for this user"
         },
         "containers": {
+            "type": "array",
+            "items": { "$ref": "types.json#url" },
+            "description": "deprecated alias for infrastructure-containers"
+        },
+        "infrastructure-containers": {
             "type": "array",
             "items": { "$ref": "types.json#url" },
             "description": "list of container URLs (for finding this user's manifests)"
