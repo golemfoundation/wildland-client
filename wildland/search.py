@@ -302,18 +302,14 @@ class Search:
         user = client.session.load_user(user_manifest_content)
 
         yield from self._user_step(
-            part, user, signer, client)
+            user, signer, client)
 
     def _user_step(self,
-                   part: PurePosixPath,
                    user: User,
                    signer: str,
                    client: Client) -> Iterable[Step]:
 
         self._verify_signer(user, signer)
-
-        found_container: Optional[Container] = None
-        found_container_url: Optional[str] = None
 
         for container_url in user.containers:
             try:
@@ -322,25 +318,21 @@ class Search:
                 logger.warning('cannot load container: %s', container_url)
                 continue
 
-            found_container = client.session.load_container(manifest_content)
-            found_container_url = container_url
-            break
+            container = client.session.load_container(manifest_content)
 
-        if not found_container:
-            logger.debug('Cannot find container with path: %s for user', part)
-            return
+            if container.signer != user.signer:
+                logger.warning('Unexpected signer for %s: %s (expected %s)',
+                               container_url, container.signer, user.signer)
+                continue
 
-        if found_container.signer != user.signer:
-            logger.warning('Unexpected signer for %s: %s (expected %s)',
-                           found_container_url, found_container.signer, user.signer)
-            return
+            logger.info("user's container manifest: %s", container_url)
 
-        yield Step(
-            signer=user.signer,
-            client=client,
-            container=found_container,
-            user=user,
-        )
+            yield Step(
+                signer=user.signer,
+                client=client,
+                container=container,
+                user=user,
+            )
 
     def _verify_signer(self, obj, expected_signer):
         if obj.signer != expected_signer:
