@@ -1,5 +1,5 @@
 {
-    "title": "Trust manifest",
+    "title": "Bridge manifest",
     "type": "object",
     "required": ["signer", "user", "pubkey", "paths"],
     "properties": {

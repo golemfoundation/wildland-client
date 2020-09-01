@@ -31,7 +31,7 @@ import re
 from .user import User
 from .client import Client
 from .container import Container
-from .trust import Trust
+from .bridge import Bridge
 from .storage import Storage
 from .storage_backends.base import StorageBackend
 from .wlpath import WildlandPath, PathError
@@ -225,18 +225,18 @@ class Search:
                     logger.warning('Could not read %s: %s', manifest_path, e)
                     continue
 
-                container_or_trust = self.client.session.load_container_or_trust(
+                container_or_bridge = self.client.session.load_container_or_bridge(
                     manifest_content, trusted_signer=trusted_signer)
 
-                if isinstance(container_or_trust, Container):
+                if isinstance(container_or_bridge, Container):
                     logger.info('%s: container manifest: %s', query_path, manifest_path)
                     yield from self._container_step(
-                        step, query_path, container_or_trust)
+                        step, query_path, container_or_bridge)
                 else:
-                    logger.info('%s: trust manifest: %s', query_path, manifest_path)
-                    yield from self._trust_step(
+                    logger.info('%s: bridge manifest: %s', query_path, manifest_path)
+                    yield from self._bridge_step(
                         step, query_path, manifest_path, storage_backend,
-                        container_or_trust)
+                        container_or_bridge)
         finally:
             storage_backend.unmount()
 
@@ -260,21 +260,21 @@ class Search:
             user=None,
         )
 
-    def _trust_step(self,
-                    step: Step,
-                    part: PurePosixPath,
-                    manifest_path: PurePosixPath,
-                    storage_backend: StorageBackend,
-                    trust: Trust) -> Iterable[Step]:
+    def _bridge_step(self,
+                     step: Step,
+                     part: PurePosixPath,
+                     manifest_path: PurePosixPath,
+                     storage_backend: StorageBackend,
+                     bridge: Bridge) -> Iterable[Step]:
 
-        self._verify_signer(trust, step.signer)
+        self._verify_signer(bridge, step.signer)
 
-        if part not in trust.paths:
+        if part not in bridge.paths:
             return
 
-        client, signer = step.client.sub_client_with_key(trust.user_pubkey)
+        client, signer = step.client.sub_client_with_key(bridge.user_pubkey)
 
-        location = trust.user_location
+        location = bridge.user_location
         if (location.startswith('./') or location.startswith('../')):
 
             # Treat location as relative path

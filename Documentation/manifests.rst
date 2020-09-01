@@ -212,10 +212,10 @@ path traversal. Currently, one type of pattern is supported::
 The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
 ``{path}`` is expanded to the container path we are looking for.
 
-Trust manifest
---------------
+Bridge manifest
+---------------
 
-Trust manifests introduce a new user. A trust manifest is usually stored in a
+Bridge manifests introduce a new user. A bridge manifest is usually stored in a
 container, and has to be signed by the container's signer. For more
 information, see :doc:`Wildland paths </paths>`.
 
@@ -237,4 +237,4 @@ Example:
 
 Fields:
 
-.. schema:: trust.schema.json
+.. schema:: bridge.schema.json

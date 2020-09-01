@@ -18,7 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-Manage trusts
+Manage bridges
 '''
 
 from pathlib import PurePosixPath, Path
@@ -26,19 +26,19 @@ from typing import List
 
 import click
 
-from ..trust import Trust
+from ..bridge import Bridge
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 
 
-@aliased_group('trust', short_help='trust management')
-def trust_():
+@aliased_group('bridge', short_help='bridge management')
+def bridge_():
     '''
-    Manage trusts
+    Manage bridges
     '''
 
 
-@trust_.command(short_help='create trust')
+@bridge_.command(short_help='create bridge')
 @click.option('--user', 'user_name', help='user for signing')
 @click.option('--ref-user', 'ref_user_name', metavar='USER',
               required=True,
@@ -57,7 +57,7 @@ def create(obj: ContextObj,
            ref_user_paths: List[str],
            file_path: str):
     '''
-    Create a new trust manifest under a given path.
+    Create a new bridge manifest under a given path.
     '''
 
     obj.client.recognize_users()
@@ -81,16 +81,16 @@ def create(obj: ContextObj,
             "Using user's default paths: {}".format([str(p) for p in ref_user.paths]))
         paths = list(ref_user.paths)
 
-    trust = Trust(
+    bridge = Bridge(
         signer=user.signer,
         user_location=ref_user_location,
         user_pubkey=ref_user.pubkey,
         paths=paths,
     )
-    path = obj.client.save_new_trust(trust, Path(file_path))
+    path = obj.client.save_new_bridge(bridge, Path(file_path))
     click.echo(f'Created: {path}')
 
 
-trust_.add_command(sign)
-trust_.add_command(verify)
-trust_.add_command(edit)
+bridge_.add_command(sign)
+bridge_.add_command(verify)
+bridge_.add_command(edit)

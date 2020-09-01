@@ -18,7 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 '''
-The container
+Bridge manifest object
 '''
 
 from pathlib import PurePosixPath, Path
@@ -28,12 +28,12 @@ from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 
 
-class Trust:
+class Bridge:
     '''
-    Trust object: a wrapper for user manifests.
+    Bridge object: a wrapper for user manifests.
     '''
 
-    SCHEMA = Schema('trust')
+    SCHEMA = Schema('bridge')
 
     def __init__(self, *,
                  signer: str,
@@ -48,7 +48,7 @@ class Trust:
         self.local_path = local_path
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Trust':
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Bridge':
         '''
         Construct a Container instance from a manifest.
         '''
@@ -64,7 +64,7 @@ class Trust:
 
     def to_unsigned_manifest(self) -> Manifest:
         '''
-        Create a manifest based on Trust's data.
+        Create a manifest based on Bridge's data.
         Has to be signed separately.
         '''
 

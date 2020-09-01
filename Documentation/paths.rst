@@ -47,10 +47,10 @@ container (and associated storage) for ``/path/one``.
   ``/path/two``), we use that container. The signer has to be the same as for
   the outer container.
 
-  If there is a trust manifest, we check if that manifest contains the right
+  If there is a bridge manifest, we check if that manifest contains the right
   path (in this case, ``/path/two``).
 
-  If so, we load the user manifest indicated by that trust manifest, and
+  If so, we load the user manifest indicated by that bridge manifest, and
   load containers for that user.
 
 Normally, the manifest signature is verified, unless the storage is marked as

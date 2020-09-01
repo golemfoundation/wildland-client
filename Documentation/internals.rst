@@ -24,7 +24,7 @@ Data transfer objects
 .. autoclass:: wildland.storage.Storage
    :members:
 
-.. autoclass:: wildland.trust.Trust
+.. autoclass:: wildland.bridge.Bridge
    :members:
 
 Manifests

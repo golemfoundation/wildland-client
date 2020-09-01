@@ -242,7 +242,7 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
     else:
         location = 'file://localhost' + str(base_dir / 'users/User2.yaml')
 
-    cli('trust', 'create', '--user', 'User',
+    cli('bridge', 'create', '--user', 'User',
         '--ref-user', 'User2',
         '--ref-user-location', location,
         base_dir / 'storage1/users/User2.yaml')

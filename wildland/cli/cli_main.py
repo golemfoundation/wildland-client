@@ -36,7 +36,7 @@ from . import (
     cli_user,
     cli_storage,
     cli_container,
-    cli_trust,
+    cli_bridge,
     cli_transfer,
 )
 
@@ -69,8 +69,8 @@ def main(ctx, base_dir, dummy, verbose):
 main.add_command(cli_user.user_)
 main.add_command(cli_storage.storage_)
 main.add_command(cli_container.container_)
-main.add_command(cli_trust.trust_)
-main.add_alias(u='user', s='storage', c='container', t='trust')
+main.add_command(cli_bridge.bridge_)
+main.add_alias(u='user', s='storage', c='container', b='bridge')
 
 main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)

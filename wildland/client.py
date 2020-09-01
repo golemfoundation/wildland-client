@@ -33,7 +33,7 @@ import yaml
 from .user import User
 from .container import Container
 from .storage import Storage
-from .trust import Trust
+from .bridge import Bridge
 from .wlpath import WildlandPath
 from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError
@@ -303,13 +303,13 @@ class Client:
 
         raise ManifestError(f'Storage not found: {name}')
 
-    def load_trust_from_path(self, path: Path) -> Trust:
+    def load_bridge_from_path(self, path: Path) -> Bridge:
         '''
-        Load a trust from a local file.
+        Load a Bridge from a local file.
         '''
 
         trusted_signer = self.fs_client.find_trusted_signer(path)
-        return self.session.load_trust(
+        return self.session.load_bridge(
             path.read_bytes(), path,
             trusted_signer=trusted_signer)
 
@@ -370,14 +370,14 @@ class Client:
         storage.local_path = path
         return path
 
-    def save_new_trust(self, trust: Trust, path: Path) -> Path:
+    def save_new_bridge(self, bridge: Bridge, path: Path) -> Path:
         '''
-        Save a new trust. Unlike when creating other objects, here the user
+        Save a new bridge. Unlike when creating other objects, here the user
         needs to provide a specific path.
         '''
 
-        path.write_bytes(self.session.dump_trust(trust))
-        trust.local_path = path
+        path.write_bytes(self.session.dump_bridge(bridge))
+        bridge.local_path = path
         return path
 
     @staticmethod

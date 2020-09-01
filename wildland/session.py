@@ -29,7 +29,7 @@ from .manifest.sig import SigContext
 from .user import User
 from .container import Container
 from .storage import Storage
-from .trust import Trust
+from .bridge import Bridge
 
 
 class Session:
@@ -52,14 +52,14 @@ class Session:
         pubkey = self.sig.get_pubkey(manifest.fields['signer'])
         return User.from_manifest(manifest, pubkey, local_path)
 
-    def load_container_or_trust(
+    def load_container_or_bridge(
             self,
             data: bytes,
             local_path: Optional[Path] = None,
             trusted_signer: Optional[str] = None,
-    ) -> Union[Container, Trust]:
+    ) -> Union[Container, Bridge]:
         '''
-        Load a manifest that can be either a container or trust manifest.
+        Load a manifest that can be either a container or bridge manifest.
         '''
 
         manifest = Manifest.from_bytes(
@@ -68,7 +68,7 @@ class Session:
             trusted_signer=trusted_signer)
         # Unfortunately, there is no clean way of distinguishing the two.
         if 'user' in manifest.fields:
-            return Trust.from_manifest(manifest, local_path)
+            return Bridge.from_manifest(manifest, local_path)
         return Container.from_manifest(manifest, local_path)
 
     def recognize_user(self, user: User):
@@ -139,27 +139,27 @@ class Session:
         manifest.sign(self.sig)
         return manifest.to_bytes()
 
-    def load_trust(
+    def load_bridge(
         self,
         data: bytes,
         local_path: Optional[Path] = None,
         trusted_signer: Optional[str] = None,
-    ) -> Trust:
+    ) -> Bridge:
         '''
-        Load a trust manifest, creating a Trust object.
+        Load a bridge manifest, creating a Bridge object.
         '''
 
         manifest = Manifest.from_bytes(
             data,
             self.sig,
             trusted_signer=trusted_signer)
-        return Trust.from_manifest(manifest, local_path)
+        return Bridge.from_manifest(manifest, local_path)
 
-    def dump_trust(self, trust: Trust) -> bytes:
+    def dump_bridge(self, bridge: Bridge) -> bytes:
         '''
-        Create a signed manifest out of a Trust object.
+        Create a signed manifest out of a Bridge object.
         '''
 
-        manifest = trust.to_unsigned_manifest()
+        manifest = bridge.to_unsigned_manifest()
         manifest.sign(self.sig)
         return manifest.to_bytes()

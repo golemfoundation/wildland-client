@@ -585,21 +585,21 @@ def test_status(cli, control_client):
     assert '    /path2.1' in out_lines
 
 
-## Trust
+## Bridge
 
 
-def test_trust_create(cli, base_dir):
+def test_bridge_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'RefUser', '--key', '0xbbb', '--path', '/OriginalPath')
 
-    trust_path = base_dir / 'trust.yaml'
-    cli('trust', 'create', trust_path,
+    bridge_path = base_dir / 'bridge.yaml'
+    cli('bridge', 'create', bridge_path,
         '--ref-user', 'RefUser',
         '--ref-user-location', 'https://example.com/RefUser.yaml',
         '--ref-user-path', '/ModifiedPath',
     )
 
-    data = trust_path.read_text()
+    data = bridge_path.read_text()
     assert 'user: https://example.com/RefUser.yaml' in data
     assert 'pubkey: key.0xbbb' in data
     assert '- /ModifiedPath' in data
