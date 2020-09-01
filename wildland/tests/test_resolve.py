@@ -155,7 +155,8 @@ def client(setup, base_dir):
 
 
 def test_resolve_first(base_dir, client):
-    search = Search(client, WildlandPath.from_str(':/path:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:'),
+        aliases={'default': '0xaaa'})
     step = list(search._resolve_first())[0]
     assert step.container.paths[1] == PurePosixPath('/path')
 
@@ -163,7 +164,8 @@ def test_resolve_first(base_dir, client):
     assert isinstance(backend, LocalStorageBackend)
     assert backend.root == base_dir / 'storage1'
 
-    search = Search(client, WildlandPath.from_str(':/path/subpath:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path/subpath:'),
+        aliases={'default': '0xaaa'})
     step = list(search._resolve_first())[0]
     assert step.container.paths[1] == PurePosixPath('/path/subpath')
 
@@ -175,13 +177,15 @@ def test_resolve_first(base_dir, client):
 def test_read_file(base_dir, client):
     with open(base_dir / 'storage1/file.txt', 'w') as f:
         f.write('Hello world')
-    search = Search(client, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/file.txt'),
+        aliases={'default': '0xaaa'})
     data = search.read_file()
     assert data == b'Hello world'
 
 
 def test_write_file(base_dir, client):
-    search = Search(client, WildlandPath.from_str(':/path:/file.txt'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/file.txt'),
+        aliases={'default': '0xaaa'})
     search.write_file(b'Hello world')
     with open(base_dir / 'storage1/file.txt') as f:
         assert f.read() == 'Hello world'
@@ -190,23 +194,29 @@ def test_write_file(base_dir, client):
 def test_read_file_traverse(base_dir, client):
     with open(base_dir / 'storage2/file.txt', 'w') as f:
         f.write('Hello world')
-    search = Search(client, WildlandPath.from_str(':/path:/other/path:/file.txt'), '0xaaa')
+    search = Search(client,
+        WildlandPath.from_str(':/path:/other/path:/file.txt'),
+        aliases={'default': '0xaaa'})
     data = search.read_file()
     assert data == b'Hello world'
 
 
 def test_read_container_traverse(client):
-    search = Search(client, WildlandPath.from_str(':/path:/other/path:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/other/path:'),
+        aliases={'default': '0xaaa'})
     container = search.read_container(remote=True)
     assert PurePosixPath('/other/path') in container.paths
 
 
 def test_read_container_unsigned(client):
-    search = Search(client, WildlandPath.from_str(':/path:/unsigned:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/unsigned:'),
+        aliases={'default': '0xaaa'})
     container = search.read_container(remote=True)
     assert PurePosixPath('/other/path') in container.paths
 
-    search = Search(client, WildlandPath.from_str(':/path:/other/path:/unsigned:'), '0xaaa')
+    search = Search(client,
+        WildlandPath.from_str(':/path:/other/path:/unsigned:'),
+        aliases={'default': '0xaaa'})
     with pytest.raises(ManifestError, match='Signature expected'):
         search.read_container(remote=True)
 
@@ -250,8 +260,8 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
     with open(base_dir / 'storage3/file.txt', 'w') as f:
         f.write('Hello world')
     search = Search(client,
-                    WildlandPath.from_str(':/path:/users/User2/:/file.txt'),
-                    '0xaaa')
+        WildlandPath.from_str(':/path:/users/User2/:/file.txt'),
+        aliases={'default': '0xaaa'})
     data = search.read_file()
     assert data == b'Hello world'
 
@@ -288,11 +298,13 @@ def test_read_container_traverse_pattern(setup_pattern, base_dir):
     client = Client(base_dir=base_dir)
     client.recognize_users()
 
-    search = Search(client, WildlandPath.from_str(':/path:/path1:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/path1:'),
+        aliases={'default': '0xaaa'})
     container = search.read_container(remote=True)
     assert PurePosixPath('/path1') in container.paths
 
-    search = Search(client, WildlandPath.from_str(':/path:/path2:'), '0xaaa')
+    search = Search(client, WildlandPath.from_str(':/path:/path2:'),
+        aliases={'default': '0xaaa'})
     container = search.read_container(remote=True)
     assert PurePosixPath('/path2') in container.paths
 
@@ -331,7 +343,9 @@ def test_glob_simple():
         },
     })
 
-    assert list(storage_glob(backend, '/foo/bar.yaml')) == [PurePosixPath('foo/bar.yaml')]
+    assert list(storage_glob(backend, '/foo/bar.yaml')) == [
+        PurePosixPath('foo/bar.yaml'),
+    ]
     assert list(storage_glob(backend, '/foo/*.yaml')) == [
         PurePosixPath('foo/bar.yaml'),
         PurePosixPath('foo/baz.yaml'),

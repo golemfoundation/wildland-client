@@ -25,6 +25,7 @@ Configuration file handling.
 from pathlib import Path
 from typing import Dict, Any
 import os
+import types
 
 import yaml
 
@@ -145,3 +146,18 @@ class Config:
             'local-signers': [],
             'default-containers': [],
         }
+
+    @property
+    def aliases(self):
+        '''
+        Access to aliases defined in config:
+
+        >>> c = client.Client()
+        >>> c.config.aliases['default']
+        '0xaaa'
+        '''
+        # TODO: custom aliases (#55)
+        return types.MappingProxyType({
+            k: v for k, v in
+                ((k[1:], self.get(k)) for k in ('@default', '@default-signer'))
+            if v is not None})

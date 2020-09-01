@@ -42,7 +42,7 @@ def put(obj: ContextObj, local_file, wlpath):
     wlpath = WildlandPath.from_str(wlpath)
     obj.client.recognize_users()
     data = local_file.read()
-    search = Search(obj.client, wlpath)
+    search = Search(obj.client, wlpath, obj.client.config.aliases)
     search.write_file(data)
 
 
@@ -57,6 +57,6 @@ def get(obj: ContextObj, wlpath, local_file):
 
     wlpath = WildlandPath.from_str(wlpath)
     obj.client.recognize_users()
-    search = Search(obj.client, wlpath)
+    search = Search(obj.client, wlpath, obj.client.config.aliases)
     data = search.read_file()
     local_file.write(data)

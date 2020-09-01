@@ -21,12 +21,12 @@
 Client class
 '''
 
-from pathlib import Path
+import glob
 import logging
+import os
+from pathlib import Path
 from typing import Optional, Iterator, List, Tuple, Union, Dict
 from urllib.parse import urlparse, quote
-import glob
-import os
 
 import yaml
 
@@ -197,7 +197,7 @@ class Client:
         # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import Search
-        search = Search(self, wlpath)
+        search = Search(self, wlpath, self.config.aliases)
         return search.read_container(remote=True)
 
     def load_container_from_url(self, url: str, signer: str) -> Container:
