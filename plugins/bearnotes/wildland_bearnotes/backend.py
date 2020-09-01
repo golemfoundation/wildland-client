@@ -29,6 +29,7 @@ from functools import partial
 import errno
 import os
 import threading
+import re
 
 import sqlite3
 import click
@@ -458,10 +459,9 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
         return self.root
 
     def _dir_root(self):
-        yield StaticFileEntry(f'note-{self.ident}.md', self._get_note())
-
-    def _get_note(self):
         note = self.bear_db.get_note(self.ident)
         if not note:
             raise FileNotFoundError(errno.ENOENT, '')
-        return note.get_md()
+
+        name = re.sub(r'[\0\\/:*?"<>|]', '-', note.title)
+        yield StaticFileEntry(f'{name}.md', note.get_md())
