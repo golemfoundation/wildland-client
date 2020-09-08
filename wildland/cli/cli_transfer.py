@@ -21,8 +21,6 @@
 Transfer commands (get, put)
 '''
 
-import sys
-
 import click
 
 from .cli_base import ContextObj
@@ -31,44 +29,32 @@ from ..search import Search
 
 
 @click.command(short_help='send a file')
-@click.argument('local_path', required=False)
+@click.argument('local_file', type=click.File('rb'), default='-')
 @click.argument('wlpath')
 @click.pass_obj
-def put(obj: ContextObj, local_path, wlpath):
+def put(obj: ContextObj, local_file, wlpath):
     '''
     Put a file under Wildland path. Reads from stdout or from a file.
     '''
 
     wlpath = WildlandPath.from_str(wlpath)
     obj.client.recognize_users()
-
-    if local_path:
-        with open(local_path, 'rb') as f:
-            data = f.read()
-    else:
-        data = sys.stdin.buffer.read()
-
-    search = Search(obj.client, wlpath)
+    data = local_file.read()
+    search = Search(obj.client, wlpath, obj.client.config.aliases)
     search.write_file(data)
 
 
 @click.command(short_help='download a file')
 @click.argument('wlpath')
-@click.argument('local_path', required=False)
+@click.argument('local_file', type=click.File('wb'), default='-')
 @click.pass_obj
-def get(obj: ContextObj, wlpath, local_path):
+def get(obj: ContextObj, wlpath, local_file):
     '''
     Get a file, given its Wildland path. Saves to stdout or to a file.
     '''
 
     wlpath = WildlandPath.from_str(wlpath)
     obj.client.recognize_users()
-
-    search = Search(obj.client, wlpath)
+    search = Search(obj.client, wlpath, obj.client.config.aliases)
     data = search.read_file()
-
-    if local_path:
-        with open(local_path, 'wb') as f:
-            f.write(data)
-    else:
-        sys.stdout.buffer.write(data)
+    local_file.write(data)

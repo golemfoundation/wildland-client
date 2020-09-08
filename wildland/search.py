@@ -21,12 +21,13 @@
 Utilities for URL resolving and traversing the path
 '''
 
-from pathlib import PurePosixPath
-from typing import Optional, Tuple, Iterable
-import os
 import logging
-from dataclasses import dataclass
+import os
 import re
+import types
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import Optional, Tuple, Iterable, Mapping
 
 from .user import User
 from .client import Client
@@ -67,30 +68,20 @@ class Search:
 
     Usage:
 
-        search = Search(client, wlpath)
+    .. code-block:: python
+
+        search = Search(client, wlpath, client.config.aliases)
         search.read_file()
     '''
 
-    def __init__(self, client: Client, wlpath: WildlandPath,
-                 default_user: Optional[str] = None):
+    def __init__(self,
+            client: Client,
+            wlpath: WildlandPath,
+            aliases: Mapping[str, str] = types.MappingProxyType({})):
         self.client = client
         self.wlpath = wlpath
-
-        if wlpath.signer is None:
-            self.initial_signer = client.config.get('@default')
-        elif wlpath.signer.startswith('@'):
-            if wlpath.signer in ['@default', '@default-signer']:
-                self.initial_signer = client.config.get(wlpath.signer)
-            else:
-                raise PathError(f'Unknown alias: {wlpath.signer}')
-        else:
-            self.initial_signer = wlpath.signer
-
-        if self.initial_signer is None:
-            if default_user:
-                self.initial_signer = default_user
-            else:
-                raise PathError(f'Could not find default user for path: {wlpath}')
+        self.aliases = aliases
+        self.initial_signer = self._subst_alias(wlpath.signer or '@default')
 
     def read_container(self, remote: bool) -> Container:
         '''
@@ -340,6 +331,15 @@ class Search:
                 'Unexpected signer for manifest: {} (expected {})'.format(
                     obj.signer, expected_signer
                 ))
+
+    def _subst_alias(self, alias):
+        if not alias[0] == '@':
+            return alias
+
+        try:
+            return self.aliases[alias[1:]]
+        except KeyError:
+            raise PathError(f'Unknown alias: {alias}')
 
 
 def storage_read_file(storage, relpath) -> bytes:

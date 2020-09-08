@@ -21,12 +21,12 @@
 Client class
 '''
 
-from pathlib import Path
+import glob
 import logging
+import os
+from pathlib import Path
 from typing import Optional, Iterator, List, Tuple, Union, Dict
 from urllib.parse import urlparse, quote
-import glob
-import os
 
 import yaml
 
@@ -45,6 +45,8 @@ from .exc import WildlandError
 
 logger = logging.getLogger('client')
 
+
+_WILDLAND_URL_PREFIX = 'wildland:'  # XXX or 'wildland://'?
 
 class Client:
     '''
@@ -197,7 +199,7 @@ class Client:
         # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import Search
-        search = Search(self, wlpath)
+        search = Search(self, wlpath, self.config.aliases)
         return search.read_container(remote=True)
 
     def load_container_from_url(self, url: str, signer: str) -> Container:
@@ -509,6 +511,19 @@ class Client:
         are recognized based on the 'local_hostname' and 'local_signers'
         settings.
         '''
+
+        if url.startswith(_WILDLAND_URL_PREFIX):
+            wlpath = WildlandPath.from_str(url[len(_WILDLAND_URL_PREFIX):])
+            if not wlpath.signer:
+                raise WildlandError(
+                    'Wildland path in URL context has to have explicit signer')
+
+            # TODO: Still a circular dependency with search
+            # pylint: disable=import-outside-toplevel, cyclic-import
+            from .search import Search
+
+            search = Search(self, wlpath, {})
+            return search.read_file()
 
         local_path = self.parse_file_url(url, signer)
         if local_path:
