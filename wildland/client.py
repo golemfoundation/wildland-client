@@ -29,6 +29,7 @@ from typing import Optional, Iterator, List, Tuple, Union, Dict
 from urllib.parse import urlparse, quote
 
 import yaml
+import requests
 
 from .user import User
 from .container import Container
@@ -46,7 +47,9 @@ from .exc import WildlandError
 logger = logging.getLogger('client')
 
 
-_WILDLAND_URL_PREFIX = 'wildland:'  # XXX or 'wildland://'?
+WILDLAND_URL_PREFIX = 'wildland:'  # XXX or 'wildland://'?
+HTTP_TIMEOUT_SECONDS = 5
+
 
 class Client:
     '''
@@ -512,8 +515,8 @@ class Client:
         settings.
         '''
 
-        if url.startswith(_WILDLAND_URL_PREFIX):
-            wlpath = WildlandPath.from_str(url[len(_WILDLAND_URL_PREFIX):])
+        if url.startswith(WILDLAND_URL_PREFIX):
+            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
             if not wlpath.signer:
                 raise WildlandError(
                     'Wildland path in URL context has to have explicit signer')
@@ -525,13 +528,25 @@ class Client:
             search = Search(self, wlpath, {})
             return search.read_file()
 
-        local_path = self.parse_file_url(url, signer)
-        if local_path:
+        if url.startswith('file:'):
+            local_path = self.parse_file_url(url, signer)
+            if local_path:
+                try:
+                    return local_path.read_bytes()
+                except IOError as e:
+                    raise WildlandError('Error retrieving file URL: {}: {}'.format(
+                        url, e))
+            raise WildlandError(f'File URL not found: {url}')
+
+        if url.startswith('http:') or url.startswith('https:'):
             try:
-                return local_path.read_bytes()
-            except IOError as e:
-                raise WildlandError('Error retrieving file URL: {}: {}'.format(
+                resp = requests.get(url)
+                resp.raise_for_status()
+                return resp.content
+            except Exception as e:
+                raise WildlandError('Error retrieving HTTP/HTTPS URL: {}: {}'.format(
                     url, e))
+
         raise WildlandError(f'Unrecognized URL: {url}')
 
     def local_url(self, path: Path) -> str:
