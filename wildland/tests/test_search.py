@@ -268,8 +268,8 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
 
 ## Manifest pattern
 
-@pytest.fixture
-def setup_pattern(base_dir, cli):
+@pytest.fixture(params=['/manifests/*.yaml', '/manifests/{path}.yaml'])
+def setup_pattern(request, base_dir, cli):
     os.mkdir(base_dir / 'storage1')
 
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -279,7 +279,7 @@ def setup_pattern(base_dir, cli):
         '--path', base_dir / 'storage1',
         '--container', 'Container1',
         '--inline',
-        '--manifest-pattern', '/manifests/*.yaml')
+        '--manifest-pattern', request.param)
 
     cli('container', 'create', 'Container2',
         '--path', '/path1')
@@ -288,9 +288,9 @@ def setup_pattern(base_dir, cli):
 
     os.mkdir(base_dir / 'storage1/manifests/')
     shutil.copyfile(base_dir / 'containers/Container2.yaml',
-                    base_dir / 'storage1/manifests/Container2.yaml')
+                    base_dir / 'storage1/manifests/path1.yaml')
     shutil.copyfile(base_dir / 'containers/Container3.yaml',
-                    base_dir / 'storage1/manifests/Container3.yaml')
+                    base_dir / 'storage1/manifests/path2.yaml')
 
 
 def test_read_container_traverse_pattern(setup_pattern, base_dir):

@@ -396,7 +396,8 @@ def storage_find_manifests(
 
     mp_type = manifest_pattern['type']
     if mp_type == 'glob':
-        glob_path = manifest_pattern['path'].replace('{path}', str(query_path))
+        glob_path = manifest_pattern['path'].replace(
+            '{path}', str(query_path.relative_to('/')))
         return storage_glob(storage, glob_path)
     raise WildlandError(f'Unknown manifest_pattern: {mp_type}')
 
