@@ -462,7 +462,8 @@ class Client:
                 continue
 
             if not StorageBackend.is_type_supported(storage.storage_type):
-                logging.warning('Unsupported storage manifest: %s', name)
+                logging.warning('Unsupported storage manifest: %s (type %s)',
+                                name, storage.storage_type)
                 continue
 
             # If there is a 'container' parameter with a backend URL, convert
