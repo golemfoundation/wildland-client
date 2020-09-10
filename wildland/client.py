@@ -509,6 +509,14 @@ class Client:
         inner_manifest.skip_signing()
         return inner_manifest.fields
 
+    @staticmethod
+    def is_url(s: str):
+        '''
+        Check if string can be recognized as URL.
+        '''
+
+        return '://' in s or s.startswith(WILDLAND_URL_PREFIX)
+
     def read_from_url(self, url: str, signer: str) -> bytes:
         '''
         Retrieve data from a given URL. The local (file://) URLs
