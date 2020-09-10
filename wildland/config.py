@@ -136,6 +136,7 @@ class Config:
             'user-dir': base_dir / 'users',
             'storage-dir': base_dir / 'storage',
             'container-dir': base_dir / 'containers',
+            'bridge-dir': base_dir / 'bridges',
             'key-dir': base_dir / 'keys',
             'mount-dir': home_dir / 'wildland',
             'socket-path': base_dir / 'wlfuse.sock',

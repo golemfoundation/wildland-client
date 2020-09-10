@@ -592,14 +592,13 @@ def test_bridge_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'RefUser', '--key', '0xbbb', '--path', '/OriginalPath')
 
-    bridge_path = base_dir / 'bridge.yaml'
-    cli('bridge', 'create', bridge_path,
+    cli('bridge', 'create', 'Bridge',
         '--ref-user', 'RefUser',
         '--ref-user-location', 'https://example.com/RefUser.yaml',
         '--ref-user-path', '/ModifiedPath',
     )
 
-    data = bridge_path.read_text()
+    data = (base_dir / 'bridges/Bridge.yaml').read_text()
     assert 'user: https://example.com/RefUser.yaml' in data
     assert 'pubkey: key.0xbbb' in data
     assert '- /ModifiedPath' in data

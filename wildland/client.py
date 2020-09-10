@@ -71,6 +71,7 @@ class Client:
         self.user_dir = Path(self.config.get('user-dir'))
         self.container_dir = Path(self.config.get('container-dir'))
         self.storage_dir = Path(self.config.get('storage-dir'))
+        self.bridge_dir = Path(self.config.get('bridge-dir'))
 
         mount_dir = Path(self.config.get('mount-dir'))
         socket_path = Path(self.config.get('socket-path'))
@@ -392,11 +393,15 @@ class Client:
         storage.local_path = path
         return path
 
-    def save_new_bridge(self, bridge: Bridge, path: Path) -> Path:
+    def save_new_bridge(self, bridge: Bridge,
+                        name: Optional[str], path: Optional[Path]) -> Path:
         '''
-        Save a new bridge. Unlike when creating other objects, here the user
-        needs to provide a specific path.
+        Save a new bridge.
         '''
+
+        if not path:
+            assert name is not None
+            path = self._new_path(self.bridge_dir, name)
 
         path.write_bytes(self.session.dump_bridge(bridge))
         bridge.local_path = path

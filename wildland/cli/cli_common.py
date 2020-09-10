@@ -31,6 +31,7 @@ from ..client import Client
 from ..user import User
 from ..container import Container
 from ..storage import Storage
+from ..bridge import Bridge
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
@@ -44,13 +45,14 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     '''
 
-    if (manifest_type in ['user', 'container', 'storage'] and
+    if (manifest_type in ['user', 'container', 'storage', 'bridge'] and
         not name.endswith('.yaml')):
 
         base_dir = {
             'user': client.user_dir,
             'container': client.container_dir,
             'storage': client.storage_dir,
+            'bridge': client.bridge_dir,
         }[manifest_type]
         path = base_dir / f'{name}.yaml'
         if path.exists():
@@ -74,6 +76,8 @@ def validate_manifest(manifest: Manifest, manifest_type):
         manifest.apply_schema(Container.SCHEMA)
     if manifest_type == 'storage':
         manifest.apply_schema(Storage.BASE_SCHEMA)
+    if manifest_type == 'bridge':
+        manifest.apply_schema(Bridge.SCHEMA)
 
 
 @click.command(short_help='manifest signing tool')

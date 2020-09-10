@@ -257,7 +257,8 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
     cli('bridge', 'create', '--user', 'User',
         '--ref-user', 'User2',
         '--ref-user-location', location,
-        base_dir / 'storage1/users/User2.yaml')
+        '--file-path', base_dir / 'storage1/users/User2.yaml',
+        'User2')
 
     with open(base_dir / 'storage3/file.txt', 'w') as f:
         f.write('Hello world')

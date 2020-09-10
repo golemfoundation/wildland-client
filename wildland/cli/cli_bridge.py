@@ -22,7 +22,7 @@ Manage bridges
 '''
 
 from pathlib import PurePosixPath, Path
-from typing import List
+from typing import List, Optional
 
 import click
 
@@ -48,20 +48,25 @@ def bridge_():
               help='path to user manifest (URL or relative path)')
 @click.option('--ref-user-path', 'ref_user_paths', multiple=True,
               help='paths for user in Wildland namespace (omit to take from user manifest)')
-@click.argument('file_path', metavar='FILE', required=True)
+@click.option('--file-path', help='file path to create under')
+@click.argument('name', metavar='BRIDGE_NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj,
            user_name: str,
            ref_user_name: str,
            ref_user_location: str,
            ref_user_paths: List[str],
-           file_path: str):
+           name: Optional[str],
+           file_path: Optional[str]):
     '''
-    Create a new bridge manifest under a given path.
+    Create a new bridge manifest.
     '''
 
     obj.client.recognize_users()
     user = obj.client.load_user_from(user_name or '@default-signer')
+
+    if name is None and file_path is None:
+        raise CliError('Either name or file path needs to be provided')
 
     # Ensure the path is relative and starts with './' or '../'.
     if not obj.client.is_url(ref_user_location):
@@ -85,7 +90,8 @@ def create(obj: ContextObj,
         user_pubkey=ref_user.pubkey,
         paths=paths,
     )
-    path = obj.client.save_new_bridge(bridge, Path(file_path))
+    path = obj.client.save_new_bridge(
+        bridge, name, Path(file_path) if file_path else None)
     click.echo(f'Created: {path}')
 
 

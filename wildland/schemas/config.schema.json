@@ -14,6 +14,10 @@
             "$ref": "types.json#abs-path",
             "description": "path to container manifests (default: $HOME/.config/wildland/users)"
         },
+        "bridge-dir": {
+            "$ref": "types.json#abs-path",
+            "description": "path to bridge manifests (default: $HOME/.config/wildland/bridges)"
+        },
         "key-dir": {
             "$ref": "types.json#abs-path",
             "description": "path to Signify private keys (default: $HOME/.config/wildland/keys)"
