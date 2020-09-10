@@ -85,6 +85,7 @@ class Search:
 
         self.local_containers = list(self.client.load_containers())
         self.local_users = list(self.client.load_users())
+        self.local_bridges = list(self.client.load_bridges())
 
     def read_container(self) -> Container:
         '''
@@ -180,7 +181,7 @@ class Search:
             if (container.signer == signer and
                 part in container.paths):
 
-                logger.info('%s: local container: %s', part,
+                logger.debug('%s: local container: %s', part,
                             container.local_path)
                 yield Step(
                     signer=self.initial_signer,
@@ -188,6 +189,13 @@ class Search:
                     container=container,
                     user=None
                 )
+
+        for bridge in self.local_bridges:
+            if bridge.signer == signer and part in bridge.paths:
+                logger.debug('%s: local bridge manifest: %s', part,
+                            bridge.local_path)
+                yield from self._bridge_step(
+                    self.client, signer, part, None, None, bridge)
 
     def _resolve_next(self, step: Step, i: int) -> Iterable[Step]:
         '''
@@ -225,7 +233,8 @@ class Search:
                 else:
                     logger.info('%s: bridge manifest: %s', part, manifest_path)
                     yield from self._bridge_step(
-                        step, part, manifest_path, storage_backend,
+                        step.client, step.signer,
+                        part, manifest_path, storage_backend,
                         container_or_bridge)
         finally:
             storage_backend.unmount()
@@ -251,21 +260,27 @@ class Search:
         )
 
     def _bridge_step(self,
-                     step: Step,
+                     client: Client,
+                     signer: str,
                      part: PurePosixPath,
-                     manifest_path: PurePosixPath,
-                     storage_backend: StorageBackend,
+                     manifest_path: Optional[PurePosixPath],
+                     storage_backend: Optional[StorageBackend],
                      bridge: Bridge) -> Iterable[Step]:
 
-        self._verify_signer(bridge, step.signer)
+        self._verify_signer(bridge, signer)
 
         if part not in bridge.paths:
             return
 
-        client, signer = step.client.sub_client_with_key(bridge.user_pubkey)
+        next_client, next_signer = client.sub_client_with_key(bridge.user_pubkey)
 
         location = bridge.user_location
         if (location.startswith('./') or location.startswith('../')):
+
+            if not (manifest_path and storage_backend):
+                logger.warning(
+                    'local bridge manifest with relative location, skipping')
+                return
 
             # Treat location as relative path
             user_manifest_path = manifest_path.parent / location
@@ -289,10 +304,10 @@ class Search:
             logger.debug('%s: remote user manifest: %s',
                          part, location)
 
-        user = client.session.load_user(user_manifest_content)
+        user = next_client.session.load_user(user_manifest_content)
 
         yield from self._user_step(
-            user, signer, client)
+            user, next_signer, next_client)
 
     def _user_step(self,
                    user: User,

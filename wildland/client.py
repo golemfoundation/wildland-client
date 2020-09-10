@@ -326,6 +326,21 @@ class Client:
 
         raise ManifestError(f'Storage not found: {name}')
 
+    def load_bridges(self) -> Iterator[Bridge]:
+        '''
+        Load bridge manifests from the bridges directory.
+        '''
+
+        if self.bridge_dir.exists():
+            for path in sorted(self.bridge_dir.glob('*.yaml')):
+                try:
+                    bridge = self.load_bridge_from_path(path)
+                except WildlandError as e:
+                    logger.warning('error loading bridge manifest: %s: %s',
+                                   path, e)
+                else:
+                    yield bridge
+
     def load_bridge_from_path(self, path: Path) -> Bridge:
         '''
         Load a Bridge from a local file.
