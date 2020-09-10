@@ -83,28 +83,18 @@ class Search:
         self.aliases = aliases
         self.initial_signer = self._subst_alias(wlpath.signer or '@default')
 
-    def read_container(self, remote: bool) -> Container:
-        '''
-        Read a container manifest represented by the path. Returns
-        ``(container, manifest_path)``.
+        self.local_containers = list(self.client.load_containers())
+        self.local_users = list(self.client.load_users())
 
-        If 'remote' is true, we are allowed to traverse the Wildland path
-        further. If we do, the manifest path will be null.
+    def read_container(self) -> Container:
+        '''
+        Read a container manifest represented by the path.
         '''
         if self.wlpath.file_path is not None:
             raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
 
-        if remote:
-            step = self._resolve_all()
-            return step.container
-
-        if len(self.wlpath.parts) > 1:
-            raise PathError(f'Expecting a local path: {self.wlpath}')
-
-        for step in self._resolve_first():
-            return step.container
-
-        raise PathError(f'Container not found for path: {self.wlpath.parts[0]}')
+        step = self._resolve_all()
+        return step.container
 
     def read_file(self) -> bytes:
         '''
@@ -167,23 +157,30 @@ class Search:
         Returns (storage, storage_backend).
         '''
 
-        # TODO: resolve manifest path in the context of the container
         storage = self.client.select_storage(step.container)
         return storage, StorageBackend.from_params(storage.params)
 
-    def _resolve_first(self) -> Iterable[Step]:
+    def _resolve_first(self):
+        # Try local containers
+        yield from self._resolve_local(self.wlpath.parts[0], self.initial_signer)
+
+        # Try user's infrastructure containers
+        for user in self.local_users:
+            if user.signer == self.initial_signer:
+                for step in self._user_step(user, self.initial_signer, self.client):
+                    yield from self._resolve_next(step, 0)
+
+    def _resolve_local(self, part: PurePosixPath, signer: str) -> Iterable[Step]:
         '''
-        Resolve the first path part. The first part is special because we are
-        looking up the manifest locally.
+        Resolve a path part based on locally stored manifests, in the context
+        of a given signer.
         '''
 
-        container_path = self.wlpath.parts[0]
+        for container in self.local_containers:
+            if (container.signer == signer and
+                part in container.paths):
 
-        for container in self.client.load_containers():
-            if (container.signer == self.initial_signer and
-                container_path in container.paths):
-
-                logger.info('%s: local container: %s', container_path,
+                logger.info('%s: local container: %s', part,
                             container.local_path)
                 yield Step(
                     signer=self.initial_signer,
@@ -197,15 +194,17 @@ class Search:
         Resolve next part by looking up a manifest in the current container.
         '''
 
-        assert 0 < i < len(self.wlpath.parts)
-        storage, storage_backend = self._find_storage(step)
-        query_path = self.wlpath.parts[i]
+        part = self.wlpath.parts[i]
 
+        # Try local paths first
+        yield from self._resolve_local(part, step.signer)
+
+        storage, storage_backend = self._find_storage(step)
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
         storage_backend.mount()
         try:
             for manifest_path in storage_find_manifests(
-                    storage_backend, manifest_pattern, query_path):
+                    storage_backend, manifest_pattern, part):
                 trusted_signer = None
                 if storage.trusted:
                     trusted_signer = storage.signer
@@ -220,13 +219,13 @@ class Search:
                     manifest_content, trusted_signer=trusted_signer)
 
                 if isinstance(container_or_bridge, Container):
-                    logger.info('%s: container manifest: %s', query_path, manifest_path)
+                    logger.info('%s: container manifest: %s', part, manifest_path)
                     yield from self._container_step(
-                        step, query_path, container_or_bridge)
+                        step, part, container_or_bridge)
                 else:
-                    logger.info('%s: bridge manifest: %s', query_path, manifest_path)
+                    logger.info('%s: bridge manifest: %s', part, manifest_path)
                     yield from self._bridge_step(
-                        step, query_path, manifest_path, storage_backend,
+                        step, part, manifest_path, storage_backend,
                         container_or_bridge)
         finally:
             storage_backend.unmount()

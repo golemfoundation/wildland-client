@@ -203,7 +203,7 @@ class Client:
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import Search
         search = Search(self, wlpath, self.config.aliases)
-        return search.read_container(remote=True)
+        return search.read_container()
 
     def load_container_from_url(self, url: str, signer: str) -> Container:
         '''
