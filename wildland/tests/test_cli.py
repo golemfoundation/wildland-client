@@ -42,7 +42,7 @@ def modify_file(path, pattern, replacement):
 
 def test_user_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    with open(base_dir / 'users/User.yaml') as f:
+    with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
 
     assert "signer: '0xaaa'" in data
@@ -59,12 +59,12 @@ def test_user_list(cli, base_dir):
     cli('user', 'create', 'User2', '--key', '0xbbb')
     result = cli('user', 'list', capture=True)
     assert result.splitlines() == [
-        str(base_dir / 'users/User1.yaml'),
+        str(base_dir / 'users/User1.user.yaml'),
         '  signer: 0xaaa',
         '  path: /users/Foo',
         '  path: /users/Bar',
         '',
-        str(base_dir / 'users/User2.yaml'),
+        str(base_dir / 'users/User2.user.yaml'),
         '  signer: 0xbbb',
         '  path: /users/User2',
         ''
@@ -77,11 +77,11 @@ def test_user_delete(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    user_path = base_dir / 'users/User.yaml'
+    user_path = base_dir / 'users/User.user.yaml'
     assert user_path.exists()
-    container_path = base_dir / 'containers/Container.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
     assert container_path.exists()
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
     with pytest.raises(CliError, match='User still has manifests'):
@@ -99,11 +99,11 @@ def test_user_delete_cascade(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    user_path = base_dir / 'users/User.yaml'
+    user_path = base_dir / 'users/User.user.yaml'
     assert user_path.exists()
-    container_path = base_dir / 'containers/Container.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
     assert container_path.exists()
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
     cli('user', 'delete', '--cascade', 'User')
@@ -119,20 +119,20 @@ def test_user_verify(cli):
 
 def test_user_verify_bad_sig(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.yaml', 'dummy.0xaaa', 'dummy.0xbbb')
+    modify_file(base_dir / 'users/User.user.yaml', 'dummy.0xaaa', 'dummy.0xbbb')
     cli_fail('user', 'verify', 'User')
 
 
 def test_user_verify_bad_fields(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.yaml', 'signer:', 'extra: xxx\nsigner:')
+    modify_file(base_dir / 'users/User.user.yaml', 'signer:', 'extra: xxx\nsigner:')
     cli_fail('user', 'verify', 'User')
 
 
 def test_user_sign(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     tmp_file = base_dir / 'tmp.yaml'
-    shutil.copyfile(base_dir / 'users/User.yaml', tmp_file)
+    shutil.copyfile(base_dir / 'users/User.user.yaml', tmp_file)
 
     modify_file(tmp_file, 'dummy.0xaaa', 'outdated.0xaaa')
     cli_fail('user', 'verify', tmp_file)
@@ -145,7 +145,7 @@ def test_user_edit(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     editor = r'sed -i s,\'0xaaa\',\"0xaaa\",g'
     cli('user', 'edit', 'User', '--editor', editor)
-    with open(base_dir / 'users/User.yaml') as f:
+    with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
     assert '"0xaaa"' in data
 
@@ -169,7 +169,7 @@ def test_storage_create(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container', '--no-update-container')
-    with open(base_dir / 'storage/Storage.yaml') as f:
+    with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
 
     assert "signer: '0xaaa'" in data
@@ -182,10 +182,10 @@ def test_storage_create_update_container(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
 
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert str(storage_path) in data
 
 
@@ -195,7 +195,7 @@ def test_storage_create_inline(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
         '--container', 'Container', '--inline')
 
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
 
     assert '/STORAGE' in data
@@ -207,7 +207,7 @@ def test_storage_delete(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
     with pytest.raises(CliError, match='Storage is still used'):
@@ -223,9 +223,9 @@ def test_storage_delete_cascade(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
-    container_path = base_dir / 'containers/Container.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
     assert str(storage_path) in container_path.read_text()
 
     cli('storage', 'delete', '--cascade', 'Storage')
@@ -241,7 +241,7 @@ def test_storage_list(cli, base_dir):
 
     result = cli('storage', 'list', capture=True)
     assert result.splitlines() == [
-        str(base_dir / 'storage/Storage.yaml'),
+        str(base_dir / 'storage/Storage.storage.yaml'),
         '  type: local',
         '  path: /PATH',
     ]
@@ -253,7 +253,7 @@ def test_storage_list(cli, base_dir):
 def test_container_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
 
     assert "signer: '0xaaa'" in data
@@ -265,10 +265,10 @@ def test_container_create_update_user(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
 
-    with open(base_dir / 'users/User.yaml') as f:
+    with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
 
-    assert 'containers/Container.yaml' in data
+    assert 'containers/Container.container.yaml' in data
 
 
 def test_container_update(cli, base_dir):
@@ -279,10 +279,10 @@ def test_container_update(cli, base_dir):
         '--container', 'Container', '--no-update-container')
     cli('container', 'update', 'Container', '--storage', 'Storage')
 
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
 
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert str(storage_path) in data
 
 
@@ -293,9 +293,9 @@ def test_container_delete(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    container_path = base_dir / 'containers/Container.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
     assert container_path.exists()
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
     with pytest.raises(CliError, match='Container refers to local manifests'):
@@ -314,9 +314,9 @@ def test_container_delete_force(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    container_path = base_dir / 'containers/Container.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
     assert container_path.exists()
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
     cli('container', 'delete', '--force', 'Container')
@@ -331,9 +331,9 @@ def test_container_delete_cascade(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    container_path = base_dir / 'containers/Container.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
     assert container_path.exists()
-    storage_path = base_dir / 'storage/Storage.yaml'
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
     cli('container', 'delete', '--cascade', 'Container')
@@ -347,7 +347,7 @@ def test_container_list(cli, base_dir):
 
     result = cli('container', 'list', capture=True)
     out_lines = result.splitlines()
-    assert str(base_dir / 'containers/Container.yaml') in out_lines
+    assert str(base_dir / 'containers/Container.container.yaml') in out_lines
     assert '  path: /PATH' in out_lines
 
 
@@ -357,7 +357,7 @@ def test_container_mount(cli, base_dir, control_client):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
@@ -456,7 +456,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
         '--container', 'Container', '--inline')
 
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
@@ -482,11 +482,11 @@ def test_container_mount_check_trusted_signer(cli, base_dir, control_client):
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
         '--container', 'Container')
 
-    manifest_path = base_dir / 'mnt/trusted/Container.yaml'
+    manifest_path = base_dir / 'mnt/trusted/Container.container.yaml'
 
     # Write an unsigned container manifest to mnt/trusted/
 
-    content = (base_dir / 'containers/Container.yaml').read_text()
+    content = (base_dir / 'containers/Container.container.yaml').read_text()
     content = content[content.index('---'):]
     os.mkdir(base_dir / 'mnt/trusted')
     with open(manifest_path, 'w') as f:
@@ -530,7 +530,7 @@ def test_container_unmount(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    with open(base_dir / 'containers/Container.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
@@ -598,7 +598,7 @@ def test_bridge_create(cli, base_dir):
         '--ref-user-path', '/ModifiedPath',
     )
 
-    data = (base_dir / 'bridges/Bridge.yaml').read_text()
+    data = (base_dir / 'bridges/Bridge.bridge.yaml').read_text()
     assert 'user: https://example.com/RefUser.yaml' in data
     assert 'pubkey: key.0xbbb' in data
     assert '- /ModifiedPath' in data

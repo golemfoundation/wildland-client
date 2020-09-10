@@ -45,6 +45,8 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     '''
 
+    # TODO this duplicates Client.load_*_from
+
     if (manifest_type in ['user', 'container', 'storage', 'bridge'] and
         not name.endswith('.yaml')):
 
@@ -55,6 +57,10 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
             'bridge': client.bridge_dir,
         }[manifest_type]
         path = base_dir / f'{name}.yaml'
+        if path.exists():
+            return path
+
+        path = base_dir / f'{name}.{manifest_type}.yaml'
         if path.exists():
             return path
 

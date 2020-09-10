@@ -157,6 +157,10 @@ class Client:
             if path.exists():
                 return self.load_user_from_path(path)
 
+            path = self.user_dir / f'{name}.user.yaml'
+            if path.exists():
+                return self.load_user_from_path(path)
+
         # Key
         if name.startswith('0x'):
             for user in self.load_users():
@@ -259,6 +263,10 @@ class Client:
             if path.exists():
                 return self.load_container_from_path(path)
 
+            path = self.container_dir / f'{name}.container.yaml'
+            if path.exists():
+                return self.load_container_from_path(path)
+
         # Local path
         path = Path(name)
         if path.exists():
@@ -319,6 +327,10 @@ class Client:
             if path.exists():
                 return self.load_storage_from_path(path)
 
+            path = self.storage_dir / f'{name}.storage.yaml'
+            if path.exists():
+                return self.load_storage_from_path(path)
+
         # Local path
         path = Path(name)
         if path.exists():
@@ -369,7 +381,7 @@ class Client:
         name.
         '''
 
-        path = self._new_path(self.user_dir, name or user.signer)
+        path = self._new_path('user', name or user.signer)
         path.write_bytes(self.session.dump_user(user))
         user.local_path = path
         return path
@@ -392,7 +404,7 @@ class Client:
         '''
 
         ident = container.ensure_uuid()
-        path = self._new_path(self.container_dir, name or ident)
+        path = self._new_path('container', name or ident)
         path.write_bytes(self.session.dump_container(container))
         container.local_path = path
         return path
@@ -403,7 +415,7 @@ class Client:
         name.
         '''
 
-        path = self._new_path(self.storage_dir, name or storage.container_path.name)
+        path = self._new_path('storage', name or storage.container_path.name)
         path.write_bytes(self.session.dump_storage(storage))
         storage.local_path = path
         return path
@@ -416,21 +428,31 @@ class Client:
 
         if not path:
             assert name is not None
-            path = self._new_path(self.bridge_dir, name)
+            path = self._new_path('bridge', name)
 
         path.write_bytes(self.session.dump_bridge(bridge))
         bridge.local_path = path
         return path
 
-    @staticmethod
-    def _new_path(base_dir: Path, name: str) -> Path:
+    def _new_path(self, manifest_type, name: str) -> Path:
+        if manifest_type == 'user':
+            base_dir = self.user_dir
+        elif manifest_type == 'container':
+            base_dir = self.container_dir
+        elif manifest_type == 'storage':
+            base_dir = self.storage_dir
+        elif manifest_type == 'bridge':
+            base_dir = self.bridge_dir
+        else:
+            assert False, manifest_type
+
         if not base_dir.exists():
             base_dir.mkdir(parents=True)
 
         i = 0
         while True:
             suffix = '' if i == 0 else f'.{i}'
-            path = base_dir / f'{name}{suffix}.yaml'
+            path = base_dir / f'{name}{suffix}.{manifest_type}.yaml'
             if not path.exists():
                 return path
             i += 1

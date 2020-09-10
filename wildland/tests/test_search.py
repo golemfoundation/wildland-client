@@ -137,10 +137,10 @@ def setup(base_dir, cli):
     os.mkdir(base_dir / 'storage1/other/')
     # TODO copy storage manifest as well
     # (and make sure storage manifests are resolved in the local context)
-    shutil.copyfile(base_dir / 'containers/Container2.yaml',
+    shutil.copyfile(base_dir / 'containers/Container2.container.yaml',
                     base_dir / 'storage1/other/path.yaml')
 
-    content = (base_dir / 'containers/Container2.yaml').read_text()
+    content = (base_dir / 'containers/Container2.container.yaml').read_text()
     content = content[content.index('---'):]
     (base_dir / 'storage1/unsigned.yaml').write_text(content)
     (base_dir / 'storage2/unsigned.yaml').write_text(content)
@@ -209,7 +209,7 @@ def test_read_container_traverse(client):
 
 
 def test_read_container_unsigned(base_dir, client):
-    (base_dir / 'containers/Container2.yaml').unlink()
+    (base_dir / 'containers/Container2.container.yaml').unlink()
 
     search = Search(client, WildlandPath.from_str(':/path:/unsigned:'),
         aliases={'default': '0xaaa'})
@@ -232,7 +232,7 @@ def test_mount_traverse(cli, client, base_dir, control_client):
 
 def test_unmount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
-    with open(base_dir / 'containers/Container2.yaml') as f:
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
     path = documents[1]['paths'][0]
 
@@ -246,13 +246,13 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
 @pytest.mark.parametrize('location_type', ['local', 'remote'])
 def test_read_file_traverse_user(cli, base_dir, client, location_type):
     os.mkdir(base_dir / 'storage1/users/')
-    shutil.copyfile(base_dir / 'users/User2.yaml',
+    shutil.copyfile(base_dir / 'users/User2.user.yaml',
                     base_dir / 'storage1/users/User2.user.yaml')
 
     if location_type == 'local':
         location = 'User2.user.yaml'
     else:
-        location = 'file://localhost' + str(base_dir / 'users/User2.yaml')
+        location = 'file://localhost' + str(base_dir / 'users/User2.user.yaml')
 
     cli('bridge', 'create', '--user', 'User',
         '--ref-user', 'User2',
@@ -290,9 +290,9 @@ def setup_pattern(request, base_dir, cli):
         '--path', '/path2')
 
     os.mkdir(base_dir / 'storage1/manifests/')
-    shutil.copyfile(base_dir / 'containers/Container2.yaml',
+    shutil.copyfile(base_dir / 'containers/Container2.container.yaml',
                     base_dir / 'storage1/manifests/path1.yaml')
-    shutil.copyfile(base_dir / 'containers/Container3.yaml',
+    shutil.copyfile(base_dir / 'containers/Container3.container.yaml',
                     base_dir / 'storage1/manifests/path2.yaml')
 
 
@@ -332,18 +332,18 @@ def test_container_with_storage_path(base_dir, cli):
         '--container', 'Container2')
 
     os.rename(
-        base_dir / 'storage/Storage2.yaml',
-        base_dir / 'storage1/Storage2.yaml')
+        base_dir / 'storage/Storage2.storage.yaml',
+        base_dir / 'storage1/Storage2.storage.yaml')
 
     with open(base_dir / 'storage2/testfile', 'w') as file:
         file.write('test\n')
 
-    with open(base_dir / 'containers/Container2.yaml') as file:
+    with open(base_dir / 'containers/Container2.container.yaml') as file:
         lines = list(file)
-    with open(base_dir / 'containers/Container2.yaml', 'w') as file:
+    with open(base_dir / 'containers/Container2.container.yaml', 'w') as file:
         for line in lines:
             if line.startswith('  - file://'):
-                line = '  - wildland:0xaaa:/path1:/Storage2.yaml\n'
+                line = '  - wildland:0xaaa:/path1:/Storage2.storage.yaml\n'
             file.write(line)
 
     cli('get', '0xaaa:/path2:/testfile')

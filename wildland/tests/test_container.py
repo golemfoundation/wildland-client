@@ -63,7 +63,7 @@ def test_select_storage_unsupported(client, base_dir):
         'type': 'unknown'
     })
     storage_manifest.sign(client.session.sig)
-    with open(base_dir / 'storage' / 'Storage1.yaml', 'wb') as f:
+    with open(base_dir / 'storage' / 'Storage1.storage.yaml', 'wb') as f:
         f.write(storage_manifest.to_bytes())
 
     storage = client.select_storage(container)

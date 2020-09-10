@@ -21,6 +21,6 @@ $WL container create container2 --path /container2
 $WL storage create local-cached storage21 --path $STORAGE/storage21 \
     --container container2 --update-container
 
-cp ~/.config/wildland/containers/container2.yaml $STORAGE/storage11/container2.yaml
+cp ~/.config/wildland/containers/container2.container.yaml $STORAGE/storage11/container2.yaml
 
 $WL start --container container1

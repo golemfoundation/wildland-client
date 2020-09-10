@@ -7,6 +7,19 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2020-09-10) Local manifests are now created with appropriate suffix:
+  ``<name>.container.yaml``, ``<name>.bridge.yaml`` etc.
+
+  However, commands that take a "short name" still recognize the old manifests
+  without the suffix. For example, ``wl container mount C`` will look for both
+  ``$HOME/.config/wildland/containers/C.yaml`` and
+  ``$HOME/.config/wildland/containers/C.container.yaml``.
+
+  After this change is removed, the "short name" will always resolve to a file
+  name with suffix.
+
+  Note that the above doesn't apply to full file paths.
+
 * (2020-09-01) The ``containers`` field in user manifest has been renamed to
   ``infrastructure-containers``. For backwards compatibility, both fields are
   permitted when loading a manifest, but only the latter one is used.

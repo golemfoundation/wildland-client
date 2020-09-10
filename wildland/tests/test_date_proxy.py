@@ -36,7 +36,7 @@ def test_date_proxy_with_url(cli, base_dir):
     cli('storage', 'create', 'local', 'InnerStorage', '--path', '/tmp/local-path',
         '--container', 'InnerContainer')
 
-    inner_path = base_dir / 'containers/InnerContainer.yaml'
+    inner_path = base_dir / 'containers/InnerContainer.container.yaml'
     assert inner_path.exists()
     inner_url = f'file://{inner_path}'
 
