@@ -15,10 +15,7 @@ It has the following form::
   The ``@default`` and ``@default-signer`` values are also supported, and
   resolved according to configuration.
 
-* The next parts are container paths. The first container has to be known
-  locally (i.e. available in ``~/.config/wildland/containers``), the next ones
-  have their manifests found in the previous container (see "Path resolution"
-  below).
+* The next parts are container or user paths. See "Path resolution" below.
 
 * The last part is the file path inside container. It can be omitted, in which
   case the path refers to a container, not to a file inside.
@@ -55,3 +52,20 @@ container (and associated storage) for ``/path/one``.
 
 Normally, the manifest signature is verified, unless the storage is marked as
 ``trusted``, in which case we accept unsigned manifests.
+
+Local manifests
+---------------
+
+In addition, we recognize some locally stored manifests, depending on the
+current signer:
+
+* We bootstrap the search process by looking at local **container manifests**,
+  and locally stored **user manifest** for the given signer.
+
+* When resolving the next parts, we again consider the local **container
+  manifests**, as well as locally stored **bridge manifests**.
+
+Note that the manifests need to be stored under the right path
+(``$HOME/config/wildland/``), and the signer must be recognized: there needs to
+exist a user manifest, as well as a public key (under
+``$HOME/config/wildland/keys/KEY.pub``).
