@@ -22,7 +22,7 @@ User manifest and user management
 '''
 
 from pathlib import Path, PurePosixPath
-from typing import List, Optional
+from typing import List, Optional, Union
 import logging
 
 from .manifest.manifest import Manifest
@@ -44,7 +44,7 @@ class User:
                  signer: str,
                  pubkey: str,
                  paths: List[PurePosixPath],
-                 containers: List[str],
+                 containers: List[Union[str, dict]],
                  local_path: Optional[Path] = None):
         self.signer = signer
         self.pubkey = pubkey

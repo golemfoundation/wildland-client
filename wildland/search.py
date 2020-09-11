@@ -316,21 +316,30 @@ class Search:
 
         self._verify_signer(user, signer)
 
-        for container_url in user.containers:
-            try:
-                manifest_content = client.read_from_url(container_url, user.signer)
-            except WildlandError:
-                logger.warning('cannot load container: %s', container_url)
-                continue
+        for container_spec in user.containers:
+            if isinstance(container_spec, str):
+                # Container URL
+                try:
+                    manifest_content = client.read_from_url(container_spec, user.signer)
+                except WildlandError:
+                    logger.warning('cannot load container: %s', container_spec)
+                    continue
 
-            container = client.session.load_container(manifest_content)
+                container = client.session.load_container(manifest_content)
+                container_desc = container_spec
+
+            else:
+                # Inline container
+                logger.debug('loading inline container for user')
+                container = client.load_container_from_dict(container_spec, user.signer)
+                container_desc = '(inline)'
 
             if container.signer != user.signer:
                 logger.warning('Unexpected signer for %s: %s (expected %s)',
-                               container_url, container.signer, user.signer)
+                               container_desc, container.signer, user.signer)
                 continue
 
-            logger.info("user's container manifest: %s", container_url)
+            logger.info("user's container manifest: %s", container_desc)
 
             yield Step(
                 signer=user.signer,

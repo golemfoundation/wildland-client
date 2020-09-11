@@ -269,6 +269,43 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
     assert data == b'Hello world'
 
 
+def test_read_file_traverse_user_inline_container(cli, base_dir, client):
+    os.mkdir(base_dir / 'storage1/users/')
+    user_path = base_dir / 'storage1/users/User2.user.yaml'
+
+    # Load user and container manifest
+    with open(base_dir / 'containers/C.User2.container.yaml') as f:
+        container_dict = list(yaml.safe_load_all(f))[1]
+    with open(base_dir / 'users/User2.user.yaml') as f:
+        user_dict = list(yaml.safe_load_all(f))[1]
+
+    # Remove original continer manifest (so that search doesn't use it)
+    (base_dir / 'containers/C.User2.container.yaml').unlink()
+
+    # Inline the container manifest inside user manifest
+    user_dict['infrastructure-containers'] = [container_dict]
+
+    # Save the new container to storage, sign
+    with open(user_path, 'w') as f:
+        yaml.dump(user_dict, f)
+    cli('user', 'sign', '-i', user_path)
+
+    # Create bridge manifest
+    cli('bridge', 'create', '--user', 'User',
+        '--ref-user', 'User2',
+        '--ref-user-location', 'file://localhost' + str(user_path),
+        '--file-path', base_dir / 'storage1/users/User2.yaml',
+        'User2')
+
+    # Try reading file
+    with open(base_dir / 'storage3/file.txt', 'w') as f:
+        f.write('Hello world')
+    search = Search(client, WildlandPath.from_str(':/path:/users/User2/:/file.txt'),
+        aliases={'default': '0xaaa'})
+    data = search.read_file()
+    assert data == b'Hello world'
+
+
 ## Manifest pattern
 
 @pytest.fixture(params=['/manifests/*.yaml', '/manifests/{path}.yaml'])

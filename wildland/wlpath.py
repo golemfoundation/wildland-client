@@ -109,7 +109,7 @@ class WildlandPath:
             file_path = PurePosixPath(split[-1])
 
         if not parts:
-            raise PathError('Path has no containers: {!r}. Did you forget a ":" at the end?')
+            raise PathError(f'Path has no containers: {s!r}. Did you forget a ":" at the end?')
 
         return cls(signer, parts, file_path)
 
