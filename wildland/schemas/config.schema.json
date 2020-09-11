@@ -44,6 +44,14 @@
             "$ref": "types.json#fingerprint",
             "description": "default user for newly created containers"
         },
+        "aliases": {
+            "$type": "object",
+            "description": "A dictionary of custom aliases (other than @default and @default-signer)",
+            "patternProperties": {
+                "^@[a-z][a-z0-9-]*$": { "$ref": "types.json#fingerprint" }
+            },
+            "additionalProperties": false
+        },
 
         "local-hostname": {
             "type": "string",

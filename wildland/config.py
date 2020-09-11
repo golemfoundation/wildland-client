@@ -33,6 +33,9 @@ from .manifest.schema import Schema, SchemaError
 from .exc import WildlandError
 
 
+STANDARD_ALIASES = ['@default', '@default-signer']
+
+
 class Config:
     '''
     Wildland configuration, by default loaded from ~/.config/wildland/config.yaml.
@@ -124,6 +127,8 @@ class Config:
             raise WildlandError(
                 f'Error validating configuration file: {e}'
             )
+
+        cls.validate_aliases(file_fields)
         return cls(base_dir, path, default_fields, file_fields)
 
     @classmethod
@@ -143,10 +148,23 @@ class Config:
             'dummy': False,
             '@default': None,
             '@default-signer': None,
+            'aliases': {},
             'local-hostname': 'localhost',
             'local-signers': [],
             'default-containers': [],
         }
+
+    @staticmethod
+    def validate_aliases(file_fields):
+        '''
+        Validate the configuration to check if it doesn't contain any custom
+        aliases that collide with standard ones.
+        '''
+
+        custom_aliases = file_fields.get('aliases', {})
+        for key in STANDARD_ALIASES:
+            if key in custom_aliases:
+                raise WildlandError(f'{key} cannot be a custom alias')
 
     @property
     def aliases(self):
@@ -157,8 +175,16 @@ class Config:
         >>> c.config.aliases['default']
         '0xaaa'
         '''
-        # TODO: custom aliases (#55)
-        return types.MappingProxyType({
-            k: v for k, v in
-                ((k[1:], self.get(k)) for k in ('@default', '@default-signer'))
-            if v is not None})
+
+        result = {}
+        custom_aliases = self.get('aliases')
+        for key in STANDARD_ALIASES:
+            assert key not in custom_aliases
+            value = self.get(key)
+            if value is not None:
+                result[key[1:]] = value
+
+        for key, value in custom_aliases.items():
+            result[key[1:]] = value
+
+        return types.MappingProxyType(result)
