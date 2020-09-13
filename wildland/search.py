@@ -223,7 +223,7 @@ class Search:
                     logger.warning('Could not read %s: %s', manifest_path, e)
                     continue
 
-                container_or_bridge = self.client.session.load_container_or_bridge(
+                container_or_bridge = step.client.session.load_container_or_bridge(
                     manifest_content, trusted_signer=trusted_signer)
 
                 if isinstance(container_or_bridge, Container):
