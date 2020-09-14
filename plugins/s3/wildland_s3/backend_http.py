@@ -114,7 +114,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         return urljoin(self.base_url, quote(str(full_path)))
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
-        url = self.make_url(path)
+        url = self.make_url(path) + '/'
         resp = requests.request(
             method='GET',
             url=url,
@@ -135,8 +135,14 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             if urlparse(href).netloc:
                 continue
 
+            # skip apache sorting links
+            if href.startswith('?C='):
+                continue
+
+            # apache2 generates relative paths, S3StorageBackend - absolute
+            abs_path = self.base_path / path / href
             try:
-                rel_path = PurePosixPath(href).relative_to(self.base_path)
+                rel_path = PurePosixPath(abs_path).relative_to(self.base_path)
             except ValueError:
                 continue
 
