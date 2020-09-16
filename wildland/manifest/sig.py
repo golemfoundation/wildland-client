@@ -181,10 +181,20 @@ class SignifySigContext(SigContext):
         '''
         Convert Signify pubkey to a signer identifier (fingerprint).
         '''
-        pubkey_data = pubkey.splitlines()[1]
+        # # strip unneeded syntactic sugar and empty lines
+        pubkey_data = SignifySigContext.strip_key(pubkey)
+
         data = base64.b64decode(pubkey_data)
         prefix = data[:10][::-1]
         return '0x' + binascii.hexlify(prefix).decode()
+
+    @staticmethod
+    def strip_key(key: str) -> str:
+        '''
+        Strips empty lines and comments from a Signify-generated key
+        '''
+        return [line for line in key.splitlines() if line
+                and not line.startswith('untrusted comment')][0]
 
     def generate(self) -> Tuple[str, str]:
         '''
@@ -205,6 +215,15 @@ class SignifySigContext(SigContext):
                  '-p', public_file],
                 check=True
             )
+
+            # strip unnecessary comments and empty lines
+            for file in [secret_file, public_file]:
+                key = file.read_text()
+                key_data = self.strip_key(key)
+                with file.open(mode='w') as f:
+                    f.seek(0)
+                    f.write(key_data)
+                    f.truncate()
 
             pubkey = public_file.read_text()
             signer = self.fingerprint(pubkey)
@@ -228,7 +247,7 @@ class SignifySigContext(SigContext):
         if not public_path.exists():
             raise SigError(f'File not found: {public_path}')
 
-        pubkey = public_path.read_text()
+        pubkey = self.strip_key(public_path.read_text())
         signer = self.fingerprint(pubkey)
         self.signers[signer] = pubkey
         return signer, pubkey
@@ -260,7 +279,7 @@ class SignifySigContext(SigContext):
         if signer not in self.signers:
             raise SigError(f'Public key not found: {signer}')
 
-        return self.signers[signer]
+        return self.strip_key(self.signers[signer])
 
 
     def sign(self, signer: str, data: bytes) -> str:
@@ -271,9 +290,16 @@ class SignifySigContext(SigContext):
         if not secret_file.exists():
             raise SigError(f'Secret key not found: {signer}')
 
+        secret_file_text = secret_file.read_text()
+        if not secret_file_text.startswith('untrusted comment:'):
+            secret_file_text = 'untrusted comment: signify secret key \n' + secret_file_text + '\n'
+
         with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
             message_file = Path(d) / 'message'
             signature_file = Path(d) / 'message.sig'
+            secret_file = Path(d) / 'secret.sec'
+
+            secret_file.write_text(secret_file_text)
 
             message_file.write_bytes(data)
             subprocess.run(
@@ -286,17 +312,18 @@ class SignifySigContext(SigContext):
                  '-m', message_file],
                 check=True
             )
+
             signature_content = signature_file.read_text()
 
-        signature_base64 = signature_content.splitlines()[1]
-        return 'untrusted comment: signify signature\n' + signature_base64
+        signature_base64 = self.strip_key(signature_content)
+        return signature_base64
 
     def verify(self, signature: str, data: bytes) -> str:
         '''
         Verify signature for data, returning the recognized signer.
         If self_signed, ignore that a signer is not recognized.
         '''
-
+        signature = self.strip_key(signature)
         signer = self.fingerprint(signature)
         pubkey = self.get_pubkey(signer)
 
@@ -306,8 +333,8 @@ class SignifySigContext(SigContext):
             pubkey_file = Path(d) / 'key.pub'
 
             message_file.write_bytes(data)
-            signature_file.write_text(signature + '\n')
-            pubkey_file.write_text(pubkey + '\n')
+            signature_file.write_text('untrusted comment: signify signature\n' + signature + '\n')
+            pubkey_file.write_text('untrusted comment: signify public key\n' + pubkey + '\n')
             try:
                 subprocess.run(
                     [self.binary,
