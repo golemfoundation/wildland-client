@@ -378,10 +378,10 @@ class WildlandFSClient:
 
         paths = [
             os.fspath(self.get_user_path(container.signer, path))
-            for path in container.paths
+            for path in container.expanded_paths
         ]
         if is_default_user:
-            paths.extend(os.fspath(p) for p in container.paths)
+            paths.extend(os.fspath(p) for p in container.expanded_paths)
 
         info = self.get_info()
         tag = self.get_storage_tag(paths, storage.params)
@@ -404,10 +404,10 @@ class WildlandFSClient:
         '''
         paths = [
             os.fspath(self.get_user_path(container.signer, path))
-            for path in container.paths
+            for path in container.expanded_paths
         ]
         if is_default_user:
-            paths.extend(os.fspath(p) for p in container.paths)
+            paths.extend(os.fspath(p) for p in container.expanded_paths)
 
         trusted_signer: Optional[str]
         if storage.params.get('trusted'):

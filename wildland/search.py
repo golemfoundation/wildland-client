@@ -179,7 +179,7 @@ class Search:
 
         for container in self.local_containers:
             if (container.signer == signer and
-                part in container.paths):
+                    part in container.expanded_paths):
 
                 logger.debug('%s: local container: %s', part,
                             container.local_path)
@@ -248,7 +248,7 @@ class Search:
 
         self._verify_signer(container, step.signer)
 
-        if part not in container.paths:
+        if part not in container.expanded_paths:
             logger.debug('%s: path not found in manifest, skipping', part)
             return
 

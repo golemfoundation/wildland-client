@@ -494,12 +494,12 @@ class Client:
                 )
                 continue
 
-            if storage.container_path not in container.paths:
+            if storage.container_path not in container.expanded_paths:
                 logger.error(
                     '%s: unrecognized container path for storage: %s, %s',
                     name,
                     storage.container_path,
-                    container.paths
+                    container.expanded_paths
                 )
                 continue
 

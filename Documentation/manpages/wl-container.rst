@@ -70,6 +70,14 @@ Create a |~| new container manifest.
 
    .. todo:: Write the config name for default user.
 
+.. option:: --title <title>
+
+    Title of the container. Used when generating paths based on categories.
+
+.. option:: --category </path/to/category>
+
+    Category to use in generating paths. Requires --title. May be provided multiple times.
+
 .. option:: -u, --update-user
 
    Add the container to the user manifest.
