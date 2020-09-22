@@ -65,8 +65,8 @@ Schema
 After validating the signature, the YAML body is validated using `JSON Schema
 <https://json-schema.org/>`_. The required fields are documented here, but for
 the time being, the canonical source of truth are the `schema documents in
-wildland-fuse repository
-<https://gitlab.com/wild-land/wildland-fuse/-/tree/master/wildland/schemas>`_.
+wildland-client repository
+<https://gitlab.com/wild-land/wildland-client/-/tree/master/wildland/schemas>`_.
 
 Keys and signatures
 -------------------
