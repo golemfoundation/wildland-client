@@ -15,9 +15,7 @@ Here is an example of a signed manifest:
 
 .. code-block:: yaml
 
-   signature: |
-     untrusted comment: signify signature
-     RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
+   signature: RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
    ---
    signer: '0x5a7a224844d80b086445'
 
@@ -33,6 +31,13 @@ Here is an example of a signed manifest:
 
    # vim: ts=2 sts=2 sw=2 et
 
+We also support the old signature format, with a comment:
+
+.. code-block:: yaml
+
+   signature: |
+     untrusted comment: signify signature
+     RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
 
 Note that we recognize an **extremely limited YAML subset** in the header:
 
@@ -138,8 +143,7 @@ Example:
 
 .. code-block:: yaml
 
-    signature: |
-      ...
+    signature: ...
     ---
     signer: '0x5a7a224844d80b086445'
     containers:
