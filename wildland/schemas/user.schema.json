@@ -13,9 +13,9 @@
         "containers": {
             "type": "array",
             "items": { "$ref": "types.json#url" },
-            "description": "deprecated alias for infrastructure-containers"
+            "description": "deprecated alias for infrastructures"
         },
-        "infrastructure-containers": {
+        "infrastructures": {
             "type": "array",
             "items": {
                 "oneOf": [

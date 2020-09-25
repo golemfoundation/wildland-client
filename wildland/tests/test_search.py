@@ -283,7 +283,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
     (base_dir / 'containers/C.User2.container.yaml').unlink()
 
     # Inline the container manifest inside user manifest
-    user_dict['infrastructure-containers'] = [container_dict]
+    user_dict['infrastructures'] = [container_dict]
 
     # Save the new container to storage, sign
     with open(user_path, 'w') as f:

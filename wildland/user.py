@@ -66,13 +66,13 @@ class User:
 
         if 'containers' in manifest.fields:
             logger.warning("deprecated 'containers' field in user manifest "
-                           "(renamed to 'infrastructure-containers'), ignoring")
+                           "(renamed to 'infrastructures'), ignoring")
 
         return cls(
             signer=signer,
             pubkey=pubkey,
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            containers=manifest.fields.get('infrastructure-containers', []),
+            containers=manifest.fields.get('infrastructures', []),
             local_path=local_path,
         )
 
@@ -85,7 +85,7 @@ class User:
         manifest = Manifest.from_fields({
             'signer': self.signer,
             'paths': [str(p) for p in self.paths],
-            'infrastructure-containers': self.containers,
+            'infrastructures': self.containers,
         })
         manifest.apply_schema(self.SCHEMA)
         return manifest
