@@ -1,9 +1,9 @@
 {
     "title": "User manifest",
     "type": "object",
-    "required": ["signer", "paths"],
+    "required": ["owner", "paths"],
     "properties": {
-        "signer": { "$ref": "types.json#fingerprint" },
+        "owner": { "$ref": "types.json#fingerprint" },
         "paths": {
             "type": "array",
             "items": { "$ref": "types.json#abs-path" },

@@ -58,7 +58,7 @@ def test_select_storage_unsupported(client, base_dir):
     container = client.load_container_from('Container1')
 
     storage_manifest = Manifest.from_fields({
-        'signer': '0xaaa',
+        'owner': '0xaaa',
         'type': 'unknown'
     })
     storage_manifest.sign(client.session.sig)

@@ -35,13 +35,13 @@ class Container:
     SCHEMA = Schema('container')
 
     def __init__(self, *,
-                 signer: str,
+                 owner: str,
                  paths: List[PurePosixPath],
                  backends: List[Union[str, dict]],
                  title: Optional[str] = None,
                  categories: Optional[List[Path]] = None,
                  local_path: Optional[Path] = None):
-        self.signer = signer
+        self.owner = owner
         self.paths = paths
         self.backends = backends
         self.title = title
@@ -69,7 +69,7 @@ class Container:
 
         manifest.apply_schema(cls.SCHEMA)
         return cls(
-            signer=manifest.fields['signer'],
+            owner=manifest.fields['owner'],
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             backends=manifest.fields['backends']['storage'],
             title=manifest.fields.get('title', None),
@@ -84,7 +84,7 @@ class Container:
         '''
 
         manifest = Manifest.from_fields(dict(
-            signer=self.signer,
+            owner=self.owner,
             paths=[str(p) for p in self.paths],
             backends={'storage': self.backends},
             title=self.title,

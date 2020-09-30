@@ -45,12 +45,12 @@ def test_user_create(cli, base_dir):
     with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
 
-    assert "signer: '0xaaa'" in data
+    assert "owner: '0xaaa'" in data
 
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "'@default': '0xaaa'" in config
-    assert "'@default-signer': '0xaaa'" in config
+    assert "'@default-owner': '0xaaa'" in config
 
 
 def test_user_list(cli, base_dir):
@@ -60,12 +60,12 @@ def test_user_list(cli, base_dir):
     result = cli('user', 'list', capture=True)
     assert result.splitlines() == [
         str(base_dir / 'users/User1.user.yaml'),
-        '  signer: 0xaaa',
+        '  owner: 0xaaa',
         '  path: /users/Foo',
         '  path: /users/Bar',
         '',
         str(base_dir / 'users/User2.user.yaml'),
-        '  signer: 0xbbb',
+        '  owner: 0xbbb',
         '  path: /users/User2',
         ''
     ]
@@ -125,7 +125,7 @@ def test_user_verify_bad_sig(cli, cli_fail, base_dir):
 
 def test_user_verify_bad_fields(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    modify_file(base_dir / 'users/User.user.yaml', 'signer:', 'extra: xxx\nsigner:')
+    modify_file(base_dir / 'users/User.user.yaml', 'owner:', 'extra: xxx\nowner:')
     cli_fail('user', 'verify', 'User')
 
 
@@ -152,7 +152,7 @@ def test_user_edit(cli, base_dir):
 
 def test_user_edit_bad_fields(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    editor = 'sed -i s,signer,Signer,g'
+    editor = 'sed -i s,owner,Signer,g'
     cli_fail('user', 'edit', 'User', '--editor', editor)
 
 
@@ -172,7 +172,7 @@ def test_storage_create(cli, base_dir):
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
 
-    assert "signer: '0xaaa'" in data
+    assert "owner: '0xaaa'" in data
     assert "path: /PATH" in data
 
 
@@ -256,7 +256,7 @@ def test_container_create(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
 
-    assert "signer: '0xaaa'" in data
+    assert "owner: '0xaaa'" in data
     assert "/PATH" in data
     assert "/.uuid/" in data
 
@@ -367,7 +367,7 @@ def test_container_mount(cli, base_dir, control_client):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
@@ -381,15 +381,15 @@ def test_container_mount(cli, base_dir, control_client):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
     ]
-    assert command[0]['extra']['trusted_signer'] is None
+    assert command[0]['extra']['trusted_owner'] is None
 
 
-def test_container_mount_store_trusted_signer(cli, control_client):
+def test_container_mount_store_trusted_owner(cli, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
@@ -401,7 +401,7 @@ def test_container_mount_store_trusted_signer(cli, control_client):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['extra']['trusted_signer'] == '0xaaa'
+    assert command[0]['extra']['trusted_owner'] == '0xaaa'
 
 
 def test_container_mount_glob(cli, base_dir, control_client):
@@ -466,7 +466,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['storage']['path'] == '/STORAGE'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
@@ -476,7 +476,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     ]
 
 
-def test_container_mount_check_trusted_signer(cli, base_dir, control_client):
+def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
@@ -494,12 +494,12 @@ def test_container_mount_check_trusted_signer(cli, base_dir, control_client):
 
     # Prepare data in .control
 
-    def make_info(trusted_signer):
+    def make_info(trusted_owner):
         return {
             '1': {
                 'paths': ['/PATH'],
                 'type': 'local',
-                'extra': {'trusted_signer': trusted_signer}
+                'extra': {'trusted_owner': trusted_owner}
             }
         }
 
@@ -514,13 +514,13 @@ def test_container_mount_check_trusted_signer(cli, base_dir, control_client):
     with pytest.raises(ManifestError, match='Signature expected'):
         cli('container', 'mount', manifest_path)
 
-    # Should not mount if the signer is different
+    # Should not mount if the owner is different
 
     control_client.expect('info', make_info('0xbbb'))
-    with pytest.raises(ManifestError, match='Wrong signer for manifest without signature'):
+    with pytest.raises(ManifestError, match='Wrong owner for manifest without signature'):
         cli('container', 'mount', manifest_path)
 
-    # Should mount if the storage is trusted and with right signer
+    # Should mount if the storage is trusted and with right owner
 
     control_client.expect('info', make_info('0xaaa'))
     cli('container', 'mount', manifest_path)

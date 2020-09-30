@@ -1,11 +1,11 @@
 {
     "title": "Storage manifest (common schema)",
     "type": "object",
-    "required": ["signer", "type", "container-path"],
+    "required": ["owner", "type", "container-path"],
     "properties": {
-        "signer": {
+        "owner": {
             "$ref": "types.json#fingerprint",
-            "description": "Signer of the manifest. Needs to match the signer of the container."
+            "description": "Signer of the manifest. Needs to match the owner of the container."
         },
         "type": {
             "type": "string",
@@ -21,7 +21,7 @@
         },
         "trusted": {
             "type": "boolean",
-            "description": "Allow loading unsigned manifests (for the same signer) from this storage"
+            "description": "Allow loading unsigned manifests (for the same owner) from this storage"
         },
         "manifest-pattern": {
             "oneOf": [

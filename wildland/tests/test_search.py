@@ -41,36 +41,36 @@ from ..search import Search, storage_glob
 
 def test_path_from_str():
     wlpath = WildlandPath.from_str(':/foo/bar:')
-    assert wlpath.signer is None
+    assert wlpath.owner is None
     assert wlpath.parts == [PurePosixPath('/foo/bar')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:')
-    assert wlpath.signer == '0xabcd'
+    assert wlpath.owner == '0xabcd'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('@default:/foo/bar:/baz/quux:')
-    assert wlpath.signer == '@default'
+    assert wlpath.owner == '@default'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
-    wlpath = WildlandPath.from_str('@default-signer:/foo/bar:/baz/quux:')
-    assert wlpath.signer == '@default-signer'
+    wlpath = WildlandPath.from_str('@default-owner:/foo/bar:/baz/quux:')
+    assert wlpath.owner == '@default-owner'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:/some/file.txt')
-    assert wlpath.signer == '0xabcd'
+    assert wlpath.owner == '0xabcd'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path == PurePosixPath('/some/file.txt')
 
 
 def test_path_from_str_fail():
-    with pytest.raises(PathError, match='has to start with signer'):
+    with pytest.raises(PathError, match='has to start with owner'):
         WildlandPath.from_str('/foo/bar')
 
-    with pytest.raises(PathError, match='Unrecognized signer field'):
+    with pytest.raises(PathError, match='Unrecognized owner field'):
         WildlandPath.from_str('foo:/foo/bar:')
 
     with pytest.raises(PathError, match='Unrecognized absolute path'):

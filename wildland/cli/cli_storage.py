@@ -121,7 +121,7 @@ def _do_create(
 
     storage = Storage(
         storage_type=backend.TYPE,
-        signer=container.signer,
+        owner=container.owner,
         container_path=container_mount_path,
         params=params,
         trusted=params.get('trusted', trusted),
@@ -185,7 +185,7 @@ def delete(obj: ContextObj, name, force, cascade):
         modified = False
         for url_or_dict in list(container.backends):
             if (isinstance(url_or_dict, str) and
-                obj.client.parse_file_url(url_or_dict, container.signer) ==
+                obj.client.parse_file_url(url_or_dict, container.owner) ==
                 storage.local_path):
 
                 if cascade:

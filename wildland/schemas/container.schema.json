@@ -1,12 +1,12 @@
 {
     "title": "Container manifest",
     "type": "object",
-    "required": ["signer", "paths", "backends"],
+    "required": ["owner", "paths", "backends"],
     "dependencies": {
         "categories": ["title"]
     },
     "properties": {
-        "signer": { "$ref": "types.json#fingerprint" },
+        "owner": { "$ref": "types.json#fingerprint" },
         "paths": {
             "type": "array",
             "items": { "$ref": "types.json#abs-path" },

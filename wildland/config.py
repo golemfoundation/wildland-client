@@ -33,7 +33,7 @@ from .manifest.schema import Schema, SchemaError
 from .exc import WildlandError
 
 
-STANDARD_ALIASES = ['@default', '@default-signer']
+STANDARD_ALIASES = ['@default', '@default-owner']
 
 
 class Config:
@@ -147,10 +147,10 @@ class Config:
             'socket-path': base_dir / 'wlfuse.sock',
             'dummy': False,
             '@default': None,
-            '@default-signer': None,
+            '@default-owner': None,
             'aliases': {},
             'local-hostname': 'localhost',
-            'local-signers': [],
+            'local-owners': [],
             'default-containers': [],
         }
 

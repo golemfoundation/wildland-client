@@ -18,13 +18,13 @@ Create a user::
    No path specified, using: /users/User
    Created: /home/user/.config/wildland/users/User.yaml
    Using 0x5a7a224844d80b086445 as default user
-   Adding 0x5a7a224844d80b086445 to local signers
+   Adding 0x5a7a224844d80b086445 to local owners
 
 List users::
 
    $ ./wl user list
    /home/user/.config/wildland/users/User.yaml
-     signer: 0x5a7a224844d80b086445
+     owner: 0x5a7a224844d80b086445
      path: /users/User
 
 Create a container and storage manifests. You need to first create a container,
@@ -61,7 +61,7 @@ Configuration file
 The file ``~/.config/wildland/config.yaml`` specifies all the defaults. Here are the
 supported fields.
 
-Note that the ``@default`` and ``@default-signer`` keys have to be quoted in
+Note that the ``@default`` and ``@default-owner`` keys have to be quoted in
 YAML.
 
 .. schema:: config.schema.json

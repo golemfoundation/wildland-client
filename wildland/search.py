@@ -48,8 +48,8 @@ class Step:
     A single step of a resolved path.
     '''
 
-    # Signer for the current manifest
-    signer: str
+    # Owner of the current manifest
+    owner: str
 
     # Client with the current key loaded
     client: Client
@@ -81,7 +81,7 @@ class Search:
         self.client = client
         self.wlpath = wlpath
         self.aliases = aliases
-        self.initial_signer = self._subst_alias(wlpath.signer or '@default')
+        self.initial_owner = self._subst_alias(wlpath.owner or '@default')
 
         self.local_containers = list(self.client.load_containers())
         self.local_users = list(self.client.load_users())
@@ -163,39 +163,39 @@ class Search:
 
     def _resolve_first(self):
         # Try local containers
-        yield from self._resolve_local(self.wlpath.parts[0], self.initial_signer)
+        yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner)
 
         # Try user's infrastructure containers
         for user in self.local_users:
-            if user.signer == self.initial_signer:
-                for step in self._user_step(user, self.initial_signer, self.client):
+            if user.owner == self.initial_owner:
+                for step in self._user_step(user, self.initial_owner, self.client):
                     yield from self._resolve_next(step, 0)
 
-    def _resolve_local(self, part: PurePosixPath, signer: str) -> Iterable[Step]:
+    def _resolve_local(self, part: PurePosixPath, owner: str) -> Iterable[Step]:
         '''
         Resolve a path part based on locally stored manifests, in the context
-        of a given signer.
+        of a given owner.
         '''
 
         for container in self.local_containers:
-            if (container.signer == signer and
+            if (container.owner == owner and
                     part in container.expanded_paths):
 
                 logger.debug('%s: local container: %s', part,
                             container.local_path)
                 yield Step(
-                    signer=self.initial_signer,
+                    owner=self.initial_owner,
                     client=self.client,
                     container=container,
                     user=None
                 )
 
         for bridge in self.local_bridges:
-            if bridge.signer == signer and part in bridge.paths:
+            if bridge.owner == owner and part in bridge.paths:
                 logger.debug('%s: local bridge manifest: %s', part,
                             bridge.local_path)
                 yield from self._bridge_step(
-                    self.client, signer, part, None, None, bridge)
+                    self.client, owner, part, None, None, bridge)
 
     def _resolve_next(self, step: Step, i: int) -> Iterable[Step]:
         '''
@@ -205,7 +205,7 @@ class Search:
         part = self.wlpath.parts[i]
 
         # Try local paths first
-        yield from self._resolve_local(part, step.signer)
+        yield from self._resolve_local(part, step.owner)
 
         storage, storage_backend = self._find_storage(step)
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
@@ -213,9 +213,9 @@ class Search:
         try:
             for manifest_path in storage_find_manifests(
                     storage_backend, manifest_pattern, part):
-                trusted_signer = None
+                trusted_owner = None
                 if storage.trusted:
-                    trusted_signer = storage.signer
+                    trusted_owner = storage.owner
 
                 try:
                     manifest_content = storage_read_file(storage_backend, manifest_path)
@@ -224,7 +224,7 @@ class Search:
                     continue
 
                 container_or_bridge = step.client.session.load_container_or_bridge(
-                    manifest_content, trusted_signer=trusted_signer)
+                    manifest_content, trusted_owner=trusted_owner)
 
                 if isinstance(container_or_bridge, Container):
                     logger.info('%s: container manifest: %s', part, manifest_path)
@@ -233,7 +233,7 @@ class Search:
                 else:
                     logger.info('%s: bridge manifest: %s', part, manifest_path)
                     yield from self._bridge_step(
-                        step.client, step.signer,
+                        step.client, step.owner,
                         part, manifest_path, storage_backend,
                         container_or_bridge)
         finally:
@@ -246,14 +246,14 @@ class Search:
                         part: PurePosixPath,
                         container: Container) -> Iterable[Step]:
 
-        self._verify_signer(container, step.signer)
+        self._verify_owner(container, step.owner)
 
         if part not in container.expanded_paths:
             logger.debug('%s: path not found in manifest, skipping', part)
             return
 
         yield Step(
-            signer=step.signer,
+            owner=step.owner,
             client=step.client,
             container=container,
             user=None,
@@ -261,18 +261,18 @@ class Search:
 
     def _bridge_step(self,
                      client: Client,
-                     signer: str,
+                     owner: str,
                      part: PurePosixPath,
                      manifest_path: Optional[PurePosixPath],
                      storage_backend: Optional[StorageBackend],
                      bridge: Bridge) -> Iterable[Step]:
 
-        self._verify_signer(bridge, signer)
+        self._verify_owner(bridge, owner)
 
         if part not in bridge.paths:
             return
 
-        next_client, next_signer = client.sub_client_with_key(bridge.user_pubkey)
+        next_client, next_owner = client.sub_client_with_key(bridge.user_pubkey)
 
         location = bridge.user_location
         if (location.startswith('./') or location.startswith('../')):
@@ -296,7 +296,7 @@ class Search:
         else:
             # Treat location as URL
             try:
-                user_manifest_content = client.read_from_url(location, signer)
+                user_manifest_content = client.read_from_url(location, owner)
             except WildlandError as e:
                 logger.warning('Could not read user manifest %s: %s',
                                location, e)
@@ -307,20 +307,20 @@ class Search:
         user = next_client.session.load_user(user_manifest_content)
 
         yield from self._user_step(
-            user, next_signer, next_client)
+            user, next_owner, next_client)
 
     def _user_step(self,
                    user: User,
-                   signer: str,
+                   owner: str,
                    client: Client) -> Iterable[Step]:
 
-        self._verify_signer(user, signer)
+        self._verify_owner(user, owner)
 
         for container_spec in user.containers:
             if isinstance(container_spec, str):
                 # Container URL
                 try:
-                    manifest_content = client.read_from_url(container_spec, user.signer)
+                    manifest_content = client.read_from_url(container_spec, user.owner)
                 except WildlandError:
                     logger.warning('cannot load container: %s', container_spec)
                     continue
@@ -331,28 +331,28 @@ class Search:
             else:
                 # Inline container
                 logger.debug('loading inline container for user')
-                container = client.load_container_from_dict(container_spec, user.signer)
+                container = client.load_container_from_dict(container_spec, user.owner)
                 container_desc = '(inline)'
 
-            if container.signer != user.signer:
-                logger.warning('Unexpected signer for %s: %s (expected %s)',
-                               container_desc, container.signer, user.signer)
+            if container.owner != user.owner:
+                logger.warning('Unexpected owner for %s: %s (expected %s)',
+                               container_desc, container.owner, user.owner)
                 continue
 
             logger.info("user's container manifest: %s", container_desc)
 
             yield Step(
-                signer=user.signer,
+                owner=user.owner,
                 client=client,
                 container=container,
                 user=user,
             )
 
-    def _verify_signer(self, obj, expected_signer):
-        if obj.signer != expected_signer:
+    def _verify_owner(self, obj, expected_owner):
+        if obj.owner != expected_owner:
             raise PathError(
-                'Unexpected signer for manifest: {} (expected {})'.format(
-                    obj.signer, expected_signer
+                'Unexpected owner for manifest: {} (expected {})'.format(
+                    obj.owner, expected_owner
                 ))
 
     def _subst_alias(self, alias):

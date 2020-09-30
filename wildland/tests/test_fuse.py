@@ -53,7 +53,7 @@ def container(env, storage_type):
     env.create_dir('storage/storage1')
     env.mount_storage(['/container1'], {
         'type': storage_type,
-        'signer': '0x3333',
+        'owner': '0x3333',
         'path': str(env.test_dir / 'storage/storage1'),
         'container_path': '/container1',
     })
@@ -159,7 +159,7 @@ def test_cmd_info(env, container, storage_type):
 
 def storage_manifest(env, path, storage_type, read_only=False):
     return {
-        'signer': '0x3333',
+        'owner': '0x3333',
         'type': storage_type,
         'path': str(env.test_dir / path),
         'read-only': read_only,

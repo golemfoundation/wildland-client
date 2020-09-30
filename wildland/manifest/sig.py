@@ -46,7 +46,7 @@ T = TypeVar('T')
 
 class SigContext:
     '''
-    A class for signing and verifying signatures. Operates on 'signer'
+    A class for signing and verifying signatures. Operates on 'owner'
     identifiers, serving as key fingerprints.
     '''
 
@@ -70,19 +70,19 @@ class SigContext:
         '''
         Generate a new key pair and store it.
 
-        Returns a pair of (signer, pubkey).
+        Returns a pair of (owner, pubkey).
         '''
         raise NotImplementedError()
 
     def add_pubkey(self, pubkey: str) -> str:
         '''
-        Add a public key to recognized signers. Returns a signer ID.
+        Add a public key to recognized owners. Returns a owner ID.
         '''
         raise NotImplementedError()
 
-    def get_pubkey(self, signer: str) -> str:
+    def get_pubkey(self, owner: str) -> str:
         '''
-        Get a public key by signer ID.
+        Get a public key by owner ID.
         '''
         raise NotImplementedError()
 
@@ -90,37 +90,37 @@ class SigContext:
         '''
         Find a canonical form for the key.
 
-        Returns a pair of (signer, pubkey).
+        Returns a pair of (owner, pubkey).
         '''
         raise NotImplementedError()
 
-    def sign(self, signer: str, data: bytes) -> str:
+    def sign(self, owner: str, data: bytes) -> str:
         '''
-        Sign data using a given signer's key.
+        Sign data using a given owner's key.
         '''
         raise NotImplementedError()
 
     def verify(self, signature: str, data: bytes) -> str:
         '''
-        Verify signature for data, returning the recognized signer.
-        If self_signed, ignore that a signer is not recognized.
+        Verify signature for data, returning the recognized owner.
+        If self_signed, ignore that a owner is not recognized.
         '''
         raise NotImplementedError()
 
 
 class DummySigContext(SigContext):
     '''
-    A SigContext that requires a dummy signature (of the form "dummy.{signer}"),
+    A SigContext that requires a dummy signature (of the form "dummy.{owner}"),
     for testing purposes.
     '''
 
     def __init__(self):
         super().__init__()
-        self.signers = set()
+        self.owners = set()
 
     def copy(self) -> 'DummySigContext':
         copied = DummySigContext()
-        copied.signers = self.signers.copy()
+        copied.owners = self.owners.copy()
         return copied
 
     def generate(self) -> Tuple[str, str]:
@@ -130,28 +130,28 @@ class DummySigContext(SigContext):
         if not pubkey.startswith('key.'):
             raise SigError('Expected key.* key, got {!r}'.format(pubkey))
 
-        signer = pubkey[len('key.'):]
-        self.signers.add(signer)
-        return signer
+        owner = pubkey[len('key.'):]
+        self.owners.add(owner)
+        return owner
 
-    def get_pubkey(self, signer: str) -> str:
-        return f'key.{signer}'
+    def get_pubkey(self, owner: str) -> str:
+        return f'key.{owner}'
 
     def find(self, key_id: str) -> Tuple[str, str]:
         return key_id, f'key.{key_id}'
 
-    def sign(self, signer: str, data: bytes) -> str:
-        return f'dummy.{signer}'
+    def sign(self, owner: str, data: bytes) -> str:
+        return f'dummy.{owner}'
 
     def verify(self, signature: str, data: bytes) -> str:
         if not signature.startswith('dummy.'):
             raise SigError(
                 'Expected dummy.* signature, got {!r}'.format(signature))
 
-        signer = signature[len('dummy.'):]
-        if not (signer in self.signers or self.use_local_keys):
-            raise SigError('Unknown signer: {!r}'.format(signer))
-        return signer
+        owner = signature[len('dummy.'):]
+        if not (owner in self.owners or self.use_local_keys):
+            raise SigError('Unknown owner: {!r}'.format(owner))
+        return owner
 
 
 
@@ -166,7 +166,7 @@ class SignifySigContext(SigContext):
         super().__init__()
         self.key_dir = key_dir
         self.binary: str = self._find_binary()
-        self.signers: Dict[str, str] = {}
+        self.owners: Dict[str, str] = {}
 
     @staticmethod
     def _find_binary():
@@ -179,7 +179,7 @@ class SignifySigContext(SigContext):
     @staticmethod
     def fingerprint(pubkey: str) -> str:
         '''
-        Convert Signify pubkey to a signer identifier (fingerprint).
+        Convert Signify pubkey to a owner identifier (fingerprint).
         '''
         # # strip unneeded syntactic sugar and empty lines
         pubkey_data = SignifySigContext.strip_key(pubkey)
@@ -200,7 +200,7 @@ class SignifySigContext(SigContext):
         '''
         Generate a new key pair and store it in key_dir.
 
-        Returns a pair of (signer, pubkey).
+        Returns a pair of (owner, pubkey).
         '''
 
         with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
@@ -226,15 +226,15 @@ class SignifySigContext(SigContext):
                     f.truncate()
 
             pubkey = public_file.read_text()
-            signer = self.fingerprint(pubkey)
+            owner = self.fingerprint(pubkey)
 
             self.key_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-            shutil.copy(public_file, self.key_dir / f'{signer}.pub')
-            shutil.copy(secret_file, self.key_dir / f'{signer}.sec')
-            assert os.stat(self.key_dir / f'{signer}.sec').st_mode == stat.S_IFREG | 0o600
+            shutil.copy(public_file, self.key_dir / f'{owner}.pub')
+            shutil.copy(secret_file, self.key_dir / f'{owner}.sec')
+            assert os.stat(self.key_dir / f'{owner}.sec').st_mode == stat.S_IFREG | 0o600
 
-        self.signers[signer] = pubkey
-        return signer, pubkey
+        self.owners[owner] = pubkey
+        return owner, pubkey
 
     def find(self, key_id: str) -> Tuple[str, str]:
         '''
@@ -248,47 +248,47 @@ class SignifySigContext(SigContext):
             raise SigError(f'File not found: {public_path}')
 
         pubkey = self.strip_key(public_path.read_text())
-        signer = self.fingerprint(pubkey)
-        self.signers[signer] = pubkey
-        return signer, pubkey
+        owner = self.fingerprint(pubkey)
+        self.owners[owner] = pubkey
+        return owner, pubkey
 
     def copy(self: 'SignifySigContext') -> 'SignifySigContext':
         sig = SignifySigContext(self.key_dir)
-        sig.signers.update(self.signers)
+        sig.owners.update(self.owners)
         return sig
 
     def add_pubkey(self, pubkey: str) -> str:
-        signer = self.fingerprint(pubkey)
-        self.signers[signer] = pubkey
-        return signer
+        owner = self.fingerprint(pubkey)
+        self.owners[owner] = pubkey
+        return owner
 
-    def get_pubkey(self, signer: str) -> str:
+    def get_pubkey(self, owner: str) -> str:
         '''
-        Get a public key by signer ID.
+        Get a public key by owner ID.
         '''
 
-        if signer not in self.signers and self.use_local_keys:
+        if owner not in self.owners and self.use_local_keys:
             try:
-                found_signer, found_pubkey = self.find(signer)
+                found_owner, found_pubkey = self.find(owner)
             except SigError:
                 pass
             else:
-                if found_signer == signer:
-                    self.signers[signer] = found_pubkey
+                if found_owner == owner:
+                    self.owners[owner] = found_pubkey
 
-        if signer not in self.signers:
-            raise SigError(f'Public key not found: {signer}')
+        if owner not in self.owners:
+            raise SigError(f'Public key not found: {owner}')
 
-        return self.strip_key(self.signers[signer])
+        return self.strip_key(self.owners[owner])
 
 
-    def sign(self, signer: str, data: bytes) -> str:
+    def sign(self, owner: str, data: bytes) -> str:
         '''
-        Sign data using a given signer's key.
+        Sign data using a given owner's key.
         '''
-        secret_file = Path(self.key_dir / f'{signer}.sec')
+        secret_file = Path(self.key_dir / f'{owner}.sec')
         if not secret_file.exists():
-            raise SigError(f'Secret key not found: {signer}')
+            raise SigError(f'Secret key not found: {owner}')
 
         secret_file_text = secret_file.read_text()
         if not secret_file_text.startswith('untrusted comment:'):
@@ -320,12 +320,12 @@ class SignifySigContext(SigContext):
 
     def verify(self, signature: str, data: bytes) -> str:
         '''
-        Verify signature for data, returning the recognized signer.
-        If self_signed, ignore that a signer is not recognized.
+        Verify signature for data, returning the recognized owner.
+        If self_signed, ignore that a owner is not recognized.
         '''
         signature = self.strip_key(signature)
-        signer = self.fingerprint(signature)
-        pubkey = self.get_pubkey(signer)
+        owner = self.fingerprint(signature)
+        pubkey = self.get_pubkey(owner)
 
         with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
             message_file = Path(d) / 'message'
@@ -346,5 +346,5 @@ class SignifySigContext(SigContext):
                     check=True
                 )
             except subprocess.CalledProcessError:
-                raise SigError(f'Could not verify signature for {signer}')
-        return signer
+                raise SigError(f'Could not verify signature for {owner}')
+        return owner

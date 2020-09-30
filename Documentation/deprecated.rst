@@ -7,6 +7,10 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2020-09-30) Old 'signer' field in manifests is now renamed to 'owner'. Old
+  manifests will be correctly loaded, but new manifests will have an 'owner'
+  field.
+
 * (2020-09-10) Local manifests are now created with appropriate suffix:
   ``<name>.container.yaml``, ``<name>.bridge.yaml`` etc.
 

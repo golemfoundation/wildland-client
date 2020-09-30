@@ -49,11 +49,11 @@ def create(obj: ContextObj, key, paths, name):
     '''
 
     if key:
-        signer, pubkey = obj.session.sig.find(key)
-        print(f'Using key: {signer}')
+        owner, pubkey = obj.session.sig.find(key)
+        print(f'Using key: {owner}')
     else:
-        signer, pubkey = obj.session.sig.generate()
-        print(f'Generated key: {signer}')
+        owner, pubkey = obj.session.sig.generate()
+        print(f'Generated key: {owner}')
 
     if paths:
         paths = list(paths)
@@ -61,11 +61,11 @@ def create(obj: ContextObj, key, paths, name):
         if name:
             paths = [f'/users/{name}']
         else:
-            paths = [f'/users/{signer}']
+            paths = [f'/users/{owner}']
         click.echo(f'No path specified, using: {paths[0]}')
 
     user = User(
-        signer=signer,
+        owner=owner,
         pubkey=pubkey,
         paths=[PurePosixPath(p) for p in paths],
         containers=[],
@@ -73,14 +73,14 @@ def create(obj: ContextObj, key, paths, name):
     path = obj.client.save_new_user(user, name)
     click.echo(f'Created: {path}')
 
-    for alias in ['@default', '@default-signer']:
+    for alias in ['@default', '@default-owner']:
         if obj.client.config.get(alias) is None:
-            print(f'Using {signer} as {alias}')
-            obj.client.config.update_and_save({alias: signer})
+            print(f'Using {owner} as {alias}')
+            obj.client.config.update_and_save({alias: owner})
 
-    print(f'Adding {signer} to local signers')
-    local_signers = obj.client.config.get('local-signers')
-    obj.client.config.update_and_save({'local-signers': [*local_signers, signer]})
+    print(f'Adding {owner} to local owners')
+    local_owners = obj.client.config.get('local-owners')
+    obj.client.config.update_and_save({'local-owners': [*local_owners, owner]})
 
 
 @user_.command('list', short_help='list users', alias=['ls'])
@@ -92,7 +92,7 @@ def list_(obj: ContextObj):
 
     for user in obj.client.load_users():
         click.echo(user.local_path)
-        click.echo(f'  signer: {user.signer}')
+        click.echo(f'  owner: {user.owner}')
         for user_path in user.paths:
             click.echo(f'  path: {user_path}')
         for user_container in user.containers:
@@ -120,18 +120,18 @@ def delete(obj: ContextObj, name, force, cascade):
     if not user.local_path:
         raise CliError('Can only delete a local manifest')
 
-    # Check if this is the only manifest with such signer
+    # Check if this is the only manifest with such owner
     other_count = 0
     for other_user in obj.client.load_users():
         if (other_user.local_path != user.local_path and
-            other_user.signer == user.signer):
+            other_user.owner == user.owner):
             other_count += 1
 
     used = False
 
     for container in obj.client.load_containers():
         assert container.local_path is not None
-        if container.signer == user.signer:
+        if container.owner == user.owner:
             if cascade:
                 click.echo('Deleting container: {}'.format(container.local_path))
                 container.local_path.unlink()
@@ -141,7 +141,7 @@ def delete(obj: ContextObj, name, force, cascade):
 
     for storage in obj.client.load_storages():
         assert storage.local_path is not None
-        if storage.signer == user.signer:
+        if storage.owner == user.owner:
             if cascade:
                 click.echo('Deleting storage: {}'.format(storage.local_path))
                 storage.local_path.unlink()

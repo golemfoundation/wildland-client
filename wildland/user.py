@@ -41,12 +41,12 @@ class User:
     SCHEMA = Schema('user')
 
     def __init__(self, *,
-                 signer: str,
+                 owner: str,
                  pubkey: str,
                  paths: List[PurePosixPath],
                  containers: List[Union[str, dict]],
                  local_path: Optional[Path] = None):
-        self.signer = signer
+        self.owner = owner
         self.pubkey = pubkey
         self.paths = paths
         self.containers = containers
@@ -61,7 +61,7 @@ class User:
 
         # TODO: local_path should be also part of Manifest?
 
-        signer = manifest.fields['signer']
+        owner = manifest.fields['owner']
         manifest.apply_schema(cls.SCHEMA)
 
         if 'containers' in manifest.fields:
@@ -69,7 +69,7 @@ class User:
                            "(renamed to 'infrastructures'), ignoring")
 
         return cls(
-            signer=signer,
+            owner=owner,
             pubkey=pubkey,
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             containers=manifest.fields.get('infrastructures', []),
@@ -83,7 +83,7 @@ class User:
         '''
 
         manifest = Manifest.from_fields({
-            'signer': self.signer,
+            'owner': self.owner,
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,
         })

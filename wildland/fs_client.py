@@ -237,7 +237,7 @@ class WildlandFSClient:
         Find storage ID for a given container.
         '''
 
-        mount_path = self.get_user_path(container.signer, container.paths[0])
+        mount_path = self.get_user_path(container.owner, container.paths[0])
         return self.find_storage_id_by_path(mount_path)
 
     def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
@@ -274,10 +274,10 @@ class WildlandFSClient:
             for storage_id in tree.storage_ids:
                 yield storage_id, storage_path, relpath
 
-    def find_trusted_signer(self, local_path: Path) -> Optional[str]:
+    def find_trusted_owner(self, local_path: Path) -> Optional[str]:
         '''
         Given a path in the filesystem, check if this is a path from a trusted
-        storage, and if so, return the trusted_signer value.
+        storage, and if so, return the trusted_owner value.
 
         If the path potentially belongs to multiple storages, this method will
         conservatively check if all of them would give the same answer.
@@ -302,17 +302,17 @@ class WildlandFSClient:
             return None
 
         info = self.get_info()
-        trusted_signers = set()
+        trusted_owners = set()
         for storage_id in storage_ids:
-            trusted_signer = info[storage_id]['trusted_signer']
-            if trusted_signer is not None:
-                trusted_signers.add(trusted_signer)
+            trusted_owner = info[storage_id]['trusted_owner']
+            if trusted_owner is not None:
+                trusted_owners.add(trusted_owner)
 
-        if len(trusted_signers) != 1:
-            # More than one trusted signer
+        if len(trusted_owners) != 1:
+            # More than one trusted owner
             return None
 
-        return list(trusted_signers)[0]
+        return list(trusted_owners)[0]
 
     def get_paths(self) -> Dict[PurePosixPath, List[int]]:
         '''
@@ -360,7 +360,7 @@ class WildlandFSClient:
                 'paths': [PurePosixPath(p) for p in storage['paths']],
                 'type': storage['type'],
                 'tag': storage['extra'].get('tag', None),
-                'trusted_signer': storage['extra'].get('trusted_signer', None),
+                'trusted_owner': storage['extra'].get('trusted_owner', None),
             }
             for ident_str, storage in data.items()
         }
@@ -377,7 +377,7 @@ class WildlandFSClient:
             return True
 
         paths = [
-            os.fspath(self.get_user_path(container.signer, path))
+            os.fspath(self.get_user_path(container.owner, path))
             for path in container.expanded_paths
         ]
         if is_default_user:
@@ -403,24 +403,24 @@ class WildlandFSClient:
             mounted already)
         '''
         paths = [
-            os.fspath(self.get_user_path(container.signer, path))
+            os.fspath(self.get_user_path(container.owner, path))
             for path in container.expanded_paths
         ]
         if is_default_user:
             paths.extend(os.fspath(p) for p in container.expanded_paths)
 
-        trusted_signer: Optional[str]
+        trusted_owner: Optional[str]
         if storage.params.get('trusted'):
-            trusted_signer = storage.signer
+            trusted_owner = storage.owner
         else:
-            trusted_signer = None
+            trusted_owner = None
 
         return {
             'paths': paths,
             'storage': storage.params,
             'extra': {
                 'tag': self.get_storage_tag(paths, storage.params),
-                'trusted_signer': trusted_signer,
+                'trusted_owner': trusted_owner,
             },
             'remount': remount,
         }
@@ -439,11 +439,11 @@ class WildlandFSClient:
         return hashlib.sha1(param_str.encode()).hexdigest()
 
     @staticmethod
-    def get_user_path(signer, path: PurePosixPath) -> PurePosixPath:
+    def get_user_path(owner, path: PurePosixPath) -> PurePosixPath:
         '''
-        Prepend an absolute path with signer namespace.
+        Prepend an absolute path with owner namespace.
         '''
-        return PurePosixPath('/.users/') / signer / path.relative_to('/')
+        return PurePosixPath('/.users/') / owner / path.relative_to('/')
 
     def watch(self, patterns: Iterable[str], with_initial=False) -> \
         Iterator[List[WatchEvent]]:

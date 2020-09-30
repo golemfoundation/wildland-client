@@ -61,7 +61,7 @@ file (or edit existing one using ``wl container edit``)
 
 .. code-block:: yaml
 
-   signer: <SIGNER>
+   owner: <OWNER>
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
      - /proxy
@@ -70,16 +70,16 @@ file (or edit existing one using ``wl container edit``)
      storage:
        - type: date-proxy
          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-         signer: <SIGNER>
+         owner: <OWNER>
          inner-container:
-           signer: <SIGNER>
+           owner: <OWNER>
            paths:
              - /inner
            backends:
              storage:
                - type: local
                  container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-                 signer: <SIGNER>
+                 owner: <OWNER>
                  path: /home/user/proxy-data
 
 This file can be signed with ``wl container sign`` (the edit command will do

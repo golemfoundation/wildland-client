@@ -40,55 +40,69 @@ def sig(key_dir):
 
 
 @pytest.fixture(scope='session')
-def signer(sig):
+def owner(sig):
     return sig.generate()[0]
 
 
 
-def make_header(sig, signer, test_data):
-    signature = sig.sign(signer, test_data)
+def make_header(sig, owner, test_data):
+    signature = sig.sign(owner, test_data)
     header = Header(signature.strip())
     return header.to_bytes()
 
 
-def test_parse(sig, signer):
+def test_parse(sig, owner):
     test_data = f'''
-signer: "{signer}"
+owner: "{owner}"
 key1: value1
 key2: "value2"
 '''.encode()
 
-    data = make_header(sig, signer, test_data) + b'\n---\n' + test_data
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
     manifest = Manifest.from_bytes(data, sig)
-    assert manifest.fields['signer'] == signer
+    assert manifest.fields['owner'] == owner
     assert manifest.fields['key1'] == 'value1'
     assert manifest.fields['key2'] == 'value2'
 
 
-def test_parse_no_signature(sig, signer):
+def test_parse_deprecated(sig, owner):
+    test_data = f'''
+signer: "{owner}"
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+    assert manifest.fields['owner'] == owner
+    assert manifest.fields['key1'] == 'value1'
+    assert manifest.fields['key2'] == 'value2'
+
+
+def test_parse_no_signature(sig, owner):
     test_data = f'''
 ---
-signer: "{signer}"
+owner: "{owner}"
 key1: value1
 '''.encode()
-    manifest = Manifest.from_bytes(test_data, sig, trusted_signer=signer)
-    assert manifest.fields['signer'] == signer
+    manifest = Manifest.from_bytes(test_data, sig, trusted_owner=owner)
+    assert manifest.fields['owner'] == owner
     assert manifest.fields['key1'] == 'value1'
 
     with pytest.raises(ManifestError, match='Signature expected'):
         Manifest.from_bytes(test_data, sig)
 
-    with pytest.raises(ManifestError, match='Wrong signer for manifest without signature'):
-        Manifest.from_bytes(test_data, sig, trusted_signer='0xcafe')
+    with pytest.raises(ManifestError, match='Wrong owner for manifest without signature'):
+        Manifest.from_bytes(test_data, sig, trusted_owner='0xcafe')
 
 
-def test_parse_wrong_signer(sig, signer):
+def test_parse_wrong_owner(sig, owner):
     test_data = '''
-signer: other signer
+owner: other owner
 key1: value1
 key2: "value2"
 '''.encode()
-    data = make_header(sig, signer, test_data) + b'\n---\n' + test_data
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
 
-    with pytest.raises(ManifestError, match='Signer field mismatch'):
+    with pytest.raises(ManifestError, match='Owner field mismatch'):
         Manifest.from_bytes(data, sig)
