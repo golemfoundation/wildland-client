@@ -10,6 +10,11 @@
             "minItems": 1,
             "description": "list of paths for this user"
         },
+        "pubkeys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "public keys of the user (can include extra keys; the user manifest itself needs to be signed with the main key anyway)"
+        },
         "containers": {
             "type": "array",
             "items": { "$ref": "types.json#url" },

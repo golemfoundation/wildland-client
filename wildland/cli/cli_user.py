@@ -38,18 +38,21 @@ def user_():
 
 @user_.command(short_help='create user')
 @click.option('--key', metavar='KEY',
-    help='use existing key pair (must be in ~/.config/wildland/keys/')
+    help='use existing key pair (provide a filename (without extension); it must be in '
+         '~/.config/wildland/keys/')
 @click.option('--path', 'paths', multiple=True,
     help='path (can be repeated)')
+@click.option('--add-pubkey', 'additional_pubkeys', multiple=True,
+              help='an additional public key that this user owns (can be repeated)')
 @click.argument('name', metavar='NAME', required=False)
 @click.pass_obj
-def create(obj: ContextObj, key, paths, name):
+def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     '''
     Create a new user manifest and save it.
     '''
 
     if key:
-        owner, pubkey = obj.session.sig.find(key)
+        owner, pubkey = obj.session.sig.load_key(key)
         print(f'Using key: {owner}')
     else:
         owner, pubkey = obj.session.sig.generate()
@@ -64,13 +67,21 @@ def create(obj: ContextObj, key, paths, name):
             paths = [f'/users/{owner}']
         click.echo(f'No path specified, using: {paths[0]}')
 
+    if additional_pubkeys:
+        additional_pubkeys = list(additional_pubkeys)
+    else:
+        additional_pubkeys = []
+
     user = User(
         owner=owner,
         pubkey=pubkey,
         paths=[PurePosixPath(p) for p in paths],
         containers=[],
+        additional_pubkeys=additional_pubkeys
     )
     path = obj.client.save_new_user(user, name)
+    user.add_user_keys(obj.session.sig)
+
     click.echo(f'Created: {path}')
 
     for alias in ['@default', '@default-owner']:

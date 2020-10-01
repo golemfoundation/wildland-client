@@ -119,7 +119,7 @@ class Manifest:
         fields = cls.update_obsolete(fields)
         return cls(None, fields, data)
 
-    def sign(self, sig_context: SigContext):
+    def sign(self, sig_context: SigContext, only_use_primary_key: bool = False):
         '''
         Sign a previously unsigned manifest.
         If attach_pubkey is true, attach the public key to the signature.
@@ -129,7 +129,8 @@ class Manifest:
             raise ManifestError('Manifest already signed')
 
         owner = self._fields['owner']
-        signature = sig_context.sign(owner, self.original_data)
+        signature = sig_context.sign(owner, self.original_data,
+                                     only_use_primary_key=only_use_primary_key)
         self.header = Header(signature)
 
     def skip_signing(self):
@@ -161,7 +162,8 @@ class Manifest:
     @classmethod
     def from_bytes(cls, data: bytes, sig_context: SigContext,
                    schema: Optional[Schema] = None,
-                   trusted_owner: Optional[str] = None) -> 'Manifest':
+                   trusted_owner: Optional[str] = None,
+                   allow_only_primary_key: bool = False) -> 'Manifest':
         '''
         Load a manifest from YAML content, verifying it.
 
@@ -170,14 +172,15 @@ class Manifest:
             sig_context: a SigContext to use for signature verification
             schema: a Schema to validate the fields with
             trusted_owner: accept signature-less manifest from this owner
+            allow_only_primary_key: can this manifest be signed by any auxiliary keys
+                associated with the given user?
         '''
 
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
         try:
-            header_owner = header.verify_rest(
-                rest_data, sig_context, trusted_owner)
+            header_signer = header.verify_rest(rest_data, sig_context, trusted_owner)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e))
@@ -189,16 +192,20 @@ class Manifest:
         except ValueError as e:
             raise ManifestError('Manifest parse error: {}'.format(e))
 
-        if fields.get('owner') != header_owner:
-            if header.signature is None:
+        if header.signature is None:
+            if fields.get('owner') != trusted_owner:
                 raise ManifestError(
                     'Wrong owner for manifest without signature: '
                     'trusted owner {!r}, manifest {!r}'.format(
-                        header_owner, fields.get('owner')))
-
-            raise ManifestError(
-                'Owner field mismatch: header {!r}, manifest {!r}'.format(
-                    header_owner, fields.get('owner')))
+                        trusted_owner, fields.get('owner')))
+        else:
+            possible_owners = [header_signer]
+            if not allow_only_primary_key:
+                possible_owners.extend(sig_context.get_possible_owners(header_signer))
+            if fields.get('owner') not in possible_owners:
+                raise ManifestError(
+                    'Manifest owner does not have access to signer key: header {!r}, '
+                    'manifest {!r}'.format(header_signer, fields.get('owner')))
 
         manifest = cls(header, fields, rest_data)
         if schema:
@@ -239,7 +246,7 @@ class Header:
                     trusted_owner: Optional[str]) -> str:
         '''
         Verify the signature against manifest content (without parsing it).
-        Return owner.
+        Return signer.
         '''
 
         # Handle lack of signature, if allowed
@@ -338,7 +345,7 @@ class HeaderParser:
         Parse the header. Recognize only provided fields.
         '''
 
-        result = {}
+        result: Dict[str, str] = {}
         while not self.is_eof():
             name, value = self.parse_field()
             if name not in fields:

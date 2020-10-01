@@ -104,5 +104,5 @@ key2: "value2"
 '''.encode()
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
 
-    with pytest.raises(ManifestError, match='Owner field mismatch'):
+    with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
         Manifest.from_bytes(data, sig)

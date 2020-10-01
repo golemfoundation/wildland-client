@@ -41,12 +41,16 @@ def sig(key_dir):
 
 @pytest.fixture(scope='session')
 def owner(sig):
-    return sig.generate()[0]
+    owner, pubkey = sig.generate()
+    sig.add_pubkey(pubkey)
+    return owner
 
 
 @pytest.fixture(scope='session')
 def other_owner(sig):
-    return sig.generate()[0]
+    owner, pubkey = sig.generate()
+    sig.add_pubkey(pubkey)
+    return owner
 
 
 @pytest.fixture(scope='session')
@@ -66,7 +70,8 @@ RWRCSwAAAABfzbTCuL45s/xXoWya590NMRDfqctndx3BZUjfg8GUb4Lbu6LnZuNih1iTc5CjbE6cIBYu
     public_file.write_text(old_pubkey)
     private_file.write_text(old_privkey)
 
-    sig.owners[old_owner] = old_pubkey
+    sig.add_pubkey(old_pubkey)
+
     return old_owner
 
 def test_pubkey_to_owner(sig):
@@ -77,7 +82,7 @@ RWS/mJgf4GTLPY2+qOnPzWSYhlfP6nwH1fFwUFMlW52/tKx52pnWwoA0
     sig_data = pubkey.splitlines()[1]
     assert base64.b64decode(sig_data)[:10] == b'\x45\x64\xbf\x98\x98\x1f\xe0\x64\xcb\x3d'
 
-    assert sig.fingerprint(pubkey) == '0x3dcb64e01f9898bf6445'
+    assert sig._fingerprint(pubkey) == '0x3dcb64e01f9898bf6445'
 
 
 def test_verify(sig, owner):
@@ -106,7 +111,7 @@ def test_verify_unknown_owner(sig, owner):
 
 
 def test_export_import_key(sig, owner):
-    pubkey = sig.get_pubkey(owner)
+    pubkey = sig.get_primary_pubkey(owner)
 
     test_data = b'hello world'
     signature = sig.sign(owner, test_data)
@@ -119,23 +124,24 @@ def test_export_import_key(sig, owner):
 
 
 def test_copy_and_import(sig, owner, other_owner):
-    pubkey = sig.get_pubkey(owner)
-    pubkey2 = sig.get_pubkey(other_owner)
+    pubkey = sig.get_primary_pubkey(owner)
+    pubkey2 = sig.get_primary_pubkey(other_owner)
 
     g1 = SignifySigContext(sig.key_dir)
     assert g1.add_pubkey(pubkey) == owner
-    assert owner in g1.owners
+    assert owner in g1.keys
 
     g2 = g1.copy()
     assert g2.add_pubkey(pubkey2) == other_owner
-    assert other_owner in g2.owners
-    assert other_owner not in g1.owners
+    assert other_owner in g2.keys
+    assert other_owner not in g1.keys
 
 
-def test_find(sig, owner):
-    found = sig.find(owner)
-    pubkey = sig.get_pubkey(owner)
-    assert found == (owner, pubkey)
+def test_load_key(sig, owner):
+    found_owner, found_key = sig.load_key(owner)
+    sig.add_pubkey(found_key)
+    pubkey = sig.get_primary_pubkey(owner)
+    assert (found_owner, found_key) == (owner, pubkey)
 
 
 def test_new_key_to_owner(sig):
@@ -143,31 +149,70 @@ def test_new_key_to_owner(sig):
 
     assert base64.b64decode(pubkey)[:10] == b'\x45\x64\xbf\x98\x98\x1f\xe0\x64\xcb\x3d'
 
-    assert sig.fingerprint(pubkey) == '0x3dcb64e01f9898bf6445'
+    assert sig._fingerprint(pubkey) == '0x3dcb64e01f9898bf6445'
 
 
 def test_old_verify(sig, old_owner):
     test_data = b'hello world'
-    signature = sig.sign(old_owner, test_data)
+    signature_old = sig.sign(old_owner, test_data)
 
-    assert sig.verify(signature, test_data) == old_owner
+    assert sig.verify(signature_old, test_data) == old_owner
 
 
-def test_old_find(sig, old_owner):
-    found = sig.find(old_owner)
-    pubkey = sig.get_pubkey(old_owner)
-    assert found == (old_owner, pubkey)
+def test_old_load_key(sig, old_owner):
+    found_owner, found_key = sig.load_key(old_owner)
+    sig.add_pubkey(found_key)
+    pubkey = sig.get_primary_pubkey(old_owner)
+    assert (found_owner, found_key) == (old_owner, pubkey)
 
 
 def test_copy_and_import_old(sig, owner, old_owner):
-    pubkey = sig.get_pubkey(owner)
-    pubkey2 = sig.get_pubkey(old_owner)
+    pubkey = sig.get_primary_pubkey(owner)
+    pubkey2 = sig.get_primary_pubkey(old_owner)
 
     g1 = SignifySigContext(sig.key_dir)
     assert g1.add_pubkey(pubkey) == owner
-    assert owner in g1.owners
+    assert owner in g1.keys
 
     g2 = g1.copy()
     assert g2.add_pubkey(pubkey2) == old_owner
-    assert old_owner in g2.owners
-    assert old_owner not in g1.owners
+    assert old_owner in g2.keys
+    assert old_owner not in g1.keys
+
+
+def test_multiple_pubkeys(sig, owner):
+    additional_owner, additional_pubkey = sig.generate()
+    _additional_owner2, additional_pubkey2 = sig.generate()
+
+    sig.add_pubkey(additional_pubkey, owner)
+    sig.add_pubkey(additional_pubkey2, owner)
+
+    test_data = b'hello world'
+    signature = sig.sign(additional_owner, test_data)
+
+    possible_owners = sig.get_possible_owners(sig.verify(signature, test_data))
+
+    assert {owner, additional_owner} == set(possible_owners)
+
+
+def test_signing_multiple_keys(sig):
+    primary_owner, primary_pubkey = sig.generate()
+    additional_owner, additional_pubkey = sig.generate()
+
+    sig.add_pubkey(primary_pubkey)
+    sig.add_pubkey(additional_pubkey, primary_owner)
+
+    private_file = sig.key_dir / f'{primary_owner}.sec'
+
+    private_file.unlink()
+
+    test_data = b'hello world'
+
+    signature = sig.sign(primary_owner, test_data, only_use_primary_key=False)
+    signer = sig.verify(signature, test_data)
+
+    assert signer == additional_owner
+    assert primary_owner in sig.get_possible_owners(signer)
+
+    with pytest.raises(SigError, match='Secret key not found'):
+        sig.sign(primary_owner, test_data, only_use_primary_key=True)

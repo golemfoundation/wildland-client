@@ -34,6 +34,7 @@ from ..storage_backends.generated import GeneratedStorageMixin, FuncFileEntry, F
 from ..wlpath import WildlandPath, PathError
 from ..manifest.manifest import ManifestError
 from ..search import Search, storage_glob
+from ..config import Config
 
 
 ## Path
@@ -431,3 +432,82 @@ def test_glob_simple():
         PurePosixPath('foo/baz.yaml'),
         PurePosixPath('foo2/bar.yaml'),
     ]
+
+
+# Multiple pubkeys
+
+def modify_file(path, pattern, replacement):
+    with open(path) as f:
+        data = f.read()
+    assert pattern in data
+    data = data.replace(pattern, replacement)
+    with open(path, 'w') as f:
+        f.write(data)
+
+
+@pytest.mark.parametrize('signer', ['0xfff', '0xbbb'])
+def test_traverse_other_key(cli, base_dir, client, signer):
+    cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
+
+    client.recognize_users()
+    client.config = Config.load(base_dir)
+
+    storage_path = base_dir / 'storage3'
+    os.mkdir(base_dir / 'storage1/users/')
+
+    remote_user_file = base_dir / 'storage1/users/DummyUser.user.yaml'
+
+    user_data = f'''\
+signature: |
+  dummy.{signer}
+---
+owner: '0xfff'
+paths:
+- /users/User2
+pubkeys:
+- key.0xbbb
+infrastructures:
+ - owner: '0xfff'
+   paths:
+    - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+   backends:
+    storage:
+     - type: local
+       path: {storage_path}
+       owner: '0xfff'
+       container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+       manifest-pattern:
+        type: glob
+        path: /manifests/{{path}}/*.yaml
+'''.encode()
+
+    remote_user_file.write_bytes(user_data)
+
+    os.mkdir(base_dir / 'bridges/')
+    bridge_file = base_dir / 'bridges/TestBridge1.bridge.yaml'
+    bridge_file.write_bytes(f"""\
+signature: |
+  dummy.0xddd
+---
+owner: '0xddd'
+user: file://localhost{remote_user_file}
+pubkey: 'key.0xfff'
+paths:
+- /path
+""".encode())
+
+    with open(base_dir / 'storage3/file.txt', 'w') as f:
+        f.write('Hello world')
+
+    search = Search(client,
+        WildlandPath.from_str(':/path:/file.txt'),
+        aliases={'default': '0xddd'})
+
+    if signer == '0xfff':
+        data = search.read_file()
+        assert data == b'Hello world'
+
+    elif signer == '0xbbb':
+        with pytest.raises(ManifestError,
+                           match="Manifest owner does not have access to signer key"):
+            data = search.read_file()

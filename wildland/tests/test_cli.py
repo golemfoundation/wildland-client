@@ -53,6 +53,14 @@ def test_user_create(cli, base_dir):
     assert "'@default-owner': '0xaaa'" in config
 
 
+def test_user_create_additional_keys(cli, base_dir):
+    cli('user', 'create', 'User', '--add-pubkey', 'key.0xbbb')
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+
+    assert 'pubkeys:\n- key.0xbbb' in data
+
+
 def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa',
         '--path', '/users/Foo', '--path', '/users/Bar')
@@ -545,6 +553,19 @@ def test_container_unmount(cli, base_dir, control_client):
     assert control_client.calls['unmount']['storage_id'] == 101
 
 
+def test_container_other_signer(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa', '--add-pubkey', 'key.0xbbb')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--user', 'User2')
+
+    modify_file(base_dir / 'containers/Container.container.yaml',
+                "owner: '0xbbb'", "owner: '0xaaa'")
+
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+
 def test_container_unmount_by_path(cli, control_client):
     control_client.expect('paths', {
         '/PATH': [101],
@@ -582,7 +603,7 @@ def test_container_extended_paths(cli, control_client, base_dir):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['storage']['owner'] == '0xaaa'
 
     assert sorted(command[0]['paths']) == sorted([
         f'/.users/0xaaa{path}',
@@ -605,7 +626,7 @@ def test_container_extended_paths(cli, control_client, base_dir):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
@@ -614,7 +635,22 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '/.users/0xaaa/c1/c2/c3/title',
         '/.users/0xaaa/c3/c1/c2/title',
     ]
-    assert command[0]['extra']['trusted_signer'] is None
+    assert command[0]['extra']['trusted_owner'] is None
+
+
+def test_container_wrong_signer(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--user', 'User2')
+
+    modify_file(base_dir / 'containers/Container.container.yaml',
+                "owner: '0xbbb'", "owner: '0xaaa'")
+
+    with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
+        cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+            '--container', 'Container')
+
 
 ## Status
 
