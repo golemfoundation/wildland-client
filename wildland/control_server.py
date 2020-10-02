@@ -264,8 +264,12 @@ class ControlServer:
             args = getattr(thread, '_args', None)
             if args:
                 request = args[0]
-                request.shutdown(socket.SHUT_RDWR)
-                request.close()
+                try:
+                    request.shutdown(socket.SHUT_RDWR)
+                    request.close()
+                except OSError:
+                    # already shut down
+                    pass
             thread.join()
 
         self.socket_server = None
