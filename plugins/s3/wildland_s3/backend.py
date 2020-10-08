@@ -446,3 +446,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         data += '</main>\n'
 
         return data
+
+    def release(self, _path: PurePosixPath, flags: int, obj: File) -> None:
+        super().release(_path, flags, obj)
+        if isinstance(obj, S3File):
+            self._update_index(obj.parent)
