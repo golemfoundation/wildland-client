@@ -473,6 +473,9 @@ class Client:
                 name = url_or_dict
                 try:
                     storage = self.load_storage_from_url(url_or_dict, container.signer)
+                except FileNotFoundError as e:
+                    logging.warning('Error loading manifest: %s', e)
+                    continue
                 except WildlandError:
                     logging.exception('Error loading manifest: %s', url_or_dict)
                     continue
@@ -483,7 +486,6 @@ class Client:
                 except WildlandError:
                     logging.exception('Error loading inline manifest')
                     continue
-
 
             if storage.signer != container.signer:
                 logger.error(
@@ -587,7 +589,7 @@ class Client:
                 except IOError as e:
                     raise WildlandError('Error retrieving file URL: {}: {}'.format(
                         url, e))
-            raise WildlandError(f'File URL not found: {url}')
+            raise FileNotFoundError(2, 'File URL not found', url)
 
         if url.startswith('http:') or url.startswith('https:'):
             try:
