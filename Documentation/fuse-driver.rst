@@ -17,7 +17,7 @@ Mount the filesystem::
 
 Mount a storage::
 
-   echo '{ "cmd": "mount", "args": {"items": [{ "paths": ["/foo", "/bar"], "storage": {"type": "local", "path": "/tmp", "signer": "0xaaa"}}]}}' \
+   echo '{ "cmd": "mount", "args": {"items": [{ "paths": ["/foo", "/bar"], "storage": {"type": "local", "path": "/tmp", "owner": "0xaaa"}}]}}' \
        | nc -U /tmp/wlfuse.sock
 
 (Note that ``netcat-openbsd`` requires also the ``-N`` option to close

@@ -48,15 +48,22 @@ class Session:
         Load a user manifest, creating a User object.
         '''
 
-        manifest = Manifest.from_bytes(data, self.sig)
-        pubkey = self.sig.get_pubkey(manifest.fields['signer'])
-        return User.from_manifest(manifest, pubkey, local_path)
+        manifest = Manifest.from_bytes(data, self.sig, allow_only_primary_key=True)
+
+        owner, owner_pubkey = self.sig.load_key(manifest.fields['owner'])
+        self.sig.add_pubkey(owner_pubkey)
+
+        if manifest.fields.get('pubkeys'):
+            for pubkey in manifest.fields['pubkeys']:
+                self.sig.add_pubkey(pubkey, owner)
+
+        return User.from_manifest(manifest, owner_pubkey, local_path)
 
     def load_container_or_bridge(
             self,
             data: bytes,
             local_path: Optional[Path] = None,
-            trusted_signer: Optional[str] = None,
+            trusted_owner: Optional[str] = None,
     ) -> Union[Container, Bridge]:
         '''
         Load a manifest that can be either a container or bridge manifest.
@@ -65,7 +72,7 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
         # Unfortunately, there is no clean way of distinguishing the two.
         if 'user' in manifest.fields:
             return Bridge.from_manifest(manifest, local_path)
@@ -73,10 +80,10 @@ class Session:
 
     def recognize_user(self, user: User):
         '''
-        Recognize the user as a valid signer.
+        Recognize the user as a valid owner and add their optional pubkeys.
         '''
 
-        self.sig.add_pubkey(user.pubkey)
+        user.add_user_keys(self.sig)
 
     def dump_user(self, user: User) -> bytes:
         '''
@@ -85,15 +92,15 @@ class Session:
 
         manifest = user.to_unsigned_manifest()
         sig_temp = self.sig.copy()
-        sig_temp.add_pubkey(user.pubkey)
-        manifest.sign(sig_temp)
+        user.add_user_keys(sig_temp)
+        manifest.sign(sig_temp, only_use_primary_key=True)
         return manifest.to_bytes()
 
     def load_container(
         self,
         data: bytes,
         local_path: Optional[Path] = None,
-        trusted_signer: Optional[str] = None,
+        trusted_owner: Optional[str] = None,
     ) -> Container:
         '''
         Load a container manifest, creating a Container object.
@@ -102,7 +109,7 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
         return Container.from_manifest(manifest, local_path)
 
     def dump_container(self, container: Container) -> bytes:
@@ -118,7 +125,7 @@ class Session:
         self,
         data: bytes,
         local_path: Optional[Path] = None,
-        trusted_signer: Optional[str] = None,
+        trusted_owner: Optional[str] = None,
     ) -> Storage:
         '''
         Load a container manifest, creating a Storage object.
@@ -127,7 +134,7 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
         return Storage.from_manifest(manifest, local_path)
 
     def dump_storage(self, storage: Storage) -> bytes:
@@ -143,7 +150,7 @@ class Session:
         self,
         data: bytes,
         local_path: Optional[Path] = None,
-        trusted_signer: Optional[str] = None,
+        trusted_owner: Optional[str] = None,
     ) -> Bridge:
         '''
         Load a bridge manifest, creating a Bridge object.
@@ -152,7 +159,7 @@ class Session:
         manifest = Manifest.from_bytes(
             data,
             self.sig,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
         return Bridge.from_manifest(manifest, local_path)
 
     def dump_bridge(self, bridge: Bridge) -> bytes:

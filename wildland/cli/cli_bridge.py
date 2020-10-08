@@ -63,7 +63,7 @@ def create(obj: ContextObj,
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_from(user_name or '@default-signer')
+    user = obj.client.load_user_from(user_name or '@default-owner')
 
     if name is None and file_path is None:
         raise CliError('Either name or file path needs to be provided')
@@ -85,7 +85,7 @@ def create(obj: ContextObj,
         paths = list(ref_user.paths)
 
     bridge = Bridge(
-        signer=user.signer,
+        owner=user.owner,
         user_location=ref_user_location,
         user_pubkey=ref_user.pubkey,
         paths=paths,

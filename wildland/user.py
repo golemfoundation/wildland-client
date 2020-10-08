@@ -41,16 +41,21 @@ class User:
     SCHEMA = Schema('user')
 
     def __init__(self, *,
-                 signer: str,
+                 owner: str,
                  pubkey: str,
                  paths: List[PurePosixPath],
                  containers: List[Union[str, dict]],
-                 local_path: Optional[Path] = None):
-        self.signer = signer
+                 local_path: Optional[Path] = None,
+                 additional_pubkeys: Optional[List[str]] = None):
+        self.owner = owner
         self.pubkey = pubkey
         self.paths = paths
         self.containers = containers
         self.local_path = local_path
+        if additional_pubkeys is None:
+            self.additional_pubkeys = []
+        else:
+            self.additional_pubkeys = additional_pubkeys
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, pubkey: str, local_path=None) -> 'User':
@@ -61,7 +66,7 @@ class User:
 
         # TODO: local_path should be also part of Manifest?
 
-        signer = manifest.fields['signer']
+        owner = manifest.fields['owner']
         manifest.apply_schema(cls.SCHEMA)
 
         if 'containers' in manifest.fields:
@@ -69,11 +74,12 @@ class User:
                            "(renamed to 'infrastructures'), ignoring")
 
         return cls(
-            signer=signer,
+            owner=owner,
             pubkey=pubkey,
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             containers=manifest.fields.get('infrastructures', []),
             local_path=local_path,
+            additional_pubkeys=manifest.fields.get('pubkeys', [])
         )
 
     def to_unsigned_manifest(self) -> Manifest:
@@ -83,9 +89,20 @@ class User:
         '''
 
         manifest = Manifest.from_fields({
-            'signer': self.signer,
+            'owner': self.owner,
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,
+            'pubkeys': self.additional_pubkeys,
         })
         manifest.apply_schema(self.SCHEMA)
         return manifest
+
+    def add_user_keys(self, sig_context):
+        """
+        Add all user keys (primary key and any keys listed in "pubkeys" field) to the given
+        sig_context.
+        """
+        sig_context.add_pubkey(self.pubkey)
+        if self.additional_pubkeys:
+            for additional_pubkey in self.additional_pubkeys:
+                sig_context.add_pubkey(additional_pubkey, self.owner)

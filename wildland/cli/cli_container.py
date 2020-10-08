@@ -84,7 +84,7 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_from(user or '@default-signer')
+    user = obj.client.load_user_from(user or '@default-owner')
 
     if category and not title:
         if not name:
@@ -92,7 +92,7 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
         title = name
 
     container = Container(
-        signer=user.signer,
+        owner=user.owner,
         paths=[PurePosixPath(p) for p in path],
         backends=[],
         title=title,
@@ -151,7 +151,7 @@ def list_(obj: ContextObj):
     obj.client.recognize_users()
     for container in obj.client.load_containers():
         click.echo(container.local_path)
-        click.echo(f'  signer: {container.signer}')
+        click.echo(f'  signer: {container.owner}')
         for container_path in container.expanded_paths:
             click.echo(f'  path: {container_path}')
         for storage_path in container.backends:
@@ -180,7 +180,7 @@ def delete(obj: ContextObj, name, force, cascade):
     has_local = False
     for url_or_dict in list(container.backends):
         if isinstance(url_or_dict, str):
-            path = obj.client.parse_file_url(url_or_dict, container.signer)
+            path = obj.client.parse_file_url(url_or_dict, container.owner)
             if path and path.exists():
                 if cascade:
                     click.echo('Deleting storage: {}'.format(path))
@@ -222,7 +222,7 @@ def mount(obj: ContextObj, container_names, remount, save):
     params: List[Tuple[Container, Storage, bool]] = []
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
-            is_default_user = container.signer == obj.client.config.get('@default')
+            is_default_user = container.owner == obj.client.config.get('@default')
             storage = obj.client.select_storage(container)
             param_tuple = (container, storage, is_default_user)
 
@@ -379,7 +379,7 @@ class Remounter:
 
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_path(
-                container.signer, container.paths[0])
+                container.owner, container.paths[0])
 
             # Check if the container is NOT detected as currently mounted under
             # this path. This might happen if the modified file changes UUID.
@@ -390,7 +390,7 @@ class Remounter:
 
             # Call should_remount to determine if we should mount this
             # container.
-            is_default_user = container.signer == self.client.config.get('@default')
+            is_default_user = container.owner == self.client.config.get('@default')
             storage = self.client.select_storage(container)
             if self.fs_client.should_remount(container, storage, is_default_user):
                 click.echo('  (mount)')

@@ -125,7 +125,7 @@ def sign(ctx, input_file, output_file, in_place):
 
     obj.client.recognize_users()
 
-    manifest.sign(obj.client.session.sig)
+    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
 
     if in_place:
@@ -207,7 +207,7 @@ def edit(ctx, editor, input_file, remount):
     manifest = Manifest.from_unsigned_bytes(data)
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
-    manifest.sign(obj.client.session.sig)
+    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)
@@ -218,7 +218,7 @@ def edit(ctx, editor, input_file, remount):
         if obj.fs_client.find_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')
 
-            is_default_user = container.signer == obj.client.config.get('@default')
+            is_default_user = container.owner == obj.client.config.get('@default')
             storage = obj.client.select_storage(container)
             obj.fs_client.mount_container(
                 container, storage, is_default_user, remount)

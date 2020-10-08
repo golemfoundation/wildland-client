@@ -14,7 +14,7 @@
 .. option:: --trusted
 
    Make the storage trusted. Wildland will load unsigned manifests from a
-   trusted storage, as long as the signer matches.
+   trusted storage, as long as the owner matches.
 
 .. option:: --manifest-pattern
 

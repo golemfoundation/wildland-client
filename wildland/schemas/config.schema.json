@@ -40,13 +40,13 @@
             "$ref": "types.json#fingerprint",
             "description": "default user for mounted containers"
         },
-        "@default-signer": {
+        "@default-owner": {
             "$ref": "types.json#fingerprint",
             "description": "default user for newly created containers"
         },
         "aliases": {
             "$type": "object",
-            "description": "A dictionary of custom aliases (other than @default and @default-signer)",
+            "description": "A dictionary of custom aliases (other than @default and @default-owner)",
             "patternProperties": {
                 "^@[a-z][a-z0-9-]*$": { "$ref": "types.json#fingerprint" }
             },
@@ -57,12 +57,12 @@
             "type": "string",
             "description": "hostname recognized for file:// URLs on this machine (default: localhost)"
         },
-        "local-signers": {
+        "local-owners": {
             "type": "array",
             "items": {
                 "$ref": "types.json#fingerprint"
             },
-            "description": "list of signers for which file:// URLs are recognized on this machine"
+            "description": "list of owners for which file:// URLs are recognized on this machine"
         },
 
         "default-containers": {

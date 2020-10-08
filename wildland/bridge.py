@@ -36,12 +36,12 @@ class Bridge:
     SCHEMA = Schema('bridge')
 
     def __init__(self, *,
-                 signer: str,
+                 owner: str,
                  user_location: str,
                  user_pubkey: str,
                  paths: List[PurePosixPath],
                  local_path: Optional[Path] = None):
-        self.signer = signer
+        self.owner = owner
         self.user_location = user_location
         self.user_pubkey = user_pubkey
         self.paths = paths
@@ -55,7 +55,7 @@ class Bridge:
 
         manifest.apply_schema(cls.SCHEMA)
         return cls(
-            signer=manifest.fields['signer'],
+            owner=manifest.fields['owner'],
             user_location=manifest.fields['user'],
             user_pubkey=manifest.fields['pubkey'],
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
@@ -69,7 +69,7 @@ class Bridge:
         '''
 
         manifest = Manifest.from_fields(dict(
-            signer=self.signer,
+            owner=self.owner,
             user=self.user_location,
             pubkey=self.user_pubkey,
             paths=[str(p) for p in self.paths],

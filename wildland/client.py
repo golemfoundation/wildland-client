@@ -91,12 +91,12 @@ class Client:
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         '''
         Create a copy of the current Client, with a public key imported.
-        Returns a tuple (client, signer).
+        Returns a tuple (client, owner).
         '''
 
         sig = self.session.sig.copy()
-        signer = sig.add_pubkey(pubkey)
-        return Client(config=self.config, sig=sig), signer
+        owner = sig.add_pubkey(pubkey)
+        return Client(config=self.config, sig=sig), owner
 
     def recognize_users(self):
         '''
@@ -145,11 +145,11 @@ class Client:
                 raise WildlandError('user not specified and @default not set')
             return self.load_user_from(default_user)
 
-        if name == '@default-signer':
-            default_signer = self.config.get('@default-signer')
-            if default_signer is None:
-                raise WildlandError('user not specified and @default-signer not set')
-            return self.load_user_from(default_signer)
+        if name == '@default-owner':
+            default_owner = self.config.get('@default-owner')
+            if default_owner is None:
+                raise WildlandError('user not specified and @default-owner not set')
+            return self.load_user_from(default_owner)
 
         # Short name
         if not name.endswith('.yaml'):
@@ -164,7 +164,7 @@ class Client:
         # Key
         if name.startswith('0x'):
             for user in self.load_users():
-                if user.signer == name:
+                if user.owner == name:
                     return user
 
         # Local path
@@ -194,10 +194,10 @@ class Client:
         Load container from a local file.
         '''
 
-        trusted_signer = self.fs_client.find_trusted_signer(path)
+        trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_container(
             path.read_bytes(), path,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
 
     def load_container_from_wlpath(self, wlpath: WildlandPath) -> Container:
         '''
@@ -210,22 +210,22 @@ class Client:
         search = Search(self, wlpath, self.config.aliases)
         return search.read_container()
 
-    def load_container_from_url(self, url: str, signer: str) -> Container:
+    def load_container_from_url(self, url: str, owner: str) -> Container:
         '''
         Load container from URL.
         '''
 
-        return self.session.load_container(self.read_from_url(url, signer))
+        return self.session.load_container(self.read_from_url(url, owner))
 
-    def load_container_from_dict(self, dict_: dict, signer: str) -> Container:
+    def load_container_from_dict(self, dict_: dict, owner: str) -> Container:
         '''
         Load container from a dictionary. Used when a container manifest is inlined
         in another manifest.
         '''
 
         content = ('---\n' + yaml.dump(dict_)).encode()
-        trusted_signer = signer
-        return self.session.load_container(content, trusted_signer=trusted_signer)
+        trusted_owner = owner
+        return self.session.load_container(content, trusted_owner=trusted_owner)
 
     def load_containers_from(self, name: str) -> Iterator[Container]:
         '''
@@ -294,27 +294,27 @@ class Client:
         Load storage from a local file.
         '''
 
-        trusted_signer = self.fs_client.find_trusted_signer(path)
+        trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_storage(
             path.read_bytes(), path,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
 
-    def load_storage_from_url(self, url: str, signer: str) -> Storage:
+    def load_storage_from_url(self, url: str, owner: str) -> Storage:
         '''
         Load storage from URL.
         '''
 
-        return self.session.load_storage(self.read_from_url(url, signer))
+        return self.session.load_storage(self.read_from_url(url, owner))
 
-    def load_storage_from_dict(self, dict_: dict, signer: str) -> Storage:
+    def load_storage_from_dict(self, dict_: dict, owner: str) -> Storage:
         '''
         Load storage from a dictionary. Used when a storage manifest is inlined
         in another manifest.
         '''
 
         content = ('---\n' + yaml.dump(dict_)).encode()
-        trusted_signer = signer
-        return self.session.load_storage(content, trusted_signer=trusted_signer)
+        trusted_owner = owner
+        return self.session.load_storage(content, trusted_owner=trusted_owner)
 
     def load_storage_from(self, name: str) -> Storage:
         '''
@@ -358,10 +358,10 @@ class Client:
         Load a Bridge from a local file.
         '''
 
-        trusted_signer = self.fs_client.find_trusted_signer(path)
+        trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_bridge(
             path.read_bytes(), path,
-            trusted_signer=trusted_signer)
+            trusted_owner=trusted_owner)
 
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
         '''
@@ -381,7 +381,7 @@ class Client:
         name.
         '''
 
-        path = self._new_path('user', name or user.signer)
+        path = self._new_path('user', name or user.owner)
         path.write_bytes(self.session.dump_user(user))
         user.local_path = path
         return path
@@ -472,7 +472,7 @@ class Client:
             if isinstance(url_or_dict, str):
                 name = url_or_dict
                 try:
-                    storage = self.load_storage_from_url(url_or_dict, container.signer)
+                    storage = self.load_storage_from_url(url_or_dict, container.owner)
                 except FileNotFoundError as e:
                     logging.warning('Error loading manifest: %s', e)
                     continue
@@ -482,17 +482,17 @@ class Client:
             else:
                 name = '(inline)'
                 try:
-                    storage = self.load_storage_from_dict(url_or_dict, container.signer)
+                    storage = self.load_storage_from_dict(url_or_dict, container.owner)
                 except WildlandError:
                     logging.exception('Error loading inline manifest')
                     continue
 
-            if storage.signer != container.signer:
+            if storage.owner != container.owner:
                 logger.error(
-                    '%s: signer field mismatch: storage %s, container %s',
+                    '%s: owner field mismatch: storage %s, container %s',
                     name,
-                    storage.signer,
-                    container.signer
+                    storage.owner,
+                    container.owner
                 )
                 continue
 
@@ -514,7 +514,7 @@ class Client:
             # it to an inline manifest.
             if 'inner-container' in storage.params:
                 storage.params['storage'] = self._select_inner_storage(
-                    storage.params['inner-container'], container.signer
+                    storage.params['inner-container'], container.owner
                 )
                 if storage.params['storage'] is None:
                     continue
@@ -526,7 +526,7 @@ class Client:
     def _select_inner_storage(
             self,
             container_url_or_dict: Union[str, Dict],
-            signer: str) -> Optional[Dict]:
+            owner: str) -> Optional[Dict]:
         '''
         Select an "inner" storage based on URL or dictionary. This resolves a
         container specification and then selects storage for the container.
@@ -534,18 +534,18 @@ class Client:
 
         if isinstance(container_url_or_dict, str):
             container = self.load_container_from_url(
-                container_url_or_dict, signer
+                container_url_or_dict, owner
             )
 
         else:
             container = self.load_container_from_dict(
-                container_url_or_dict, signer
+                container_url_or_dict, owner
             )
 
-        if container.signer != signer:
+        if container.owner != owner:
             logger.error(
-                'signer field mismatch for inner container: outer %s, inner %s',
-                signer, container.signer)
+                'owner field mismatch for inner container: outer %s, inner %s',
+                owner, container.owner)
             return None
 
         inner_storage = self.select_storage(container)
@@ -561,18 +561,18 @@ class Client:
 
         return '://' in s or s.startswith(WILDLAND_URL_PREFIX)
 
-    def read_from_url(self, url: str, signer: str) -> bytes:
+    def read_from_url(self, url: str, owner: str) -> bytes:
         '''
         Retrieve data from a given URL. The local (file://) URLs
-        are recognized based on the 'local_hostname' and 'local_signers'
+        are recognized based on the 'local_hostname' and 'local_owners'
         settings.
         '''
 
         if url.startswith(WILDLAND_URL_PREFIX):
             wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
-            if not wlpath.signer:
+            if not wlpath.owner:
                 raise WildlandError(
-                    'Wildland path in URL context has to have explicit signer')
+                    'Wildland path in URL context has to have explicit owner')
 
             # TODO: Still a circular dependency with search
             # pylint: disable=import-outside-toplevel, cyclic-import
@@ -582,7 +582,7 @@ class Client:
             return search.read_file()
 
         if url.startswith('file:'):
-            local_path = self.parse_file_url(url, signer)
+            local_path = self.parse_file_url(url, owner)
             if local_path:
                 try:
                     return local_path.read_bytes()
@@ -610,10 +610,10 @@ class Client:
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
 
-    def parse_file_url(self, url: str, signer: str) -> Optional[Path]:
+    def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
         '''
         Retrieve path from a given file URL, if it's applicable.
-        Checks the 'local_hostname' and 'local_signers' settings.
+        Checks the 'local_hostname' and 'local_owners' settings.
         '''
         parse_result = urlparse(url)
         if parse_result.scheme != 'file':
@@ -621,7 +621,7 @@ class Client:
 
         hostname = parse_result.netloc or 'localhost'
         local_hostname = self.config.get('local-hostname')
-        local_signers = self.config.get('local-signers')
+        local_owners = self.config.get('local-owners')
 
         if hostname != local_hostname:
             logger.warning(
@@ -629,10 +629,10 @@ class Client:
                 url, local_hostname)
             return None
 
-        if signer not in local_signers:
+        if owner not in local_owners:
             logger.warning(
-                'Trying to load file URL for invalid signer: %s (expected %s)',
-                signer, local_signers)
+                'Trying to load file URL for invalid owner: %s (expected %s)',
+                owner, local_owners)
             return None
 
         return Path(parse_result.path)

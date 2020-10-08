@@ -39,14 +39,14 @@ class Storage:
     DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/{path}.yaml'}
 
     def __init__(self,
-                 signer: str,
+                 owner: str,
                  storage_type: str,
                  container_path: PurePosixPath,
                  trusted: bool,
                  params: Dict[str, Any],
                  manifest_pattern: Optional[Dict[str, Any]] = None,
                  local_path: Optional[Path] = None):
-        self.signer = signer
+        self.owner = owner
         self.storage_type = storage_type
         self.container_path = container_path
         self.params = params
@@ -75,7 +75,7 @@ class Storage:
 
         manifest.apply_schema(cls.BASE_SCHEMA)
         return cls(
-            signer=manifest.fields['signer'],
+            owner=manifest.fields['owner'],
             storage_type=manifest.fields['type'],
             container_path=PurePosixPath(manifest.fields['container-path']),
             trusted=manifest.fields.get('trusted', False),
@@ -87,7 +87,7 @@ class Storage:
     def _get_manifest_fields(self) -> Dict[str, Any]:
         fields: Dict[str, Any] = {
             **self.params,
-            'signer': self.signer,
+            'owner': self.owner,
             'type': self.storage_type,
             'container-path': str(self.container_path),
         }

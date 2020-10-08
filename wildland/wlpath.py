@@ -42,9 +42,9 @@ class WildlandPath:
 
     The path has the following form:
 
-        [signer]:(part:)+:[file_path]
+        [owner]:(part:)+:[file_path]
 
-    - signer (optional): signer determining the first container's namespace
+    - owner (optional): owner determining the first container's namespace
     - parts: intermediate parts, identifying containers on the path
     - file_path (optional): path to file in the last container
     '''
@@ -56,12 +56,12 @@ class WildlandPath:
 
     def __init__(
         self,
-        signer: Optional[str],
+        owner: Optional[str],
         parts: List[PurePosixPath],
         file_path: Optional[PurePosixPath]
     ):
         assert len(parts) > 0
-        self.signer = signer
+        self.owner = owner
         self.parts = parts
         self.file_path = file_path
 
@@ -85,15 +85,15 @@ class WildlandPath:
         Construct a WildlandPath from a string.
         '''
         if ':' not in s:
-            raise PathError('The path has to start with signer and ":"')
+            raise PathError('The path has to start with owner and ":"')
 
         split = s.split(':')
         if split[0] == '':
-            signer = None
+            owner = None
         elif cls.FINGERPRINT_RE.match(split[0]) or cls.ALIAS_RE.match(split[0]):
-            signer = split[0]
+            owner = split[0]
         else:
-            raise PathError('Unrecognized signer field: {!r}'.format(split[0]))
+            raise PathError('Unrecognized owner field: {!r}'.format(split[0]))
 
         parts = []
         for part in split[1:-1]:
@@ -111,12 +111,12 @@ class WildlandPath:
         if not parts:
             raise PathError(f'Path has no containers: {s!r}. Did you forget a ":" at the end?')
 
-        return cls(signer, parts, file_path)
+        return cls(owner, parts, file_path)
 
     def __str__(self):
         s = ''
-        if self.signer is not None:
-            s += self.signer
+        if self.owner is not None:
+            s += self.owner
         s += ':' + ':'.join(str(p) for p in self.parts) + ':'
         if self.file_path is not None:
             s += str(self.file_path)

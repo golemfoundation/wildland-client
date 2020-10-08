@@ -9,7 +9,7 @@ Header
 ------
 
 A YAML manifests begins with a header that contains a ``signature`` field. The
-signature is needs to match the ``signer`` field in the manifest body.
+signature is needs to match the ``owner`` field in the manifest body.
 
 Here is an example of a signed manifest:
 
@@ -17,7 +17,7 @@ Here is an example of a signed manifest:
 
    signature: RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
    ---
-   signer: '0x5a7a224844d80b086445'
+   owner: '0x5a7a224844d80b086445'
 
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -52,7 +52,7 @@ attack surface. At the same time, the format should remain compatible with
 YAML, i.e. should be parsed by YAML parsers in the same way.
 
 The user manifests are special: they are self-signed, and contain a public key
-in the header. For other manifests, the signer is verified against public keys
+in the header. For other manifests, the owner is verified against public keys
 already loaded from user manifests. See "User manifests" below.
 
 Note that this means we parse the manifest body **before** we know that the
@@ -89,8 +89,8 @@ the form ``file://<hostname>/<path>``, where the hostname is optional.
 
 For a local URL to be recognized, two conditions must be met:
 
-1. The signer providing the URL (i.e. signer of the manifest the URL is found
-   in) must be added to ``local_signers`` in the Wildland configuration file
+1. The owner providing the URL (i.e. owner of the manifest the URL is found
+   in) must be added to ``local_owners`` in the Wildland configuration file
    (``$HOME/.config/wildland/users``).
 
    This is to prevent arbitrary signers causing you to access your local
@@ -120,8 +120,8 @@ requirements are met:
    In case of local files, this is determined by checking that a file path
    resolves to a currently-mounted storage.
 
-2. The manifest ``signer`` is the same as the storage's ``signer``. Otherwise,
-   the manifest will still be parsed (in order to determine the signer) but
+2. The manifest ``owner`` is the same as the storage's ``owner``. Otherwise,
+   the manifest will still be parsed (in order to determine the owner) but
    then rejected.
 
 
@@ -132,7 +132,7 @@ User manifests specify which users are recognized by the system. Currently,
 they are loaded from a specific directory (``$HOME/.config/wildland/users``).
 
 All the other manifests have to be verified against known users, i.e. their
-``signer`` field has to correspond to the one in user manifest.
+``owner`` field has to correspond to the one in user manifest.
 
 In order to be loaded, the system has to know a public key for a user. For
 local manifests, that means a corresponding key is in the keys directory
@@ -145,7 +145,7 @@ Example:
 
     signature: ...
     ---
-    signer: '0x5a7a224844d80b086445'
+    owner: '0x5a7a224844d80b086445'
     containers:
       - file:///path/to/container.yaml
 
@@ -162,7 +162,7 @@ Example:
 
    signature: ...
    ---
-   signer: '0x5a7a224844d80b086445'
+   owner: '0x5a7a224844d80b086445'
 
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -181,7 +181,7 @@ Example:
         - file:///path/to/storage12.yaml
         - type: local
           path: '/path/to/storage'
-          signer: '0x5a7a224844d80b086445'
+          owner: '0x5a7a224844d80b086445'
           container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
 
 Fields:
@@ -192,7 +192,7 @@ Storage manifest
 ----------------
 
 Storage manifests specify storage backends. Different storage backends require
-different fields, but ``signer`` and ``type`` fields are always required.
+different fields, but ``owner`` and ``type`` fields are always required.
 
 Example:
 
@@ -200,7 +200,7 @@ Example:
 
    signature: ...
    ---
-   signer: '0x5a7a224844d80b086445'
+   owner: '0x5a7a224844d80b086445'
    type: local
    container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    path: /path/to/storage/
@@ -226,7 +226,7 @@ Bridge manifest
 ---------------
 
 Bridge manifests introduce a new user. A bridge manifest is usually stored in a
-container, and has to be signed by the container's signer. For more
+container, and has to be signed by the container's owner. For more
 information, see :doc:`Wildland paths </paths>`.
 
 Example:
@@ -235,7 +235,7 @@ Example:
 
    signature: ...
    ---
-   signer: '0x5a7a224844d80b086445'
+   owner: '0x5a7a224844d80b086445'
    user: ./User.yaml
    pubkey: 'untrusted comment: signify public key
 

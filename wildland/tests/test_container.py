@@ -58,7 +58,7 @@ def test_select_storage_unsupported(client, base_dir):
     container = client.load_container_from('Container1')
 
     storage_manifest = Manifest.from_fields({
-        'signer': '0xaaa',
+        'owner': '0xaaa',
         'type': 'unknown'
     })
     storage_manifest.sign(client.session.sig)
@@ -77,3 +77,19 @@ def test_expanded_paths(client, cli):
 
     assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/t3/title', '/t3/t1/t2/title'} \
            == {str(p) for p in container.expanded_paths if 'uuid' not in str(p)}
+
+
+def test_users_additional_pubkeys(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa', '--add-pubkey', 'key.0xbbb',
+        '--add-pubkey', 'key.0xccc')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+    cli('user', 'create', 'User3', '--key', '0xccc', '--add-pubkey', 'key.0xddd')
+
+    client = Client(base_dir=base_dir)
+    client.recognize_users()
+
+    assert set(client.session.sig.get_possible_owners('0xaaa')) == {'0xaaa'}
+    assert set(client.session.sig.get_possible_owners('0xbbb')) == {'0xbbb', '0xaaa'}
+    assert set(client.session.sig.get_possible_owners('0xddd')) == {'0xddd', '0xccc'}
+
+    assert len(client.session.sig.keys) == 4

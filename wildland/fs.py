@@ -266,7 +266,7 @@ class WildlandFS(fuse.Fuse):
                 "/foo": {
                     "paths": ["/foo", "/bar/baz"],
                     "type": "local",
-                    "trusted_signer": null,
+                    "trusted_owner": null,
                     "extra": {}
                 }
             }

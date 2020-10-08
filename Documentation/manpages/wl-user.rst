@@ -43,14 +43,20 @@ Unless ``--key`` is provided, the command will generate a new Signify key pair.
 
 .. option:: --key <fingerprint>
 
-Use an existing key pair to create a user. The key pair must be in the key
-directory (``~/.config/wildland/keys``), as ``<fingerprint>.pub`` and
-``<fingerprint>.sec`` files.
+   Use an existing key pair to create a user. The key pair must be in the key
+   directory (``~/.config/wildland/keys``), as ``<fingerprint>.pub`` and
+   ``<fingerprint>.sec`` files.
 
 .. option:: --path <path>
 
-Specify a path in Wildland namespace (such as ``/users/User``) for the
-user. Can be repeated.
+   Specify a path in Wildland namespace (such as ``/users/User``) for the
+   user. Can be repeated.
+
+.. option:: --add-pubkey <public_key>
+
+   Add additional public key that can be used to verify manifests owned byt this user. The whole
+   key must be specified. The key will be stored in a ``<fingerprint>.pub`` file in the key
+   directory (``~/.config/wildland/keys``). Can be repeated.
 
 .. program:: wl-user-delete
 .. _wl-user-delete:

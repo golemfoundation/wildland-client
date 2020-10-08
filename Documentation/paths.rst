@@ -9,10 +9,10 @@ It has the following form::
 
     0xabcd:/path/one:/path/two:/path/to/file.txt
 
-* The first part (before ``:``) is the signer. It can be omitted, in which case
+* The first part (before ``:``) is the owner. It can be omitted, in which case
   the ``@default`` (from configuration) will be used.
 
-  The ``@default`` and ``@default-signer`` values are also supported, and
+  The ``@default`` and ``@default-owner`` values are also supported, and
   resolved according to configuration.
 
 * The next parts are container or user paths. See "Path resolution" below.
@@ -41,7 +41,7 @@ container (and associated storage) for ``/path/one``.
 * We determine the files based on ``manifest-pattern``, and examine them.
 
   If there is a container manifest with the right path (in this case,
-  ``/path/two``), we use that container. The signer has to be the same as for
+  ``/path/two``), we use that container. The owner has to be the same as for
   the outer container.
 
   If there is a bridge manifest, we check if that manifest contains the right
@@ -57,15 +57,15 @@ Local manifests
 ---------------
 
 In addition, we recognize some locally stored manifests, depending on the
-current signer:
+current owner:
 
 * We bootstrap the search process by looking at local **container manifests**,
-  and locally stored **user manifest** for the given signer.
+  and locally stored **user manifest** for the given owner.
 
 * When resolving the next parts, we again consider the local **container
   manifests**, as well as locally stored **bridge manifests**.
 
 Note that the manifests need to be stored under the right path
-(``$HOME/config/wildland/``), and the signer must be recognized: there needs to
+(``$HOME/config/wildland/``), and the owner must be recognized: there needs to
 exist a user manifest, as well as a public key (under
 ``$HOME/config/wildland/keys/KEY.pub``).

@@ -317,7 +317,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         '''
 
         storage = Storage(
-            signer=self.params['signer'],
+            owner=self.params['owner'],
             storage_type='bear-note',
             container_path=PurePosixPath(f'/.uuid/{ident}'),
             trusted=False,
@@ -339,7 +339,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         storage_manifest = self._make_storage_manifest(ident)
         paths = [PurePosixPath(f'/.uuid/{ident}')] + get_note_paths(tags)
         container = Container(
-            signer=self.params['signer'],
+            owner=self.params['owner'],
             paths=paths,
             backends=[storage_manifest.fields],
         )
