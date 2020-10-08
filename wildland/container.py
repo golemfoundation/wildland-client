@@ -24,6 +24,7 @@ The container
 from pathlib import PurePosixPath, Path
 import uuid
 from typing import Optional, List, Union
+import itertools
 
 from .manifest.manifest import Manifest
 from .manifest.schema import Schema
@@ -37,11 +38,16 @@ class Container:
                  signer: str,
                  paths: List[PurePosixPath],
                  backends: List[Union[str, dict]],
+                 title: Optional[str] = None,
+                 categories: Optional[List[Path]] = None,
                  local_path: Optional[Path] = None):
         self.signer = signer
         self.paths = paths
         self.backends = backends
+        self.title = title
+        self.categories = categories if categories else []
         self.local_path = local_path
+        self._expanded_paths: Optional[List[Path]] = None
 
     def ensure_uuid(self) -> str:
         '''
@@ -66,6 +72,8 @@ class Container:
             signer=manifest.fields['signer'],
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             backends=manifest.fields['backends']['storage'],
+            title=manifest.fields.get('title', None),
+            categories=[Path(p) for p in manifest.fields.get('categories', [])],
             local_path=local_path,
         )
 
@@ -79,6 +87,24 @@ class Container:
             signer=self.signer,
             paths=[str(p) for p in self.paths],
             backends={'storage': self.backends},
+            title=self.title,
+            categories=[str(cat) for cat in self.categories],
         ))
         manifest.apply_schema(self.SCHEMA)
         return manifest
+
+    @property
+    def expanded_paths(self):
+        """
+        Paths expanded by the set of paths generated from title and categories (if provided)
+        """
+        if self._expanded_paths:
+            return self._expanded_paths
+        paths = [Path(p) for p in self.paths]
+        if self.title:
+            for path in self.categories:
+                paths.append(path / self.title)
+            for p1, p2 in itertools.permutations(self.categories, 2):
+                paths.append(p1 / p2.relative_to(p2.anchor) / self.title)
+        self._expanded_paths = paths
+        return self._expanded_paths

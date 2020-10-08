@@ -2,6 +2,9 @@
     "title": "Container manifest",
     "type": "object",
     "required": ["signer", "paths", "backends"],
+    "dependencies": {
+        "categories": ["title"]
+    },
     "properties": {
         "signer": { "$ref": "types.json#fingerprint" },
         "paths": {
@@ -9,6 +12,16 @@
             "items": { "$ref": "types.json#abs-path" },
             "minItems": 1,
             "description": "list of paths for this container, should start with a unique /.uuid/UUID path"
+        },
+        "title": {
+            "type": ["string", "null"],
+            "description": "Title of the container."
+        },
+        "categories": {
+            "type": "array",
+            "items": { "$ref": "types.json#abs-path" },
+            "minItems": 0,
+            "description": "list of categories for this container. Requires title property."
         },
         "backends": {
             "type": "object",

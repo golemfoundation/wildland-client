@@ -43,16 +43,42 @@ def container_():
     '''
 
 
+class OptionRequires(click.Option):
+    """
+    Helper class to provide conditional required for click.Option
+    """
+    def __init__(self, *args, **kwargs):
+        try:
+            self.required_opt = kwargs.pop('requires')
+        except KeyError:
+            raise click.UsageError("'requires' parameter must be present")
+        kwargs['help'] = kwargs.get('help', '') + \
+            ' NOTE: this argument requires {}'.format(self.required_opt)
+        super(OptionRequires, self).__init__(*args, **kwargs)
+
+    def handle_parse_result(self, ctx, opts, args):
+        if self.name in opts and self.required_opt not in opts:
+            raise click.UsageError("option --{} requires --{}".format(
+                self.name, self.required_opt))
+        # noinspection Mypy
+        self.prompt = None
+        return super(OptionRequires, self).handle_parse_result(ctx, opts, args)
+
+
 @container_.command(short_help='create container')
 @click.option('--user',
     help='user for signing')
 @click.option('--path', multiple=True, required=True,
     help='mount path (can be repeated)')
+@click.option('--category', multiple=True, required=False,
+    help='category, will be used to generate mount paths')
+@click.option('--title', multiple=False, required=False,
+    help='container title')
 @click.option('--update-user/--no-update-user', '-u/-n', default=False,
               help='Attach the container to the user')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name, update_user):
+def create(obj: ContextObj, user, path, name, update_user, title=None, category=None):
     '''
     Create a new container manifest.
     '''
@@ -60,11 +86,19 @@ def create(obj: ContextObj, user, path, name, update_user):
     obj.client.recognize_users()
     user = obj.client.load_user_from(user or '@default-signer')
 
+    if category and not title:
+        if not name:
+            raise CliError('--category option requires --title or container name')
+        title = name
+
     container = Container(
         signer=user.signer,
         paths=[PurePosixPath(p) for p in path],
         backends=[],
+        title=title,
+        categories=category
     )
+
     path = obj.client.save_new_container(container, name)
     click.echo(f'Created: {path}')
 
@@ -118,7 +152,7 @@ def list_(obj: ContextObj):
     for container in obj.client.load_containers():
         click.echo(container.local_path)
         click.echo(f'  signer: {container.signer}')
-        for container_path in container.paths:
+        for container_path in container.expanded_paths:
             click.echo(f'  path: {container_path}')
         for storage_path in container.backends:
             click.echo(f'  storage: {storage_path}')

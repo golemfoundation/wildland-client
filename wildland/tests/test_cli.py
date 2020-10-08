@@ -556,6 +556,66 @@ def test_container_unmount_by_path(cli, control_client):
     assert control_client.calls['unmount']['storage_id'] == 102
 
 
+def test_container_create_missing_params(cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    with pytest.raises(CliError, match='--category option requires --title'
+                                       ' or container name'):
+        cli('container', 'create', '--path', '/PATH',
+            '--category', '/c1/c2', '--category', '/c3')
+
+
+def test_container_extended_paths(cli, control_client, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'title',
+        '--category', '/c1/c2', '--category', '/c3')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['signer'] == '0xaaa'
+
+    assert sorted(command[0]['paths']) == sorted([
+        f'/.users/0xaaa{path}',
+        '/.users/0xaaa/PATH',
+        '/.users/0xaaa/c1/c2/title',
+        '/.users/0xaaa/c3/title',
+        '/.users/0xaaa/c1/c2/c3/title',
+        '/.users/0xaaa/c3/c1/c2/title',
+        '/c1/c2/title',
+        '/c3/title',
+        '/c1/c2/c3/title',
+        '/c3/c1/c2/title',
+        path,
+        '/PATH',
+    ])
+
+    modify_file(base_dir / 'config.yaml', "'@default': '0xaaa'", '')
+
+    # The command should not contain the default path.
+    cli('container', 'mount', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['signer'] == '0xaaa'
+    assert command[0]['paths'] == [
+        f'/.users/0xaaa{path}',
+        '/.users/0xaaa/PATH',
+        '/.users/0xaaa/c1/c2/title',
+        '/.users/0xaaa/c3/title',
+        '/.users/0xaaa/c1/c2/c3/title',
+        '/.users/0xaaa/c3/c1/c2/title',
+    ]
+    assert command[0]['extra']['trusted_signer'] is None
+
 ## Status
 
 

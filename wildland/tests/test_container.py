@@ -20,7 +20,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name
 
 import pytest
-
 from ..manifest.manifest import Manifest
 from ..client import Client
 
@@ -68,3 +67,13 @@ def test_select_storage_unsupported(client, base_dir):
 
     storage = client.select_storage(container)
     assert storage.params['path'] == str(base_dir / 'storage2')
+
+
+def test_expanded_paths(client, cli):
+    cli('container', 'create', 'ContainerExt', '--path', '/path', '--title',
+        'title', '--category', '/t1/t2', '--category', '/t3')
+
+    container = client.load_container_from('ContainerExt')
+
+    assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/t3/title', '/t3/t1/t2/title'} \
+           == {str(p) for p in container.expanded_paths if 'uuid' not in str(p)}

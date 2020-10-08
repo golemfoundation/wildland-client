@@ -55,6 +55,8 @@ class SchemaDirective(Directive):
 
         if 'type' in definition:
             type_desc = definition['type']
+            if isinstance(type_desc, list):
+                type_desc = ' or '.join(type_desc)
             qualifiers.append(type_desc)
 
         if qualifiers:

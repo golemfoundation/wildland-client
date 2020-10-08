@@ -169,6 +169,12 @@ Example:
      - /container1
      - /test/a1
 
+   title: Example Container
+
+   categories:
+     - /important/examples
+     - /documentation/examples/containers
+
    backends:
       storage:
         - file:///path/to/storage11.yaml
