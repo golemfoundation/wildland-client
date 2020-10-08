@@ -247,7 +247,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
                     Bucket=self.bucket,
                 )
 
-            for summary in resp['Contents']:
+            for summary in resp.get('Contents', []):
 
                 full_path = PurePosixPath('/') / summary['Key']
                 try:
