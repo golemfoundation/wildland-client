@@ -168,7 +168,8 @@ def verify(ctx, input_file):
 
     obj.client.recognize_users()
     try:
-        manifest = Manifest.from_bytes(data, obj.client.session.sig)
+        manifest = Manifest.from_bytes(data, obj.client.session.sig,
+                                       allow_only_primary_key=(manifest_type == 'user'))
         if manifest_type:
             validate_manifest(manifest, manifest_type)
     except ManifestError as e:
