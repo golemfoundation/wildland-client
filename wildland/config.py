@@ -97,12 +97,14 @@ class Config:
 
         """
         if 'local-signers' in file_fields:
-            logger.warning('\'local-signers\' config entry is deprecated, use \'local-owners\' instead')
+            logger.warning('\'local-signers\' config entry is deprecated, '
+                           'use \'local-owners\' instead')
             file_fields.setdefault('local-owners', []).extend(file_fields['local-signers'])
             del file_fields['local-signers']
 
         if '@default-signer' in file_fields:
-            logger.warning('\'@default-signer\' config entry is deprecated, use \'@default-owner\' instead')
+            logger.warning('\'@default-signer\' config entry is deprecated, '
+                           'use \'@default-owner\' instead')
             file_fields.setdefault('@default-owner', file_fields['@default-signer'])
             del file_fields['@default-signer']
 
