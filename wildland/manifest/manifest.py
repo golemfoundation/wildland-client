@@ -88,6 +88,15 @@ class Manifest:
                 del fields['signer']
             else:
                 raise ManifestError('owner field not found')
+        # Nested owners too
+        if 'backends' in fields and 'storage' in fields['backends']:
+            for storage in fields['backends']['storage']:
+                if isinstance(storage, dict):
+                    cls.update_obsolete(storage)
+        if 'infrastructures' in fields:
+            for container in fields['infrastructures']:
+                if isinstance(container, dict):
+                    cls.update_obsolete(container)
         return fields
 
     @classmethod

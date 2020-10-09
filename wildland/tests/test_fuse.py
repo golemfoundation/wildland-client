@@ -22,6 +22,7 @@
 import os
 import stat
 import subprocess
+import time
 
 import pytest
 
@@ -241,6 +242,7 @@ def test_mount_no_directory(env, container, storage_type):
     with open(env.mnt_dir / 'container2/file1', 'w') as f:
         f.write('hello world')
     os.sync()
+    time.sleep(1)
 
     with open(env.test_dir / 'storage/storage2/file1') as f:
         assert f.read() == 'hello world'
@@ -317,6 +319,7 @@ def test_nested_mounts(env, storage_type):
     with open(path1, 'w') as f:
         f.write('new content')
     os.sync()
+    time.sleep(1)
     with open(env.test_dir / 'storage/storage1/nested1/file-conflict') as f:
         assert f.read() == 'new content'
 

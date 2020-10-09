@@ -32,6 +32,7 @@ from ..user import User
 from ..container import Container
 from ..storage import Storage
 from ..bridge import Bridge
+from ..manifest.sig import SigError
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
@@ -125,7 +126,10 @@ def sign(ctx, input_file, output_file, in_place):
 
     obj.client.recognize_users()
 
-    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+    try:
+        manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+    except SigError as e:
+        raise click.ClickException(f'Error signing manifest: {e}')
     signed_data = manifest.to_bytes()
 
     if in_place:
@@ -164,7 +168,8 @@ def verify(ctx, input_file):
 
     obj.client.recognize_users()
     try:
-        manifest = Manifest.from_bytes(data, obj.client.session.sig)
+        manifest = Manifest.from_bytes(data, obj.client.session.sig,
+                                       allow_only_primary_key=(manifest_type == 'user'))
         if manifest_type:
             validate_manifest(manifest, manifest_type)
     except ManifestError as e:

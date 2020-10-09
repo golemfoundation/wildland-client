@@ -20,8 +20,7 @@
 '''
 Configuration file handling.
 '''
-
-
+import logging
 from pathlib import Path
 from typing import Dict, Any
 import os
@@ -32,6 +31,7 @@ import yaml
 from .manifest.schema import Schema, SchemaError
 from .exc import WildlandError
 
+logger = logging.getLogger('config')
 
 STANDARD_ALIASES = ['@default', '@default-owner']
 
@@ -91,6 +91,24 @@ class Config:
             yaml.dump(self.file_fields, f, sort_keys=False)
 
     @classmethod
+    def update_obsolete(cls, file_fields):
+        """
+        Convert obsolete config entries.
+
+        """
+        if 'local-signers' in file_fields:
+            logger.warning('\'local-signers\' config entry is deprecated, '
+                           'use \'local-owners\' instead')
+            file_fields.setdefault('local-owners', []).extend(file_fields['local-signers'])
+            del file_fields['local-signers']
+
+        if '@default-signer' in file_fields:
+            logger.warning('\'@default-signer\' config entry is deprecated, '
+                           'use \'@default-owner\' instead')
+            file_fields.setdefault('@default-owner', file_fields['@default-signer'])
+            del file_fields['@default-signer']
+
+    @classmethod
     def load(cls, base_dir=None):
         '''
         Load a configuration file from base directory, if it exists; use
@@ -120,6 +138,8 @@ class Config:
                     file_fields = {}
         else:
             file_fields = {}
+
+        cls.update_obsolete(file_fields)
 
         try:
             cls.schema.validate(file_fields)
