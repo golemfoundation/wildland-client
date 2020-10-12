@@ -32,6 +32,12 @@ import click
 from ..manifest.schema import Schema
 
 
+class StorageError(BaseException):
+    """
+    Error in the storage mechanism.
+    """
+
+
 class OptionalError(NotImplementedError):
     '''
     A variant of NotImplementedError.
@@ -150,6 +156,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if read_only:
             self.read_only = True
 
+        self.ignore_own_events = False
+
+        self.watcher_instance = None
+
     @classmethod
     def cli_options(cls) -> List[click.Option]:
         '''
@@ -193,6 +203,30 @@ class StorageBackend(metaclass=abc.ABCMeta):
         '''
         Clear cache, if any.
         '''
+
+    def start_watcher(self, handler, ignore_own_events=False):
+        self.ignore_own_events = ignore_own_events
+
+        if self.watcher_instance:
+            raise StorageError("Watcher already exists")
+
+        self.watcher_instance = self.watcher()  # pylint: disable=assignment-from-none
+
+        if not self.watcher_instance:
+            return None
+
+        self.watcher_instance.start(handler)
+
+        return self.watcher_instance
+
+    def stop_watcher(self):
+        if not self.watcher_instance:
+            return
+
+        self.watcher_instance.stop()
+
+        self.watcher_instance = None
+        self.ignore_own_events = False
 
     def watcher(self):
         '''

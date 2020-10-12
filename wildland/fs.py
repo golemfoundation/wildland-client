@@ -283,13 +283,13 @@ class WildlandFS(fuse.Fuse):
         return result
 
     @control_command('add-watch')
-    def control_add_watch(self, handler: ControlHandler, storage_id, pattern):
+    def control_add_watch(self, handler: ControlHandler, storage_id, pattern, ignore_own=False):
         if pattern.startswith('/'):
             raise WildlandError('Pattern should not start with /')
         if storage_id not in self.storages:
             raise WildlandError(f'No storage: {storage_id}')
         with self.mount_lock:
-            return self._add_watch(storage_id, pattern, handler)
+            return self._add_watch(storage_id, pattern, handler, ignore_own=ignore_own)
 
     @control_command('breakpoint')
     def control_breakpoint(self, _handler):
@@ -319,6 +319,8 @@ class WildlandFS(fuse.Fuse):
             if storage_id not in self.storage_watches:
                 return
 
+            if storage_id in self.watchers:
+                return
             watches = [self.watches[watch_id]
                        for watch_id in self.storage_watches[storage_id]]
 
@@ -329,7 +331,8 @@ class WildlandFS(fuse.Fuse):
         for watch in watches:
             self._notify_watch(watch, [event])
 
-    def _add_watch(self, storage_id: int, pattern: str, handler: ControlHandler):
+    def _add_watch(self, storage_id: int, pattern: str, handler: ControlHandler,
+                   ignore_own: bool = False):
         assert self.mount_lock.locked()
 
         watch = Watch(
@@ -350,12 +353,14 @@ class WildlandFS(fuse.Fuse):
 
         # Start a watch thread, but only if the storage provides watcher() method
         if len(self.storage_watches[storage_id]) == 1:
-            watcher = self.storages[storage_id].watcher()
+
+            watch_handler = lambda events: self._watch_handler(storage_id, events)
+            watcher = self.storages[storage_id].start_watcher(
+                watch_handler, ignore_own_events=ignore_own)
+
             if watcher:
                 logger.info('starting watcher for storage %d', storage_id)
                 self.watchers[storage_id] = watcher
-                watch_handler = lambda events: self._watch_handler(storage_id, events)
-                watcher.start(watch_handler)
 
         return watch.id
 
@@ -399,7 +404,7 @@ class WildlandFS(fuse.Fuse):
             watch.storage_id in self.watchers):
 
             logger.info('stopping watcher for storage: %s', watch.storage_id)
-            self.watchers[watch.storage_id].stop()
+            self.storages[watch.storage_id].stop_watcher()
             del self.watchers[watch.storage_id]
 
         self.storage_watches[watch.storage_id].remove(watch_id)

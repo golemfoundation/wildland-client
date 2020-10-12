@@ -121,11 +121,21 @@ def test_server_events(conn):
     conn.sendall(json.dumps({'cmd': 'send-event'}).encode())
     conn.sendall(b'\n\n')
 
-    response = json.loads(conn.recv(1024))
-    assert response == {'event': 'this is event'}
+    connfile = conn.makefile()
 
-    response = json.loads(conn.recv(1024))
-    assert response == {'result': 'this is result'}
+    expected_responses = [
+        {'event': 'this is event'},
+        {'result': 'this is result'}
+    ]
+
+    for expected_response in expected_responses:
+        lines = []
+        for line in connfile:
+            lines.append(line)
+            if line == '\n':
+                break
+        received_response = json.loads(''.join(lines))
+        assert received_response == expected_response
 
 
 def test_server_eof(conn):

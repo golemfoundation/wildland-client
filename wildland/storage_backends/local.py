@@ -25,12 +25,16 @@ import os
 from pathlib import Path, PurePosixPath
 import logging
 import threading
+from typing import Optional, List, Dict, Tuple
+import select
+import inotify_simple
 
 import click
 
 from .base import StorageBackend, File, Attr
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
+from .watch import StorageWatcher, FileEvent
 
 __all__ = ['LocalStorageBackend']
 
@@ -53,9 +57,11 @@ class LocalFile(File):
     (does not need to be a regular file)
     '''
 
-    def __init__(self, path, realpath, flags, mode=0):
+    def __init__(self, path, realpath, flags, mode=0, ignore_callback=None):
         self.path = path
         self.realpath = realpath
+        self.ignore_callback = ignore_callback
+        self.changed = False
 
         self.file = os.fdopen(
             os.open(realpath, flags, mode),
@@ -64,7 +70,9 @@ class LocalFile(File):
 
     # pylint: disable=missing-docstring
 
-    def release(self, _flags):
+    def release(self, flags):
+        if self.changed and self.ignore_callback:
+            self.ignore_callback('modify', self.path)
         return self.file.close()
 
     def fgetattr(self):
@@ -89,11 +97,14 @@ class LocalFile(File):
     def write(self, data, offset):
         with self.lock:
             self.file.seek(offset)
-            return self.file.write(data)
+            written_data = self.file.write(data)
+            self.changed = True
+            return written_data
 
     def ftruncate(self, length):
         with self.lock:
             self.file.truncate(length)
+            self.changed = True
 
 
 class LocalStorageBackend(StorageBackend):
@@ -145,13 +156,19 @@ class LocalStorageBackend(StorageBackend):
         ret.relative_to(self.root) # this will throw ValueError if not relative
         return ret
 
-
     # pylint: disable=missing-docstring
 
     def open(self, path, flags):
+        if self.ignore_own_events and self.watcher_instance:
+            return LocalFile(path, self._path(path), flags,
+                             ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags)
 
     def create(self, path, flags, mode):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', path)
+            return LocalFile(path, self._path(path), flags, mode,
+                             ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags, mode)
 
     def getattr(self, path):
@@ -164,10 +181,114 @@ class LocalStorageBackend(StorageBackend):
         return os.truncate(self._path(path), length)
 
     def unlink(self, path):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('delete', path)
         return os.unlink(self._path(path))
 
     def mkdir(self, path, mode):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', path)
         return os.mkdir(self._path(path), mode)
 
     def rmdir(self, path):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('delete', path)
         return os.rmdir(self._path(path))
+
+    def watcher(self):
+        return LocalStorageWatcher(self)
+
+
+class LocalStorageWatcher(StorageWatcher):
+    """
+    Watches for changes in local storage, using inotify.
+    Known issues: on subdirectory creation, some events may be lost, because files appear
+    before the watcher can add watches. It's unfortunately a known inotify issue.
+    """
+    def __init__(self, backend: LocalStorageBackend):
+        super(LocalStorageWatcher, self).__init__()
+        self.path = backend.root
+        self.watches: Dict[int, str] = {}
+        self.watch_flags = inotify_simple.flags.CREATE | inotify_simple.flags.DELETE | \
+            inotify_simple.flags.MOVED_TO | inotify_simple.flags.MOVED_FROM | \
+            inotify_simple.flags.CLOSE_WRITE
+
+        self.lock = threading.Lock()
+
+        self.ignore_list: List[Tuple[str, str]] = []
+
+    def ignore_event(self, event_type: str, path: PurePosixPath):
+        # path should be the relative path
+        with self.lock:
+            self.ignore_list.append((event_type, str(path)))
+
+    def _watch_dir(self, path):
+        for root, dirs, _files in os.walk(path):
+            if root not in self.watches.values():
+                wd = self.inotify.add_watch(root, self.watch_flags)
+                self.watches[wd] = root
+            for directory in dirs:
+                dir_path = os.path.join(root, directory)
+                wd = self.inotify.add_watch(dir_path, self.watch_flags)
+                self.watches[wd] = dir_path
+
+    def init(self) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        self.inotify = inotify_simple.INotify()
+
+        self._watch_dir(self.path)
+
+        self._stop_pipe_read, self._stop_pipe_write = os.pipe()
+
+    def stop(self):
+        os.write(self._stop_pipe_write, b's')
+        super(LocalStorageWatcher, self).stop()
+
+    def shutdown(self) -> None:
+        os.close(self._stop_pipe_write)
+        os.close(self._stop_pipe_read)
+        for wd in self.watches:
+            self.inotify.rm_watch(wd)
+        self.inotify.close()
+
+    def wait(self) -> Optional[List[FileEvent]]:
+        result = select.select([self._stop_pipe_read, self.inotify], [], [])
+        if self._stop_pipe_read in result[0]:
+            return []
+        events = self.inotify.read(timeout=1)
+        results = []
+
+        for event in events:
+            event_flags = inotify_simple.flags.from_mask(event.mask)
+
+            if inotify_simple.flags.IGNORED in event_flags:
+                continue
+
+            path = os.path.join(self.watches[event.wd], event.name)
+
+            if inotify_simple.flags.CREATE in event_flags or \
+                    inotify_simple.flags.MOVED_TO in event_flags:
+                if inotify_simple.flags.ISDIR in event_flags:
+                    self._watch_dir(path)
+                event_type = 'create'
+            elif inotify_simple.flags.DELETE in event_flags or \
+                    inotify_simple.flags.MOVED_FROM in event_flags:
+                if inotify_simple.flags.ISDIR in event_flags:
+                    self.watches = {key: val for key, val in self.watches.items() if val != path}
+                event_type = 'delete'
+            elif inotify_simple.flags.CLOSE_WRITE in event_flags:
+                event_type = 'modify'
+            else:
+                continue
+
+            relative_path = PurePosixPath(path).relative_to(self.path)
+
+            with self.lock:
+                ev = (event_type, str(relative_path))
+                if ev in self.ignore_list:
+                    self.ignore_list.remove(ev)
+                    continue
+
+            results.append(FileEvent(path=relative_path, type=event_type))
+
+        return results

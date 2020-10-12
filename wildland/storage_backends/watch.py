@@ -30,7 +30,6 @@ import abc
 
 from .base import StorageBackend, Attr
 
-
 logger = logging.getLogger('watch')
 
 
@@ -53,6 +52,13 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         self.handler = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(name='Watch', target=self._run)
+
+    def ignore_event(self, event_type: str, path):  # pylint: disable=unused-argument
+        """
+        Invoked by the backend to specify incoming ignorable event.
+        """
+        if not self.handler:
+            return
 
     def start(self, handler: Callable[[List[FileEvent]], None]):
         '''
@@ -116,7 +122,6 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     def __init__(self, backend: StorageBackend):
         super().__init__()
         self.backend = backend
-
         self.token = None
         self.info: Dict[PurePosixPath, Attr] = {}
 

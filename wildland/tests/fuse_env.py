@@ -28,7 +28,7 @@ import traceback
 import time
 import json
 import socket
-
+from typing import Optional, Dict, List
 import pytest
 
 PROJECT_PATH = Path(__file__).resolve().parents[2]
@@ -63,7 +63,7 @@ class FuseEnv:
         self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False
         self.proc = None
-        self.conn = None
+        self.conn: Optional[socket.socket] = None
 
         os.mkdir(self.test_dir / 'mnt')
         os.mkdir(self.test_dir / 'storage')
@@ -180,7 +180,19 @@ class FuseEnv:
 
         assert self.conn
 
+        # force timeout, in case something goes very wrong with tests
+        self.conn.settimeout(5)
         response_bytes = self.conn.recv(1024)
-        response = json.loads(response_bytes)
-        assert 'event' in response, 'expecting an event'
-        return response['event']
+        response_list = response_bytes.split(b'\n\n')
+
+        events: List[Dict[str, str]] = []
+
+        for response_bytes in response_list:
+            if not response_bytes:
+                continue
+            response = json.loads(response_bytes)
+            assert 'event' in response, 'expecting an event'
+
+            events.extend(response['event'])
+
+        return events

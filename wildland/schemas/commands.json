@@ -76,6 +76,10 @@
                 "pattern": {
                     "type": "string",
                     "description": "a glob-style pattern"
+                },
+                "ignore-own": {
+                    "type": "boolean",
+                    "description": "should the watcher ignore events caused by storage's own activity"
                 }
             }
         },
