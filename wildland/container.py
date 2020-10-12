@@ -39,7 +39,7 @@ class Container:
                  paths: List[PurePosixPath],
                  backends: List[Union[str, dict]],
                  title: Optional[str] = None,
-                 categories: Optional[List[Path]] = None,
+                 categories: Optional[List[PurePosixPath]] = None,
                  local_path: Optional[Path] = None):
         self.owner = owner
         self.paths = paths
@@ -47,7 +47,7 @@ class Container:
         self.title = title
         self.categories = categories if categories else []
         self.local_path = local_path
-        self._expanded_paths: Optional[List[Path]] = None
+        self._expanded_paths: Optional[List[PurePosixPath]] = None
 
     def ensure_uuid(self) -> str:
         '''
@@ -100,7 +100,7 @@ class Container:
         """
         if self._expanded_paths:
             return self._expanded_paths
-        paths = [Path(p) for p in self.paths]
+        paths = self.paths.copy()
         if self.title:
             for path in self.categories:
                 paths.append(path / self.title)
