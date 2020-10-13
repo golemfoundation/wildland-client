@@ -58,7 +58,7 @@ def get_md(note) -> bytes:
     return f'title: {note.title}\n---\n{note.text}\n'.encode('utf-8')
 
 
-def get_note_paths(tags: List[str]) -> List[PurePosixPath]:
+def get_note_categories(tags: List[str]) -> List[PurePosixPath]:
     '''
     Get the list of paths a note should be mounted under, based on tags.
 
@@ -161,7 +161,7 @@ class BearDB:
             for note in self.db.notes():
                 yield note.id
 
-    def get_note_idents_with_tags(self) -> Iterable[Tuple[str, List[str]]]:
+    def get_note_idents_titles_with_tags(self) -> Iterable[Tuple[str, str, List[str]]]:
         '''
         Retrieve list of note IDs, along with tags.
         '''
@@ -170,7 +170,7 @@ class BearDB:
 
         with self.db_lock:
             for note in self.db.notes():
-                yield note.id, [tag.title for tag in note.tags()]
+                yield note.id, note.title, [tag.title for tag in note.tags()]
 
     def get_note(self, ident: str) -> Optional[bear.Note]:
         '''
@@ -277,17 +277,20 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         manifest.skip_signing()
         return manifest
 
-    def _make_container_manifest(self, ident: str, tags: List[str]) -> Manifest:
+    def _make_container_manifest(self, ident: str, title: str, tags: List[str]) -> Manifest:
         '''
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
         '''
 
         storage_manifest = self._make_storage_manifest(ident)
-        paths = [PurePosixPath(f'/.uuid/{ident}')] + get_note_paths(tags)
+        paths = [PurePosixPath(f'/.uuid/{ident}')]
+        categories = get_note_categories(tags)
         container = Container(
             owner=self.params['owner'],
+            title=title,
             paths=paths,
+            categories=categories,
             backends=[storage_manifest.fields],
         )
         manifest = container.to_unsigned_manifest()
@@ -302,15 +305,15 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         try:
-            for ident, tags in self.bear_db.get_note_idents_with_tags():
+            for ident, title, tags in self.bear_db.get_note_idents_titles_with_tags():
                 yield FileCachedDirEntry(self.bear_db.path,
-                                         ident, partial(self._dir_note, ident, tags))
+                                         ident, partial(self._dir_note, ident, title, tags))
         except sqlite3.DatabaseError:
             logger.exception('error loading database')
             return
 
-    def _dir_note(self, ident: str, tags: List[str]):
-        yield StaticFileEntry('container.yaml', self._get_manifest(ident, tags))
+    def _dir_note(self, ident: str, title: str, tags: List[str]):
+        yield StaticFileEntry('container.yaml', self._get_manifest(ident, title, tags))
         yield StaticFileEntry('README.md', self._get_readme())
         if self.with_content:
             yield StaticFileEntry('note.md', self._get_note(ident))
@@ -337,8 +340,8 @@ The note files (currently just `note.md`) are also visible here.
 
         return readme.encode()
 
-    def _get_manifest(self, ident, tags):
-        return self._make_container_manifest(ident, tags).to_bytes()
+    def _get_manifest(self, ident, title, tags):
+        return self._make_container_manifest(ident, title, tags).to_bytes()
 
     def _get_note(self, ident):
         note = self.bear_db.get_note(ident)
