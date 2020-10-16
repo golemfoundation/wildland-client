@@ -45,6 +45,8 @@ from ..manifest.template import TemplateManager
 from ..sync import Syncer, list_storage_conflicts
 from ..hashdb import HashDb
 from ..log import init_logging
+from ..search import Search
+from ..wlpath import WildlandPath
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
@@ -189,6 +191,22 @@ def update(obj: ContextObj, storage, cont):
         container.backends.append(obj.client.local_url(storage.local_path))
 
     obj.client.save_container(container)
+
+
+@container_.command(short_help='publish container manifest')
+@click.argument('cont', metavar='CONTAINER')
+@click.argument('wlpath', metavar='WLPATH')
+@click.pass_obj
+def publish(obj: ContextObj, cont, wlpath):
+    '''
+    Publish a container manifest under a given wildland path.
+    '''
+
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+    wlpath = WildlandPath.from_str(wlpath)
+    search = Search(obj.client, wlpath, obj.client.config.aliases)
+    search.write_file(obj.client.session.dump_container(container))
 
 
 @container_.command('list', short_help='list containers', alias=['ls'])

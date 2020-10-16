@@ -309,6 +309,17 @@ def test_container_update(cli, base_dir):
     assert str(storage_path) in data
 
 
+def test_container_publish(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', os.fspath(tmp_path),
+        '--container', 'Container', '--inline')
+
+    cli('container', 'publish', 'Container', '0xaaa:/PATH:/published.yaml')
+
+    assert (tmp_path / 'published.yaml').exists()
+
+
 def test_container_delete(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
