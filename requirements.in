@@ -10,6 +10,7 @@ boto3
 requests
 python-dateutil
 lxml
+imapclient
 
 # Development / testing
 pip-tools
