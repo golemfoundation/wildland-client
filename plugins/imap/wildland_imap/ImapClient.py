@@ -329,12 +329,12 @@ def _decode_subject(sub) -> str:
     if isinstance(sub, str):
         rv = sub
     else:
-        subject = sub[0][0]
-        charset = sub[0][1]
-        if isinstance(subject, str):
-            rv = subject
-        else:
-            if not charset:
-                charset = 'utf-8'
-            rv = subject.decode(charset)
+        rv = ''
+        for (subject, charset) in sub:
+            if isinstance(subject, str):
+                rv += subject
+            else:
+                if not charset:
+                    charset = 'utf-8'
+                rv += subject.decode(charset)
     return rv
