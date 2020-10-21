@@ -35,9 +35,12 @@ class TimelineDate:
     '''
 
     def __init__(self, accuracy: DatePart = DatePart.EPOCH,
-                 value: datetime = datetime.today()):
+                 value: datetime = None):
         self.accuracy = accuracy
-        self.value = value
+        if value is None:
+            self.value = datetime.today()
+        else:
+            self.value = value
         vals = (value.year, value.month, value.day)
         self.last_defined_value = vals[self.accuracy - 1]
 
