@@ -41,7 +41,7 @@ class TimelineDate:
             self.value = datetime.today()
         else:
             self.value = value
-        vals = (value.year, value.month, value.day)
+        vals = (self.value.year, self.value.month, self.value.day)
         self.last_defined_value = vals[self.accuracy - 1]
 
 
@@ -65,11 +65,7 @@ class TimelineDate:
     def __hash__(self):
         vals = (self.value.year, self.value.month, self.value.day)
         acc = DatePart.EPOCH
-        hsh = 0
-        while acc < self.accuracy:
-            acc = acc.advance()
-            hsh = hsh * 1000  + vals[acc - 1]
-        return hsh
+        return hash(vals[:self.accuracy])
 
     def __eq__(self, other):
         if self.accuracy != other.accuracy:
