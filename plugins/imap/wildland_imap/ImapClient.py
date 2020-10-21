@@ -93,18 +93,16 @@ class ImapClient:
         self._connected = False
         self._monitor_thread.join()
         self._monitor_thread = None
-        self._imap_lock.acquire()
-        self.imap.logout()
-        self._imap_lock.release()
+        with self._imap_lock:
+            self.imap.logout()
 
     def all_senders(self):
         '''
         return list of all sender emails currently received from server.
         '''
         self._load_messages_if_needed()
-        self._local_lock.acquire()
-        rv = self._senders.keys()
-        self._local_lock.release()
+        with self._local_lock:
+            rv = self._senders.keys()
         return rv
 
     def sender_messages(self, sender_email):
@@ -112,11 +110,10 @@ class ImapClient:
         Return list of messages of single sender.
         '''
         self._load_messages_if_needed()
-        self._local_lock.acquire()
-        self.logger.debug('sender %s{sender_email} has %d  messages',
+        with self._local_lock:
+            self.logger.debug('sender %s{sender_email} has %d  messages',
                           sender_email, self._senders[sender_email])
-        rv = self._senders[sender_email]
-        self._local_lock.release()
+            rv = self._senders[sender_email]
         return rv
 
     def get_message(self, msg_id) -> bytes:
@@ -124,11 +121,10 @@ class ImapClient:
         Read and return single message (basic headers and
         main contents) as byte array.
         '''
-        self._local_lock.acquire()
-        if msg_id not in self._message_cache:
-            self._message_cache[msg_id] = self._load_msg(msg_id).encode('utf-8')
-        rv = self._message_cache[msg_id]
-        self._local_lock.release()
+        with self._local_lock:
+            if msg_id not in self._message_cache:
+                self._message_cache[msg_id] = self._load_msg(msg_id).encode('utf-8')
+            rv = self._message_cache[msg_id]
 
         return rv
 
@@ -138,18 +134,16 @@ class ImapClient:
         for given date constraint.
         '''
         self._load_messages_if_needed()
-        self._local_lock.acquire()
-        rv = self._resolve_timeline(parent).keys()
-        self._local_lock.release()
+        with self._local_lock:
+            rv = self._resolve_timeline(parent).keys()
         return rv
 
     def mails_at_date(self, day: TimelineDate):
         '''
         generates list of emails received at given date.
         '''
-        self._local_lock.acquire()
-        rv = self._resolve_timeline(day)
-        self._local_lock.release()
+        with self._local_lock:
+            rv = self._resolve_timeline(day)
         return rv
 
 
@@ -174,24 +168,18 @@ class ImapClient:
         '''
 
         self.logger.debug('entering _load_messages_if_needed')
-        self._local_lock.acquire()
-        if self._senders:
-            self._local_lock.release()
-            self.logger.debug('fast-leaving _load_messages_if_needed')
-            return
-        self._local_lock.release()
-        self._imap_lock.acquire()
-        self._local_lock.acquire()
+        with self._local_lock:
+            if self._senders:
+                self.logger.debug('fast-leaving _load_messages_if_needed')
+                return
 
-        msg_ids = self.imap.search('ALL')
-        self._all_ids = msg_ids
-        for msgid, data in self.imap.fetch(msg_ids,
-                                           ['ENVELOPE']).items():
-            env = data[b'ENVELOPE']
-            self._register_envelope(msgid, env)
-
-        self._local_lock.release()
-        self._imap_lock.release()
+        with self._imap_lock, self._local_lock:
+            msg_ids = self.imap.search('ALL')
+            self._all_ids = msg_ids
+            for msgid, data in self.imap.fetch(msg_ids,
+                                               ['ENVELOPE']).items():
+                env = data[b'ENVELOPE']
+                self._register_envelope(msgid, env)
         self.logger.debug('leaving _load_messages_if_needed')
 
     def _load_msg(self, mid) -> str:
@@ -200,9 +188,8 @@ class ImapClient:
         return it as a "pretty string".
         '''
         self.logger.debug('fetching message %d', mid)
-        self._imap_lock.acquire()
-        data = self.imap.fetch([mid], 'RFC822')
-        self._imap_lock.release()
+        with self._imap_lock:
+            data = self.imap.fetch([mid], 'RFC822')
         parser = BytesParser(policy=policy.default)
         msg = parser.parsebytes(data[mid][b'RFC822'])
         sender = msg['From']
@@ -309,37 +296,33 @@ class ImapClient:
         '''
         ivalidate local message list. Reread and update index.
         '''
-        self._local_lock.acquire()
-        srv_msg_ids = self.imap.search('ALL')
-        ids_to_remove = set(self._all_ids) - set(srv_msg_ids)
-        ids_to_add = set(srv_msg_ids) - set(self._all_ids)
-        self.logger.debug('invalidate_and_reread ids_to_remove=%s ids_to_add=%s',
-                          ids_to_remove, ids_to_add)
-        for mid in ids_to_remove:
-            self.logger.debug('removing from cache message %d', mid)
-            self._del_msg(mid)
+        with self._local_lock:
+            srv_msg_ids = self.imap.search('ALL')
+            ids_to_remove = set(self._all_ids) - set(srv_msg_ids)
+            ids_to_add = set(srv_msg_ids) - set(self._all_ids)
+            self.logger.debug('invalidate_and_reread ids_to_remove=%s ids_to_add=%s',
+                              ids_to_remove, ids_to_add)
+            for mid in ids_to_remove:
+                self.logger.debug('removing from cache message %d', mid)
+                self._del_msg(mid)
 
-        for mid in ids_to_add:
-            self.logger.debug('adding to cache message %d', mid)
-            self._prefetch_msg(mid)
-
-        self._local_lock.release()
+            for mid in ids_to_add:
+                self.logger.debug('adding to cache message %d',
+                                  mid)
+                self._prefetch_msg(mid)
 
     def _monitor_main(self):
         while self._connected:
-            self._imap_lock.acquire()
-            reply = self.imap.noop()
-            self._imap_lock.release()
-            if reply[0] == b'Success':
-                output = reply[1]
-                if output:
+            with self._imap_lock:
+                reply = self.imap.noop()
+                if len(reply) > 1:
                     try:
                         self._invalidate_and_reread()
                     except Exception:
                         self.logger.error("exception in monitor thread",
                                           exc_info=True)
-            else:
-                self.logger.warning('unknown response received: %s', reply)
+                else:
+                    self.logger.warning('unknown response received: %s', reply)
             time.sleep(10)
 
 def _decode_subject(sub) -> str:
