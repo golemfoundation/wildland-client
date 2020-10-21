@@ -133,8 +133,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             'host': data['host'],
             'login': data['login'],
             'pass': data['pass'],
-            'folder': data['folder'],
-            'trusted': True,
+            'folder': data['folder']
             }
 
 
