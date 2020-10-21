@@ -120,9 +120,32 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
    HTTP URL.
 
+.. program:: wl-storage-create-imap
+.. _wl-storage-create-imap:
+:command:`wl storage create imap --container <container> [-u] [--user <user>] --host <host> --login <login> --password <password> [--folder <folder>]`
+--------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --host <host>
+
+   IMAP server hostname. Required.
+
+.. option:: --login <login>
+
+   IMAP account / login name. Required.
+
+.. option:: --password <password>
+
+   IMAP account password. Required.
+
+.. option:: --folder <folder>
+
+   IMAP folder to expose (defaults to INBOX).
+
+
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
-
 :command:`wl storage create s3 --container <container> [-u] [--user <user>] --url <url> <storage>`
 --------------------------------------------------------------------------------------------------
 
