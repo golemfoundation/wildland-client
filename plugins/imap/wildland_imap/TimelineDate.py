@@ -42,8 +42,10 @@ class TimelineDate:
         else:
             self.value = value
         vals = (self.value.year, self.value.month, self.value.day)
-        self.last_defined_value = vals[self.accuracy - 1]
-
+        if self.accuracy > 0:
+            self.last_defined_value = vals[self.accuracy - 1]
+        else:
+            self.last_defined_value = None
 
     def up_to(self, accuracy: DatePart):
         '''
@@ -61,20 +63,11 @@ class TimelineDate:
 
     def __repr__(self):
         return f'value={self.value}, accuracy={self.accuracy}'
-
+    def _allvals(self):
+        return (self.value.year, self.value.month, self.value.day)
+    
     def __hash__(self):
-        vals = (self.value.year, self.value.month, self.value.day)
-        acc = DatePart.EPOCH
-        return hash(vals[:self.accuracy])
+        return hash(self._allvals()[:self.accuracy])
 
     def __eq__(self, other):
-        if self.accuracy != other.accuracy:
-            return False
-        else:
-            acc = DatePart.EPOCH
-            while acc < self.accuracy:
-                acc = acc.advance()
-                if self._value_of(acc) != other._value_of(acc):
-                    return False
-
-        return True
+        return self._allvals()[:self.accuracy] == other._allvals()[:other.accuracy]
