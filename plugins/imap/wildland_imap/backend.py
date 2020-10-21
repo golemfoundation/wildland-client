@@ -29,7 +29,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         super().__init__(**kwds)
         self.client = ImapClient(self.params['host'],
                                  self.params['login'],
-                                 self.params['pass'],
+                                 self.params['password'],
                                  self.params['folder'])
 
     def mount(self):
@@ -118,7 +118,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             click.Option(['--login'], metavar='LOGIN',
                          help='imap account name / login',
                          required=True),
-            click.Option(['--pass'], metavar='PASS',
+            click.Option(['--password'], metavar='PASSWORD',
                          help='imap account password',
                          required=True),
             click.Option(['--folder'], metavar='FOLDER',
@@ -132,7 +132,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         return {
             'host': data['host'],
             'login': data['login'],
-            'pass': data['pass'],
+            'password': data['password'],
             'folder': data['folder']
             }
 
