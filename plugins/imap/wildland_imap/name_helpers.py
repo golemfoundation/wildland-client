@@ -54,10 +54,8 @@ class TimelineFormatter:
             # we render YEARS this way
             rv = '%04d' % elt.last_defined_value
         elif self._level == DatePart.MONTH:
-            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             # that's how we render MONTHS
-            rv = months[elt.last_defined_value - 1]
+            rv = '%02d' % elt.last_defined_value
         else:
             # this is the format used for DAYS
             rv = '%02d' % elt.last_defined_value
