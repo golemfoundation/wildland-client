@@ -99,16 +99,15 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
     assert received_events == [FileEvent('create', PurePosixPath('newdir'))]
     received_events.clear()
 
-    file = backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777)
-    file.release(os.O_RDWR)
+    with backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777):
+        pass
 
     time.sleep(1)
     assert received_events == [FileEvent('create', PurePosixPath('newdir/testfile'))]
     received_events.clear()
 
-    file = backend.open('newdir/testfile', os.O_RDWR)
-    file.write(b'bbbb', 0)
-    file.release(os.O_RDWR)
+    with backend.open('newdir/testfile', os.O_RDWR) as file:
+        file.write(b'bbbb', 0)
 
     time.sleep(1)
     assert received_events == [FileEvent('modify', PurePosixPath('newdir/testfile'))]
@@ -141,12 +140,11 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
     backend.mkdir(PurePosixPath('newdir'), mode=0o777)
     time.sleep(1)
 
-    file = backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777)
-    file.release(os.O_RDWR)
+    with backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777):
+        pass
 
-    file = backend.open('newdir/testfile', os.O_RDWR)
-    file.write(b'bbbb', 0)
-    file.release(os.O_RDWR)
+    with backend.open('newdir/testfile', os.O_RDWR) as file:
+        file.write(b'bbbb', 0)
 
     backend.unlink('newdir/testfile')
 
