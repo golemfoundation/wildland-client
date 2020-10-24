@@ -15,3 +15,19 @@ services:
     volumes:
       - ..:/home/user/wildland-fuse:ro
       - ../artifacts/:/home/user/wildland-fuse/artifacts:rw
+
+  wildland-fuse-ci-imap:
+    build:
+      context: ..
+      dockerfile: ./ci/Dockerfile-imap
+    image: wildland-fuse-ci-imap
+    container_name: wildland-fuse-ci-imap
+    privileged: true
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    volumes:
+      - ..:/home/user/wildland-fuse:ro
+      - ../artifacts/:/home/user/wildland-fuse/artifacts:rw
+

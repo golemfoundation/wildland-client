@@ -1,0 +1,54 @@
+#!/bin/sh -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/*
+
+# Configure a mail server and populate a mailbox
+for sender in 1 2 3; do
+    for msg in 1 2 3; do
+        ./ci/imap-mail-make ../Maildir sender${sender}@dev.null \
+                            "Test $msg" \
+                            "`date --date=2020-0${msg}-0${msg}\ 11:13`" \
+                            "Test number ${msg}"
+    done
+done
+# Create and mount an IMAP container
+sudo /etc/init.d/dovecot start
+
+sudo chmod 0666 /dev/fuse
+
+./wl user create User
+./wl container create  Imap --path /imap
+./wl storage create imap --container Imap --host 127.0.0.1 --login user \
+     --password test --trusted --no-ssl
+./wl start
+./wl container mount Imap
+
+ROOT=$HOME/wildland/imap
+
+# List full tree
+time -p chronic tree $ROOT
+
+# List contents of sender2 dir
+time -p chronic ls -l $ROOT/senders/sender1@dev.null
+
+# List contents of February timeline dir
+time -p chronic ls -l $ROOT/timeline/2020/02/02
+
+# Read contents of a files
+time -p chronic grep 'Test number 1' $ROOT/senders/sender2@dev.null/sender2@dev.null-Test\ 1
+time -p chronic grep 'Test number 2' $ROOT/senders/sender2@dev.null/sender2@dev.null-Test\ 2
+time -p chronic grep 'Test number 1' $ROOT/timeline/2020/01/01/sender3@dev.null-Test\ 1
+
+# Test if backend refreshes its contents to reflect server changes
+find ../Maildir -type f -exec grep -q 'From: sender3' {} \; \
+     -exec grep -q 'Test number 1' {} \; -delete
+sleep 10s
+test ! -r $ROOT/timeline/2020/01/01/sender3@dev.null-Test\ 1
+test ! -r $ROOT/senders/sender3@dev.null/sender3@dev.null-Test\ 1
+time -p chronic grep 'Test number 2' $ROOT/timeline/2020/02/02/sender3@dev.null-Test\ 2
+time -p chronic grep 'Test number 2' $ROOT/senders/sender3@dev.null/sender3@dev.null-Test\ 2
+
+# Unmount container
+time -p chronic ./wl container unmount Imap
+
