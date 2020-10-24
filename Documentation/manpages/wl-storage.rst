@@ -143,6 +143,10 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
    IMAP folder to expose (defaults to INBOX).
 
+.. option:: --ssl/--no-ssl
+            
+   Use SSL or unencrypted connection. Default is to use SSL.
+
 
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:

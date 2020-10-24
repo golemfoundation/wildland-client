@@ -34,10 +34,10 @@ class ImapClient:
     '''
 
     def __init__(self, host: str, login: str, password: str,
-                 folder: str):
+                 folder: str, ssl: bool):
         self.logger = logging.getLogger('ImapClient')
         self.logger.debug('creating IMAP client for host: %s', host)
-        self.imap = IMAPClient(host, use_uid=True)
+        self.imap = IMAPClient(host, use_uid=True, ssl=ssl)
         self.login = login
         self.password = password
         self.folder = folder

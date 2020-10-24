@@ -30,7 +30,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         self.client = ImapClient(self.params['host'],
                                  self.params['login'],
                                  self.params['password'],
-                                 self.params['folder'])
+                                 self.params['folder'],
+                                 self.params['ssl'])
 
     def mount(self):
         '''
@@ -124,7 +125,11 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             click.Option(['--folder'], metavar='FOLDER',
                          default='INBOX',
                          show_default=True,
-                         help='root folder to expose')
+                         help='root folder to expose'),
+            click.Option(['--ssl/--no-ssl'], metavar='SSL',
+                         default=True,
+                         show_default=True,
+                         help='use encrypted connection')
             ]
 
     @classmethod
@@ -133,7 +138,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             'host': data['host'],
             'login': data['login'],
             'password': data['password'],
-            'folder': data['folder']
+            'folder': data['folder'],
+            'ssl': data['ssl']
             }
 
 
