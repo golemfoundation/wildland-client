@@ -21,6 +21,7 @@
 Utilities for URL resolving and traversing the path
 '''
 
+import errno
 import logging
 import os
 import re
@@ -137,12 +138,11 @@ class Search:
                 _, storage_backend = self._find_storage(step)
             except ManifestError:
                 continue
-            with storage_backend:
-                try:
-                    return storage_write_file(data, storage_backend,
-                                              self.wlpath.file_path.relative_to('/'))
-                except FileNotFoundError:
-                    continue
+            try:
+                with StorageDriver(storage_backend) as driver:
+                    return driver.write_file(self.wlpath.file_path.relative_to('/'), data)
+            except FileNotFoundError:
+                continue
 
     def _resolve_all(self) -> Iterable[Step]:
         '''
@@ -386,30 +386,6 @@ def storage_read_file(storage, relpath) -> bytes:
         storage.release(relpath, 0, obj)
 
 
-def storage_write_file(data, storage, relpath):
-    '''
-    Write a file to StorageBackend, using FUSE commands.
-    '''
-
-    try:
-        storage.getattr(relpath)
-    except FileNotFoundError:
-        exists = False
-    else:
-        exists = True
-
-    if exists:
-        obj = storage.open(relpath, os.O_WRONLY)
-        storage.ftruncate(relpath, 0, obj)
-    else:
-        obj = storage.create(relpath, os.O_CREAT | os.O_WRONLY)
-
-    try:
-        storage.write(relpath, data, 0, obj)
-    finally:
-        storage.release(relpath, 0, obj)
-
-
 def storage_find_manifests(
         storage: StorageBackend,
         manifest_pattern: dict,
@@ -482,3 +458,50 @@ def _find(storage: StorageBackend, prefix: PurePosixPath, path: PurePosixPath) \
         except IOError:
             return
         yield full_path
+
+
+class StorageDriver:
+    '''
+    A contraption to directly manipulate
+    :py:type:`wildland.storage_backends.base.StorageBackend`
+    '''
+    def __init__(self, storage_backend: StorageBackend):
+        self.storage_backend = storage_backend
+    @classmethod
+    def from_storage(cls, storage: Storage) -> 'StorageDriver':
+        '''
+        Create :py:type:`StorageDriver` from
+        :py:class:`wildland.storage.Storage`
+        '''
+        return cls(StorageBackend.from_params(storage.params))
+
+    def __enter__(self):
+        self.storage_backend.mount()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.storage_backend.unmount()
+
+    def write_file(self, relpath, data):
+        '''
+        Write a file to StorageBackend, using FUSE commands.
+        '''
+
+        try:
+            self.storage_backend.getattr(relpath)
+        except FileNotFoundError:
+            exists = False
+        else:
+            exists = True
+
+        if exists:
+            obj = self.storage_backend.open(relpath, os.O_WRONLY)
+            self.storage_backend.ftruncate(relpath, 0, obj)
+        else:
+            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY,
+                0o644)
+
+        try:
+            self.storage_backend.write(relpath, data, 0, obj)
+        finally:
+            self.storage_backend.release(relpath, 0, obj)
