@@ -65,7 +65,7 @@ class TimelineDate:
         return f'value={self.value}, accuracy={self.accuracy}'
     def _allvals(self):
         return (self.value.year, self.value.month, self.value.day)
-    
+
     def __hash__(self):
         return hash(self._allvals()[:self.accuracy])
 
