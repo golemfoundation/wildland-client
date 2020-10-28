@@ -457,14 +457,13 @@ class Client:
                 return path
             i += 1
 
-    def select_storage(self, container: Container, backends=None) -> Storage:
-        '''
-        Select and load a storage to mount for a container.
+    def all_storages(self, container: Container, backends=None) -> Iterator[Storage]:
+        """
+        Return (and load on returning) all storages for a given container.
 
         In case of proxy storage, this will also load an inner storage and
         inline the manifest.
-        '''
-
+        """
         if backends is None:
             backends = container.backends
 
@@ -519,9 +518,20 @@ class Client:
                 if storage.params['storage'] is None:
                     continue
 
-            return storage
+            yield storage
 
-        raise ManifestError('no supported storage manifest')
+    def select_storage(self, container: Container, backends=None) -> Storage:
+        '''
+        Select and load a storage to mount for a container.
+
+        In case of proxy storage, this will also load an inner storage and
+        inline the manifest.
+        '''
+
+        try:
+            return next(self.all_storages(container, backends))
+        except StopIteration:
+            raise ManifestError('no supported storage manifest')
 
     def _select_inner_storage(
             self,
