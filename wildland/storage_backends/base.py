@@ -23,13 +23,17 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterable
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 from dataclasses import dataclass
 import stat
+import hashlib
+import os
 
 import click
 
 from ..manifest.schema import Schema
+
+BLOCK_SIZE = 1024 ** 2
 
 
 class StorageError(BaseException):
@@ -45,6 +49,12 @@ class OptionalError(NotImplementedError):
     This is a hack to stop pylint from complaining about methods that do not
     have to be implemented.
     '''
+
+
+class HashMismatchError(BaseException):
+    """
+    Thrown when hash mismatch occurs on an attempt to perform compare-and-swap.
+    """
 
 
 @dataclass
@@ -292,6 +302,44 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     def rmdir(self, path: PurePosixPath) -> None:
         raise OptionalError()
+
+    def get_hash(self, path: PurePosixPath):
+        """
+        Return sha256 hash for object at path.
+        Storage backends can override this with more efficient calculation and/or caching.
+        """
+        hasher = hashlib.sha256()
+        offset = 0
+        with self.open(path, os.O_RDONLY) as obj:
+            size = obj.fgetattr().size
+            while offset < size:
+                data = obj.read(BLOCK_SIZE, offset)
+                offset += len(data)
+                hasher.update(data)
+
+        return hasher.hexdigest()
+
+    def open_for_safe_replace(self, path: PurePosixPath, flags: int, original_hash: str) -> File:
+        """
+        This should implement a version of compare-and-swap: open a file, write data as needed,
+        but apply those changes (on release) only if file hash before the changes matched
+        original_hash. Should throw HashMismatchError if hashes are mismatched (both at open
+        and at release).
+        """
+        raise OptionalError()
+
+    def walk(self, directory=PurePosixPath('')) -> Iterable[Tuple[PurePosixPath, Attr]]:
+        """
+        A simplified variant of os.walk : returns a generator of paths of all objects in the given
+        directory (or the whole storage if none given). Assumes the results will be given
+        depth-first.
+        """
+        for path in self.readdir(directory):
+            full_path = directory / path
+            file_obj_atr = self.getattr(full_path)
+            yield full_path, file_obj_atr
+            if file_obj_atr.is_dir():
+                yield from self.walk(full_path)
 
     @staticmethod
     def from_params(params, read_only=False) -> 'StorageBackend':

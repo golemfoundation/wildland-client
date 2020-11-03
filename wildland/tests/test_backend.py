@@ -161,3 +161,63 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
     time.sleep(2)
 
     assert received_events == [FileEvent('create', PurePosixPath('anotherdir'))]
+
+
+def test_hashing_short(tmpdir, storage_backend):
+    storage_dir = tmpdir / 'storage1'
+    os.mkdir(storage_dir)
+    backend: StorageBackend = storage_backend(
+        params={'path': storage_dir, 'type': storage_backend.TYPE})
+
+    with open(storage_dir / 'testfile', mode='w') as f:
+        f.write('aaaa')
+
+    assert backend.get_hash(PurePosixPath("testfile")) == \
+           '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
+
+
+def test_hashing_long(tmpdir, storage_backend):
+    storage_dir = tmpdir / 'storage1'
+    os.mkdir(storage_dir)
+    backend: StorageBackend = storage_backend(
+        params={'path': storage_dir, 'type': storage_backend.TYPE})
+
+    with open(storage_dir / 'testfile', mode='w') as f:
+        for _ in range(1024 ** 2):
+            f.write('aaaa')
+
+    assert backend.get_hash(PurePosixPath("testfile")) == \
+           '299285fc41a44cdb038b9fdaf494c76ca9d0c866672b2b266c1a0c17dda60a05'
+
+
+def test_walk(tmpdir, storage_backend):
+    storage_dir = tmpdir / 'storage1'
+    os.mkdir(storage_dir)
+    backend: StorageBackend = storage_backend(
+        params={'path': storage_dir, 'type': storage_backend.TYPE})
+
+    os.mkdir(storage_dir / 'dir1')
+    os.mkdir(storage_dir / 'dir2')
+    os.mkdir(storage_dir / 'dir1/subdir1')
+    os.mkdir(storage_dir / 'dir1/subdir2')
+    os.mkdir(storage_dir / 'dir1/subdir1/subsubdir1')
+
+    open(storage_dir / 'testfile1', 'a').close()
+    open(storage_dir / 'dir2/testfile2', 'a').close()
+    open(storage_dir / 'dir1/subdir1/testfile3', 'a').close()
+    open(storage_dir / 'dir1/subdir1/testfile4', 'a').close()
+    open(storage_dir / 'dir1/subdir1/subsubdir1/testfile5', 'a').close()
+
+    received_files = [(str(f[0]), f[1].is_dir()) for f in backend.walk()]
+    expected_files = [('dir1', True),
+                      ('dir2', True),
+                      ('dir1/subdir1', True),
+                      ('dir1/subdir2', True),
+                      ('dir1/subdir1/subsubdir1', True),
+                      ('testfile1', False),
+                      ('dir2/testfile2', False),
+                      ('dir1/subdir1/testfile3', False),
+                      ('dir1/subdir1/testfile4', False),
+                      ('dir1/subdir1/subsubdir1/testfile5', False)]
+
+    assert sorted(received_files) == sorted(expected_files)
