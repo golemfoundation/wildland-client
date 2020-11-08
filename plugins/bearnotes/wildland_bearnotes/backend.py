@@ -161,7 +161,8 @@ class BearDB:
             for note in self.db.notes():
                 yield note.id
 
-    def get_note_idents_titles_with_tags(self) -> Iterable[Tuple[str, str, List[str]]]:
+    def get_notes_with_metadata(self) -> \
+            Iterable[Tuple[str, str, List[str], int]]:
         '''
         Retrieve list of note IDs, along with tags.
         '''
@@ -170,7 +171,8 @@ class BearDB:
 
         with self.db_lock:
             for note in self.db.notes():
-                yield note.id, note.title, [tag.title for tag in note.tags()]
+                yield note.id, note.title, [tag.title for tag in note.tags()], \
+                      int(note.modified.timestamp())
 
     def get_note(self, ident: str) -> Optional[bear.Note]:
         '''
@@ -305,18 +307,23 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         try:
-            for ident, title, tags in self.bear_db.get_note_idents_titles_with_tags():
-                yield FileCachedDirEntry(self.bear_db.path,
-                                         ident, partial(self._dir_note, ident, title, tags))
+            for ident, title, tags, timestamp in \
+                    self.bear_db.get_notes_with_metadata():
+                yield FileCachedDirEntry(
+                    self.bear_db.path,
+                    ident,
+                    partial(self._dir_note, ident, title, tags, timestamp),
+                    timestamp=timestamp)
         except sqlite3.DatabaseError:
             logger.exception('error loading database')
             return
 
-    def _dir_note(self, ident: str, title: str, tags: List[str]):
-        yield StaticFileEntry('container.yaml', self._get_manifest(ident, title, tags))
-        yield StaticFileEntry('README.md', self._get_readme())
+    def _dir_note(self, ident: str, title: str, tags: List[str], timestamp: int):
+        yield StaticFileEntry('container.yaml', self._get_manifest(ident, title, tags),
+                              timestamp=timestamp)
+        yield StaticFileEntry('README.md', self._get_readme(), timestamp=timestamp)
         if self.with_content:
-            yield StaticFileEntry('note.md', self._get_note(ident))
+            yield StaticFileEntry('note.md', self._get_note(ident), timestamp=timestamp)
 
     def _get_readme(self) -> bytes:
         '''
@@ -414,4 +421,5 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
             raise FileNotFoundError(errno.ENOENT, '')
 
         name = re.sub(r'[\0\\/:*?"<>|]', '-', note.title)
-        yield StaticFileEntry(f'{name}.md', get_md(note))
+        yield StaticFileEntry(f'{name}.md', get_md(note),
+                              timestamp=int(note.modified.timestamp()))
