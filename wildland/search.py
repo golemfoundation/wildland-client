@@ -505,3 +505,17 @@ class StorageDriver:
             self.storage_backend.write(relpath, data, 0, obj)
         finally:
             self.storage_backend.release(relpath, 0, obj)
+
+    def makedirs(self, relpath, mode=0o755):
+        '''
+        Make directory, and it's parents if needed. Does not work across
+        containers.
+        '''
+        for path in reversed((relpath, *relpath.parents)):
+            try:
+                attr = self.storage_backend.getattr(path)
+            except FileNotFoundError:
+                self.storage_backend.mkdir(path, mode)
+            else:
+                if not attr.is_dir():
+                    raise NotADirectoryError(errno.ENOTDIR, path)
