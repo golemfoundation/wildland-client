@@ -14,20 +14,22 @@ RUN apt-get -qy update && apt-get install -y \
       procps htop \
       less nano vim \
       ranger \
-      nginx libnginx-mod-http-dav-ext
+      apache2
 
 # Enable sudo
 
 RUN usermod -G sudo user
 RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 
-# Setup nginx
+# Setup webdav
 
-COPY ./docker/nginx-webdav.conf /etc/nginx/sites-available
-RUN rm -f /etc/nginx/sites-enabled/default
-RUN ln -s ../sites-available/nginx-webdav.conf /etc/nginx/sites-enabled/
-# FUSE is configured to allow only the owner
-RUN sed -i s/www-data/user/ /etc/nginx/nginx.conf
+RUN sed -i 's/www-data/user/' /etc/apache2/envvars
+COPY ./docker/apache2-wl.conf /etc/apache2/sites-available/wl.conf
+RUN a2enmod dav dav_fs
+RUN a2dissite 000-default
+RUN a2ensite wl
+RUN mkdir -p /var/lock/apache2
+RUN chown -R user /var/lock/apache2
 
 USER user
 

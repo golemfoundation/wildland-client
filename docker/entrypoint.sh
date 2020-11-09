@@ -15,7 +15,7 @@ sudo chmod 666 /dev/fuse
 
 export __fish_prompt_hostname="wildland-fuse"
 
-sudo /etc/init.d/nginx start
+sudo /etc/init.d/apache2 start
 
 sudo chown -R user.user ~/.config ~/storage
 if ! [ -f ~/.config/wildland/config.yaml ]; then
