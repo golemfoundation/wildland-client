@@ -25,7 +25,7 @@ RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 
 RUN sed -i 's/www-data/user/' /etc/apache2/envvars
 COPY ./docker/apache2-wl.conf /etc/apache2/sites-available/wl.conf
-RUN a2enmod dav dav_fs
+RUN a2enmod dav dav_fs rewrite
 RUN a2dissite 000-default
 RUN a2ensite wl
 RUN mkdir -p /var/lock/apache2
