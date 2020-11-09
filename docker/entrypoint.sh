@@ -18,10 +18,10 @@ export __fish_prompt_hostname="wildland-fuse"
 sudo /etc/init.d/apache2 start
 
 sudo chown -R user.user ~/.config ~/storage
-if ! [ -f ~/.config/wildland/config.yaml ]; then
+if ! grep -q '^mount-dir:' ~/.config/wildland/config.yaml 2>/dev/null; then
    # fresh start?
    mkdir -p ~/.config/wildland
-   echo "mount-dir: $MOUNT_DIR" > ~/.config/wildland/config.yaml
+   echo "mount-dir: $MOUNT_DIR" >> ~/.config/wildland/config.yaml
 fi
 
 cd /home/user
