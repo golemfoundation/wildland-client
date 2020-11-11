@@ -24,16 +24,24 @@ Manage containers
 from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Dict, Optional
 import os
+import sys
+import signal
 import traceback
 
+import daemon
 import click
-
+from xdg import BaseDirectory
+from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
 from ..storage import Storage
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
+
+
+PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
+WATCH_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
 
 
 @aliased_group('container', short_help='container management')
@@ -310,11 +318,13 @@ class Remounter:
     '''
 
     def __init__(self, client: Client, fs_client: WildlandFSClient,
-                 container_names: List[str]):
+                 container_names: List[str], additional_patterns: Optional[List[str]] = None):
         self.client = client
         self.fs_client = fs_client
 
         self.patterns: List[str] = []
+        if additional_patterns:
+            self.patterns.extend(additional_patterns)
         for name in container_names:
             path = Path(os.path.expanduser(name)).resolve()
             relpath = path.relative_to(self.fs_client.mount_dir)
@@ -427,6 +437,52 @@ def mount_watch(obj: ContextObj, container_names):
 
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
+    if os.path.exists(PIDFILE):
+        raise CliError("Mount-watch already running; use stop-mount-watch to stop it or "
+                       "add-mount-watch to watch more containers.")
+    if container_names:
+        with open(WATCH_DATA_FILE, 'w') as file:
+            file.truncate(0)
+            file.write("\n".join(container_names))
 
     remounter = Remounter(obj.client, obj.fs_client, container_names)
-    remounter.run()
+
+    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(PIDFILE),
+                              stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
+        remounter.run()
+
+
+@container_.command('stop-mount-watch', short_help='stop mount container watch')
+def stop_mount_watch():
+    """
+    Stop watching for manifest files inside Wildland.
+    """
+    if os.path.exists(PIDFILE):
+        with open(PIDFILE) as pid:
+            try:
+                os.kill(int(pid.readline()), signal.SIGINT)
+            except ProcessLookupError:
+                os.remove(PIDFILE)
+            finally:
+                os.remove(WATCH_DATA_FILE)
+    else:
+        raise CliError("Mount-watch not running.")
+
+
+@container_.command('add-mount-watch', short_help='mount container')
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
+@click.pass_obj
+def add_mount_watch(obj: ContextObj, container_names):
+    """
+    Add additional container manifest patterns to daemon that watches for manifest files inside
+    Wildland.
+    """
+
+    if os.path.exists(WATCH_DATA_FILE):
+        with open(WATCH_DATA_FILE, 'r') as file:
+            old_container_names = file.read().split('\n')
+        container_names.extend(old_container_names)
+
+    stop_mount_watch()
+
+    mount_watch(obj, container_names)

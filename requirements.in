@@ -12,6 +12,8 @@ python-dateutil
 lxml
 imapclient
 inotify_simple
+python-daemon
+pyxdg
 
 # Development / testing
 pip-tools
