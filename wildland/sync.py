@@ -28,10 +28,10 @@ from functools import partial
 from itertools import combinations, permutations
 from pathlib import PurePosixPath
 from contextlib import suppress
-from ..storage import StorageBackend
-from ..storage_backends.watch import FileEvent, StorageWatcher
-from ..storage_backends.base import OptionalError, HashMismatchError
-from ..log import init_logging
+from .storage import StorageBackend
+from .storage_backends.watch import FileEvent, StorageWatcher
+from .storage_backends.base import OptionalError, HashMismatchError
+from .log import init_logging
 
 BLOCK_SIZE = 1024 ** 2
 

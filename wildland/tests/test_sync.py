@@ -28,10 +28,11 @@ from pathlib import PurePosixPath
 import pytest
 
 from ..storage_backends.local import LocalStorageBackend
-from ..cli.cli_sync import Syncer, BLOCK_SIZE
+from ..sync import Syncer, BLOCK_SIZE
 from ..log import init_logging
 
 init_logging()
+
 
 @pytest.fixture(params=[LocalStorageBackend])
 def storage_backend(request) -> Callable:

@@ -25,23 +25,25 @@ from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Dict, Optional
 import os
 import sys
+import threading
 import signal
 import traceback
-
-import daemon
 import click
+import daemon
+
 from xdg import BaseDirectory
 from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..container import Container
-from ..storage import Storage
+from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
+from ..sync import Syncer
 
 
-PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
-WATCH_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
+MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
+MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
 
 
 @aliased_group('container', short_help='container management')
@@ -426,6 +428,20 @@ class Remounter:
         self.to_mount.clear()
 
 
+def terminate_daemon(pfile, error_message):
+    """
+    Terminate a daemon running at specified pfile. If daemon not running, raise error message.
+    """
+    if os.path.exists(pfile):
+        with open(pfile) as pid:
+            try:
+                os.kill(int(pid.readline()), signal.SIGINT)
+            except ProcessLookupError:
+                os.remove(pfile)
+    else:
+        raise click.ClickException(error_message)
+
+
 @container_.command('mount-watch', short_help='mount container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
@@ -437,17 +453,17 @@ def mount_watch(obj: ContextObj, container_names):
 
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
-    if os.path.exists(PIDFILE):
-        raise CliError("Mount-watch already running; use stop-mount-watch to stop it or "
-                       "add-mount-watch to watch more containers.")
+    if os.path.exists(MW_PIDFILE):
+        raise click.ClickException("Mount-watch already running; use stop-mount-watch to stop it "
+                                   "or add-mount-watch to watch more containers.")
     if container_names:
-        with open(WATCH_DATA_FILE, 'w') as file:
+        with open(MW_DATA_FILE, 'w') as file:
             file.truncate(0)
             file.write("\n".join(container_names))
 
     remounter = Remounter(obj.client, obj.fs_client, container_names)
 
-    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(PIDFILE),
+    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         remounter.run()
 
@@ -457,16 +473,7 @@ def stop_mount_watch():
     """
     Stop watching for manifest files inside Wildland.
     """
-    if os.path.exists(PIDFILE):
-        with open(PIDFILE) as pid:
-            try:
-                os.kill(int(pid.readline()), signal.SIGINT)
-            except ProcessLookupError:
-                os.remove(PIDFILE)
-            finally:
-                os.remove(WATCH_DATA_FILE)
-    else:
-        raise CliError("Mount-watch not running.")
+    terminate_daemon(MW_PIDFILE, "Mount-watch not running.")
 
 
 @container_.command('add-mount-watch', short_help='mount container')
@@ -478,11 +485,65 @@ def add_mount_watch(obj: ContextObj, container_names):
     Wildland.
     """
 
-    if os.path.exists(WATCH_DATA_FILE):
-        with open(WATCH_DATA_FILE, 'r') as file:
+    if os.path.exists(MW_DATA_FILE):
+        with open(MW_DATA_FILE, 'r') as file:
             old_container_names = file.read().split('\n')
         container_names.extend(old_container_names)
 
     stop_mount_watch()
 
     mount_watch(obj, container_names)
+
+
+def syncer_pidfile_for_container(container: Container) -> Path:
+    """
+    Helper function that returns a pidfile for a given container's sync process.
+    """
+    container_id = container.ensure_uuid()
+    return Path(BaseDirectory.get_runtime_dir()) / f'wildland-sync-{container_id}.pid'
+
+
+@container_.command('sync', short_help='start syncing a container')
+@click.argument('cont', metavar='CONTAINER')
+@click.pass_obj
+def sync_container(obj: ContextObj, cont):
+    """
+    Keep the given container in sync across storages.
+    """
+
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+
+    sync_pidfile = syncer_pidfile_for_container(container)
+
+    if os.path.exists(sync_pidfile):
+        raise click.ClickException("Sync process for this container is already running; use "
+                                   "stop-sync to stop it.")
+
+    storages = [StorageBackend.from_params(storage.params) for storage in
+                obj.client.all_storages(container)]
+
+    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
+                              stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
+        syncer = Syncer(storages, str(container.local_path))
+        syncer.start_syncing()
+        try:
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            syncer.stop_syncing()
+
+
+@container_.command('stop-sync', short_help='stop syncing a container')
+@click.argument('cont', metavar='CONTAINER')
+@click.pass_obj
+def stop_syncing_container(obj: ContextObj, cont):
+    '''
+    Keep the given container in sync across storages.
+    '''
+
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+
+    sync_pidfile = syncer_pidfile_for_container(container)
+
+    terminate_daemon(sync_pidfile, "Sync container for this container is not running.")

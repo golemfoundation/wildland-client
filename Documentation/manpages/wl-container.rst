@@ -192,3 +192,21 @@ Stop the current mount-watch daemon.
 
 See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
 and :ref:`wl edit <wl-edit>` documentation.
+
+.. program:: wl-container-sync
+.. _wl-container-sync:
+
+:command:`wl container sync <container>`
+----------------------------------------
+
+Start synchronizing container's storages.
+
+
+.. program:: wl-container-stop-sync
+.. _wl-container-stop-sync:
+
+:command:`wl container stop-sync <container>`
+---------------------------------------------
+
+Stop synchronizing container's storages.
+
