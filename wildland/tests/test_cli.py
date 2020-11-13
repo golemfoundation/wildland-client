@@ -159,9 +159,14 @@ def test_user_delete_cascade(cli, base_dir):
     assert not container_path.exists()
 
 
-def test_user_verify(cli):
+def test_user_verify(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'verify', 'User')
+    cli('user', 'verify', 'User.user')
+    cli('user', 'verify', '0xaaa')
+    cli('user', 'verify', '@default')
+    cli('user', 'verify', '@default-owner')
+    cli('user', 'verify', base_dir / 'users/User.user.yaml')
 
 
 def test_user_verify_bad_sig(cli, cli_fail, base_dir):
@@ -187,6 +192,13 @@ def test_user_sign(cli, cli_fail, base_dir):
     cli('user', 'sign', '-i', tmp_file)
     cli('user', 'verify', tmp_file)
 
+    user_file = base_dir / 'users/User.user.yaml'
+    modify_file(user_file, 'dummy.0xaaa', 'outdated.0xaaa')
+    cli_fail('user', 'verify', user_file)
+
+    cli('user', 'sign', '-i', 'User')
+    cli('user', 'verify', '0xaaa')
+
 
 def test_user_edit(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -196,6 +208,11 @@ def test_user_edit(cli, base_dir):
         data = f.read()
     assert '"0xaaa"' in data
 
+    editor = r'sed -i s,\"0xaaa\",\'0xaaa\',g'
+    cli('user', 'edit', '@default', '--editor', editor)
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert '\'0xaaa\'' in data
 
 def test_user_edit_bad_fields(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -235,6 +252,27 @@ def test_storage_create_not_inline(cli, base_dir):
 
     storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert str(storage_path) in data
+
+
+def test_storage_edit(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container', '--no-update-container')
+
+    manifest = base_dir / 'storage/Storage.storage.yaml'
+
+    editor = r'sed -i s,PATH,HTAP,g'
+    cli('storage', 'edit', 'Storage', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "path: /HTAP" in data
+
+    editor = r'sed -i s,HTAP,PATH,g'
+    cli('storage', 'edit', manifest, '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "path: /PATH" in data
 
 
 def test_storage_create_inline(cli, base_dir):
@@ -403,6 +441,25 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
         path,
         '/PATH',
     ]
+
+
+def test_container_edit(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    editor = r'sed -i s,PATH,HTAP,g'
+    cli('container', 'edit', 'Container', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "/HTAP" in data
+
+    editor = r'sed -i s,HTAP,PATH,g'
+    cli('container', 'edit', 'Container.container', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "/PATH" in data
 
 
 def test_container_create_update_user(cli, base_dir):
