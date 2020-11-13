@@ -41,7 +41,6 @@ from ..manifest.manifest import (
     split_header,
 )
 
-
 def find_manifest_file(client: Client, name, manifest_type) -> Path:
     '''
     CLI helper: load a manifest by name.
@@ -225,7 +224,7 @@ def edit(ctx, editor, input_file, remount):
 
 
 @click.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True)
+@click.option('--path', metavar='PATH', required=True, help='Path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_path(ctx, input_file, path):
