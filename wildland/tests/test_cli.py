@@ -226,6 +226,29 @@ def test_user_edit_editor_failed(cli, cli_fail):
     cli_fail('user', 'edit', 'User', '--editor', editor)
 
 
+def test_user_add_path(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    cli('user', 'add-path', 'User', '--path', '/abc')
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert '/abc' in data
+
+    cli('user', 'add-path', '@default', '--path', '/xyz')
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert '/xyz' in data
+
+    # duplicates should be ignored
+    cli('user', 'add-path', 'User', '--path', '/xyz')
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/xyz') == 1
+
+    # invalid path
+    cli_fail('user', 'add-path', 'User', '--path', 'abc')
+
+
 ## Storage
 
 def test_storage_create(cli, base_dir):
@@ -257,8 +280,8 @@ def test_storage_create_not_inline(cli, base_dir):
 def test_storage_edit(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
-        '--container', 'Container', '--no-update-container')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
 
     manifest = base_dir / 'storage/Storage.storage.yaml'
 
@@ -266,13 +289,13 @@ def test_storage_edit(cli, base_dir):
     cli('storage', 'edit', 'Storage', '--editor', editor)
     with open(manifest) as f:
         data = f.read()
-    assert "path: /HTAP" in data
+    assert "location: /HTAP" in data
 
     editor = r'sed -i s,HTAP,PATH,g'
     cli('storage', 'edit', manifest, '--editor', editor)
     with open(manifest) as f:
         data = f.read()
-    assert "path: /PATH" in data
+    assert "location: /PATH" in data
 
 
 def test_storage_create_inline(cli, base_dir):

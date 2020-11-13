@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 import click
+import yaml
 
 from .cli_base import ContextObj
 from ..client import Client
@@ -221,3 +222,48 @@ def edit(ctx, editor, input_file, remount):
             storage = obj.client.select_storage(container)
             obj.fs_client.mount_container(
                 container, storage, user_paths, remount=remount)
+
+
+@click.command(short_help='add path to the manifest')
+@click.option('--path', metavar='PATH', required=True)
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_path(ctx, input_file, path):
+    '''
+    Add a path to the manifest.
+    '''
+    obj: ContextObj = ctx.obj
+
+    manifest_type = ctx.parent.command.name
+    if manifest_type == 'main':
+        manifest_type = None
+
+    manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
+    data = manifest_path.read_bytes()
+
+    if HEADER_SEPARATOR in data:
+        _, data = split_header(data)
+
+    # TODO: editing the structure like this should be done in Manifest
+    # ...but Manifest is designed to be immutable
+    body_str = data.decode('utf-8')
+    fields = yaml.safe_load(body_str)
+    fields = Manifest.update_obsolete(fields)
+    if path not in fields['paths']:
+        fields['paths'].append(path)
+    else:
+        click.echo(f'Path {path} is already in the manifest')
+        return
+
+    manifest = Manifest.from_fields(fields)
+    if manifest_type is not None:
+        validate_manifest(manifest, manifest_type)
+
+    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+
+    signed_data = manifest.to_bytes()
+    with open(manifest_path, 'wb') as f:
+        f.write(signed_data)
+
+    click.echo(f'Saved: {manifest_path}')
+>>>>>>> de8e8eb... Add user add-path cli command
