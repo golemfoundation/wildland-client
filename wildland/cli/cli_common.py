@@ -46,28 +46,22 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     '''
 
-    # TODO this duplicates Client.load_*_from
-
-    if (manifest_type in ['user', 'container', 'storage', 'bridge'] and
-        not name.endswith('.yaml')):
-
-        base_dir = {
-            'user': client.user_dir,
-            'container': client.container_dir,
-            'storage': client.storage_dir,
-            'bridge': client.bridge_dir,
+    if (manifest_type in ['user', 'container', 'storage', 'bridge']):
+        search_func = {
+            'user': lambda client, name:
+                client.find_user_manifest(name),
+            'container': lambda client, name:
+                client.find_local_manifest(client.container_dir, 'container', name),
+            'storage': lambda client, name:
+                client.find_local_manifest(client.storage_dir, 'storage', name),
+            'bridge': lambda client, name:
+                client.find_local_manifest(client.bridge_dir, 'bridge', name),
         }[manifest_type]
-        path = base_dir / f'{name}.yaml'
-        if path.exists():
-            return path
 
-        path = base_dir / f'{name}.{manifest_type}.yaml'
-        if path.exists():
-            return path
-
-    path = Path(name)
-    if path.exists():
-        return path
+        try:
+            return search_func(client, name)
+        except ManifestError as e:
+            raise click.ClickException(f'{e}')
 
     raise click.ClickException(f'Not found: {name}')
 
