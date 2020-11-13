@@ -515,7 +515,7 @@ def test_watch_local_dir(local_env):
     with open(local_env.test_dir / 'storage/storage1/dir1/file1.txt', 'w'):
         pass
 
-    event = local_env.recv_event()
+    event = collect_all_events(local_env)
     assert event == [{'type': 'create', 'path': 'dir1/file1.txt',
                       'storage-id': 1, 'watch-id': watch_id},
                      {'type': 'modify', 'path': 'dir1/file1.txt',
@@ -533,7 +533,7 @@ def test_watch_local_dir(local_env):
     with open(local_env.test_dir / 'storage/storage1/dir2/file3.txt', 'w'):
         pass
 
-    event = local_env.recv_event()
+    event = collect_all_events(local_env)
     assert event == [{'type': 'create', 'path': 'dir2/file3.txt',
                       'storage-id': 1, 'watch-id': watch_id},
                      {'type': 'modify', 'path': 'dir2/file3.txt',
