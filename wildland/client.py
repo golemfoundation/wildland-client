@@ -247,6 +247,27 @@ class Client:
         for path in paths:
             yield self.load_container_from_path(Path(path))
 
+    def resolve_container_name_to_path(self, name: str) -> Optional[Path]:
+        """
+        Resolve a (non-Wildland Path) container name/path to Path.
+        """
+        # Short name
+        if not name.endswith('.yaml'):
+            path = self.container_dir / f'{name}.yaml'
+            if path.exists():
+                return path
+
+            path = self.container_dir / f'{name}.container.yaml'
+            if path.exists():
+                return path
+
+        # Local path
+        path = Path(name)
+        if path.exists():
+            return path
+
+        return None
+
     def load_container_from(self, name: str) -> Container:
         '''
         Load a container based on a (potentially ambiguous) name.
@@ -257,19 +278,8 @@ class Client:
             wlpath = WildlandPath.from_str(name)
             return self.load_container_from_wlpath(wlpath)
 
-        # Short name
-        if not name.endswith('.yaml'):
-            path = self.container_dir / f'{name}.yaml'
-            if path.exists():
-                return self.load_container_from_path(path)
-
-            path = self.container_dir / f'{name}.container.yaml'
-            if path.exists():
-                return self.load_container_from_path(path)
-
-        # Local path
-        path = Path(name)
-        if path.exists():
+        path = self.resolve_container_name_to_path(name)
+        if path:
             return self.load_container_from_path(path)
 
         raise ManifestError(f'Container not found: {name}')
@@ -316,24 +326,33 @@ class Client:
         trusted_owner = owner
         return self.session.load_storage(content, trusted_owner=trusted_owner)
 
-    def load_storage_from(self, name: str) -> Storage:
-        '''
-        Load a storage based on a (potentially ambiguous) name.
-        '''
-
+    def resolve_storage_name_to_path(self, name: str) -> Optional[Path]:
+        """
+        Resolve a storage name (potentially ambiguous) into a Path.
+        """
         # Short name
         if not name.endswith('.yaml'):
             path = self.storage_dir / f'{name}.yaml'
             if path.exists():
-                return self.load_storage_from_path(path)
+                return path
 
             path = self.storage_dir / f'{name}.storage.yaml'
             if path.exists():
-                return self.load_storage_from_path(path)
+                return path
 
         # Local path
         path = Path(name)
         if path.exists():
+            return path
+
+        return None
+
+    def load_storage_from(self, name: str) -> Storage:
+        '''
+        Load a storage based on a (potentially ambiguous) name.
+        '''
+        path = self.resolve_storage_name_to_path(name)
+        if path:
             return self.load_storage_from_path(path)
 
         raise ManifestError(f'Storage not found: {name}')

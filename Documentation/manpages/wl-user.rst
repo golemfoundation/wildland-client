@@ -61,8 +61,8 @@ Unless ``--key`` is provided, the command will generate a new Signify key pair.
 .. program:: wl-user-delete
 .. _wl-user-delete:
 
-:command:`wl user delete [--force] [--cascade] NAME`
--------------------------------------------------------
+:command:`wl user delete [--force] [--cascade] [--delete-keys] NAME`
+--------------------------------------------------------------------
 
 Delete a user from local filesystem.
 
@@ -77,6 +77,10 @@ locally stored key pairs (``~/.config/wildland/keys/``).
 .. option:: --cascade
 
    Delete together with manifests (containers/storage) signed by the user.
+
+.. option:: --delete-keys
+
+   Delete together with public/private key pair owned by the user.
 
 .. _wl-user-sign:
 .. _wl-user-verify:

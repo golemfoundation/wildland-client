@@ -32,7 +32,7 @@ from ..storage import Storage
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
-
+from ..manifest.manifest import ManifestError
 
 @aliased_group('storage', short_help='storage management')
 def storage_():
@@ -164,7 +164,7 @@ def list_(obj: ContextObj):
 @storage_.command('delete', short_help='delete a storage', alias=['rm'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
-              help='delete even if used by containers')
+              help='delete even if used by containers or if manifest cannot be loaded')
 @click.option('--cascade', is_flag=True,
               help='remove reference from containers')
 @click.argument('name', metavar='NAME')
@@ -175,7 +175,26 @@ def delete(obj: ContextObj, name, force, cascade):
 
     obj.client.recognize_users()
 
-    storage = obj.client.load_storage_from(name)
+    try:
+        storage = obj.client.load_storage_from(name)
+    except ManifestError as ex:
+        if force:
+            click.echo(f'Failed to load manifest: {ex}')
+            try:
+                path = obj.client.resolve_storage_name_to_path(name)
+                if path:
+                    click.echo(f'Deleting file {path}')
+                    path.unlink()
+            except ManifestError:
+                # already removed
+                pass
+            if cascade:
+                click.echo('Unable to cascade remove: manifest failed to load.')
+            return
+        click.echo(f'Failed to load manifest, cannot delete: {ex}')
+        click.echo('Use --force to force deletion.')
+        return
+
     if not storage.local_path:
         raise CliError('Can only delete a local manifest')
 
@@ -185,8 +204,7 @@ def delete(obj: ContextObj, name, force, cascade):
         modified = False
         for url_or_dict in list(container.backends):
             if (isinstance(url_or_dict, str) and
-                obj.client.parse_file_url(url_or_dict, container.owner) ==
-                storage.local_path):
+                obj.client.parse_file_url(url_or_dict, container.owner) == storage.local_path):
 
                 if cascade:
                     click.echo('Removing {} from {}'.format(
