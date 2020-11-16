@@ -14,7 +14,8 @@ RUN apt-get -qy update && apt-get install -y \
       procps htop \
       less nano vim \
       ranger \
-      apache2
+      apache2 \
+      samba
 
 # Enable sudo
 
@@ -30,6 +31,9 @@ RUN a2dissite 000-default
 RUN a2ensite wl
 RUN mkdir -p /var/lock/apache2
 RUN chown -R user /var/lock/apache2
+
+# samba
+COPY ./docker/smb.conf /etc/samba/smb.conf
 
 USER user
 

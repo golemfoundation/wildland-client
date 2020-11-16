@@ -23,6 +23,8 @@ services:
       - /dev/fuse
     ports:
       - "8080:8080"
+      - "445:445"
+      - "139:139"
     volumes:
       - ..:/home/user/wildland-fuse:ro
       - usercfg:/home/user/.config:rw
