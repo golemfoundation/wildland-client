@@ -27,6 +27,7 @@ RUN apt-get -qy update && apt-get install -y \
       git
 
 RUN useradd --create-home user
+RUN echo user_allow_other >> /etc/fuse.conf
 
 RUN mkdir /home/user/wildland-fuse
 

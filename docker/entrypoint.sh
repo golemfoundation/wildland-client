@@ -17,6 +17,8 @@ export __fish_prompt_hostname="wildland-fuse"
 
 sudo /etc/init.d/apache2 start
 
+sudo /etc/init.d/smbd start
+
 sudo chown -R user.user ~/.config ~/storage
 if ! grep -q '^mount-dir:' ~/.config/wildland/config.yaml 2>/dev/null; then
    # fresh start?
@@ -28,6 +30,8 @@ cd /home/user
 
 echo
 echo "WebDAV server is running at dav://localhost:8080/"
+echo
+echo "SMB server is running at smb://localhost/wildland/"
 echo
 
 
