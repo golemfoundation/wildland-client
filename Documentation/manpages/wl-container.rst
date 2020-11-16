@@ -147,6 +147,32 @@ Make sure to use quotation marks, or the wildcard patterns will be expanded
 by the shell.
 
 
+.. program:: wl-container-add-mount-watch
+.. _wl-container-add-mount-watch:
+
+:command:`wl container add-mount-watch <pattern> [<pattern>...]`
+----------------------------------------------------------------
+
+Modify mount-watch to watch for additional patterns. See
+:ref:`wl container mount-watch <wl-container>` for syntax requirements.
+
+Container mount-watch must be running. The Wildland system has to be mounted first,
+see :ref:`wl start <wl-start>`.
+
+Example::
+
+    wl container add-mount-watch '~/wildland/mynotes/*/*.yaml'
+
+
+.. program:: wl-container-stop-mount-watch
+.. _wl-container-stop-mount-watch:
+
+:command:`wl container stop-mount-watch`
+----------------------------------------
+
+Stop the current mount-watch daemon.
+
+
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
@@ -166,3 +192,21 @@ by the shell.
 
 See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
 and :ref:`wl edit <wl-edit>` documentation.
+
+.. program:: wl-container-sync
+.. _wl-container-sync:
+
+:command:`wl container sync <container>`
+----------------------------------------
+
+Start synchronizing container's storages.
+
+
+.. program:: wl-container-stop-sync
+.. _wl-container-stop-sync:
+
+:command:`wl container stop-sync <container>`
+---------------------------------------------
+
+Stop synchronizing container's storages.
+

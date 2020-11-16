@@ -32,3 +32,7 @@ RUN sed -i s/www-data/user/ /etc/nginx/nginx.conf
 USER user
 
 ENTRYPOINT ["./docker/entrypoint.sh"]
+
+RUN mkdir -p /tmp/docker-user-runtime
+ENV XDG_RUNTIME_DIR /tmp/docker-user-runtime
+ENV EDITOR vim
