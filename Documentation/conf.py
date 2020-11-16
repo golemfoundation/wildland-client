@@ -104,6 +104,8 @@ nitpick_ignore = [
     ('py:class', 'fuse.Stat'),
     # sphinx does not like dataclasses
     ('py:class', 'wildland.storage_backends.base.FileEvent'),
+    ('py:class', 'wildland.storage_backends.base.File'),
+    ('py:class', 'wildland.storage_backends.base.Attr'),
 ]
 
 todo_include_todos = True
