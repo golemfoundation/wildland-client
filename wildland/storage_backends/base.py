@@ -28,12 +28,14 @@ from dataclasses import dataclass
 import stat
 import hashlib
 import os
+import logging
 
 import click
 
 from ..manifest.schema import Schema
 
 BLOCK_SIZE = 1024 ** 2
+logger = logging.getLogger('storage')
 
 
 class StorageError(BaseException):
@@ -245,13 +247,23 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.ignore_own_events = False
 
     def watcher(self):
-        '''
-        Create a StorageWatcher (see watch.py) for this storage, if supported.
+        """
+        Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
+        manifest contains a 'watcher-delay' parameter, SimpleStorageWatcher (which is a naive,
+        brute-force watcher that scans the entire storage every watcher-delay seconds) will be used.
+        If a given StorageBackend provides a better solution, it's recommended to overwrite this
+        method to provide it. It is recommended to still use SimpleStorageWatcher if the user
+        explicitly specifies watcher-delay in the manifest. See local.py for a simple super()
+        implementation that avoids duplicating code.
 
         Note that changes originating from FUSE are reported without using this
         mechanism.
-        '''
-
+        """
+        if 'watcher-delay' in self.params:
+            # pylint: disable=import-outside-toplevel, cyclic-import
+            logger.warning("Using simple storage watcher - it can be very inefficient.")
+            from ..storage_backends.watch import SimpleStorageWatcher
+            return SimpleStorageWatcher(self, delay=int(self.params['watcher-delay']))
         return None
 
     # FUSE file operations. Return a File instance.

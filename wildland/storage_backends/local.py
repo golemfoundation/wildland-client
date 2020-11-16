@@ -196,7 +196,14 @@ class LocalStorageBackend(StorageBackend):
         return os.rmdir(self._path(path))
 
     def watcher(self):
-        return LocalStorageWatcher(self)
+        """
+        If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
+        use the smarter LocalStorageWatcher.
+        """
+        default_watcher = super(LocalStorageBackend, self).watcher()
+        if not default_watcher:
+            return LocalStorageWatcher(self)
+        return default_watcher
 
 
 class LocalStorageWatcher(StorageWatcher):

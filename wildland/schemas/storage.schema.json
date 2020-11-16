@@ -28,6 +28,10 @@
                 { "$ref": "#/definitions/pattern-glob" }
             ],
             "description": "A strategy for finding manifests in this storage, based on path."
+        },
+        "watcher-delay": {
+            "type": "integer",
+            "description": "Timer to use for watcher mechanism for this storage. Will cause a simple, brute-force watcher that scans the storage every watcher-delay seconds to be used. If omitted, a mechanism native to the backend will be used, or none, if not available."
         }
     },
     "definitions": {

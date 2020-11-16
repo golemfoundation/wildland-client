@@ -83,7 +83,6 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         '''
         Stop the watching thread.
         '''
-
         self.stop_event.set()
         self.thread.join()
         self.shutdown()
@@ -110,33 +109,36 @@ class StorageWatcher(metaclass=abc.ABCMeta):
 
 
 class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
-    '''
+    """
     An implementation of storage watcher that uses the backend to enumerate all
     files.
 
-    To use, override get_token() with something that will change when the
-    storage needs to be examined again (such as last modification time of
-    backing storage).
-    '''
+    Default implementation polls the storage every 10s for changes. To improve, override
+    get_token() with something that will change when the storage needs to be examined again
+    (such as last modification time of backing storage).
+    """
 
-    def __init__(self, backend: StorageBackend):
+    def __init__(self, backend: StorageBackend, delay: int = 10):
         super().__init__()
         self.backend = backend
         self.token = None
         self.info: Dict[PurePosixPath, Attr] = {}
+        self.delay = delay
+        self.counter = 0  # for naive implementation of get_token()
 
-    @abc.abstractmethod
     def get_token(self):
-        '''
+        """
         Retrieve token to be compared, such as file modification info.
-        '''
+        """
+        self.counter += 1
+        return self.counter
 
     def init(self):
         self.token = self.get_token()
         self.info = self._get_info()
 
     def wait(self) -> Optional[List[FileEvent]]:
-        self.stop_event.wait(1)
+        self.stop_event.wait(self.delay)
         new_token = self.get_token()
         if new_token != self.token:
             logger.debug('storage changed...')
