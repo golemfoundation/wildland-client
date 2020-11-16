@@ -25,9 +25,9 @@ from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Dict, Optional
 import os
 import sys
+import logging
 import threading
 import signal
-import traceback
 import click
 import daemon
 
@@ -40,10 +40,12 @@ from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
 from ..sync import Syncer
-
+from ..log import init_logging
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
+
+logger = logging.getLogger('cli_container')
 
 
 @aliased_group('container', short_help='container management')
@@ -344,15 +346,13 @@ class Remounter:
         Run the main loop.
         '''
 
-        click.echo(f'Using patterns: {self.patterns}')
+        logger.info('Using patterns: %r', self.patterns)
         for events in self.fs_client.watch(self.patterns, with_initial=True):
-            click.echo()
             for event in events:
                 try:
                     self.handle_event(event)
                 except Exception:
-                    click.echo('error in handle_event')
-                    traceback.print_exc()
+                    logger.exception('error in handle_event')
 
             self.unmount_pending()
             self.mount_pending()
@@ -363,7 +363,7 @@ class Remounter:
         self.to_mount and self.to_unmount.
         '''
 
-        click.echo(f'{event.event_type}: {event.path}')
+        logger.info('Event %s: %s', event.event_type, event.path)
 
         # Find out if we've already seen the file, and can match it to a
         # mounted storage.
@@ -379,10 +379,10 @@ class Remounter:
                 del self.main_paths[event.path]
 
             if storage_id is not None:
-                click.echo(f'  (unmount {storage_id})')
+                logger.info('  (unmount %s)', storage_id)
                 self.to_unmount.append(storage_id)
             else:
-                click.echo('  (not mounted)')
+                logger.info('  (not mounted)')
 
         # Handle create/modify:
         if event.event_type in ['create', 'modify']:
@@ -398,17 +398,17 @@ class Remounter:
             # In this case, we want to unmount the old one.
             current_storage_id = self.fs_client.find_storage_id(container)
             if storage_id is not None and storage_id != current_storage_id:
-                click.echo(f'  (unmount old: {storage_id})')
+                logger.info('  (unmount old: %s)', storage_id)
 
             # Call should_remount to determine if we should mount this
             # container.
             is_default_user = container.owner == self.client.config.get('@default')
             storage = self.client.select_storage(container)
             if self.fs_client.should_remount(container, storage, is_default_user):
-                click.echo('  (mount)')
+                logger.info('  (mount)')
                 self.to_mount.append((container, storage, is_default_user))
             else:
-                click.echo('  (no change)')
+                logger.info('  (no change)')
 
     def unmount_pending(self):
         '''
@@ -465,6 +465,7 @@ def mount_watch(obj: ContextObj, container_names):
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
+        init_logging(False, '/tmp/wl-mount-watch.log')
         remounter.run()
 
 
@@ -525,6 +526,7 @@ def sync_container(obj: ContextObj, cont):
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
+        init_logging(False, f'/tmp/wl-sync-{container.ensure_uuid()}.log')
         syncer = Syncer(storages, str(container.local_path))
         syncer.start_syncing()
         try:
