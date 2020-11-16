@@ -21,25 +21,27 @@
 Bear storage backend
 '''
 
+import errno
+import logging
+import os
+import re
+import sqlite3
+import threading
+from functools import partial
 from pathlib import PurePosixPath, Path
 from typing import Iterable, Optional, List, Set, Dict, Tuple
-import logging
-from dataclasses import dataclass
-from functools import partial
-import errno
-import os
-import threading
-import re
 
-import sqlite3
+import bear # pylint: disable=import-error,wrong-import-order
 import click
 
 from wildland.storage import Storage
 from wildland.container import Container
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.generated import \
-    GeneratedStorageMixin, CachedDirEntry, \
-    StaticFileEntry
+from wildland.storage_backends.generated import (
+    CachedDirEntry,
+    GeneratedStorageMixin,
+    StaticFileEntry,
+)
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
@@ -48,26 +50,15 @@ from wildland.manifest.schema import Schema
 logger = logging.getLogger('storage-bear')
 
 
-@dataclass
-class BearNote:
+def get_md(note) -> bytes:
     '''
-    Individual Bear note.
+    Get the contents of note Markdown file.
     '''
 
-    ident: str
-    title: str
-    text: str
-    tags: List[str]
-
-    def get_md(self) -> bytes:
-        '''
-        Get the contents of note Markdown file.
-        '''
-        content = 'title: ' + self.title + '\n---\n' + self.text + '\n'
-        return content.encode('utf-8')
+    return f'title: {note.title}\n---\n{note.text}\n'.encode('utf-8')
 
 
-def get_note_paths(tags: List[str]) -> List[PurePosixPath]:
+def get_note_categories(tags: List[str]) -> List[PurePosixPath]:
     '''
     Get the list of paths a note should be mounted under, based on tags.
 
@@ -135,8 +126,8 @@ class BearDB:
                 self.db_lock = self.conn_locks[self.path]
                 self.conn_refcount[self.path] += 1
             else:
-                self.db = sqlite3.connect(self.path, check_same_thread=False)
-                self.db.row_factory = sqlite3.Row
+                self.db = bear.Bear(self.path, connect=False)
+                self.db.connect(check_same_thread=False)
                 self.db_lock = threading.RLock()
                 self.conn_cache[self.path] = self.db
                 self.conn_locks[self.path] = self.db_lock
@@ -155,7 +146,7 @@ class BearDB:
                 del self.conn_refcount[self.path]
                 del self.conn_cache[self.path]
                 del self.conn_locks[self.path]
-                self.db.close()
+#               self.db.close()
             self.db = None
             self.db_lock = None
 
@@ -167,11 +158,11 @@ class BearDB:
         assert self.db and self.db_lock
 
         with self.db_lock:
-            cursor = self.db.cursor()
-            cursor.execute('SELECT ZUNIQUEIDENTIFIER FROM ZSFNOTE')
-            return [row['ZUNIQUEIDENTIFIER'] for row in cursor.fetchall()]
+            for note in self.db.notes():
+                yield note.id
 
-    def get_note_idents_with_tags(self) -> Iterable[Tuple[str, List[str]]]:
+    def get_notes_with_metadata(self) -> \
+            Iterable[Tuple[str, str, List[str], int]]:
         '''
         Retrieve list of note IDs, along with tags.
         '''
@@ -179,24 +170,11 @@ class BearDB:
         assert self.db and self.db_lock
 
         with self.db_lock:
-            cursor = self.db.cursor()
+            for note in self.db.notes():
+                yield note.id, note.title, [tag.title for tag in note.tags()], \
+                      int(note.modified.timestamp())
 
-            result: Dict[str, List[str]] = {
-                ident: []
-                for ident in self.get_note_idents()
-            }
-            cursor.execute('''
-                SELECT ZUNIQUEIDENTIFIER, ZSFNOTETAG.ZTITLE FROM ZSFNOTE
-                JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ZSFNOTE.Z_PK
-                JOIN ZSFNOTETAG ON Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
-            ''')
-            for row in cursor.fetchall():
-                ident = row['ZUNIQUEIDENTIFIER']
-                tag = row['ZTITLE']
-                result.setdefault(ident, []).append(tag)
-            return result.items()
-
-    def get_note(self, ident: str) -> Optional[BearNote]:
+    def get_note(self, ident: str) -> Optional[bear.Note]:
         '''
         Retrieve a single note.
         '''
@@ -204,36 +182,7 @@ class BearDB:
         assert self.db and self.db_lock
 
         with self.db_lock:
-            cursor = self.db.cursor()
-            cursor.execute('''
-                SELECT Z_PK, ZTITLE, ZTEXT FROM ZSFNOTE
-                WHERE ZUNIQUEIDENTIFIER = ?
-            ''', [ident])
-            row = cursor.fetchone()
-            if not row:
-                return None
-
-            tags = self.get_tags(row['Z_PK'])
-            return BearNote(ident=ident, title=row['ZTITLE'], text=row['ZTEXT'],
-                            tags=tags)
-
-    def get_tags(self, pk: int) -> List[str]:
-        '''
-        Retrieve a list of tags for a note.
-        '''
-
-        assert self.db and self.db_lock
-
-        with self.db_lock:
-            cursor = self.db.cursor()
-            cursor.execute('''
-                SELECT ZTITLE FROM ZSFNOTETAG
-                JOIN Z_7TAGS ON Z_7TAGS.Z_7NOTES = ?
-                AND Z_7TAGS.Z_14TAGS = ZSFNOTETAG.Z_PK
-            ''', [pk])
-
-            return [tag_row['ZTITLE'] for tag_row in cursor.fetchall()]
-
+            return self.db.get_note(ident)
 
 class BearDBWatcher(SimpleStorageWatcher):
     '''
@@ -330,17 +279,20 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         manifest.skip_signing()
         return manifest
 
-    def _make_container_manifest(self, ident: str, tags: List[str]) -> Manifest:
+    def _make_container_manifest(self, ident: str, title: str, tags: List[str]) -> Manifest:
         '''
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
         '''
 
         storage_manifest = self._make_storage_manifest(ident)
-        paths = [PurePosixPath(f'/.uuid/{ident}')] + get_note_paths(tags)
+        paths = [PurePosixPath(f'/.uuid/{ident}')]
+        categories = get_note_categories(tags)
         container = Container(
             owner=self.params['owner'],
+            title=title,
             paths=paths,
+            categories=categories,
             backends=[storage_manifest.fields],
         )
         manifest = container.to_unsigned_manifest()
@@ -355,18 +307,23 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         try:
-            for ident, tags in self.bear_db.get_note_idents_with_tags():
-                yield FileCachedDirEntry(self.bear_db.path,
-                                         ident, partial(self._dir_note, ident, tags))
+            for ident, title, tags, timestamp in \
+                    self.bear_db.get_notes_with_metadata():
+                yield FileCachedDirEntry(
+                    self.bear_db.path,
+                    ident,
+                    partial(self._dir_note, ident, title, tags, timestamp),
+                    timestamp=timestamp)
         except sqlite3.DatabaseError:
             logger.exception('error loading database')
             return
 
-    def _dir_note(self, ident: str, tags: List[str]):
-        yield StaticFileEntry('container.yaml', self._get_manifest(ident, tags))
-        yield StaticFileEntry('README.md', self._get_readme())
+    def _dir_note(self, ident: str, title: str, tags: List[str], timestamp: int):
+        yield StaticFileEntry('container.yaml', self._get_manifest(ident, title, tags),
+                              timestamp=timestamp)
+        yield StaticFileEntry('README.md', self._get_readme(), timestamp=timestamp)
         if self.with_content:
-            yield StaticFileEntry('note.md', self._get_note(ident))
+            yield StaticFileEntry('note.md', self._get_note(ident), timestamp=timestamp)
 
     def _get_readme(self) -> bytes:
         '''
@@ -390,14 +347,14 @@ The note files (currently just `note.md`) are also visible here.
 
         return readme.encode()
 
-    def _get_manifest(self, ident, tags):
-        return self._make_container_manifest(ident, tags).to_bytes()
+    def _get_manifest(self, ident, title, tags):
+        return self._make_container_manifest(ident, title, tags).to_bytes()
 
     def _get_note(self, ident):
         note = self.bear_db.get_note(ident)
         if not note:
             raise FileNotFoundError(errno.ENOENT, '')
-        return note.get_md()
+        return get_md(note)
 
 
 class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
@@ -464,4 +421,5 @@ class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
             raise FileNotFoundError(errno.ENOENT, '')
 
         name = re.sub(r'[\0\\/:*?"<>|]', '-', note.title)
-        yield StaticFileEntry(f'{name}.md', note.get_md())
+        yield StaticFileEntry(f'{name}.md', get_md(note),
+                              timestamp=int(note.modified.timestamp()))

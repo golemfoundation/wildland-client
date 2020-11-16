@@ -125,7 +125,7 @@ class CachedDirEntry(FuncDirEntry):
                  get_entries_func: Callable[[], Iterable[Entry]],
                  timestamp: int = 0,
                  timeout_seconds: float = 3):
-        super().__init__(name, get_entries_func)
+        super().__init__(name, get_entries_func, timestamp)
         self.entries: Dict[str, Entry] = {}
         self.expiry: float = 0
         self.timeout_seconds = timeout_seconds

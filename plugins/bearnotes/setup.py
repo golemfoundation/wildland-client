@@ -9,5 +9,8 @@ setup(
             'bear-db = wildland_bearnotes.backend:BearDBStorageBackend',
             'bear-note = wildland_bearnotes.backend:BearNoteStorageBackend',
         ]
-    }
+    },
+    install_requires=[
+        'pybear @ git+https://github.com/golemfoundation/pybear#egg=0.0.20200914',
+    ],
 )
