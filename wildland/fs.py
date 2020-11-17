@@ -368,9 +368,8 @@ class WildlandFS(fuse.Fuse):
 
     def _watch_handler(self, storage_id: int, events: List[FileEvent]):
         logger.debug('events from %d: %s', storage_id, events)
-        with self.mount_lock:
-            watches = [self.watches[watch_id]
-                       for watch_id in self.storage_watches.get(storage_id, [])]
+        watches = [self.watches[watch_id]
+                   for watch_id in self.storage_watches.get(storage_id, [])]
 
         for watch in watches:
             self._notify_watch(watch, events)

@@ -18,6 +18,7 @@ Welcome to Wildland's documentation!
    cli
    internals
    proxy
+   sync
    deprecated
 
 Indices and tables
