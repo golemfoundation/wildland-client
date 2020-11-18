@@ -93,7 +93,9 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         path = obj.client.save_new_user(user, name)
     except binascii.Error as ex:
         # Separate error to provide some sort of readable feedback
-        click.echo(f'Failed to create user due to incorrect key provided: {ex}')
+        # raised by SignifySigContext._fingerprint
+        click.echo(f'Failed to create user due to incorrect key provided (provide public '
+                   f'key, not path to key file): {ex}')
         error_on_save = True
     except SchemaError as ex:
         click.echo(f'Failed to create user: {ex}')

@@ -212,7 +212,8 @@ class SignifySigContext(SigContext):
     @staticmethod
     def _fingerprint(pubkey: str) -> str:
         """
-        Convert Signify pubkey to a owner identifier (fingerprint).
+        Convert Signify pubkey to a owner identifier (fingerprint). Raises binascii.Error
+        if failed to parse key data.
         """
         # # strip unneeded syntactic sugar and empty lines
         pubkey_data = SignifySigContext._strip_key(pubkey)
