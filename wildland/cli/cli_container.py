@@ -255,7 +255,11 @@ def mount(obj: ContextObj, container_names, remount, save):
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
             is_default_user = container.owner == obj.client.config.get('@default')
-            storage = obj.client.select_storage(container)
+            try:
+                storage = obj.client.select_storage(container)
+            except ManifestError:
+                print(f'Cannot mount {container_name}: no storage available')
+                continue
             param_tuple = (container, storage, is_default_user)
 
             if obj.fs_client.find_storage_id(container) is None:
