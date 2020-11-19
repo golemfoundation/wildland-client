@@ -46,6 +46,7 @@ def storage(base_dir):
         'path': str(base_dir / 'archive.zip'),
     }
 
+
 def make_zip(base_dir: Path, files):
     with zipfile.ZipFile(base_dir / 'archive.zip.new', mode='w') as zf:
         for name, data in files:
