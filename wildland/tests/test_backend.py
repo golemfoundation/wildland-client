@@ -20,8 +20,9 @@
 
 import os
 import time
-from typing import Callable, List
-from pathlib import PurePosixPath
+from typing import Callable, List, Tuple
+from pathlib import PurePosixPath, Path
+from unittest.mock import patch
 
 import pytest
 
@@ -52,41 +53,42 @@ def cleanup():
     for f in cleanup_functions:
         f()
 
+
+def make_storage(location, backend_class) -> Tuple[StorageBackend, Path]:
+    storage_dir = location / 'storage1'
+    os.mkdir(storage_dir)
+    backend = backend_class(params={'path': storage_dir, 'type': getattr(backend_class, 'TYPE')})
+    return backend, storage_dir
+
+
 # Local
 
 def test_simple_operations(tmpdir, storage_backend):
-    storage_dir = tmpdir / 'storage1'
-    os.mkdir(storage_dir)
-    backend: StorageBackend = storage_backend(
-        params={'path': storage_dir, 'type': storage_backend.TYPE})
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
 
     backend.mkdir(PurePosixPath('newdir'), mode=0o777)
     assert (storage_dir / 'newdir').exists()
 
-    file = backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777)
+    file = backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777)
     file.release(os.O_RDWR)
     assert (storage_dir / 'newdir/testfile').exists()
 
-    file = backend.open('newdir/testfile', os.O_RDWR)
+    file = backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR)
     file.write(b'aaaa', 0)
     file.release(os.O_RDWR)
 
     with open(storage_dir / 'newdir/testfile') as file:
         assert file.read() == 'aaaa'
 
-    backend.unlink('newdir/testfile')
+    backend.unlink(PurePosixPath('newdir/testfile'))
     assert not (storage_dir / 'newdir/testfile').exists()
 
-    backend.rmdir('newdir')
+    backend.rmdir(PurePosixPath('newdir'))
     assert not (storage_dir / 'newdir').exists()
 
 
 def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
-    storage_type = storage_backend.TYPE
-    storage_dir = tmpdir / 'storage1'
-    os.mkdir(storage_dir)
-    backend: StorageBackend = storage_backend(
-        params={'path': storage_dir, 'type': storage_type})
+    backend, _ = make_storage(tmpdir, storage_backend)
 
     received_events: List[FileEvent] = []
 
@@ -99,38 +101,34 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
     assert received_events == [FileEvent('create', PurePosixPath('newdir'))]
     received_events.clear()
 
-    with backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777):
+    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777):
         pass
 
     time.sleep(1)
     assert received_events == [FileEvent('create', PurePosixPath('newdir/testfile'))]
     received_events.clear()
 
-    with backend.open('newdir/testfile', os.O_RDWR) as file:
+    with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:
         file.write(b'bbbb', 0)
 
     time.sleep(1)
     assert received_events == [FileEvent('modify', PurePosixPath('newdir/testfile'))]
     received_events.clear()
 
-    backend.unlink('newdir/testfile')
+    backend.unlink(PurePosixPath('newdir/testfile'))
 
     time.sleep(1)
     assert received_events == [FileEvent('delete', PurePosixPath('newdir/testfile'))]
     received_events.clear()
 
-    backend.rmdir('newdir')
+    backend.rmdir(PurePosixPath('newdir'))
 
     time.sleep(1)
     assert received_events == [FileEvent('delete', PurePosixPath('newdir'))]
 
 
 def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
-    storage_type = storage_backend.TYPE
-    storage_dir = tmpdir / 'storage1'
-    os.mkdir(storage_dir)
-    backend: StorageBackend = storage_backend(
-        params={'path': storage_dir, 'type': storage_type})
+    backend, _ = make_storage(tmpdir, storage_backend)
 
     received_events: List[FileEvent] = []
 
@@ -140,15 +138,15 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
     backend.mkdir(PurePosixPath('newdir'), mode=0o777)
     time.sleep(1)
 
-    with backend.create('newdir/testfile', flags=os.O_CREAT, mode=0o777):
+    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777):
         pass
 
-    with backend.open('newdir/testfile', os.O_RDWR) as file:
+    with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:
         file.write(b'bbbb', 0)
 
-    backend.unlink('newdir/testfile')
+    backend.unlink(PurePosixPath('newdir/testfile'))
 
-    backend.rmdir('newdir')
+    backend.rmdir(PurePosixPath('newdir'))
 
     time.sleep(2)
 
@@ -164,10 +162,7 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
 
 
 def test_hashing_short(tmpdir, storage_backend):
-    storage_dir = tmpdir / 'storage1'
-    os.mkdir(storage_dir)
-    backend: StorageBackend = storage_backend(
-        params={'path': storage_dir, 'type': storage_backend.TYPE})
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
 
     with open(storage_dir / 'testfile', mode='w') as f:
         f.write('aaaa')
@@ -177,10 +172,7 @@ def test_hashing_short(tmpdir, storage_backend):
 
 
 def test_hashing_long(tmpdir, storage_backend):
-    storage_dir = tmpdir / 'storage1'
-    os.mkdir(storage_dir)
-    backend: StorageBackend = storage_backend(
-        params={'path': storage_dir, 'type': storage_backend.TYPE})
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
 
     with open(storage_dir / 'testfile', mode='w') as f:
         for _ in range(1024 ** 2):
@@ -190,11 +182,31 @@ def test_hashing_long(tmpdir, storage_backend):
            '299285fc41a44cdb038b9fdaf494c76ca9d0c866672b2b266c1a0c17dda60a05'
 
 
+def test_hash_cache(tmpdir, storage_backend):
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
+
+    with open(storage_dir / 'testfile', mode='w') as f:
+        f.write('aaaa')
+
+    time.sleep(1)
+
+    assert backend.get_hash(PurePosixPath("testfile")) == \
+           '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
+
+    with patch('wildland.storage_backends.base.StorageBackend.get_hash'):
+        # if the hash did not get cached correctly, this will return a mock not the correct hash
+        assert backend.get_hash(PurePosixPath("testfile")) == \
+               '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
+
+    with open(storage_dir / 'testfile', mode='w') as f:
+        f.write('bbbb')
+
+    assert backend.get_hash(PurePosixPath("testfile")) == \
+           '81cc5b17018674b401b42f35ba07bb79e211239c23bffe658da1577e3e646877'
+
+
 def test_walk(tmpdir, storage_backend):
-    storage_dir = tmpdir / 'storage1'
-    os.mkdir(storage_dir)
-    backend: StorageBackend = storage_backend(
-        params={'path': storage_dir, 'type': storage_backend.TYPE})
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
 
     os.mkdir(storage_dir / 'dir1')
     os.mkdir(storage_dir / 'dir2')
