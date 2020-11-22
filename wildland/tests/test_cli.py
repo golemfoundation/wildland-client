@@ -229,18 +229,18 @@ def test_user_edit_editor_failed(cli, cli_fail):
 def test_user_add_path(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
-    cli('user', 'add-path', 'User', '--path', '/abc')
+    cli('user', 'modify', 'add-path', 'User', '--path', '/abc')
     with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
     assert '/abc' in data
 
-    cli('user', 'add-path', '@default', '--path', '/xyz')
+    cli('user', 'modify', 'add-path', '@default', '--path', '/xyz')
     with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
     assert '/xyz' in data
 
     # duplicates should be ignored
-    cli('user', 'add-path', 'User', '--path', '/xyz')
+    cli('user', 'modify', 'add-path', 'User', '--path', '/xyz')
     with open(base_dir / 'users/User.user.yaml') as f:
         data = [i.strip() for i in f.read().split()]
     assert data.count('/xyz') == 1

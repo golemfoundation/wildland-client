@@ -220,7 +220,14 @@ def edit(ctx, editor, input_file, remount):
                 container, storage, user_paths, remount=remount)
 
 
-@click.command(short_help='add path to the manifest')
+@click.group(short_help='modify the manifest')
+def modify():
+    '''
+    Commands for modifying manifest elements.
+    '''
+
+
+@modify.command(short_help='add path to the manifest')
 @click.option('--path', metavar='PATH', required=True, help='Path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
@@ -230,7 +237,7 @@ def add_path(ctx, input_file, path):
     '''
     obj: ContextObj = ctx.obj
 
-    manifest_type = ctx.parent.command.name
+    manifest_type = ctx.parent.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
 
