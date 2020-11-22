@@ -46,20 +46,17 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     '''
 
-    if (manifest_type in ['user', 'container', 'storage', 'bridge']):
+    if manifest_type in ['user', 'container', 'storage', 'bridge']:
         search_func = {
-            'user': lambda client, name:
-                client.find_user_manifest(name),
-            'container': lambda client, name:
-                client.find_local_manifest(client.container_dir, 'container', name),
-            'storage': lambda client, name:
-                client.find_local_manifest(client.storage_dir, 'storage', name),
-            'bridge': lambda client, name:
-                client.find_local_manifest(client.bridge_dir, 'bridge', name),
+            'user': lambda: client.find_user_manifest(name),
+            'container': lambda: client.find_local_manifest(client.container_dir, 'container',
+                                                            name),
+            'storage': lambda: client.find_local_manifest(client.storage_dir, 'storage', name),
+            'bridge': lambda: client.find_local_manifest(client.bridge_dir, 'bridge', name),
         }[manifest_type]
 
         try:
-            return search_func(client, name)
+            return search_func()
         except ManifestError as e:
             raise click.ClickException(f'{e}')
 
