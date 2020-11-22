@@ -493,6 +493,39 @@ def test_container_edit(cli, base_dir):
     assert "/PATH" in data
 
 
+def test_container_add_path(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' in data
+
+    cli('container', 'modify', 'add-path', 'Container.container', '--path', '/xyz')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/xyz' in data
+
+    # duplicates should be ignored
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/xyz')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/xyz') == 1
+
+    # multiple paths
+    cli('container', 'modify', 'add-path', manifest_path, '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 1
+    assert data.count('/def') == 1
+
+    # invalid path
+    cli_fail('container', 'add-path', 'Container', '--path', 'abc')
+
+
 def test_container_create_update_user(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')

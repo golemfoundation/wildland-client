@@ -35,7 +35,7 @@ import daemon
 from xdg import BaseDirectory
 from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit
+from .cli_common import sign, verify, edit, modify
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..storage import Storage, StorageBackend
@@ -331,6 +331,7 @@ def delete(obj: ContextObj, name, force, cascade):
 container_.add_command(sign)
 container_.add_command(verify)
 container_.add_command(edit)
+container_.add_command(modify)
 
 
 def prepare_mount(obj: ContextObj,
