@@ -228,7 +228,7 @@ def modify():
 
 
 @modify.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True, help='Path to add')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_path(ctx, input_file, path):
@@ -252,11 +252,12 @@ def add_path(ctx, input_file, path):
     body_str = data.decode('utf-8')
     fields = yaml.safe_load(body_str)
     fields = Manifest.update_obsolete(fields)
-    if path not in fields['paths']:
-        fields['paths'].append(path)
-    else:
-        click.echo(f'Path {path} is already in the manifest')
-        return
+    for p in path:
+        if p not in fields['paths']:
+            fields['paths'].append(p)
+        else:
+            click.echo(f'Path {p} is already in the manifest')
+            continue
 
     manifest = Manifest.from_fields(fields)
     if manifest_type is not None:

@@ -214,6 +214,7 @@ def test_user_edit(cli, base_dir):
         data = f.read()
     assert '\'0xaaa\'' in data
 
+
 def test_user_edit_bad_fields(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     editor = 'sed -i s,owner,Signer,g'
@@ -244,6 +245,13 @@ def test_user_add_path(cli, cli_fail, base_dir):
     with open(base_dir / 'users/User.user.yaml') as f:
         data = [i.strip() for i in f.read().split()]
     assert data.count('/xyz') == 1
+
+    # multiple paths
+    cli('user', 'modify', 'add-path', 'User.user', '--path', '/abc', '--path', '/def')
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 1
+    assert data.count('/def') == 1
 
     # invalid path
     cli_fail('user', 'add-path', 'User', '--path', 'abc')
