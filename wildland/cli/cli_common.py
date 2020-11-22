@@ -270,4 +270,49 @@ def add_path(ctx, input_file, path):
         f.write(signed_data)
 
     click.echo(f'Saved: {manifest_path}')
->>>>>>> de8e8eb... Add user add-path cli command
+
+
+@modify.command(short_help='remove path from the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_path(ctx, input_file, path):
+    '''
+    Remove a path from the manifest.
+    '''
+    obj: ContextObj = ctx.obj
+
+    manifest_type = ctx.parent.parent.command.name
+    if manifest_type == 'main':
+        manifest_type = None
+
+    manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
+    data = manifest_path.read_bytes()
+
+    if HEADER_SEPARATOR in data:
+        _, data = split_header(data)
+
+    # TODO: editing the structure like this should be done in Manifest
+    # ...but Manifest is designed to be immutable
+    body_str = data.decode('utf-8')
+    fields = yaml.safe_load(body_str)
+    fields = Manifest.update_obsolete(fields)
+    for p in path:
+        if p in fields['paths']:
+            fields['paths'].remove(p)
+        else:
+            click.echo(f'Path {p} is not in the manifest')
+            continue
+
+    manifest = Manifest.from_fields(fields)
+    if manifest_type is not None:
+        validate_manifest(manifest, manifest_type)
+
+    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+
+    signed_data = manifest.to_bytes()
+    with open(manifest_path, 'wb') as f:
+        f.write(signed_data)
+
+    click.echo(f'Saved: {manifest_path}')
+>>>>>>> d3e157f... cli: add modify/del-path subcommand

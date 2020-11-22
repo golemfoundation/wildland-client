@@ -230,31 +230,60 @@ def test_user_edit_editor_failed(cli, cli_fail):
 def test_user_add_path(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
+    manifest_path = base_dir / 'users/User.user.yaml'
+
     cli('user', 'modify', 'add-path', 'User', '--path', '/abc')
-    with open(base_dir / 'users/User.user.yaml') as f:
+    with open(manifest_path) as f:
         data = f.read()
     assert '/abc' in data
 
     cli('user', 'modify', 'add-path', '@default', '--path', '/xyz')
-    with open(base_dir / 'users/User.user.yaml') as f:
+    with open(manifest_path) as f:
         data = f.read()
     assert '/xyz' in data
 
     # duplicates should be ignored
     cli('user', 'modify', 'add-path', 'User', '--path', '/xyz')
-    with open(base_dir / 'users/User.user.yaml') as f:
+    with open(manifest_path) as f:
         data = [i.strip() for i in f.read().split()]
     assert data.count('/xyz') == 1
 
     # multiple paths
     cli('user', 'modify', 'add-path', 'User.user', '--path', '/abc', '--path', '/def')
-    with open(base_dir / 'users/User.user.yaml') as f:
+    with open(manifest_path) as f:
         data = [i.strip() for i in f.read().split()]
     assert data.count('/abc') == 1
     assert data.count('/def') == 1
 
     # invalid path
     cli_fail('user', 'add-path', 'User', '--path', 'abc')
+
+
+def test_user_del_path(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    manifest_path = base_dir / 'users/User.user.yaml'
+    cli('user', 'modify', 'add-path', 'User', '--path', '/abc')
+
+    cli('user', 'modify', 'del-path', 'User', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' not in data
+
+    # non-existent paths should be ignored
+    cli('user', 'modify', 'del-path', 'User.user', '--path', '/xyz')
+
+    # multiple paths
+    cli('user', 'modify', 'add-path', 'User', '--path', '/abc', '--path', '/def', '--path', '/xyz')
+    cli('user', 'modify', 'del-path', manifest_path, '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 0
+    assert data.count('/def') == 0
+    assert data.count('/xyz') == 1
+
+    # invalid path
+    cli_fail('user', 'del-path', 'User', '--path', 'abc')
 
 
 ## Storage
@@ -524,6 +553,35 @@ def test_container_add_path(cli, cli_fail, base_dir):
 
     # invalid path
     cli_fail('container', 'add-path', 'Container', '--path', 'abc')
+
+
+def test_container_del_path(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
+
+    cli('container', 'modify', 'del-path', 'Container', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' not in data
+
+    # non-existent paths should be ignored
+    cli('container', 'modify', 'del-path', 'Container.container', '--path', '/xyz')
+
+    # multiple paths
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/abc', '--path', '/def',
+        '--path', '/xyz')
+    cli('container', 'modify', 'del-path', manifest_path, '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 0
+    assert data.count('/def') == 0
+    assert data.count('/xyz') == 1
+
+    # invalid path
+    cli_fail('container', 'del-path', 'Container', '--path', 'abc')
 
 
 def test_container_create_update_user(cli, base_dir):
