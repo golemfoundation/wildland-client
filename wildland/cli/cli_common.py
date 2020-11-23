@@ -222,7 +222,12 @@ def edit(ctx, editor, input_file, remount):
                 container, storage, user_paths, remount=remount)
 
 
-def modify_manifest(ctx, name, edit_func: Callable[[dict, str, List[str]], dict], field, values):
+def modify_manifest(ctx, name: str, edit_func: Callable[[dict, str, List[str]], dict], field: str,
+                    values: List[str]):
+    '''
+    Edit manifest (identified by `name`) fields using a specified callback.
+    This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
+    '''
     obj: ContextObj = ctx.obj
 
     manifest_type = ctx.parent.parent.command.name
@@ -257,6 +262,10 @@ def modify_manifest(ctx, name, edit_func: Callable[[dict, str, List[str]], dict]
 
 
 def add_field(fields: dict, field: str, values: List[str]) -> dict:
+    '''
+    Callback function for `modify_manifest`. Adds values to the specified field.
+    Duplicates are ignored.
+    '''
     if fields.get(field) is None:
         fields[field] = []
 
@@ -271,6 +280,10 @@ def add_field(fields: dict, field: str, values: List[str]) -> dict:
 
 
 def del_field(fields: dict, field: str, values: List[str]) -> dict:
+    '''
+    Callback function for `modify_manifest`. Removes values from the specified field.
+    Non-existent values are ignored.
+    '''
     if fields.get(field) is None:
         fields[field] = []
 
@@ -285,6 +298,9 @@ def del_field(fields: dict, field: str, values: List[str]) -> dict:
 
 
 def set_field(fields: dict, field: str, values: List[str]) -> dict:
+    '''
+    Callback function for `modify_manifest`. Sets value of the specified field.
+    '''
     fields[field] = values.pop()
 
     return fields

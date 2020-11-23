@@ -259,7 +259,7 @@ def test_user_add_path(cli, cli_fail, base_dir):
     cli_fail('user', 'modify', 'add-path', 'User', '--path', 'abc')
 
 
-def test_user_del_path(cli, cli_fail, base_dir):
+def test_user_del_path(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
     manifest_path = base_dir / 'users/User.user.yaml'
@@ -286,7 +286,7 @@ def test_user_del_path(cli, cli_fail, base_dir):
     #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
-def test_user_add_pubkey(cli, cli_fail, base_dir):
+def test_user_add_pubkey(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
     pubkey1 = 'RWTZF9fAbx7aKEqNbtCskKtmBhpGaL9+41axbs/+YkVw481MU6UpnGQ8'
@@ -315,7 +315,7 @@ def test_user_add_pubkey(cli, cli_fail, base_dir):
     #cli_fail('user', 'modify', 'add-pubkey', 'User', '--pubkey', 'abc')
 
 
-def test_user_del_pubkey(cli, cli_fail, base_dir):
+def test_user_del_pubkey(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
     pubkey1 = 'RWTZF9fAbx7aKEqNbtCskKtmBhpGaL9+41axbs/+YkVw481MU6UpnGQ8'
@@ -615,7 +615,7 @@ def test_container_add_path(cli, cli_fail, base_dir):
     cli_fail('container', 'modify', 'add-path', 'Container', '--path', 'abc')
 
 
-def test_container_del_path(cli, cli_fail, base_dir):
+def test_container_del_path(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
@@ -695,7 +695,7 @@ def test_container_add_category(cli, cli_fail, base_dir):
     cli_fail('container', 'modify', 'add-category', 'Container', '--category', 'abc')
 
 
-def test_container_del_category(cli, cli_fail, base_dir):
+def test_container_del_category(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
 
