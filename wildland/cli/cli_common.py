@@ -42,6 +42,7 @@ from ..manifest.manifest import (
     split_header,
 )
 
+
 def find_manifest_file(client: Client, name, manifest_type) -> Path:
     '''
     CLI helper: load a manifest by name.
@@ -221,14 +222,7 @@ def edit(ctx, editor, input_file, remount):
                 container, storage, user_paths, remount=remount)
 
 
-@click.group(short_help='modify the manifest')
-def modify():
-    '''
-    Commands for modifying manifest elements.
-    '''
-
-
-def _edit_manifest(ctx, name, edit_func: Callable[[dict, str, List[str]], dict], field, values):
+def modify_manifest(ctx, name, edit_func: Callable[[dict, str, List[str]], dict], field, values):
     obj: ContextObj = ctx.obj
 
     manifest_type = ctx.parent.parent.command.name
@@ -262,7 +256,7 @@ def _edit_manifest(ctx, name, edit_func: Callable[[dict, str, List[str]], dict],
     click.echo(f'Saved: {manifest_path}')
 
 
-def _add_field(fields: dict, field: str, values: List[str]) -> dict:
+def add_field(fields: dict, field: str, values: List[str]) -> dict:
     if fields.get(field) is None:
         fields[field] = []
 
@@ -276,7 +270,7 @@ def _add_field(fields: dict, field: str, values: List[str]) -> dict:
     return fields
 
 
-def _del_field(fields: dict, field: str, values: List[str]) -> dict:
+def del_field(fields: dict, field: str, values: List[str]) -> dict:
     if fields.get(field) is None:
         fields[field] = []
 
@@ -290,93 +284,7 @@ def _del_field(fields: dict, field: str, values: List[str]) -> dict:
     return fields
 
 
-def _set_field(fields: dict, field: str, values: List[str]) -> dict:
+def set_field(fields: dict, field: str, values: List[str]) -> dict:
     fields[field] = values.pop()
 
     return fields
-
-
-@modify.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_path(ctx, input_file, path):
-    '''
-    Add a path to the manifest.
-    '''
-    _edit_manifest(ctx, input_file, _add_field, 'paths', path)
-
-
-@modify.command(short_help='remove path from the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_path(ctx, input_file, path):
-    '''
-    Remove a path from the manifest.
-    '''
-    _edit_manifest(ctx, input_file, _del_field, 'paths', path)
-
-
-@modify.command(short_help='add public key to the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True, help='Public key to add')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_pubkey(ctx, input_file, pubkey):
-    '''
-    Add a public key to the manifest.
-    '''
-    # TODO: validate values, schema is not enough
-    # TODO: restrict to user
-    _edit_manifest(ctx, input_file, _add_field, 'pubkeys', pubkey)
-
-
-@modify.command(short_help='remove public key from the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True,
-              help='Public key to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_pubkey(ctx, input_file, pubkey):
-    '''
-    Remove a public key from the manifest.
-    '''
-    # TODO: restrict to user
-    _edit_manifest(ctx, input_file, _del_field, 'pubkeys', pubkey)
-
-
-@modify.command(short_help='set title in the manifest')
-@click.argument('input_file', metavar='FILE')
-@click.option('--title', metavar='TITLE', required=True, help='Title to set')
-@click.pass_context
-def set_title(ctx, input_file, title):
-    '''
-    Set title in the manifest.
-    '''
-    # TODO: restrict to container
-    _edit_manifest(ctx, input_file, _set_field, 'title', [title])
-
-
-@modify.command(short_help='add category to the manifest')
-@click.option('--category', metavar='CATEGORY', required=True, multiple=True,
-              help='Category to add')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_category(ctx, input_file, category):
-    '''
-    Add category to the manifest.
-    '''
-    # TODO: restrict to container
-    _edit_manifest(ctx, input_file, _add_field, 'categories', category)
-
-
-@modify.command(short_help='remove category from the manifest')
-@click.option('--category', metavar='CATEGORY', required=True, multiple=True,
-              help='Category to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_category(ctx, input_file, category):
-    '''
-    Remove category from the manifest.
-    '''
-    # TODO: restrict to container
-    _edit_manifest(ctx, input_file, _del_field, 'categories', category)
