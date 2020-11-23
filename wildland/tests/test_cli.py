@@ -256,7 +256,7 @@ def test_user_add_path(cli, cli_fail, base_dir):
     assert data.count('/def') == 1
 
     # invalid path
-    cli_fail('user', 'add-path', 'User', '--path', 'abc')
+    cli_fail('user', 'modify', 'add-path', 'User', '--path', 'abc')
 
 
 def test_user_del_path(cli, cli_fail, base_dir):
@@ -282,8 +282,68 @@ def test_user_del_path(cli, cli_fail, base_dir):
     assert data.count('/def') == 0
     assert data.count('/xyz') == 1
 
-    # invalid path
-    cli_fail('user', 'del-path', 'User', '--path', 'abc')
+    # FIXME: invalid path
+    #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
+
+
+def test_user_add_pubkey(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    pubkey1 = 'RWTZF9fAbx7aKEqNbtCskKtmBhpGaL9+41axbs/+YkVw481MU6UpnGQ8'
+    pubkey2 = 'RWT3ws3CovcqXP0gohvoVkEIF9dNilN6o/Qb0Sc2G/yWSsnGYslCY1Ah'
+    manifest_path = base_dir / 'users/User.user.yaml'
+
+    cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1)
+    with open(manifest_path) as f:
+        data = f.read()
+    assert pubkey1 in data
+
+    # duplicates should be ignored
+    cli('user', 'modify', 'add-pubkey', manifest_path, '--pubkey', pubkey1)
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count(pubkey1) == 1
+
+    # multiple keys
+    cli('user', 'modify', 'add-pubkey', 'User.user', '--pubkey', pubkey1, '--pubkey', pubkey2)
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count(pubkey1) == 1
+    assert data.count(pubkey2) == 1
+
+    # TODO: invalid key
+    #cli_fail('user', 'modify', 'add-pubkey', 'User', '--pubkey', 'abc')
+
+
+def test_user_del_pubkey(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    pubkey1 = 'RWTZF9fAbx7aKEqNbtCskKtmBhpGaL9+41axbs/+YkVw481MU6UpnGQ8'
+    pubkey2 = 'RWT3ws3CovcqXP0gohvoVkEIF9dNilN6o/Qb0Sc2G/yWSsnGYslCY1Ah'
+    pubkey3 = 'RWSbeZuIxsbFm/vs5JNM7hIBQJjedEY4slHUniWOT4rWUrgNO90od6tk'
+    manifest_path = base_dir / 'users/User.user.yaml'
+    cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1)
+
+    cli('user', 'modify', 'del-pubkey', 'User', '--pubkey', pubkey1)
+    with open(manifest_path) as f:
+        data = f.read()
+    assert pubkey1 not in data
+
+    # non-existent keys should be ignored
+    cli('user', 'modify', 'del-pubkey', 'User.user', '--pubkey', pubkey2)
+
+    # multiple keys
+    cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1, '--pubkey', pubkey2,
+        '--pubkey', pubkey3)
+    cli('user', 'modify', 'del-pubkey', manifest_path, '--pubkey', pubkey1, '--pubkey', pubkey2)
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count(pubkey1) == 0
+    assert data.count(pubkey2) == 0
+    assert data.count(pubkey3) == 1
+
+    # FIXME: invalid path
+    #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
 ## Storage
@@ -552,7 +612,7 @@ def test_container_add_path(cli, cli_fail, base_dir):
     assert data.count('/def') == 1
 
     # invalid path
-    cli_fail('container', 'add-path', 'Container', '--path', 'abc')
+    cli_fail('container', 'modify', 'add-path', 'Container', '--path', 'abc')
 
 
 def test_container_del_path(cli, cli_fail, base_dir):
@@ -580,8 +640,8 @@ def test_container_del_path(cli, cli_fail, base_dir):
     assert data.count('/def') == 0
     assert data.count('/xyz') == 1
 
-    # invalid path
-    cli_fail('container', 'del-path', 'Container', '--path', 'abc')
+    # FIXME: invalid path
+    #cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
 
 
 def test_container_create_update_user(cli, base_dir):

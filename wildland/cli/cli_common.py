@@ -23,6 +23,7 @@ Common commands (sign, edit, ...) for multiple object types
 
 import sys
 from pathlib import Path
+from typing import Callable, List
 
 import click
 import yaml
@@ -227,21 +228,14 @@ def modify():
     '''
 
 
-@modify.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_path(ctx, input_file, path):
-    '''
-    Add a path to the manifest.
-    '''
+def _edit_manifest(ctx, name, edit_func: Callable[[dict, str, List[str]], dict], field, values):
     obj: ContextObj = ctx.obj
 
     manifest_type = ctx.parent.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
 
-    manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
+    manifest_path = find_manifest_file(obj.client, name, manifest_type)
     data = manifest_path.read_bytes()
 
     if HEADER_SEPARATOR in data:
@@ -252,12 +246,8 @@ def add_path(ctx, input_file, path):
     body_str = data.decode('utf-8')
     fields = yaml.safe_load(body_str)
     fields = Manifest.update_obsolete(fields)
-    for p in path:
-        if p not in fields['paths']:
-            fields['paths'].append(p)
-        else:
-            click.echo(f'Path {p} is already in the manifest')
-            continue
+
+    fields = edit_func(fields, field, values)
 
     manifest = Manifest.from_fields(fields)
     if manifest_type is not None:
@@ -270,6 +260,45 @@ def add_path(ctx, input_file, path):
         f.write(signed_data)
 
     click.echo(f'Saved: {manifest_path}')
+
+
+def _add_field(fields: dict, field: str, values: List[str]) -> dict:
+    if fields.get(field) is None:
+        fields[field] = []
+
+    for value in values:
+        if value not in fields[field]:
+            fields[field].append(value)
+        else:
+            click.echo(f'{value} is already in the manifest')
+            continue
+
+    return fields
+
+
+def _del_field(fields: dict, field: str, values: List[str]) -> dict:
+    if fields.get(field) is None:
+        fields[field] = []
+
+    for value in values:
+        if value in fields[field]:
+            fields[field].remove(value)
+        else:
+            click.echo(f'{value} is not in the manifest')
+            continue
+
+    return fields
+
+
+@modify.command(short_help='add path to the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_path(ctx, input_file, path):
+    '''
+    Add a path to the manifest.
+    '''
+    _edit_manifest(ctx, input_file, _add_field, 'paths', path)
 
 
 @modify.command(short_help='remove path from the manifest')
@@ -280,39 +309,29 @@ def del_path(ctx, input_file, path):
     '''
     Remove a path from the manifest.
     '''
-    obj: ContextObj = ctx.obj
+    _edit_manifest(ctx, input_file, _del_field, 'paths', path)
 
-    manifest_type = ctx.parent.parent.command.name
-    if manifest_type == 'main':
-        manifest_type = None
 
-    manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
-    data = manifest_path.read_bytes()
+@modify.command(short_help='add public key to the manifest')
+@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True, help='Public key to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_pubkey(ctx, input_file, pubkey):
+    '''
+    Add a public key to the manifest.
+    '''
+    # TODO: validate values, schema is not enough
+    # TODO: restrict to user
+    _edit_manifest(ctx, input_file, _add_field, 'pubkeys', pubkey)
 
-    if HEADER_SEPARATOR in data:
-        _, data = split_header(data)
 
-    # TODO: editing the structure like this should be done in Manifest
-    # ...but Manifest is designed to be immutable
-    body_str = data.decode('utf-8')
-    fields = yaml.safe_load(body_str)
-    fields = Manifest.update_obsolete(fields)
-    for p in path:
-        if p in fields['paths']:
-            fields['paths'].remove(p)
-        else:
-            click.echo(f'Path {p} is not in the manifest')
-            continue
-
-    manifest = Manifest.from_fields(fields)
-    if manifest_type is not None:
-        validate_manifest(manifest, manifest_type)
-
-    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
-
-    signed_data = manifest.to_bytes()
-    with open(manifest_path, 'wb') as f:
-        f.write(signed_data)
-
-    click.echo(f'Saved: {manifest_path}')
->>>>>>> d3e157f... cli: add modify/del-path subcommand
+@modify.command(short_help='remove public key from the manifest')
+@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True,
+              help='Public key to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_pubkey(ctx, input_file, pubkey):
+    '''
+    Remove a public key from the manifest.
+    '''
+    _edit_manifest(ctx, input_file, _del_field, 'pubkeys', pubkey)
