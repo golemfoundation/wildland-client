@@ -290,6 +290,12 @@ def _del_field(fields: dict, field: str, values: List[str]) -> dict:
     return fields
 
 
+def _set_field(fields: dict, field: str, values: List[str]) -> dict:
+    fields[field] = values.pop()
+
+    return fields
+
+
 @modify.command(short_help='add path to the manifest')
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
 @click.argument('input_file', metavar='FILE')
@@ -335,3 +341,15 @@ def del_pubkey(ctx, input_file, pubkey):
     Remove a public key from the manifest.
     '''
     _edit_manifest(ctx, input_file, _del_field, 'pubkeys', pubkey)
+
+
+@modify.command(short_help='set title in the manifest')
+@click.argument('input_file', metavar='FILE')
+@click.option('--title', metavar='TITLE', required=True, help='Title to set')
+@click.pass_context
+def set_title(ctx, input_file, title):
+    '''
+    Set title in the manifest.
+    '''
+    # TODO: restrict to container
+    _edit_manifest(ctx, input_file, _set_field, 'title', [title])

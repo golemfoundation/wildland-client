@@ -644,6 +644,23 @@ def test_container_del_path(cli, cli_fail, base_dir):
     #cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
 
 
+def test_container_set_title(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'set-title', 'Container.container', '--title', 'something')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'title: something' in data
+
+    cli('container', 'modify', 'set-title', 'Container', '--title', 'another thing')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'title: another thing' in data
+
+
 def test_container_create_update_user(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
