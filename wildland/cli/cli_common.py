@@ -340,6 +340,7 @@ def del_pubkey(ctx, input_file, pubkey):
     '''
     Remove a public key from the manifest.
     '''
+    # TODO: restrict to user
     _edit_manifest(ctx, input_file, _del_field, 'pubkeys', pubkey)
 
 
@@ -353,3 +354,29 @@ def set_title(ctx, input_file, title):
     '''
     # TODO: restrict to container
     _edit_manifest(ctx, input_file, _set_field, 'title', [title])
+
+
+@modify.command(short_help='add category to the manifest')
+@click.option('--category', metavar='CATEGORY', required=True, multiple=True,
+              help='Category to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_category(ctx, input_file, category):
+    '''
+    Add category to the manifest.
+    '''
+    # TODO: restrict to container
+    _edit_manifest(ctx, input_file, _add_field, 'categories', category)
+
+
+@modify.command(short_help='remove category from the manifest')
+@click.option('--category', metavar='CATEGORY', required=True, multiple=True,
+              help='Category to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_category(ctx, input_file, category):
+    '''
+    Remove category from the manifest.
+    '''
+    # TODO: restrict to container
+    _edit_manifest(ctx, input_file, _del_field, 'categories', category)

@@ -661,6 +661,70 @@ def test_container_set_title(cli, base_dir):
     assert 'title: another thing' in data
 
 
+def test_container_add_category(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /abc' in data
+
+    cli('container', 'modify', 'add-category', 'Container.container', '--category', '/xyz')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /xyz' in data
+
+    # duplicates should be ignored
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/xyz')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().splitlines()]
+    assert data.count('- /xyz') == 1
+
+    # multiple values
+    cli('container', 'modify', 'add-category', manifest_path, '--category', '/abc',
+        '--category', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().splitlines()]
+    assert data.count('- /abc') == 1
+    assert data.count('- /def') == 1
+
+    # invalid category
+    cli_fail('container', 'modify', 'add-category', 'Container', '--category', 'abc')
+
+
+def test_container_del_category(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/abc')
+
+    cli('container', 'modify', 'del-category', 'Container', '--category', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /abc' not in data
+
+    # non-existent paths should be ignored
+    cli('container', 'modify', 'del-category', 'Container.container', '--category', '/xyz')
+
+    # multiple values
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/abc',
+        '--category', '/def', '--category', '/xyz')
+    cli('container', 'modify', 'del-category', manifest_path, '--category', '/abc',
+        '--category', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().splitlines()]
+    assert data.count('- /abc') == 0
+    assert data.count('- /def') == 0
+    assert data.count('- /xyz') == 1
+
+    # FIXME: invalid path
+    #cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
+
+
 def test_container_create_update_user(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
