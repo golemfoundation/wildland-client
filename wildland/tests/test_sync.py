@@ -72,8 +72,12 @@ def read_file(path):
 
 
 def make_storage(backend_class: Callable, target_dir: PurePosixPath):
-    os.mkdir(target_dir)
-    backend = backend_class(params={'path': target_dir, 'type': backend_class.TYPE})
+    try:
+        os.mkdir(target_dir)
+    except FileExistsError:
+        pass
+    backend = backend_class(params={'path': str(target_dir),
+                                    'type': getattr(backend_class, 'TYPE')})
     return backend, target_dir
 
 
