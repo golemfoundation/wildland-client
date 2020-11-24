@@ -210,3 +210,15 @@ Start synchronizing container's storages.
 
 Stop synchronizing container's storages.
 
+
+.. program:: wl-container-list-conflicts
+.. _wl-container-list-conflicts:
+
+:command:`wl container list-conflicts [--force-scan] <container>`
+-----------------------------------------------------------------
+
+List all conflicts detected by container sync.
+
+.. option:: --force-scan
+
+   Force checking all files in all storages and their hashes. Can be slow and bandwidth-intensive.

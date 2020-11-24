@@ -27,20 +27,17 @@ from pathlib import Path, PurePosixPath
 import logging
 import threading
 from typing import Optional, List, Dict, Tuple
-from collections import namedtuple
 import select
 import inotify_simple
 
 import click
 
-from .base import StorageBackend, File, Attr
+from .base import StorageBackend, File, Attr, HashCache
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
 
 __all__ = ['LocalStorageBackend']
-
-HashCache = namedtuple('HashCache', ['hash', 'timestamp'])
 
 
 def to_attr(st: os.stat_result) -> Attr:
@@ -134,7 +131,6 @@ class LocalStorageBackend(StorageBackend):
         if not path.is_dir():
             logging.warning('LocalStorage root does not exist: %s', path)
         self.root = path
-        self.hash_cache: Dict[PurePosixPath, HashCache] = {}
 
     @classmethod
     def cli_options(cls):
@@ -212,21 +208,20 @@ class LocalStorageBackend(StorageBackend):
 
     def get_hash(self, path: PurePosixPath):
         """
-        Return sha256 hash for object at path.
+        Return sha256 hash for object at path. Reimplemented from base class because
+        filesystems can have less-than-perfect timestamp resolution.
         """
         current_timestamp = os.stat(self._path(path)).st_mtime
-        if path in self.hash_cache:
-            hash_cache = self.hash_cache[path]
-            if current_timestamp == hash_cache.timestamp:
-                print("found cache", hash_cache)
-                return hash_cache.hash
+        stored_hash_cache = self.retrieve_hash(path)
+        if stored_hash_cache:
+            if current_timestamp == stored_hash_cache.token:
+                return stored_hash_cache.hash
         new_hash = super(LocalStorageBackend, self).get_hash(path)
         if abs(time.time() - current_timestamp) > 0.001:
             # do not cache if not enough time has passed to be certain there were no further
             # file modifications
             # TODO: also remove from cache when modify event is received
-            print("Caching")
-            self.hash_cache[path] = HashCache(new_hash, current_timestamp)
+            self.store_hash(path, HashCache(new_hash, current_timestamp))
         return new_hash
 
 

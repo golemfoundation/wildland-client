@@ -25,10 +25,13 @@ import abc
 from pathlib import PurePosixPath
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 from dataclasses import dataclass
+from collections import namedtuple
 import stat
 import hashlib
 import os
 import logging
+import sqlite3
+import yaml
 
 import click
 
@@ -36,6 +39,8 @@ from ..manifest.schema import Schema
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
+
+HashCache = namedtuple('HashCache', ['hash', 'token'])
 
 
 class StorageError(BaseException):
@@ -177,6 +182,12 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.ignore_own_events = False
 
         self.watcher_instance = None
+        self.hash_cache: Dict[PurePosixPath, HashCache] = {}
+        self.hash_db_path = None
+
+        hasher = hashlib.sha256()
+        hasher.update(yaml.dump(self.params, sort_keys=True).encode('utf-8'))
+        self.backend_id = hasher.hexdigest()
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -266,6 +277,17 @@ class StorageBackend(metaclass=abc.ABCMeta):
             return SimpleStorageWatcher(self, delay=int(self.params['watcher-delay']))
         return None
 
+    def set_config_dir(self, config_dir):
+        """
+        Set path to config dir. Used to store hashes in a local sqlite DB.
+        """
+        self.hash_db_path = config_dir / 'wlhashes.db'
+        with sqlite3.connect(self.hash_db_path) as conn:
+            conn.execute('CREATE TABLE IF NOT EXISTS hashes '
+                         '(backend_id TEXT NOT NULL, '
+                         'path TEXT NOT NULL, '
+                         'hash TEXT, '
+                         'token NUMERIC, PRIMARY KEY (backend_id, path))')
     # FUSE file operations. Return a File instance.
 
     @abc.abstractmethod
@@ -315,11 +337,25 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def rmdir(self, path: PurePosixPath) -> None:
         raise OptionalError()
 
+    # Other operations
+
+    def get_file_token(self, path: PurePosixPath) -> int:
+        # used to implement hash caching; should provide a token that changes when the file changes.
+        raise OptionalError()
+
     def get_hash(self, path: PurePosixPath):
         """
-        Return sha256 hash for object at path.
-        Storage backends can override this with more efficient calculation and/or caching.
+        Return and (if get_file_token is implemented cache) sha256 hash for object at path.
         """
+        try:
+            current_token = self.get_file_token(path)
+        except OptionalError:
+            current_token = None
+
+        if current_token and path in self.hash_cache:
+            hash_cache = self.hash_cache[path]
+            if current_token == hash_cache.token:
+                return hash_cache.hash
         hasher = hashlib.sha256()
         offset = 0
         with self.open(path, os.O_RDONLY) as obj:
@@ -329,7 +365,39 @@ class StorageBackend(metaclass=abc.ABCMeta):
                 offset += len(data)
                 hasher.update(data)
 
-        return hasher.hexdigest()
+        new_hash = hasher.hexdigest()
+        if current_token:
+            self.hash_cache[path] = HashCache(new_hash, current_token)
+        return new_hash
+
+    def store_hash(self, path, hash_cache):
+        """
+        Store provided hash in persistent (if available) storage and in local dict.
+        """
+        if self.hash_db_path:
+            with sqlite3.connect(self.hash_db_path) as conn:
+                conn.execute('INSERT OR REPLACE INTO hashes VALUES (?, ?, ?, ?)',
+                             (self.backend_id, str(path), hash_cache.hash, hash_cache.token))
+        self.hash_cache[path] = hash_cache
+
+    def retrieve_hash(self, path):
+        """
+        Get cached hash, if possible; priority is given to local dict, then to permanent storage.
+        """
+        if path in self.hash_cache:
+            return self.hash_cache[path]
+        if self.hash_db_path:
+            with sqlite3.connect(self.hash_db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'SELECT hash, token from hashes WHERE backend_id = ? AND path = ?',
+                    (self.backend_id, str(path)))
+                result = cursor.fetchone()
+                if not result:
+                    return None
+                hash_value, token = result
+                return HashCache(hash_value, token)
+        return None
 
     def open_for_safe_replace(self, path: PurePosixPath, flags: int, original_hash: str) -> File:
         """
