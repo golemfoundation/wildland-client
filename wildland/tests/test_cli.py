@@ -20,6 +20,8 @@
 # pylint: disable=missing-docstring,redefined-outer-name
 
 import shutil
+import subprocess
+import time
 import os
 
 import pytest
@@ -36,6 +38,19 @@ def modify_file(path, pattern, replacement):
     data = data.replace(pattern, replacement)
     with open(path, 'w') as f:
         f.write(data)
+
+
+@pytest.fixture
+def cleanup():
+    cleanup_functions = []
+
+    def add_cleanup(func):
+        cleanup_functions.append(func)
+
+    yield add_cleanup
+
+    for f in cleanup_functions:
+        f()
 
 
 ## Users
@@ -699,3 +714,46 @@ def test_bridge_create(cli, base_dir):
     assert 'pubkey: key.0xbbb' in data
     assert '- /ModifiedPath' in data
     assert '- /OriginalPath' not in data
+
+
+# Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
+
+def wl_call(base_config_dir, *args):
+    subprocess.check_call(['./wl', '--base-dir', base_config_dir, *args])
+
+# container-sync
+
+
+def test_cli_container_sync(tmpdir, cleanup):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_config_dir)
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+
+    cleanup(lambda: wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer'))
+
+    wl_call(base_config_dir, 'start')
+    wl_call(base_config_dir, 'user', 'create', 'Alice')
+    wl_call(base_config_dir, 'container', 'create',
+            '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--path', storage1_data)
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--path', storage2_data)
+    wl_call(base_config_dir, 'container', 'sync', 'AliceContainer')
+
+    time.sleep(1)
+
+    with open(storage1_data / 'testfile', 'w') as f:
+        f.write("test data")
+
+    time.sleep(1)
+
+    assert (storage2_data / 'testfile').exists()
+    with open(storage2_data / 'testfile') as file:
+        assert file.read() == 'test data'

@@ -371,3 +371,24 @@ class Syncer:
         for backend in self.storage_watchers:
             backend.stop_watcher()
         logger.debug("Container %s: file syncing stopped.", self.container_name)
+
+
+def list_storage_conflicts(storages):
+    """
+    Helper function to detect and return list of file conflicts for given storages.
+    """
+    conflicts = []
+    for s1, s2 in combinations(storages, 2):
+        for path, attr in s1.walk():
+            if attr.is_dir():
+                continue
+
+            try:
+                s2_hash = s2.get_hash(path)
+            except (FileNotFoundError, IsADirectoryError):
+                continue
+
+            if s1.get_hash(path) != s2_hash:
+                conflicts.append((path, s1.backend_id, s2.backend_id))
+
+    return conflicts

@@ -21,7 +21,6 @@
 Manage containers
 '''
 
-from itertools import combinations
 from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Dict, Optional
 import os
@@ -29,7 +28,6 @@ import sys
 import logging
 import threading
 import signal
-import sqlite3
 import click
 import daemon
 
@@ -41,7 +39,8 @@ from ..container import Container
 from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
-from ..sync import Syncer
+from ..hashdb import HashDb
+from ..sync import Syncer, list_storage_conflicts
 from ..log import init_logging
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
@@ -527,15 +526,8 @@ def sync_container(obj: ContextObj, cont):
                 obj.client.all_storages(container)]
 
     # Store information about container/backend mappings
-    hash_db_path = obj.client.config.base_dir / 'wlhashes.db'
-    with sqlite3.connect(hash_db_path) as conn:
-        conn.execute('CREATE TABLE IF NOT EXISTS container_backends '
-                     '(container_id TEXT NOT NULL, '
-                     'backend_id TEXT NOT NULL, '
-                     'PRIMARY KEY (container_id, backend_id))')
-        for storage in storages:
-            conn.execute('INSERT OR REPLACE INTO container_backends VALUES (?, ?)',
-                         (container.ensure_uuid(), storage.backend_id))
+    hash_db = HashDb(obj.client.config.base_dir)
+    hash_db.update_storages_for_containers(container, storages)
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
@@ -581,49 +573,18 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
     """
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
-    container_id = container.ensure_uuid()
 
     if not force_scan:
-        hash_db_path = obj.client.config.base_dir / 'wlhashes.db'
-
-        with sqlite3.connect(hash_db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT backend_id FROM container_backends WHERE container_id = ?',
-                           [container_id])
-
-            backends = cursor.fetchall()
-            if not backends:
-                print("No backends have been synced for this container; "
-                      "list-conflicts will not work without a preceding container sync")
-                return
-            cursor.execute(
-                'SELECT DISTINCT h1.path, c1.container_id, c2.container_id '
-                'FROM '
-                'hashes h1 INNER JOIN container_backends c1 ON h1.backend_id = c1.backend_id '
-                'INNER JOIN container_backends c2 ON c2.container_id = c1.container_id '
-                'AND c1.backend_id > c2.backend_id '
-                'INNER JOIN hashes h2 ON h2.backend_id = c2.backend_id AND h1.path = h2.path '
-                'WHERE h1.hash <> h2.hash')
-
-            conflicts = cursor.fetchall()
-
+        hash_db = HashDb(obj.client.config.base_dir)
+        conflicts = hash_db.get_conflicts(container)
+        if conflicts is None:
+            print("No backends have been synced for this container; "
+                  "list-conflicts will not work without a preceding container sync")
+            return
     else:
         storages = [StorageBackend.from_params(storage.params) for storage in
                     obj.client.all_storages(container)]
-        conflicts = []
-
-        for s1, s2 in combinations(storages, 2):
-            for path, attr in s1.walk():
-                if attr.is_dir():
-                    continue
-
-                try:
-                    s2_hash = s2.get_hash(path)
-                except (FileNotFoundError, IsADirectoryError):
-                    continue
-
-                if s1.get_hash(path) != s2_hash:
-                    conflicts.append((path, s1.backend_id, s2.backend_id))
+        conflicts = list_storage_conflicts(storages)
 
     if conflicts:
         print("Conflicts detected on:")
