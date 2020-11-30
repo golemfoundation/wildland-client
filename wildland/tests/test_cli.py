@@ -349,6 +349,35 @@ def test_container_delete_cascade(cli, base_dir):
     assert not storage_path.exists()
 
 
+def test_container_delete_umount(cli, base_dir, control_client):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        '--container', 'Container')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Container')
+
+    (base_dir / 'storage/Storage.storage.yaml').unlink()
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+    control_client.expect('unmount')
+    control_client.expect('paths', {
+        f'/.users/0xaaa{path}': [101],
+        path: [102],
+        '/PATH2': [103],
+    })
+
+    cli('container', 'delete', 'Container')
+
+    container_path = base_dir / 'containers/Container.container.yaml'
+    assert not container_path.exists()
+
+
 def test_container_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
