@@ -57,6 +57,7 @@ class Syncer:
         with self.lock:
             for backend in self.storages:
                 event_handler = partial(self.sync_storages, backend)
+                backend.mount()
                 watcher = backend.start_watcher(handler=event_handler, ignore_own_events=True)
                 self.storage_watchers[backend] = watcher
                 logger.debug("Container %s: added watcher for storage %s.",
@@ -351,4 +352,5 @@ class Syncer:
         logger.debug("Container %s: stopping file syncing.", self.container_name)
         for backend in self.storage_watchers:
             backend.stop_watcher()
+            backend.unmount()
         logger.debug("Container %s: file syncing stopped.", self.container_name)
