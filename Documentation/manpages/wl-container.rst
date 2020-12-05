@@ -9,7 +9,7 @@ Synopsis
 ========
 
 | :command:`wl container list`
-| :command:`wl container create [--user <user>] --path <path> [--path <path2> ...]`
+| :command:`wl container create [--user <user>] --path <path> [--path <path2> ...] [--storage-set <storage_set>]`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
@@ -55,8 +55,8 @@ Delete a container from local filesystem.
 .. program:: wl-container-create
 .. _wl-container-create:
 
-:command:`wl container create [--user <user>] --path <path> [--path <path2> ...]`
----------------------------------------------------------------------------------
+:command:`wl container create [--user <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>]`
+---------------------------------------------------------------------------------------------------------------
 
 Create a |~| new container manifest.
 
@@ -85,6 +85,10 @@ Create a |~| new container manifest.
 .. option:: -n, --no-update-user
 
    Don't add the container to the user manifest. This is the default.
+
+.. option:: --storage-set <storage_set>, --set
+
+   Create storages for a container with a given storage-set.
 
 .. program:: wl-container-update
 .. _wl-container-update:

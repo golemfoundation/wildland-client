@@ -1,0 +1,123 @@
+.. program:: wl-storage-set
+.. _wl-storage-set:
+
+*******************************************************
+:command:`wl storage-set` - Storage template management
+*******************************************************
+
+Synopsis
+========
+
+| :command:`wl storage-set list [--show-filenames]`
+| :command:`wl storage-set add --template <template_file> --inline <storage_set>`
+| :command:`wl storage-set del <storage_set>`
+
+Description
+===========
+
+Storage templates and their sets are a convenient tool to easily create storage manifests for
+containers.
+
+
+Storage Templates
+=================
+
+Templates are jinja2 template files for .yaml storage manifests  (:ref: manifests)
+located in `templates` directory in Wildland config directory (``~/.config/wildland/templates/``);
+template files must have filenames ending with `.template.jinja`.
+
+Templates can use the following parameters:
+- `uuid`: container uuid
+- `categories`: categories (you can use jinja syntax to extract only e.g.
+first category: {{ categories|first }}
+- `title`: container title
+- `paths`: container paths (a list of PurePosixPaths)
+
+Manifest template should not contain `owner` and `container-path` fields - they are automatically
+overwritten with correct values for a given container when the template is used.
+
+Sample template for local storage:
+
+.. code-block:: yaml
+
+    path: /home/user/storage{{ paths|last }}
+    type: local
+
+Remember that title and categories container fields are optional. They will be provided as an empty
+string and an empty list to the template if they are absent in the container. It is a good practice
+to use if-constructions to avoid any unexpected results, e.g.:
+
+.. code-block:: yaml
+
+    path: /home/user/storage/{% if title -%} {{ title }} {% else -%} {{ uuid }} {% endif %}
+    type: local
+
+.. code-block:: yaml
+
+    path: /home/user/storage/{% if categories -%} {{ categories|first }} {% else -%} {{ (paths|last).relative_to('/') }} {% endif %}
+    type: local
+
+
+
+Storage Sets
+============
+
+Storage sets are `.yaml` files located in `templates` directory in Wildland config directory
+(``~/.config/wildland/templates/``). Storage set files must have filenames ending with
+`.set.yaml`.They consist of a `name` field (with the name of the set) and `templates` field
+with a list of template files (`file`) and their type for a given set (`file` for standalone
+templates and `inline` for inline templates.
+
+Sample storage set:
+
+.. code-block:: yaml
+
+    name: personal
+    templates:
+      - file: storage2.template.jinja
+        type: standalone
+      - file: storage1.template.jinja
+        type: inline
+
+
+Commands
+========
+
+.. program:: wl-storage-set-list
+.. _wl-storage-set-list:
+
+:command:`wl storage-set list [--show-filenames]`
+-------------------------------------------------
+
+Display known storage templates and storage sets.
+
+.. option:: --show-filenames, -s
+
+    Show filenames.
+
+.. program:: wl-storage-set-remove
+.. _wl-storage-set-remove:
+
+:command:`wl storage-set remove NAME`
+-------------------------------------
+
+Delete a storage set from local filesystem.
+
+
+.. program:: wl-storage-set-add
+.. _wl-storage-set-add:
+
+:command:`wl storage-set add --template <template_file> --inline <template_file> <storage_set>`
+-----------------------------------------------------------------------------------------------
+
+Create a storage set.
+
+.. option:: --template <template_file>, -t
+
+   Template file to include in the storage set as a standalone template.
+
+.. option:: --inline <template_file>, -i
+
+   Template file to include in the storage set as an inline template. At least one of this or
+   --template is required.
+

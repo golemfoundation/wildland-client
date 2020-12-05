@@ -22,6 +22,7 @@ Storage object
 '''
 
 from typing import Type
+from pathlib import PurePosixPath
 import functools
 
 import click
@@ -29,10 +30,12 @@ import click
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
 from ..storage import Storage
+from ..manifest.template import TemplateManager
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
+
 
 @aliased_group('storage', short_help='storage management')
 def storage_():
@@ -129,21 +132,35 @@ def _do_create(
     )
     storage.validate()
 
+    _do_save_new_storage(obj.client, container, storage, inline, update_container, name)
+
+
+def _do_save_new_storage(client, container, storage, inline, update_container, name):
+    """
+    Save a new storage manifest.
+    :param client: Wildland client
+    :param container: Wildland container for this storage
+    :param storage: Wildland storage to be saved
+    :param inline: boolean, if the storage should be inline in the container manifest (True) or
+        a separate file (False)
+    :param update_container: boolean, if the container manifest should be updated with the storage
+        (ignored if inline is True)
+    :param name: storage name
+    """
     if inline:
         click.echo('Adding storage directly to container')
         container.backends.append(storage.to_unsigned_manifest()._fields)
         click.echo(f'Saving: {container.local_path}')
-        obj.client.save_container(container)
-
+        client.save_container(container)
     else:
-        storage_path = obj.client.save_new_storage(storage, name)
+        storage_path = client.save_new_storage(storage, name)
         click.echo('Created: {}'.format(storage_path))
 
         if update_container:
             click.echo('Adding storage to container')
-            container.backends.append(obj.client.local_url(storage_path))
+            container.backends.append(client.local_url(storage_path))
             click.echo(f'Saving: {container.local_path}')
-            obj.client.save_container(container)
+            client.save_container(container)
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
@@ -225,6 +242,56 @@ def delete(obj: ContextObj, name, force, cascade):
 
     click.echo(f'Deleting: {storage.local_path}')
     storage.local_path.unlink()
+
+
+def do_create_storage_fom_set(client, container, storage_set):
+    """
+    Create storages for a container from a given StorageSet.
+    :param client: Wildland client
+    :param container: Wildland container
+    :param storage_set: StorageSet of manifest templates
+    """
+    template_manager = TemplateManager(client.template_dir)
+    storage_set = template_manager.get_storage_set(storage_set)
+
+    for file, t in storage_set.templates:
+        manifest = file.get_unsigned_manifest(container)
+
+        manifest.sign(client.session.sig)
+
+        storage = Storage.from_manifest(manifest)
+        backend = StorageBackend.from_params(storage.params)
+
+        # make an empty directory
+        backend.mount()
+        try:
+            backend.mkdir(PurePosixPath(''), mode=0o0777)
+        except FileExistsError:
+            pass
+        except FileNotFoundError:
+            click.echo('Cannot create storage root.')
+        finally:
+            backend.unmount()
+
+        _do_save_new_storage(client=client, container=container, storage=storage,
+                             inline=(t == 'inline'), update_container=True, name=storage_set.name)
+
+
+@storage_.command('create-from-set', short_help='create a storage from a set of templates',
+                  alias=['cs'])
+@click.option('--storage-set', '--set', '-s', multiple=False, required=True,
+              help='name of storage template set to use')
+@click.argument('cont', metavar='CONTAINER', required=True)
+@click.pass_obj
+def create_from_set(obj: ContextObj, cont, storage_set):
+    """
+    Setup storage for a container from a storage template set.
+    """
+
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+
+    do_create_storage_fom_set(obj.client, container, storage_set)
 
 
 storage_.add_command(sign)

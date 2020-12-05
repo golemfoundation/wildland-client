@@ -786,3 +786,127 @@ def test_cli_container_sync(tmpdir, cleanup):
     assert (storage2_data / 'testfile').exists()
     with open(storage2_data / 'testfile') as file:
         assert file.read() == 'test data'
+
+
+# Storage sets
+
+def setup_storage_sets(config_dir):
+    os.mkdir(config_dir / 'templates')
+    data_dict = {
+        'path': f'{config_dir}' + '/{{ uuid }}',
+        'type': 'local'
+    }
+    yaml.dump(data_dict, open(config_dir / 'templates/t1.template.jinja', 'w'))
+    yaml.dump(data_dict, open(config_dir / 'templates/t2.template.jinja', 'w'))
+    yaml.dump(data_dict, open(config_dir / 'templates/t3.template.jinja', 'w'))
+
+
+def test_cli_set_add(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')
+    cli('storage-set', 'add', '--inline', 't3', '--inline', 't2', 'set2')
+
+    with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
+        read_data = yaml.load(f)
+        assert read_data == {'name': 'set1',
+                             'templates':
+                                 [{'file': 't1.template.jinja', 'type': 'file'},
+                                  {'file': 't2.template.jinja', 'type': 'inline'}]}
+    with open(base_dir / 'templates/set2.set.yaml', 'r') as f:
+        read_data = yaml.load(f)
+        assert read_data == {'name': 'set2',
+                             'templates':
+                                 [{'file': 't3.template.jinja', 'type': 'inline'},
+                                  {'file': 't2.template.jinja', 'type': 'inline'}]}
+
+
+def test_cli_set_list(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')
+    cli('storage-set', 'add', '--inline', 't3', '--inline', 't2', 'set2')
+
+    result = cli('storage-set', 'list', capture=True)
+    out_lines = [l.strip() for l in result.splitlines()]
+    assert 't1' in out_lines
+    assert 't2' in out_lines
+    assert 't3' in out_lines
+    assert 'set1 (file: t1) (inline: t2)' in out_lines
+    assert 'set2 (inline: t3, t2)' in out_lines
+
+
+def test_cli_set_del(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')
+
+    expected_file = base_dir / 'templates/set1.set.yaml'
+    assert expected_file.exists()
+
+    cli('storage-set', 'remove', 'set1')
+
+    assert not expected_file.exists()
+
+
+def test_cli_set_use_inline(cli, base_dir):
+    os.mkdir(base_dir / 'templates')
+    data_dict = {
+        'path':  f'{base_dir}' + '/{{ title }}',
+        'type': 'local'
+    }
+
+    yaml.dump(data_dict, open(base_dir / 'templates/title.template.jinja', 'w'))
+    cli('storage-set', 'add', '--inline', 'title', 'set1')
+    cli('user', 'create', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
+        '--storage-set', 'set1')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+
+        assert f'- path: {base_dir}/Test' in output_lines
+        assert 'type: local' in output_lines
+
+    assert (base_dir / 'Test').exists()
+
+
+def test_cli_set_use_file(cli, base_dir):
+    os.mkdir(base_dir / 'templates')
+    data_dict = {
+        'path':  f'{base_dir}' + '/{{ title }}',
+        'type': 'local'
+    }
+
+    yaml.dump(data_dict, open(base_dir / 'templates/title.template.jinja', 'w'))
+    cli('storage-set', 'add', '--template', 'title', 'set1')
+    cli('user', 'create', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
+        '--storage-set', 'set1')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+
+        assert f'- file://localhost{base_dir}/storage/set1.storage.yaml' in output_lines
+
+    assert (base_dir / 'Test').exists()
+
+
+def test_cli_set_missing_title(cli, base_dir):
+    os.mkdir(base_dir / 'templates')
+    data_dict = {
+        'path':  f'{base_dir}' +
+                 '/{% if title -%} {{ title }} {% else -%} test {% endif %}',
+        'type': 'local'
+    }
+
+    yaml.dump(data_dict, open(base_dir / 'templates/title.template.jinja', 'w'))
+    cli('storage-set', 'add', '--inline', 'title', 'set1')
+    cli('user', 'create', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--storage-set', 'set1')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+
+        assert f'- path: {base_dir}/test' in output_lines
+        assert 'type: local' in output_lines

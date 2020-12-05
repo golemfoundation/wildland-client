@@ -35,6 +35,7 @@ from xdg import BaseDirectory
 from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
+from .cli_storage import do_create_storage_fom_set
 from ..container import Container
 from ..storage import Storage, StorageBackend
 from ..client import Client
@@ -52,9 +53,9 @@ logger = logging.getLogger('cli_container')
 
 @aliased_group('container', short_help='container management')
 def container_():
-    '''
+    """
     Manage containers
-    '''
+    """
 
 
 class OptionRequires(click.Option):
@@ -90,9 +91,12 @@ class OptionRequires(click.Option):
     help='container title')
 @click.option('--update-user/--no-update-user', '-u/-n', default=False,
               help='Attach the container to the user')
+@click.option('--storage-set', '--set', multiple=False, required=False,
+              help='Use a storage template set to generate storages (see wl storage-set)')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name, update_user, title=None, category=None):
+def create(obj: ContextObj, user, path, name, update_user, title=None, category=None,
+           storage_set=None):
     '''
     Create a new container manifest.
     '''
@@ -116,6 +120,15 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
     path = obj.client.save_new_container(container, name)
     click.echo(f'Created: {path}')
 
+    if storage_set:
+        try:
+            do_create_storage_fom_set(obj.client, container, storage_set)
+        except FileNotFoundError:
+            click.echo('Failed to create storage from set: storage set not found')
+            click.echo(f'Removing container: {path}')
+            path.unlink()
+            return
+
     if update_user:
         if not user.local_path:
             raise CliError('Cannot update user because the manifest path is unknown')
@@ -123,6 +136,7 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
 
         user.containers.append(str(obj.client.local_url(path)))
         obj.client.save_user(user)
+
 
 
 @container_.command(short_help='update container')

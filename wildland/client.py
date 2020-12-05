@@ -72,6 +72,7 @@ class Client:
         self.container_dir = Path(self.config.get('container-dir'))
         self.storage_dir = Path(self.config.get('storage-dir'))
         self.bridge_dir = Path(self.config.get('bridge-dir'))
+        self.template_dir = Path(self.config.get('template-dir'))
 
         mount_dir = Path(self.config.get('mount-dir'))
         socket_path = Path(self.config.get('socket-path'))
@@ -462,6 +463,8 @@ class Client:
             base_dir = self.storage_dir
         elif manifest_type == 'bridge':
             base_dir = self.bridge_dir
+        elif manifest_type == 'set':
+            base_dir = self.template_dir
         else:
             assert False, manifest_type
 

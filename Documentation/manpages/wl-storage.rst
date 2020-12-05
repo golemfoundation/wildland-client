@@ -12,6 +12,7 @@ Synopsis
 | :command:`wl storage list`
 | :command:`wl storage create <type> --container <container> [-u|-n] [--user <user>] [<type-specific-options>] <storage>`
 | :command:`wl storage {sign|verify|edit} [...]`
+| :command:`wl storage create-from-set --storage-set <storage_set> <container>`
 
 Description
 ===========
@@ -229,3 +230,16 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
 and :ref:`wl edit <wl-edit>` documentation.
+
+
+.. program:: wl-storage-create-from-set
+.. _wl-storage-create-from-set:
+
+:command:`wl storage create-from-set --storage-set <storage_set> <container>`
+-----------------------------------------------------------------------------------------------
+
+Create storages for a given container based on the set provided.
+
+.. option:: --storage-set <storage_set>, --set, -s
+
+   Storage template set to use.
