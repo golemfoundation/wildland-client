@@ -267,3 +267,9 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
             if length < len(self.buf):
                 self.buf = self.buf[:length]
                 self.dirty = True
+
+    def flush(self) -> None:
+        with self.buf_lock:
+            if self.dirty:
+                self.write_full(bytes(self.buf))
+                self.dirty = False

@@ -107,6 +107,9 @@ class LocalFile(File):
             self.file.truncate(length)
             self.changed = True
 
+    def flush(self) -> None:
+        self.file.flush()
+
 
 class LocalStorageBackend(StorageBackend):
     '''Local, file-based storage'''
