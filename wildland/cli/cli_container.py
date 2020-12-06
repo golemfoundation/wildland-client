@@ -209,6 +209,14 @@ def delete(obj: ContextObj, name, force, cascade):
     if not container.local_path:
         raise CliError('Can only delete a local manifest')
 
+    # unmount if mounted
+    try:
+        storage_id = obj.fs_client.find_storage_id(container)
+    except FileNotFoundError:
+        storage_id = None
+    if storage_id:
+        obj.fs_client.unmount_container(storage_id)
+
     has_local = False
     for url_or_dict in list(container.backends):
         if isinstance(url_or_dict, str):
