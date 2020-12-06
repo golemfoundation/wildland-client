@@ -22,12 +22,17 @@ Manage users
 '''
 
 from pathlib import PurePosixPath
+import binascii
 import click
 
 from ..user import User
 
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
+from ..manifest.schema import SchemaError
+from ..manifest.sig import SigError
+from ..manifest.manifest import ManifestError
+
 
 @aliased_group('user', short_help='user management')
 def user_():
@@ -52,7 +57,11 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     '''
 
     if key:
-        owner, pubkey = obj.session.sig.load_key(key)
+        try:
+            owner, pubkey = obj.session.sig.load_key(key)
+        except SigError as ex:
+            click.echo(f'Failed to use provided key: {ex}')
+            return
         print(f'Using key: {owner}')
     else:
         owner, pubkey = obj.session.sig.generate()
@@ -79,7 +88,25 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         containers=[],
         additional_pubkeys=additional_pubkeys
     )
-    path = obj.client.save_new_user(user, name)
+    try:
+        error_on_save = False
+        path = obj.client.save_new_user(user, name)
+    except binascii.Error as ex:
+        # Separate error to provide some sort of readable feedback
+        # raised by SignifySigContext._fingerprint
+        click.echo(f'Failed to create user due to incorrect key provided (provide public '
+                   f'key, not path to key file): {ex}')
+        error_on_save = True
+    except SchemaError as ex:
+        click.echo(f'Failed to create user: {ex}')
+        error_on_save = True
+
+    if error_on_save:
+        if not key:
+            # remove generated keys that will not be used due to failure at creating user
+            obj.session.sig.remove_key(owner)
+        return
+
     user.add_user_keys(obj.session.sig)
 
     click.echo(f'Created: {path}')
@@ -117,25 +144,30 @@ def list_(obj: ContextObj):
               help='delete even if still has containers/storage')
 @click.option('--cascade', is_flag=True,
               help='remove all containers and storage as well')
+@click.option('--delete-keys', is_flag=True,
+              help='also remove user keys')
 @click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, cascade):
+def delete(obj: ContextObj, name, force, cascade, delete_keys):
     '''
     Delete a user.
     '''
-    # TODO consider also deleting keys (~/.config/wildland/keys)
     # TODO check config file (aliases, etc.)
 
     obj.client.recognize_users()
 
-    user = obj.client.load_user_from(name)
+    try:
+        user = obj.client.load_user_from(name)
+    except ManifestError:
+        click.echo(f'User not found: {name}')
+        return
+
     if not user.local_path:
         raise CliError('Can only delete a local manifest')
 
     # Check if this is the only manifest with such owner
     other_count = 0
     for other_user in obj.client.load_users():
-        if (other_user.local_path != user.local_path and
-            other_user.owner == user.owner):
+        if other_user.local_path != user.local_path and other_user.owner == user.owner:
             other_count += 1
 
     used = False
@@ -167,6 +199,17 @@ def delete(obj: ContextObj, name, force, cascade):
     elif used and other_count == 0 and not force:
         raise CliError('User still has manifests, not deleting '
                        '(use --force or --cascade)')
+
+    if delete_keys:
+        possible_owners = obj.session.sig.get_possible_owners(user.owner)
+
+        if possible_owners != [user.owner] and not force:
+            print('Key used by other users as secondary key and will not be deleted. '
+                  'Key should be removed manually. In the future you can use --force to force '
+                  'key deletion.')
+        else:
+            print("Removing key", user.owner)
+            obj.session.sig.remove_key(user.owner)
 
     click.echo(f'Deleting: {user.local_path}')
     user.local_path.unlink()

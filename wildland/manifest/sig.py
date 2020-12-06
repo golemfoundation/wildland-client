@@ -125,6 +125,12 @@ class SigContext:
             owners.extend(self.key_ownership[signer])
         return owners
 
+    def remove_key(self, key_id):
+        """
+        Remove a given key (and a matching private key) from disk and from local context.
+        """
+        raise NotImplementedError
+
 
 class DummySigContext(SigContext):
     """
@@ -176,6 +182,12 @@ class DummySigContext(SigContext):
             raise SigError('Unknown owner: {!r}'.format(signer))
         return signer
 
+    def remove_key(self, key_id):
+        if key_id in self.keys:
+            del self.keys[key_id]
+        if key_id in self.key_ownership:
+            del self.key_ownership[key_id]
+
 
 class SignifySigContext(SigContext):
     """
@@ -200,7 +212,8 @@ class SignifySigContext(SigContext):
     @staticmethod
     def _fingerprint(pubkey: str) -> str:
         """
-        Convert Signify pubkey to a owner identifier (fingerprint).
+        Convert Signify pubkey to a owner identifier (fingerprint). Raises binascii.Error
+        if failed to parse key data.
         """
         # # strip unneeded syntactic sugar and empty lines
         pubkey_data = SignifySigContext._strip_key(pubkey)
@@ -400,3 +413,15 @@ class SignifySigContext(SigContext):
             except subprocess.CalledProcessError:
                 raise SigError(f'Could not verify signature for {signer}')
         return signer
+
+    def remove_key(self, key_id):
+        pubkey_file = self.key_dir / f'{key_id}.pub'
+        secret_key_file = self.key_dir / f'{key_id}.sec'
+
+        pubkey_file.unlink(missing_ok=True)
+        secret_key_file.unlink(missing_ok=True)
+
+        if key_id in self.keys:
+            del self.keys[key_id]
+        if key_id in self.key_ownership:
+            del self.key_ownership[key_id]

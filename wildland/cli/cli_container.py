@@ -39,6 +39,7 @@ from ..container import Container
 from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
+from ..manifest.manifest import ManifestError
 from ..sync import Syncer
 from ..log import init_logging
 
@@ -173,7 +174,7 @@ def list_(obj: ContextObj):
 @container_.command('delete', short_help='delete a container', alias=['rm'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
-              help='delete even when using local storage manifests')
+              help='delete even when using local storage manifests; ignore errors on parse')
 @click.option('--cascade', is_flag=True,
               help='also delete local storage manifests')
 @click.argument('name', metavar='NAME')
@@ -185,7 +186,26 @@ def delete(obj: ContextObj, name, force, cascade):
     # container).
     obj.client.recognize_users()
 
-    container = obj.client.load_container_from(name)
+    try:
+        container = obj.client.load_container_from(name)
+    except ManifestError as ex:
+        if force:
+            click.echo(f'Failed to load manifest: {ex}')
+            try:
+                path = obj.client.resolve_container_name_to_path(name)
+                if path:
+                    click.echo(f'Deleting file {path}')
+                    path.unlink()
+            except ManifestError:
+                # already removed
+                pass
+            if cascade:
+                click.echo('Unable to cascade remove: manifest failed to load.')
+            return
+        click.echo(f'Failed to load manifest, cannot delete: {ex}')
+        click.echo('Use --force to force deletion.')
+        return
+
     if not container.local_path:
         raise CliError('Can only delete a local manifest')
 
@@ -235,7 +255,11 @@ def mount(obj: ContextObj, container_names, remount, save):
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
             is_default_user = container.owner == obj.client.config.get('@default')
-            storage = obj.client.select_storage(container)
+            try:
+                storage = obj.client.select_storage(container)
+            except ManifestError:
+                print(f'Cannot mount {container_name}: no storage available')
+                continue
             param_tuple = (container, storage, is_default_user)
 
             if obj.fs_client.find_storage_id(container) is None:
