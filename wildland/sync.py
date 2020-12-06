@@ -170,12 +170,24 @@ class Syncer:
         hasher = hashlib.sha256()
 
         if not target_hash:
-            target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY, mode=0o777)
+            try:
+                target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY, mode=0o777)
+            except OptionalError:
+                logger.warning("Container %s: cannot sync file %s to storage %s. "
+                               "Operation not supported by storage backend.",
+                               self.container_name, path, target_storage.TYPE)
+                return
         else:
             try:
                 target_file_obj = target_storage.open_for_safe_replace(path, os.O_RDWR, target_hash)
             except OptionalError:
-                target_file_obj = target_storage.open(path, os.O_WRONLY)
+                try:
+                    target_file_obj = target_storage.open(path, os.O_WRONLY)
+                except OptionalError:
+                    logger.warning("Container %s: cannot sync file %s to storage %s. "
+                                   "Operation not supported by storage backend.",
+                                   self.container_name, path, target_storage.TYPE)
+                    return
             except HashMismatchError:
                 logger.warning("Container %s: unexpected hash for object %s in storage %s found, "
                                "cannot sync.", self.container_name, path, target_storage.TYPE)
@@ -186,10 +198,11 @@ class Syncer:
 
                 target_file_obj.ftruncate(0)
                 offset = 0
-                source_size = source_file_obj.fgetattr().size
 
-                while offset < source_size:
+                while True:
                     data = source_file_obj.read(BLOCK_SIZE, offset)
+                    if not data:
+                        break
                     write_len = target_file_obj.write(data, offset)
                     offset += write_len
                     hasher.update(data[:write_len])

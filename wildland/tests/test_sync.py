@@ -22,12 +22,15 @@ import os
 import shutil
 import time
 import logging
+from unittest.mock import patch
 from typing import Callable
 from pathlib import PurePosixPath
 
 import pytest
 
 from ..storage_backends.local import LocalStorageBackend
+from ..storage_backends.zip_archive import ZipArchiveStorageBackend
+from .test_zip import make_zip
 from ..sync import Syncer, BLOCK_SIZE
 from ..log import init_logging
 
@@ -72,7 +75,10 @@ def read_file(path):
 
 
 def make_storage(backend_class: Callable, target_dir: PurePosixPath):
-    os.mkdir(target_dir)
+    try:
+        os.mkdir(target_dir)
+    except FileExistsError:
+        pass
     backend = backend_class(params={'path': target_dir, 'type': backend_class.TYPE})
     return backend, target_dir
 
@@ -507,3 +513,81 @@ def test_sync_file_dir_conf_res2(tmpdir, storage_backend, cleanup):
 
     assert (storage_dir1 / 'test').isdir()
     assert (storage_dir2 / 'test').isdir()
+
+
+def test_zip_sync(tmpdir, storage_backend, cleanup):
+    make_zip(tmpdir, [
+        ('foo.txt', 'foo data'),
+        ('dir/', ''),
+        ('dir/bar.txt', 'bar data'),
+    ])
+
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
+
+    syncer = Syncer([backend1, backend2], 'test')
+    cleanup(syncer.stop_syncing)
+    syncer.start_syncing()
+
+    time.sleep(1)
+
+    assert (storage_dir1 / 'dir').isdir()
+    assert (storage_dir1 / 'foo.txt').exists()
+    assert read_file(storage_dir1 / 'foo.txt') == 'foo data'
+    assert (storage_dir1 / 'dir/bar.txt').exists()
+    assert read_file(storage_dir1 / 'dir/bar.txt') == 'bar data'
+
+
+def test_zip_sync_change(tmpdir, storage_backend, cleanup):
+    make_zip(tmpdir, [
+        ('foo.txt', 'foo data'),
+    ])
+
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
+
+    syncer = Syncer([backend1, backend2], 'test')
+    cleanup(syncer.stop_syncing)
+    syncer.start_syncing()
+
+    assert (storage_dir1 / 'foo.txt').exists()
+    assert read_file(storage_dir1 / 'foo.txt') == 'foo data'
+
+    make_zip(tmpdir, [
+        ('bar.txt', 'bar data'),
+    ])
+
+    time.sleep(2)
+
+    assert not (storage_dir1 / 'foo.txt').exists()
+    assert (storage_dir1 / 'bar.txt').exists()
+    assert read_file(storage_dir1 / 'bar.txt') == 'bar data'
+
+
+def test_readonly_storage_sync(tmpdir, storage_backend, cleanup):
+    make_zip(tmpdir, [])
+
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
+
+    syncer = Syncer([backend1, backend2], 'test')
+    cleanup(syncer.stop_syncing)
+    syncer.start_syncing()
+
+    with patch('wildland.sync.logger.warning') as patched_logger:
+        make_file(storage_dir1 / 'testfile', 'aaaa')
+
+        time.sleep(1)
+
+        # depending on the storage, we should have received one or two warnings (create or
+        # create and modify)
+        assert len(patched_logger.mock_calls) == 1 or len(patched_logger.mock_calls) == 2
+
+    # however, syncing in the other direction should still work
+
+    make_zip(tmpdir, [('testfile2', 'bbbb')])
+
+    time.sleep(2)
+
+    assert (storage_dir1 / 'testfile2').exists()
+    assert read_file(storage_dir1 / 'testfile2') == 'bbbb'
