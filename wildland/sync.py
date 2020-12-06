@@ -41,21 +41,26 @@ class Syncer:
     """
     A class for watching changes in storages and synchronizing them across different backends.
     """
-    def __init__(self, storages: Iterable[StorageBackend], container_name: str):
+    def __init__(self, storages: Iterable[StorageBackend], container_name: str,
+                 config_dir: str = None):
         self.storage_watchers: Dict[StorageBackend, StorageWatcher] = {}
         self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, str]] = {}
         self.container_name = container_name
         self.storages = storages
         self.lock = threading.Lock()
         self.initial_syncing = True
+        self.config_dir = config_dir
 
     def start_syncing(self):
         """
         Initialize watchers.
         """
         logger.debug("Container %s: starting file syncing.", self.container_name)
+        # store in db what are found container/backend matches
         with self.lock:
             for backend in self.storages:
+                if self.config_dir:
+                    backend.set_config_dir(self.config_dir)
                 event_handler = partial(self.sync_storages, backend)
                 backend.mount()
                 watcher = backend.start_watcher(handler=event_handler, ignore_own_events=True)
@@ -97,7 +102,7 @@ class Syncer:
                              self.container_name, path, backend2.TYPE)
                 try:
                     backend2.mkdir(path, mode=0o777)
-                except FileExistsError:
+                except (FileExistsError, NotADirectoryError):
                     self.handle_conflict(backend1, backend2, path)
 
         # find conflicting files
@@ -112,6 +117,20 @@ class Syncer:
         # find missing files
         for (backend_1, storage_hashes1), (backend_2, storage_hashes2) \
                 in permutations(self.storage_hashes.items(), 2):
+            for path in storage_hashes1:
+                if path not in storage_hashes2:
+                    last_known_hash = backend_2.retrieve_hash(path)
+                    if last_known_hash and last_known_hash == storage_hashes1[path]:
+                        # this file was deleted while offline, we can safely delete it in the other
+                        # backend too
+                        try:
+                            logger.debug("Container %s: removing file %s in backend %s",
+                                         self.container_name, path, backend_1.TYPE)
+                            backend_1.unlink(path)
+                        except (FileNotFoundError, OptionalError, PermissionError) as ex:
+                            logger.warning(
+                                "Container %s: cannot remove file %s in backend %s, error: %s",
+                                self.container_name, path, backend_1.TYPE, str(ex))
             missing_files = (path for path in storage_hashes1 if path not in storage_hashes2)
             for path in missing_files:
                 self.sync_file(backend_1, backend_2, path)
@@ -176,6 +195,10 @@ class Syncer:
                 logger.warning("Container %s: cannot sync file %s to storage %s. "
                                "Operation not supported by storage backend.",
                                self.container_name, path, target_storage.TYPE)
+            except NotADirectoryError:
+                # Can occur if there's a file/directory conflict and we are trying to sync a file
+                # located in a directory that's a file in another storage
+                self.handle_conflict(source_storage, target_storage, path)
                 return
         else:
             try:
@@ -367,3 +390,24 @@ class Syncer:
             backend.stop_watcher()
             backend.unmount()
         logger.debug("Container %s: file syncing stopped.", self.container_name)
+
+
+def list_storage_conflicts(storages):
+    """
+    Helper function to detect and return list of file conflicts for given storages.
+    """
+    conflicts = []
+    for s1, s2 in combinations(storages, 2):
+        for path, attr in s1.walk():
+            if attr.is_dir():
+                continue
+
+            try:
+                s2_hash = s2.get_hash(path)
+            except (FileNotFoundError, IsADirectoryError):
+                continue
+
+            if s1.get_hash(path) != s2_hash:
+                conflicts.append((str(path), s1.backend_id, s2.backend_id))
+
+    return conflicts

@@ -40,7 +40,8 @@ from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
 from ..manifest.manifest import ManifestError
-from ..sync import Syncer
+from ..sync import Syncer, list_storage_conflicts
+from ..hashdb import HashDb
 from ..log import init_logging
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
@@ -556,11 +557,20 @@ def sync_container(obj: ContextObj, cont):
     storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
 
+    # Store information about container/backend mappings
+    hash_db = HashDb(obj.client.config.base_dir)
+    hash_db.update_storages_for_containers(container.ensure_uuid(), storages)
+
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         init_logging(False, f'/tmp/wl-sync-{container.ensure_uuid()}.log')
-        syncer = Syncer(storages, str(container.local_path))
-        syncer.start_syncing()
+        syncer = Syncer(storages, container_name=str(container.local_path),
+                        config_dir=obj.client.config.base_dir)
+        try:
+            syncer.start_syncing()
+        except FileNotFoundError:
+            print("Storage root not found!")
+            return
         try:
             threading.Event().wait()
         except KeyboardInterrupt:
@@ -581,3 +591,37 @@ def stop_syncing_container(obj: ContextObj, cont):
     sync_pidfile = syncer_pidfile_for_container(container)
 
     terminate_daemon(sync_pidfile, "Sync container for this container is not running.")
+
+
+@container_.command('list-conflicts', short_help='list detected file conflicts across storages')
+@click.argument('cont', metavar='CONTAINER')
+@click.option('--force-scan', is_flag=True,
+              help='force iterating over all storages and computing hash for all files; '
+                   'can be very slow')
+@click.pass_obj
+def list_container_conflicts(obj: ContextObj, cont, force_scan):
+    """
+    List conflicts detected by the syncing tool.
+    """
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+
+    if not force_scan:
+        hash_db = HashDb(obj.client.config.base_dir)
+        conflicts = hash_db.get_conflicts(container.ensure_uuid())
+        if conflicts is None:
+            print("No backends have been synced for this container; "
+                  "list-conflicts will not work without a preceding container sync")
+            return
+    else:
+        storages = [StorageBackend.from_params(storage.params) for storage in
+                    obj.client.all_storages(container)]
+        conflicts = list_storage_conflicts(storages)
+
+    if conflicts:
+        print("Conflicts detected on:")
+        for (path, c1, c2) in conflicts:
+            # TODO: check if file still exists?
+            print(f"Conflict detected in file {path} in containers {c1} and {c2}")
+    else:
+        print("No conflicts were detected by container sync.")

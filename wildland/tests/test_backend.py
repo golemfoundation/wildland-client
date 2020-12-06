@@ -19,6 +19,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 
 import os
+import sqlite3
 import time
 from typing import Callable, List, Tuple
 from pathlib import PurePosixPath, Path
@@ -57,7 +58,8 @@ def cleanup():
 def make_storage(location, backend_class) -> Tuple[StorageBackend, Path]:
     storage_dir = location / 'storage1'
     os.mkdir(storage_dir)
-    backend = backend_class(params={'path': storage_dir, 'type': getattr(backend_class, 'TYPE')})
+    backend = backend_class(params={'path': str(storage_dir),
+                                    'type': getattr(backend_class, 'TYPE')})
     return backend, storage_dir
 
 
@@ -203,6 +205,59 @@ def test_hash_cache(tmpdir, storage_backend):
 
     assert backend.get_hash(PurePosixPath("testfile")) == \
            '81cc5b17018674b401b42f35ba07bb79e211239c23bffe658da1577e3e646877'
+
+
+def test_hashing_db(tmpdir, storage_backend):
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
+
+    backend.set_config_dir(tmpdir)
+
+    assert (tmpdir / 'wlhashes.db').exists()
+
+    with open(storage_dir / 'testfile', mode='w') as f:
+        f.write('aaaa')
+
+    time.sleep(1)
+
+    assert backend.get_hash(PurePosixPath("testfile")) == \
+           '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
+
+    with sqlite3.connect(tmpdir / 'wlhashes.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM hashes')
+        results = cursor.fetchall()
+        assert len(results) == 1
+        backend_id, path, hash_value, _ = results[0]
+
+    assert backend_id == backend.backend_id
+    assert path == 'testfile'
+    assert hash_value == '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
+
+    with sqlite3.connect(tmpdir / 'wlhashes.db') as conn:
+        conn.execute('UPDATE hashes SET hash = \'testhash\' WHERE backend_id = ? AND path = ?',
+                     (backend_id, str(path)))
+
+    assert backend.get_hash(path) == 'testhash'
+
+    # modify file
+    with open(storage_dir / 'testfile', mode='w') as f:
+        f.write('bbbb')
+
+    time.sleep(1)
+
+    assert backend.get_hash(PurePosixPath("testfile")) == \
+           '81cc5b17018674b401b42f35ba07bb79e211239c23bffe658da1577e3e646877'
+
+    with sqlite3.connect(tmpdir / 'wlhashes.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM hashes')
+        results = cursor.fetchall()
+        assert len(results) == 1
+        backend_id, path, hash_value, _ = results[0]
+
+    assert backend_id == backend.backend_id
+    assert path == 'testfile'
+    assert hash_value == '81cc5b17018674b401b42f35ba07bb79e211239c23bffe658da1577e3e646877'
 
 
 def test_walk(tmpdir, storage_backend):

@@ -15,8 +15,9 @@ RUN apt-get -qy update && apt-get install -y \
       gcc \
       make \
       signify-openbsd \
-      python3-dev \
-      python3-venv \
+      python3.8-dev \
+      python3-pip \
+      python3.8-venv \
       fuse \
       libfuse-dev \
       pkg-config \
@@ -35,7 +36,7 @@ USER user
 WORKDIR /home/user/wildland-fuse
 
 COPY ./requirements.txt .
-RUN python3 -m venv /home/user/env/
+RUN python3.8 -m venv /home/user/env/
 RUN /home/user/env/bin/pip install -r requirements.txt
 
 

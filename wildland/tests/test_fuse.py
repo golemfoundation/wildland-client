@@ -118,9 +118,10 @@ def test_container_read_file(env, container):
 def test_container_create_file(env, container):
     with open(env.mnt_dir / container / 'file1', 'w') as f:
         f.write('hello world')
-    os.sync()
+
     with open(env.test_dir / 'storage/storage1/file1', 'r') as f:
         content = f.read()
+
     assert content == 'hello world'
 
 
@@ -319,8 +320,6 @@ def test_nested_mounts(env, storage_type):
         assert f.read() == 'c1'
     with open(path1, 'w') as f:
         f.write('new content')
-    os.sync()
-    time.sleep(1)
     with open(env.test_dir / 'storage/storage1/nested1/file-conflict') as f:
         assert f.read() == 'new content'
 
