@@ -214,7 +214,11 @@ class LocalStorageBackend(StorageBackend):
         Return sha256 hash for object at path. Reimplemented from base class because
         filesystems can have less-than-perfect timestamp resolution.
         """
-        current_timestamp = os.stat(self._path(path)).st_mtime
+        try:
+            current_timestamp = os.stat(self._path(path)).st_mtime
+        except NotADirectoryError:
+            # can occur due to extreme file conflicts across storages
+            return None
         stored_hash_cache = self.retrieve_hash(path)
         if stored_hash_cache:
             if current_timestamp == stored_hash_cache.token:

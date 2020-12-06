@@ -46,36 +46,30 @@ class HashDb:
                          'hash TEXT, '
                          'token NUMERIC, PRIMARY KEY (backend_id, path))')
 
-    def update_storages_for_containers(self, container, storages):
+    def update_storages_for_containers(self, container_uuid, storages):
         """
         Storage information that given storages were associated with the given container.
         """
         with sqlite3.connect(self.hash_db_path) as conn:
             for storage in storages:
                 conn.execute('INSERT OR REPLACE INTO container_backends VALUES (?, ?)',
-                             (container.ensure_uuid(), storage.backend_id))
+                             (container_uuid, storage.backend_id))
 
-    def get_conflicts(self, container):
+    def get_conflicts(self, container_uuid):
         """
         List all known file conflicts for a given storage across all known backends; the result
         is a list of tuples (path, container_1_uuid, container_2_uuid).
         """
         with sqlite3.connect(self.hash_db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT backend_id FROM container_backends WHERE container_id = ?',
-                           [container.ensure_uuid()])
-
-            backends = cursor.fetchall()
-            if not backends:
-                return None
             cursor.execute(
-                'SELECT DISTINCT h1.path, c1.container_id, c2.container_id '
+                'SELECT DISTINCT h1.path, c1.backend_id, c2.backend_id '
                 'FROM '
                 'hashes h1 INNER JOIN container_backends c1 ON h1.backend_id = c1.backend_id '
                 'INNER JOIN container_backends c2 ON c2.container_id = c1.container_id '
                 'AND c1.backend_id > c2.backend_id '
                 'INNER JOIN hashes h2 ON h2.backend_id = c2.backend_id AND h1.path = h2.path '
-                'WHERE h1.hash <> h2.hash')
+                'WHERE h1.hash <> h2.hash AND c1.container_id = ?', [container_uuid])
 
             return cursor.fetchall()
 

@@ -527,7 +527,7 @@ def sync_container(obj: ContextObj, cont):
 
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
-    hash_db.update_storages_for_containers(container, storages)
+    hash_db.update_storages_for_containers(container.ensure_uuid(), storages)
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
@@ -576,7 +576,7 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
 
     if not force_scan:
         hash_db = HashDb(obj.client.config.base_dir)
-        conflicts = hash_db.get_conflicts(container)
+        conflicts = hash_db.get_conflicts(container.ensure_uuid())
         if conflicts is None:
             print("No backends have been synced for this container; "
                   "list-conflicts will not work without a preceding container sync")

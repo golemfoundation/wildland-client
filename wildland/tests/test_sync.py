@@ -24,11 +24,13 @@ import time
 import logging
 from typing import Callable
 from pathlib import PurePosixPath
+from itertools import combinations
 
 import pytest
 
 from ..storage_backends.local import LocalStorageBackend
-from ..sync import Syncer, BLOCK_SIZE
+from ..sync import Syncer, BLOCK_SIZE, list_storage_conflicts
+from ..hashdb import HashDb
 from ..log import init_logging
 
 init_logging()
@@ -511,3 +513,126 @@ def test_sync_file_dir_conf_res2(tmpdir, storage_backend, cleanup):
 
     assert (storage_dir1 / 'test').isdir()
     assert (storage_dir2 / 'test').isdir()
+
+
+@pytest.mark.parametrize('use_hash_db', [True, False])
+def test_sync_two_containers(tmpdir, storage_backend, cleanup, use_hash_db):
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, storage_dir2 = make_storage(storage_backend, tmpdir / 'storage2')
+    backend3, storage_dir3 = make_storage(storage_backend, tmpdir / 'storage3')
+    backend4, storage_dir4 = make_storage(storage_backend, tmpdir / 'storage4')
+
+    if use_hash_db:
+        backend1.set_config_dir(tmpdir)
+        backend2.set_config_dir(tmpdir)
+        backend3.set_config_dir(tmpdir)
+        backend4.set_config_dir(tmpdir)
+
+    make_file(storage_dir1 / 'file1', 'abcd')
+    make_file(storage_dir3 / 'file2', 'efgh')
+
+    syncer1 = Syncer([backend1, backend2], 'test')
+    syncer2 = Syncer([backend3, backend4], 'test')
+    cleanup(syncer1.stop_syncing)
+    cleanup(syncer2.stop_syncing)
+    syncer1.start_syncing()
+    syncer2.start_syncing()
+    time.sleep(1)
+
+    assert (storage_dir2 / 'file1').exists()
+    assert read_file(storage_dir2 / 'file1') == 'abcd'
+    assert (storage_dir4 / 'file2').exists()
+    assert read_file(storage_dir4 / 'file2') == 'efgh'
+
+    assert not (storage_dir1 / 'file2').exists()
+    assert not (storage_dir2 / 'file2').exists()
+    assert not (storage_dir3 / 'file1').exists()
+    assert not (storage_dir4 / 'file1').exists()
+
+
+@pytest.mark.parametrize('use_hash_db', [True, False])
+def test_get_conflicts_simple(tmpdir, storage_backend, cleanup, use_hash_db):
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, storage_dir2 = make_storage(storage_backend, tmpdir / 'storage2')
+    backend3, storage_dir3 = make_storage(storage_backend, tmpdir / 'storage3')
+
+    make_file(storage_dir1 / 'file1', 'aaaa')
+    make_file(storage_dir2 / 'file1', 'bbbb')
+    make_file(storage_dir3 / 'file1', 'cccc')
+
+    backends = [backend1, backend2, backend3]
+
+    if use_hash_db:
+        for backend in backends:
+            backend.set_config_dir(tmpdir)
+        hash_db = HashDb(tmpdir)
+
+        hash_db.update_storages_for_containers('test', backends)
+
+        syncer = Syncer(backends, 'test')
+        cleanup(syncer.stop_syncing)
+        syncer.start_syncing()
+        time.sleep(1)
+
+        conflicts = hash_db.get_conflicts('test')
+    else:
+        conflicts = list_storage_conflicts(backends)
+
+    conflicts = [(path, sorted([b1, b2])) for (path, b1, b2) in conflicts]
+    expected_conflicts = \
+        [('file1', sorted([b1.backend_id, b2.backend_id])) for b1, b2 in combinations(backends, 2)]
+
+    assert sorted(conflicts) == sorted(expected_conflicts)
+
+
+# TODO: this currectly does not work for hash_db
+@pytest.mark.parametrize('use_hash_db', [pytest.param(True, marks=pytest.mark.xfail), False])
+def test_get_conflicts_complex(tmpdir, storage_backend, cleanup, use_hash_db):
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, storage_dir2 = make_storage(storage_backend, tmpdir / 'storage2')
+    backend3, storage_dir3 = make_storage(storage_backend, tmpdir / 'storage3')
+
+    make_file(storage_dir1 / 'file1', 'aaaa')
+    make_file(storage_dir2 / 'file1', 'bbbb')
+    make_file(storage_dir3 / 'file1', 'cccc')
+
+    os.mkdir(storage_dir1 / 'subdir1')
+    os.mkdir(storage_dir1 / 'subdir1/subsubdir1')
+    make_file(storage_dir1 / 'subdir1/file2', 'abcd')
+    make_file(storage_dir1 / 'subdir1/subsubdir1/file3', 'efgh')
+
+    make_file(storage_dir2 / 'subdir1', 'ijkl')
+
+    os.mkdir(storage_dir3 / 'subdir1')
+    make_file(storage_dir3 / 'subdir1/file2', 'mnop')
+
+    if use_hash_db:
+        backend1.set_config_dir(tmpdir)
+        backend2.set_config_dir(tmpdir)
+        backend3.set_config_dir(tmpdir)
+        hash_db = HashDb(tmpdir)
+
+        hash_db.update_storages_for_containers('test', [backend1, backend2, backend3])
+
+        syncer = Syncer([backend1, backend2, backend3], 'test')
+        cleanup(syncer.stop_syncing)
+        syncer.start_syncing()
+        time.sleep(1)
+
+        conflicts = hash_db.get_conflicts('test')
+    else:
+        conflicts = list_storage_conflicts([backend1, backend2, backend3])
+
+    backend1_id = backend1.backend_id
+    backend2_id = backend2.backend_id
+    backend3_id = backend3.backend_id
+
+    expected_conflicts = [
+        ('file1', backend1_id, backend2_id),
+        ('file1', backend1_id, backend3_id),
+        ('file1', backend2_id, backend3_id),
+        ('subdir1/file2', backend1_id, backend2_id),
+        ('subdir1/file2', backend1_id, backend3_id),
+        ('subdir1/subsubdir1/file3', backend1_id, backend2_id)]
+
+    assert sorted(conflicts) == sorted(expected_conflicts)

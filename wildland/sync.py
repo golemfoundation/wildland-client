@@ -101,7 +101,7 @@ class Syncer:
                              self.container_name, path, backend2.TYPE)
                 try:
                     backend2.mkdir(path, mode=0o777)
-                except FileExistsError:
+                except (FileExistsError, NotADirectoryError):
                     self.handle_conflict(backend1, backend2, path)
 
         # find conflicting files
@@ -188,7 +188,13 @@ class Syncer:
         hasher = hashlib.sha256()
 
         if not target_hash:
-            target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY, mode=0o777)
+            try:
+                target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY, mode=0o777)
+            except NotADirectoryError:
+                # Can occur if there's a file/directory conflict and we are trying to sync a file
+                # located in a directory that's a file in another storage
+                self.handle_conflict(source_storage, target_storage, path)
+                return
         else:
             try:
                 target_file_obj = target_storage.open_for_safe_replace(path, os.O_RDWR, target_hash)
@@ -389,6 +395,6 @@ def list_storage_conflicts(storages):
                 continue
 
             if s1.get_hash(path) != s2_hash:
-                conflicts.append((path, s1.backend_id, s2.backend_id))
+                conflicts.append((str(path), s1.backend_id, s2.backend_id))
 
     return conflicts
