@@ -192,7 +192,7 @@ class LocalStorageBackend(StorageBackend):
     def mkdir(self, path, mode):
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
-        return os.mkdir(self._path(path), mode)
+        return os.makedirs(self._path(path), mode, exist_ok=True)
 
     def rmdir(self, path):
         if self.ignore_own_events and self.watcher_instance:
