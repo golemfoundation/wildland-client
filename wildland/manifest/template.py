@@ -25,7 +25,7 @@ from pathlib import Path
 from collections import namedtuple
 
 import yaml
-from jinja2 import Template, TemplateError
+from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
 
 from wildland import container
 from .manifest import Manifest
@@ -65,7 +65,7 @@ type: local
 
     """
     def __init__(self, source_data: str, file_name: str, name: str = None):
-        self.template = Template(source_data)
+        self.template = Template(source=source_data, undefined=StrictUndefined)
         self.file_name = file_name
         if not name:
             self.name = self.file_name.rstrip(TEMPLATE_SUFFIX)
@@ -86,8 +86,16 @@ type: local
 
         params = {'uuid': cont.ensure_uuid(), 'paths': cont.paths,
                   'title': cont.title if cont.title else '',
-                  'categories': cont.categories if cont.categories else []}
-        raw_data = self.template.render(params).encode('utf-8')
+                  'categories': cont.categories, 'local_path': cont.local_path}
+
+        # Filter out all null parameters
+        params = {k: v for k, v in params.items() if v}
+
+        try:
+            raw_data = self.template.render(params).encode('utf-8')
+        except UndefinedError as ex:
+            raise ValueError(str(ex))
+
         data = yaml.safe_load(raw_data)
         data['owner'] = cont.owner
         data['container-path'] = str(cont.paths[0])

@@ -128,6 +128,10 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
             click.echo(f'Removing container: {path}')
             path.unlink()
             return
+        except ValueError:
+            click.echo(f'Removing container: {path}')
+            path.unlink()
+            return
 
     if update_user:
         if not user.local_path:

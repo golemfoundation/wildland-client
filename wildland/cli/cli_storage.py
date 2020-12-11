@@ -255,7 +255,11 @@ def do_create_storage_fom_set(client, container, storage_set):
     storage_set = template_manager.get_storage_set(storage_set)
 
     for file, t in storage_set.templates:
-        manifest = file.get_unsigned_manifest(container)
+        try:
+            manifest = file.get_unsigned_manifest(container)
+        except ValueError as ex:
+            click.echo(f'Failed to create manifest in template {file.file_name}: {ex}')
+            raise ex
 
         manifest.sign(client.session.sig)
 
@@ -291,7 +295,10 @@ def create_from_set(obj: ContextObj, cont, storage_set):
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
 
-    do_create_storage_fom_set(obj.client, container, storage_set)
+    try:
+        do_create_storage_fom_set(obj.client, container, storage_set)
+    except ValueError:
+        pass
 
 
 storage_.add_command(sign)
