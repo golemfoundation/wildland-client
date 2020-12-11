@@ -95,6 +95,23 @@ Create local storage.
 
    Inner container URL for this storage.
 
+.. program:: wl-storage-create-delegate
+.. _wl-storage-create-delegate:
+
+:command:`wl storage create delegate --container <container> [-u] [--user <user>] --inner-container-url <url> [--subdirectory <dir>] <storage>`
+-----------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --inner-container-url <url>
+
+   Inner container URL for this storage.
+
+.. option:: --subdirectory <path>
+
+   Subdirectory within inner container. When set, content of this directory
+   will be considered content of the container.
+
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
 
