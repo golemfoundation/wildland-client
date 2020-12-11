@@ -79,14 +79,15 @@ type: local
         """
         return cls(source_data=path.read_text(), file_name=path.name)
 
-    def get_unsigned_manifest(self, cont: container.Container):
+    def get_unsigned_manifest(self, cont: container.Container, local_dir: str = None):
         """
         Fill template fields with container data and return an unsigned Manifest
         """
 
         params = {'uuid': cont.ensure_uuid(), 'paths': cont.paths,
                   'title': cont.title if cont.title else '',
-                  'categories': cont.categories, 'local_path': cont.local_path}
+                  'categories': cont.categories, 'local_path': cont.local_path,
+                  'local_dir': local_dir}
 
         # Filter out all null parameters
         params = {k: v for k, v in params.items() if v}

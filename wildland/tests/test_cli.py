@@ -932,3 +932,26 @@ def test_cli_set_missing_param(cli, base_dir):
            in output_lines
 
     assert not (base_dir / 'containers/Container.container.yaml').exists()
+
+
+def test_cli_set_local_dir(cli, base_dir):
+    os.mkdir(base_dir / 'templates')
+    data_dict = {
+        'path':  f'{base_dir}' + '/{{ local_dir[1:] }}',
+        'type': 'local'
+    }
+
+    yaml.dump(data_dict, open(base_dir / 'templates/title.template.jinja', 'w'))
+    cli('storage-set', 'add', '--inline', 'title', 'set1')
+    cli('user', 'create', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
+        '--storage-set', 'set1', '--local-dir', '/test/test')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+
+        assert f'- path: {base_dir}/test/test' in output_lines
+        assert 'type: local' in output_lines
+
+    assert (base_dir / 'test/test').exists()

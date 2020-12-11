@@ -243,3 +243,7 @@ Create storages for a given container based on the set provided.
 .. option:: --storage-set <storage_set>, --set, -s
 
    Storage template set to use.
+
+.. option:: --local-dir <local_dir>
+
+    Local directory to be passed to storage templates as a parameter.
