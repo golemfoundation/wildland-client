@@ -955,3 +955,43 @@ def test_cli_set_local_dir(cli, base_dir):
         assert 'type: local' in output_lines
 
     assert (base_dir / 'test/test').exists()
+
+
+def test_user_create_default_set(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set')
+    cli('user', 'create', 'User', '--default-storage-set', 'set')
+
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+
+    assert 'default_storage_set: set' in data
+
+
+def test_cli_set_use_default(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', 'set')
+    cli('user', 'create', '--default-storage-set', 'set', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+        print(output_lines)
+
+        assert f'- file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+
+
+def test_cli_set_use_def_storage(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', 'set')
+    cli('user', 'create', '--default-storage-set', 'set', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
+    cli('storage', 'create-from-set', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+        print(output_lines)
+
+        assert f'- file://localhost{base_dir}/storage/set.storage.yaml' in output_lines

@@ -41,6 +41,7 @@ from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
 from ..manifest.manifest import ManifestError
+from ..manifest.template import TemplateManager
 from ..sync import Syncer, list_storage_conflicts
 from ..hashdb import HashDb
 from ..log import init_logging
@@ -95,10 +96,12 @@ class OptionRequires(click.Option):
               help='Use a storage template set to generate storages (see wl storage-set)')
 @click.option('--local-dir', multiple=False, required=False,
               help='local directory to be passed to storage templates (requires --storage-set')
+@click.option('--default-storage-set/--no-default-storage-set', default=True,
+              help="use user's default storage template set (ignored if --storage-set is used)")
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name, update_user, title=None, category=None,
-           storage_set=None, local_dir=None):
+def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
+           title=None, category=None, storage_set=None, local_dir=None):
     '''
     Create a new container manifest.
     '''
@@ -113,6 +116,17 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
         if not name:
             raise CliError('--category option requires --title or container name')
         title = name
+
+    if default_storage_set and not storage_set:
+        set_name = user.default_storage_set
+    else:
+        set_name = storage_set
+
+    if set_name:
+        try:
+            storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
+        except FileNotFoundError:
+            raise CliError(f'Storage set {set_name} not found.')
 
     container = Container(
         owner=user.owner,
@@ -145,7 +159,6 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
 
         user.containers.append(str(obj.client.local_url(path)))
         obj.client.save_user(user)
-
 
 
 @container_.command(short_help='update container')
