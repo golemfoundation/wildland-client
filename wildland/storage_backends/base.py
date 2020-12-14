@@ -288,7 +288,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def open(self, path: PurePosixPath, flags: int) -> File:
         raise NotImplementedError()
 
-    def create(self, path: PurePosixPath, flags: int, mode: int):
+    def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
         raise OptionalError()
 
     # Method proxied to the File instance
@@ -325,7 +325,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def unlink(self, path: PurePosixPath) -> None:
         raise OptionalError()
 
-    def mkdir(self, path: PurePosixPath, mode: int) -> None:
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
         raise OptionalError()
 
     def rmdir(self, path: PurePosixPath) -> None:

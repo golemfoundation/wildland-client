@@ -265,7 +265,7 @@ def do_create_storage_fom_set(client, container, storage_set):
         # make an empty directory
         backend.mount()
         try:
-            backend.mkdir(PurePosixPath(''), mode=0o0777)
+            backend.mkdir(PurePosixPath(''))
         except FileExistsError:
             pass
         except FileNotFoundError:

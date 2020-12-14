@@ -211,7 +211,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
 
         return PagedWebdavFile(self.auth, self.make_url(path), attr)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int):
+    def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666):
         resp = requests.request(
             method='PUT', url=self.make_url(path), data=b'',
             auth=self.auth)
@@ -228,7 +228,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
             auth=self.auth)
         resp.raise_for_status()
 
-    def mkdir(self, path: PurePosixPath, _mode: int) -> None:
+    def mkdir(self, path: PurePosixPath, _mode: int = 0o777) -> None:
         resp = requests.request(
             method='MKCOL',
             url=self.make_url(path),

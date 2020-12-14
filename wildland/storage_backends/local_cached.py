@@ -128,7 +128,7 @@ class BaseCached(StorageBackend):
             return LocalCachedFile(self._local(path), attr)
         return LocalCachedPagedFile(self._local(path), attr)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int):
+    def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666):
         local = self._local(path)
         if local.exists():
             raise IOError(errno.EEXIST, str(path))
@@ -146,7 +146,7 @@ class BaseCached(StorageBackend):
         self._local(path).unlink()
         self.clear_cache()
 
-    def mkdir(self, path: PurePosixPath, mode: int):
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777):
         self._local(path).mkdir(mode)
         self.clear_cache()
 

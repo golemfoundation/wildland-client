@@ -68,10 +68,10 @@ def make_storage(location, backend_class) -> Tuple[StorageBackend, Path]:
 def test_simple_operations(tmpdir, storage_backend):
     backend, storage_dir = make_storage(tmpdir, storage_backend)
 
-    backend.mkdir(PurePosixPath('newdir'), mode=0o777)
+    backend.mkdir(PurePosixPath('newdir'))
     assert (storage_dir / 'newdir').exists()
 
-    file = backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777)
+    file = backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT)
     file.release(os.O_RDWR)
     assert (storage_dir / 'newdir/testfile').exists()
 
@@ -97,13 +97,13 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
     backend.start_watcher(handler=received_events.extend, ignore_own_events=False)
     cleanup(backend.stop_watcher)
 
-    backend.mkdir(PurePosixPath('newdir'), mode=0o777)
+    backend.mkdir(PurePosixPath('newdir'))
 
     time.sleep(1)
     assert received_events == [FileEvent('create', PurePosixPath('newdir'))]
     received_events.clear()
 
-    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777):
+    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT):
         pass
 
     time.sleep(1)
@@ -137,10 +137,10 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
     watcher = backend.start_watcher(handler=received_events.extend, ignore_own_events=True)
     cleanup(backend.stop_watcher)
 
-    backend.mkdir(PurePosixPath('newdir'), mode=0o777)
+    backend.mkdir(PurePosixPath('newdir'))
     time.sleep(1)
 
-    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777):
+    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT):
         pass
 
     with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:

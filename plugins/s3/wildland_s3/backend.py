@@ -303,7 +303,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
         return PagedS3File(self.client, self.bucket, self.key(path), attr)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int) -> File:
+    def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.EPERM, str(path))
 
@@ -329,7 +329,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         self.clear_cache()
         self._update_index(path.parent)
 
-    def mkdir(self, path: PurePosixPath, _mode: int):
+    def mkdir(self, path: PurePosixPath, _mode: int = 0o777):
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.EPERM, str(path))
 
