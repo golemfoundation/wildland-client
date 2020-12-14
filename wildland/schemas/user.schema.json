@@ -1,7 +1,7 @@
 {
     "title": "User manifest",
     "type": "object",
-    "required": ["owner", "paths"],
+    "required": ["owner", "paths", "pubkeys"],
     "properties": {
         "owner": { "$ref": "types.json#fingerprint" },
         "paths": {
