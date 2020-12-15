@@ -205,7 +205,7 @@ def test_read_file_traverse(base_dir, client):
 def test_read_container_traverse(client):
     search = Search(client, WildlandPath.from_str(':/path:/other/path:'),
         aliases={'default': '0xaaa'})
-    container = search.read_container()
+    container = next(search.read_container())
     assert PurePosixPath('/other/path') in container.paths
 
 
@@ -214,14 +214,14 @@ def test_read_container_unsigned(base_dir, client):
 
     search = Search(client, WildlandPath.from_str(':/path:/unsigned:'),
         aliases={'default': '0xaaa'})
-    container = search.read_container()
+    container = next(search.read_container())
     assert PurePosixPath('/other/path') in container.paths
 
     search = Search(client,
         WildlandPath.from_str(':/path:/other/path:/unsigned:'),
         aliases={'default': '0xaaa'})
     with pytest.raises(ManifestError, match='Signature expected'):
-        search.read_container()
+        next(search.read_container())
 
 
 def test_mount_traverse(cli, client, base_dir, control_client):
@@ -341,12 +341,12 @@ def test_read_container_traverse_pattern(setup_pattern, base_dir):
 
     search = Search(client, WildlandPath.from_str(':/path:/path1:'),
         aliases={'default': '0xaaa'})
-    container = search.read_container()
+    container = next(search.read_container())
     assert PurePosixPath('/path1') in container.paths
 
     search = Search(client, WildlandPath.from_str(':/path:/path2:'),
         aliases={'default': '0xaaa'})
-    container = search.read_container()
+    container = next(search.read_container())
     assert PurePosixPath('/path2') in container.paths
 
 
@@ -511,3 +511,25 @@ paths:
         with pytest.raises(ManifestError,
                            match="Manifest owner does not have access to signer key"):
             data = search.read_file()
+
+
+def test_search_two_containers(base_dir, cli):
+    os.mkdir(base_dir / 'storage1')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    cli('container', 'create', 'Container1', '--path', '/path1')
+    cli('container', 'create', 'Container2', '--path', '/path1')
+
+    cli('storage', 'create', 'local', 'Storage1',
+        '--path', base_dir / 'storage1',
+        '--container', 'Container2',
+        '--inline')
+
+    (base_dir / 'test').write_text('testdata')
+
+    cli('put', (base_dir / 'test'), '0xaaa:/path1:/test')
+
+    output = cli('get', '0xaaa:/path1:/test', capture=True)
+
+    assert output == 'testdata'
