@@ -201,8 +201,8 @@ class LocalStorageBackend(StorageBackend):
 
     def watcher(self):
         """
-        If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
-        use the smarter LocalStorageWatcher.
+        If manifest explicitly specifies a watcher-interval, use default implementation. If not,
+        we can use the smarter LocalStorageWatcher.
         """
         default_watcher = super(LocalStorageBackend, self).watcher()
         if not default_watcher:
