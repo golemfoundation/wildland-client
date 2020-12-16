@@ -546,7 +546,7 @@ class Client:
             # it to an inline manifest.
             if 'inner-container' in storage.params:
                 storage.params['storage'] = self._select_inner_storage(
-                    storage.params['inner-container'], container.owner
+                    storage.params['inner-container'], container.owner, storage.trusted
                 )
                 if storage.params['storage'] is None:
                     continue
@@ -569,7 +569,8 @@ class Client:
     def _select_inner_storage(
             self,
             container_url_or_dict: Union[str, Dict],
-            owner: str) -> Optional[Dict]:
+            owner: str,
+            trusted: bool) -> Optional[Dict]:
         '''
         Select an "inner" storage based on URL or dictionary. This resolves a
         container specification and then selects storage for the container.
@@ -585,9 +586,9 @@ class Client:
                 container_url_or_dict, owner
             )
 
-        if container.owner != owner:
+        if trusted and container.owner != owner:
             logger.error(
-                'owner field mismatch for inner container: outer %s, inner %s',
+                'owner field mismatch for trusted inner container: outer %s, inner %s',
                 owner, container.owner)
             return None
 
