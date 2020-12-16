@@ -32,17 +32,17 @@ from ..client import Client
 
 def test_date_proxy_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'InnerContainer', '--path', '/INNER_PATH')
-    cli('storage', 'create', 'local', 'InnerStorage', '--path', '/tmp/local-path',
-        '--container', 'InnerContainer')
+    cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
+    cli('storage', 'create', 'local', 'referenceStorage', '--path', '/tmp/local-path',
+        '--container', 'referenceContainer')
 
-    inner_path = base_dir / 'containers/InnerContainer.container.yaml'
-    assert inner_path.exists()
-    inner_url = f'file://{inner_path}'
+    reference_path = base_dir / 'containers/referenceContainer.container.yaml'
+    assert reference_path.exists()
+    reference_url = f'file://{reference_path}'
 
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'date-proxy', 'ProxyStorage',
-        '--inner-container-url', inner_url,
+        '--reference-container-url', reference_url,
         '--container', 'Container')
 
     client = Client(base_dir)
@@ -50,15 +50,15 @@ def test_date_proxy_with_url(cli, base_dir):
 
     # When loaded directly, the storage manifest contains container URL...
     storage = client.load_storage_from('ProxyStorage')
-    assert storage.params['inner-container'] == inner_url
+    assert storage.params['reference-container'] == reference_url
 
-    # But select_storage loads also the inner manifest
+    # But select_storage loads also the reference manifest
     container = client.load_container_from('Container')
     storage = client.select_storage(container)
     assert storage.storage_type == 'date-proxy'
-    inner_storage = storage.params['storage']
-    assert isinstance(inner_storage, dict)
-    assert inner_storage['type'] == 'local'
+    reference_storage = storage.params['storage']
+    assert isinstance(reference_storage, dict)
+    assert reference_storage['type'] == 'local'
 
 
 @pytest.fixture

@@ -42,7 +42,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     Directory timestamps will be ignored, and empty directories will not be
     taken into account.
 
-    The 'inner-container' parameter specifies inner container, either as URL,
+    The 'reference-container' parameter specifies inner container, either as URL,
     or as an inline manifest. When creating the object instance:
 
     1. First, the storage parameters for the inner container will be resolved
@@ -54,9 +54,9 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["inner-container"],
+        "required": ["reference-container"],
         "properties": {
-            "inner-container": {
+            "reference-container": {
                 "oneOf": [
                     {"$ref": "types.json#url"},
                     {"$ref": "container.schema.json"}
@@ -76,14 +76,14 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--inner-container-url'], metavar='URL',
+            click.Option(['--reference-container-url'], metavar='URL',
                           help='URL for inner container manifest',
                          required=True),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'inner-container': data['inner_container_url']}
+        return {'reference-container': data['reference_container_url']}
 
     def mount(self):
         self.inner.mount()

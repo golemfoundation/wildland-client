@@ -1,7 +1,7 @@
 Proxy storage (experimental)
 ============================
 
-A *proxy storage* is a storage that is parametrized by another, "inner"
+A *proxy storage* is a storage that is parametrized by another, "reference"
 storage.
 
 
@@ -21,9 +21,9 @@ Create a user, if you haven't done that yet::
    $ ./wl user create User
 
 
-Create the "inner" container, and directory with files::
+Create the "reference" container, and directory with files::
 
-   $ ./wl container create Inner --path /inner
+   $ ./wl container create Inner --path /reference
 
    $ ./wl storage create local Inner --path $HOME/proxy-data \
        --container Inner
@@ -36,7 +36,7 @@ Create the proxy container storage::
    $ ./wl container create Proxy --path /proxy
 
    $ ./wl storage create date-proxy Proxy \
-       --inner-container-url file://$HOME/.config/wildland/containers/Inner.container.yaml \
+       --reference-container-url file://$HOME/.config/wildland/containers/Inner.container.yaml \
        --container Proxy
 
 Mount::
@@ -75,10 +75,10 @@ file (or edit existing one using ``wl container edit``)
        - type: date-proxy
          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
          owner: <OWNER>
-         inner-container:
+         reference-container:
            owner: <OWNER>
            paths:
-             - /inner
+             - /reference
            backends:
              storage:
                - type: local
@@ -118,15 +118,15 @@ hierarchy. You can create a ``container.yaml`` file (or edit existing one using
        - type: delegate
          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
          owner: <OWNER>
-         inner-container: 'wildland:<ANOTHER-OWNER>:/container/path:'
-         subdirectory: /directory/in/inner-container
+         reference-container: 'wildland:<ANOTHER-OWNER>:/container/path:'
+         subdirectory: /directory/in/reference-container
 
 This file can be signed with ``wl container sign`` (the edit command will do
 that automatically), then mounted using ``wl container mount``.
 
 In this specific example, the local user is ``0xc4c71e09ff71e5f06445`` and they
 want to place a container of ``0xee4052832df4976d6445`` user under its own
-tree. To be more specific a subdirectory ``/directory/in/inner-container`` from
+tree. To be more specific a subdirectory ``/directory/in/reference-container`` from
 a container with a path ``/container/path`` of that user::
 
    $ cat container.yaml
@@ -140,8 +140,8 @@ a container with a path ``/container/path`` of that user::
        - type: delegate
          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
          owner: '0xc4c71e09ff71e5f06445'
-         inner-container: 'wildland:0xee4052832df4976d6445:/container/path:'
-         subdirectory: /directory/in/inner-container
+         reference-container: 'wildland:0xee4052832df4976d6445:/container/path:'
+         subdirectory: /directory/in/reference-container
 
 Sign the above container::
 
@@ -163,8 +163,8 @@ available only under ``.users/0xee4052832df4976d6445`` path::
        `-- path
            |-- directory
            |   `-- in
-           |       `-- inner-container
-           |           `-- inner-file.txt
+           |       `-- reference-container
+           |           `-- reference-file.txt
            `-- file21
 
    5 directories, 2 files
@@ -173,6 +173,6 @@ And here we can see a part of that container mounted using ``delegate`` storage:
 
    $ tree  mnt/proxy/
    mnt/proxy/
-   `-- inner-file.txt
+   `-- reference-file.txt
 
    0 directories, 1 file

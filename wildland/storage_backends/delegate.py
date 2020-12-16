@@ -34,13 +34,13 @@ class DelegateProxyStorageBackend(StorageBackend):
     """
     A proxy storage that exposes a subdirectory of another container.
 
-    The 'inner-container' parameter specifies inner container, either as URL,
+    The 'reference-container' parameter specifies reference container, either as URL,
     or as an inline manifest. When creating the object instance:
 
-    1. First, the storage parameters for the inner container will be resolved
+    1. First, the storage parameters for the reference container will be resolved
     (see Client.select_storage()),
 
-    2. Then, the inner storage backend will be instantiated and passed as
+    2. Then, the reference storage backend will be instantiated and passed as
     params['storage'] (see StorageBackend.from_params()).
     """
 
@@ -48,9 +48,9 @@ class DelegateProxyStorageBackend(StorageBackend):
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["inner-container"],
+        "required": ["reference-container"],
         "properties": {
-            "inner-container": {
+            "reference-container": {
                 "oneOf": [
                     {"$ref": "types.json#url"},
                     {"$ref": "container.schema.json"}
@@ -60,7 +60,7 @@ class DelegateProxyStorageBackend(StorageBackend):
             },
             "subdirectory": {
                 "$ref": "types.json#abs-path",
-                "description": ("Subdirectory of inner-container to be exposed"),
+                "description": ("Subdirectory of reference-container to be exposed"),
             },
         }
     })
@@ -68,37 +68,37 @@ class DelegateProxyStorageBackend(StorageBackend):
 
     def __init__(self, *, params, **kwds):
         super().__init__(**kwds)
-        self.inner = params['storage']
+        self.reference = params['storage']
         self.subdirectory = PurePosixPath(params.get('subdirectory', '/'))
 
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--inner-container-url'], metavar='URL',
-                          help='URL for inner container manifest',
+            click.Option(['--reference-container-url'], metavar='URL',
+                          help='URL for reference container manifest',
                          required=True),
             click.Option(['--subdirectory'], metavar='SUBDIRECTORY',
-                          help='Subdirectory of inner-container to be exposed',
+                          help='Subdirectory of reference-container to be exposed',
                          required=False),
         ]
 
     @classmethod
     def cli_create(cls, data):
         opts = {
-            'inner-container': data['inner_container_url'],
+            'reference-container': data['reference_container_url'],
         }
         if 'subdirectory' in data:
             opts['subdirectory'] = data['subdirectory']
         return opts
 
     def mount(self):
-        self.inner.mount()
+        self.reference.mount()
 
     def unmount(self):
-        self.inner.unmount()
+        self.reference.unmount()
 
     def clear_cache(self):
-        self.inner.clear_cache()
+        self.reference.clear_cache()
 
     # TODO: watcher
 
@@ -108,43 +108,43 @@ class DelegateProxyStorageBackend(StorageBackend):
         return (self.subdirectory / path).relative_to('/')
 
     def open(self, path: PurePosixPath, flags: int) -> File:
-        return self.inner.open(self._path(path), flags)
+        return self.reference.open(self._path(path), flags)
 
     def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
-        return self.inner.create(self._path(path), flags, mode)
+        return self.reference.create(self._path(path), flags, mode)
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        return self.inner.getattr(self._path(path))
+        return self.reference.getattr(self._path(path))
 
     def readdir(self, path: PurePosixPath) -> Iterable[str]:
-        return self.inner.readdir(self._path(path))
+        return self.reference.readdir(self._path(path))
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
-        self.inner.truncate(self._path(path), length)
+        self.reference.truncate(self._path(path), length)
 
     def unlink(self, path: PurePosixPath) -> None:
-        self.inner.unlink(self._path(path))
+        self.reference.unlink(self._path(path))
 
     def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
-        self.inner.mkdir(self._path(path), mode)
+        self.reference.mkdir(self._path(path), mode)
 
     def rmdir(self, path: PurePosixPath) -> None:
-        self.inner.rmdir(self._path(path))
+        self.reference.rmdir(self._path(path))
 
     def get_file_token(self, path: PurePosixPath) -> int:
-        return self.inner.get_file_token(self._path(path))
+        return self.reference.get_file_token(self._path(path))
 
     def get_hash(self, path: PurePosixPath):
-        return self.inner.get_hash(self._path(path))
+        return self.reference.get_hash(self._path(path))
 
     def store_hash(self, path, hash_cache):
-        return self.inner.store_hash(self._path(path), hash_cache)
+        return self.reference.store_hash(self._path(path), hash_cache)
 
     def retrieve_hash(self, path):
-        return self.inner.retrieve_hash(self._path(path))
+        return self.reference.retrieve_hash(self._path(path))
 
     def open_for_safe_replace(self, path: PurePosixPath, flags: int, original_hash: str) -> File:
-        return self.inner.open_for_safe_replace(self._path(path), flags, original_hash)
+        return self.reference.open_for_safe_replace(self._path(path), flags, original_hash)
 
     def walk(self, directory=PurePosixPath('')) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        return self.inner.walk(self._path(directory))
+        return self.reference.walk(self._path(directory))

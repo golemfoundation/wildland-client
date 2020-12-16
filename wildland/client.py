@@ -494,7 +494,7 @@ class Client:
         """
         Return (and load on returning) all storages for a given container.
 
-        In case of proxy storage, this will also load an inner storage and
+        In case of proxy storage, this will also load an reference storage and
         inline the manifest.
         """
         if backends is None:
@@ -544,9 +544,9 @@ class Client:
 
             # If there is a 'container' parameter with a backend URL, convert
             # it to an inline manifest.
-            if 'inner-container' in storage.params:
-                storage.params['storage'] = self._select_inner_storage(
-                    storage.params['inner-container'], container.owner, storage.trusted
+            if 'reference-container' in storage.params:
+                storage.params['storage'] = self._select_reference_storage(
+                    storage.params['reference-container'], container.owner, storage.trusted
                 )
                 if storage.params['storage'] is None:
                     continue
@@ -557,7 +557,7 @@ class Client:
         '''
         Select and load a storage to mount for a container.
 
-        In case of proxy storage, this will also load an inner storage and
+        In case of proxy storage, this will also load an reference storage and
         inline the manifest.
         '''
 
@@ -566,13 +566,13 @@ class Client:
         except StopIteration:
             raise ManifestError('no supported storage manifest')
 
-    def _select_inner_storage(
+    def _select_reference_storage(
             self,
             container_url_or_dict: Union[str, Dict],
             owner: str,
             trusted: bool) -> Optional[Dict]:
         '''
-        Select an "inner" storage based on URL or dictionary. This resolves a
+        Select an "reference" storage based on URL or dictionary. This resolves a
         container specification and then selects storage for the container.
         '''
 
@@ -588,14 +588,14 @@ class Client:
 
         if trusted and container.owner != owner:
             logger.error(
-                'owner field mismatch for trusted inner container: outer %s, inner %s',
+                'owner field mismatch for trusted reference container: outer %s, inner %s',
                 owner, container.owner)
             return None
 
-        inner_storage = self.select_storage(container)
-        inner_manifest = inner_storage.to_unsigned_manifest()
-        inner_manifest.skip_signing()
-        return inner_manifest.fields
+        reference_storage = self.select_storage(container)
+        reference_manifest = reference_storage.to_unsigned_manifest()
+        reference_manifest.skip_signing()
+        return reference_manifest.fields
 
     @staticmethod
     def is_url(s: str):
