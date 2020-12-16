@@ -216,6 +216,16 @@ class Client:
         Load container from URL.
         '''
 
+        if url.startswith(WILDLAND_URL_PREFIX):
+            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+            if wlpath.file_path is None:
+                # TODO: Still a circular dependency with search
+                # pylint: disable=import-outside-toplevel, cyclic-import
+                from .search import Search
+
+                search = Search(self, wlpath, {'default': owner})
+                return next(search.read_container())
+
         return self.session.load_container(self.read_from_url(url, owner))
 
     def load_container_from_dict(self, dict_: dict, owner: str) -> Container:
