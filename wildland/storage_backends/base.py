@@ -438,6 +438,22 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
+    def list_subcontainers(self) -> Iterable[dict]:
+        """
+        List sub-containers provided by this storage.
+
+        This method should return an iterable of dict representation of partial manifests.
+        Specifically, 'owner' field must not be filled in (will be inherited from
+        the parent container).
+
+        Storages of listed containers, when set as 'delegate' backend,
+        may reference parent (this) container via Wildland URL:
+        `wildland:@default:@parent-container:`
+
+        :return:
+        """
+        raise OptionalError()
+
     @staticmethod
     def from_params(params, read_only=False) -> 'StorageBackend':
         '''

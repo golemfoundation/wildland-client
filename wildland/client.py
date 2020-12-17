@@ -37,7 +37,7 @@ from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath
 from .manifest.sig import DummySigContext, SignifySigContext
-from .manifest.manifest import ManifestError
+from .manifest.manifest import ManifestError, Manifest
 from .session import Session
 from .storage_backends.base import StorageBackend
 from .fs_client import WildlandFSClient
@@ -596,6 +596,52 @@ class Client:
         reference_manifest = reference_storage.to_unsigned_manifest()
         reference_manifest.skip_signing()
         return reference_manifest.fields
+
+    @staticmethod
+    def _postprocess_subcontainer(container: Container,
+                                  backend: StorageBackend,
+                                  subcontainer_params: dict) -> Container:
+        """
+        Fill remaining fields of the subcontainer and possibly apply transformations.
+
+        :param container: parent container
+        :param backend: storage backend generating this subcontainer
+        :param subcontainer_params: subcontainer manifest dict
+        :return:
+        """  # pylint: disable=unused-argument
+        subcontainer_params['owner'] = container.owner
+        for sub_storage in subcontainer_params['backends']['storage']:
+            sub_storage['owner'] = container.owner
+            sub_storage['container-path'] = subcontainer_params['paths'][0]
+            if isinstance(sub_storage.get('reference-container'), str) and \
+                    sub_storage['reference-container'].startswith(
+                        WILDLAND_URL_PREFIX):
+                sub_storage['reference-container'] = \
+                    sub_storage['reference-container'].replace(
+                        ':@parent-container:', f':{container.paths[0]}:')
+        manifest = Manifest.from_fields(subcontainer_params)
+        manifest.skip_signing()
+        return Container.from_manifest(manifest)
+
+    def all_subcontainers(self, container: Container) -> Iterator[Container]:
+        """
+        List subcontainers of this container.
+
+        This takes only the first backend that is capable of sub-containers functionality.
+        :param container:
+        :return:
+        """
+        container.ensure_uuid()
+
+        for storage in self.all_storages(container):
+            try:
+                with StorageBackend.from_params(storage.params) as backend:
+                    for subcontainer in backend.list_subcontainers():
+                        yield self._postprocess_subcontainer(container, backend, subcontainer)
+            except NotImplementedError:
+                continue
+            else:
+                return
 
     @staticmethod
     def is_url(s: str):
