@@ -418,6 +418,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         # Recursively handle proxy storages
         if 'storage' in params:
+            # do not modify function argument - it can be used for other things
+            params = params.copy()
             params['storage'] = StorageBackend.from_params(params['storage'])
 
         storage_type = params['type']
