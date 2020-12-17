@@ -106,12 +106,19 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
     SCHEMA = Schema({
         "title": "Storage manifest (S3)",
         "type": "object",
-        "required": ["url", "credentials"],
+        "required": ["s3_url", "credentials"],
         "properties": {
-            "url": {
-                "type": "string",
+            "s3_url": {
+                "type": ["string", "null"],
                 "description": "S3 URL, in the s3://bucket/path format",
                 "pattern": "^s3://.*$"
+            },
+            "endpoint_url": {
+                "oneOf": [
+                    {"$ref": "types.json#http-url"},
+                    {"type": "null"}
+                ],
+                "description": "Override default AWS S3 URL with the given URL."
             },
             "credentials": {
                 "type": "object",
@@ -151,13 +158,16 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         # "Low-level clients *are* thread safe. When using a low-level client,
         # it is recommended to instantiate your client then pass that client
         # object to each of your threads."
-        self.client = session.client('s3')
+        self.client = session.client(
+            service_name='s3',
+            endpoint_url=self.params.get('endpoint_url', None),
+        )
 
-        url = urlparse(self.params['url'])
-        assert url.scheme == 's3'
+        s3_url = urlparse(self.params['s3_url'])
+        assert s3_url.scheme == 's3'
 
-        self.bucket = url.netloc
-        self.base_path = PurePosixPath(url.path)
+        self.bucket = s3_url.netloc
+        self.base_path = PurePosixPath(s3_url.path)
 
         # Persist created directories. This is because S3 doesn't have
         # information about directories, and we might want to create/remove
@@ -170,7 +180,10 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--url'], metavar='URL', required=True),
+            click.Option(['--endpoint-url'], metavar='URL',
+                         help='Override default AWS S3 URL with the given URL.'),
+            click.Option(['--s3-url'], metavar='URL', required=True,
+                         help='S3 url to access the resource in s3://<bucket_name>/path format'),
             click.Option(['--with-index'], is_flag=True,
                          help='Maintain index.html files with directory listings'),
         ]
@@ -187,7 +200,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         click.echo(f'Credentials found by method: {credentials.method}')
 
         return {
-            'url': data['url'],
+            's3_url': data['s3_url'],
+            'endpoint_url': data['endpoint_url'],
             'credentials': {
                 'access-key': credentials.access_key,
                 'secret-key': credentials.secret_key,
