@@ -66,10 +66,12 @@ class DelegateProxyStorageBackend(StorageBackend):
     })
     TYPE = 'delegate'
 
-    def __init__(self, *, params, **kwds):
+    def __init__(self, **kwds):
         super().__init__(**kwds)
-        self.reference = params['storage']
-        self.subdirectory = PurePosixPath(params.get('subdirectory', '/'))
+        self.reference = self.params['storage']
+        self.subdirectory = PurePosixPath(self.params.get('subdirectory', '/'))
+        if self.subdirectory.anchor != '/':
+            raise ValueError('subdirectory needs to be an absolute path')
 
     @classmethod
     def cli_options(cls):

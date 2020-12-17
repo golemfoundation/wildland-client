@@ -68,9 +68,9 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     })
     TYPE = 'date-proxy'
 
-    def __init__(self, *, params, **kwds):
+    def __init__(self, **kwds):
         super().__init__(**kwds)
-        self.inner = params['storage']
+        self.inner = self.params['storage']
         self.read_only = True
 
     @classmethod
