@@ -163,6 +163,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     TYPE = ''
 
     _types: Dict[str, Type['StorageBackend']] = {}
+    _cache: Dict[str, 'StorageBackend'] = {}
 
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
@@ -468,22 +469,32 @@ class StorageBackend(metaclass=abc.ABCMeta):
         raise OptionalError()
 
     @staticmethod
-    def from_params(params, read_only=False) -> 'StorageBackend':
+    def from_params(params, read_only=False, deduplicate=False) -> 'StorageBackend':
         '''
         Construct a Storage from fields originating from manifest.
 
         Assume the fields have been validated before.
+
+        :param deduplicate: return cached object instance when called with the same params
         '''
+
+        if deduplicate:
+            deduplicate = StorageBackend.get_backend_id(params)
+            if deduplicate in StorageBackend._cache:
+                return StorageBackend._cache[deduplicate]
 
         # Recursively handle proxy storages
         if 'storage' in params:
             # do not modify function argument - it can be used for other things
             params = params.copy()
-            params['storage'] = StorageBackend.from_params(params['storage'])
+            params['storage'] = StorageBackend.from_params(params['storage'],
+                                                           deduplicate=deduplicate)
 
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
+        if deduplicate:
+            StorageBackend._cache[deduplicate] = backend
         return backend
 
     @staticmethod
