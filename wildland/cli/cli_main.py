@@ -97,7 +97,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         for container in obj.client.load_containers_from(name):
             storage = obj.client.select_storage(container)
             is_default_user = container.owner == obj.client.config.get('@default')
-            commands.append((container, storage, is_default_user))
+            commands.append((container, storage, is_default_user, None))
 
         click.echo(f'Mounting {len(to_mount)}')
         try:
@@ -184,6 +184,8 @@ def status(obj: ContextObj):
         click.echo('  paths:')
         for path in storage['paths']:
             click.echo(f'    {path}')
+        if storage['subcontainer_of']:
+            click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
         click.echo()
 
 @main.command(short_help='renamed to "start"')
