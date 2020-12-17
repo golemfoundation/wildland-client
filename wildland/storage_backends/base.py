@@ -184,6 +184,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
         self.hash_db = None
+        self.mounted = 0
 
         hasher = hashlib.sha256()
         hasher.update(yaml.dump(self.params, sort_keys=True).encode('utf-8'))
@@ -216,17 +217,39 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         return StorageBackend._types
 
+    def request_mount(self) -> None:
+        """
+        Request storage to be mounted, if not mounted already.
+        """
+        if self.mounted == 0:
+            self.mount()
+        self.mounted += 1
+
+    def request_unmount(self) -> None:
+        """
+        Request storage to be unmounted, if not used anymore.
+        """
+        self.mounted -= 1
+        if self.mounted == 0:
+            self.unmount()
+
     # pylint: disable=missing-docstring, no-self-use
 
     def mount(self) -> None:
-        '''
+        """
         Initialize. Called when mounting.
-        '''
+
+        Backend should implement this method if necessary.
+        External callers should use *request_mount* instead.
+        """
 
     def unmount(self) -> None:
-        '''
+        """
         Clean up. Called when unmounting.
-        '''
+
+        Backend should implement this method if necessary.
+        External callers should use *request_unmount* instead.
+        """
 
     def clear_cache(self) -> None:
         '''

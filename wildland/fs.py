@@ -170,7 +170,7 @@ class WildlandFS(fuse.Fuse):
         ident = self.storage_counter
         self.storage_counter += 1
 
-        storage.mount()
+        storage.request_mount()
 
         self.storages[ident] = storage
         self.storage_extra[ident] = extra or {}
@@ -195,7 +195,7 @@ class WildlandFS(fuse.Fuse):
         logger.info('Unmounting storage %r from paths: %s',
                      storage, [str(p) for p in paths])
 
-        storage.unmount()
+        storage.request_unmount()
 
         # TODO check open files?
         del self.storages[storage_id]

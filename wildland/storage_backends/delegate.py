@@ -94,10 +94,10 @@ class DelegateProxyStorageBackend(StorageBackend):
         return opts
 
     def mount(self):
-        self.reference.mount()
+        self.reference.request_mount()
 
     def unmount(self):
-        self.reference.unmount()
+        self.reference.request_unmount()
 
     def clear_cache(self):
         self.reference.clear_cache()

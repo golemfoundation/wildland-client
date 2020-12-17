@@ -86,10 +86,10 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         return {'reference-container': data['reference_container_url']}
 
     def mount(self):
-        self.inner.mount()
+        self.inner.request_mount()
 
     def unmount(self):
-        self.inner.unmount()
+        self.inner.request_unmount()
 
     def clear_cache(self):
         self.inner.clear_cache()
