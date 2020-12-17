@@ -21,6 +21,7 @@
 Date proxy backend
 '''
 
+import uuid
 from typing import Tuple, Optional, Iterable
 from pathlib import PurePosixPath
 import errno
@@ -145,3 +146,24 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.ENOENT, str(path))
 
         return self.inner.open(inner_path, flags)
+
+    def list_subcontainers(self) -> Iterable[dict]:
+        ns = uuid.UUID(self.backend_id[:32])
+        dates = []
+        for year in self.readdir(PurePosixPath('')):
+            for month in self.readdir(PurePosixPath(year)):
+                for day in self.readdir(PurePosixPath(year + '/' + month)):
+                    dates.append(f'{year}/{month}/{day}')
+
+        for date in dates:
+            yield {
+                'paths': [
+                    '/.uuid/{!s}'.format(uuid.uuid3(ns, date)),
+                    '/timeline/' + date,
+                ],
+                'backends': {'storage': [{
+                    'type': 'delegate',
+                    'reference-container': 'wildland:@default:@parent-container:',
+                    'subdirectory': '/' + date,
+                }]}
+            }
