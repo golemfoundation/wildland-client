@@ -42,7 +42,9 @@ class Container:
                  categories: Optional[List[PurePosixPath]] = None,
                  local_path: Optional[Path] = None):
         self.owner = owner
-        self.paths = paths
+        # make sure uuid path is first
+        self.paths = sorted(paths,
+                            key=lambda p: p.parent != PurePosixPath('/.uuid/'))
         self.backends = backends
         self.title = title
         self.categories = categories if categories else []
