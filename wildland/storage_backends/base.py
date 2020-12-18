@@ -233,6 +233,13 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if self.mounted == 0:
             self.unmount()
 
+    def __enter__(self):
+        self.request_mount()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.request_unmount()
+
     # pylint: disable=missing-docstring, no-self-use
 
     def mount(self) -> None:
