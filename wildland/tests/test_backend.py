@@ -28,11 +28,14 @@ from unittest.mock import patch
 import pytest
 
 from ..storage_backends.local import LocalStorageBackend
+from ..storage_backends.local_cached import LocalCachedStorageBackend, \
+    LocalDirectoryCachedStorageBackend
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.watch import FileEvent
 
 
-@pytest.fixture(params=[LocalStorageBackend])
+@pytest.fixture(params=[LocalStorageBackend, LocalCachedStorageBackend,
+                        LocalDirectoryCachedStorageBackend])
 def storage_backend(request) -> Callable:
     '''
     Parametrize the tests by storage backend; at the moment include only those with watchers
@@ -107,7 +110,12 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
         pass
 
     time.sleep(1)
-    assert received_events == [FileEvent('create', PurePosixPath('newdir/testfile'))]
+    # either create or create and modify are correct
+    assert received_events in [
+        [FileEvent('create', PurePosixPath('newdir/testfile'))],
+        [FileEvent('create', PurePosixPath('newdir/testfile')),
+         FileEvent('modify', PurePosixPath('newdir/testfile'))]]
+
     received_events.clear()
 
     with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:
@@ -145,20 +153,24 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
 
     with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:
         file.write(b'bbbb', 0)
-
     backend.unlink(PurePosixPath('newdir/testfile'))
-
     backend.rmdir(PurePosixPath('newdir'))
 
-    time.sleep(2)
+    time.sleep(1)
 
-    assert received_events == []
+    # we can allow one superflous modify event, if file creation was parsed as two events and not
+    # one
+    assert received_events in [
+        [], [FileEvent(type='modify', path=PurePosixPath('newdir/testfile'))]]
+
     assert watcher.ignore_list == []
+
+    received_events.clear()
 
     # perform some external operations
     os.mkdir(tmpdir / 'storage1/anotherdir')
 
-    time.sleep(2)
+    time.sleep(1)
 
     assert received_events == [FileEvent('create', PurePosixPath('anotherdir'))]
 

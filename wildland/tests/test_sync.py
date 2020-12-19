@@ -30,6 +30,8 @@ import pytest
 
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.zip_archive import ZipArchiveStorageBackend
+from ..storage_backends.local_cached import LocalCachedStorageBackend, \
+    LocalDirectoryCachedStorageBackend
 from .test_zip import make_zip
 from ..sync import Syncer, BLOCK_SIZE, list_storage_conflicts
 from ..hashdb import HashDb
@@ -38,7 +40,8 @@ from ..log import init_logging
 init_logging()
 
 
-@pytest.fixture(params=[LocalStorageBackend])
+@pytest.fixture(params=[LocalStorageBackend, LocalCachedStorageBackend,
+                        LocalDirectoryCachedStorageBackend])
 def storage_backend(request) -> Callable:
     '''
     Parametrize the tests by storage backend; at the moment include only those with watchers
@@ -174,12 +177,14 @@ def test_sync_move_dir(tmpdir, storage_backend, cleanup):
     assert read_file(storage_dir1 / 'moveddir/subdir/testfile3') == 'ijkl'
 
     shutil.move(str(storage_dir1 / 'moveddir'), str(tmpdir))
-    time.sleep(1)
+    time.sleep(2)
 
     assert not (storage_dir2 / 'moveddir').exists()
 
 
 def test_sync_three_storages(tmpdir, storage_backend, second_backend, third_backend, cleanup):
+    # TODO: when more backends will be handling sync, change third_backend to same as second,
+    # to avoid N^3 combinations (instead will just have N^2)
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
     backend2, storage_dir2 = make_storage(second_backend, tmpdir / 'storage2')
     backend3, storage_dir3 = make_storage(third_backend, tmpdir / 'storage3')

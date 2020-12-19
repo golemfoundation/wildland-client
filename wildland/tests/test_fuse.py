@@ -425,16 +425,11 @@ def test_watch(env, storage_type):
         'type': 'create',
         'path': 'file1.txt',
         'storage-id': 1,
-        'watch-id': watch_id,
-    }]
-
-    if storage_type == 'local':
-        # due to implementation details, creating an emtpy file can fire a CLOSE_WRITE event or not
-        expected_event.append({
-            'type': 'modify',
-            'path': 'file1.txt',
-            'storage-id': 1,
-            'watch-id': watch_id})
+        'watch-id': watch_id},
+        {'type': 'modify',
+         'path': 'file1.txt',
+         'storage-id': 1,
+         'watch-id': watch_id}]
 
     assert event == expected_event
 

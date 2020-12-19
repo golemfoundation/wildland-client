@@ -21,16 +21,18 @@
 A cached version of local storage.
 '''
 
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Optional, Union
 from pathlib import Path, PurePosixPath
 import os
 import errno
+import time
 
 import click
 
 from .cached import CachedStorageMixin, DirectoryCachedStorageMixin
 from .buffered import FullBufferedFile, PagedFile, File
 from .base import StorageBackend, Attr
+from .local import LocalStorageWatcher
 from ..manifest.schema import Schema
 
 
@@ -145,6 +147,9 @@ class BaseCached(StorageBackend):
         local = self._local(path)
         if local.exists():
             raise IOError(errno.EEXIST, str(path))
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', path)
+
         local.write_bytes(b'')
 
         self.clear_cache()
@@ -162,16 +167,42 @@ class BaseCached(StorageBackend):
         self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('delete', path)
         self._local(path).unlink()
         self.clear_cache()
 
     def mkdir(self, path: PurePosixPath, mode: int = 0o777):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', path)
         self._local(path).mkdir(mode)
         self.clear_cache()
 
     def rmdir(self, path: PurePosixPath):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('delete', path)
         self._local(path).rmdir()
         self.clear_cache()
+
+    def watcher(self):
+        """
+        If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
+        use the smarter LocalStorageWatcher.
+        """
+        default_watcher = super(BaseCached, self).watcher()
+        if not default_watcher:
+            return LocalStorageWatcher(self)
+        return default_watcher
+
+    def get_file_token(self, path: PurePosixPath) -> Optional[Union[int, float]]:
+        try:
+            current_timestamp = os.stat(self._local(path)).st_mtime
+        except NotADirectoryError:
+            # can occur due to extreme file conflicts across storages
+            return None
+        if abs(time.time() - current_timestamp) < 0.001:
+            return None
+        return current_timestamp
 
 
 class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
