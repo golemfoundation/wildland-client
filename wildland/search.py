@@ -35,6 +35,7 @@ from .container import Container
 from .bridge import Bridge
 from .storage import Storage
 from .storage_backends.base import StorageBackend
+from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
@@ -87,15 +88,15 @@ class Search:
         self.local_users = list(self.client.load_users())
         self.local_bridges = list(self.client.load_bridges())
 
-    def read_container(self) -> Container:
+    def read_container(self) -> Iterable[Container]:
         '''
-        Read a container manifest represented by the path.
+        Yield all containers matching the given WL path.
         '''
         if self.wlpath.file_path is not None:
             raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
 
-        step = self._resolve_all()
-        return step.container
+        for step in self._resolve_all():
+            yield step.container
 
     def read_file(self) -> bytes:
         '''
@@ -109,13 +110,20 @@ class Search:
         if self.wlpath.file_path is None:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
-        step = self._resolve_all()
-        _, storage_backend = self._find_storage(step)
-        storage_backend.mount()
-        try:
-            return storage_read_file(storage_backend, self.wlpath.file_path.relative_to('/'))
-        finally:
-            storage_backend.unmount()
+        for step in self._resolve_all():
+            try:
+                _, storage_backend = self._find_storage(step)
+            except ManifestError:
+                continue
+            storage_backend.mount()
+            try:
+                return storage_read_file(storage_backend, self.wlpath.file_path.relative_to('/'))
+            except FileNotFoundError:
+                continue
+            finally:
+                storage_backend.unmount()
+
+        raise FileNotFoundError
 
     def write_file(self, data: bytes):
         '''
@@ -125,22 +133,28 @@ class Search:
         if self.wlpath.file_path is None:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
-        step = self._resolve_all()
-        _, storage_backend = self._find_storage(step)
-        storage_backend.mount()
-        try:
-            return storage_write_file(data, storage_backend, self.wlpath.file_path.relative_to('/'))
-        finally:
-            storage_backend.unmount()
+        for step in self._resolve_all():
+            try:
+                _, storage_backend = self._find_storage(step)
+            except ManifestError:
+                continue
+            storage_backend.mount()
+            try:
+                return storage_write_file(data, storage_backend,
+                                          self.wlpath.file_path.relative_to('/'))
+            except FileNotFoundError:
+                continue
+            finally:
+                storage_backend.unmount()
 
-    def _resolve_all(self) -> Step:
+    def _resolve_all(self) -> Iterable[Step]:
         '''
-        Resolve all path parts, return the first result that matches.
+        Resolve all path parts, yield all results that match.
         '''
 
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
-                return last_step
+                yield last_step
         raise PathError(f'Container not found for path: {self.wlpath}')
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:

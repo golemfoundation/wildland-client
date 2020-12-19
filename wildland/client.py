@@ -25,7 +25,7 @@ import glob
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Iterator, List, Tuple, Union, Dict
+from typing import Optional, Iterator, List, Tuple, Union, Dict, Iterable
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -200,16 +200,16 @@ class Client:
             path.read_bytes(), path,
             trusted_owner=trusted_owner)
 
-    def load_container_from_wlpath(self, wlpath: WildlandPath) -> Container:
+    def load_container_from_wlpath(self, wlpath: WildlandPath) -> Iterable[Container]:
         '''
-        Load a container from WildlandPath.
+        Load containers referring to a given WildlandPath.
         '''
 
         # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import Search
         search = Search(self, wlpath, self.config.aliases)
-        return search.read_container()
+        yield from search.read_container()
 
     def load_container_from_url(self, url: str, owner: str) -> Container:
         '''
@@ -277,7 +277,8 @@ class Client:
         # Wildland path
         if WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
-            return self.load_container_from_wlpath(wlpath)
+            # TODO: what to do if there are more containers that match the path?
+            return next(self.load_container_from_wlpath(wlpath))
 
         path = self.resolve_container_name_to_path(name)
         if path:
