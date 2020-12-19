@@ -21,7 +21,6 @@
 import os
 import shutil
 import time
-import logging
 from unittest.mock import patch
 from typing import Callable
 from pathlib import PurePosixPath
@@ -351,10 +350,10 @@ def test_sync_lost_event_delete(tmpdir, storage_backend, cleanup):
     time.sleep(1)
 
     # "lost" event (we filter out backend-caused events)
-    logging.debug("IGNORE THIS MODIFY")
+
     with backend1.open('file1', os.O_RDWR) as file:
         file.write(b'bbbb', 0)
-    logging.debug("CHANGE MADE")
+
     assert read_file(storage_dir1 / 'file1') == 'bbbb'
     assert read_file(storage_dir2 / 'file1') == 'a'
     time.sleep(1)
@@ -711,11 +710,14 @@ def test_get_conflicts_complex(tmpdir, storage_backend, cleanup, use_hash_db):
         ('file1', backend1_id, backend2_id),
         ('file1', backend1_id, backend3_id),
         ('file1', backend2_id, backend3_id),
-        ('subdir1/file2', backend1_id, backend2_id),
-        ('subdir1/file2', backend1_id, backend3_id),
-        ('subdir1/subsubdir1/file3', backend1_id, backend2_id)]
+        ('subdir1', backend1_id, backend2_id),
+        ('subdir1', backend2_id, backend3_id),
+        ('subdir1/file2', backend1_id, backend3_id)]
 
-    assert sorted(conflicts) == sorted(expected_conflicts)
+    for path, b1, b2 in expected_conflicts:
+        assert (path, b1, b2) in conflicts or (path, b2, b1) in conflicts
+
+    assert len(expected_conflicts) == len(conflicts)
 
 
 def test_sync_three_storages_del(tmpdir, storage_backend, second_backend, third_backend, cleanup):
