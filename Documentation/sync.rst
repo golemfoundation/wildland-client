@@ -10,9 +10,9 @@ start, there are two files with the same name but different contents; or two sto
 same file at the same time) nothing will be changed in either place; the user can resolve conflict
 manually via copying the desired file to the storage with the undesired file.
 
-In order to achieve actual syncing, the storages must either have the watcher-delay parameter
+In order to achieve actual syncing, the storages must either have the watcher-interval parameter
 in the manifest (which allows using a very naive watcher - one that scans the storage every
-watcher-delay seconds and reports changes based on modification date) or a more efficient
+watcher-interval seconds and reports changes based on modification date) or a more efficient
 watcher implementation.
 
 How to use
@@ -37,4 +37,4 @@ The storage backend driver is responsible for:
 * a more efficient change-watching mechanism (through a class inheriting from StorageWatcher)
 * an atomic compare-and-swap implementation (if possible; through the open_for_safe_replace() method)
 * returning the StorageWatcher through the watcher() method (it's preferable to first check if
-  there's no watcher-delay parameter in the manifest - see local.py implementation)
+  there's no watcher-interval parameter in the manifest - see local.py implementation)

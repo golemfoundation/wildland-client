@@ -260,21 +260,21 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def watcher(self):
         """
         Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
-        manifest contains a 'watcher-delay' parameter, SimpleStorageWatcher (which is a naive,
-        brute-force watcher that scans the entire storage every watcher-delay seconds) will be used.
-        If a given StorageBackend provides a better solution, it's recommended to overwrite this
-        method to provide it. It is recommended to still use SimpleStorageWatcher if the user
-        explicitly specifies watcher-delay in the manifest. See local.py for a simple super()
+        manifest contains a 'watcher-interval' parameter, SimpleStorageWatcher (which is a naive,
+        brute-force watcher that scans the entire storage every watcher-interval seconds) will be
+        used. If a given StorageBackend provides a better solution, it's recommended to overwrite
+        this method to provide it. It is recommended to still use SimpleStorageWatcher if the user
+        explicitly specifies watcher-interval in the manifest. See local.py for a simple super()
         implementation that avoids duplicating code.
 
         Note that changes originating from FUSE are reported without using this
         mechanism.
         """
-        if 'watcher-delay' in self.params:
+        if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
             logger.warning("Using simple storage watcher - it can be very inefficient.")
             from ..storage_backends.watch import SimpleStorageWatcher
-            return SimpleStorageWatcher(self, delay=int(self.params['watcher-delay']))
+            return SimpleStorageWatcher(self, interval=int(self.params['watcher-interval']))
         return None
 
     def set_config_dir(self, config_dir):

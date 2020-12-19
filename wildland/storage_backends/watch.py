@@ -118,12 +118,12 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     (such as last modification time of backing storage).
     """
 
-    def __init__(self, backend: StorageBackend, delay: int = 10):
+    def __init__(self, backend: StorageBackend, interval: int = 10):
         super().__init__()
         self.backend = backend
         self.token = None
         self.info: Dict[PurePosixPath, Attr] = {}
-        self.delay = delay
+        self.interval = interval
         self.counter = 0  # for naive implementation of get_token()
 
     def get_token(self):
@@ -138,7 +138,7 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         self.info = self._get_info()
 
     def wait(self) -> Optional[List[FileEvent]]:
-        self.stop_event.wait(self.delay)
+        self.stop_event.wait(self.interval)
         new_token = self.get_token()
         if new_token != self.token:
             logger.debug('storage changed...')
