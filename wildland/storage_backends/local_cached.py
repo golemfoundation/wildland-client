@@ -40,6 +40,8 @@ class LocalCachedFile(FullBufferedFile):
     '''
     def __init__(self, attr, os_path, local_path, clear_cache_callback, ignore_callback=None):
         super(LocalCachedFile, self).__init__(attr, clear_cache_callback)
+        # we store separately os_path (path on disk, to use when accessing file) and wayland (local)
+        # path (path in storage, used for events)
         self.os_path = os_path
         self.local_path = local_path
         self.ignore_callback = ignore_callback

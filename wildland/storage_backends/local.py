@@ -226,9 +226,10 @@ class LocalStorageWatcher(StorageWatcher):
     Known issues: on subdirectory creation, some events may be lost, because files appear
     before the watcher can add watches. It's unfortunately a known inotify issue.
     """
-    def __init__(self, backend: LocalStorageBackend):
+    def __init__(self, backend: StorageBackend):
         super(LocalStorageWatcher, self).__init__()
-        self.path = backend.root
+        self.path = getattr(backend, 'root', None)
+        self.clear_cache = backend.clear_cache
         self.watches: Dict[int, str] = {}
         self.watch_flags = inotify_simple.flags.CREATE | inotify_simple.flags.DELETE | \
             inotify_simple.flags.MOVED_TO | inotify_simple.flags.MOVED_FROM | \
@@ -274,7 +275,7 @@ class LocalStorageWatcher(StorageWatcher):
         result = select.select([self._stop_pipe_read, self.inotify], [], [])
         if self._stop_pipe_read in result[0]:
             return []
-        events = self.inotify.read(timeout=1)
+        events = self.inotify.read(timeout=1, read_delay=250)
         results = []
 
         for event in events:
@@ -309,5 +310,5 @@ class LocalStorageWatcher(StorageWatcher):
                     continue
 
             results.append(FileEvent(path=relative_path, type=event_type))
-
+        self.clear_cache()
         return results
