@@ -101,7 +101,7 @@ class Syncer:
                 logger.debug("Container %s: creating directory %s in storage %s",
                              self.container_name, path, backend2.TYPE)
                 try:
-                    backend2.mkdir(path, mode=0o777)
+                    backend2.mkdir(path)
                 except (FileExistsError, NotADirectoryError):
                     self.handle_conflict(backend1, backend2, path)
 
@@ -190,7 +190,7 @@ class Syncer:
 
         if not target_hash:
             try:
-                target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY, mode=0o777)
+                target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY)
             except OptionalError:
                 logger.warning("Container %s: cannot sync file %s to storage %s. "
                                "Operation not supported by storage backend.",
@@ -249,7 +249,7 @@ class Syncer:
         for file_path, attr in source_storage.walk(path):
             if attr.is_dir():
                 with suppress(FileExistsError):
-                    target_storage.mkdir(file_path, mode=0o777)
+                    target_storage.mkdir(file_path)
             else:
                 self.sync_file(source_storage, target_storage, file_path)
 
@@ -342,7 +342,7 @@ class Syncer:
             return
         if is_dir:
             try:
-                target_storage.mkdir(path, mode=0o777)
+                target_storage.mkdir(path)
             except FileExistsError:
                 logger.debug("Container %s: creation of file %s in storage %s failed: file "
                              "already exists.", self.container_name, path, target_storage.TYPE)

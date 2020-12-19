@@ -168,7 +168,7 @@ class LocalStorageBackend(StorageBackend):
                              ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags)
 
-    def create(self, path, flags, mode):
+    def create(self, path, flags, mode=0o666):
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
             return LocalFile(path, self._path(path), flags, mode,
@@ -189,7 +189,7 @@ class LocalStorageBackend(StorageBackend):
             self.watcher_instance.ignore_event('delete', path)
         return os.unlink(self._path(path))
 
-    def mkdir(self, path, mode):
+    def mkdir(self, path, mode=0o777):
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
         return os.makedirs(self._path(path), mode, exist_ok=True)
