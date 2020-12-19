@@ -26,13 +26,13 @@ import time
 from pathlib import Path, PurePosixPath
 import logging
 import threading
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Union
 import select
 import inotify_simple
 
 import click
 
-from .base import StorageBackend, File, Attr, HashCache
+from .base import StorageBackend, File, Attr
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
@@ -209,27 +209,15 @@ class LocalStorageBackend(StorageBackend):
             return LocalStorageWatcher(self)
         return default_watcher
 
-    def get_hash(self, path: PurePosixPath):
-        """
-        Return sha256 hash for object at path. Reimplemented from base class because
-        filesystems can have less-than-perfect timestamp resolution.
-        """
+    def get_file_token(self, path: PurePosixPath) -> Optional[Union[int, float]]:
         try:
             current_timestamp = os.stat(self._path(path)).st_mtime
         except NotADirectoryError:
             # can occur due to extreme file conflicts across storages
             return None
-        stored_hash_cache = self.retrieve_hash(path)
-        if stored_hash_cache:
-            if current_timestamp == stored_hash_cache.token:
-                return stored_hash_cache.hash
-        new_hash = super(LocalStorageBackend, self).get_hash(path)
-        if abs(time.time() - current_timestamp) > 0.001:
-            # do not cache if not enough time has passed to be certain there were no further
-            # file modifications
-            # TODO: also remove from cache when modify event is received
-            self.store_hash(path, HashCache(new_hash, current_timestamp))
-        return new_hash
+        if abs(time.time() - current_timestamp) < 0.001:
+            return None
+        return current_timestamp
 
 
 class LocalStorageWatcher(StorageWatcher):
@@ -268,9 +256,7 @@ class LocalStorageWatcher(StorageWatcher):
     def init(self) -> None:
         # pylint: disable=attribute-defined-outside-init
         self.inotify = inotify_simple.INotify()
-
         self._watch_dir(self.path)
-
         self._stop_pipe_read, self._stop_pipe_write = os.pipe()
 
     def stop(self):

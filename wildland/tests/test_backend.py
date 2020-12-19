@@ -195,7 +195,7 @@ def test_hash_cache(tmpdir, storage_backend):
     assert backend.get_hash(PurePosixPath("testfile")) == \
            '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
 
-    with patch('wildland.storage_backends.base.StorageBackend.get_hash'):
+    with patch('hashlib.sha256'):
         # if the hash did not get cached correctly, this will return a mock not the correct hash
         assert backend.get_hash(PurePosixPath("testfile")) == \
                '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'

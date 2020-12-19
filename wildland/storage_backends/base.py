@@ -23,7 +23,7 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union
 from dataclasses import dataclass
 from collections import namedtuple
 import stat
@@ -333,7 +333,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     # Other operations
 
-    def get_file_token(self, path: PurePosixPath) -> int:
+    def get_file_token(self, path: PurePosixPath) -> Optional[Union[int, float]]:
         # used to implement hash caching; should provide a token that changes when the file changes.
         raise OptionalError()
 
@@ -346,22 +346,26 @@ class StorageBackend(metaclass=abc.ABCMeta):
         except OptionalError:
             current_token = None
 
-        if current_token and path in self.hash_cache:
-            hash_cache = self.hash_cache[path]
-            if current_token == hash_cache.token:
+        if current_token:
+            hash_cache = self.retrieve_hash(path)
+            if hash_cache and current_token == hash_cache.token:
                 return hash_cache.hash
+
         hasher = hashlib.sha256()
         offset = 0
-        with self.open(path, os.O_RDONLY) as obj:
-            size = obj.fgetattr().size
-            while offset < size:
-                data = obj.read(BLOCK_SIZE, offset)
-                offset += len(data)
-                hasher.update(data)
+        try:
+            with self.open(path, os.O_RDONLY) as obj:
+                size = obj.fgetattr().size
+                while offset < size:
+                    data = obj.read(BLOCK_SIZE, offset)
+                    offset += len(data)
+                    hasher.update(data)
+        except NotADirectoryError:
+            return None
 
         new_hash = hasher.hexdigest()
         if current_token:
-            self.hash_cache[path] = HashCache(new_hash, current_token)
+            self.store_hash(path, HashCache(new_hash, current_token))
         return new_hash
 
     def store_hash(self, path, hash_cache):
