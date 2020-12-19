@@ -244,18 +244,24 @@ def delete(obj: ContextObj, name, force, cascade):
     storage.local_path.unlink()
 
 
-def do_create_storage_fom_set(client, container, storage_set):
+def do_create_storage_fom_set(client, container, storage_set, local_dir):
     """
     Create storages for a container from a given StorageSet.
     :param client: Wildland client
     :param container: Wildland container
     :param storage_set: StorageSet of manifest templates
+    :param local_dir: str to be passed to template renderer as a parameter, can be used by template
+        creators
     """
     template_manager = TemplateManager(client.template_dir)
     storage_set = template_manager.get_storage_set(storage_set)
 
     for file, t in storage_set.templates:
-        manifest = file.get_unsigned_manifest(container)
+        try:
+            manifest = file.get_unsigned_manifest(container, local_dir)
+        except ValueError as ex:
+            click.echo(f'Failed to create manifest in template {file.file_name}: {ex}')
+            raise ex
 
         manifest.sign(client.session.sig)
 
@@ -281,9 +287,11 @@ def do_create_storage_fom_set(client, container, storage_set):
                   alias=['cs'])
 @click.option('--storage-set', '--set', '-s', multiple=False, required=True,
               help='name of storage template set to use')
+@click.option('--local-dir', multiple=False, required=False,
+              help='local directory to be passed to storage templates')
 @click.argument('cont', metavar='CONTAINER', required=True)
 @click.pass_obj
-def create_from_set(obj: ContextObj, cont, storage_set):
+def create_from_set(obj: ContextObj, cont, storage_set, local_dir=None):
     """
     Setup storage for a container from a storage template set.
     """
@@ -291,7 +299,10 @@ def create_from_set(obj: ContextObj, cont, storage_set):
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
 
-    do_create_storage_fom_set(obj.client, container, storage_set)
+    try:
+        do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
+    except ValueError:
+        pass
 
 
 storage_.add_command(sign)

@@ -93,13 +93,18 @@ class OptionRequires(click.Option):
               help='Attach the container to the user')
 @click.option('--storage-set', '--set', multiple=False, required=False,
               help='Use a storage template set to generate storages (see wl storage-set)')
+@click.option('--local-dir', multiple=False, required=False,
+              help='local directory to be passed to storage templates (requires --storage-set')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
 def create(obj: ContextObj, user, path, name, update_user, title=None, category=None,
-           storage_set=None):
+           storage_set=None, local_dir=None):
     '''
     Create a new container manifest.
     '''
+
+    if local_dir and not storage_set:
+        raise CliError('--local-dir requires --storage-set.')
 
     obj.client.recognize_users()
     user = obj.client.load_user_from(user or '@default-owner')
@@ -122,9 +127,13 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
 
     if storage_set:
         try:
-            do_create_storage_fom_set(obj.client, container, storage_set)
+            do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
         except FileNotFoundError:
             click.echo('Failed to create storage from set: storage set not found')
+            click.echo(f'Removing container: {path}')
+            path.unlink()
+            return
+        except ValueError:
             click.echo(f'Removing container: {path}')
             path.unlink()
             return

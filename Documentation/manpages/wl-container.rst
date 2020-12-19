@@ -90,6 +90,10 @@ Create a |~| new container manifest.
 
    Create storages for a container with a given storage-set.
 
+.. option:: --local-dir <local_dir>
+
+    Local directory to be passed to storage templates as a parameter. Requires --storage-set.
+
 .. program:: wl-container-update
 .. _wl-container-update:
 

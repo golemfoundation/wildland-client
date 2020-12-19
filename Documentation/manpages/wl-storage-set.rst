@@ -32,29 +32,34 @@ Templates can use the following parameters:
 first category: {{ categories|first }}
 - `title`: container title
 - `paths`: container paths (a list of PurePosixPaths)
+- `local_path`: container local path (path to container file)
 
 Manifest template should not contain `owner` and `container-path` fields - they are automatically
 overwritten with correct values for a given container when the template is used.
 
-Sample template for local storage:
+Warning: `title` and `categories` are optional and, if the container does not have them, will
+not be passed to the template. Use jinja's {% if variable is defined %} syntax to check if they are
+defined and provide reasonable defaults.
+
+Sample very simple template for local storage:
 
 .. code-block:: yaml
 
     path: /home/user/storage{{ paths|last }}
     type: local
 
-Remember that title and categories container fields are optional. They will be provided as an empty
-string and an empty list to the template if they are absent in the container. It is a good practice
-to use if-constructions to avoid any unexpected results, e.g.:
+Sample template using is defined syntax:
 
 .. code-block:: yaml
 
-    path: /home/user/storage/{% if title -%} {{ title }} {% else -%} {{ uuid }} {% endif %}
+    path: /home/user/storage/{% if title is defined -%} {{ title }} {% else -%} {{ uuid }} {% endif %}
     type: local
 
+More complex example:
+
 .. code-block:: yaml
 
-    path: /home/user/storage/{% if categories -%} {{ categories|first }} {% else -%} {{ (paths|last).relative_to('/') }} {% endif %}
+    path: /home/user/storage/{% if categories is defined -%} {{ categories|first }} {% else -%} {{ (paths|last).relative_to('/') }} {% endif %}
     type: local
 
 
