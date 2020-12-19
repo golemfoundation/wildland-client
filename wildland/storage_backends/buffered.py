@@ -267,6 +267,11 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
 
     def ftruncate(self, length: int) -> None:
         with self.buf_lock:
+            if length > 0:
+                self._load()
+            else:
+                self.loaded = True
+
             if length < len(self.buf):
                 self.buf = self.buf[:length]
                 self.dirty = True
