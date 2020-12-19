@@ -291,13 +291,14 @@ class Syncer:
             del self.storage_hashes[storage][p]
 
     def remove_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
-                      path: PurePosixPath, source_is_dir: bool):
+                      path: PurePosixPath, source_is_dir: bool, old_source_hash=None):
         """
         Remove an object (dir or file) in path in target_storage, if it is the object
         the syncer expected to find there (based on hash).
         Must give source_storage so that conflict handling knows where the conflict is and
         must pass source_is_dir boolean parameter, because there's no way to guess what was in
         source_storage before it was deleted.
+        To avoid problems with syncing multiple containers, should provide old source hash.
         """
         logger.debug("Container %s: attempting to sync file %s removed from storage %s in "
                      "storage %s", self.container_name, path,
@@ -319,11 +320,14 @@ class Syncer:
             self.remove_whole_dir(target_storage, path)
         else:
             target_hash = target_storage.get_hash(path)
-            if target_hash != self.storage_hashes[target_storage][path]:
+            source_hash = old_source_hash if old_source_hash else \
+                self.storage_hashes[target_storage][path]
+            if target_hash != source_hash:
                 self.handle_conflict(source_storage, target_storage, path)
                 return
             target_storage.unlink(path)
-            del self.storage_hashes[target_storage][path]
+            if path in self.storage_hashes[target_storage]:
+                del self.storage_hashes[target_storage][path]
             return
 
     def create_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
@@ -359,16 +363,20 @@ class Syncer:
                 logger.debug("Container %s: handling event %s for object %s occuring in "
                              "storage %s", self.container_name, event.type, event.path,
                              source_storage.TYPE)
-                for target_storage in self.storage_watchers:
-                    if target_storage == source_storage:
-                        continue
-                    obj_path = event.path
-                    if event.type == 'delete':
-                        old_source_hash = self.storage_hashes[source_storage].get(obj_path)
+
+                obj_path = event.path
+
+                if event.type == 'delete':
+                    old_source_hash = self.storage_hashes[source_storage].get(obj_path)
+                    is_dir = obj_path not in self.storage_hashes[source_storage]
+
+                    for target_storage in self.storage_watchers:
+                        if target_storage == source_storage:
+                            continue
                         old_target_hash = self.storage_hashes[target_storage].get(obj_path)
                         if old_source_hash == old_target_hash:
-                            is_dir = obj_path not in self.storage_hashes[source_storage]
-                            self.remove_object(source_storage, target_storage, obj_path, is_dir)
+                            self.remove_object(source_storage, target_storage, obj_path,
+                                               is_dir, old_source_hash)
                         else:
                             logger.warning(
                                 "Container %s: conflict resolved via removal of file at %s from "
@@ -376,10 +384,14 @@ class Syncer:
                                 self.container_name, obj_path,
                                 source_storage.TYPE, target_storage.TYPE)
                             self.create_object(target_storage, source_storage, obj_path)
-                    elif event.type == 'create':
-                        self.create_object(source_storage, target_storage, obj_path)
-                    elif event.type == 'modify':
-                        self.sync_file(source_storage, target_storage, obj_path)
+                else:
+                    for target_storage in self.storage_watchers:
+                        if target_storage == source_storage:
+                            continue
+                        if event.type == 'create':
+                            self.create_object(source_storage, target_storage, obj_path)
+                        elif event.type == 'modify':
+                            self.sync_file(source_storage, target_storage, obj_path)
 
     def stop_syncing(self):
         """

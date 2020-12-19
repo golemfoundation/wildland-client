@@ -716,3 +716,30 @@ def test_get_conflicts_complex(tmpdir, storage_backend, cleanup, use_hash_db):
         ('subdir1/subsubdir1/file3', backend1_id, backend2_id)]
 
     assert sorted(conflicts) == sorted(expected_conflicts)
+
+
+def test_sync_three_storages_del(tmpdir, storage_backend, second_backend, third_backend, cleanup):
+    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
+    backend2, storage_dir2 = make_storage(second_backend, tmpdir / 'storage2')
+    backend3, storage_dir3 = make_storage(third_backend, tmpdir / 'storage3')
+
+    make_file(storage_dir1 / 'file1', 'abcd')
+
+    syncer = Syncer([backend1, backend2, backend3], 'test')
+    cleanup(syncer.stop_syncing)
+    syncer.start_syncing()
+
+    dirs = [storage_dir1, storage_dir2, storage_dir3]
+
+    time.sleep(2)
+
+    for d in dirs:
+        assert (d / 'file1').exists()
+        assert read_file(d / 'file1') == 'abcd'
+
+    os.unlink(storage_dir2 / 'file1')
+
+    time.sleep(2)
+
+    for d in dirs:
+        assert not (d / 'file1').exists()
