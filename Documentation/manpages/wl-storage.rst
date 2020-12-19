@@ -218,26 +218,6 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
    Path to Bear SQLite database. Required.
 
-.. option:: --with-content
-
-   Serve also note content, not only manifests.
-
-.. program:: wl-storage-create-bear-note
-.. _wl-storage-create-bear-note:
-
-:command:`wl storage create bear-note --container <container> [-u] [--user <user>] --path <path> --note <note>`
----------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-
-.. option:: --path <path>
-
-   Path to Bear SQLite database. Required.
-
-.. option:: --note <note>
-
-   Bear note identifier. Required.
-
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:
