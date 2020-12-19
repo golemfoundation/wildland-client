@@ -62,9 +62,6 @@ class LocalCachedPagedFile(PagedFile):
     A paged, read-only local file.
     '''
 
-    page_size = 4
-    max_pages = 4
-
     def __init__(self, local_path: Path, attr: Attr):
         super().__init__(attr)
         self.local_path = local_path
