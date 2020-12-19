@@ -23,7 +23,7 @@ File buffering classes
 
 import logging
 import abc
-from typing import Dict, Tuple, Iterable, List, Optional
+from typing import Dict, Tuple, Iterable, List, Optional, Callable
 import heapq
 import threading
 
@@ -207,12 +207,13 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
     Requires you to implement read_full() and write_full().
     '''
 
-    def __init__(self, attr: Attr):
+    def __init__(self, attr: Attr, clear_cache_callback: Optional[Callable] = None):
         self.attr = attr
         self.buf = bytearray()
         self.loaded = self.attr.size == 0
         self.dirty = False
         self.buf_lock = threading.Lock()
+        self.clear_cache = clear_cache_callback
 
     @abc.abstractmethod
     def read_full(self) -> bytes:
@@ -239,6 +240,8 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
         with self.buf_lock:
             if self.dirty:
                 self.write_full(bytes(self.buf))
+                if self.clear_cache:
+                    self.clear_cache()
 
     def _load(self) -> None:
         if not self.loaded:
@@ -272,4 +275,6 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
         with self.buf_lock:
             if self.dirty:
                 self.write_full(bytes(self.buf))
+                if self.clear_cache:
+                    self.clear_cache()
                 self.dirty = False

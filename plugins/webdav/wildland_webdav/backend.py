@@ -43,8 +43,8 @@ class WebdavFile(FullBufferedFile):
     A buffered WebDAV file.
     '''
 
-    def __init__(self, auth, url: str, attr: Attr):
-        super().__init__(attr)
+    def __init__(self, auth, url: str, attr: Attr, clear_cache_callback):
+        super().__init__(attr, clear_cache_callback)
         self.auth = auth
         self.url = url
 
@@ -207,7 +207,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         attr = self.getattr(path)
 
         if flags & (os.O_WRONLY | os.O_RDWR):
-            return WebdavFile(self.auth, self.make_url(path), attr)
+            return WebdavFile(self.auth, self.make_url(path), attr, self.clear_cache)
 
         return PagedWebdavFile(self.auth, self.make_url(path), attr)
 
@@ -218,7 +218,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         resp.raise_for_status()
         self.clear_cache()
         attr = self.getattr(path)
-        return WebdavFile(self.auth, self.make_url(path), attr)
+        return WebdavFile(self.auth, self.make_url(path), attr, self.clear_cache)
 
     def truncate(self, path: PurePosixPath, length: int):
         if length > 0:

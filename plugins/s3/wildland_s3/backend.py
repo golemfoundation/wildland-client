@@ -51,8 +51,8 @@ class S3File(FullBufferedFile):
     A buffered S3 file.
     '''
 
-    def __init__(self, client, bucket, key, content_type, attr):
-        super().__init__(attr)
+    def __init__(self, client, bucket, key, content_type, attr, clear_cache_callback):
+        super().__init__(attr, clear_cache_callback)
         self.client = client
         self.bucket = bucket
         self.key = key
@@ -95,7 +95,6 @@ class PagedS3File(PagedFile):
             Range=range_header,
         )
         return response['Body'].read()
-
 
 
 class S3StorageBackend(CachedStorageMixin, StorageBackend):
@@ -299,7 +298,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             content_type = self.get_content_type(path)
             return S3File(
                 self.client, self.bucket, self.key(path),
-                content_type, attr)
+                content_type, attr, self.clear_cache)
 
         return PagedS3File(self.client, self.bucket, self.key(path), attr)
 
@@ -317,7 +316,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         self.clear_cache()
         self._update_index(path.parent)
         return S3File(self.client, self.bucket, self.key(path),
-                      content_type, attr)
+                      content_type, attr, self.clear_cache)
 
     def unlink(self, path: PurePosixPath):
         if self.with_index and path.name == self.INDEX_NAME:

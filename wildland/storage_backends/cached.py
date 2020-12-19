@@ -110,7 +110,8 @@ class CachedStorageMixin:
         '''
         Cached implementation of getattr().
         '''
-
+        if isinstance(path, str):
+            path = PurePosixPath(path)
         with self.cache_lock:
             self._update()
 
@@ -127,6 +128,8 @@ class CachedStorageMixin:
         '''
         Cached implementation of readdir().
         '''
+        if isinstance(path, str):
+            path = PurePosixPath(path)
 
         with self.cache_lock:
             self._update()
@@ -211,7 +214,8 @@ class DirectoryCachedStorageMixin:
         '''
         Cached implementation of getattr().
         '''
-
+        if isinstance(path, str):
+            path = PurePosixPath(path)
         # We don't retrieve any information about the root directory's
         # attributes.
         if path == PurePosixPath('.'):
@@ -229,7 +233,8 @@ class DirectoryCachedStorageMixin:
         '''
         Cached implementation of readdir().
         '''
-
+        if isinstance(path, str):
+            path = PurePosixPath(path)
         with self.cache_lock:
             self._update_dir(path)
 
