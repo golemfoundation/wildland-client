@@ -89,6 +89,8 @@ class Client:
 
         self.users: List[User] = []
 
+        self._select_reference_storage_cache = {}
+
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         '''
         Create a copy of the current Client, with a public key imported.
@@ -576,6 +578,12 @@ class Client:
         container specification and then selects storage for the container.
         '''
 
+        # use custom caching that dumps *container_url_or_dict* to yaml,
+        # because dict is not hashable (and there is no frozendict in python)
+        cache_key = yaml.dump(container_url_or_dict), owner, trusted
+        if cache_key in self._select_reference_storage_cache:
+            return self._select_reference_storage_cache[cache_key]
+
         if isinstance(container_url_or_dict, str):
             container = self.load_container_from_url(
                 container_url_or_dict, owner
@@ -590,11 +598,13 @@ class Client:
             logger.error(
                 'owner field mismatch for trusted reference container: outer %s, inner %s',
                 owner, container.owner)
+            self._select_reference_storage_cache[cache_key] = None
             return None
 
         reference_storage = self.select_storage(container)
         reference_manifest = reference_storage.to_unsigned_manifest()
         reference_manifest.skip_signing()
+        self._select_reference_storage_cache[cache_key] = reference_manifest.fields
         return reference_manifest.fields
 
     @staticmethod
