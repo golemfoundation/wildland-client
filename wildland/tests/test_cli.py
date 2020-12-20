@@ -73,7 +73,7 @@ def test_user_create_additional_keys(cli, base_dir):
     with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
 
-    assert 'pubkeys:\n- key.0xbbb' in data
+    assert 'pubkeys:\n- key.0x111\n- key.0xbbb' in data
 
 
 def test_user_list(cli, base_dir):

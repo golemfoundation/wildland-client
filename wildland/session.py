@@ -53,8 +53,10 @@ class Session:
         owner, owner_pubkey = self.sig.load_key(manifest.fields['owner'])
         self.sig.add_pubkey(owner_pubkey)
 
-        if manifest.fields.get('pubkeys'):
-            for pubkey in manifest.fields['pubkeys']:
+        for pubkey in manifest.fields.get('pubkeys', []):
+            if pubkey != owner_pubkey:
+                # For backwards compatibility with old format where we did not put user's pubkey as
+                # first pubkey in pubkeys
                 self.sig.add_pubkey(pubkey, owner)
 
         return User.from_manifest(manifest, owner_pubkey, local_path)
