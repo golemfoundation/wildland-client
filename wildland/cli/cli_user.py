@@ -32,6 +32,7 @@ from .cli_common import sign, verify, edit
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
 from ..manifest.manifest import ManifestError
+from ..manifest.template import TemplateManager
 
 
 @aliased_group('user', short_help='user management')
@@ -49,9 +50,11 @@ def user_():
     help='path (can be repeated)')
 @click.option('--add-pubkey', 'additional_pubkeys', multiple=True,
               help='an additional public key that this user owns (can be repeated)')
+@click.option('--default-storage-set', required=False,
+              help="default storage template set to be used when creating containers")
 @click.argument('name', metavar='NAME', required=False)
 @click.pass_obj
-def create(obj: ContextObj, key, paths, additional_pubkeys, name):
+def create(obj: ContextObj, key, paths, additional_pubkeys, name, default_storage_set):
     '''
     Create a new user manifest and save it.
     '''
@@ -81,12 +84,21 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     else:
         additional_pubkeys = []
 
+    if default_storage_set:
+        template_manager = TemplateManager(obj.client.template_dir)
+        try:
+            template_manager.get_storage_set(default_storage_set)
+        except FileNotFoundError:
+            click.echo(f'Storage set {default_storage_set} not found.')
+            return
+
     user = User(
         owner=owner,
         pubkey=pubkey,
         paths=[PurePosixPath(p) for p in paths],
         containers=[],
-        additional_pubkeys=additional_pubkeys
+        additional_pubkeys=additional_pubkeys,
+        default_storage_set=default_storage_set
     )
     try:
         error_on_save = False

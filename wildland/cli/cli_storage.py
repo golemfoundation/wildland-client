@@ -253,8 +253,9 @@ def do_create_storage_fom_set(client, container, storage_set, local_dir):
     :param local_dir: str to be passed to template renderer as a parameter, can be used by template
         creators
     """
-    template_manager = TemplateManager(client.template_dir)
-    storage_set = template_manager.get_storage_set(storage_set)
+    if isinstance(storage_set, str):
+        template_manager = TemplateManager(client.template_dir)
+        storage_set = template_manager.get_storage_set(storage_set)
 
     for file, t in storage_set.templates:
         try:
@@ -285,19 +286,32 @@ def do_create_storage_fom_set(client, container, storage_set, local_dir):
 
 @storage_.command('create-from-set', short_help='create a storage from a set of templates',
                   alias=['cs'])
-@click.option('--storage-set', '--set', '-s', multiple=False, required=True,
+@click.option('--storage-set', '--set', '-s', multiple=False, required=False,
               help='name of storage template set to use')
 @click.option('--local-dir', multiple=False, required=False,
               help='local directory to be passed to storage templates')
 @click.argument('cont', metavar='CONTAINER', required=True)
 @click.pass_obj
-def create_from_set(obj: ContextObj, cont, storage_set, local_dir=None):
+def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
     """
     Setup storage for a container from a storage template set.
     """
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
+    template_manager = TemplateManager(obj.client.template_dir)
+
+    if not storage_set:
+        user = obj.client.load_user_from(container.owner)
+        storage_set = user.default_storage_set
+        if not storage_set:
+            raise CliError(f'User {user} has no default storage template set. '
+                           f'Specify template set explicitly.')
+
+    try:
+        storage_set = template_manager.get_storage_set(storage_set)
+    except FileNotFoundError:
+        raise CliError(f'Storage set {storage_set} not found.')
 
     try:
         do_create_storage_fom_set(obj.client, container, storage_set, local_dir)

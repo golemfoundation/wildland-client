@@ -94,6 +94,15 @@ Create a |~| new container manifest.
 
     Local directory to be passed to storage templates as a parameter. Requires --storage-set.
 
+.. option:: --default-storage-set
+
+    Use default storage set for the user, if available.
+
+.. option:: --no-default-storage-set
+
+    Do not use default storage set for the user, even if available.
+
+
 .. program:: wl-container-update
 .. _wl-container-update:
 
