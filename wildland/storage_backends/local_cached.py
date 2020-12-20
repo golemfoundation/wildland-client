@@ -21,7 +21,7 @@
 A cached version of local storage.
 '''
 
-from typing import Iterable, Tuple, Optional, Union
+from typing import Iterable, Tuple, Optional
 from pathlib import Path, PurePosixPath
 import os
 import errno
@@ -194,15 +194,18 @@ class BaseCached(StorageBackend):
             return LocalStorageWatcher(self)
         return default_watcher
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[Union[int, float]]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
         try:
             current_timestamp = os.stat(self._local(path)).st_mtime
         except NotADirectoryError:
             # can occur due to extreme file conflicts across storages
             return None
         if abs(time.time() - current_timestamp) < 0.001:
+            # due to filesystem lack of resolution, two changes less than 1 millisecond apart
+            # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
+            # but be warned: it can go as high as 2 seconds for FAT16/32
             return None
-        return current_timestamp
+        return int(current_timestamp * 1000)
 
 
 class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):

@@ -23,7 +23,7 @@ Abstract classes for storage
 
 import abc
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 from dataclasses import dataclass
 from collections import namedtuple
 import stat
@@ -333,7 +333,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     # Other operations
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[Union[int, float]]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
         # used to implement hash caching; should provide a token that changes when the file changes.
         raise OptionalError()
 

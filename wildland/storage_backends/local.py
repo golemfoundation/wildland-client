@@ -26,7 +26,7 @@ import time
 from pathlib import Path, PurePosixPath
 import logging
 import threading
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Optional, List, Dict, Tuple
 import select
 import inotify_simple
 
@@ -209,15 +209,18 @@ class LocalStorageBackend(StorageBackend):
             return LocalStorageWatcher(self)
         return default_watcher
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[Union[int, float]]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
         try:
             current_timestamp = os.stat(self._path(path)).st_mtime
         except NotADirectoryError:
             # can occur due to extreme file conflicts across storages
             return None
         if abs(time.time() - current_timestamp) < 0.001:
+            # due to filesystem lack of resolution, two changes less than 1 millisecond apart
+            # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
+            # but be warned: it can go as low as 2 seconds for FAT16/32
             return None
-        return current_timestamp
+        return int(current_timestamp * 1000)
 
 
 class LocalStorageWatcher(StorageWatcher):
