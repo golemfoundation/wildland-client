@@ -86,14 +86,31 @@ Create local storage.
 .. program:: wl-storage-create-date-proxy
 .. _wl-storage-create-date-proxy:
 
-:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --inner-container-url <url>  <storage>`
----------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url>  <storage>`
+-------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --inner-container-url <url>
+.. option:: --reference-container-url <url>
 
    Inner container URL for this storage.
+
+.. program:: wl-storage-create-delegate
+.. _wl-storage-create-delegate:
+
+:command:`wl storage create delegate --container <container> [-u] [--user <user>] --reference-container-url <url> [--subdirectory <dir>] <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --reference-container-url <url>
+
+   Inner container URL for this storage.
+
+.. option:: --subdirectory <path>
+
+   Subdirectory within reference container. When set, content of this directory
+   will be considered content of the container.
 
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
@@ -200,26 +217,6 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. option:: --path <path>
 
    Path to Bear SQLite database. Required.
-
-.. option:: --with-content
-
-   Serve also note content, not only manifests.
-
-.. program:: wl-storage-create-bear-note
-.. _wl-storage-create-bear-note:
-
-:command:`wl storage create bear-note --container <container> [-u] [--user <user>] --path <path> --note <note>`
----------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-
-.. option:: --path <path>
-
-   Path to Bear SQLite database. Required.
-
-.. option:: --note <note>
-
-   Bear note identifier. Required.
 
 .. _wl-storage-sign:
 .. _wl-storage-verify:

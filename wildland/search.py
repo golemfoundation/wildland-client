@@ -115,13 +115,12 @@ class Search:
                 _, storage_backend = self._find_storage(step)
             except ManifestError:
                 continue
-            storage_backend.mount()
-            try:
-                return storage_read_file(storage_backend, self.wlpath.file_path.relative_to('/'))
-            except FileNotFoundError:
-                continue
-            finally:
-                storage_backend.unmount()
+            with storage_backend:
+                try:
+                    return storage_read_file(storage_backend,
+                                             self.wlpath.file_path.relative_to('/'))
+                except FileNotFoundError:
+                    continue
 
         raise FileNotFoundError
 
@@ -138,14 +137,12 @@ class Search:
                 _, storage_backend = self._find_storage(step)
             except ManifestError:
                 continue
-            storage_backend.mount()
-            try:
-                return storage_write_file(data, storage_backend,
-                                          self.wlpath.file_path.relative_to('/'))
-            except FileNotFoundError:
-                continue
-            finally:
-                storage_backend.unmount()
+            with storage_backend:
+                try:
+                    return storage_write_file(data, storage_backend,
+                                              self.wlpath.file_path.relative_to('/'))
+                except FileNotFoundError:
+                    continue
 
     def _resolve_all(self) -> Iterable[Step]:
         '''
@@ -223,8 +220,7 @@ class Search:
 
         storage, storage_backend = self._find_storage(step)
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
-        storage_backend.mount()
-        try:
+        with storage_backend:
             for manifest_path in storage_find_manifests(
                     storage_backend, manifest_pattern, part):
                 trusted_owner = None
@@ -250,8 +246,6 @@ class Search:
                         step.client, step.owner,
                         part, manifest_path, storage_backend,
                         container_or_bridge)
-        finally:
-            storage_backend.unmount()
 
     # pylint: disable=no-self-use
 

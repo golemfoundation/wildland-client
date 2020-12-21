@@ -163,6 +163,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     TYPE = ''
 
     _types: Dict[str, Type['StorageBackend']] = {}
+    _cache: Dict[str, 'StorageBackend'] = {}
 
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
@@ -184,10 +185,24 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
         self.hash_db = None
+        self.mounted = 0
 
+        self.backend_id = self.get_backend_id(self.params)
+
+    @staticmethod
+    def get_backend_id(params: dict) -> str:
+        """
+        Get an backend_id - a unique identifier of a StorageBackend with given parameters
+
+        :param params: StorageBackend params
+        :return: str
+        """
         hasher = hashlib.sha256()
-        hasher.update(yaml.dump(self.params, sort_keys=True).encode('utf-8'))
-        self.backend_id = hasher.hexdigest()
+        # skip 'storage' object if present, it is derived from reference-container
+        params_for_hash = dict((k, v) for (k, v) in params.items()
+                               if k != 'storage')
+        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+        return hasher.hexdigest()
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -216,17 +231,46 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         return StorageBackend._types
 
+    def request_mount(self) -> None:
+        """
+        Request storage to be mounted, if not mounted already.
+        """
+        if self.mounted == 0:
+            self.mount()
+        self.mounted += 1
+
+    def request_unmount(self) -> None:
+        """
+        Request storage to be unmounted, if not used anymore.
+        """
+        self.mounted -= 1
+        if self.mounted == 0:
+            self.unmount()
+
+    def __enter__(self):
+        self.request_mount()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.request_unmount()
+
     # pylint: disable=missing-docstring, no-self-use
 
     def mount(self) -> None:
-        '''
+        """
         Initialize. Called when mounting.
-        '''
+
+        Backend should implement this method if necessary.
+        External callers should use *request_mount* instead.
+        """
 
     def unmount(self) -> None:
-        '''
+        """
         Clean up. Called when unmounting.
-        '''
+
+        Backend should implement this method if necessary.
+        External callers should use *request_unmount* instead.
+        """
 
     def clear_cache(self) -> None:
         '''
@@ -408,21 +452,49 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
+    def list_subcontainers(self) -> Iterable[dict]:
+        """
+        List sub-containers provided by this storage.
+
+        This method should return an iterable of dict representation of partial manifests.
+        Specifically, 'owner' field must not be filled in (will be inherited from
+        the parent container).
+
+        Storages of listed containers, when set as 'delegate' backend,
+        may reference parent (this) container via Wildland URL:
+        `wildland:@default:@parent-container:`
+
+        :return:
+        """
+        raise OptionalError()
+
     @staticmethod
-    def from_params(params, read_only=False) -> 'StorageBackend':
+    def from_params(params, read_only=False, deduplicate=False) -> 'StorageBackend':
         '''
         Construct a Storage from fields originating from manifest.
 
         Assume the fields have been validated before.
+
+        :param deduplicate: return cached object instance when called with the same params
         '''
+
+        if deduplicate:
+            deduplicate = StorageBackend.get_backend_id(params)
+            if deduplicate in StorageBackend._cache:
+                return StorageBackend._cache[deduplicate]
 
         # Recursively handle proxy storages
         if 'storage' in params:
-            params['storage'] = StorageBackend.from_params(params['storage'])
+            # do not modify function argument - it can be used for other things
+            params = params.copy()
+            params['storage'] = StorageBackend.from_params(params['storage'],
+                                                           deduplicate=deduplicate)
 
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
+        if deduplicate:
+            StorageBackend._cache[deduplicate] = backend
         return backend
 
     @staticmethod

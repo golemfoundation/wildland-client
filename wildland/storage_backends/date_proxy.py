@@ -21,6 +21,7 @@
 Date proxy backend
 '''
 
+import uuid
 from typing import Tuple, Optional, Iterable
 from pathlib import PurePosixPath
 import errno
@@ -42,7 +43,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     Directory timestamps will be ignored, and empty directories will not be
     taken into account.
 
-    The 'inner-container' parameter specifies inner container, either as URL,
+    The 'reference-container' parameter specifies inner container, either as URL,
     or as an inline manifest. When creating the object instance:
 
     1. First, the storage parameters for the inner container will be resolved
@@ -54,9 +55,9 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["inner-container"],
+        "required": ["reference-container"],
         "properties": {
-            "inner-container": {
+            "reference-container": {
                 "oneOf": [
                     {"$ref": "types.json#url"},
                     {"$ref": "container.schema.json"}
@@ -68,28 +69,28 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     })
     TYPE = 'date-proxy'
 
-    def __init__(self, *, params, **kwds):
+    def __init__(self, **kwds):
         super().__init__(**kwds)
-        self.inner = params['storage']
+        self.inner = self.params['storage']
         self.read_only = True
 
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--inner-container-url'], metavar='URL',
+            click.Option(['--reference-container-url'], metavar='URL',
                           help='URL for inner container manifest',
                          required=True),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'inner-container': data['inner_container_url']}
+        return {'reference-container': data['reference_container_url']}
 
     def mount(self):
-        self.inner.mount()
+        self.inner.request_mount()
 
     def unmount(self):
-        self.inner.unmount()
+        self.inner.request_unmount()
 
     def clear_cache(self):
         self.inner.clear_cache()
@@ -145,3 +146,24 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
             raise IOError(errno.ENOENT, str(path))
 
         return self.inner.open(inner_path, flags)
+
+    def list_subcontainers(self) -> Iterable[dict]:
+        ns = uuid.UUID(self.backend_id[:32])
+        dates = []
+        for year in self.readdir(PurePosixPath('')):
+            for month in self.readdir(PurePosixPath(year)):
+                for day in self.readdir(PurePosixPath(year + '/' + month)):
+                    dates.append(f'{year}/{month}/{day}')
+
+        for date in dates:
+            yield {
+                'paths': [
+                    '/.uuid/{!s}'.format(uuid.uuid3(ns, date)),
+                    '/timeline/' + date,
+                ],
+                'backends': {'storage': [{
+                    'type': 'delegate',
+                    'reference-container': 'wildland:@default:@parent-container:',
+                    'subdirectory': '/' + date,
+                }]}
+            }

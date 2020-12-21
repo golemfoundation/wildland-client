@@ -1,25 +1,29 @@
 Proxy storage (experimental)
 ============================
 
-A *proxy storage* is a storage that is parametrized by another, "inner"
+A *proxy storage* is a storage that is parametrized by another, "reference"
 storage.
 
-Right now we have one example: ``date-proxy``. It's a storage that sorts files
+
+``date-proxy`` storage
+----------------------
+
+``date-proxy`` is an example proxy storage. It's a storage that sorts files
 according to the modification time. For example, if a file ``foo.txt`` has a
 modification time of 2020-05-01, it will be available under
 ``2020/05/01/foo.txt``.
 
-Example (using CLI)
--------------------
+``date-proxy`` example (using CLI)
+----------------------------------
 
 Create a user, if you haven't done that yet::
 
    $ ./wl user create User
 
 
-Create the "inner" container, and directory with files::
+Create the "reference" container, and directory with files::
 
-   $ ./wl container create Inner --path /inner
+   $ ./wl container create Inner --path /reference
 
    $ ./wl storage create local Inner --path $HOME/proxy-data \
        --container Inner
@@ -32,7 +36,7 @@ Create the proxy container storage::
    $ ./wl container create Proxy --path /proxy
 
    $ ./wl storage create date-proxy Proxy \
-       --inner-container-url file://$HOME/.config/wildland/containers/Inner.yaml \
+       --reference-container-url file://$HOME/.config/wildland/containers/Inner.container.yaml \
        --container Proxy
 
 Mount::
@@ -53,8 +57,8 @@ You should be able to see the files::
    /home/user/wildland/proxy/2020/05/01
    /home/user/wildland/proxy/2020/05/01/file1.txt
 
-Example (self-contained manifest
---------------------------------
+``date-proxy`` example (self-contained manifest)
+------------------------------------------------
 
 All manifests can be inlined. You can create a ``container.yaml``
 file (or edit existing one using ``wl container edit``)
@@ -71,10 +75,10 @@ file (or edit existing one using ``wl container edit``)
        - type: date-proxy
          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
          owner: <OWNER>
-         inner-container:
+         reference-container:
            owner: <OWNER>
            paths:
-             - /inner
+             - /reference
            backends:
              storage:
                - type: local
@@ -84,3 +88,91 @@ file (or edit existing one using ``wl container edit``)
 
 This file can be signed with ``wl container sign`` (the edit command will do
 that automatically), then mounted using ``wl container mount``.
+
+
+``delegate`` storage
+--------------------
+
+This storage allows to put another container (potentially from another user)
+under own user hierarchy, under another set of paths.
+Additionally it allows to include only a subdirectory of a linked container.
+The linked container can be specified either inline, or by using an URL to the
+manifest. This URL can be also an Wildland URL.
+
+``delegate`` usage
+------------------
+
+This shows how to place a container of another user under own Wildland
+hierarchy. You can create a ``container.yaml`` file (or edit existing one using
+``wl container edit``)
+
+.. code-block:: yaml
+
+   owner: <OWNER>
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /proxy
+
+   backends:
+     storage:
+       - type: delegate
+         container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+         owner: <OWNER>
+         reference-container: 'wildland:<ANOTHER-OWNER>:/container/path:'
+         subdirectory: /directory/in/reference-container
+
+This file can be signed with ``wl container sign`` (the edit command will do
+that automatically), then mounted using ``wl container mount``.
+
+In this specific example, the local user is ``0xc4c71e09ff71e5f06445`` and they
+want to place a container of ``0xee4052832df4976d6445`` user under its own
+tree. To be more specific a subdirectory ``/directory/in/reference-container`` from
+a container with a path ``/container/path`` of that user::
+
+   $ cat container.yaml
+   owner: '0xc4c71e09ff71e5f06445'
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /proxy
+
+   backends:
+     storage:
+       - type: delegate
+         container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+         owner: '0xc4c71e09ff71e5f06445'
+         reference-container: 'wildland:0xee4052832df4976d6445:/container/path:'
+         subdirectory: /directory/in/reference-container
+
+Sign the above container::
+
+   $ wl c sign -i container.yaml
+
+Then mount it::
+
+   $ wl c mount container.yaml
+   new: container.yaml
+   Mounting 1 container
+
+Here we can see the original container of the ``0xee4052832df4976d6445`` user
+(mounted independently, earlier). It is another's user container, and is
+available only under ``.users/0xee4052832df4976d6445`` path::
+
+   $ tree mnt/.users/0xee4052832df4976d6445/
+   mnt/.users/0xee4052832df4976d6445/
+   `-- container
+       `-- path
+           |-- directory
+           |   `-- in
+           |       `-- reference-container
+           |           `-- reference-file.txt
+           `-- file21
+
+   5 directories, 2 files
+
+And here we can see a part of that container mounted using ``delegate`` storage::
+
+   $ tree  mnt/proxy/
+   mnt/proxy/
+   `-- reference-file.txt
+
+   0 directories, 1 file

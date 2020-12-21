@@ -18,6 +18,7 @@ Welcome to Wildland's documentation!
    cli
    internals
    proxy
+   subcontainers
    sync
    deprecated
 

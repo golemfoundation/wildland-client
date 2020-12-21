@@ -34,8 +34,6 @@ from typing import Iterable, Optional, List, Set, Dict, Tuple
 import bear # pylint: disable=import-error,wrong-import-order
 import click
 
-from wildland.storage import Storage
-from wildland.container import Container
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.generated import (
     CachedDirEntry,
@@ -43,7 +41,6 @@ from wildland.storage_backends.generated import (
     StaticFileEntry,
 )
 from wildland.storage_backends.watch import SimpleStorageWatcher
-from wildland.manifest.manifest import Manifest
 from wildland.manifest.schema import Schema
 
 
@@ -58,7 +55,7 @@ def get_md(note) -> bytes:
     return f'title: {note.title}\n---\n{note.text}\n'.encode('utf-8')
 
 
-def get_note_categories(tags: List[str]) -> List[PurePosixPath]:
+def get_note_categories(tags: List[str]) -> List[str]:
     '''
     Get the list of paths a note should be mounted under, based on tags.
 
@@ -73,7 +70,7 @@ def get_note_categories(tags: List[str]) -> List[PurePosixPath]:
             if parent in result:
                 result.remove(parent)
         result.add(path)
-    return sorted(result)
+    return sorted(str(p) for p in result)
 
 
 class FileCachedDirEntry(CachedDirEntry):
@@ -218,7 +215,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             },
             "with-content": {
                 "type": "boolean",
-                "description": "Serve note content, not only manifests",
+                "description": "Obsolete, ignored",
             },
         }
     })
@@ -228,7 +225,6 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         super().__init__(**kwds)
 
         self.bear_db = BearDB(self.params['path'])
-        self.with_content = self.params.get('with-content', False)
 
         self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
 
@@ -247,57 +243,40 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             click.Option(['--path'], metavar='PATH',
                          help='Path to the SQLite database',
                          required=True),
-            click.Option(['--with-content'], is_flag=True,
-                         help='Serve note content, not only manifests'),
         ]
 
     @classmethod
     def cli_create(cls, data):
         return {
             'path': data['path'],
-            'with-content': data['with_content'],
             'trusted': True,
             'manifest_pattern': {'type': 'glob', 'path': '/*/container.yaml'},
         }
 
-    def _make_storage_manifest(self, ident: str) -> Manifest:
-        '''
-        Create a storage manifest for a single note.
-        '''
-
-        storage = Storage(
-            owner=self.params['owner'],
-            storage_type='bear-note',
-            container_path=PurePosixPath(f'/.uuid/{ident}'),
-            trusted=False,
-            params={
-                'path': self.params['path'],
-                'note': ident,
-            })
-        storage.validate()
-        manifest = storage.to_unsigned_manifest()
-        manifest.skip_signing()
-        return manifest
-
-    def _make_container_manifest(self, ident: str, title: str, tags: List[str]) -> Manifest:
+    @staticmethod
+    def _make_note_container(ident: str, title: str, tags: List[str]) -> dict:
         '''
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
         '''
 
-        storage_manifest = self._make_storage_manifest(ident)
-        paths = [PurePosixPath(f'/.uuid/{ident}')]
+        paths = [f'/.uuid/{ident}']
         categories = get_note_categories(tags)
-        container = Container(
-            owner=self.params['owner'],
-            title=title,
-            paths=paths,
-            categories=categories,
-            backends=[storage_manifest.fields],
-        )
-        manifest = container.to_unsigned_manifest()
-        manifest.skip_signing()
-        return manifest
+        return {
+            'title': title,
+            'paths': paths,
+            'categories': categories,
+            'backends': {'storage': [{
+                'type': 'delegate',
+                'reference-container': 'wildland:@default:@parent-container:',
+                'subdirectory': '/' + ident,
+            }]}
+        }
+
+    def list_subcontainers(self) -> Iterable[dict]:
+        for ident, title, tags, _timestamp in \
+                self.bear_db.get_notes_with_metadata():
+            yield self._make_note_container(ident, title, tags)
 
     def get_root(self):
         return self.root
@@ -307,119 +286,23 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         try:
-            for ident, title, tags, timestamp in \
+            for ident, title, _tags, timestamp in \
                     self.bear_db.get_notes_with_metadata():
                 yield FileCachedDirEntry(
                     self.bear_db.path,
                     ident,
-                    partial(self._dir_note, ident, title, tags, timestamp),
+                    partial(self._dir_note, ident, title, timestamp),
                     timestamp=timestamp)
         except sqlite3.DatabaseError:
             logger.exception('error loading database')
             return
 
-    def _dir_note(self, ident: str, title: str, tags: List[str], timestamp: int):
-        yield StaticFileEntry('container.yaml', self._get_manifest(ident, title, tags),
-                              timestamp=timestamp)
-        yield StaticFileEntry('README.md', self._get_readme(), timestamp=timestamp)
-        if self.with_content:
-            yield StaticFileEntry('note.md', self._get_note(ident), timestamp=timestamp)
-
-    def _get_readme(self) -> bytes:
-        '''
-        Get the contents of note README.md file.
-        '''
-
-        readme = '''\
-This is an auto-generated directory for a single Bear note. To use it, mount
-the `container.yaml` file.
-
-The note itself will be exposed via the Wildland FS tree, depending on what
-tags it defines for itself. Thus a note containing `#projects/wildland/bear2fs`
-tag will be found under `~/Wildland/projects/bear2fs/` directory.
-'''
-
-        if self.with_content:
-            readme += '''\
-
-The note files (currently just `note.md`) are also visible here.
-'''
-
-        return readme.encode()
-
-    def _get_manifest(self, ident, title, tags):
-        return self._make_container_manifest(ident, title, tags).to_bytes()
+    def _dir_note(self, ident: str, title: str, timestamp: int):
+        name = re.sub(r'[\0\\/:*?"<>|]', '-', title)
+        yield StaticFileEntry(f'{name}.md', self._get_note(ident), timestamp=timestamp)
 
     def _get_note(self, ident):
         note = self.bear_db.get_note(ident)
         if not note:
             raise FileNotFoundError(errno.ENOENT, '')
         return get_md(note)
-
-
-class BearNoteStorageBackend(GeneratedStorageMixin, StorageBackend):
-    '''
-    A backend responsible for serving an individual Bear note.
-    '''
-
-    SCHEMA = Schema({
-        "type": "object",
-        "required": ["path"],
-        "properties": {
-            "path": {
-                "$ref": "types.json#abs-path",
-                "description": "Path to the Bear SQLite database",
-            },
-            "note": {
-                "type": "string",
-                "description": "Bear note identifier, typically UUID",
-            },
-        }
-    })
-    TYPE = 'bear-note'
-
-    def __init__(self, **kwds):
-        super().__init__(**kwds)
-
-        self.bear_db = BearDB(self.params['path'])
-        self.ident = self.params['note']
-        self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
-
-    def clear_cache(self):
-        self.root.clear_cache()
-
-    def mount(self):
-        self.bear_db.connect()
-
-    def unmount(self):
-        self.bear_db.disconnect()
-
-    @classmethod
-    def cli_options(cls):
-        return [
-            click.Option(['--path'], metavar='PATH',
-                         help='Path to the SQLite database',
-                         required=True),
-            click.Option(['--note'], metavar='IDENT',
-                         help='Bear note identifier',
-                         required=True),
-        ]
-
-    @classmethod
-    def cli_create(cls, data):
-        return {
-            'path': data['path'],
-            'note': data['note'],
-        }
-
-    def get_root(self):
-        return self.root
-
-    def _dir_root(self):
-        note = self.bear_db.get_note(self.ident)
-        if not note:
-            raise FileNotFoundError(errno.ENOENT, '')
-
-        name = re.sub(r'[\0\\/:*?"<>|]', '-', note.title)
-        yield StaticFileEntry(f'{name}.md', get_md(note),
-                              timestamp=int(note.modified.timestamp()))

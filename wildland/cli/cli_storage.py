@@ -115,6 +115,11 @@ def _do_create(
 
     params = backend.cli_create(data)
 
+    # remove default, non-required values
+    for param, value in list(params.items()):
+        if value is None or value == []:
+            del params[param]
+
     manifest_pattern_dict = None
     if manifest_pattern:
         manifest_pattern_dict = {
