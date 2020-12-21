@@ -153,7 +153,7 @@ def test_sync_move_dir(tmpdir, storage_backend, cleanup):
 
     shutil.move(str(tmpdir / 'newdir'), str(storage_dir1))
 
-    time.sleep(1)
+    time.sleep(2)
 
     assert (storage_dir2 / 'newdir').exists()
     assert (storage_dir2 / 'newdir/testfile').exists()
@@ -162,12 +162,12 @@ def test_sync_move_dir(tmpdir, storage_backend, cleanup):
     assert read_file(storage_dir2 / 'newdir/subdir/testfile2') == 'efgh'
 
     make_file(storage_dir1 / 'newdir/subdir/testfile3', 'ijkl')
-    time.sleep(1)
+    time.sleep(2)
 
     assert read_file(storage_dir2 / 'newdir/subdir/testfile3') == 'ijkl'
 
     shutil.move(str(storage_dir2 / 'newdir'), str(storage_dir2 / 'moveddir'))
-    time.sleep(1)
+    time.sleep(2)
 
     assert not (storage_dir1 / 'newdir').exists()
     assert (storage_dir1 / 'moveddir').exists()
@@ -432,7 +432,7 @@ def test_sync_move_from_subdir(tmpdir, storage_backend, cleanup):
     cleanup(syncer.stop_syncing)
     syncer.start_syncing()
 
-    time.sleep(1)
+    time.sleep(2)
 
     assert read_file(storage_dir1 / 'subdir/file1') == 'abcd'
     assert read_file(storage_dir2 / 'subdir/file1') == 'abcd'
@@ -440,7 +440,7 @@ def test_sync_move_from_subdir(tmpdir, storage_backend, cleanup):
     assert read_file(storage_dir2 / 'file1') == 'abcdefghijkl'
 
     shutil.move(str(storage_dir1 / 'subdir/file1'), str(storage_dir1 / 'file1'))
-    time.sleep(1)
+    time.sleep(2)
 
     assert read_file(storage_dir1 / 'file1') == 'abcd'
     assert read_file(storage_dir2 / 'file1') == 'abcd'
@@ -564,7 +564,7 @@ def test_zip_sync_change(tmpdir, storage_backend, cleanup):
         ('bar.txt', 'bar data'),
     ])
 
-    time.sleep(2)
+    time.sleep(3)
 
     assert not (storage_dir1 / 'foo.txt').exists()
     assert (storage_dir1 / 'bar.txt').exists()
