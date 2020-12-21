@@ -45,13 +45,11 @@ class User:
                  pubkeys: List[str],
                  paths: List[PurePosixPath],
                  containers: List[Union[str, dict]],
-                 local_path: Optional[Path] = None,
-                 default_storage_set: Optional[str] = None):
+                 local_path: Optional[Path] = None):
         self.owner = owner
         self.paths = paths
         self.containers = containers
         self.local_path = local_path
-        self.default_storage_set = default_storage_set
         self.pubkeys = pubkeys
 
     @classmethod
@@ -80,7 +78,6 @@ class User:
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             containers=manifest.fields.get('infrastructures', []),
             local_path=local_path,
-            default_storage_set=manifest.fields.get('default_storage_set', None)
         )
 
     def to_unsigned_manifest(self) -> Manifest:
@@ -94,7 +91,6 @@ class User:
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,
             'pubkeys': self.pubkeys,
-            'default_storage_set': self.default_storage_set
         })
         manifest.apply_schema(self.SCHEMA)
         return manifest

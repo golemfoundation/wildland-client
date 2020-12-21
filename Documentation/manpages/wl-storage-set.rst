@@ -11,6 +11,7 @@ Synopsis
 | :command:`wl storage-set list [--show-filenames]`
 | :command:`wl storage-set add --template <template_file> --inline <storage_set>`
 | :command:`wl storage-set del <storage_set>`
+| :command:`wl storage-set set-default --user <user> <storage_set>`
 
 Description
 ===========
@@ -126,3 +127,15 @@ Create a storage set.
    Template file to include in the storage set as an inline template. At least one of this or
    --template is required.
 
+.. program:: wl-storage-set-set-default
+.. _wl-storage-set-set-default:
+
+:command:`wl storage-set set-default --user <user> <storage_set>`
+-----------------------------------------------------------------------------------------------
+
+Specify a storage set to be used as default when creating new storages for the user's
+containers.
+
+.. option:: --user <user>
+
+   User for which set the default.

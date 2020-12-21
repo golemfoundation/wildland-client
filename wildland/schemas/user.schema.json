@@ -15,10 +15,6 @@
             "items": { "type": "string" },
             "description": "public keys of the user (can include extra keys; the user manifest itself needs to be signed with the main key anyway)"
         },
-        "default_storage_set": {
-            "type": ["string", "null"],
-            "description": "default storage template set to be used when creating new containers"
-        },
         "containers": {
             "type": "array",
             "items": { "$ref": "types.json#url" },
