@@ -120,8 +120,8 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount [--remount/--no-remount] [--with-subcontainers] <container> [<container>...]`
-----------------------------------------------------------------------------------------------------------
+:command:`wl container mount [--quiet/-q] [--remount/--no-remount] [--with-subcontainers] <container> [<container>...]`
+-----------------------------------------------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl start <wl-start>`.
@@ -145,6 +145,11 @@ be mounted first, see :ref:`wl start <wl-start>`.
 
    Mount also subcontainers of those containers. Do this recursively (i.e. if
    any subcontainer provide own set of subcontainers, mount those too).
+
+.. option:: -q, --quiet
+
+   Do not list all the containers to be mounted, useful for a containers with a
+   lot of subcontainers.
 
 .. program:: wl-container-mount-watch
 .. _wl-container-mount-watch:

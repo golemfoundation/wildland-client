@@ -279,7 +279,8 @@ container_.add_command(verify)
 container_.add_command(edit)
 
 
-def _mount(obj, container, container_name, is_default_user, remount, with_subcontainers, subcontainer_of):
+def _mount(obj, container, container_name, is_default_user, remount, with_subcontainers,
+           subcontainer_of, quiet):
     try:
         storage = obj.client.select_storage(container)
     except ManifestError:
@@ -289,21 +290,24 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
     param_tuple = (container, storage, is_default_user, subcontainer_of)
 
     if obj.fs_client.find_storage_id(container) is None:
-        print(f'new: {container_name}')
+        if not quiet:
+            print(f'new: {container_name}')
         yield param_tuple
     elif remount:
         if obj.fs_client.should_remount(container, storage, is_default_user):
-            print(f'changed: {container_name}')
+            if not quiet:
+                print(f'changed: {container_name}')
             yield param_tuple
         else:
-            print(f'not changed: {container_name}')
+            if not quiet:
+                print(f'not changed: {container_name}')
     else:
         raise CliError('Already mounted: {container.local_path}')
 
     if with_subcontainers:
         for subcontainer in obj.client.all_subcontainers(container):
             yield from _mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
-                              is_default_user, remount, with_subcontainers, container)
+                              is_default_user, remount, with_subcontainers, container, quiet)
 
 
 @container_.command(short_help='mount container')
@@ -313,9 +317,11 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
               help='Save the container to be mounted at startup')
 @click.option('--with-subcontainers', '-w', is_flag=True,
               help='Mount also subcontainers of those containers')
+@click.option('--quiet', '-q', is_flag=True,
+              help='Do not list what is mounted')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount, save, with_subcontainers):
+def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, quiet):
     '''
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -331,7 +337,7 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers):
             is_default_user = container.owner == obj.client.config.get('@default')
 
             params.extend(_mount(obj, container, container.local_path,
-                                 is_default_user, remount, with_subcontainers, None))
+                                 is_default_user, remount, with_subcontainers, None, quiet))
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
