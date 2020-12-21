@@ -360,9 +360,9 @@ class Syncer:
         """
         with self.lock:
             for event in events:
-                logger.debug("Container %s: handling event %s for object %s occuring in "
+                logger.debug("Container %s: handling event %s for object %s occurring in "
                              "storage %s", self.container_name, event.type, event.path,
-                             source_storage.TYPE)
+                             source_storage.backend_id)
 
                 obj_path = event.path
 
@@ -411,15 +411,19 @@ def list_storage_conflicts(storages):
     conflicts = []
     for s1, s2 in combinations(storages, 2):
         for path, attr in s1.walk():
+            try:
+                attr2 = s2.getattr(path)
+            except (FileNotFoundError, NotADirectoryError):
+                continue
+
+            if attr.is_dir() != attr2.is_dir():
+                conflicts.append((str(path), s1.backend_id, s2.backend_id))
+                continue
+
             if attr.is_dir():
                 continue
 
-            try:
-                s2_hash = s2.get_hash(path)
-            except (FileNotFoundError, IsADirectoryError):
-                continue
-
-            if s1.get_hash(path) != s2_hash:
+            if s1.get_hash(path) != s2.get_hash(path):
                 conflicts.append((str(path), s1.backend_id, s2.backend_id))
 
     return conflicts
