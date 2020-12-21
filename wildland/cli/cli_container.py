@@ -198,7 +198,8 @@ def update(obj: ContextObj, storage, cont):
 @click.pass_obj
 def publish(obj: ContextObj, cont, wlpath=None):
     '''
-    Publish a container manifest under a given wildland path.
+    Publish a container manifest under a given wildland path
+    (or to an infrastructure container, if wlpath not given).
     '''
 
     obj.client.recognize_users()
