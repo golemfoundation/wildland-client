@@ -24,7 +24,7 @@ Client class
 import glob
 import logging
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional, Iterator, List, Tuple, Union, Dict, Iterable
 from urllib.parse import urlparse, quote
 
@@ -492,7 +492,8 @@ class Client:
                 return path
             i += 1
 
-    def all_storages(self, container: Container, backends=None) -> Iterator[Storage]:
+    def all_storages(self, container: Container, backends=None, *,
+            predicate=None) -> Iterator[Storage]:
         """
         Return (and load on returning) all storages for a given container.
 
@@ -553,9 +554,13 @@ class Client:
                 if storage.params['storage'] is None:
                     continue
 
+            if predicate is not None and not predicate(storage):
+                continue
+
             yield storage
 
-    def select_storage(self, container: Container, backends=None) -> Storage:
+    def select_storage(self, container: Container, backends=None, *,
+            predicate=None) -> Storage:
         '''
         Select and load a storage to mount for a container.
 
@@ -564,7 +569,8 @@ class Client:
         '''
 
         try:
-            return next(self.all_storages(container, backends))
+            return next(
+                self.all_storages(container, backends, predicate=predicate))
         except StopIteration:
             raise ManifestError('no supported storage manifest')
 
@@ -736,3 +742,62 @@ class Client:
             return None
 
         return Path(parse_result.path)
+
+    @staticmethod
+    def _select_storage_for_publishing(storage):
+        return storage.manifest_pattern is not None
+
+    @staticmethod
+    def _manifest_filenames_from_patern(container: Container, path_pattern):
+        path_pattern = path_pattern.replace('*', container.ensure_uuid())
+        if '{path}' in path_pattern:
+            for path in container.paths:
+                yield PurePosixPath(path_pattern.replace(
+                    '{path}', str(path.relative_to('/')))).relative_to('/')
+        else:
+            yield PurePosixPath(path_pattern).relative_to('/')
+
+    def publish_container(self, container: Container,
+            wlpath: Optional[WildlandPath] = None) -> None:
+        '''
+        Publish a container to another container owner by the same user
+        '''
+
+        # pylint: disable=import-outside-toplevel, cyclic-import
+        from .search import Search, StorageDriver
+
+        data = self.session.dump_container(container)
+
+        if wlpath is not None:
+            search = Search(self, wlpath, self.config.aliases)
+            search.write_file(data)
+            return
+
+        owner = self.load_user_from(container.owner)
+        containers = owner.containers
+        for cont in containers:
+            cont = (self.load_container_from_url(cont, container.owner)
+                if isinstance(cont, str)
+                else self.load_container_from_dict(cont, container.owner))
+
+            if cont.paths == container.paths:
+                # do not publish container to itself
+                continue
+
+            try:
+                storage = self.select_storage(cont,
+                    predicate=self._select_storage_for_publishing)
+                break
+            except ManifestError:
+                continue
+
+        else: # didn't break, i.e. storage not found
+            raise WildlandError(
+                'cannot find any container suitable as publishing platform')
+
+        assert storage.manifest_pattern['type'] == 'glob'
+        for relpath in self._manifest_filenames_from_patern(container,
+                                                            storage.manifest_pattern['path']):
+            with StorageDriver.from_storage(storage) as driver:
+                driver.makedirs(relpath.parent)
+                driver.write_file(relpath, data)

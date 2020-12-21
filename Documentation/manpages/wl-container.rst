@@ -214,6 +214,14 @@ Stop the current mount-watch daemon.
    Mount also subcontainers of those containers. Do this recursively (i.e. if
    any subcontainer provide own set of subcontainers, mount those too).
 
+.. program:: wl-container-publish
+.. _wl-container-publish:
+
+:command:`wl container publish <container> [<wlpath>]`
+------------------------------------------------------
+
+Publish a container manifest into user's infrastructure container or under specified wildland path.
+
 .. _wl-container-sign:
 .. _wl-container-verify:
 .. _wl-container-edit:
