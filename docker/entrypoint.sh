@@ -14,6 +14,7 @@ mkdir "$MOUNT_DIR"
 sudo chmod 666 /dev/fuse
 
 export __fish_prompt_hostname="wildland-client"
+export EDITOR=vim
 
 sudo /etc/init.d/apache2 start
 
