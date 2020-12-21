@@ -1,7 +1,7 @@
 # Image for trying things out, based on the minimal one
 # in Dockerfile. Install all customizations here.
 
-FROM wildland-fuse-ci
+FROM wildland-client-ci
 
 USER root
 

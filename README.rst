@@ -15,7 +15,7 @@ Quick start
 
    cd docker
    docker-compose build
-   docker-compose run --service-ports wildland-fuse
+   docker-compose run --service-ports wildland-client
 
 This container serves FUSE content as WebDAV too.
 
