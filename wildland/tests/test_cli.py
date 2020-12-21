@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
 import shutil
 import subprocess
@@ -959,19 +959,23 @@ def test_cli_set_local_dir(cli, base_dir):
 
 def test_user_create_default_set(cli, base_dir):
     setup_storage_sets(base_dir)
+    cli('user', 'create', 'User')
     cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set')
-    cli('user', 'create', 'User', '--default-storage-set', 'set')
+    cli('storage-set', 'set-default', '--user', 'User', 'set')
 
-    with open(base_dir / 'users/User.user.yaml') as f:
+    with open(base_dir / 'config.yaml') as f:
         data = f.read()
 
-    assert 'default_storage_set: set' in data
+    config = yaml.load(data)
+    default_user = config["@default-owner"]
+    assert f'\'{default_user}\': set' in data
 
 
 def test_cli_set_use_default(cli, base_dir):
     setup_storage_sets(base_dir)
+    cli('user', 'create', 'User')
     cli('storage-set', 'add', '--template', 't1', 'set')
-    cli('user', 'create', '--default-storage-set', 'set', 'User')
+    cli('storage-set', 'set-default', '--user', 'User', 'set')
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
 
@@ -984,8 +988,9 @@ def test_cli_set_use_default(cli, base_dir):
 
 def test_cli_set_use_def_storage(cli, base_dir):
     setup_storage_sets(base_dir)
+    cli('user', 'create', 'User')
     cli('storage-set', 'add', '--template', 't1', 'set')
-    cli('user', 'create', '--default-storage-set', 'set', 'User')
+    cli('storage-set', 'set-default', '--user', 'User', 'set')
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
     cli('storage', 'create-from-set', 'Container')

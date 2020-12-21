@@ -118,7 +118,8 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
         title = name
 
     if default_storage_set and not storage_set:
-        set_name = user.default_storage_set
+        set_name = obj.client.config.get('default-storage-set-for-user')\
+            .get(user.owner, None)
     else:
         set_name = storage_set
 

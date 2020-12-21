@@ -302,10 +302,10 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
     template_manager = TemplateManager(obj.client.template_dir)
 
     if not storage_set:
-        user = obj.client.load_user_from(container.owner)
-        storage_set = user.default_storage_set
+        storage_set = obj.client.config.get('default-storage-set-for-user')\
+            .get(container.owner, None)
         if not storage_set:
-            raise CliError(f'User {user} has no default storage template set. '
+            raise CliError(f'User {container.owner} has no default storage template set. '
                            f'Specify template set explicitly.')
 
     try:
