@@ -923,13 +923,9 @@ def test_cli_set_missing_param(cli, base_dir):
     cli('storage-set', 'add', '--inline', 'title', 'set1')
     cli('user', 'create', 'User')
 
-    output = cli('container', 'create',
-                 'Container', '--path', '/PATH', '--storage-set', 'set1', capture=True)
-
-    output_lines = output.splitlines()
-
-    assert 'Failed to create manifest in template title.template.jinja: \'title\' is undefined' \
-           in output_lines
+    with pytest.raises(CliError, match='\'title\' is undefined'):
+        cli('container', 'create',
+            'Container', '--path', '/PATH', '--storage-set', 'set1', capture=True)
 
     assert not (base_dir / 'containers/Container.container.yaml').exists()
 

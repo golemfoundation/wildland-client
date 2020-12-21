@@ -106,22 +106,22 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
     Create a new container manifest.
     '''
 
-    if local_dir and not storage_set:
-        raise CliError('--local-dir requires --storage-set.')
-
     obj.client.recognize_users()
     user = obj.client.load_user_from(user or '@default-owner')
-
-    if category and not title:
-        if not name:
-            raise CliError('--category option requires --title or container name')
-        title = name
 
     if default_storage_set and not storage_set:
         set_name = obj.client.config.get('default-storage-set-for-user')\
             .get(user.owner, None)
     else:
         set_name = storage_set
+
+    if local_dir and not set_name:
+        raise CliError('--local-dir requires --storage-set or default storage set.')
+
+    if category and not title:
+        if not name:
+            raise CliError('--category option requires --title or container name')
+        title = name
 
     if set_name:
         try:
@@ -144,14 +144,13 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
         try:
             do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
         except FileNotFoundError:
-            click.echo('Failed to create storage from set: storage set not found')
             click.echo(f'Removing container: {path}')
             path.unlink()
-            return
-        except ValueError:
+            raise CliError('Failed to create storage from set: storage set not found')
+        except ValueError as e:
             click.echo(f'Removing container: {path}')
             path.unlink()
-            return
+            raise CliError(f'Failed to create storage from set: {e}')
 
     if update_user:
         if not user.local_path:
