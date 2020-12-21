@@ -85,9 +85,9 @@ Usage:
 
     cd docker
     docker-compose build
-    docker-compose run wildland-fuse
+    docker-compose run wildland-client
 
-To create and mount the example containers, run ``wl-example``. wildland-fuse
+To create and mount the example containers, run ``wl-example``. wildland-client
 is mounted in ``/home/user/mnt`` and the log is in ``/tmp/wlfuse.log``.
 
 Running tests:
@@ -96,6 +96,6 @@ Running tests:
 
     cd ci
     docker-compose build
-    docker-compose run wildland-fuse-ci ./ci/ci-pytest
+    docker-compose run wildland-client-ci ./ci/ci-pytest
 
 (or ``./ci/ci-lint``, ``./ci/ci-docs``)

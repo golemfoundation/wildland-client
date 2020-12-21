@@ -1,21 +1,21 @@
 version: '3'
 
 services:
-  wildland-fuse-ci:
+  wildland-client-ci:
     build:
       context: ..
       dockerfile: ./ci/Dockerfile
-    image: wildland-fuse-ci
-    container_name: wildland-fuse-ci
+    image: wildland-client-ci
+    container_name: wildland-client-ci
 
-  wildland-fuse:
+  wildland-client:
     build:
       context: ..
       dockerfile: ./docker/Dockerfile
-    container_name: wildland-fuse
-    image: wildland-fuse
+    container_name: wildland-client
+    image: wildland-client
     depends_on:
-      - wildland-fuse-ci
+      - wildland-client-ci
     privileged: true
     stdin_open: true
     tty: true
@@ -26,7 +26,7 @@ services:
       - "445:445"
       - "139:139"
     volumes:
-      - ..:/home/user/wildland-fuse:ro
+      - ..:/home/user/wildland-client:ro
       - usercfg:/home/user/.config:rw
       - ./storage:/home/user/storage:rw
 

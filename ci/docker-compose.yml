@@ -1,33 +1,33 @@
 version: '3'
 
 services:
-  wildland-fuse-ci:
+  wildland-client-ci:
     build:
       context: ..
       dockerfile: ./ci/Dockerfile
-    image: wildland-fuse-ci
-    container_name: wildland-fuse-ci
+    image: wildland-client-ci
+    container_name: wildland-client-ci
     privileged: true
     stdin_open: true
     tty: true
     devices:
       - /dev/fuse
     volumes:
-      - ..:/home/user/wildland-fuse:ro
-      - ../artifacts/:/home/user/wildland-fuse/artifacts:rw
+      - ..:/home/user/wildland-client:ro
+      - ../artifacts/:/home/user/wildland-client/artifacts:rw
 
-  wildland-fuse-ci-imap:
+  wildland-client-ci-imap:
     build:
       context: ..
       dockerfile: ./ci/Dockerfile-imap
-    image: wildland-fuse-ci-imap
-    container_name: wildland-fuse-ci-imap
+    image: wildland-client-ci-imap
+    container_name: wildland-client-ci-imap
     privileged: true
     stdin_open: true
     tty: true
     devices:
       - /dev/fuse
     volumes:
-      - ..:/home/user/wildland-fuse:ro
-      - ../artifacts/:/home/user/wildland-fuse/artifacts:rw
+      - ..:/home/user/wildland-client:ro
+      - ../artifacts/:/home/user/wildland-client/artifacts:rw
 

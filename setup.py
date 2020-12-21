@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="wildland-fuse",
+    name="wildland-client",
     version="0.1",
     packages=find_packages(),
     package_data={'wildland': ['schemas/*.json']},
