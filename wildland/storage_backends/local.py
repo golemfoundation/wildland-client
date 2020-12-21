@@ -32,7 +32,7 @@ import inotify_simple
 
 import click
 
-from .base import StorageBackend, File, Attr, HashCache
+from .base import StorageBackend, File, Attr
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
@@ -168,7 +168,7 @@ class LocalStorageBackend(StorageBackend):
                              ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags)
 
-    def create(self, path, flags, mode):
+    def create(self, path, flags, mode=0o666):
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
             return LocalFile(path, self._path(path), flags, mode,
@@ -189,7 +189,7 @@ class LocalStorageBackend(StorageBackend):
             self.watcher_instance.ignore_event('delete', path)
         return os.unlink(self._path(path))
 
-    def mkdir(self, path, mode):
+    def mkdir(self, path, mode=0o777):
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
         return os.makedirs(self._path(path), mode, exist_ok=True)
@@ -201,35 +201,26 @@ class LocalStorageBackend(StorageBackend):
 
     def watcher(self):
         """
-        If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
-        use the smarter LocalStorageWatcher.
+        If manifest explicitly specifies a watcher-interval, use default implementation. If not,
+        we can use the smarter LocalStorageWatcher.
         """
         default_watcher = super(LocalStorageBackend, self).watcher()
         if not default_watcher:
             return LocalStorageWatcher(self)
         return default_watcher
 
-    def get_hash(self, path: PurePosixPath):
-        """
-        Return sha256 hash for object at path. Reimplemented from base class because
-        filesystems can have less-than-perfect timestamp resolution.
-        """
+    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
         try:
             current_timestamp = os.stat(self._path(path)).st_mtime
         except NotADirectoryError:
             # can occur due to extreme file conflicts across storages
             return None
-        stored_hash_cache = self.retrieve_hash(path)
-        if stored_hash_cache:
-            if current_timestamp == stored_hash_cache.token:
-                return stored_hash_cache.hash
-        new_hash = super(LocalStorageBackend, self).get_hash(path)
-        if abs(time.time() - current_timestamp) > 0.001:
-            # do not cache if not enough time has passed to be certain there were no further
-            # file modifications
-            # TODO: also remove from cache when modify event is received
-            self.store_hash(path, HashCache(new_hash, current_timestamp))
-        return new_hash
+        if abs(time.time() - current_timestamp) < 0.001:
+            # due to filesystem lack of resolution, two changes less than 1 millisecond apart
+            # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
+            # but be warned: it can go as low as 2 seconds for FAT16/32
+            return None
+        return int(current_timestamp * 1000)
 
 
 class LocalStorageWatcher(StorageWatcher):
@@ -238,9 +229,10 @@ class LocalStorageWatcher(StorageWatcher):
     Known issues: on subdirectory creation, some events may be lost, because files appear
     before the watcher can add watches. It's unfortunately a known inotify issue.
     """
-    def __init__(self, backend: LocalStorageBackend):
+    def __init__(self, backend: StorageBackend):
         super(LocalStorageWatcher, self).__init__()
-        self.path = backend.root
+        self.path = getattr(backend, 'root', None)
+        self.clear_cache = backend.clear_cache
         self.watches: Dict[int, str] = {}
         self.watch_flags = inotify_simple.flags.CREATE | inotify_simple.flags.DELETE | \
             inotify_simple.flags.MOVED_TO | inotify_simple.flags.MOVED_FROM | \
@@ -268,9 +260,7 @@ class LocalStorageWatcher(StorageWatcher):
     def init(self) -> None:
         # pylint: disable=attribute-defined-outside-init
         self.inotify = inotify_simple.INotify()
-
         self._watch_dir(self.path)
-
         self._stop_pipe_read, self._stop_pipe_write = os.pipe()
 
     def stop(self):
@@ -288,7 +278,7 @@ class LocalStorageWatcher(StorageWatcher):
         result = select.select([self._stop_pipe_read, self.inotify], [], [])
         if self._stop_pipe_read in result[0]:
             return []
-        events = self.inotify.read(timeout=1)
+        events = self.inotify.read(timeout=1, read_delay=250)
         results = []
 
         for event in events:
@@ -323,5 +313,5 @@ class LocalStorageWatcher(StorageWatcher):
                     continue
 
             results.append(FileEvent(path=relative_path, type=event_type))
-
+        self.clear_cache()
         return results

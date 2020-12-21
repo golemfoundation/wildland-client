@@ -30,10 +30,10 @@ RUN apt-get -qy update && apt-get install -y \
 RUN useradd --create-home user
 RUN echo user_allow_other >> /etc/fuse.conf
 
-RUN mkdir /home/user/wildland-fuse
+RUN mkdir /home/user/wildland-client
 
 USER user
-WORKDIR /home/user/wildland-fuse
+WORKDIR /home/user/wildland-client
 
 COPY ./requirements.txt .
 RUN python3.8 -m venv /home/user/env/

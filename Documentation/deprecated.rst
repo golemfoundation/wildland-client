@@ -7,6 +7,9 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2020-12-16) 'inner-container' for field of proxy storage backends renamed
+  to 'reference-container'.
+
 * (2020-09-30) Config entries 'local-signers' and '@default-signer' are
   renamed to 'local-owners' and '@default-owner'. Old values are still loaded,
   but a warning is logged.

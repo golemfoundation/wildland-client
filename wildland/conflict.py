@@ -22,6 +22,7 @@ Conflict resolution
 '''
 
 import abc
+import functools
 import stat
 from pathlib import PurePosixPath
 from typing import List, Dict, Set, Tuple, Optional, Iterable
@@ -170,6 +171,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         '''
 
         self.root.mount(path, storage_id)
+        self._resolve.cache_clear()
 
     def unmount(self, path: PurePosixPath, storage_id: int):
         '''
@@ -177,6 +179,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         '''
 
         self.root.unmount(path, storage_id)
+        self._resolve.cache_clear()
 
     @abc.abstractmethod
     def storage_getattr(self, ident: int, relpath: PurePosixPath) \
@@ -207,7 +210,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         Raise IOError if the path cannot be accessed.
         '''
 
-        resolved = list(self.root.resolve(path))
+        resolved = self._resolve(path)
         synthetic = self.root.readdir(path)
 
         if len(resolved) == 0 and synthetic is None:
@@ -315,7 +318,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 mode=stat.S_IFDIR | 0o555,
             ), None
 
-        resolved = list(self.root.resolve(real_path))
+        resolved = self._resolve(real_path)
         if len(resolved) == 0:
             raise FileNotFoundError(errno.ENOENT, '')
 
@@ -377,6 +380,10 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         # Nothing found.
         assert len(file_results) == len(dir_results) == 0
         raise FileNotFoundError(errno.ENOENT, '')
+
+    @functools.lru_cache(500)
+    def _resolve(self, real_path):
+        return list(self.root.resolve(real_path))
 
 
 def handle_io_error(func, *args):

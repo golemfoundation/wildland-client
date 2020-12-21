@@ -163,6 +163,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     TYPE = ''
 
     _types: Dict[str, Type['StorageBackend']] = {}
+    _cache: Dict[str, 'StorageBackend'] = {}
 
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
@@ -184,10 +185,24 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
         self.hash_db = None
+        self.mounted = 0
 
+        self.backend_id = self.get_backend_id(self.params)
+
+    @staticmethod
+    def get_backend_id(params: dict) -> str:
+        """
+        Get an backend_id - a unique identifier of a StorageBackend with given parameters
+
+        :param params: StorageBackend params
+        :return: str
+        """
         hasher = hashlib.sha256()
-        hasher.update(yaml.dump(self.params, sort_keys=True).encode('utf-8'))
-        self.backend_id = hasher.hexdigest()
+        # skip 'storage' object if present, it is derived from reference-container
+        params_for_hash = dict((k, v) for (k, v) in params.items()
+                               if k != 'storage')
+        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+        return hasher.hexdigest()
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -216,17 +231,46 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         return StorageBackend._types
 
+    def request_mount(self) -> None:
+        """
+        Request storage to be mounted, if not mounted already.
+        """
+        if self.mounted == 0:
+            self.mount()
+        self.mounted += 1
+
+    def request_unmount(self) -> None:
+        """
+        Request storage to be unmounted, if not used anymore.
+        """
+        self.mounted -= 1
+        if self.mounted == 0:
+            self.unmount()
+
+    def __enter__(self):
+        self.request_mount()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.request_unmount()
+
     # pylint: disable=missing-docstring, no-self-use
 
     def mount(self) -> None:
-        '''
+        """
         Initialize. Called when mounting.
-        '''
+
+        Backend should implement this method if necessary.
+        External callers should use *request_mount* instead.
+        """
 
     def unmount(self) -> None:
-        '''
+        """
         Clean up. Called when unmounting.
-        '''
+
+        Backend should implement this method if necessary.
+        External callers should use *request_unmount* instead.
+        """
 
     def clear_cache(self) -> None:
         '''
@@ -260,21 +304,21 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def watcher(self):
         """
         Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
-        manifest contains a 'watcher-delay' parameter, SimpleStorageWatcher (which is a naive,
-        brute-force watcher that scans the entire storage every watcher-delay seconds) will be used.
-        If a given StorageBackend provides a better solution, it's recommended to overwrite this
-        method to provide it. It is recommended to still use SimpleStorageWatcher if the user
-        explicitly specifies watcher-delay in the manifest. See local.py for a simple super()
+        manifest contains a 'watcher-interval' parameter, SimpleStorageWatcher (which is a naive,
+        brute-force watcher that scans the entire storage every watcher-interval seconds) will be
+        used. If a given StorageBackend provides a better solution, it's recommended to overwrite
+        this method to provide it. It is recommended to still use SimpleStorageWatcher if the user
+        explicitly specifies watcher-interval in the manifest. See local.py for a simple super()
         implementation that avoids duplicating code.
 
         Note that changes originating from FUSE are reported without using this
         mechanism.
         """
-        if 'watcher-delay' in self.params:
+        if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
             logger.warning("Using simple storage watcher - it can be very inefficient.")
             from ..storage_backends.watch import SimpleStorageWatcher
-            return SimpleStorageWatcher(self, delay=int(self.params['watcher-delay']))
+            return SimpleStorageWatcher(self, interval=int(self.params['watcher-interval']))
         return None
 
     def set_config_dir(self, config_dir):
@@ -288,7 +332,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def open(self, path: PurePosixPath, flags: int) -> File:
         raise NotImplementedError()
 
-    def create(self, path: PurePosixPath, flags: int, mode: int):
+    def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
         raise OptionalError()
 
     # Method proxied to the File instance
@@ -325,7 +369,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def unlink(self, path: PurePosixPath) -> None:
         raise OptionalError()
 
-    def mkdir(self, path: PurePosixPath, mode: int) -> None:
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
         raise OptionalError()
 
     def rmdir(self, path: PurePosixPath) -> None:
@@ -333,7 +377,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     # Other operations
 
-    def get_file_token(self, path: PurePosixPath) -> int:
+    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
         # used to implement hash caching; should provide a token that changes when the file changes.
         raise OptionalError()
 
@@ -346,22 +390,26 @@ class StorageBackend(metaclass=abc.ABCMeta):
         except OptionalError:
             current_token = None
 
-        if current_token and path in self.hash_cache:
-            hash_cache = self.hash_cache[path]
-            if current_token == hash_cache.token:
+        if current_token:
+            hash_cache = self.retrieve_hash(path)
+            if hash_cache and current_token == hash_cache.token:
                 return hash_cache.hash
+
         hasher = hashlib.sha256()
         offset = 0
-        with self.open(path, os.O_RDONLY) as obj:
-            size = obj.fgetattr().size
-            while offset < size:
-                data = obj.read(BLOCK_SIZE, offset)
-                offset += len(data)
-                hasher.update(data)
+        try:
+            with self.open(path, os.O_RDONLY) as obj:
+                size = obj.fgetattr().size
+                while offset < size:
+                    data = obj.read(BLOCK_SIZE, offset)
+                    offset += len(data)
+                    hasher.update(data)
+        except NotADirectoryError:
+            return None
 
         new_hash = hasher.hexdigest()
         if current_token:
-            self.hash_cache[path] = HashCache(new_hash, current_token)
+            self.store_hash(path, HashCache(new_hash, current_token))
         return new_hash
 
     def store_hash(self, path, hash_cache):
@@ -404,21 +452,49 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
+    def list_subcontainers(self) -> Iterable[dict]:
+        """
+        List sub-containers provided by this storage.
+
+        This method should return an iterable of dict representation of partial manifests.
+        Specifically, 'owner' field must not be filled in (will be inherited from
+        the parent container).
+
+        Storages of listed containers, when set as 'delegate' backend,
+        may reference parent (this) container via Wildland URL:
+        `wildland:@default:@parent-container:`
+
+        :return:
+        """
+        raise OptionalError()
+
     @staticmethod
-    def from_params(params, read_only=False) -> 'StorageBackend':
+    def from_params(params, read_only=False, deduplicate=False) -> 'StorageBackend':
         '''
         Construct a Storage from fields originating from manifest.
 
         Assume the fields have been validated before.
+
+        :param deduplicate: return cached object instance when called with the same params
         '''
+
+        if deduplicate:
+            deduplicate = StorageBackend.get_backend_id(params)
+            if deduplicate in StorageBackend._cache:
+                return StorageBackend._cache[deduplicate]
 
         # Recursively handle proxy storages
         if 'storage' in params:
-            params['storage'] = StorageBackend.from_params(params['storage'])
+            # do not modify function argument - it can be used for other things
+            params = params.copy()
+            params['storage'] = StorageBackend.from_params(params['storage'],
+                                                           deduplicate=deduplicate)
 
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
+        if deduplicate:
+            StorageBackend._cache[deduplicate] = backend
         return backend
 
     @staticmethod

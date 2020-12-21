@@ -62,7 +62,7 @@ class Syncer:
                 if self.config_dir:
                     backend.set_config_dir(self.config_dir)
                 event_handler = partial(self.sync_storages, backend)
-                backend.mount()
+                backend.request_mount()
                 watcher = backend.start_watcher(handler=event_handler, ignore_own_events=True)
                 self.storage_watchers[backend] = watcher
                 logger.debug("Container %s: added watcher for storage %s.",
@@ -101,7 +101,7 @@ class Syncer:
                 logger.debug("Container %s: creating directory %s in storage %s",
                              self.container_name, path, backend2.TYPE)
                 try:
-                    backend2.mkdir(path, mode=0o777)
+                    backend2.mkdir(path)
                 except (FileExistsError, NotADirectoryError):
                     self.handle_conflict(backend1, backend2, path)
 
@@ -190,7 +190,7 @@ class Syncer:
 
         if not target_hash:
             try:
-                target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY, mode=0o777)
+                target_file_obj = target_storage.create(path, os.O_CREAT | os.O_WRONLY)
             except OptionalError:
                 logger.warning("Container %s: cannot sync file %s to storage %s. "
                                "Operation not supported by storage backend.",
@@ -249,7 +249,7 @@ class Syncer:
         for file_path, attr in source_storage.walk(path):
             if attr.is_dir():
                 with suppress(FileExistsError):
-                    target_storage.mkdir(file_path, mode=0o777)
+                    target_storage.mkdir(file_path)
             else:
                 self.sync_file(source_storage, target_storage, file_path)
 
@@ -291,13 +291,14 @@ class Syncer:
             del self.storage_hashes[storage][p]
 
     def remove_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
-                      path: PurePosixPath, source_is_dir: bool):
+                      path: PurePosixPath, source_is_dir: bool, old_source_hash=None):
         """
         Remove an object (dir or file) in path in target_storage, if it is the object
         the syncer expected to find there (based on hash).
         Must give source_storage so that conflict handling knows where the conflict is and
         must pass source_is_dir boolean parameter, because there's no way to guess what was in
         source_storage before it was deleted.
+        To avoid problems with syncing multiple containers, should provide old source hash.
         """
         logger.debug("Container %s: attempting to sync file %s removed from storage %s in "
                      "storage %s", self.container_name, path,
@@ -319,11 +320,14 @@ class Syncer:
             self.remove_whole_dir(target_storage, path)
         else:
             target_hash = target_storage.get_hash(path)
-            if target_hash != self.storage_hashes[target_storage][path]:
+            source_hash = old_source_hash if old_source_hash else \
+                self.storage_hashes[target_storage][path]
+            if target_hash != source_hash:
                 self.handle_conflict(source_storage, target_storage, path)
                 return
             target_storage.unlink(path)
-            del self.storage_hashes[target_storage][path]
+            if path in self.storage_hashes[target_storage]:
+                del self.storage_hashes[target_storage][path]
             return
 
     def create_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
@@ -342,7 +346,7 @@ class Syncer:
             return
         if is_dir:
             try:
-                target_storage.mkdir(path, mode=0o777)
+                target_storage.mkdir(path)
             except FileExistsError:
                 logger.debug("Container %s: creation of file %s in storage %s failed: file "
                              "already exists.", self.container_name, path, target_storage.TYPE)
@@ -356,19 +360,23 @@ class Syncer:
         """
         with self.lock:
             for event in events:
-                logger.debug("Container %s: handling event %s for object %s occuring in "
+                logger.debug("Container %s: handling event %s for object %s occurring in "
                              "storage %s", self.container_name, event.type, event.path,
-                             source_storage.TYPE)
-                for target_storage in self.storage_watchers:
-                    if target_storage == source_storage:
-                        continue
-                    obj_path = event.path
-                    if event.type == 'delete':
-                        old_source_hash = self.storage_hashes[source_storage].get(obj_path)
+                             source_storage.backend_id)
+
+                obj_path = event.path
+
+                if event.type == 'delete':
+                    old_source_hash = self.storage_hashes[source_storage].get(obj_path)
+                    is_dir = obj_path not in self.storage_hashes[source_storage]
+
+                    for target_storage in self.storage_watchers:
+                        if target_storage == source_storage:
+                            continue
                         old_target_hash = self.storage_hashes[target_storage].get(obj_path)
                         if old_source_hash == old_target_hash:
-                            is_dir = obj_path not in self.storage_hashes[source_storage]
-                            self.remove_object(source_storage, target_storage, obj_path, is_dir)
+                            self.remove_object(source_storage, target_storage, obj_path,
+                                               is_dir, old_source_hash)
                         else:
                             logger.warning(
                                 "Container %s: conflict resolved via removal of file at %s from "
@@ -376,10 +384,14 @@ class Syncer:
                                 self.container_name, obj_path,
                                 source_storage.TYPE, target_storage.TYPE)
                             self.create_object(target_storage, source_storage, obj_path)
-                    elif event.type == 'create':
-                        self.create_object(source_storage, target_storage, obj_path)
-                    elif event.type == 'modify':
-                        self.sync_file(source_storage, target_storage, obj_path)
+                else:
+                    for target_storage in self.storage_watchers:
+                        if target_storage == source_storage:
+                            continue
+                        if event.type == 'create':
+                            self.create_object(source_storage, target_storage, obj_path)
+                        elif event.type == 'modify':
+                            self.sync_file(source_storage, target_storage, obj_path)
 
     def stop_syncing(self):
         """
@@ -388,7 +400,7 @@ class Syncer:
         logger.debug("Container %s: stopping file syncing.", self.container_name)
         for backend in self.storage_watchers:
             backend.stop_watcher()
-            backend.unmount()
+            backend.request_unmount()
         logger.debug("Container %s: file syncing stopped.", self.container_name)
 
 
@@ -399,15 +411,19 @@ def list_storage_conflicts(storages):
     conflicts = []
     for s1, s2 in combinations(storages, 2):
         for path, attr in s1.walk():
+            try:
+                attr2 = s2.getattr(path)
+            except (FileNotFoundError, NotADirectoryError):
+                continue
+
+            if attr.is_dir() != attr2.is_dir():
+                conflicts.append((str(path), s1.backend_id, s2.backend_id))
+                continue
+
             if attr.is_dir():
                 continue
 
-            try:
-                s2_hash = s2.get_hash(path)
-            except (FileNotFoundError, IsADirectoryError):
-                continue
-
-            if s1.get_hash(path) != s2_hash:
+            if s1.get_hash(path) != s2.get_hash(path):
                 conflicts.append((str(path), s1.backend_id, s2.backend_id))
 
     return conflicts

@@ -226,4 +226,4 @@ def edit(ctx, editor, input_file, remount):
             is_default_user = container.owner == obj.client.config.get('@default')
             storage = obj.client.select_storage(container)
             obj.fs_client.mount_container(
-                container, storage, is_default_user, remount)
+                container, storage, is_default_user, remount=remount)

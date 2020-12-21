@@ -78,7 +78,9 @@ class Manifest:
     @classmethod
     def update_obsolete(cls, fields: dict) -> dict:
         """
-        Update any obsolete fields. Currently handles the signer --> owner rename.
+        Update any obsolete fields. Currently handles:
+          - signer --> owner
+          - inner-container --> reference-container
         """
         if not isinstance(fields, dict):
             raise ManifestError('owner field not found')
@@ -88,7 +90,10 @@ class Manifest:
                 del fields['signer']
             else:
                 raise ManifestError('owner field not found')
-        # Nested owners too
+        if 'inner-container' in fields:
+            fields['reference-container'] = fields['inner-container']
+            del fields['inner-container']
+        # Nested manifests too
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
                 if isinstance(storage, dict):

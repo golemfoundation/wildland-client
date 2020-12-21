@@ -21,16 +21,18 @@
 A cached version of local storage.
 '''
 
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Optional
 from pathlib import Path, PurePosixPath
 import os
 import errno
+import time
 
 import click
 
 from .cached import CachedStorageMixin, DirectoryCachedStorageMixin
 from .buffered import FullBufferedFile, PagedFile, File
 from .base import StorageBackend, Attr
+from .local import LocalStorageWatcher
 from ..manifest.schema import Schema
 
 
@@ -38,17 +40,22 @@ class LocalCachedFile(FullBufferedFile):
     '''
     A fully buffered local file.
     '''
-
-    def __init__(self, local_path: Path, attr: Attr):
-        super().__init__(attr)
+    def __init__(self, attr, os_path, local_path, clear_cache_callback, ignore_callback=None):
+        super(LocalCachedFile, self).__init__(attr, clear_cache_callback)
+        # we store separately os_path (path on disk, to use when accessing file) and wayland (local)
+        # path (path in storage, used for events)
+        self.os_path = os_path
         self.local_path = local_path
+        self.ignore_callback = ignore_callback
 
     def read_full(self) -> bytes:
-        with open(self.local_path, 'rb') as f:
+        with open(self.os_path, 'rb') as f:
             return f.read()
 
     def write_full(self, data: bytes) -> int:
-        with open(self.local_path, 'wb') as f:
+        if self.ignore_callback:
+            self.ignore_callback('modify', self.local_path)
+        with open(self.os_path, 'wb') as f:
             return f.write(data)
 
 
@@ -56,9 +63,6 @@ class LocalCachedPagedFile(PagedFile):
     '''
     A paged, read-only local file.
     '''
-
-    page_size = 4
-    max_pages = 4
 
     def __init__(self, local_path: Path, attr: Attr):
         super().__init__(attr)
@@ -93,7 +97,7 @@ class BaseCached(StorageBackend):
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
-        self.base_path = Path(self.params['path'])
+        self.root = Path(self.params['path'])
 
     @classmethod
     def cli_options(cls):
@@ -120,39 +124,88 @@ class BaseCached(StorageBackend):
         )
 
     def _local(self, path: PurePosixPath) -> Path:
-        return self.base_path / path
+        return self.root / path
 
     def open(self, path: PurePosixPath, flags: int) -> File:
+        if isinstance(path, str):
+            path = PurePosixPath(path)
         attr = self.getattr(path)
         if flags & (os.O_WRONLY | os.O_RDWR):
-            return LocalCachedFile(self._local(path), attr)
+            if self.ignore_own_events and self.watcher_instance:
+                return LocalCachedFile(
+                    attr, os_path=self._local(path), local_path=path,
+                    clear_cache_callback=self.clear_cache,
+                    ignore_callback=self.watcher_instance.ignore_event)
+            return LocalCachedFile(attr, os_path=self._local(path), local_path=path,
+                                   clear_cache_callback=self.clear_cache)
         return LocalCachedPagedFile(self._local(path), attr)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int):
+    def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
+        if isinstance(path, str):
+            path = PurePosixPath(path)
+
         local = self._local(path)
         if local.exists():
             raise IOError(errno.EEXIST, str(path))
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', path)
+
         local.write_bytes(b'')
 
         self.clear_cache()
         attr = self.getattr(path)
-        return LocalCachedFile(self._local(path), attr)
+
+        if self.ignore_own_events and self.watcher_instance:
+            return LocalCachedFile(attr, os_path=self._local(path), local_path=path,
+                                   clear_cache_callback=self.clear_cache,
+                                   ignore_callback=self.watcher_instance.ignore_event)
+        return LocalCachedFile(attr, os_path=self._local(path), local_path=path,
+                               clear_cache_callback=self.clear_cache)
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
         os.truncate(self._local(path), length)
         self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('delete', path)
         self._local(path).unlink()
         self.clear_cache()
 
-    def mkdir(self, path: PurePosixPath, mode: int):
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', path)
         self._local(path).mkdir(mode)
         self.clear_cache()
 
     def rmdir(self, path: PurePosixPath):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('delete', path)
         self._local(path).rmdir()
         self.clear_cache()
+
+    def watcher(self):
+        """
+        If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
+        use the smarter LocalStorageWatcher.
+        """
+        default_watcher = super(BaseCached, self).watcher()
+        if not default_watcher:
+            return LocalStorageWatcher(self)
+        return default_watcher
+
+    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
+        try:
+            current_timestamp = os.stat(self._local(path)).st_mtime
+        except NotADirectoryError:
+            # can occur due to extreme file conflicts across storages
+            return None
+        if abs(time.time() - current_timestamp) < 0.001:
+            # due to filesystem lack of resolution, two changes less than 1 millisecond apart
+            # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
+            # but be warned: it can go as high as 2 seconds for FAT16/32
+            return None
+        return int(current_timestamp * 1000)
 
 
 class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
@@ -168,15 +221,15 @@ class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
         '''
 
         try:
-            st = os.stat(self.base_path)
+            st = os.stat(self.root)
         except IOError:
             return
 
         yield PurePosixPath('.'), self._stat(st)
 
-        for root_s, dirs, files in os.walk(self.base_path):
+        for root_s, dirs, files in os.walk(self.root):
             root = Path(root_s)
-            rel_root = PurePosixPath(root.relative_to(self.base_path))
+            rel_root = PurePosixPath(root.relative_to(self.root))
             for dir_name in dirs:
                 try:
                     st = os.stat(root / dir_name)

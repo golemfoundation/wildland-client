@@ -10,7 +10,7 @@ lint:
   script:
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse-ci ./ci/ci-lint
+    - docker-compose run wildland-client-ci ./ci/ci-lint
 
 pytest:
   stage: test
@@ -21,7 +21,7 @@ pytest:
     - mkdir -p --mode=0777 artifacts artifacts/htmlcov
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse-ci ./ci/ci-pytest
+    - docker-compose run wildland-client-ci ./ci/ci-pytest
   artifacts:
     paths:
       - artifacts/htmlcov/
@@ -37,7 +37,7 @@ bear-test:
   script:
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse-ci ./ci/ci-bear-test
+    - docker-compose run wildland-client-ci ./ci/ci-bear-test
 
 imap-test:
   stage: test
@@ -47,7 +47,7 @@ imap-test:
   script:
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse-ci-imap ./ci/ci-imap-test
+    - docker-compose run wildland-client-ci-imap ./ci/ci-imap-test
 
 smoke-test:
   stage: test
@@ -57,7 +57,7 @@ smoke-test:
   script:
     - cd docker
     - docker-compose build
-    - docker-compose run wildland-fuse wl-smoke-test < /dev/null
+    - docker-compose run wildland-client wl-smoke-test < /dev/null
 
 pages-test:
   stage: docs
@@ -70,7 +70,7 @@ pages-test:
     - mkdir -p --mode=0777 artifacts artifacts/docs
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse-ci ./ci/ci-docs
+    - docker-compose run wildland-client-ci ./ci/ci-docs
   artifacts:
     paths:
       - artifacts/docs
@@ -88,7 +88,7 @@ pages:
     - mkdir -p --mode=0777 artifacts artifacts/docs
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-fuse-ci ./ci/ci-docs
+    - docker-compose run wildland-client-ci ./ci/ci-docs
     - cp -r ../artifacts/docs/html ../public
     - cp -r ../artifacts/docs/man ../public/man
     - cp -r ../artifacts/htmlcov ../public/coverage

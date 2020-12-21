@@ -28,11 +28,14 @@ from unittest.mock import patch
 import pytest
 
 from ..storage_backends.local import LocalStorageBackend
+from ..storage_backends.local_cached import LocalCachedStorageBackend, \
+    LocalDirectoryCachedStorageBackend
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.watch import FileEvent
 
 
-@pytest.fixture(params=[LocalStorageBackend])
+@pytest.fixture(params=[LocalStorageBackend, LocalCachedStorageBackend,
+                        LocalDirectoryCachedStorageBackend])
 def storage_backend(request) -> Callable:
     '''
     Parametrize the tests by storage backend; at the moment include only those with watchers
@@ -68,10 +71,10 @@ def make_storage(location, backend_class) -> Tuple[StorageBackend, Path]:
 def test_simple_operations(tmpdir, storage_backend):
     backend, storage_dir = make_storage(tmpdir, storage_backend)
 
-    backend.mkdir(PurePosixPath('newdir'), mode=0o777)
+    backend.mkdir(PurePosixPath('newdir'))
     assert (storage_dir / 'newdir').exists()
 
-    file = backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777)
+    file = backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT)
     file.release(os.O_RDWR)
     assert (storage_dir / 'newdir/testfile').exists()
 
@@ -97,17 +100,22 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
     backend.start_watcher(handler=received_events.extend, ignore_own_events=False)
     cleanup(backend.stop_watcher)
 
-    backend.mkdir(PurePosixPath('newdir'), mode=0o777)
+    backend.mkdir(PurePosixPath('newdir'))
 
     time.sleep(1)
     assert received_events == [FileEvent('create', PurePosixPath('newdir'))]
     received_events.clear()
 
-    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777):
+    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT):
         pass
 
     time.sleep(1)
-    assert received_events == [FileEvent('create', PurePosixPath('newdir/testfile'))]
+    # either create or create and modify are correct
+    assert received_events in [
+        [FileEvent('create', PurePosixPath('newdir/testfile'))],
+        [FileEvent('create', PurePosixPath('newdir/testfile')),
+         FileEvent('modify', PurePosixPath('newdir/testfile'))]]
+
     received_events.clear()
 
     with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:
@@ -137,28 +145,32 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
     watcher = backend.start_watcher(handler=received_events.extend, ignore_own_events=True)
     cleanup(backend.stop_watcher)
 
-    backend.mkdir(PurePosixPath('newdir'), mode=0o777)
+    backend.mkdir(PurePosixPath('newdir'))
     time.sleep(1)
 
-    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT, mode=0o777):
+    with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT):
         pass
 
     with backend.open(PurePosixPath('newdir/testfile'), os.O_RDWR) as file:
         file.write(b'bbbb', 0)
-
     backend.unlink(PurePosixPath('newdir/testfile'))
-
     backend.rmdir(PurePosixPath('newdir'))
 
-    time.sleep(2)
+    time.sleep(1)
 
-    assert received_events == []
+    # we can allow one superflous modify event, if file creation was parsed as two events and not
+    # one
+    assert received_events in [
+        [], [FileEvent(type='modify', path=PurePosixPath('newdir/testfile'))]]
+
     assert watcher.ignore_list == []
+
+    received_events.clear()
 
     # perform some external operations
     os.mkdir(tmpdir / 'storage1/anotherdir')
 
-    time.sleep(2)
+    time.sleep(1)
 
     assert received_events == [FileEvent('create', PurePosixPath('anotherdir'))]
 
@@ -195,7 +207,7 @@ def test_hash_cache(tmpdir, storage_backend):
     assert backend.get_hash(PurePosixPath("testfile")) == \
            '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'
 
-    with patch('wildland.storage_backends.base.StorageBackend.get_hash'):
+    with patch('hashlib.sha256'):
         # if the hash did not get cached correctly, this will return a mock not the correct hash
         assert backend.get_hash(PurePosixPath("testfile")) == \
                '61be55a8e2f6b4e172338bddf184d6dbee29c98853e0a0485ecee7f27b9af0b4'

@@ -58,6 +58,7 @@ Unless ``--key`` is provided, the command will generate a new Signify key pair.
    key must be specified. The key will be stored in a ``<fingerprint>.pub`` file in the key
    directory (``~/.config/wildland/keys``). Can be repeated.
 
+
 .. program:: wl-user-delete
 .. _wl-user-delete:
 

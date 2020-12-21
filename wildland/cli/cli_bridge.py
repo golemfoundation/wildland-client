@@ -87,7 +87,7 @@ def create(obj: ContextObj,
     bridge = Bridge(
         owner=user.owner,
         user_location=ref_user_location,
-        user_pubkey=ref_user.pubkey,
+        user_pubkey=ref_user.pubkeys[0],
         paths=paths,
     )
     path = obj.client.save_new_bridge(

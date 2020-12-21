@@ -54,6 +54,15 @@ class Storage:
         self.local_path = local_path
         self.manifest_pattern = manifest_pattern
 
+    def __repr__(self):
+        return (f'{type(self).__name__}('
+            f'owner={self.owner!r}, '
+            f'storage_type={self.storage_type!r}, '
+            f'container_path={self.container_path!r}, '
+            f'trusted={self.trusted!r}, '
+            f'manifest_pattern={self.manifest_pattern!r}, '
+            f'local_path={self.local_path!r})')
+
     def validate(self):
         '''
         Validate storage assuming it's of a known type.

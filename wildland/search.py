@@ -21,6 +21,7 @@
 Utilities for URL resolving and traversing the path
 '''
 
+import errno
 import logging
 import os
 import re
@@ -35,6 +36,7 @@ from .container import Container
 from .bridge import Bridge
 from .storage import Storage
 from .storage_backends.base import StorageBackend
+from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
@@ -87,15 +89,15 @@ class Search:
         self.local_users = list(self.client.load_users())
         self.local_bridges = list(self.client.load_bridges())
 
-    def read_container(self) -> Container:
+    def read_container(self) -> Iterable[Container]:
         '''
-        Read a container manifest represented by the path.
+        Yield all containers matching the given WL path.
         '''
         if self.wlpath.file_path is not None:
             raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
 
-        step = self._resolve_all()
-        return step.container
+        for step in self._resolve_all():
+            yield step.container
 
     def read_file(self) -> bytes:
         '''
@@ -109,13 +111,19 @@ class Search:
         if self.wlpath.file_path is None:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
-        step = self._resolve_all()
-        _, storage_backend = self._find_storage(step)
-        storage_backend.mount()
-        try:
-            return storage_read_file(storage_backend, self.wlpath.file_path.relative_to('/'))
-        finally:
-            storage_backend.unmount()
+        for step in self._resolve_all():
+            try:
+                _, storage_backend = self._find_storage(step)
+            except ManifestError:
+                continue
+            with storage_backend:
+                try:
+                    return storage_read_file(storage_backend,
+                                             self.wlpath.file_path.relative_to('/'))
+                except FileNotFoundError:
+                    continue
+
+        raise FileNotFoundError
 
     def write_file(self, data: bytes):
         '''
@@ -125,22 +133,25 @@ class Search:
         if self.wlpath.file_path is None:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
-        step = self._resolve_all()
-        _, storage_backend = self._find_storage(step)
-        storage_backend.mount()
-        try:
-            return storage_write_file(data, storage_backend, self.wlpath.file_path.relative_to('/'))
-        finally:
-            storage_backend.unmount()
+        for step in self._resolve_all():
+            try:
+                _, storage_backend = self._find_storage(step)
+            except ManifestError:
+                continue
+            try:
+                with StorageDriver(storage_backend) as driver:
+                    return driver.write_file(self.wlpath.file_path.relative_to('/'), data)
+            except FileNotFoundError:
+                continue
 
-    def _resolve_all(self) -> Step:
+    def _resolve_all(self) -> Iterable[Step]:
         '''
-        Resolve all path parts, return the first result that matches.
+        Resolve all path parts, yield all results that match.
         '''
 
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
-                return last_step
+                yield last_step
         raise PathError(f'Container not found for path: {self.wlpath}')
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
@@ -209,8 +220,7 @@ class Search:
 
         storage, storage_backend = self._find_storage(step)
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
-        storage_backend.mount()
-        try:
+        with storage_backend:
             for manifest_path in storage_find_manifests(
                     storage_backend, manifest_pattern, part):
                 trusted_owner = None
@@ -236,8 +246,6 @@ class Search:
                         step.client, step.owner,
                         part, manifest_path, storage_backend,
                         container_or_bridge)
-        finally:
-            storage_backend.unmount()
 
     # pylint: disable=no-self-use
 
@@ -378,30 +386,6 @@ def storage_read_file(storage, relpath) -> bytes:
         storage.release(relpath, 0, obj)
 
 
-def storage_write_file(data, storage, relpath):
-    '''
-    Write a file to StorageBackend, using FUSE commands.
-    '''
-
-    try:
-        storage.getattr(relpath)
-    except FileNotFoundError:
-        exists = False
-    else:
-        exists = True
-
-    if exists:
-        obj = storage.open(relpath, os.O_WRONLY)
-        storage.ftruncate(relpath, 0, obj)
-    else:
-        obj = storage.create(relpath, os.O_CREAT | os.O_WRONLY, 0o644)
-
-    try:
-        storage.write(relpath, data, 0, obj)
-    finally:
-        storage.release(relpath, 0, obj)
-
-
 def storage_find_manifests(
         storage: StorageBackend,
         manifest_pattern: dict,
@@ -474,3 +458,64 @@ def _find(storage: StorageBackend, prefix: PurePosixPath, path: PurePosixPath) \
         except IOError:
             return
         yield full_path
+
+
+class StorageDriver:
+    '''
+    A contraption to directly manipulate
+    :py:type:`wildland.storage_backends.base.StorageBackend`
+    '''
+    def __init__(self, storage_backend: StorageBackend):
+        self.storage_backend = storage_backend
+    @classmethod
+    def from_storage(cls, storage: Storage) -> 'StorageDriver':
+        '''
+        Create :py:type:`StorageDriver` from
+        :py:class:`wildland.storage.Storage`
+        '''
+        return cls(StorageBackend.from_params(storage.params))
+
+    def __enter__(self):
+        self.storage_backend.mount()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.storage_backend.unmount()
+
+    def write_file(self, relpath, data):
+        '''
+        Write a file to StorageBackend, using FUSE commands.
+        '''
+
+        try:
+            self.storage_backend.getattr(relpath)
+        except FileNotFoundError:
+            exists = False
+        else:
+            exists = True
+
+        if exists:
+            obj = self.storage_backend.open(relpath, os.O_WRONLY)
+            self.storage_backend.ftruncate(relpath, 0, obj)
+        else:
+            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY,
+                0o644)
+
+        try:
+            self.storage_backend.write(relpath, data, 0, obj)
+        finally:
+            self.storage_backend.release(relpath, 0, obj)
+
+    def makedirs(self, relpath, mode=0o755):
+        '''
+        Make directory, and it's parents if needed. Does not work across
+        containers.
+        '''
+        for path in reversed((relpath, *relpath.parents)):
+            try:
+                attr = self.storage_backend.getattr(path)
+            except FileNotFoundError:
+                self.storage_backend.mkdir(path, mode)
+            else:
+                if not attr.is_dir():
+                    raise NotADirectoryError(errno.ENOTDIR, path)

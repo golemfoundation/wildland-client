@@ -90,6 +90,19 @@ Create a |~| new container manifest.
 
    Create storages for a container with a given storage-set.
 
+.. option:: --local-dir <local_dir>
+
+    Local directory to be passed to storage templates as a parameter. Requires --storage-set.
+
+.. option:: --default-storage-set
+
+    Use default storage set for the user, if available.
+
+.. option:: --no-default-storage-set
+
+    Do not use default storage set for the user, even if available.
+
+
 .. program:: wl-container-update
 .. _wl-container-update:
 
@@ -107,8 +120,8 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount [--remount/--no-remount] <container> [<container>...]`
------------------------------------------------------------------------------------
+:command:`wl container mount [--quiet/-q] [--remount/--no-remount] [--with-subcontainers] <container> [<container>...]`
+-----------------------------------------------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl start <wl-start>`.
@@ -128,6 +141,15 @@ be mounted first, see :ref:`wl start <wl-start>`.
    Add the containers to ``default-containers`` in configuration file, so
    that they will be mounted at startup.
 
+.. option:: -w, --with-subcontainers
+
+   Mount also subcontainers of those containers. Do this recursively (i.e. if
+   any subcontainer provide own set of subcontainers, mount those too).
+
+.. option:: -q, --quiet
+
+   Do not list all the containers to be mounted, useful for a containers with a
+   lot of subcontainers.
 
 .. program:: wl-container-mount-watch
 .. _wl-container-mount-watch:
@@ -180,12 +202,25 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
-:command:`wl container unmount <container>`
--------------------------------------------
+:command:`wl container unmount [--path] [--with-subcontainers] <container>`
+---------------------------------------------------------------------------
 
 .. option:: --path <path>
 
    Mount path to search for.
+
+.. option:: -w, --with-subcontainers
+
+   Mount also subcontainers of those containers. Do this recursively (i.e. if
+   any subcontainer provide own set of subcontainers, mount those too).
+
+.. program:: wl-container-publish
+.. _wl-container-publish:
+
+:command:`wl container publish <container> [<wlpath>]`
+------------------------------------------------------
+
+Publish a container manifest into user's infrastructure container or under specified wildland path.
 
 .. _wl-container-sign:
 .. _wl-container-verify:

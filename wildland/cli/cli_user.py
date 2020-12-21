@@ -83,10 +83,9 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
     user = User(
         owner=owner,
-        pubkey=pubkey,
+        pubkeys=[pubkey] + additional_pubkeys,
         paths=[PurePosixPath(p) for p in paths],
         containers=[],
-        additional_pubkeys=additional_pubkeys
     )
     try:
         error_on_save = False

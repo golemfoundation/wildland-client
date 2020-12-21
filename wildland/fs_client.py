@@ -200,17 +200,18 @@ class WildlandFSClient:
                         container: Container,
                         storage: Storage,
                         is_default_user: bool = False,
+                        subcontainer_of: Optional[Container] = None,
                         remount: bool = False):
         '''
         Mount a container, assuming a storage has been already selected.
         '''
 
-        self.mount_multiple_containers([(container, storage, is_default_user)],
+        self.mount_multiple_containers([(container, storage, is_default_user, subcontainer_of)],
                                        remount=remount)
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, Storage, bool]],
+            params: Iterable[Tuple[Container, Storage, bool, Optional[Container]]],
             remount: bool = False):
         '''
         Mount multiple containers using a single command.
@@ -219,8 +220,9 @@ class WildlandFSClient:
         self.clear_cache()
         commands = [
             self.get_command_for_mount_container(
-                container, storage, is_default_user, remount=remount)
-            for container, storage, is_default_user in params
+                container, storage, is_default_user,
+                remount=remount, subcontainer_of=subcontainer_of)
+            for container, storage, is_default_user, subcontainer_of in params
         ]
         self.run_control_command('mount', items=commands)
 
@@ -252,6 +254,54 @@ class WildlandFSClient:
         if len(storage_ids) > 1:
             logger.warning('multiple storages found for path: %s', path)
         return storage_ids[0]
+
+    def get_container_from_storage_id(self, storage_id: int):
+        """
+        Reconstruct a *Container* object from paths.
+
+        This extracts basic metadata from list of paths (uuid, owner etc) and build a Container
+        object that mimic the original one. Some fields cannot be extracted this way
+        (like list of backends) so they will be skipped.
+
+        :param storage_id: storage id
+        :return:
+        """
+        # search for uuid path in /.users/
+        container_paths = []
+        owner = None
+        info = self.get_info()
+        for path in info[storage_id]['paths']:
+            try:
+                # this raises ValueError for not matching paths
+                users_path = path.relative_to('/.users')
+                owner = users_path.parts[0]
+                container_paths.append(PurePosixPath('/').joinpath(
+                    *users_path.parts[1:]))
+            except ValueError:
+                continue
+        if owner is None:
+            raise ValueError('cannot determine owner')
+        return Container(
+            owner=owner,
+            paths=container_paths,
+            backends=[],
+        )
+
+    def find_all_subcontainers_storage_ids(self, container: Container,
+                                           recursive: bool = True) -> Iterable[int]:
+        '''
+        Find storage ID for a given mount path.
+        '''
+
+        container_id = f'{container.owner}:{container.paths[0]}'
+        info = self.get_info()
+        for storage_id in info:
+            if info[storage_id]['subcontainer_of'] == container_id:
+                yield storage_id
+                if recursive:
+                    yield from self.find_all_subcontainers_storage_ids(
+                        self.get_container_from_storage_id(storage_id),
+                        recursive=recursive)
 
     def find_all_storage_ids_for_path(self, path: PurePosixPath) \
         -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
@@ -361,6 +411,7 @@ class WildlandFSClient:
                 'type': storage['type'],
                 'tag': storage['extra'].get('tag', None),
                 'trusted_owner': storage['extra'].get('trusted_owner', None),
+                'subcontainer_of': storage['extra'].get('subcontainer_of', None),
             }
             for ident_str, storage in data.items()
         }
@@ -391,6 +442,7 @@ class WildlandFSClient:
                                         container: Container,
                                         storage: Storage,
                                         is_default_user: bool,
+                                        subcontainer_of: Optional[Container],
                                         remount: bool = False):
         '''
         Prepare parameters for the control client to mount a container
@@ -421,6 +473,8 @@ class WildlandFSClient:
             'extra': {
                 'tag': self.get_storage_tag(paths, storage.params),
                 'trusted_owner': trusted_owner,
+                'subcontainer_of': (f'{subcontainer_of.owner}:{subcontainer_of.paths[0]}'
+                                    if subcontainer_of else None),
             },
             'remount': remount,
         }

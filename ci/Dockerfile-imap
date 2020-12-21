@@ -1,4 +1,4 @@
-FROM wildland-fuse-ci
+FROM wildland-client-ci
 
 USER root
 

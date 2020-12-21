@@ -18,11 +18,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # pylint: disable=missing-docstring,redefined-outer-name
-
-
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import os
 from datetime import datetime
+import yaml
 
 import pytest
 
@@ -32,17 +31,17 @@ from ..client import Client
 
 def test_date_proxy_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'InnerContainer', '--path', '/INNER_PATH')
-    cli('storage', 'create', 'local', 'InnerStorage', '--path', '/tmp/local-path',
-        '--container', 'InnerContainer')
+    cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
+    cli('storage', 'create', 'local', 'referenceStorage', '--path', '/tmp/local-path',
+        '--container', 'referenceContainer')
 
-    inner_path = base_dir / 'containers/InnerContainer.container.yaml'
-    assert inner_path.exists()
-    inner_url = f'file://{inner_path}'
+    reference_path = base_dir / 'containers/referenceContainer.container.yaml'
+    assert reference_path.exists()
+    reference_url = f'file://{reference_path}'
 
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'date-proxy', 'ProxyStorage',
-        '--inner-container-url', inner_url,
+        '--reference-container-url', reference_url,
         '--container', 'Container')
 
     client = Client(base_dir)
@@ -50,15 +49,15 @@ def test_date_proxy_with_url(cli, base_dir):
 
     # When loaded directly, the storage manifest contains container URL...
     storage = client.load_storage_from('ProxyStorage')
-    assert storage.params['inner-container'] == inner_url
+    assert storage.params['reference-container'] == reference_url
 
-    # But select_storage loads also the inner manifest
+    # But select_storage loads also the reference manifest
     container = client.load_container_from('Container')
     storage = client.select_storage(container)
     assert storage.storage_type == 'date-proxy'
-    inner_storage = storage.params['storage']
-    assert isinstance(inner_storage, dict)
-    assert inner_storage['type'] == 'local'
+    reference_storage = storage.params['storage']
+    assert isinstance(reference_storage, dict)
+    assert reference_storage['type'] == 'local'
 
 
 @pytest.fixture
@@ -141,3 +140,104 @@ def test_date_proxy_fuse_files(env, storage, data_dir):
         'file 1'
     assert Path(env.mnt_dir / 'proxy/2008/02/03/dir2/dir3/file2').read_text() == \
         'file 2'
+
+@pytest.fixture
+def container(cli, base_dir, data_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    # this needs to be saved, so client.load_containers() will see it
+    (base_dir / 'containers').mkdir(parents=True)
+    with (base_dir / 'containers/macro.container.yaml').open('w') as f:
+        f.write(yaml.dump({
+            'owner': '0xaaa',
+            'paths': [
+                '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
+                '/PATH',
+            ],
+            'backends': {
+                'storage': [{
+                    'type': 'date-proxy',
+                    'owner': '0xaaa',
+                    'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
+                    'reference-container': {
+                        'owner': '0xaaa',
+                        'paths': ['/.uuid/39f437f3-b071-439c-806b-6d14fa55e827'],
+                        'backends': {
+                            'storage': [{
+                                'owner': '0xaaa',
+                                'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
+                                'type': 'local',
+                                'path': str(data_dir),
+                            }]
+                        }
+                    }
+                }]
+            }
+        }))
+    cli('container', 'sign', '-i', 'macro')
+
+    yield 'macro'
+
+def test_date_proxy_subcontainers(base_dir, container, data_dir):
+    (data_dir / 'dir1').mkdir()
+    (data_dir / 'dir1/file1').write_text('file 1')
+    os.utime(data_dir / 'dir1/file1',
+             (int(datetime(2010, 5, 7, 10, 30).timestamp()),
+              int(datetime(2010, 5, 7, 10, 30).timestamp())))
+
+    (data_dir / 'dir2/dir3').mkdir(parents=True)
+    (data_dir / 'dir2/dir3/file2').write_text('file 2')
+    os.utime(data_dir / 'dir2/dir3/file2',
+             (int(datetime(2008, 2, 3, 10, 30).timestamp()),
+              int(datetime(2008, 2, 3, 10, 30).timestamp())))
+
+    client = Client(base_dir)
+    client.recognize_users()
+
+    container = client.load_container_from(container)
+    subcontainers = list(client.all_subcontainers(container))
+    assert len(subcontainers) == 2
+    assert subcontainers[0].paths[1:] == [PurePosixPath('/timeline/2008/02/03')]
+    assert subcontainers[0].backends[0] == {
+        'type': 'delegate',
+        'subdirectory': '/2008/02/03',
+        'owner': container.owner,
+        'container-path': str(subcontainers[0].paths[0]),
+        'reference-container': f'wildland:@default:{container.paths[0]}:'
+    }
+    assert subcontainers[1].paths[1:] == [PurePosixPath('/timeline/2010/05/07')]
+    assert subcontainers[1].backends[0]['subdirectory'] == '/2010/05/07'
+
+def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
+    (data_dir / 'dir1').mkdir()
+    (data_dir / 'dir1/file1').write_text('file 1')
+    os.utime(data_dir / 'dir1/file1',
+             (int(datetime(2010, 5, 7, 10, 30).timestamp()),
+              int(datetime(2010, 5, 7, 10, 30).timestamp())))
+
+    (data_dir / 'dir2/dir3').mkdir(parents=True)
+    (data_dir / 'dir2/dir3/file2').write_text('file 2')
+    os.utime(data_dir / 'dir2/dir3/file2',
+             (int(datetime(2008, 2, 3, 10, 30).timestamp()),
+              int(datetime(2008, 2, 3, 10, 30).timestamp())))
+
+    client = Client(base_dir)
+    client.recognize_users()
+
+    container = client.load_container_from(container)
+    for subcontainer in client.all_subcontainers(container):
+        env.mount_storage(subcontainer.paths[1:], client.select_storage(subcontainer).params)
+
+    assert walk_all(env.mnt_dir) == [
+        'timeline/',
+        'timeline/2008/',
+        'timeline/2008/02/',
+        'timeline/2008/02/03/',
+        'timeline/2008/02/03/dir2/',
+        'timeline/2008/02/03/dir2/dir3/',
+        'timeline/2008/02/03/dir2/dir3/file2',
+        'timeline/2010/',
+        'timeline/2010/05/',
+        'timeline/2010/05/07/',
+        'timeline/2010/05/07/dir1/',
+        'timeline/2010/05/07/dir1/file1',
+    ]

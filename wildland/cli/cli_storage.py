@@ -115,6 +115,11 @@ def _do_create(
 
     params = backend.cli_create(data)
 
+    # remove default, non-required values
+    for param, value in list(params.items()):
+        if value is None or value == []:
+            del params[param]
+
     manifest_pattern_dict = None
     if manifest_pattern:
         manifest_pattern_dict = {
@@ -244,18 +249,25 @@ def delete(obj: ContextObj, name, force, cascade):
     storage.local_path.unlink()
 
 
-def do_create_storage_fom_set(client, container, storage_set):
+def do_create_storage_fom_set(client, container, storage_set, local_dir):
     """
     Create storages for a container from a given StorageSet.
     :param client: Wildland client
     :param container: Wildland container
     :param storage_set: StorageSet of manifest templates
+    :param local_dir: str to be passed to template renderer as a parameter, can be used by template
+        creators
     """
-    template_manager = TemplateManager(client.template_dir)
-    storage_set = template_manager.get_storage_set(storage_set)
+    if isinstance(storage_set, str):
+        template_manager = TemplateManager(client.template_dir)
+        storage_set = template_manager.get_storage_set(storage_set)
 
     for file, t in storage_set.templates:
-        manifest = file.get_unsigned_manifest(container)
+        try:
+            manifest = file.get_unsigned_manifest(container, local_dir)
+        except ValueError as ex:
+            click.echo(f'Failed to create manifest in template {file.file_name}: {ex}')
+            raise ex
 
         manifest.sign(client.session.sig)
 
@@ -265,7 +277,7 @@ def do_create_storage_fom_set(client, container, storage_set):
         # make an empty directory
         backend.mount()
         try:
-            backend.mkdir(PurePosixPath(''), mode=0o0777)
+            backend.mkdir(PurePosixPath(''))
         except FileExistsError:
             pass
         except FileNotFoundError:
@@ -279,19 +291,37 @@ def do_create_storage_fom_set(client, container, storage_set):
 
 @storage_.command('create-from-set', short_help='create a storage from a set of templates',
                   alias=['cs'])
-@click.option('--storage-set', '--set', '-s', multiple=False, required=True,
+@click.option('--storage-set', '--set', '-s', multiple=False, required=False,
               help='name of storage template set to use')
+@click.option('--local-dir', multiple=False, required=False,
+              help='local directory to be passed to storage templates')
 @click.argument('cont', metavar='CONTAINER', required=True)
 @click.pass_obj
-def create_from_set(obj: ContextObj, cont, storage_set):
+def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
     """
     Setup storage for a container from a storage template set.
     """
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
+    template_manager = TemplateManager(obj.client.template_dir)
 
-    do_create_storage_fom_set(obj.client, container, storage_set)
+    if not storage_set:
+        storage_set = obj.client.config.get('default-storage-set-for-user')\
+            .get(container.owner, None)
+        if not storage_set:
+            raise CliError(f'User {container.owner} has no default storage template set. '
+                           f'Specify template set explicitly.')
+
+    try:
+        storage_set = template_manager.get_storage_set(storage_set)
+    except FileNotFoundError:
+        raise CliError(f'Storage set {storage_set} not found.')
+
+    try:
+        do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
+    except ValueError:
+        pass
 
 
 storage_.add_command(sign)

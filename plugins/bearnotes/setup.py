@@ -7,7 +7,6 @@ setup(
     entry_points={
         'wildland.storage_backends': [
             'bear-db = wildland_bearnotes.backend:BearDBStorageBackend',
-            'bear-note = wildland_bearnotes.backend:BearNoteStorageBackend',
         ]
     },
     install_requires=[

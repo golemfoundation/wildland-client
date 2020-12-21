@@ -24,8 +24,8 @@ Client class
 import glob
 import logging
 import os
-from pathlib import Path
-from typing import Optional, Iterator, List, Tuple, Union, Dict
+from pathlib import Path, PurePosixPath
+from typing import Optional, Iterator, List, Tuple, Union, Dict, Iterable
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -37,7 +37,7 @@ from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath
 from .manifest.sig import DummySigContext, SignifySigContext
-from .manifest.manifest import ManifestError
+from .manifest.manifest import ManifestError, Manifest
 from .session import Session
 from .storage_backends.base import StorageBackend
 from .fs_client import WildlandFSClient
@@ -88,6 +88,8 @@ class Client:
         self.session: Session = Session(sig)
 
         self.users: List[User] = []
+
+        self._select_reference_storage_cache = {}
 
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         '''
@@ -200,21 +202,31 @@ class Client:
             path.read_bytes(), path,
             trusted_owner=trusted_owner)
 
-    def load_container_from_wlpath(self, wlpath: WildlandPath) -> Container:
+    def load_container_from_wlpath(self, wlpath: WildlandPath) -> Iterable[Container]:
         '''
-        Load a container from WildlandPath.
+        Load containers referring to a given WildlandPath.
         '''
 
         # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import Search
         search = Search(self, wlpath, self.config.aliases)
-        return search.read_container()
+        yield from search.read_container()
 
     def load_container_from_url(self, url: str, owner: str) -> Container:
         '''
         Load container from URL.
         '''
+
+        if url.startswith(WILDLAND_URL_PREFIX):
+            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+            if wlpath.file_path is None:
+                # TODO: Still a circular dependency with search
+                # pylint: disable=import-outside-toplevel, cyclic-import
+                from .search import Search
+
+                search = Search(self, wlpath, {'default': owner})
+                return next(search.read_container())
 
         return self.session.load_container(self.read_from_url(url, owner))
 
@@ -277,7 +289,8 @@ class Client:
         # Wildland path
         if WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
-            return self.load_container_from_wlpath(wlpath)
+            # TODO: what to do if there are more containers that match the path?
+            return next(self.load_container_from_wlpath(wlpath))
 
         path = self.resolve_container_name_to_path(name)
         if path:
@@ -479,11 +492,12 @@ class Client:
                 return path
             i += 1
 
-    def all_storages(self, container: Container, backends=None) -> Iterator[Storage]:
+    def all_storages(self, container: Container, backends=None, *,
+            predicate=None) -> Iterator[Storage]:
         """
         Return (and load on returning) all storages for a given container.
 
-        In case of proxy storage, this will also load an inner storage and
+        In case of proxy storage, this will also load an reference storage and
         inline the manifest.
         """
         if backends is None:
@@ -533,36 +547,48 @@ class Client:
 
             # If there is a 'container' parameter with a backend URL, convert
             # it to an inline manifest.
-            if 'inner-container' in storage.params:
-                storage.params['storage'] = self._select_inner_storage(
-                    storage.params['inner-container'], container.owner
+            if 'reference-container' in storage.params:
+                storage.params['storage'] = self._select_reference_storage(
+                    storage.params['reference-container'], container.owner, storage.trusted
                 )
                 if storage.params['storage'] is None:
                     continue
 
+            if predicate is not None and not predicate(storage):
+                continue
+
             yield storage
 
-    def select_storage(self, container: Container, backends=None) -> Storage:
+    def select_storage(self, container: Container, backends=None, *,
+            predicate=None) -> Storage:
         '''
         Select and load a storage to mount for a container.
 
-        In case of proxy storage, this will also load an inner storage and
+        In case of proxy storage, this will also load an reference storage and
         inline the manifest.
         '''
 
         try:
-            return next(self.all_storages(container, backends))
+            return next(
+                self.all_storages(container, backends, predicate=predicate))
         except StopIteration:
             raise ManifestError('no supported storage manifest')
 
-    def _select_inner_storage(
+    def _select_reference_storage(
             self,
             container_url_or_dict: Union[str, Dict],
-            owner: str) -> Optional[Dict]:
+            owner: str,
+            trusted: bool) -> Optional[Dict]:
         '''
-        Select an "inner" storage based on URL or dictionary. This resolves a
+        Select an "reference" storage based on URL or dictionary. This resolves a
         container specification and then selects storage for the container.
         '''
+
+        # use custom caching that dumps *container_url_or_dict* to yaml,
+        # because dict is not hashable (and there is no frozendict in python)
+        cache_key = yaml.dump(container_url_or_dict), owner, trusted
+        if cache_key in self._select_reference_storage_cache:
+            return self._select_reference_storage_cache[cache_key]
 
         if isinstance(container_url_or_dict, str):
             container = self.load_container_from_url(
@@ -574,16 +600,64 @@ class Client:
                 container_url_or_dict, owner
             )
 
-        if container.owner != owner:
+        if trusted and container.owner != owner:
             logger.error(
-                'owner field mismatch for inner container: outer %s, inner %s',
+                'owner field mismatch for trusted reference container: outer %s, inner %s',
                 owner, container.owner)
+            self._select_reference_storage_cache[cache_key] = None
             return None
 
-        inner_storage = self.select_storage(container)
-        inner_manifest = inner_storage.to_unsigned_manifest()
-        inner_manifest.skip_signing()
-        return inner_manifest.fields
+        reference_storage = self.select_storage(container)
+        reference_manifest = reference_storage.to_unsigned_manifest()
+        reference_manifest.skip_signing()
+        self._select_reference_storage_cache[cache_key] = reference_manifest.fields
+        return reference_manifest.fields
+
+    @staticmethod
+    def _postprocess_subcontainer(container: Container,
+                                  backend: StorageBackend,
+                                  subcontainer_params: dict) -> Container:
+        """
+        Fill remaining fields of the subcontainer and possibly apply transformations.
+
+        :param container: parent container
+        :param backend: storage backend generating this subcontainer
+        :param subcontainer_params: subcontainer manifest dict
+        :return:
+        """  # pylint: disable=unused-argument
+        subcontainer_params['owner'] = container.owner
+        for sub_storage in subcontainer_params['backends']['storage']:
+            sub_storage['owner'] = container.owner
+            sub_storage['container-path'] = subcontainer_params['paths'][0]
+            if isinstance(sub_storage.get('reference-container'), str) and \
+                    sub_storage['reference-container'].startswith(
+                        WILDLAND_URL_PREFIX):
+                sub_storage['reference-container'] = \
+                    sub_storage['reference-container'].replace(
+                        ':@parent-container:', f':{container.paths[0]}:')
+        manifest = Manifest.from_fields(subcontainer_params)
+        manifest.skip_signing()
+        return Container.from_manifest(manifest)
+
+    def all_subcontainers(self, container: Container) -> Iterator[Container]:
+        """
+        List subcontainers of this container.
+
+        This takes only the first backend that is capable of sub-containers functionality.
+        :param container:
+        :return:
+        """
+        container.ensure_uuid()
+
+        for storage in self.all_storages(container):
+            try:
+                with StorageBackend.from_params(storage.params) as backend:
+                    for subcontainer in backend.list_subcontainers():
+                        yield self._postprocess_subcontainer(container, backend, subcontainer)
+            except NotImplementedError:
+                continue
+            else:
+                return
 
     @staticmethod
     def is_url(s: str):
@@ -668,3 +742,62 @@ class Client:
             return None
 
         return Path(parse_result.path)
+
+    @staticmethod
+    def _select_storage_for_publishing(storage):
+        return storage.manifest_pattern is not None
+
+    @staticmethod
+    def _manifest_filenames_from_patern(container: Container, path_pattern):
+        path_pattern = path_pattern.replace('*', container.ensure_uuid())
+        if '{path}' in path_pattern:
+            for path in container.paths:
+                yield PurePosixPath(path_pattern.replace(
+                    '{path}', str(path.relative_to('/')))).relative_to('/')
+        else:
+            yield PurePosixPath(path_pattern).relative_to('/')
+
+    def publish_container(self, container: Container,
+            wlpath: Optional[WildlandPath] = None) -> None:
+        '''
+        Publish a container to another container owner by the same user
+        '''
+
+        # pylint: disable=import-outside-toplevel, cyclic-import
+        from .search import Search, StorageDriver
+
+        data = self.session.dump_container(container)
+
+        if wlpath is not None:
+            search = Search(self, wlpath, self.config.aliases)
+            search.write_file(data)
+            return
+
+        owner = self.load_user_from(container.owner)
+        containers = owner.containers
+        for cont in containers:
+            cont = (self.load_container_from_url(cont, container.owner)
+                if isinstance(cont, str)
+                else self.load_container_from_dict(cont, container.owner))
+
+            if cont.paths == container.paths:
+                # do not publish container to itself
+                continue
+
+            try:
+                storage = self.select_storage(cont,
+                    predicate=self._select_storage_for_publishing)
+                break
+            except ManifestError:
+                continue
+
+        else: # didn't break, i.e. storage not found
+            raise WildlandError(
+                'cannot find any container suitable as publishing platform')
+
+        assert storage.manifest_pattern['type'] == 'glob'
+        for relpath in self._manifest_filenames_from_patern(container,
+                                                            storage.manifest_pattern['path']):
+            with StorageDriver.from_storage(storage) as driver:
+                driver.makedirs(relpath.parent)
+                driver.write_file(relpath, data)

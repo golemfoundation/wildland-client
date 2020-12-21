@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
 import shutil
 import subprocess
@@ -73,7 +73,7 @@ def test_user_create_additional_keys(cli, base_dir):
     with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
 
-    assert 'pubkeys:\n- key.0xbbb' in data
+    assert 'pubkeys:\n- key.0x111\n- key.0xbbb' in data
 
 
 def test_user_list(cli, base_dir):
@@ -307,6 +307,17 @@ def test_container_update(cli, base_dir):
 
     storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert str(storage_path) in data
+
+
+def test_container_publish(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--path', os.fspath(tmp_path),
+        '--container', 'Container', '--inline')
+
+    cli('container', 'publish', 'Container', '0xaaa:/PATH:/published.yaml')
+
+    assert (tmp_path / 'published.yaml').exists()
 
 
 def test_container_delete(cli, base_dir):
@@ -895,7 +906,7 @@ def test_cli_set_missing_title(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
         'path':  f'{base_dir}' +
-                 '/{% if title -%} {{ title }} {% else -%} test {% endif %}',
+                 '/{% if title is defined -%} {{ title }} {% else -%} test {% endif %}',
         'type': 'local'
     }
 
@@ -910,3 +921,89 @@ def test_cli_set_missing_title(cli, base_dir):
 
         assert f'- path: {base_dir}/test' in output_lines
         assert 'type: local' in output_lines
+
+
+def test_cli_set_missing_param(cli, base_dir):
+    os.mkdir(base_dir / 'templates')
+    data_dict = {
+        'path':  f'{base_dir}' + '{{ title }}',
+        'type': 'local'
+    }
+
+    yaml.dump(data_dict, open(base_dir / 'templates/title.template.jinja', 'w'))
+    cli('storage-set', 'add', '--inline', 'title', 'set1')
+    cli('user', 'create', 'User')
+
+    with pytest.raises(CliError, match='\'title\' is undefined'):
+        cli('container', 'create',
+            'Container', '--path', '/PATH', '--storage-set', 'set1', capture=True)
+
+    assert not (base_dir / 'containers/Container.container.yaml').exists()
+
+
+def test_cli_set_local_dir(cli, base_dir):
+    os.mkdir(base_dir / 'templates')
+    data_dict = {
+        'path':  f'{base_dir}' + '/{{ local_dir[1:] }}',
+        'type': 'local'
+    }
+
+    yaml.dump(data_dict, open(base_dir / 'templates/title.template.jinja', 'w'))
+    cli('storage-set', 'add', '--inline', 'title', 'set1')
+    cli('user', 'create', 'User')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
+        '--storage-set', 'set1', '--local-dir', '/test/test')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+
+        assert f'- path: {base_dir}/test/test' in output_lines
+        assert 'type: local' in output_lines
+
+    assert (base_dir / 'test/test').exists()
+
+
+def test_user_create_default_set(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('user', 'create', 'User')
+    cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set')
+    cli('storage-set', 'set-default', '--user', 'User', 'set')
+
+    with open(base_dir / 'config.yaml') as f:
+        data = f.read()
+
+    config = yaml.load(data)
+    default_user = config["@default-owner"]
+    assert f'\'{default_user}\': set' in data
+
+
+def test_cli_set_use_default(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('user', 'create', 'User')
+    cli('storage-set', 'add', '--template', 't1', 'set')
+    cli('storage-set', 'set-default', '--user', 'User', 'set')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+        print(output_lines)
+
+        assert f'- file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+
+
+def test_cli_set_use_def_storage(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('user', 'create', 'User')
+    cli('storage-set', 'add', '--template', 't1', 'set')
+    cli('storage-set', 'set-default', '--user', 'User', 'set')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
+    cli('storage', 'create-from-set', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        output_lines = [line.strip() for line in f.readlines()]
+        print(output_lines)
+
+        assert f'- file://localhost{base_dir}/storage/set.storage.yaml' in output_lines

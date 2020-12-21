@@ -64,7 +64,7 @@ class ZipArchiveWatcher(SimpleStorageWatcher):
     '''
 
     def __init__(self, backend: 'ZipArchiveStorageBackend'):
-        super().__init__(backend, delay=1)
+        super().__init__(backend, interval=1)
         self.zip_path = backend.zip_path
 
     def get_token(self):

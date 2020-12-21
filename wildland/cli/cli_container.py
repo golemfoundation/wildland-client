@@ -41,9 +41,11 @@ from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
 from ..manifest.manifest import ManifestError
+from ..manifest.template import TemplateManager
 from ..sync import Syncer, list_storage_conflicts
 from ..hashdb import HashDb
 from ..log import init_logging
+from ..wlpath import WildlandPath
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
@@ -93,10 +95,14 @@ class OptionRequires(click.Option):
               help='Attach the container to the user')
 @click.option('--storage-set', '--set', multiple=False, required=False,
               help='Use a storage template set to generate storages (see wl storage-set)')
+@click.option('--local-dir', multiple=False, required=False,
+              help='local directory to be passed to storage templates (requires --storage-set')
+@click.option('--default-storage-set/--no-default-storage-set', default=True,
+              help="use user's default storage template set (ignored if --storage-set is used)")
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name, update_user, title=None, category=None,
-           storage_set=None):
+def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
+           title=None, category=None, storage_set=None, local_dir=None):
     '''
     Create a new container manifest.
     '''
@@ -104,10 +110,25 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
     obj.client.recognize_users()
     user = obj.client.load_user_from(user or '@default-owner')
 
+    if default_storage_set and not storage_set:
+        set_name = obj.client.config.get('default-storage-set-for-user')\
+            .get(user.owner, None)
+    else:
+        set_name = storage_set
+
+    if local_dir and not set_name:
+        raise CliError('--local-dir requires --storage-set or default storage set.')
+
     if category and not title:
         if not name:
             raise CliError('--category option requires --title or container name')
         title = name
+
+    if set_name:
+        try:
+            storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
+        except FileNotFoundError:
+            raise CliError(f'Storage set {set_name} not found.')
 
     container = Container(
         owner=user.owner,
@@ -122,12 +143,15 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
 
     if storage_set:
         try:
-            do_create_storage_fom_set(obj.client, container, storage_set)
+            do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
         except FileNotFoundError:
-            click.echo('Failed to create storage from set: storage set not found')
             click.echo(f'Removing container: {path}')
             path.unlink()
-            return
+            raise CliError('Failed to create storage from set: storage set not found')
+        except ValueError as e:
+            click.echo(f'Removing container: {path}')
+            path.unlink()
+            raise CliError(f'Failed to create storage from set: {e}')
 
     if update_user:
         if not user.local_path:
@@ -136,7 +160,6 @@ def create(obj: ContextObj, user, path, name, update_user, title=None, category=
 
         user.containers.append(str(obj.client.local_url(path)))
         obj.client.save_user(user)
-
 
 
 @container_.command(short_help='update container')
@@ -167,6 +190,25 @@ def update(obj: ContextObj, storage, cont):
         container.backends.append(obj.client.local_url(storage.local_path))
 
     obj.client.save_container(container)
+
+
+@container_.command(short_help='publish container manifest')
+@click.argument('cont', metavar='CONTAINER')
+@click.argument('wlpath', metavar='WLPATH', required=False)
+@click.pass_obj
+def publish(obj: ContextObj, cont, wlpath=None):
+    '''
+    Publish a container manifest under a given wildland path
+    (or to an infrastructure container, if wlpath not given).
+    '''
+
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+
+    if wlpath:
+        wlpath = WildlandPath.from_str(wlpath)
+
+    obj.client.publish_container(container, wlpath)
 
 
 @container_.command('list', short_help='list containers', alias=['ls'])
@@ -257,14 +299,49 @@ container_.add_command(verify)
 container_.add_command(edit)
 
 
+def _mount(obj, container, container_name, is_default_user, remount, with_subcontainers,
+           subcontainer_of, quiet):
+    try:
+        storage = obj.client.select_storage(container)
+    except ManifestError:
+        print(f'Cannot mount {container_name}: no storage available')
+        return
+
+    param_tuple = (container, storage, is_default_user, subcontainer_of)
+
+    if obj.fs_client.find_storage_id(container) is None:
+        if not quiet:
+            print(f'new: {container_name}')
+        yield param_tuple
+    elif remount:
+        if obj.fs_client.should_remount(container, storage, is_default_user):
+            if not quiet:
+                print(f'changed: {container_name}')
+            yield param_tuple
+        else:
+            if not quiet:
+                print(f'not changed: {container_name}')
+    else:
+        raise CliError('Already mounted: {container.local_path}')
+
+    if with_subcontainers:
+        for subcontainer in obj.client.all_subcontainers(container):
+            yield from _mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
+                              is_default_user, remount, with_subcontainers, container, quiet)
+
+
 @container_.command(short_help='mount container')
 @click.option('--remount/--no-remount', '-r/-n', default=True,
               help='Remount existing container, if found')
 @click.option('--save', '-s', is_flag=True,
               help='Save the container to be mounted at startup')
+@click.option('--with-subcontainers', '-w', is_flag=True,
+              help='Mount also subcontainers of those containers')
+@click.option('--quiet', '-q', is_flag=True,
+              help='Do not list what is mounted')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount, save):
+def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, quiet):
     '''
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -278,24 +355,9 @@ def mount(obj: ContextObj, container_names, remount, save):
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
             is_default_user = container.owner == obj.client.config.get('@default')
-            try:
-                storage = obj.client.select_storage(container)
-            except ManifestError:
-                print(f'Cannot mount {container_name}: no storage available')
-                continue
-            param_tuple = (container, storage, is_default_user)
 
-            if obj.fs_client.find_storage_id(container) is None:
-                print(f'new: {container.local_path}')
-                params.append(param_tuple)
-            elif remount:
-                if obj.fs_client.should_remount(container, storage, is_default_user):
-                    print(f'changed: {container.local_path}')
-                    params.append(param_tuple)
-                else:
-                    print(f'not changed: {container.local_path}')
-            else:
-                raise CliError('Already mounted: {container.local_path}')
+            params.extend(_mount(obj, container, container.local_path,
+                                 is_default_user, remount, with_subcontainers, None, quiet))
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
@@ -325,9 +387,11 @@ def mount(obj: ContextObj, container_names, remount, save):
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
     help='mount path to search for')
+@click.option('--with-subcontainers', '-w', is_flag=True,
+              help='Unmount also subcontainers of those containers')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
-def unmount(obj: ContextObj, path: str, container_names):
+def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names):
     '''
     Unmount a container_ You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
@@ -349,11 +413,18 @@ def unmount(obj: ContextObj, path: str, container_names):
                 else:
                     click.echo(f'Will unmount: {container.paths[0]}')
                     storage_ids.append(storage_id)
+                if with_subcontainers:
+                    storage_ids.extend(
+                        obj.fs_client.find_all_subcontainers_storage_ids(container))
     else:
         storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
         if storage_id is None:
             raise click.ClickException('Container not mounted')
         storage_ids = [storage_id]
+        if with_subcontainers:
+            storage_ids.extend(
+                obj.fs_client.find_all_subcontainers_storage_ids(
+                    obj.fs_client.get_container_from_storage_id(storage_id)))
 
     if not storage_ids:
         raise click.ClickException('No containers mounted')

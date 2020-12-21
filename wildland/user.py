@@ -42,26 +42,21 @@ class User:
 
     def __init__(self, *,
                  owner: str,
-                 pubkey: str,
+                 pubkeys: List[str],
                  paths: List[PurePosixPath],
                  containers: List[Union[str, dict]],
-                 local_path: Optional[Path] = None,
-                 additional_pubkeys: Optional[List[str]] = None):
+                 local_path: Optional[Path] = None):
         self.owner = owner
-        self.pubkey = pubkey
         self.paths = paths
         self.containers = containers
         self.local_path = local_path
-        if additional_pubkeys is None:
-            self.additional_pubkeys = []
-        else:
-            self.additional_pubkeys = additional_pubkeys
+        self.pubkeys = pubkeys
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, pubkey: str, local_path=None) -> 'User':
+    def from_manifest(cls, manifest: Manifest, pubkey, local_path=None) -> 'User':
         '''
         Construct a User instance from a manifest.
-        A public key needs to be provided as well.
+        Requires public key for backwards compatibility.
         '''
 
         # TODO: local_path should be also part of Manifest?
@@ -73,13 +68,16 @@ class User:
             logger.warning("deprecated 'containers' field in user manifest "
                            "(renamed to 'infrastructures'), ignoring")
 
+        pubkeys = manifest.fields.get('pubkeys', [])
+        if pubkey not in pubkeys:
+            pubkeys = [pubkey] + pubkeys
+
         return cls(
             owner=owner,
-            pubkey=pubkey,
+            pubkeys=pubkeys,
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             containers=manifest.fields.get('infrastructures', []),
             local_path=local_path,
-            additional_pubkeys=manifest.fields.get('pubkeys', [])
         )
 
     def to_unsigned_manifest(self) -> Manifest:
@@ -92,7 +90,7 @@ class User:
             'owner': self.owner,
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,
-            'pubkeys': self.additional_pubkeys,
+            'pubkeys': self.pubkeys,
         })
         manifest.apply_schema(self.SCHEMA)
         return manifest
@@ -102,7 +100,6 @@ class User:
         Add all user keys (primary key and any keys listed in "pubkeys" field) to the given
         sig_context.
         """
-        sig_context.add_pubkey(self.pubkey)
-        if self.additional_pubkeys:
-            for additional_pubkey in self.additional_pubkeys:
-                sig_context.add_pubkey(additional_pubkey, self.owner)
+        sig_context.add_pubkey(self.pubkeys[0])
+        for additional_pubkey in self.pubkeys[1:]:
+            sig_context.add_pubkey(additional_pubkey, self.owner)

@@ -5,7 +5,7 @@
 pip install . plugins/*
 
 export EDITOR=nano
-export PATH=/home/user/wildland-fuse:/home/user/wildland-fuse/docker:$PATH
+export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
 
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"
@@ -13,7 +13,8 @@ mkdir "$MOUNT_DIR"
 # workaround for https://github.com/docker/distribution/issues/2853
 sudo chmod 666 /dev/fuse
 
-export __fish_prompt_hostname="wildland-fuse"
+export __fish_prompt_hostname="wildland-client"
+export EDITOR=vim
 
 sudo /etc/init.d/apache2 start
 

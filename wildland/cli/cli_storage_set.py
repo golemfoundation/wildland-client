@@ -22,7 +22,8 @@ Storage set management
 
 import click
 
-from .cli_base import aliased_group, ContextObj
+from .cli_base import aliased_group, ContextObj, CliError
+from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager, SET_SUFFIX
 
 
@@ -105,3 +106,31 @@ def set_del_(obj: ContextObj, name):
     removed_path = template_manager.remove_storage_set(name)
 
     click.echo(f'Deleted storage template set {removed_path}.')
+
+
+@storage_set_.command('set-default', short_help='set default storage-set for a user')
+@click.option('--user', required=True)
+@click.argument('name', required=True)
+@click.pass_obj
+def set_default_(obj: ContextObj, user, name):
+    """
+    Set default for a user.
+    """
+
+    template_manager = TemplateManager(obj.client.template_dir)
+    try:
+        template_manager.get_storage_set(name)
+    except FileNotFoundError:
+        raise CliError(f'Storage set {name} does not exist')
+
+    obj.client.recognize_users()
+    try:
+        user = obj.client.load_user_from(user)
+    except ManifestError as ex:
+        raise CliError(f'User {user} load failed: {ex}')
+
+    default_sets = obj.client.config.get('default-storage-set-for-user')
+    default_sets[user.owner] = name
+    obj.client.config.update_and_save({'default-storage-set-for-user': default_sets})
+
+    click.echo(f'Default storage set for {user} set to {name}.')
