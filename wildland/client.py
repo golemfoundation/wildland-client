@@ -747,6 +747,16 @@ class Client:
     def _select_storage_for_publishing(storage):
         return storage.manifest_pattern is not None
 
+    @staticmethod
+    def _manifest_filenames_from_patern(container: Container, path_pattern):
+        path_pattern = path_pattern.replace('*', container.ensure_uuid())
+        if '{path}' in path_pattern:
+            for path in container.paths:
+                yield PurePosixPath(path_pattern.replace(
+                    '{path}', str(path.relative_to('/')))).relative_to('/')
+        else:
+            yield PurePosixPath(path_pattern).relative_to('/')
+
     def publish_container(self, container: Container,
             wlpath: Optional[WildlandPath] = None) -> None:
         '''
@@ -756,7 +766,6 @@ class Client:
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import Search, StorageDriver
 
-        cont_uuid = container.ensure_uuid()
         data = self.session.dump_container(container)
 
         if wlpath is not None:
@@ -787,12 +796,8 @@ class Client:
                 'cannot find any container suitable as publishing platform')
 
         assert storage.manifest_pattern['type'] == 'glob'
-        relpath = PurePosixPath(
-            storage.manifest_pattern['path']
-                .replace('*', cont_uuid)
-                .replace('{path}', cont_uuid)
-            ).relative_to('/')
-
-        with StorageDriver.from_storage(storage) as driver:
-            driver.makedirs(relpath.parent)
-            driver.write_file(relpath, data)
+        for relpath in self._manifest_filenames_from_patern(container,
+                                                            storage.manifest_pattern['path']):
+            with StorageDriver.from_storage(storage) as driver:
+                driver.makedirs(relpath.parent)
+                driver.write_file(relpath, data)
