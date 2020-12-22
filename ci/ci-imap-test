@@ -6,7 +6,7 @@ pip install . plugins/*
 # Configure a mail server and populate a mailbox
 for sender in 1 2 3; do
     for msg in 1 2 3; do
-        ./ci/imap-mail-make ../Maildir sender${sender}@dev.null \
+        ./ci/imap-mail-make /home/user/Maildir sender${sender}@dev.null \
                             "Test $msg" \
                             "`date --date=2020-0${msg}-0${msg}\ 11:13`" \
                             "Test number ${msg}"
@@ -41,7 +41,7 @@ time -p chronic grep 'Test number 2' $ROOT/senders/sender2@dev.null/sender2@dev.
 time -p chronic grep 'Test number 1' $ROOT/timeline/2020/01/01/sender3@dev.null-Test\ 1
 
 # Test if backend refreshes its contents to reflect server changes
-find ../Maildir -type f -exec grep -q 'From: sender3' {} \; \
+find /home/user/Maildir -type f -exec grep -q 'From: sender3' {} \; \
      -exec grep -q 'Test number 1' {} \; -delete
 sleep 10s
 test ! -r $ROOT/timeline/2020/01/01/sender3@dev.null-Test\ 1
