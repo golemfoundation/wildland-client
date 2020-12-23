@@ -175,9 +175,13 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --url <url>
+.. option:: --s3-url <url>
 
    S3 URL, of the form ``s3://bucket/`` or ``s3://bucket/path/``. Required.
+
+.. option:: --endpoint-url <URL>
+
+   Override default AWS S3 URL with the given URL.
 
 .. option:: --with-index
 
