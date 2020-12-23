@@ -113,7 +113,7 @@ def test_sync_subdirs(tmpdir, storage_backend, cleanup):
     os.mkdir(storage_dir2 / 'subdir2')
     make_file(storage_dir2 / 'subdir2/testfile3', 'efgh')
     make_file(storage_dir2 / 'subdir2/testfile4', 'ijkl')
-    time.sleep(1)
+    time.sleep(2)
 
     assert (storage_dir1 / 'subdir2').exists()
     assert (storage_dir1 / 'subdir2/testfile3').exists()
