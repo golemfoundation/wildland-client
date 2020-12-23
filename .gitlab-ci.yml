@@ -76,7 +76,7 @@ smoke-test:
     - docker-compose run wildland-client wl-smoke-test < /dev/null
 
 pages-test:
-  stage: docs
+  stage: test
   image: $CONTAINER_TEST_IMAGE
   except:
     - master
