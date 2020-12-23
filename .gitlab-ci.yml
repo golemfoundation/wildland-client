@@ -57,13 +57,9 @@ imap-test:
 
 s3-test:
   stage: test
-  image: docker/compose:latest
-  services:
-    - docker:dind
+  image: $CONTAINER_TEST_IMAGE
   script:
-    - cd ci
-    - docker-compose build
-    - docker-compose run wildland-client-ci ./ci/ci-s3
+    - ./ci/ci-s3
 
 smoke-test:
   stage: test
