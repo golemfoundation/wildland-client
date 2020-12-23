@@ -165,7 +165,7 @@ class Config:
             'key-dir': base_dir / 'keys',
             'mount-dir': home_dir / 'wildland',
             'template-dir': base_dir / 'templates',
-            'socket-path': base_dir / 'wlfuse.sock',
+            'socket-path': Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock',
             'dummy': False,
             '@default': None,
             '@default-owner': None,
