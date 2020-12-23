@@ -1,0 +1,33 @@
+#!/bin/bash -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/s3/
+pip install awscli
+
+# Minio
+
+curl -so /tmp/minio https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x /tmp/minio
+mkdir -p /tmp/minio-data/the-bucket/subdir
+
+printf "foo" > /tmp/minio-data/the-bucket/file
+printf "bar" > /tmp/minio-data/the-bucket/subdir/file
+
+MINIO_ACCESS_KEY='dmr' MINIO_SECRET_KEY='/.,/.,/.,' /tmp/minio server /tmp/minio-data &
+
+# AWS SDK
+
+aws configure set aws_access_key_id 'dmr'
+aws configure set aws_secret_access_key '/.,/.,/.,'
+
+# Wildland
+
+./wl user create s3-user
+./wl container create s3-con --path /s3
+./wl storage create s3 --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
+./wl start --container s3-con
+
+# Test files
+
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/file) == "foo" ]]'
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/file) == "bar" ]]'
