@@ -1,27 +1,41 @@
 stages:
+  - build
   - test
   - docs
 
-lint:
-  stage: test
+before_script:
+  - mkdir -p --mode=0777 artifacts artifacts/htmlcov
+
+variables:
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CONTAINER_TEST_IMAGE_IMAP: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-imap
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+
+build:
+  stage: build
   image: docker/compose:latest
   services:
     - docker:dind
   script:
     - cd ci
     - docker-compose build
-    - docker-compose run wildland-client-ci ./ci/ci-lint
+    - docker tag wildland-client-ci $CONTAINER_TEST_IMAGE
+    - docker tag wildland-client-ci-imap $CONTAINER_TEST_IMAGE_IMAP
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CONTAINER_TEST_IMAGE
+    - docker push $CONTAINER_TEST_IMAGE_IMAP
+
+lint:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-lint
 
 pytest:
   stage: test
-  image: docker/compose:latest
-  services:
-    - docker:dind
+  image: $CONTAINER_TEST_IMAGE
   script:
-    - mkdir -p --mode=0777 artifacts artifacts/htmlcov
-    - cd ci
-    - docker-compose build
-    - docker-compose run wildland-client-ci ./ci/ci-pytest
+    - ./ci/ci-pytest
   artifacts:
     paths:
       - artifacts/htmlcov/
@@ -31,23 +45,15 @@ pytest:
 
 bear-test:
   stage: test
-  image: docker/compose:latest
-  services:
-    - docker:dind
+  image: $CONTAINER_TEST_IMAGE
   script:
-    - cd ci
-    - docker-compose build
-    - docker-compose run wildland-client-ci ./ci/ci-bear-test
+    - ./ci/ci-bear-test
 
 imap-test:
   stage: test
-  image: docker/compose:latest
-  services:
-    - docker:dind
+  image: $CONTAINER_TEST_IMAGE_IMAP
   script:
-    - cd ci
-    - docker-compose build
-    - docker-compose run wildland-client-ci-imap ./ci/ci-imap-test
+    - ./ci/ci-imap-test
 
 s3-test:
   stage: test
@@ -71,37 +77,27 @@ smoke-test:
 
 pages-test:
   stage: docs
-  image: docker/compose:latest
+  image: $CONTAINER_TEST_IMAGE
   except:
     - master
-  services:
-    - docker:dind
   script:
-    - mkdir -p --mode=0777 artifacts artifacts/docs
-    - cd ci
-    - docker-compose build
-    - docker-compose run wildland-client-ci ./ci/ci-docs
+    - ./ci/ci-docs
   artifacts:
     paths:
       - artifacts/docs
 
 pages:
   stage: docs
-  image: docker/compose:latest
+  image: $CONTAINER_TEST_IMAGE
   dependencies:
     - pytest
   only:
     - master
-  services:
-    - docker:dind
   script:
-    - mkdir -p --mode=0777 artifacts artifacts/docs
-    - cd ci
-    - docker-compose build
-    - docker-compose run wildland-client-ci ./ci/ci-docs
-    - cp -r ../artifacts/docs/html ../public
-    - cp -r ../artifacts/docs/man ../public/man
-    - cp -r ../artifacts/htmlcov ../public/coverage
+    - ./ci/ci-docs
+    - cp -r artifacts/docs/html public
+    - cp -r artifacts/docs/man public/man
+    - cp -r artifacts/htmlcov public/coverage
   artifacts:
     paths:
       - public/
