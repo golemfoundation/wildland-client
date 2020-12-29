@@ -36,6 +36,7 @@ import time
 import boto3
 import botocore
 import click
+import stat
 
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
@@ -44,6 +45,30 @@ from wildland.manifest.schema import Schema
 
 
 logger = logging.getLogger('storage-s3')
+
+
+class S3FileAttr(Attr):
+    def __init__(self, size: int, timestamp: int, etag: str):
+        self.etag = etag
+        self.mode = stat.S_IFREG | 0o644
+        self.size = size
+        self.timestamp = timestamp
+
+    @classmethod
+    def from_s3_object(cls, obj):
+        '''
+        Convert S3's object summary, as returned by list_objects_v2 or
+        head_object.
+        '''
+        etag = obj['ETag'].strip('\"')
+
+        timestamp = int(obj['LastModified'].timestamp())
+        if 'Size' in obj:
+            size = obj['Size']
+        else:
+            size = obj['ContentLength']
+
+        return cls(size, timestamp, etag)
 
 
 class S3File(FullBufferedFile):
@@ -234,16 +259,7 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
 
     @staticmethod
     def _stat(obj) -> Attr:
-        '''
-        Convert Amazon's object summary, as returned by list_objects_v2 or
-        head_object.
-        '''
-        timestamp = int(obj['LastModified'].timestamp())
-        if 'Size' in obj:
-            size = obj['Size']
-        else:
-            size = obj['ContentLength']
-        return Attr.file(size, timestamp)
+        return S3FileAttr.from_s3_object(obj)
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         new_s3_dirs = set()
@@ -303,18 +319,24 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.ENOENT, str(path))
 
-        head = self.client.head_object(
-            Bucket=self.bucket,
-            Key=self.key(path),
-        )
-        attr = self._stat(head)
-        if flags & (os.O_WRONLY | os.O_RDWR):
-            content_type = self.get_content_type(path)
-            return S3File(
-                self.client, self.bucket, self.key(path),
-                content_type, attr, self.clear_cache)
+        try:
+            head = self.client.head_object(
+                Bucket=self.bucket,
+                Key=self.key(path),
+            )
+            attr = self._stat(head)
+            if flags & (os.O_WRONLY | os.O_RDWR):
+                content_type = self.get_content_type(path)
+                return S3File(
+                    self.client, self.bucket, self.key(path),
+                    content_type, attr, self.clear_cache)
 
-        return PagedS3File(self.client, self.bucket, self.key(path), attr)
+            return PagedS3File(self.client, self.bucket, self.key(path), attr)
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                raise FileNotFoundError(errno.ENOENT, str(path))
+            else:
+                raise e
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
@@ -371,6 +393,12 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             Key=self.key(path),
             ContentType=self.get_content_type(path))
         self.clear_cache()
+
+    def get_file_token(self, path: PurePosixPath) -> int:
+        s3attr = self.getattr(path)
+
+        # TODO In the future the hash won't have to be an int (see #103)
+        return int(s3attr.etag[0:15], 16)
 
     def _remove_index(self, path):
         if self.read_only or not self.with_index:
