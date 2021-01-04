@@ -221,12 +221,21 @@ def list_(obj: ContextObj):
     obj.client.recognize_users()
     for container in obj.client.load_containers():
         click.echo(container.local_path)
-        click.echo(f'  signer: {container.owner}')
+        try:
+            user = obj.client.load_user_from(container.owner)
+            if user.paths:
+                user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
+            else:
+                user_desc = ''
+        except ManifestError:
+            user_desc = ''
+        click.echo(f'  signer: {container.owner}' + user_desc)
         for container_path in container.expanded_paths:
             click.echo(f'  path: {container_path}')
         for storage_path in container.backends:
             click.echo(f'  storage: {storage_path}')
         click.echo()
+
 
 @container_.command('delete', short_help='delete a container', alias=['rm'])
 @click.pass_obj
