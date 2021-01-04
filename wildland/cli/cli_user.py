@@ -127,13 +127,25 @@ def list_(obj: ContextObj):
     Display known users.
     '''
 
-    for user in obj.client.load_users():
-        click.echo(user.local_path)
+    obj.client.recognize_users()
+    users = obj.client.load_users()
+
+    for user in users:
+        path_string = str(user.local_path)
+        for alias in ['@default', '@default-owner']:
+            if user.owner == obj.client.config.get(alias):
+                path_string += f' ({alias})'
+        click.echo(path_string)
         click.echo(f'  owner: {user.owner}')
+        if obj.client.session.sig.is_private_key_available(user.owner):
+            click.echo('  private and public keys available')
+        else:
+            click.echo('  only public key available')
+
         for user_path in user.paths:
-            click.echo(f'  path: {user_path}')
+            click.echo(f'   path: {user_path}')
         for user_container in user.containers:
-            click.echo(f'  container: {user_container}')
+            click.echo(f'   container: {user_container}')
         click.echo()
 
 
