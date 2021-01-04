@@ -120,14 +120,14 @@ def set_default_(obj: ContextObj, user, name):
     template_manager = TemplateManager(obj.client.template_dir)
     try:
         template_manager.get_storage_set(name)
-    except FileNotFoundError:
-        raise CliError(f'Storage set {name} does not exist')
+    except FileNotFoundError as fnf:
+        raise CliError(f'Storage set {name} does not exist') from fnf
 
     obj.client.recognize_users()
     try:
         user = obj.client.load_user_from(user)
     except ManifestError as ex:
-        raise CliError(f'User {user} load failed: {ex}')
+        raise CliError(f'User {user} load failed: {ex}') from ex
 
     default_sets = obj.client.config.get('default-storage-set-for-user')
     default_sets[user.owner] = name

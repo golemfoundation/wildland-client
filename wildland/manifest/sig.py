@@ -410,8 +410,8 @@ class SignifySigContext(SigContext):
                      '-m', message_file],
                     check=True
                 )
-            except subprocess.CalledProcessError:
-                raise SigError(f'Could not verify signature for {signer}')
+            except subprocess.CalledProcessError as cpe:
+                raise SigError(f'Could not verify signature for {signer}') from cpe
         return signer
 
     def remove_key(self, key_id):

@@ -145,7 +145,7 @@ class WildlandFSClient:
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            raise WildlandFSError(f'Failed to unmount: {e}')
+            raise WildlandFSError(f'Failed to unmount: {e}') from e
 
     def is_mounted(self) -> bool:
         '''

@@ -341,7 +341,7 @@ class GeneratedStorageMixin:
 
             try:
                 entry = entry.get_entry(part)
-            except KeyError:
-                raise IOError(errno.ENOENT, str(path))
+            except KeyError as ke:
+                raise IOError(errno.ENOENT, str(path)) from ke
 
         return entry

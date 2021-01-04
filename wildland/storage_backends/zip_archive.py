@@ -150,8 +150,8 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         with zipfile.ZipFile(self.zip_path) as zf:
             try:
                 zinfo = zf.getinfo(str(path))
-            except KeyError:
-                raise IOError(errno.ENOENT, str(path))
+            except KeyError as ke:
+                raise IOError(errno.ENOENT, str(path)) from ke
 
             if zinfo.is_dir():
                 raise IOError(errno.EISDIR, str(path))

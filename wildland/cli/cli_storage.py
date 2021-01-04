@@ -315,8 +315,8 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
 
     try:
         storage_set = template_manager.get_storage_set(storage_set)
-    except FileNotFoundError:
-        raise CliError(f'Storage set {storage_set} not found.')
+    except FileNotFoundError as fnf:
+        raise CliError(f'Storage set {storage_set} not found.') from fnf
 
     try:
         do_create_storage_fom_set(obj.client, container, storage_set, local_dir)

@@ -197,14 +197,14 @@ class Manifest:
             header_signer = header.verify_rest(rest_data, sig_context, trusted_owner)
         except SigError as e:
             raise ManifestError(
-                'Signature verification failed: {}'.format(e))
+                'Signature verification failed: {}'.format(e)) from e
 
         try:
             rest_str = rest_data.decode('utf-8')
             fields = yaml.safe_load(rest_str)
             fields = cls.update_obsolete(fields)
         except ValueError as e:
-            raise ManifestError('Manifest parse error: {}'.format(e))
+            raise ManifestError('Manifest parse error: {}'.format(e)) from e
 
         if header.signature is None:
             if fields.get('owner') != trusted_owner:
@@ -306,8 +306,8 @@ class Header:
 
         try:
             header = self.from_bytes(data)
-        except ManifestError:
-            raise Exception('Header serialization error')
+        except ManifestError as me:
+            raise Exception('Header serialization error') from me
         if header.signature != self.signature:
             print(repr(header.signature), repr(self.signature))
             raise Exception('Header serialization error')
@@ -349,8 +349,8 @@ class HeaderParser:
     def __init__(self, data: bytes):
         try:
             text = data.decode('ascii', 'strict')
-        except UnicodeDecodeError:
-            raise ManifestError('Header should be ASCII')
+        except UnicodeDecodeError as ude:
+            raise ManifestError('Header should be ASCII') from ude
         self.lines = text.splitlines()
         self.pos = 0
 

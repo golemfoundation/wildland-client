@@ -67,11 +67,11 @@ class OptionRequires(click.Option):
     def __init__(self, *args, **kwargs):
         try:
             self.required_opt = kwargs.pop('requires')
-        except KeyError:
-            raise click.UsageError("'requires' parameter must be present")
+        except KeyError as ke:
+            raise click.UsageError("'requires' parameter must be present") from ke
         kwargs['help'] = kwargs.get('help', '') + \
             ' NOTE: this argument requires {}'.format(self.required_opt)
-        super(OptionRequires, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def handle_parse_result(self, ctx, opts, args):
         if self.name in opts and self.required_opt not in opts:
@@ -79,7 +79,7 @@ class OptionRequires(click.Option):
                 self.name, self.required_opt))
         # noinspection Mypy
         self.prompt = None
-        return super(OptionRequires, self).handle_parse_result(ctx, opts, args)
+        return super().handle_parse_result(ctx, opts, args)
 
 
 @container_.command(short_help='create container')
@@ -127,8 +127,8 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
     if set_name:
         try:
             storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
-        except FileNotFoundError:
-            raise CliError(f'Storage set {set_name} not found.')
+        except FileNotFoundError as fnf:
+            raise CliError(f'Storage set {set_name} not found.') from fnf
 
     container = Container(
         owner=user.owner,
@@ -144,14 +144,14 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
     if storage_set:
         try:
             do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
-        except FileNotFoundError:
+        except FileNotFoundError as fnf:
             click.echo(f'Removing container: {path}')
             path.unlink()
-            raise CliError('Failed to create storage from set: storage set not found')
+            raise CliError('Failed to create storage from set: storage set not found') from fnf
         except ValueError as e:
             click.echo(f'Removing container: {path}')
             path.unlink()
-            raise CliError(f'Failed to create storage from set: {e}')
+            raise CliError(f'Failed to create storage from set: {e}') from e
 
     if update_user:
         if not user.local_path:
