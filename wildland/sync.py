@@ -65,8 +65,9 @@ class Syncer:
                 backend.request_mount()
                 watcher = backend.start_watcher(handler=event_handler, ignore_own_events=True)
                 self.storage_watchers[backend] = watcher
+
                 logger.debug("Container %s: added watcher for storage %s.",
-                             self.container_name, backend.TYPE)
+                             self.container_name, backend.backend_id)
 
             self.init_state()
 
@@ -76,7 +77,7 @@ class Syncer:
         """
         logger.warning("Container %s: conflict between storages detected: storages %s and %s "
                        "differ on file %s.",
-                       self.container_name, storage_1.TYPE, storage_2.TYPE, path)
+                       self.container_name, storage_1.backend_id, storage_2.backend_id, path)
 
     def init_state(self):
         """
@@ -99,7 +100,7 @@ class Syncer:
             missing_dirs = (path for path in storage_dirs1 if path not in storage_dirs2)
             for path in missing_dirs:
                 logger.debug("Container %s: creating directory %s in storage %s",
-                             self.container_name, path, backend2.TYPE)
+                             self.container_name, path, backend2.backend_id)
                 try:
                     backend2.mkdir(path)
                 except (FileExistsError, NotADirectoryError):
@@ -125,12 +126,12 @@ class Syncer:
                         # backend too
                         try:
                             logger.debug("Container %s: removing file %s in backend %s",
-                                         self.container_name, path, backend_1.TYPE)
+                                         self.container_name, path, backend_1.backend_id)
                             backend_1.unlink(path)
                         except (FileNotFoundError, OptionalError, PermissionError) as ex:
                             logger.warning(
                                 "Container %s: cannot remove file %s in backend %s, error: %s",
-                                self.container_name, path, backend_1.TYPE, str(ex))
+                                self.container_name, path, backend_1.backend_id, str(ex))
             missing_files = (path for path in storage_hashes1 if path not in storage_hashes2)
             for path in missing_files:
                 self.sync_file(backend_1, backend_2, path)
@@ -141,7 +142,7 @@ class Syncer:
         Sync a file at path from source_storage to target_storage.
         """
         logger.debug("Container %s: attempting to sync file %s in storages %s and %s",
-                     self.container_name, path, source_storage.TYPE, target_storage.TYPE)
+                     self.container_name, path, source_storage.backend_id, target_storage.backend_id)
         try:
             source_hash = source_storage.get_hash(path)
         except (FileNotFoundError, IsADirectoryError):
@@ -164,22 +165,22 @@ class Syncer:
 
         old_target_hash = self.storage_hashes[target_storage].get(path)
 
-        logger.debug("Container %s: file %s in source storage %s has hash %s, previous known "
-                     "hash %s; in target storage %s has hash %s, previous known hash %s",
-                     self.container_name, path, source_storage.TYPE, source_hash,
-                     old_source_hash, target_storage.TYPE, target_hash, old_target_hash)
+        logger.debug("Container %s: file %s in source storage %s has hash %.10s, previous known "
+                     "hash %.10s; in target storage %s has hash %.10s, previous known hash %.10s",
+                     self.container_name, path, source_storage.backend_id, source_hash,
+                     old_source_hash, target_storage.backend_id, target_hash, old_target_hash)
 
         if old_target_hash and old_source_hash and \
                 old_target_hash != old_source_hash and target_hash is not None:
             logger.warning("Container %s: known conflict on file %s in storages %s and %s "
                            "prevents syncing.",
-                           self.container_name, path, source_storage.TYPE, target_storage.TYPE)
+                           self.container_name, path, source_storage.backend_id, target_storage.backend_id)
             return
 
         if target_hash == source_hash:
             logger.debug("Container %s: syncing of file %s in storages %s and %s unnecessary, "
                          "as file already exists",
-                         self.container_name, path, source_storage.TYPE, target_storage.TYPE)
+                         self.container_name, path, source_storage.backend_id, target_storage.backend_id)
             return
 
         if old_target_hash and target_hash and target_hash != old_target_hash:
@@ -194,7 +195,7 @@ class Syncer:
             except OptionalError:
                 logger.warning("Container %s: cannot sync file %s to storage %s. "
                                "Operation not supported by storage backend.",
-                               self.container_name, path, target_storage.TYPE)
+                               self.container_name, path, target_storage.backend_id)
             except NotADirectoryError:
                 # Can occur if there's a file/directory conflict and we are trying to sync a file
                 # located in a directory that's a file in another storage
@@ -209,11 +210,11 @@ class Syncer:
                 except OptionalError:
                     logger.warning("Container %s: cannot sync file %s to storage %s. "
                                    "Operation not supported by storage backend.",
-                                   self.container_name, path, target_storage.TYPE)
+                                   self.container_name, path, target_storage.backend_id)
                     return
             except HashMismatchError:
                 logger.warning("Container %s: unexpected hash for object %s in storage %s found, "
-                               "cannot sync.", self.container_name, path, target_storage.TYPE)
+                               "cannot sync.", self.container_name, path, target_storage.backend_id)
                 return
 
         try:
@@ -231,7 +232,7 @@ class Syncer:
                     hasher.update(data[:write_len])
         except HashMismatchError:
             logger.warning("Container %s: unexpected hash for object %s in storage %s found, "
-                           "cannot sync.", self.container_name, path, target_storage.TYPE)
+                           "cannot sync.", self.container_name, path, target_storage.backend_id)
             return
 
         resulting_hash = hasher.hexdigest()
@@ -245,7 +246,7 @@ class Syncer:
         Sync whole directory at path and its contents from source_storage to target_storage.
         """
         logger.debug("Container %s: attempting to sync directory %s in storages %s "
-                     "and %s", self.container_name, path, source_storage.TYPE, target_storage.TYPE)
+                     "and %s", self.container_name, path, source_storage.backend_id, target_storage.backend_id)
         for file_path, attr in source_storage.walk(path):
             if attr.is_dir():
                 with suppress(FileExistsError):
@@ -258,7 +259,7 @@ class Syncer:
         Recursively remove whole directory, its contents and corresponding hashes.
         """
         logger.debug("Container %s: attempting to remove directory %s in storages %s",
-                     self.container_name, dir_path, storage.TYPE)
+                     self.container_name, dir_path, storage.backend_id)
         paths_to_remove = sorted(
             [(path, attr.is_dir()) for path, attr in storage.walk(dir_path)],
             key=lambda x: x[0], reverse=True)
@@ -269,7 +270,7 @@ class Syncer:
                 target_hash = storage.get_hash(path)
                 if target_hash != self.storage_hashes[storage][path]:
                     logger.warning("Container %s: unexpected hash for object %s in storage %s "
-                                   "found, not removing.", self.container_name, path, storage.TYPE)
+                                   "found, not removing.", self.container_name, path, storage.backend_id)
                     return
                 storage.unlink(path)
             if path in self.storage_hashes[storage]:
@@ -302,13 +303,13 @@ class Syncer:
         """
         logger.debug("Container %s: attempting to sync file %s removed from storage %s in "
                      "storage %s", self.container_name, path,
-                     source_storage.TYPE, target_storage.TYPE)
+                     source_storage.backend_id, target_storage.backend_id)
         self.remove_subdir_paths(source_storage, path)
         try:
             target_is_dir = target_storage.getattr(path).is_dir()
         except FileNotFoundError:
             logger.warning("Container %s: removal of %s from storage %s failed: file already"
-                           " removed.", self.container_name, path, target_storage.TYPE)
+                           " removed.", self.container_name, path, target_storage.backend_id)
             self.remove_subdir_paths(target_storage, path)
             return
 
@@ -338,7 +339,7 @@ class Syncer:
         """
         logger.debug("Container %s: attempting to sync file %s created in storage %s into "
                      "storage %s", self.container_name, path,
-                     source_storage.TYPE, target_storage.TYPE)
+                     source_storage.backend_id, target_storage.backend_id)
         try:
             is_dir = source_storage.getattr(path).is_dir()
         except FileNotFoundError:
@@ -349,7 +350,7 @@ class Syncer:
                 target_storage.mkdir(path)
             except FileExistsError:
                 logger.debug("Container %s: creation of file %s in storage %s failed: file "
-                             "already exists.", self.container_name, path, target_storage.TYPE)
+                             "already exists.", self.container_name, path, target_storage.backend_id)
             self.sync_dir(source_storage, target_storage, path)
         else:
             self.sync_file(source_storage, target_storage, path)
@@ -373,7 +374,9 @@ class Syncer:
                     for target_storage in self.storage_watchers:
                         if target_storage == source_storage:
                             continue
+
                         old_target_hash = self.storage_hashes[target_storage].get(obj_path)
+
                         if old_source_hash == old_target_hash:
                             self.remove_object(source_storage, target_storage, obj_path,
                                                is_dir, old_source_hash)
@@ -382,7 +385,7 @@ class Syncer:
                                 "Container %s: conflict resolved via removal of file at %s from "
                                 "storage %s; version from %s is now authoritative.",
                                 self.container_name, obj_path,
-                                source_storage.TYPE, target_storage.TYPE)
+                                source_storage.backend_id, target_storage.backend_id)
                             self.create_object(target_storage, source_storage, obj_path)
                 else:
                     for target_storage in self.storage_watchers:

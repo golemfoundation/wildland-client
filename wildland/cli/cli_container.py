@@ -658,7 +658,11 @@ def sync_container(obj: ContextObj, cont):
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         init_logging(False, f'/tmp/wl-sync-{container.ensure_uuid()}.log')
-        syncer = Syncer(storages, container_name=str(container.local_path),
+
+        container_path = PurePosixPath(container.local_path)
+        container_name = container_path.name.replace(''.join(container_path.suffixes), '')
+
+        syncer = Syncer(storages, container_name=container_name,
                         config_dir=obj.client.config.base_dir)
         try:
             syncer.start_syncing()
