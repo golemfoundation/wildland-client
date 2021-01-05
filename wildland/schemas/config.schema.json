@@ -28,7 +28,7 @@
         },
         "socket-path": {
             "$ref": "types.json#abs-path",
-            "description": "Path to control socket (default: $HOME/.config/wildland/wlfuse.sock)"
+            "description": "Path to control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"
         },
 
         "dummy": {

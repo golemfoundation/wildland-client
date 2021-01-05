@@ -14,7 +14,7 @@ time -p ./ci/bear-sqlite-generator --max-tags=5 /tmp/bear.sqlite
 
 refresh() {
     # TODO: this suppresses errors returned from wlfuse
-    echo '{"cmd": "clear-cache"}' | nc -NU $HOME/.config/wildland/wlfuse.sock >/dev/null
+    echo '{"cmd": "clear-cache"}' | nc -NU $XDG_RUNTIME_DIR/wlfuse.sock >/dev/null
 }
 
 # Benchmark:
