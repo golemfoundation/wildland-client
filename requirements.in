@@ -10,6 +10,7 @@ boto3
 requests
 python-dateutil
 lxml
+# imapclient version is for compatibility with python 3.9, pr: https://github.com/mjs/imapclient/pull/424
 imapclient @ https://github.com/mjs/imapclient/archive/55f182f.zip
 inotify_simple
 python-daemon
