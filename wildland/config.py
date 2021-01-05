@@ -146,7 +146,7 @@ class Config:
         except SchemaError as e:
             raise WildlandError(
                 f'Error validating configuration file: {e}'
-            )
+            ) from e
 
         cls.validate_aliases(file_fields)
         return cls(base_dir, path, default_fields, file_fields)

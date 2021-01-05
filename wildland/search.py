@@ -369,8 +369,8 @@ class Search:
 
         try:
             return self.aliases[alias[1:]]
-        except KeyError:
-            raise PathError(f'Unknown alias: {alias}')
+        except KeyError as ex:
+            raise PathError(f'Unknown alias: {alias}') from ex
 
 
 def storage_read_file(storage, relpath) -> bytes:

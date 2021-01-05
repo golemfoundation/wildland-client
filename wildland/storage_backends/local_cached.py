@@ -41,7 +41,7 @@ class LocalCachedFile(FullBufferedFile):
     A fully buffered local file.
     '''
     def __init__(self, attr, os_path, local_path, clear_cache_callback, ignore_callback=None):
-        super(LocalCachedFile, self).__init__(attr, clear_cache_callback)
+        super().__init__(attr, clear_cache_callback)
         # we store separately os_path (path on disk, to use when accessing file) and wayland (local)
         # path (path in storage, used for events)
         self.os_path = os_path
@@ -189,7 +189,7 @@ class BaseCached(StorageBackend):
         If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
         use the smarter LocalStorageWatcher.
         """
-        default_watcher = super(BaseCached, self).watcher()
+        default_watcher = super().watcher()
         if not default_watcher:
             return LocalStorageWatcher(self)
         return default_watcher

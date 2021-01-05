@@ -204,7 +204,7 @@ class LocalStorageBackend(StorageBackend):
         If manifest explicitly specifies a watcher-interval, use default implementation. If not,
         we can use the smarter LocalStorageWatcher.
         """
-        default_watcher = super(LocalStorageBackend, self).watcher()
+        default_watcher = super().watcher()
         if not default_watcher:
             return LocalStorageWatcher(self)
         return default_watcher
@@ -230,7 +230,7 @@ class LocalStorageWatcher(StorageWatcher):
     before the watcher can add watches. It's unfortunately a known inotify issue.
     """
     def __init__(self, backend: StorageBackend):
-        super(LocalStorageWatcher, self).__init__()
+        super().__init__()
         self.path = getattr(backend, 'root', None)
         self.clear_cache = backend.clear_cache
         self.watches: Dict[int, str] = {}
@@ -265,7 +265,7 @@ class LocalStorageWatcher(StorageWatcher):
 
     def stop(self):
         os.write(self._stop_pipe_write, b's')
-        super(LocalStorageWatcher, self).stop()
+        super().stop()
 
     def shutdown(self) -> None:
         os.close(self._stop_pipe_write)

@@ -571,8 +571,8 @@ class Client:
         try:
             return next(
                 self.all_storages(container, backends, predicate=predicate))
-        except StopIteration:
-            raise ManifestError('no supported storage manifest')
+        except StopIteration as ex:
+            raise ManifestError('no supported storage manifest') from ex
 
     def _select_reference_storage(
             self,
@@ -694,7 +694,7 @@ class Client:
                     return local_path.read_bytes()
                 except IOError as e:
                     raise WildlandError('Error retrieving file URL: {}: {}'.format(
-                        url, e))
+                        url, e)) from e
             raise FileNotFoundError(2, 'File URL not found', url)
 
         if url.startswith('http:') or url.startswith('https:'):
@@ -704,7 +704,7 @@ class Client:
                 return resp.content
             except Exception as e:
                 raise WildlandError('Error retrieving HTTP/HTTPS URL: {}: {}'.format(
-                    url, e))
+                    url, e)) from e
 
         raise WildlandError(f'Unrecognized URL: {url}')
 

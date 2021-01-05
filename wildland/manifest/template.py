@@ -95,7 +95,7 @@ type: local
         try:
             raw_data = self.template.render(params).encode('utf-8')
         except UndefinedError as ex:
-            raise ValueError(str(ex))
+            raise ValueError(str(ex)) from ex
 
         data = yaml.safe_load(raw_data)
         data['owner'] = cont.owner
