@@ -60,7 +60,7 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help='Update the container after creating storage'),
         click.Option(['--trusted'], is_flag=True,
                      help='Make the storage trusted'),
-        click.Option(['--inline'], is_flag=True,
+        click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file'),
         click.Option(['--manifest-pattern'], metavar='GLOB',

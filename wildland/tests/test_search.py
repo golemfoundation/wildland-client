@@ -117,7 +117,7 @@ def setup(base_dir, cli):
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
         '--container', 'Container1',
-        '--trusted')
+        '--trusted', '--no-inline')
 
     cli('container', 'create', 'Container2',
         '--path', '/path/subpath',
@@ -125,7 +125,7 @@ def setup(base_dir, cli):
         '--path', '/unsigned')
     cli('storage', 'create', 'local', 'Storage2',
         '--path', base_dir / 'storage2',
-        '--container', 'Container2')
+        '--container', 'Container2', '--no-inline')
 
     cli('container', 'create', 'C.User2',
         '--user', 'User2',
@@ -133,7 +133,7 @@ def setup(base_dir, cli):
         '--update-user')
     cli('storage', 'create', 'local', 'Storage3',
         '--path', base_dir / 'storage3',
-        '--container', 'C.User2')
+        '--container', 'C.User2', '--no-inline')
 
     os.mkdir(base_dir / 'storage1/other/')
     # TODO copy storage manifest as well
@@ -319,7 +319,6 @@ def setup_pattern(request, base_dir, cli):
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
         '--container', 'Container1',
-        '--inline',
         '--manifest-pattern', request.param)
 
     cli('container', 'create', 'Container2',
@@ -361,13 +360,12 @@ def test_container_with_storage_path(base_dir, cli):
     cli('container', 'create', 'Container1', '--path', '/path1')
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
-        '--container', 'Container1',
-        '--inline')
+        '--container', 'Container1')
 
     cli('container', 'create', 'Container2', '--path', '/path2')
     cli('storage', 'create', 'local', 'Storage2',
         '--path', base_dir / 'storage2',
-        '--container', 'Container2')
+        '--container', 'Container2', '--no-inline')
 
     os.rename(
         base_dir / 'storage/Storage2.storage.yaml',
@@ -523,8 +521,7 @@ def test_search_two_containers(base_dir, cli):
 
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
-        '--container', 'Container2',
-        '--inline')
+        '--container', 'Container2')
 
     (base_dir / 'test').write_text('testdata')
 

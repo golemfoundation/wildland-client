@@ -33,11 +33,12 @@ def setup(base_dir, cli):
 
     cli('storage', 'create', 'local', 'Storage1',
         '--path', base_dir / 'storage1',
-        '--container', 'Container1')
+        '--container', 'Container1', '--no-inline')
 
     cli('storage', 'create', 'local', 'Storage2',
         '--path', base_dir / 'storage2',
-        '--container', 'Container1')
+        '--container', 'Container1', '--no-inline')
+
 
 @pytest.fixture
 def client(setup, base_dir):
