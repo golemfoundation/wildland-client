@@ -30,13 +30,13 @@ from urllib.parse import urlparse
 import os
 import errno
 import html
+import stat
 import threading
 import time
 
 import boto3
 import botocore
 import click
-import stat
 
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
@@ -48,6 +48,9 @@ logger = logging.getLogger('storage-s3')
 
 
 class S3FileAttr(Attr):
+    """
+    File attributes, include S3 E-Tag
+    """
     def __init__(self, size: int, timestamp: int, etag: str):
         self.etag = etag
         self.mode = stat.S_IFREG | 0o644
@@ -334,9 +337,8 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             return PagedS3File(self.client, self.bucket, self.key(path), attr)
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
-                raise FileNotFoundError(errno.ENOENT, str(path))
-            else:
-                raise e
+                raise FileNotFoundError(errno.ENOENT, str(path)) from e
+            raise e
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
