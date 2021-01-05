@@ -134,7 +134,7 @@ class SigContext:
     def is_private_key_available(self, key_id):
         """
         :param key_id: key id for the key to check
-        :type key_id: string
+        :type key_id: str
         :return: if private key for the given key is available
         :rtype: bool
         """
