@@ -82,14 +82,16 @@ def test_user_list(cli, base_dir):
     cli('user', 'create', 'User2', '--key', '0xbbb')
     result = cli('user', 'list', capture=True)
     assert result.splitlines() == [
-        str(base_dir / 'users/User1.user.yaml'),
+        str(base_dir / 'users/User1.user.yaml') + ' (@default) (@default-owner)',
         '  owner: 0xaaa',
-        '  path: /users/Foo',
-        '  path: /users/Bar',
+        '  private and public keys available',
+        '   path: /users/Foo',
+        '   path: /users/Bar',
         '',
         str(base_dir / 'users/User2.user.yaml'),
         '  owner: 0xbbb',
-        '  path: /users/User2',
+        '  private and public keys available',
+        '   path: /users/User2',
         ''
     ]
 

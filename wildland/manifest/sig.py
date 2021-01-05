@@ -131,6 +131,15 @@ class SigContext:
         """
         raise NotImplementedError
 
+    def is_private_key_available(self, key_id):
+        """
+        :param key_id: key id for the key to check
+        :type key_id: string
+        :return: if private key for the given key is available
+        :rtype: bool
+        """
+        raise NotImplementedError
+
 
 class DummySigContext(SigContext):
     """
@@ -187,6 +196,11 @@ class DummySigContext(SigContext):
             del self.keys[key_id]
         if key_id in self.key_ownership:
             del self.key_ownership[key_id]
+
+    def is_private_key_available(self, key_id):
+        if key_id not in self.keys:
+            return False
+        return True
 
 
 class SignifySigContext(SigContext):
@@ -425,3 +439,10 @@ class SignifySigContext(SigContext):
             del self.keys[key_id]
         if key_id in self.key_ownership:
             del self.key_ownership[key_id]
+
+    def is_private_key_available(self, key_id):
+        if key_id not in self.keys:
+            return False
+
+        secret_key_file = self.key_dir / f'{key_id}.sec'
+        return secret_key_file.exists()

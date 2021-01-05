@@ -216,3 +216,14 @@ def test_signing_multiple_keys(sig):
 
     with pytest.raises(SigError, match='Secret key not found'):
         sig.sign(primary_owner, test_data, only_use_primary_key=True)
+
+
+def test_check_if_key_available(sig):
+    primary_owner, _ = sig.generate()
+    additional_owner, _ = sig.generate()
+
+    private_file = sig.key_dir / f'{primary_owner}.sec'
+    private_file.unlink()
+
+    assert not sig.is_private_key_available(primary_owner)
+    assert sig.is_private_key_available(additional_owner)
