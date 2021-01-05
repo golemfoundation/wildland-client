@@ -10,10 +10,11 @@ boto3
 requests
 python-dateutil
 lxml
-imapclient
+imapclient @ https://github.com/mjs/imapclient/archive/55f182f.zip
 inotify_simple
 python-daemon
 pyxdg
+
 
 # Development / testing
 pip-tools
