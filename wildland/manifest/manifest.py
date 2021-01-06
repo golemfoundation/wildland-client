@@ -81,6 +81,7 @@ class Manifest:
         Update any obsolete fields. Currently handles:
           - signer --> owner
           - inner-container --> reference-container
+          - in local storages, path --> location
         """
         if not isinstance(fields, dict):
             raise ManifestError('owner field not found')
@@ -102,6 +103,10 @@ class Manifest:
             for container in fields['infrastructures']:
                 if isinstance(container, dict):
                     cls.update_obsolete(container)
+        if fields.get('type', None) in ['local', 'local-cached', 'local-dir-cached'] and \
+                'path' in fields:
+            fields['location'] = fields['path']
+            del fields['path']
         return fields
 
     @classmethod

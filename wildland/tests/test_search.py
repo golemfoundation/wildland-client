@@ -115,7 +115,7 @@ def setup(base_dir, cli):
 
     cli('container', 'create', 'Container1', '--path', '/path')
     cli('storage', 'create', 'local', 'Storage1',
-        '--path', base_dir / 'storage1',
+        '--location', base_dir / 'storage1',
         '--container', 'Container1',
         '--trusted', '--no-inline')
 
@@ -124,7 +124,7 @@ def setup(base_dir, cli):
         '--path', '/other/path',
         '--path', '/unsigned')
     cli('storage', 'create', 'local', 'Storage2',
-        '--path', base_dir / 'storage2',
+        '--location', base_dir / 'storage2',
         '--container', 'Container2', '--no-inline')
 
     cli('container', 'create', 'C.User2',
@@ -132,7 +132,7 @@ def setup(base_dir, cli):
         '--path', '/users/User2',
         '--update-user')
     cli('storage', 'create', 'local', 'Storage3',
-        '--path', base_dir / 'storage3',
+        '--location', base_dir / 'storage3',
         '--container', 'C.User2', '--no-inline')
 
     os.mkdir(base_dir / 'storage1/other/')
@@ -317,7 +317,7 @@ def setup_pattern(request, base_dir, cli):
 
     cli('container', 'create', 'Container1', '--path', '/path')
     cli('storage', 'create', 'local', 'Storage1',
-        '--path', base_dir / 'storage1',
+        '--location', base_dir / 'storage1',
         '--container', 'Container1',
         '--manifest-pattern', request.param)
 
@@ -359,12 +359,12 @@ def test_container_with_storage_path(base_dir, cli):
 
     cli('container', 'create', 'Container1', '--path', '/path1')
     cli('storage', 'create', 'local', 'Storage1',
-        '--path', base_dir / 'storage1',
+        '--location', base_dir / 'storage1',
         '--container', 'Container1')
 
     cli('container', 'create', 'Container2', '--path', '/path2')
     cli('storage', 'create', 'local', 'Storage2',
-        '--path', base_dir / 'storage2',
+        '--location', base_dir / 'storage2',
         '--container', 'Container2', '--no-inline')
 
     os.rename(
@@ -471,7 +471,7 @@ infrastructures:
    backends:
     storage:
      - type: local
-       path: {storage_path}
+       location: {storage_path}
        owner: '0xfff'
        container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
        manifest-pattern:
@@ -520,7 +520,7 @@ def test_search_two_containers(base_dir, cli):
     cli('container', 'create', 'Container2', '--path', '/path1')
 
     cli('storage', 'create', 'local', 'Storage1',
-        '--path', base_dir / 'storage1',
+        '--location', base_dir / 'storage1',
         '--container', 'Container2')
 
     (base_dir / 'test').write_text('testdata')

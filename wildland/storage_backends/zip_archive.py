@@ -82,9 +82,9 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["path"],
+        "required": ["location"],
         "properties": {
-            "path": {
+            "location": {
                 "$ref": "types.json#abs-path",
                 "description": "Path to the ZIP file",
             },
@@ -95,7 +95,7 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
 
-        self.zip_path = Path(self.params['path'])
+        self.zip_path = Path(self.params['location'])
         self.read_only = True
 
         self.last_mtime = 0.
@@ -104,8 +104,8 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--path'], metavar='PATH',
-                         help='Path to the ZIP file',
+            click.Option(['--location'], metavar='PATH',
+                         help='Location of the ZIP file (filesystem path)',
                          required=True),
         ]
 

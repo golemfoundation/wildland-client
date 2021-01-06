@@ -43,7 +43,7 @@ def env():
 def storage(base_dir):
     return {
         'type': 'zip-archive',
-        'path': str(base_dir / 'archive.zip'),
+        'location': str(base_dir / 'archive.zip'),
     }
 
 

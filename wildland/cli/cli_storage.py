@@ -179,8 +179,8 @@ def list_(obj: ContextObj):
     for storage in obj.client.load_storages():
         click.echo(storage.local_path)
         click.echo(f'  type: {storage.storage_type}')
-        if storage.storage_type == 'local':
-            click.echo(f'  path: {storage.params["path"]}')
+        if storage.storage_type in ['local', 'local-cached', 'local-dir-cached']:
+            click.echo(f'  location: {storage.params["location"]}')
 
 
 @storage_.command('delete', short_help='delete a storage', alias=['rm'])

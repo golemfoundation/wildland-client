@@ -32,7 +32,7 @@ from ..client import Client
 def test_date_proxy_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
-    cli('storage', 'create', 'local', 'referenceStorage', '--path', '/tmp/local-path',
+    cli('storage', 'create', 'local', 'referenceStorage', '--location', '/tmp/local-path',
         '--container', 'referenceContainer', '--no-inline')
 
     reference_path = base_dir / 'containers/referenceContainer.container.yaml'
@@ -83,7 +83,7 @@ def storage(data_dir):
         'type': 'date-proxy',
         'storage': {
             'type': 'local',
-            'path': str(data_dir),
+            'location': str(data_dir),
         }
     }
 
@@ -166,7 +166,7 @@ def container(cli, base_dir, data_dir):
                                 'owner': '0xaaa',
                                 'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
                                 'type': 'local',
-                                'path': str(data_dir),
+                                'location': str(data_dir),
                             }]
                         }
                     }

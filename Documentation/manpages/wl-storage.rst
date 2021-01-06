@@ -52,36 +52,36 @@ Delete a storage from local filesystem.
 .. program:: wl-storage-create-local
 .. _wl-storage-create-local:
 
-:command:`wl storage create local --container <container> [-u] [--user <user>] --path <path> <storage>`
--------------------------------------------------------------------------------------------------------
+:command:`wl storage create local --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+----------------------------------------------------------------------------------------------------------------------
 
 Create local storage.
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --path <path>
+.. option:: --location <filesystem_path>
 
    Path to directory containing the backend. Required.
 
 .. program:: wl_storage_create_local-cached
 .. _wl_storage_create_local-cached:
 
-:command:`wl storage create local-cached --container <container> [-u] [--user <user>] --path <path> <storage>`
---------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+-----------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --path <path>
+.. option:: --location <filesystem_path>
 
 .. program:: wl-storage-create-local-dir-cached
 .. _wl-storage-create-local-dir-cached:
 
-:command:`wl storage create local-dir-cached --container <container> [-u] [--user <user>] --path <path> <storage>`
-------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local-dir-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+---------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --path <path>
+.. option:: --location <filesystem_path>
 
 .. program:: wl-storage-create-date-proxy
 .. _wl-storage-create-date-proxy:
@@ -115,12 +115,12 @@ Create local storage.
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
 
-:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --path <path>  <storage>`
--------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --location <filesystem_path>  <storage>`
+-----------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
-.. option:: --path <path>
+.. option:: --location <filesystem_path>
 
    Path to ZIP archive.
 

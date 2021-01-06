@@ -33,7 +33,7 @@ from ..client import Client
 def test_delegate_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
-    cli('storage', 'create', 'local', 'referenceStorage', '--path', '/tmp/local-path',
+    cli('storage', 'create', 'local', 'referenceStorage', '--location', '/tmp/local-path',
         '--container', 'referenceContainer', '--no-inline')
 
     reference_path = base_dir / 'containers/referenceContainer.container.yaml'
@@ -84,7 +84,7 @@ def storage(data_dir):
         'type': 'delegate',
         'storage': {
             'type': 'local',
-            'path': str(data_dir),
+            'location': str(data_dir),
         }
     }
 
@@ -96,7 +96,7 @@ def storage_subdir(data_dir):
         'subdirectory': '/dir1',
         'storage': {
             'type': 'local',
-            'path': str(data_dir),
+            'location': str(data_dir),
         }
     }
 

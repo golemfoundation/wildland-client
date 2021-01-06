@@ -32,11 +32,11 @@ def setup(base_dir, cli):
     cli('container', 'create', 'Container1', '--path', '/path')
 
     cli('storage', 'create', 'local', 'Storage1',
-        '--path', base_dir / 'storage1',
+        '--location', base_dir / 'storage1',
         '--container', 'Container1', '--no-inline')
 
     cli('storage', 'create', 'local', 'Storage2',
-        '--path', base_dir / 'storage2',
+        '--location', base_dir / 'storage2',
         '--container', 'Container1', '--no-inline')
 
 
@@ -52,7 +52,7 @@ def test_select_storage(client, base_dir):
     container = client.load_container_from('Container1')
 
     storage = client.select_storage(container)
-    assert storage.params['path'] == str(base_dir / 'storage1')
+    assert storage.params['location'] == str(base_dir / 'storage1')
 
 
 def test_select_storage_unsupported(client, base_dir):
@@ -67,7 +67,7 @@ def test_select_storage_unsupported(client, base_dir):
         f.write(storage_manifest.to_bytes())
 
     storage = client.select_storage(container)
-    assert storage.params['path'] == str(base_dir / 'storage2')
+    assert storage.params['location'] == str(base_dir / 'storage2')
 
 
 def test_expanded_paths(client, cli):

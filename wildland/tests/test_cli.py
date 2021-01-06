@@ -116,7 +116,7 @@ def test_user_delete(cli, base_dir):
 def test_user_delete_cascade(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
     user_path = base_dir / 'users/User.user.yaml'
@@ -184,19 +184,19 @@ def test_user_edit_editor_failed(cli, cli_fail):
 def test_storage_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-update-container', '--no-inline')
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
 
     assert "owner: '0xaaa'" in data
-    assert "path: /PATH" in data
+    assert "location: /PATH" in data
 
 
 def test_storage_create_not_inline(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
@@ -209,7 +209,7 @@ def test_storage_create_not_inline(cli, base_dir):
 def test_storage_create_inline(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
         '--container', 'Container', '--inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
@@ -221,7 +221,7 @@ def test_storage_create_inline(cli, base_dir):
 def test_storage_delete(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     storage_path = base_dir / 'storage/Storage.storage.yaml'
@@ -237,7 +237,7 @@ def test_storage_delete(cli, base_dir):
 def test_storage_delete_cascade(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     storage_path = base_dir / 'storage/Storage.storage.yaml'
@@ -253,14 +253,14 @@ def test_storage_delete_cascade(cli, base_dir):
 def test_storage_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     result = cli('storage', 'list', capture=True)
     assert result.splitlines() == [
         str(base_dir / 'storage/Storage.storage.yaml'),
         '  type: local',
-        '  path: /PATH',
+        '  location: /PATH',
     ]
 
 
@@ -292,7 +292,7 @@ def test_container_update(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-update-container', '--no-inline')
     cli('container', 'update', 'Container', '--storage', 'Storage')
 
@@ -306,7 +306,7 @@ def test_container_update(cli, base_dir):
 def test_container_publish(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', os.fspath(tmp_path),
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline')
 
     cli('container', 'publish', 'Container', '0xaaa:/PATH:/published.yaml')
@@ -318,7 +318,7 @@ def test_container_delete(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     container_path = base_dir / 'containers/Container.container.yaml'
@@ -339,7 +339,7 @@ def test_container_delete_force(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     container_path = base_dir / 'containers/Container.container.yaml'
@@ -356,7 +356,7 @@ def test_container_delete_cascade(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     container_path = base_dir / 'containers/Container.container.yaml'
@@ -372,7 +372,7 @@ def test_container_delete_cascade(cli, base_dir):
 def test_container_delete_umount(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
     control_client.expect('paths', {})
@@ -411,7 +411,7 @@ def test_container_list(cli, base_dir):
 def test_container_mount(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
@@ -449,7 +449,7 @@ def test_container_mount(cli, base_dir, control_client):
 def test_container_mount_store_trusted_owner(cli, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--trusted')
 
     control_client.expect('paths', {})
@@ -468,9 +468,9 @@ def test_container_mount_glob(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container1', '--path', '/PATH1')
     cli('container', 'create', 'Container2', '--path', '/PATH2')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container1')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container2')
 
     control_client.expect('paths', {})
@@ -487,7 +487,7 @@ def test_container_mount_glob(cli, base_dir, control_client):
 def test_container_mount_save(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
     control_client.expect('paths', {})
@@ -510,7 +510,7 @@ def test_container_mount_save(cli, base_dir, control_client):
 def test_container_mount_inline_storage(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/STORAGE',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
         '--container', 'Container', '--inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
@@ -524,7 +524,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
-    assert command[0]['storage']['path'] == '/STORAGE'
+    assert command[0]['storage']['location'] == '/STORAGE'
     assert command[0]['paths'] == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
@@ -536,7 +536,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
 def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
     manifest_path = base_dir / 'mnt/trusted/Container.container.yaml'
@@ -611,7 +611,7 @@ def test_container_other_signer(cli, base_dir):
     modify_file(base_dir / 'containers/Container.container.yaml',
                 "owner: '0xbbb'", "owner: '0xaaa'")
 
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
 
@@ -639,7 +639,7 @@ def test_container_extended_paths(cli, control_client, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'title',
         '--category', '/c1/c2', '--category', '/c3')
-    cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
@@ -697,7 +697,7 @@ def test_container_wrong_signer(cli, base_dir):
                 "owner: '0xbbb'", "owner: '0xaaa'")
 
     with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
-        cli('storage', 'create', 'local', 'Storage', '--path', '/PATH',
+        cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
             '--container', 'Container')
 
 
@@ -776,9 +776,9 @@ def test_cli_container_sync(tmpdir, cleanup):
     wl_call(base_config_dir, 'container', 'create',
             '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
     wl_call(base_config_dir, 'storage', 'create', 'local',
-            '--container', 'AliceContainer', '--path', storage1_data)
+            '--container', 'AliceContainer', '--location', storage1_data)
     wl_call(base_config_dir, 'storage', 'create', 'local',
-            '--container', 'AliceContainer', '--path', storage2_data)
+            '--container', 'AliceContainer', '--location', storage2_data)
     wl_call(base_config_dir, 'container', 'sync', 'AliceContainer')
 
     time.sleep(1)
@@ -798,7 +798,7 @@ def test_cli_container_sync(tmpdir, cleanup):
 def setup_storage_sets(config_dir):
     os.mkdir(config_dir / 'templates')
     data_dict = {
-        'path': f'{config_dir}' + '/{{ uuid }}',
+        'location': f'{config_dir}' + '/{{ uuid }}',
         'type': 'local'
     }
     yaml.dump(data_dict, open(config_dir / 'templates/t1.template.jinja', 'w'))
@@ -854,7 +854,7 @@ def test_cli_set_del(cli, base_dir):
 def test_cli_set_use_inline(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
-        'path':  f'{base_dir}' + '/{{ title }}',
+        'location':  f'{base_dir}' + '/{{ title }}',
         'type': 'local'
     }
 
@@ -868,7 +868,7 @@ def test_cli_set_use_inline(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         output_lines = [line.strip() for line in f.readlines()]
 
-        assert f'- path: {base_dir}/Test' in output_lines
+        assert f'- location: {base_dir}/Test' in output_lines
         assert 'type: local' in output_lines
 
     assert (base_dir / 'Test').exists()
@@ -877,7 +877,7 @@ def test_cli_set_use_inline(cli, base_dir):
 def test_cli_set_use_file(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
-        'path':  f'{base_dir}' + '/{{ title }}',
+        'location':  f'{base_dir}' + '/{{ title }}',
         'type': 'local'
     }
 
@@ -899,7 +899,7 @@ def test_cli_set_use_file(cli, base_dir):
 def test_cli_set_missing_title(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
-        'path':  f'{base_dir}' +
+        'location':  f'{base_dir}' +
                  '/{% if title is defined -%} {{ title }} {% else -%} test {% endif %}',
         'type': 'local'
     }
@@ -913,14 +913,14 @@ def test_cli_set_missing_title(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         output_lines = [line.strip() for line in f.readlines()]
 
-        assert f'- path: {base_dir}/test' in output_lines
+        assert f'- location: {base_dir}/test' in output_lines
         assert 'type: local' in output_lines
 
 
 def test_cli_set_missing_param(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
-        'path':  f'{base_dir}' + '{{ title }}',
+        'location':  f'{base_dir}' + '{{ title }}',
         'type': 'local'
     }
 
@@ -938,7 +938,7 @@ def test_cli_set_missing_param(cli, base_dir):
 def test_cli_set_local_dir(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
-        'path':  f'{base_dir}' + '/{{ local_dir[1:] }}',
+        'location':  f'{base_dir}' + '/{{ local_dir[1:] }}',
         'type': 'local'
     }
 
@@ -952,7 +952,7 @@ def test_cli_set_local_dir(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         output_lines = [line.strip() for line in f.readlines()]
 
-        assert f'- path: {base_dir}/test/test' in output_lines
+        assert f'- location: {base_dir}/test/test' in output_lines
         assert 'type: local' in output_lines
 
     assert (base_dir / 'test/test').exists()

@@ -86,9 +86,9 @@ class BaseCached(StorageBackend):
 
     SCHEMA = Schema({
         "type": "object",
-        "required": ["path"],
+        "required": ["location"],
         "properties": {
-            "path": {
+            "location": {
                 "$ref": "types.json#abs-path",
                 "description": "Path in the local filesystem"
             }
@@ -97,19 +97,19 @@ class BaseCached(StorageBackend):
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
-        self.root = Path(self.params['path'])
+        self.root = Path(self.params['location'])
 
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--path'], metavar='PATH',
-                         help='local path',
+            click.Option(['--location'], metavar='PATH',
+                         help='path in local filesystem',
                          required=True)
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'path': data['path']}
+        return {'location': data['location']}
 
     @staticmethod
     def _stat(st: os.stat_result) -> Attr:

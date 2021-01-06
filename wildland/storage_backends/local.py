@@ -115,9 +115,9 @@ class LocalStorageBackend(StorageBackend):
     '''Local, file-based storage'''
     SCHEMA = Schema({
         "type": "object",
-        "required": ["path"],
+        "required": ["location"],
         "properties": {
-            "path": {
+            "location": {
                 "$ref": "types.json#abs-path",
                 "description": "Path in the local filesystem"
             }
@@ -127,25 +127,25 @@ class LocalStorageBackend(StorageBackend):
 
     def __init__(self, *, relative_to=None, **kwds):
         super().__init__(**kwds)
-        path = Path(self.params['path'])
+        location_path = Path(self.params['location'])
         if relative_to is not None:
-            path = relative_to / path
-        path = path.resolve()
-        if not path.is_dir():
-            logging.warning('LocalStorage root does not exist: %s', path)
-        self.root = path
+            location_path = relative_to / location_path
+        location_path = location_path.resolve()
+        if not location_path.is_dir():
+            logging.warning('LocalStorage root does not exist: %s', location_path)
+        self.root = location_path
 
     @classmethod
     def cli_options(cls):
         return [
-            click.Option(['--path'], metavar='PATH',
-                         help='local path',
+            click.Option(['--location'], metavar='PATH',
+                         help='path in local filesystem',
                          required=True)
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'path': data['path']}
+        return {'location': data['location']}
 
     def _path(self, path: PurePosixPath) -> Path:
         '''Given path inside filesystem, calculate path on disk, relative to
