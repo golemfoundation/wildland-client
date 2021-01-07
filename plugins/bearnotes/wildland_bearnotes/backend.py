@@ -270,6 +270,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
                 'type': 'delegate',
                 'reference-container': 'wildland:@default:@parent-container:',
                 'subdirectory': '/' + ident,
+                'backend_id': ident
             }]}
         }
 

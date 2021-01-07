@@ -15,6 +15,10 @@
             "$ref": "types.json#abs-path",
             "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
         },
+        "backend_id":{
+            "type": "string",
+            "description": "storage UUID; optional, but if it is missing it will be generated automatically"
+        },
         "read-only": {
             "type": "boolean",
             "description": "Mount as read-only"

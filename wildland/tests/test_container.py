@@ -22,6 +22,7 @@
 import pytest
 from ..manifest.manifest import Manifest
 from ..client import Client
+from ..storage import StorageBackend
 
 
 # pylint: disable=missing-docstring,redefined-outer-name
@@ -68,6 +69,42 @@ def test_select_storage_unsupported(client, base_dir):
 
     storage = client.select_storage(container)
     assert storage.params['location'] == str(base_dir / 'storage2')
+
+
+def test_storage_without_backend_id(client, base_dir):
+    base_dict = {
+        'owner': '0xaaa',
+        'type': 'local',
+        'path': '/PATH',
+        'container-path': str(base_dir / 'storage2')}
+    modified_dict = base_dict.copy()
+    modified_dict['container-path'] = str(base_dir / 'storage3')
+
+    storage_manifest = Manifest.from_fields(base_dict)
+    storage_manifest_modified = Manifest.from_fields(modified_dict)
+
+    storage_manifest.sign(client.session.sig)
+    storage_manifest_modified.sign(client.session.sig)
+
+    with open(base_dir / 'storage' / 'Storage1.storage.yaml', 'wb') as f:
+        f.write(storage_manifest.to_bytes())
+    with open(base_dir / 'storage' / 'Storage2.storage.yaml', 'wb') as f:
+        f.write(storage_manifest.to_bytes())
+    with open(base_dir / 'storage' / 'Storage3.storage.yaml', 'wb') as f:
+        f.write(storage_manifest_modified.to_bytes())
+
+    storage = client.load_storage_from_path(base_dir / 'storage' / 'Storage1.storage.yaml')
+    storage2 = client.load_storage_from_path(base_dir / 'storage' / 'Storage2.storage.yaml')
+    storage3 = client.load_storage_from_path(base_dir / 'storage' / 'Storage3.storage.yaml')
+
+    backend = StorageBackend.from_params(storage.params)
+    backend2 = StorageBackend.from_params(storage2.params)
+    backend3 = StorageBackend.from_params(storage3.params)
+
+    assert backend.backend_id is not None
+    # Generated backend id should be based on parameters
+    assert backend.backend_id == backend2.backend_id
+    assert backend.backend_id != backend3.backend_id
 
 
 def test_expanded_paths(client, cli):

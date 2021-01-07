@@ -30,7 +30,6 @@ import stat
 import hashlib
 import os
 import logging
-import yaml
 
 import click
 
@@ -187,22 +186,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.hash_db = None
         self.mounted = 0
 
-        self.backend_id = self.get_backend_id(self.params)
-
-    @staticmethod
-    def get_backend_id(params: dict) -> str:
-        """
-        Get an backend_id - a unique identifier of a StorageBackend with given parameters
-
-        :param params: StorageBackend params
-        :return: str
-        """
-        hasher = hashlib.sha256()
-        # skip 'storage' object if present, it is derived from reference-container
-        params_for_hash = dict((k, v) for (k, v) in params.items()
-                               if k != 'storage')
-        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
-        return hasher.hexdigest()
+        self.backend_id = self.params['backend_id']
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -479,7 +463,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         '''
 
         if deduplicate:
-            deduplicate = StorageBackend.get_backend_id(params)
+            deduplicate = params['backend_id']
             if deduplicate in StorageBackend._cache:
                 return StorageBackend._cache[deduplicate]
 

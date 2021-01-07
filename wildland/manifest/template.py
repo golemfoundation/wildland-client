@@ -20,6 +20,7 @@ Templates for manifests.
 """
 
 import logging
+import uuid
 from typing import List
 from pathlib import Path
 from collections import namedtuple
@@ -100,6 +101,7 @@ type: local
         data = yaml.safe_load(raw_data)
         data['owner'] = cont.owner
         data['container-path'] = str(cont.paths[0])
+        data['backend_id'] = str(uuid.uuid4())
         return Manifest.from_fields(data)
 
     def __str__(self):

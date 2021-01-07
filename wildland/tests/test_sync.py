@@ -84,7 +84,8 @@ def make_storage(backend_class: Callable, target_dir: PurePosixPath):
     except FileExistsError:
         pass
     backend = backend_class(params={'location': str(target_dir),
-                                    'type': getattr(backend_class, 'TYPE')})
+                                    'type': getattr(backend_class, 'TYPE'),
+                                    'backend_id': str(backend_class) + str(target_dir)})
     return backend, target_dir
 
 
@@ -664,7 +665,8 @@ def test_get_conflicts_simple(tmpdir, storage_backend, cleanup, use_hash_db):
 
     conflicts = [(path, sorted([b1, b2])) for (path, b1, b2) in conflicts]
     expected_conflicts = \
-        [('file1', sorted([b1.backend_id, b2.backend_id])) for b1, b2 in combinations(backends, 2)]
+        [('file1', sorted([b1.backend_id, b2.backend_id]))
+         for b1, b2 in combinations(backends, 2)]
 
     assert sorted(conflicts) == sorted(expected_conflicts)
 

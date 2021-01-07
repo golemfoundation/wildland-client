@@ -24,6 +24,7 @@ Storage object
 from typing import Type
 from pathlib import PurePosixPath
 import functools
+import uuid
 
 import click
 
@@ -119,6 +120,8 @@ def _do_create(
     for param, value in list(params.items()):
         if value is None or value == []:
             del params[param]
+
+    params['backend_id'] = str(uuid.uuid4())
 
     manifest_pattern_dict = None
     if manifest_pattern:

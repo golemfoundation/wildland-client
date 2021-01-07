@@ -148,7 +148,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         return self.inner.open(inner_path, flags)
 
     def list_subcontainers(self) -> Iterable[dict]:
-        ns = uuid.UUID(self.backend_id[:32])
+        ns = uuid.UUID(self.backend_id)
         dates = []
         for year in self.readdir(PurePosixPath('')):
             for month in self.readdir(PurePosixPath(year)):
@@ -165,5 +165,6 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
                     'type': 'delegate',
                     'reference-container': 'wildland:@default:@parent-container:',
                     'subdirectory': '/' + date,
+                    'backend_id': str(uuid.uuid3(ns, date))
                 }]}
             }

@@ -20,9 +20,12 @@
 '''
 Storage class
 '''
-
+import hashlib
+import uuid
 from pathlib import PurePosixPath, Path
 from typing import Dict, Any, Optional
+
+import yaml
 
 from .storage_backends.base import StorageBackend
 from .manifest.manifest import Manifest, ManifestError
@@ -53,6 +56,13 @@ class Storage:
         self.trusted = trusted
         self.local_path = local_path
         self.manifest_pattern = manifest_pattern
+        if 'backend_id' not in params:
+            hasher = hashlib.md5()
+            # skip 'storage' object if present, it is derived from reference-container
+            params_for_hash = dict((k, v) for (k, v) in params.items()
+                                   if k != 'storage')
+            hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+            self.params['backend_id'] = str(uuid.UUID(hasher.hexdigest()))
 
     def __repr__(self):
         return (f'{type(self).__name__}('
