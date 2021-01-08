@@ -255,7 +255,7 @@ def test_read_file_traverse_user(cli, base_dir, client, location_type):
     else:
         location = 'file://localhost' + str(base_dir / 'users/User2.user.yaml')
 
-    cli('bridge', 'create', '--user', 'User',
+    cli('bridge', 'create', '--owner', 'User',
         '--ref-user', 'User2',
         '--ref-user-location', location,
         '--file-path', base_dir / 'storage1/users/User2.yaml',
@@ -292,7 +292,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
     cli('user', 'sign', '-i', user_path)
 
     # Create bridge manifest
-    cli('bridge', 'create', '--user', 'User',
+    cli('bridge', 'create', '--owner', 'User',
         '--ref-user', 'User2',
         '--ref-user-location', 'file://localhost' + str(user_path),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
