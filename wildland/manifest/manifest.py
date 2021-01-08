@@ -243,6 +243,11 @@ class Manifest:
     def load_pubkeys(cls,
                      data: bytes,
                      sig_context: SigContext) -> None:
+        """
+        Load pubkeys directly from manifest's message (body) into signature context
+        without relying on locally stored users/keys. This might be used in a
+        self-signed manifests context.
+        """
 
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
@@ -256,16 +261,14 @@ class Manifest:
         primary_pubkey = pubkeys[0]
 
         # Now we can verify integrity of the self-signed manifest
-        owner = header.verify_rest(rest_data, sig_context, trusted_owner=None, pubkey=primary_pubkey)
+        owner = header.verify_rest(rest_data, sig_context, trusted_owner=None,
+                                   pubkey=primary_pubkey)
 
         # Add the retrieved pubkey(s) to the sig context
         sig_context.keys[owner] = primary_pubkey
 
         for pubkey in pubkeys:
             sig_context.add_pubkey(pubkey, owner)
-
-    def read_pubkeys_from_bytes(cls, data: bytes):
-        foo = 'bar'
 
     @classmethod
     def _parse_yaml(cls, data: bytes):
