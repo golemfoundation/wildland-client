@@ -108,7 +108,7 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_from(user or '@default-owner')
+    user = obj.client.load_user_by_name(user or '@default-owner')
 
     if default_storage_set and not storage_set:
         set_name = obj.client.config.get('default-storage-set-for-user')\
@@ -222,7 +222,7 @@ def list_(obj: ContextObj):
     for container in obj.client.load_containers():
         click.echo(container.local_path)
         try:
-            user = obj.client.load_user_from(container.owner)
+            user = obj.client.load_user_by_name(container.owner)
             if user.paths:
                 user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
             else:

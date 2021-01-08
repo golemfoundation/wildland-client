@@ -193,18 +193,13 @@ class Manifest:
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
+        fields = cls._parse_yaml(rest_data)
+
         try:
             header_signer = header.verify_rest(rest_data, sig_context, trusted_owner)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e)) from e
-
-        try:
-            rest_str = rest_data.decode('utf-8')
-            fields = yaml.safe_load(rest_str)
-            fields = cls.update_obsolete(fields)
-        except ValueError as e:
-            raise ManifestError('Manifest parse error: {}'.format(e)) from e
 
         if header.signature is None:
             if fields.get('owner') != trusted_owner:
@@ -244,6 +239,42 @@ class Manifest:
 
         schema.validate(self._fields)
 
+    @classmethod
+    def load_pubkeys(cls,
+                     data: bytes,
+                     sig_context: SigContext) -> None:
+
+        header_data, rest_data = split_header(data)
+        header = Header.from_bytes(header_data)
+
+        fields = cls._parse_yaml(rest_data)
+        pubkeys = fields.get('pubkeys', [])
+
+        if len(pubkeys) < 1:
+            raise ManifestError('Manifest doest not contain any pubkeys')
+
+        primary_pubkey = pubkeys[0]
+
+        # Now we can verify integrity of the self-signed manifest
+        owner = header.verify_rest(rest_data, sig_context, trusted_owner=None, pubkey=primary_pubkey)
+
+        # Add the retrieved pubkey(s) to the sig context
+        sig_context.keys[owner] = primary_pubkey
+
+        for pubkey in pubkeys:
+            sig_context.add_pubkey(pubkey, owner)
+
+    def read_pubkeys_from_bytes(cls, data: bytes):
+        foo = 'bar'
+
+    @classmethod
+    def _parse_yaml(cls, data: bytes):
+        try:
+            fields = yaml.safe_load(data.decode('utf-8'))
+            return cls.update_obsolete(fields)
+        except ValueError as e:
+            raise ManifestError('Manifest parse error: {}'.format(e)) from e
+
 
 class Header:
     '''
@@ -257,10 +288,12 @@ class Header:
             self.signature = signature.rstrip('\n')
 
     def verify_rest(self, rest_data: bytes, sig_context: SigContext,
-                    trusted_owner: Optional[str]) -> str:
+                    trusted_owner: Optional[str], pubkey: Optional[str] = None) -> str:
         '''
         Verify the signature against manifest content (without parsing it).
         Return signer.
+
+        pass the optional pubkey *only* in case of self-signed manifests
         '''
 
         # Handle lack of signature, if allowed
@@ -269,7 +302,7 @@ class Header:
                 raise SigError('Signature expected')
             return trusted_owner
 
-        return sig_context.verify(self.signature, rest_data)
+        return sig_context.verify(self.signature, rest_data, pubkey)
 
     @classmethod
     def from_bytes(cls, data: bytes):
