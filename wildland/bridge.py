@@ -69,6 +69,7 @@ class Bridge:
         '''
 
         manifest = Manifest.from_fields(dict(
+            object=type(self).__name__.lower(),
             owner=self.owner,
             user=self.user_location,
             pubkey=self.user_pubkey,

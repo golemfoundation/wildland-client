@@ -489,6 +489,7 @@ infrastructures:
 signature: |
   dummy.0xddd
 ---
+object: 'bridge'
 owner: '0xddd'
 user: file://localhost{remote_user_file}
 pubkey: 'key.0xfff'
