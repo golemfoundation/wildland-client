@@ -39,6 +39,33 @@ def modify_file(path, pattern, replacement):
     with open(path, 'w') as f:
         f.write(data)
 
+def strip_yaml(line):
+    '''Helper suitable for checking if some ``key: value`` is in yaml dump
+
+    The problem this solves:
+
+    >>> obj1 = {'outer': [{'key2': 'value2'}]}
+    >>> obj2 = {'outer': [{'key1': 'value1', 'key2': 'value2'}]}
+    >>> dump1 = yaml.safe_dump(obj1, default_flow_style=False)
+    >>> dump2 = yaml.safe_dump(obj2, default_flow_style=False)
+    >>> print(dump1)
+    outer:
+    - key2: value2
+    >>> print(dump2)
+    outer:
+    - key1: value1
+      key2: value2
+    >>> '- key2: value2' in dump1.split('\n')
+    True
+    >>> '- key2: value2' in dump2.split('\n')
+    False
+    >>> 'key2: value2' in [strip_yaml(line) for line in dump1.split('\n')]
+    True
+    >>> 'key2: value2' in [strip_yaml(line) for line in dump2.split('\n')]
+    True
+    '''
+
+    return line.strip('\n -')
 
 @pytest.fixture
 def cleanup():
@@ -874,9 +901,9 @@ def test_cli_set_use_inline(cli, base_dir):
         '--storage-set', 'set1')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [line.strip() for line in f.readlines()]
+        output_lines = [strip_yaml(line) for line in f.readlines()]
 
-        assert f'- path: {base_dir}/Test' in output_lines
+        assert f'path: {base_dir}/Test' in output_lines
         assert 'type: local' in output_lines
 
     assert (base_dir / 'Test').exists()
@@ -897,9 +924,9 @@ def test_cli_set_use_file(cli, base_dir):
         '--storage-set', 'set1')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [line.strip() for line in f.readlines()]
+        output_lines = [strip_yaml(line) for line in f.readlines()]
 
-        assert f'- file://localhost{base_dir}/storage/set1.storage.yaml' in output_lines
+        assert f'file://localhost{base_dir}/storage/set1.storage.yaml' in output_lines
 
     assert (base_dir / 'Test').exists()
 
@@ -919,9 +946,9 @@ def test_cli_set_missing_title(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--storage-set', 'set1')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [line.strip() for line in f.readlines()]
+        output_lines = [strip_yaml(line) for line in f.readlines()]
 
-        assert f'- path: {base_dir}/test' in output_lines
+        assert f'path: {base_dir}/test' in output_lines
         assert 'type: local' in output_lines
 
 
@@ -958,9 +985,9 @@ def test_cli_set_local_dir(cli, base_dir):
         '--storage-set', 'set1', '--local-dir', '/test/test')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [line.strip() for line in f.readlines()]
+        output_lines = [strip_yaml(line) for line in f.readlines()]
 
-        assert f'- path: {base_dir}/test/test' in output_lines
+        assert f'path: {base_dir}/test/test' in output_lines
         assert 'type: local' in output_lines
 
     assert (base_dir / 'test/test').exists()
@@ -989,10 +1016,10 @@ def test_cli_set_use_default(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [line.strip() for line in f.readlines()]
+        output_lines = [strip_yaml(line) for line in f.readlines()]
         print(output_lines)
 
-        assert f'- file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+        assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
 
 
 def test_cli_set_use_def_storage(cli, base_dir):
@@ -1005,7 +1032,7 @@ def test_cli_set_use_def_storage(cli, base_dir):
     cli('storage', 'create-from-set', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [line.strip() for line in f.readlines()]
+        output_lines = [strip_yaml(line) for line in f.readlines()]
         print(output_lines)
 
-        assert f'- file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+        assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
