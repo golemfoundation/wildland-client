@@ -461,6 +461,7 @@ def test_traverse_other_key(cli, base_dir, client, signer):
 signature: |
   dummy.{signer}
 ---
+object: user
 owner: '0xfff'
 paths:
 - /users/User2
