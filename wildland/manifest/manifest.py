@@ -114,7 +114,7 @@ class Manifest:
 
         fields = cls.update_obsolete(fields)
         data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
-        return Manifest(None, fields, data)
+        return cls(None, fields, data)
 
     @classmethod
     def from_unsigned_bytes(cls, data: bytes) -> 'Manifest':
