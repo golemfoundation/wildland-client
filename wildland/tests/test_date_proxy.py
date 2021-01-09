@@ -148,6 +148,7 @@ def container(cli, base_dir, data_dir):
     (base_dir / 'containers').mkdir(parents=True)
     with (base_dir / 'containers/macro.container.yaml').open('w') as f:
         f.write(yaml.dump({
+            'object': 'container',
             'owner': '0xaaa',
             'paths': [
                 '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
@@ -159,6 +160,7 @@ def container(cli, base_dir, data_dir):
                     'owner': '0xaaa',
                     'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
                     'reference-container': {
+                        'object': 'container',
                         'owner': '0xaaa',
                         'paths': ['/.uuid/39f437f3-b071-439c-806b-6d14fa55e827'],
                         'backends': {

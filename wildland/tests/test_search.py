@@ -467,7 +467,8 @@ paths:
 pubkeys:
 - key.0xbbb
 infrastructures:
- - owner: '0xfff'
+ - object: container
+   owner: '0xfff'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:

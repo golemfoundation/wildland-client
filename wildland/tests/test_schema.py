@@ -27,6 +27,7 @@ from ..manifest.schema import Schema, SchemaError
 
 def container():
     return {
+        'object': 'container',
         'owner': '0x3333',
         'paths': [
             '/home/photos',
@@ -46,6 +47,12 @@ def test_validate():
 
 def test_validate_errors():
     schema = Schema('container')
+
+    c = container()
+    del c['object']
+    with pytest.raises(SchemaError, match=r"'object' is a required property"):
+        schema.validate(c)
+
     c = container()
     del c['owner']
     with pytest.raises(SchemaError, match=r"'owner' is a required property"):

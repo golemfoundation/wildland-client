@@ -625,6 +625,7 @@ class Client:
         :param subcontainer_params: subcontainer manifest dict
         :return:
         """  # pylint: disable=unused-argument
+        subcontainer_params['object'] = 'container'
         subcontainer_params['owner'] = container.owner
         for sub_storage in subcontainer_params['backends']['storage']:
             sub_storage['owner'] = container.owner
