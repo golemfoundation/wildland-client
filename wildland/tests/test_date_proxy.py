@@ -156,6 +156,7 @@ def container(cli, base_dir, data_dir):
             ],
             'backends': {
                 'storage': [{
+                    'object': 'storage',
                     'type': 'date-proxy',
                     'owner': '0xaaa',
                     'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
@@ -165,6 +166,7 @@ def container(cli, base_dir, data_dir):
                         'paths': ['/.uuid/39f437f3-b071-439c-806b-6d14fa55e827'],
                         'backends': {
                             'storage': [{
+                                'object': 'storage',
                                 'owner': '0xaaa',
                                 'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
                                 'type': 'local',
@@ -200,6 +202,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
     assert len(subcontainers) == 2
     assert subcontainers[0].paths[1:] == [PurePosixPath('/timeline/2008/02/03')]
     assert subcontainers[0].backends[0] == {
+        'object': 'storage',
         'type': 'delegate',
         'subdirectory': '/2008/02/03',
         'owner': container.owner,

@@ -833,6 +833,7 @@ def test_cli_container_sync(tmpdir, cleanup):
 def setup_storage_sets(config_dir):
     os.mkdir(config_dir / 'templates')
     data_dict = {
+        'object': 'storage',
         'path': f'{config_dir}' + '/{{ uuid }}',
         'type': 'local'
     }
@@ -889,6 +890,7 @@ def test_cli_set_del(cli, base_dir):
 def test_cli_set_use_inline(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
+        'object': 'storage',
         'path':  f'{base_dir}' + '/{{ title }}',
         'type': 'local'
     }
@@ -912,6 +914,7 @@ def test_cli_set_use_inline(cli, base_dir):
 def test_cli_set_use_file(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
+        'object': 'storage',
         'path':  f'{base_dir}' + '/{{ title }}',
         'type': 'local'
     }
@@ -934,6 +937,7 @@ def test_cli_set_use_file(cli, base_dir):
 def test_cli_set_missing_title(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
+        'object': 'storage',
         'path':  f'{base_dir}' +
                  '/{% if title is defined -%} {{ title }} {% else -%} test {% endif %}',
         'type': 'local'
@@ -955,6 +959,7 @@ def test_cli_set_missing_title(cli, base_dir):
 def test_cli_set_missing_param(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
+        'object': 'storage',
         'path':  f'{base_dir}' + '{{ title }}',
         'type': 'local'
     }
@@ -973,6 +978,7 @@ def test_cli_set_missing_param(cli, base_dir):
 def test_cli_set_local_dir(cli, base_dir):
     os.mkdir(base_dir / 'templates')
     data_dict = {
+        'object': 'storage',
         'path':  f'{base_dir}' + '/{{ local_dir[1:] }}',
         'type': 'local'
     }

@@ -1,8 +1,9 @@
 {
     "title": "Storage manifest (common schema)",
     "type": "object",
-    "required": ["owner", "type", "container-path"],
+    "required": ["object", "owner", "type", "container-path"],
     "properties": {
+        "object": { "const": "storage" },
         "owner": {
             "$ref": "types.json#fingerprint",
             "description": "Signer of the manifest. Needs to match the owner of the container."

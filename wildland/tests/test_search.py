@@ -473,7 +473,8 @@ infrastructures:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:
     storage:
-     - type: local
+     - object: storage
+       type: local
        path: {storage_path}
        owner: '0xfff'
        container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
