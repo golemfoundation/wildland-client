@@ -87,6 +87,7 @@
 
         "paths": { "type": "object", "additionalProperties": false },
         "info": { "type": "object", "additionalProperties": false },
+        "status": { "type": "object", "additionalProperties": false },
         "breakpoint": { "type": "object", "additionalProperties": false },
         "test": { "type": "object" }
 

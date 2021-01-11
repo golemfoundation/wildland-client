@@ -32,3 +32,8 @@ Options
 
    Don't mount ``default-containers`` from configuration file. The default is
    to mount them.
+
+.. option:: --default-user
+
+    Specify a default user different than specified in configuration file. This will be used
+    until Wildland FUSE driver is stopped.

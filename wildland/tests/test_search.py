@@ -229,6 +229,7 @@ def test_mount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
     control_client.expect('paths', {})
     control_client.expect('mount')
+    control_client.expect('status', {})
     cli('container', 'mount', ':/path:/other/path:')
 
 
@@ -242,6 +243,7 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
         f'/.users/0xaaa{path}': [101],
     })
     control_client.expect('unmount')
+    control_client.expect('status', {})
     cli('container', 'unmount', ':/path:/other/path:')
 
 
@@ -535,4 +537,30 @@ def test_search_two_containers(base_dir, cli):
 
     output = cli('get', '0xaaa:/path1:/test', capture=True)
 
+    assert output == 'testdata'
+
+
+def test_search_different_default_user(base_dir, cli):
+    os.mkdir(base_dir / 'storage1')
+    os.mkdir(base_dir / 'storage2')
+
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+
+    cli('container', 'create', 'AliceContainer', '--path', '/Alice')
+    cli('container', 'create', 'BobContainer', '--user', 'Bob', '--path', '/Bob')
+
+    cli('storage', 'create', 'local', 'AliceStorage',
+        '--location', base_dir / 'storage1',
+        '--container', 'AliceContainer')
+    cli('storage', 'create', 'local', 'BobStorage',
+        '--location', base_dir / 'storage2',
+        '--container', 'BobContainer')
+
+    (base_dir / 'test').write_text('testdata')
+
+    cli('start', '--default-user', 'Bob')
+    cli('put', (base_dir / 'test'), '@default:/Bob:/test')
+
+    output = cli('get', '0xbbb:/Bob:/test', capture=True)
     assert output == 'testdata'

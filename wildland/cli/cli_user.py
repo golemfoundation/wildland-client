@@ -132,9 +132,16 @@ def list_(obj: ContextObj):
 
     for user in users:
         path_string = str(user.local_path)
-        for alias in ['@default', '@default-owner']:
-            if user.owner == obj.client.config.get(alias):
-                path_string += f' ({alias})'
+        if user.owner == obj.client.config.get('@default'):
+            path_string += ' (@default)'
+            try:
+                fuse_status = obj.fs_client.run_control_command('status')
+                if 'default-user' in fuse_status:
+                    path_string += '(@default overriden by wl start parameters)'
+            except (ConnectionRefusedError, FileNotFoundError):
+                pass
+        if user.owner == obj.client.config.get('@default-owner'):
+            path_string += ' (@default-owner)'
         click.echo(path_string)
         click.echo(f'  owner: {user.owner}')
         if obj.client.session.sig.is_private_key_available(user.owner):

@@ -78,6 +78,14 @@ class Client:
         socket_path = Path(self.config.get('socket-path'))
         self.fs_client = WildlandFSClient(mount_dir, socket_path)
 
+        try:
+            fuse_status = self.fs_client.run_control_command('status')
+            default_user = fuse_status.get('default-user', None)
+            if default_user:
+                self.config.override(override_fields={'@default': default_user})
+        except (ConnectionRefusedError, FileNotFoundError):
+            pass
+
         if sig is None:
             if self.config.get('dummy'):
                 sig = DummySigContext()
@@ -143,7 +151,13 @@ class Client:
 
         # Default user
         if name == '@default':
-            default_user = self.config.get('@default')
+            try:
+                fuse_status = self.fs_client.run_control_command('status')
+            except (ConnectionRefusedError, FileNotFoundError):
+                fuse_status = {}
+            default_user = fuse_status.get('default-user', None)
+            if not default_user:
+                default_user = self.config.get('@default')
             if default_user is None:
                 raise WildlandError('user not specified and @default not set')
             return self.load_user_from(default_user)

@@ -19,7 +19,6 @@ def base_dir():
     base_dir = Path(base_dir_s)
     try:
         os.mkdir(base_dir / 'mnt')
-        os.mkdir(base_dir / 'mnt/.control')
         with open(base_dir / 'config.yaml', 'w') as f:
             yaml.dump({
                 'mount-dir': str(base_dir / 'mnt'),
@@ -50,7 +49,10 @@ def cli(base_dir, capsys):
             out, _err = capsys.readouterr()
             return out
         return None
-    return cli
+    yield cli
+    if os.path.ismount(base_dir / 'mnt'):
+        cli('stop')
+        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink()
 
 # TODO examine exception
 @pytest.fixture

@@ -398,6 +398,7 @@ def test_container_delete_cascade(cli, base_dir):
 
 
 def test_container_delete_umount(cli, base_dir, control_client):
+    control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -437,6 +438,8 @@ def test_container_list(cli, base_dir):
 
 
 def test_container_mount(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -475,6 +478,8 @@ def test_container_mount(cli, base_dir, control_client):
 
 
 def test_container_mount_store_trusted_owner(cli, control_client):
+    control_client.expect('status', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -492,6 +497,7 @@ def test_container_mount_store_trusted_owner(cli, control_client):
 def test_container_mount_glob(cli, base_dir, control_client):
     # The glob pattern will be normally expanded by shell,
     # but this feature is also used with default_containers.
+    control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container1', '--path', '/PATH1')
@@ -513,6 +519,8 @@ def test_container_mount_glob(cli, base_dir, control_client):
 
 
 def test_container_mount_save(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -536,6 +544,8 @@ def test_container_mount_save(cli, base_dir, control_client):
 
 
 def test_container_mount_inline_storage(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
@@ -562,6 +572,8 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
 
 
 def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -588,8 +600,6 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
             }
         }
 
-    os.mkdir(base_dir / 'mnt/.control/storage')
-    os.mkdir(base_dir / 'mnt/.control/storage/1')
     control_client.expect('paths', {'/trusted': [1]})
     control_client.expect('mount')
 
@@ -612,6 +622,7 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
 
 
 def test_container_unmount(cli, base_dir, control_client):
+    control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
@@ -649,6 +660,7 @@ def test_container_unmount_by_path(cli, control_client):
         '/PATH2': [102],
     })
     control_client.expect('unmount')
+    control_client.expect('status', {})
     cli('container', 'unmount', '--path', '/PATH2')
 
     assert control_client.calls['unmount']['storage_id'] == 102
@@ -664,6 +676,8 @@ def test_container_create_missing_params(cli):
 
 
 def test_container_extended_paths(cli, control_client, base_dir):
+    control_client.expect('status', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'title',
         '--category', '/c1/c2', '--category', '/c3')
@@ -733,6 +747,7 @@ def test_container_wrong_signer(cli, base_dir):
 
 
 def test_status(cli, control_client):
+    control_client.expect('status', {})
     control_client.expect('info', {
         '1': {
             'paths': ['/path1', '/path1.1'],
@@ -799,7 +814,6 @@ def test_cli_container_sync(tmpdir, cleanup):
 
     cleanup(lambda: wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer'))
 
-    wl_call(base_config_dir, 'start')
     wl_call(base_config_dir, 'user', 'create', 'Alice')
     wl_call(base_config_dir, 'container', 'create',
             '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
@@ -1035,3 +1049,26 @@ def test_cli_set_use_def_storage(cli, base_dir):
         print(output_lines)
 
         assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+
+
+def test_different_default_user(cli, base_dir):
+    storage_dir = base_dir / 'storage_dir'
+    os.mkdir(storage_dir)
+
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('container', 'create',
+            '--user', 'Bob', '--path', '/Bob', 'BobContainer')
+    cli('storage', 'create', 'local',
+            '--container', 'BobContainer', '--location', storage_dir)
+    cli('container', 'create',
+            '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
+    cli('storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage_dir)
+
+    cli('start', '--default-user', 'Bob')
+    cli('container', 'mount', 'BobContainer')
+    cli('container', 'mount', 'AliceContainer')
+
+    assert 'Bob' in os.listdir(base_dir / 'mnt')
+    assert 'Alice' not in os.listdir(base_dir / 'mnt')

@@ -74,12 +74,16 @@ class Config:
             return self.file_fields[name]
         return self.default_fields[name]
 
-    def override(self, *, dummy=False):
+    def override(self, dummy=False, override_fields: Dict = None):
         '''
         Override configuration based on command line arguments.
         '''
         if dummy:
             self.override_fields['dummy'] = True
+        if override_fields:
+            for name, val in override_fields.items():
+                assert name in self.default_fields, f'unknown config name: {name}'
+                self.override_fields[name] = val
 
     def update_and_save(self, values: Dict[str, Any]):
         '''

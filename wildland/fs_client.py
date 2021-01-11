@@ -86,7 +86,8 @@ class WildlandFSClient:
         self.path_tree = None
         self.info_cache = None
 
-    def mount(self, foreground=False, debug=False, single_thread=False) -> subprocess.Popen:
+    def mount(self, foreground=False, debug=False, single_thread=False,
+              default_user=None) -> subprocess.Popen:
         '''
         Mount the Wildland filesystem and wait until it is mounted.
 
@@ -96,6 +97,7 @@ class WildlandFSClient:
             foreground: Run in foreground instead of daemonizing
             debug: Enable debug logs (only in case of foreground)
             single_thread: Run single-threaded
+            default_user: specify a different default user
         '''
         self.clear_cache()
 
@@ -115,6 +117,9 @@ class WildlandFSClient:
 
         if foreground and single_thread:
             options.append('breakpoint')
+
+        if default_user:
+            options.append('default_user=' + default_user.owner)
 
         if options:
             cmd += ['-o', ','.join(options)]
