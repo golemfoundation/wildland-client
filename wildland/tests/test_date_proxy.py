@@ -33,7 +33,7 @@ def test_date_proxy_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
     cli('storage', 'create', 'local', 'referenceStorage', '--path', '/tmp/local-path',
-        '--container', 'referenceContainer')
+        '--container', 'referenceContainer', '--no-inline')
 
     reference_path = base_dir / 'containers/referenceContainer.container.yaml'
     assert reference_path.exists()
@@ -42,7 +42,7 @@ def test_date_proxy_with_url(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'date-proxy', 'ProxyStorage',
         '--reference-container-url', reference_url,
-        '--container', 'Container')
+        '--container', 'Container', '--no-inline')
 
     client = Client(base_dir)
     client.recognize_users()

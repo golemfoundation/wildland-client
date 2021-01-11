@@ -22,5 +22,9 @@
 
 .. option:: --inline
 
-   Add the storage definition directly to container manifest, instead of
-   creating a separate storage manifest.
+   Add the storage definition directly to container manifest. (This is the default behavior)
+
+.. option:: --no-inline
+
+   Create a separate storage manifest instead of adding the storage definition directly to
+   container manifest.
