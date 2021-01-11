@@ -83,16 +83,32 @@ class Manifest:
           - inner-container --> reference-container
         """
         if not isinstance(fields, dict):
-            raise ManifestError('owner field not found')
+            raise TypeError(f'expected dict, got {type(fields)} instance')
+
         if 'owner' not in fields:
             if 'signer' in fields:
                 fields['owner'] = fields['signer']
                 del fields['signer']
             else:
                 raise ManifestError('owner field not found')
+
         if 'inner-container' in fields:
             fields['reference-container'] = fields['inner-container']
             del fields['inner-container']
+
+        if 'object' not in fields:
+            if 'user' in fields:
+                fields['object'] = 'bridge'
+            elif 'backends' in fields:
+                fields['object'] = 'container'
+            elif 'type' in fields:
+                fields['object'] = 'storage'
+            elif 'pubkeys' in fields:
+                fields['object'] = 'user'
+            else:
+                raise ManifestError(
+                    "no 'object' field and could not guess manifest type")
+
         # Nested manifests too
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
@@ -102,6 +118,7 @@ class Manifest:
             for container in fields['infrastructures']:
                 if isinstance(container, dict):
                     cls.update_obsolete(container)
+
         return fields
 
     @classmethod

@@ -53,6 +53,7 @@ def make_header(sig, owner, test_data):
 
 def test_parse(sig, owner):
     test_data = f'''
+object: test
 owner: "{owner}"
 key1: value1
 key2: "value2"
@@ -67,6 +68,7 @@ key2: "value2"
 
 def test_parse_deprecated(sig, owner):
     test_data = f'''
+object: test
 signer: "{owner}"
 key1: value1
 key2: "value2"
@@ -82,6 +84,7 @@ key2: "value2"
 def test_parse_no_signature(sig, owner):
     test_data = f'''
 ---
+object: test
 owner: "{owner}"
 key1: value1
 '''.encode()
@@ -98,6 +101,7 @@ key1: value1
 
 def test_parse_wrong_owner(sig, owner):
     test_data = '''
+object: test
 owner: other owner
 key1: value1
 key2: "value2"
@@ -106,3 +110,51 @@ key2: "value2"
 
     with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
         Manifest.from_bytes(data, sig)
+
+def test_parse_guess_manifest_type_bridge(sig, owner):
+    test_data = f'''
+owner: "{owner}"
+user: user1
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+    assert manifest.fields['object'] == 'bridge'
+
+def test_parse_guess_manifest_type_container(sig, owner):
+    test_data = f'''
+owner: "{owner}"
+backends: []
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+    assert manifest.fields['object'] == 'container'
+
+def test_parse_guess_manifest_type_storage(sig, owner):
+    test_data = f'''
+owner: "{owner}"
+type: type1
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+    assert manifest.fields['object'] == 'storage'
+
+def test_parse_guess_manifest_type_user(sig, owner):
+    test_data = f'''
+owner: "{owner}"
+pubkeys: []
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+    assert manifest.fields['object'] == 'user'
