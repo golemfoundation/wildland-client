@@ -86,6 +86,7 @@ class Container:
         '''
 
         manifest = Manifest.from_fields(dict(
+            object=type(self).__name__.lower(),
             owner=self.owner,
             paths=[str(p) for p in self.paths],
             backends={'storage': self.backends},

@@ -106,6 +106,7 @@ class Storage:
     def _get_manifest_fields(self) -> Dict[str, Any]:
         fields: Dict[str, Any] = {
             **self.params,
+            'object': type(self).__name__.lower(),
             'owner': self.owner,
             'type': self.storage_type,
             'container-path': str(self.container_path),

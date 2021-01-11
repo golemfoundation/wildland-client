@@ -87,6 +87,7 @@ class User:
         '''
 
         manifest = Manifest.from_fields({
+            'object': type(self).__name__.lower(),
             'owner': self.owner,
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,

@@ -460,18 +460,21 @@ def test_traverse_other_key(cli, base_dir, client, signer):
 signature: |
   dummy.{signer}
 ---
+object: user
 owner: '0xfff'
 paths:
 - /users/User2
 pubkeys:
 - key.0xbbb
 infrastructures:
- - owner: '0xfff'
+ - object: container
+   owner: '0xfff'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:
     storage:
-     - type: local
+     - object: storage
+       type: local
        location: {storage_path}
        owner: '0xfff'
        container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -489,6 +492,7 @@ infrastructures:
 signature: |
   dummy.0xddd
 ---
+object: 'bridge'
 owner: '0xddd'
 user: file://localhost{remote_user_file}
 pubkey: 'key.0xfff'

@@ -84,16 +84,32 @@ class Manifest:
           - in local storages, path --> location
         """
         if not isinstance(fields, dict):
-            raise ManifestError('owner field not found')
+            raise TypeError(f'expected dict, got {type(fields)} instance')
+
         if 'owner' not in fields:
             if 'signer' in fields:
                 fields['owner'] = fields['signer']
                 del fields['signer']
             else:
                 raise ManifestError('owner field not found')
+
         if 'inner-container' in fields:
             fields['reference-container'] = fields['inner-container']
             del fields['inner-container']
+
+        if 'object' not in fields:
+            if 'user' in fields:
+                fields['object'] = 'bridge'
+            elif 'backends' in fields:
+                fields['object'] = 'container'
+            elif 'type' in fields:
+                fields['object'] = 'storage'
+            elif 'pubkeys' in fields:
+                fields['object'] = 'user'
+            else:
+                raise ManifestError(
+                    "no 'object' field and could not guess manifest type")
+
         # Nested manifests too
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
@@ -107,6 +123,7 @@ class Manifest:
                 'path' in fields:
             fields['location'] = fields['path']
             del fields['path']
+
         return fields
 
     @classmethod
@@ -119,7 +136,7 @@ class Manifest:
 
         fields = cls.update_obsolete(fields)
         data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
-        return Manifest(None, fields, data)
+        return cls(None, fields, data)
 
     @classmethod
     def from_unsigned_bytes(cls, data: bytes) -> 'Manifest':
