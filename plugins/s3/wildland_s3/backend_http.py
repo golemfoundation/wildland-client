@@ -21,6 +21,7 @@
 Indexed HTTP storage backend
 '''
 
+from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote
@@ -28,7 +29,6 @@ import logging
 from io import BytesIO
 
 import click
-from datetime import datetime
 from lxml import etree
 import requests
 
@@ -181,7 +181,8 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         attr = self._get_single_file_attr(url)
         return PagedHttpFile(url, attr)
 
-    def _get_single_file_attr(self, url: str) -> Attr:
+    @staticmethod
+    def _get_single_file_attr(url: str) -> Attr:
         resp = requests.request(
             method='HEAD',
             url=url,
