@@ -28,6 +28,7 @@ import logging
 from io import BytesIO
 
 import click
+from datetime import datetime
 from lxml import etree
 import requests
 
@@ -166,8 +167,21 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
             yield rel_path.name, attr
 
+    def getattr(self, path: PurePosixPath) -> Attr:
+        try:
+            attr = super().getattr(path)
+        except FileNotFoundError:
+            url = self.make_url(path)
+            attr = self._get_single_file_attr(url)
+
+        return attr
+
     def open(self, path: PurePosixPath, flags: int) -> PagedHttpFile:
         url = self.make_url(path)
+        attr = self._get_single_file_attr(url)
+        return PagedHttpFile(url, attr)
+
+    def _get_single_file_attr(self, url: str) -> Attr:
         resp = requests.request(
             method='HEAD',
             url=url,
@@ -178,5 +192,8 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         resp.raise_for_status()
 
         size = int(resp.headers['Content-Length'])
-        attr = Attr.file(size, 0)
-        return PagedHttpFile(url, attr)
+        timestamp = datetime.strptime(
+            resp.headers['Last-Modified'], "%a, %d %b %Y %X %Z"
+        ).strftime("%s")
+
+        return Attr.file(size, timestamp)
