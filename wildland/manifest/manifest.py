@@ -193,13 +193,13 @@ class Manifest:
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
-        fields = cls._parse_yaml(rest_data)
-
         try:
             header_signer = header.verify_rest(rest_data, sig_context, trusted_owner)
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e)) from e
+
+        fields = cls._parse_yaml(rest_data)
 
         if header.signature is None:
             if fields.get('owner') != trusted_owner:
