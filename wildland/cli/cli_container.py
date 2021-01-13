@@ -344,8 +344,8 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
               help='Remount existing container, if found')
 @click.option('--save', '-s', is_flag=True,
               help='Save the container to be mounted at startup')
-@click.option('--with-subcontainers', '-w', is_flag=True,
-              help='Mount also subcontainers of those containers')
+@click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
+              help='Do not mount subcontainers of this container.')
 @click.option('--quiet', '-q', is_flag=True,
               help='Do not list what is mounted')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
@@ -396,8 +396,8 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, q
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
     help='mount path to search for')
-@click.option('--with-subcontainers', '-w', is_flag=True,
-              help='Unmount also subcontainers of those containers')
+@click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
+              help='Do not umount subcontainers.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names):

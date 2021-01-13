@@ -244,7 +244,7 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
     })
     control_client.expect('unmount')
     control_client.expect('status', {})
-    cli('container', 'unmount', ':/path:/other/path:')
+    cli('container', 'unmount', ':/path:/other/path:', '--without-subcontainers')
 
 
 def test_read_file_traverse_user(cli, base_dir, client):

@@ -120,8 +120,8 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount [--quiet/-q] [--remount/--no-remount] [--with-subcontainers] <container> [<container>...]`
------------------------------------------------------------------------------------------------------------------------
+:command:`wl container mount [--quiet/-q] [--remount/--no-remount] [--with-subcontainers/--without-subcontainers] <container> [<container>...]`
+-----------------------------------------------------------------------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl start <wl-start>`.
@@ -143,8 +143,12 @@ be mounted first, see :ref:`wl start <wl-start>`.
 
 .. option:: -w, --with-subcontainers
 
-   Mount also subcontainers of those containers. Do this recursively (i.e. if
-   any subcontainer provide own set of subcontainers, mount those too).
+    Mount the subcontainers of those containers. Subcontainers are mounted recursively (i.e. if
+    any subcontainers provide own set of subcontainers, mount those too). This is the default.
+
+.. option:: -W, --without-subcontainers
+
+   Do not mount the subcontainers of those containers.
 
 .. option:: -q, --quiet
 
@@ -202,8 +206,8 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
-:command:`wl container unmount [--path] [--with-subcontainers] <container>`
----------------------------------------------------------------------------
+:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] <container>`
+---------------------------------------------------------------------------------------------------
 
 .. option:: --path <path>
 
@@ -211,8 +215,12 @@ Stop the current mount-watch daemon.
 
 .. option:: -w, --with-subcontainers
 
-   Mount also subcontainers of those containers. Do this recursively (i.e. if
-   any subcontainer provide own set of subcontainers, mount those too).
+    Unmount the subcontainers of those containers. Subcontainers are unmounted recursively (i.e. if
+    any subcontainer provides own set of subcontainers, unmount those too). This is the default.
+
+.. option:: -W, --without-subcontainers
+
+   Do not unmount the subcontainers of those containers.
 
 .. program:: wl-container-publish
 .. _wl-container-publish:

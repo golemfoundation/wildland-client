@@ -636,7 +636,7 @@ def test_container_unmount(cli, base_dir, control_client):
         '/PATH2': [103],
     })
     control_client.expect('unmount')
-    cli('container', 'unmount', 'Container')
+    cli('container', 'unmount', 'Container', '--without-subcontainers')
 
     assert control_client.calls['unmount']['storage_id'] == 101
 
@@ -661,7 +661,7 @@ def test_container_unmount_by_path(cli, control_client):
     })
     control_client.expect('unmount')
     control_client.expect('status', {})
-    cli('container', 'unmount', '--path', '/PATH2')
+    cli('container', 'unmount', '--path', '/PATH2', '--without-subcontainers')
 
     assert control_client.calls['unmount']['storage_id'] == 102
 
