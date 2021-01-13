@@ -42,6 +42,7 @@ from . import (
 )
 
 from ..log import init_logging
+from ..manifest.manifest import ManifestError
 from ..client import Client
 from .. import __version__ as _version
 
@@ -96,7 +97,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         commands = []
         for container in obj.client.load_containers_from(name):
             storage = obj.client.select_storage(container)
-            is_default_user = container.owner == obj.client.config.get('@default')
+            is_default_user = container.owner == obj.client.config.get("@default")
             commands.append((container, storage, is_default_user, None))
 
         click.echo(f'Mounting {len(to_mount)}')
@@ -118,9 +119,10 @@ def _do_mount_containers(obj: ContextObj, to_mount):
     help='Container to mount (can be repeated)')
 @click.option('--skip-default-containers', '-s', is_flag=True,
     help='skip mounting default-containers from config')
+@click.option('--default-user', help="specify a default user to be used")
 @click.pass_obj
 def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
-          skip_default_containers):
+          skip_default_containers, default_user):
     '''
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -138,6 +140,13 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
             raise CliError('Already mounted')
 
     obj.client.recognize_users()
+    if default_user:
+        try:
+            user = obj.client.load_user_from(default_user)
+        except (FileNotFoundError, ManifestError) as e:
+            raise CliError(f'User {default_user} not found') from e
+    else:
+        user = None
     to_mount = []
     if mount_containers:
         to_mount += mount_containers
@@ -146,7 +155,7 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
         to_mount += obj.client.config.get('default-containers')
 
     if not debug:
-        obj.fs_client.mount(single_thread=single_thread)
+        obj.fs_client.mount(single_thread=single_thread, default_user=user)
         _do_mount_containers(obj, to_mount)
         return
 

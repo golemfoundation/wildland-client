@@ -31,7 +31,7 @@ from ..exc import WildlandError
 from ..client import Client
 
 
-class CliError(WildlandError):
+class CliError(WildlandError, click.ClickException):
     '''
     User error during CLI command execution
     '''
