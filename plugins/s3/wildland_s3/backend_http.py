@@ -123,6 +123,12 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 'Accept': 'text/html',
             }
         )
+
+        # Special handling for 403 Forbidden
+        if resp.status_code == 403:
+            raise PermissionError(f'Could not list requested directory [{path}]')
+
+        # For all other cases throw a joint HTTPError
         resp.raise_for_status()
 
         parser = etree.HTMLParser()
@@ -170,7 +176,9 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def getattr(self, path: PurePosixPath) -> Attr:
         try:
             attr = super().getattr(path)
-        except FileNotFoundError:
+        except PermissionError:
+            logger.info('Could not list directory for [%s]. '
+                        'Falling back to the file directly.', str(path))
             url = self.make_url(path)
             attr = self._get_single_file_attr(url)
 

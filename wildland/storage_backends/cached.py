@@ -182,7 +182,9 @@ class DirectoryCachedStorageMixin:
             for name, attr in self.info_dir(path):
                 names.append(name)
                 self.getattr_cache[path / name] = attr
-        except IOError as e:
+        except PermissionError as e:
+            raise e
+        except OSError as e:
             # Don't store anything in readdir_cache, we will assume that the
             # directory does not exist.
             logger.exception(e)
