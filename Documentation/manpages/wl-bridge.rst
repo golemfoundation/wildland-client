@@ -66,3 +66,11 @@ to be provided.
 
 See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
 and :ref:`wl edit <wl-edit>` documentation.
+
+.. program:: wl-bridge-list
+.. _wl-bridge-list:
+
+:command:`wl bridge list`
+-------------------------
+
+List all known bridges.

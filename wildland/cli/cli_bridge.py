@@ -26,6 +26,7 @@ from typing import List, Optional
 
 import click
 
+from ..manifest.manifest import ManifestError
 from ..bridge import Bridge
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
@@ -95,6 +96,30 @@ def create(obj: ContextObj,
     path = obj.client.save_new_bridge(
         bridge, name, Path(file_path) if file_path else None)
     click.echo(f'Created: {path}')
+
+
+@bridge_.command('list', short_help='list bridges', alias=['ls'])
+@click.pass_obj
+def list_(obj: ContextObj):
+    '''
+    Display known bridges.
+    '''
+
+    obj.client.recognize_users()
+    for bridge in obj.client.load_bridges():
+        click.echo(bridge.local_path)
+
+        try:
+            user = obj.client.load_user_by_name(bridge.owner)
+            if user.paths:
+                user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
+            else:
+                user_desc = ''
+        except ManifestError:
+            user_desc = ''
+        click.echo(f'  owner: {bridge.owner}' + user_desc)
+        click.echo('  paths: ' + ', '.join([str(p) for p in bridge.paths]))
+        click.echo()
 
 
 bridge_.add_command(sign)
