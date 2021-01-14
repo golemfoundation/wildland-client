@@ -81,6 +81,8 @@ class WildlandFS(fuse.Fuse):
         self.parser.add_option(mountopt='single_thread', action='store_true',
             help='run single-threaded')
 
+        self.parser.add_option(mountopt='default_user', help='override default_user')
+
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_extra: Dict[int, Dict] = {}
@@ -109,6 +111,7 @@ class WildlandFS(fuse.Fuse):
         self.resolver = WildlandFSConflictResolver(self)
         self.control_server = ControlServer()
         self.control_server.register_commands(self)
+        self.default_user = None
 
         command_schemas = Schema.load_dict('commands.json', 'args')
         self.control_server.register_validators({
@@ -129,6 +132,7 @@ class WildlandFS(fuse.Fuse):
         self.init_logging(self.cmdline[0])
 
         self.multithreaded = not self.cmdline[0].single_thread
+        self.default_user = self.cmdline[0].default_user
 
         if not self.cmdline[0].breakpoint:
             self.control_breakpoint = None
@@ -283,6 +287,16 @@ class WildlandFS(fuse.Fuse):
                     "type": self.storages[ident].TYPE,
                     "extra": self.storage_extra[ident],
                 }
+        return result
+
+    @control_command('status')
+    def control_status(self, _handler):
+        """
+        Status of the control client, returns a dict with parameters; currently only
+        supports default (default_user)
+        """
+        result = dict()
+        result['default-user'] = self.default_user
         return result
 
     @control_command('add-watch')

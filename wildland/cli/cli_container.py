@@ -108,7 +108,7 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_from(user or '@default-owner')
+    user = obj.client.load_user_by_name(user or '@default-owner')
 
     if default_storage_set and not storage_set:
         set_name = obj.client.config.get('default-storage-set-for-user')\
@@ -222,7 +222,7 @@ def list_(obj: ContextObj):
     for container in obj.client.load_containers():
         click.echo(container.local_path)
         try:
-            user = obj.client.load_user_from(container.owner)
+            user = obj.client.load_user_by_name(container.owner)
             if user.paths:
                 user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
             else:
@@ -363,7 +363,7 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, q
     params: List[Tuple[Container, Storage, bool]] = []
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
-            is_default_user = container.owner == obj.client.config.get('@default')
+            is_default_user = container.owner == obj.client.config.get("@default")
 
             params.extend(_mount(obj, container, container.local_path,
                                  is_default_user, remount, with_subcontainers, None, quiet))
@@ -529,7 +529,7 @@ class Remounter:
 
             # Call should_remount to determine if we should mount this
             # container.
-            is_default_user = container.owner == self.client.config.get('@default')
+            is_default_user = container.owner == self.client.config.get("@default")
             storage = self.client.select_storage(container)
             if self.fs_client.should_remount(container, storage, is_default_user):
                 logger.info('  (mount)')

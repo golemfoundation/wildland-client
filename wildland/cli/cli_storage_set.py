@@ -125,7 +125,7 @@ def set_default_(obj: ContextObj, user, name):
 
     obj.client.recognize_users()
     try:
-        user = obj.client.load_user_from(user)
+        user = obj.client.load_user_by_name(user)
     except ManifestError as ex:
         raise CliError(f'User {user} load failed: {ex}') from ex
 

@@ -35,18 +35,19 @@ to be provided.
    Create under a given path. By default, the manifest will be saved to the
    standard directory (``$HOME/.local/wildland/bridges/``).
 
-.. option:: --user USER
+.. option:: --owner USER
 
    User for signing.
 
 .. option:: --ref-user USER
 
-   User to refer to.
+   User which to whom the bridge is pointing. This must be an existing user in your wildland directory together wtith its pubkey.
+   This field is optional but recommended to use instead of relying solely on --ref-user-location.
 
-.. option:: --ref-user-location URL-OR-PATH
+.. option:: --ref-user-location URL
 
-   Path to use for user manifest. This is either an URL, or a relative part
-   (starting with ``./`` or ``../``).
+   URL pointing to the user manifest to whom the bridge is pointing. If ref-user user is skipped, this manifest will be fetched instead
+   and considered trusted.
 
 .. option:: --ref-user-path PATH
 

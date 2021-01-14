@@ -24,16 +24,18 @@ Module for handling signatures. Provides two backends: Signify, and a
 
 import tempfile
 import shutil
-from typing import TypeVar, Dict, Tuple, List
+from typing import Optional, TypeVar, Dict, Tuple, List
 from pathlib import Path
 import os
 import subprocess
 import base64
 import binascii
 import stat
+import logging
 
 from ..exc import WildlandError
 
+logger = logging.getLogger('sig')
 
 class SigError(WildlandError):
     """
@@ -109,10 +111,10 @@ class SigContext:
         """
         raise NotImplementedError()
 
-    def verify(self, signature: str, data: bytes) -> str:
+    def verify(self, signature: str, data: bytes, pubkey: Optional[str] = None) -> str:
         """
         Verify signature for data, returning the recognized owner.
-        If self_signed, ignore that a owner is not recognized.
+        If self_signed, pass pubkey to verify the message integrity.
         """
         raise NotImplementedError()
 
@@ -181,7 +183,7 @@ class DummySigContext(SigContext):
     def sign(self, owner: str, data: bytes, only_use_primary_key: bool = False) -> str:
         return f'dummy.{owner}'
 
-    def verify(self, signature: str, data: bytes) -> str:
+    def verify(self, signature: str, data: bytes, pubkey: Optional[str] = None) -> str:
         if not signature.startswith('dummy.'):
             raise SigError(
                 'Expected dummy.* signature, got {!r}'.format(signature))
@@ -398,13 +400,15 @@ class SignifySigContext(SigContext):
 
         return signature_base64
 
-    def verify(self, signature: str, data: bytes) -> str:
+    def verify(self, signature: str, data: bytes, pubkey: Optional[str] = None) -> str:
         """
-        Verify signature for data, returning the recognized owner.
+        Verify signature for data, along with pubkey returning the recognized owner.
         """
         signature = self._strip_key(signature)
         signer = self._fingerprint(signature)
-        pubkey = self.get_primary_pubkey(signer)
+
+        if not pubkey:
+            pubkey = self.get_primary_pubkey(signer)
 
         with tempfile.TemporaryDirectory(prefix='wlsig.') as d:
             message_file = Path(d) / 'message'

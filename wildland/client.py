@@ -78,6 +78,14 @@ class Client:
         socket_path = Path(self.config.get('socket-path'))
         self.fs_client = WildlandFSClient(mount_dir, socket_path)
 
+        try:
+            fuse_status = self.fs_client.run_control_command('status')
+            default_user = fuse_status.get('default-user', None)
+            if default_user:
+                self.config.override(override_fields={'@default': default_user})
+        except (ConnectionRefusedError, FileNotFoundError):
+            pass
+
         if sig is None:
             if self.config.get('dummy'):
                 sig = DummySigContext()
@@ -136,23 +144,41 @@ class Client:
 
         return self.session.load_user(path.read_bytes(), path)
 
-    def load_user_from(self, name: str) -> User:
+    def load_user_from_url(self, url: str, owner: str, allow_self_signed=False) -> User:
+        '''
+        Load user from an URL
+        '''
+
+        data = self.read_from_url(url, owner)
+
+        if allow_self_signed:
+            Manifest.load_pubkeys(data, self.session.sig)
+
+        return self.session.load_user(data)
+
+    def load_user_by_name(self, name: str) -> User:
         '''
         Load a user based on a (potentially ambiguous) name.
         '''
 
         # Default user
         if name == '@default':
-            default_user = self.config.get('@default')
+            try:
+                fuse_status = self.fs_client.run_control_command('status')
+            except (ConnectionRefusedError, FileNotFoundError):
+                fuse_status = {}
+            default_user = fuse_status.get('default-user', None)
+            if not default_user:
+                default_user = self.config.get('@default')
             if default_user is None:
                 raise WildlandError('user not specified and @default not set')
-            return self.load_user_from(default_user)
+            return self.load_user_by_name(default_user)
 
         if name == '@default-owner':
             default_owner = self.config.get('@default-owner')
             if default_owner is None:
                 raise WildlandError('user not specified and @default-owner not set')
-            return self.load_user_from(default_owner)
+            return self.load_user_by_name(default_owner)
 
         # Short name
         if not name.endswith('.yaml'):
@@ -653,7 +679,7 @@ class Client:
 
         for storage in self.all_storages(container):
             try:
-                with StorageBackend.from_params(storage.params) as backend:
+                with StorageBackend.from_params(storage.params, deduplicate=True) as backend:
                     for subcontainer in backend.list_subcontainers():
                         yield self._postprocess_subcontainer(container, backend, subcontainer)
             except NotImplementedError:
@@ -775,7 +801,7 @@ class Client:
             search.write_file(data)
             return
 
-        owner = self.load_user_from(container.owner)
+        owner = self.load_user_by_name(container.owner)
         containers = owner.containers
         for cont in containers:
             cont = (self.load_container_from_url(cont, container.owner)

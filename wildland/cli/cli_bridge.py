@@ -39,20 +39,21 @@ def bridge_():
 
 
 @bridge_.command(short_help='create bridge')
-@click.option('--user', 'user_name', help='user for signing')
+@click.option('--owner', 'owner', help='User used to sign the bridge')
 @click.option('--ref-user', 'ref_user_name', metavar='USER',
+              help='Username to refer to. Use to verify the integrity of the --ref-user-location')
+@click.option('--ref-user-location', metavar='URL',
               required=True,
-              help='user to refer to')
-@click.option('--ref-user-location', metavar='URL-OR-PATH',
-              required=True,
-              help='path to user manifest (URL or relative path)')
+              help='Path to the user manifest (use file:// for local file). If --ref-user is \
+              skipped, the user from this path is considered trusted and imported into wildland \
+              user store.')
 @click.option('--ref-user-path', 'ref_user_paths', multiple=True,
               help='paths for user in Wildland namespace (omit to take from user manifest)')
 @click.option('--file-path', help='file path to create under')
 @click.argument('name', metavar='BRIDGE_NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj,
-           user_name: str,
+           owner: str,
            ref_user_name: str,
            ref_user_location: str,
            ref_user_paths: List[str],
@@ -63,20 +64,21 @@ def create(obj: ContextObj,
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_from(user_name or '@default-owner')
+
+    owner_user = obj.client.load_user_by_name(owner or '@default-owner')
 
     if name is None and file_path is None:
         raise CliError('Either name or file path needs to be provided')
 
-    # Ensure the path is relative and starts with './' or '../'.
     if not obj.client.is_url(ref_user_location):
-        if ref_user_location.startswith('/'):
-            raise CliError('URL should be relative: {ref_user_location')
-        if not (ref_user_location.startswith('./') or
-                ref_user_location.startswith('../')):
-            ref_user_location = './' + ref_user_location
+        raise CliError('Ref user location must be an URL')
 
-    ref_user = obj.client.load_user_from(ref_user_name)
+    if ref_user_name:
+        ref_user = obj.client.load_user_by_name(ref_user_name)
+    else:
+        ref_user = obj.client.load_user_from_url(ref_user_location, owner_user.owner,
+                                                 allow_self_signed=True)
+
     if ref_user_paths:
         paths = [PurePosixPath(p) for p in ref_user_paths]
     else:
@@ -85,7 +87,7 @@ def create(obj: ContextObj,
         paths = list(ref_user.paths)
 
     bridge = Bridge(
-        owner=user.owner,
+        owner=owner_user.owner,
         user_location=ref_user_location,
         user_pubkey=ref_user.pubkeys[0],
         paths=paths,
