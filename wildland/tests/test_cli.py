@@ -80,7 +80,7 @@ def cleanup():
         f()
 
 
-## Users
+# Users
 
 def test_user_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')

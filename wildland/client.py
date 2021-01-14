@@ -144,7 +144,19 @@ class Client:
 
         return self.session.load_user(path.read_bytes(), path)
 
-    def load_user_from(self, name: str) -> User:
+    def load_user_from_url(self, url: str, owner: str, allow_self_signed=False) -> User:
+        '''
+        Load user from an URL
+        '''
+
+        data = self.read_from_url(url, owner)
+
+        if allow_self_signed:
+            Manifest.load_pubkeys(data, self.session.sig)
+
+        return self.session.load_user(data)
+
+    def load_user_by_name(self, name: str) -> User:
         '''
         Load a user based on a (potentially ambiguous) name.
         '''
@@ -160,13 +172,13 @@ class Client:
                 default_user = self.config.get('@default')
             if default_user is None:
                 raise WildlandError('user not specified and @default not set')
-            return self.load_user_from(default_user)
+            return self.load_user_by_name(default_user)
 
         if name == '@default-owner':
             default_owner = self.config.get('@default-owner')
             if default_owner is None:
                 raise WildlandError('user not specified and @default-owner not set')
-            return self.load_user_from(default_owner)
+            return self.load_user_by_name(default_owner)
 
         # Short name
         if not name.endswith('.yaml'):
@@ -789,7 +801,7 @@ class Client:
             search.write_file(data)
             return
 
-        owner = self.load_user_from(container.owner)
+        owner = self.load_user_by_name(container.owner)
         containers = owner.containers
         for cont in containers:
             cont = (self.load_container_from_url(cont, container.owner)

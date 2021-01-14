@@ -174,7 +174,7 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
     obj.client.recognize_users()
 
     try:
-        user = obj.client.load_user_from(name)
+        user = obj.client.load_user_by_name(name)
     except ManifestError:
         click.echo(f'User not found: {name}')
         return

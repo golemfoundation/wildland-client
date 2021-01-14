@@ -42,7 +42,7 @@ class Session:
 
     def load_user(self,
                   data: bytes,
-                  local_path: Optional[Path] = None,
+                  local_path: Optional[Path] = None
     ) -> User:
         '''
         Load a user manifest, creating a User object.

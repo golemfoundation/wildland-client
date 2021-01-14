@@ -247,20 +247,14 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
     cli('container', 'unmount', ':/path:/other/path:')
 
 
-@pytest.mark.parametrize('location_type', ['local', 'remote'])
-def test_read_file_traverse_user(cli, base_dir, client, location_type):
+def test_read_file_traverse_user(cli, base_dir, client):
     os.mkdir(base_dir / 'storage1/users/')
     shutil.copyfile(base_dir / 'users/User2.user.yaml',
                     base_dir / 'storage1/users/User2.user.yaml')
 
-    if location_type == 'local':
-        location = 'User2.user.yaml'
-    else:
-        location = 'file://localhost' + str(base_dir / 'users/User2.user.yaml')
-
-    cli('bridge', 'create', '--user', 'User',
+    cli('bridge', 'create', '--owner', 'User',
         '--ref-user', 'User2',
-        '--ref-user-location', location,
+        '--ref-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
         'User2')
 
@@ -295,7 +289,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
     cli('user', 'sign', '-i', user_path)
 
     # Create bridge manifest
-    cli('bridge', 'create', '--user', 'User',
+    cli('bridge', 'create', '--owner', 'User',
         '--ref-user', 'User2',
         '--ref-user-location', 'file://localhost' + str(user_path),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
