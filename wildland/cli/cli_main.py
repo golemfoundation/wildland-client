@@ -142,7 +142,7 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
     obj.client.recognize_users()
     if default_user:
         try:
-            user = obj.client.load_user_from(default_user)
+            user = obj.client.load_user_by_name(default_user)
         except (FileNotFoundError, ManifestError) as e:
             raise CliError(f'User {default_user} not found') from e
     else:
