@@ -1072,3 +1072,173 @@ def test_different_default_user(cli, base_dir):
 
     assert 'Bob' in os.listdir(base_dir / 'mnt')
     assert 'Alice' not in os.listdir(base_dir / 'mnt')
+
+
+def _create_user_manifest(owner: str, path: str = '/PATH',
+                          infrastructure_path: str = None) -> bytes:
+    if infrastructure_path:
+        infrastructure = f'''
+- object: container
+  owner: '{owner}'
+  paths:
+  - /manifests
+  backends:
+    storage:
+    - owner: '{owner}'
+      container-path: /manifests
+      type: local
+      location: {infrastructure_path}
+      manifest-pattern:
+        type: glob
+        path: /{{path}}.yaml
+'''
+
+    else:
+        infrastructure = '[]'
+    data = f'''signature: |
+  dummy.{owner}
+---
+object: user
+owner: '{owner}'
+paths:
+- {path}
+infrastructures: {infrastructure}
+pubkeys:
+- key.{owner}
+'''
+    return data.encode()
+
+
+def _create_bridge_manifest(owner: str, location: str, pubkey: str) -> bytes:
+    test_bridge_data = f'''signature: |
+  dummy.{owner}
+---
+object: bridge
+owner: '{owner}'
+user: {location}
+pubkey: key.{pubkey}
+paths:
+- /IMPORT
+'''
+
+    return test_bridge_data.encode()
+
+
+def test_import_user(cli, base_dir, tmpdir):
+    test_data = _create_user_manifest('0xbbb')
+    destination = tmpdir / 'Bob.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+    cli('user', 'import', str(destination))
+
+    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+
+    bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
+    assert 'object: bridge' in bridge_data
+    assert 'owner: \'0xaaa\'' in bridge_data
+    assert f'user: file://{destination}' in bridge_data
+    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'paths:\n- /PATH' in bridge_data
+
+    cli('user', 'import', '--path', '/IMPORT', str(destination))
+
+    assert (base_dir / 'users/Bob.1.user.yaml').read_bytes() == test_data
+
+    bridge_data = (base_dir / 'bridges/Bob.1.bridge.yaml').read_text()
+    assert 'object: bridge' in bridge_data
+    assert 'owner: \'0xaaa\'' in bridge_data
+    assert f'user: file://{destination}' in bridge_data
+    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'paths:\n- /IMPORT' in bridge_data
+
+    cli('user', 'import', '--path', '/IMPORT', 'file://' + str(destination))
+
+    assert (base_dir / 'users/Bob.2.user.yaml').read_bytes() == test_data
+
+
+def test_import_bridge(cli, base_dir, tmpdir):
+    test_user_data = _create_user_manifest('0xbbb')
+    user_destination = tmpdir / 'Bob.user.yaml'
+    user_destination.write(test_user_data)
+
+    test_bridge_data = _create_bridge_manifest('0xbbb', f"file://{str(user_destination)}", '0xbbb')
+
+    bridge_destination = tmpdir / 'BobBridge.bridge.yaml'
+    bridge_destination.write(test_bridge_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+    cli('user', 'import', str(bridge_destination))
+
+    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_user_data
+
+    bridge_data = (base_dir / 'bridges/BobBridge.bridge.yaml').read_text()
+
+    assert 'object: bridge' in bridge_data
+    assert 'owner: \'0xbbb\'' in bridge_data
+    assert f'user: file://{user_destination}' in bridge_data
+    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'paths:\n- /IMPORT' in bridge_data
+
+
+def test_import_user_wl_path(cli, base_dir, tmpdir):
+    test_data = _create_user_manifest('0xbbb')
+
+    storage_dir = tmpdir / 'storage'
+    os.mkdir(storage_dir)
+    destination = storage_dir / 'Bob.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+    cli('container', 'create', '--path', '/STORAGE', 'Cont')
+    cli('storage', 'create', 'local', '--container', 'Cont', '--location', storage_dir)
+
+    cli('user', 'import', 'wildland:0xaaa:/STORAGE:/Bob.user.yaml')
+
+    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+
+    bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
+    assert 'object: bridge' in bridge_data
+    assert 'owner: \'0xaaa\'' in bridge_data
+    assert 'user: wildland:0xaaa:/STORAGE:/Bob.user.yaml' in bridge_data
+    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'paths:\n- /PATH' in bridge_data
+
+
+def test_import_bridge_wl_path(cli, base_dir, tmpdir):
+    bob_dir = tmpdir / 'bob'
+    os.mkdir(bob_dir)
+    bob_manifest_location = bob_dir / 'Bob.user.yaml'
+    bob_user_manifest = _create_user_manifest('0xbbb', '/BOB')
+    bob_manifest_location.write(bob_user_manifest)
+
+    alice_dir = tmpdir / 'alice'
+    os.mkdir(alice_dir)
+    alice_manifest_location = alice_dir / 'Alice.user.yaml'
+
+    bob_bridge_dir = tmpdir / 'manifests'
+    os.mkdir(bob_bridge_dir)
+    bob_bridge_location = bob_bridge_dir / 'IMPORT.yaml'
+    bob_bridge_location.write(_create_bridge_manifest('0xaaa', f'file://{bob_manifest_location}',
+                                                      '0xbbb'))
+
+    alice_manifest_location.write(_create_user_manifest('0xaaa', '/ALICE', str(bob_bridge_dir)))
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xddd')
+
+    cli('bridge', 'create', '--owner', 'DefaultUser',
+        '--ref-user-location', f'file://{alice_manifest_location}', 'Alice')
+
+    modify_file(base_dir / 'config.yaml', "local-owners:\n- '0xddd'",
+                "local-owners:\n- '0xddd'\n- '0xaaa'")
+
+    cli('-vvvvv', 'user', 'import', 'wildland:0xddd:/ALICE:/IMPORT:')
+
+    bridge_data = (base_dir / 'bridges/0xddd__ALICE__IMPORT_.bridge.yaml').read_text()
+    assert 'object: bridge' in bridge_data
+    assert 'owner: \'0xddd\'' in bridge_data
+    assert f'file://{bob_manifest_location}' in bridge_data
+    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'paths:\n- /IMPORT' in bridge_data
+
+    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == bob_user_manifest

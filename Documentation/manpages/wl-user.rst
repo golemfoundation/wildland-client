@@ -92,3 +92,21 @@ locally stored key pairs (``~/.config/wildland/keys/``).
 
 See help for :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>` and
 :ref:`wl edit <wl-edit>`.
+
+.. program:: wl-user-import
+.. _wl-user-import:
+
+:command:`wl user import [--path path] url_or_path`
+---------------------------------------------------
+
+Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
+to manifests and Wildland urls to containers.
+
+For users, will import the user and create an appropriate bridge manifest referencing the user.
+For bridge manifests, will import the bridge manifest and import the referenced user.
+
+For Wildland container path, will import all referenced bridges and their reference users.
+
+.. option:: --path
+
+   Overwrite bridge paths with provided paths. Optional. Can be repeated.

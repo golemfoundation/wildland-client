@@ -708,6 +708,40 @@ class Client:
 
         return '://' in s or s.startswith(WILDLAND_URL_PREFIX)
 
+    def _wl_url_to_search(self, url: str):
+        wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+        if not wlpath.owner:
+            raise WildlandError(
+                'Wildland path in URL context has to have explicit owner')
+        # TODO: Still a circular dependency with search
+        # pylint: disable=import-outside-toplevel
+        from .search import Search
+
+        search = Search(self, wlpath, {})
+
+        return search
+
+    def read_bridge_from_url(self, url: str) -> Iterable[Bridge]:
+        """
+        Return an iterator over all bridges encountered on a given Wildland path.
+        """
+        if not url.startswith(WILDLAND_URL_PREFIX):
+            raise WildlandError('Missing Wildland path prefix')
+        search = self._wl_url_to_search(url)
+        yield from search.read_bridge()
+
+    def is_url_file_path(self, url: str):
+        """
+        Determines if the given URL is an URL to file or to a Wildland bridge.
+        :param url: str
+        """
+        if not self.is_url(url):
+            return False
+        if url.startswith(WILDLAND_URL_PREFIX):
+            search = self._wl_url_to_search(url)
+            return bool(search.wlpath.file_path)
+        return True
+
     def read_from_url(self, url: str, owner: str) -> bytes:
         '''
         Retrieve data from a given URL. The local (file://) URLs
@@ -716,16 +750,7 @@ class Client:
         '''
 
         if url.startswith(WILDLAND_URL_PREFIX):
-            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
-            if not wlpath.owner:
-                raise WildlandError(
-                    'Wildland path in URL context has to have explicit owner')
-
-            # TODO: Still a circular dependency with search
-            # pylint: disable=import-outside-toplevel, cyclic-import
-            from .search import Search
-
-            search = Search(self, wlpath, {})
+            search = self._wl_url_to_search(url)
             return search.read_file()
 
         if url.startswith('file:'):

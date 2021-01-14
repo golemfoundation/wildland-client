@@ -21,17 +21,21 @@
 Manage users
 '''
 
-from pathlib import PurePosixPath
+from typing import Tuple, Iterable
+from pathlib import PurePosixPath, Path
 import binascii
 import click
 
 from ..user import User
 
 from .cli_base import aliased_group, ContextObj, CliError
+from ..client import WILDLAND_URL_PREFIX
+from ..bridge import Bridge
 from .cli_common import sign, verify, edit
+from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
-from ..manifest.manifest import ManifestError
+from ..manifest.manifest import ManifestError, Manifest
 
 
 @aliased_group('user', short_help='user management')
@@ -231,6 +235,137 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
 
     click.echo(f'Deleting: {user.local_path}')
     user.local_path.unlink()
+
+
+def _remove_suffix(s: str, suffix: str) -> str:
+    if suffix and s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
+
+
+def _do_import_manifest(obj, path) -> Tuple[Path, str]:
+    """
+    Takes a manifest as pointed towards by path (can be local file path, url, wildland url),
+    imports its public keys, copies the manifest itself.
+    :param obj: ContextObj
+    :param path: (potentially ambiguous) path to manifest to be imported
+    :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
+        input)
+    """
+    if Path(path).exists():
+        file_data = Path(path).read_bytes()
+        file_name = Path(path).stem
+        file_url = 'file://' + str(Path(path).absolute())
+    else:
+        try:
+            file_data = obj.client.read_from_url(path, obj.client.config.get('@default'))
+            file_name = _remove_suffix(path.split('/')[-1], '.yaml')
+            file_url = path
+        except WildlandError as ex:
+            raise CliError(str(ex)) from ex
+
+    # load user pubkeys
+    Manifest.load_pubkeys(file_data, obj.session.sig)
+
+    # determine type
+    manifest = Manifest.from_bytes(file_data, obj.session.sig)
+    import_type = manifest.fields['object']
+
+    if import_type not in ['user', 'bridge']:
+        raise CliError('Can import only user or bridge manifests')
+
+    # copying the user manifest
+    file_name = _remove_suffix(file_name, '.' + import_type)
+    destination = obj.client.new_path(import_type, file_name)
+
+    destination.write_bytes(file_data)
+    click.echo(f'Created: {str(destination)}')
+
+    return destination, file_url
+
+
+def _do_process_imported_manifest(
+        obj: ContextObj, copied_manifest_path: Path, manifest_url: str, paths: Iterable[str]):
+    """
+    Perform followup actions after importing a manifest: create a Bridge manifest for a user,
+    import a Bridge manifest's target user
+    :param obj: ContextObj
+    :param copied_manifest_path: Path to where the manifest was copied
+    :param manifest_url: url to manifest (local or remote, depending on input)
+    :param paths: list of paths to use in created Bridge manifest
+    """
+    manifest = Manifest.from_file(copied_manifest_path, obj.session.sig)
+
+    if manifest.fields['object'] == 'user':
+        user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
+
+        if not paths:
+            new_paths = user.paths
+        else:
+            new_paths = [PurePosixPath(p) for p in paths]
+
+        default_owner = obj.client.config.get('@default-owner')
+        if not default_owner:
+            raise CliError('Cannot import user when @default-owner is not set.')
+        bridge = Bridge(
+            owner=default_owner,
+            user_location=manifest_url,
+            user_pubkey=user.pubkeys[0],
+            paths=new_paths,
+        )
+
+        name = _remove_suffix(copied_manifest_path.stem, ".user")
+        bridge_path = obj.client.save_new_bridge(bridge, name, None)
+        click.echo(f'Created: {bridge_path}')
+    else:
+        bridge = Bridge.from_manifest(manifest)
+        _do_import_manifest(obj, bridge.user_location)
+
+
+@user_.command('import', short_help='import bridge or user manifest', alias=['im'])
+@click.pass_obj
+@click.option('--path', 'paths', multiple=True,
+              help='path for resulting bridge manifest (can be repeated); if omitted, will'
+                   ' use user\'s paths')
+@click.argument('name', metavar='NAME')
+def import_manifest(obj: ContextObj, name, paths):
+    """
+    Import a provided user or bridge manifest.
+    Accepts a local path, an url or a Wildland path to manifest or to bridge.
+    Optionally override bridge paths with paths provided via --paths.
+    """
+    # TODO: this should be also available as bridge import
+    # TODO: option: specify a different owner for bridge manifests created here
+    # TODO: remove files on failure
+    # TODO: option: import only first bridge
+    # TODO: do not import existing users?
+
+    obj.client.recognize_users()
+
+    if Path(name).exists() or obj.client.is_url_file_path(name):
+        # try to import manifest file
+        copied_manifest_path, manifest_url = _do_import_manifest(obj, name)
+        _do_process_imported_manifest(obj, copied_manifest_path, manifest_url, paths)
+    else:
+        # this didn't work out, perhaps we have an url to a bunch of bridges?
+        try:
+            bridges = list(obj.client.read_bridge_from_url(name))
+            if len(bridges) > 1 and paths:
+                raise CliError('Cannot import multiple bridges with --path override.')
+            for bridge in bridges:
+                new_bridge = Bridge(
+                    owner=obj.client.config.get('@default-owner'),
+                    user_location=bridge.user_location,
+                    user_pubkey=bridge.user_pubkey,
+                    paths=paths or bridge.paths,
+                )
+                bridge_name = name[len(WILDLAND_URL_PREFIX):]
+                bridge_name = bridge_name.replace(':', '_').replace('/', '_')
+                bridge_path = obj.client.save_new_bridge(new_bridge, bridge_name, None)
+                click.echo(f'Created: {bridge_path}')
+                _do_import_manifest(obj, bridge.user_location)
+        except WildlandError as wl_ex:
+            raise CliError(f'Failed to import manifest: {str(wl_ex)}') from wl_ex
 
 
 user_.add_command(sign)
