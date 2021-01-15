@@ -97,7 +97,9 @@ class Search:
             raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
 
         for step in self._resolve_all():
-            yield step.container
+            if step.container:
+                yield step.container
+
 
     def read_file(self) -> bytes:
         '''
@@ -112,6 +114,8 @@ class Search:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
         for step in self._resolve_all():
+            if not step.container:
+                continue
             try:
                 _, storage_backend = self._find_storage(step)
             except ManifestError:
@@ -134,6 +138,8 @@ class Search:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
 
         for step in self._resolve_all():
+            if not step.container:
+                continue
             try:
                 _, storage_backend = self._find_storage(step)
             except ManifestError:
@@ -144,6 +150,8 @@ class Search:
             except FileNotFoundError:
                 continue
 
+        raise PathError(f'Container not found for path: {self.wlpath}')
+
     def _resolve_all(self) -> Iterable[Step]:
         '''
         Resolve all path parts, yield all results that match.
@@ -152,7 +160,6 @@ class Search:
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
                 yield last_step
-        raise PathError(f'Container not found for path: {self.wlpath}')
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
         if i == len(self.wlpath.parts):
@@ -212,6 +219,9 @@ class Search:
         '''
         Resolve next part by looking up a manifest in the current container.
         '''
+
+        if not step.container:
+            return
 
         part = self.wlpath.parts[i]
 

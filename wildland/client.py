@@ -35,7 +35,7 @@ from .user import User
 from .container import Container
 from .storage import Storage
 from .bridge import Bridge
-from .wlpath import WildlandPath
+from .wlpath import WildlandPath, PathError
 from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError, Manifest
 from .session import Session
@@ -252,7 +252,10 @@ class Client:
                 from .search import Search
 
                 search = Search(self, wlpath, {'default': owner})
-                return next(search.read_container())
+                try:
+                    return next(search.read_container())
+                except StopIteration as ex:
+                    raise PathError(f'Container not found for path: {wlpath}') from ex
 
         return self.session.load_container(self.read_from_url(url, owner))
 
@@ -316,7 +319,10 @@ class Client:
         if WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
             # TODO: what to do if there are more containers that match the path?
-            return next(self.load_container_from_wlpath(wlpath))
+            try:
+                return next(self.load_container_from_wlpath(wlpath))
+            except StopIteration as ex:
+                raise PathError(f'Container not found for path: {wlpath}') from ex
 
         path = self.resolve_container_name_to_path(name)
         if path:
