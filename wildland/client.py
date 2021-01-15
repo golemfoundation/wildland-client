@@ -440,7 +440,7 @@ class Client:
         name.
         '''
 
-        path = self._new_path('user', name or user.owner)
+        path = self.new_path('user', name or user.owner)
         path.write_bytes(self.session.dump_user(user))
         user.local_path = path
         return path
@@ -463,7 +463,7 @@ class Client:
         '''
 
         ident = container.ensure_uuid()
-        path = self._new_path('container', name or ident)
+        path = self.new_path('container', name or ident)
         path.write_bytes(self.session.dump_container(container))
         container.local_path = path
         return path
@@ -474,7 +474,7 @@ class Client:
         name.
         '''
 
-        path = self._new_path('storage', name or storage.container_path.name)
+        path = self.new_path('storage', name or storage.container_path.name)
         path.write_bytes(self.session.dump_storage(storage))
         storage.local_path = path
         return path
@@ -487,13 +487,20 @@ class Client:
 
         if not path:
             assert name is not None
-            path = self._new_path('bridge', name)
+            path = self.new_path('bridge', name)
 
         path.write_bytes(self.session.dump_bridge(bridge))
         bridge.local_path = path
         return path
 
-    def _new_path(self, manifest_type, name: str) -> Path:
+    def new_path(self, manifest_type, name: str) -> Path:
+        """
+        Create a path in Wildland base_dir to save a new object of type manifest_type and name
+        name. It follows Wildland conventions.
+        :param manifest_type: 'user', 'container', 'storage', 'bridge' or 'set'
+        :param name: name of the object
+        :return: Path
+        """
         if manifest_type == 'user':
             base_dir = self.user_dir
         elif manifest_type == 'container':
