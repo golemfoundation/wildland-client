@@ -275,7 +275,11 @@ class Manifest:
         header = Header.from_bytes(header_data)
 
         fields = cls._parse_yaml(rest_data)
+        # to be able to import keys from both bridge ('pubkey' field) and user ('pubkeys' field)
+        # we have to handle both fields
         pubkeys = fields.get('pubkeys', [])
+        if not pubkeys:
+            pubkeys = [fields.get('pubkey')]
 
         if len(pubkeys) < 1:
             raise ManifestError('Manifest doest not contain any pubkeys')
