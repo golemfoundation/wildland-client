@@ -189,7 +189,10 @@ class DummySigContext(SigContext):
                 'Expected dummy.* signature, got {!r}'.format(signature))
 
         signer = signature[len('dummy.'):]
-        if not (signer in self.keys or self.use_local_keys):
+        if pubkey:
+            if pubkey != 'key.' + signer:
+                raise SigError('Incorrect signature: {!r}'.format(signer))
+        elif not (signer in self.keys or self.use_local_keys):
             raise SigError('Unknown owner: {!r}'.format(signer))
         return signer
 
