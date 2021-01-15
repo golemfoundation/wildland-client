@@ -77,3 +77,6 @@ class Bridge:
         ))
         manifest.apply_schema(self.SCHEMA)
         return manifest
+
+    def __repr__(self):
+        return f'<Bridge: {self.owner}: {", ".join([str(p) for p in self.paths])}>'
