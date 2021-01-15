@@ -46,8 +46,7 @@ def bridge_():
 @click.option('--ref-user-location', metavar='URL',
               required=True,
               help='Path to the user manifest (use file:// for local file). If --ref-user is \
-              skipped, the user from this path is considered trusted and imported into wildland \
-              user store.')
+              skipped, the user manifest from this path is considered trusted.')
 @click.option('--ref-user-path', 'ref_user_paths', multiple=True,
               help='paths for user in Wildland namespace (omit to take from user manifest)')
 @click.option('--file-path', help='file path to create under')
