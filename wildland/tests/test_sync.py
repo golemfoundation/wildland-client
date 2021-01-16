@@ -52,7 +52,6 @@ def storage_backend(request) -> Callable:
 
 
 second_backend = storage_backend
-third_backend = storage_backend
 
 
 @pytest.fixture
@@ -181,46 +180,6 @@ def test_sync_move_dir(tmpdir, storage_backend, cleanup):
     time.sleep(2)
 
     assert not (storage_dir2 / 'moveddir').exists()
-
-
-def test_sync_three_storages(tmpdir, storage_backend, second_backend, third_backend, cleanup):
-    # TODO: when more backends will be handling sync, change third_backend to same as second,
-    # to avoid N^3 combinations (instead will just have N^2)
-    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
-    backend2, storage_dir2 = make_storage(second_backend, tmpdir / 'storage2')
-    backend3, storage_dir3 = make_storage(third_backend, tmpdir / 'storage3')
-
-    os.mkdir(storage_dir1 / 'subdir1')
-    os.mkdir(storage_dir1 / 'subdir1/subsubdir1')
-    make_file(storage_dir1 / 'subdir1/file1', 'abcd')
-    make_file(storage_dir1 / 'subdir1/subsubdir1/file2', 'efgh')
-
-    make_file(storage_dir2 / 'file3', 'ijkl')
-
-    syncer = Syncer([backend1, backend2, backend3], 'test')
-    cleanup(syncer.stop_syncing)
-    syncer.start_syncing()
-
-    dirs = [storage_dir1, storage_dir2, storage_dir3]
-
-    time.sleep(1)
-
-    for d in dirs:
-        assert (d / 'subdir1').exists()
-        assert (d / 'subdir1/subsubdir1').exists()
-        assert (d / 'subdir1/file1').exists()
-        assert (d / 'subdir1/subsubdir1/file2').exists()
-        assert (d / 'file3').exists()
-        assert read_file(d / 'subdir1/file1') == 'abcd'
-        assert read_file(d / 'subdir1/subsubdir1/file2') == 'efgh'
-        assert read_file(d / 'file3') == 'ijkl'
-
-    make_file(storage_dir3 / 'file4', 'mnop')
-    time.sleep(1)
-
-    for d in dirs:
-        assert (d / 'file4').exists()
-        assert read_file(storage_dir3 / 'file4') == 'mnop'
 
 
 def test_sync_remove_file(tmpdir, storage_backend, cleanup):
@@ -725,30 +684,3 @@ def test_get_conflicts_complex(tmpdir, storage_backend, cleanup, use_hash_db):
         assert (path, b1, b2) in conflicts or (path, b2, b1) in conflicts
 
     assert len(expected_conflicts) == len(conflicts)
-
-
-def test_sync_three_storages_del(tmpdir, storage_backend, second_backend, third_backend, cleanup):
-    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
-    backend2, storage_dir2 = make_storage(second_backend, tmpdir / 'storage2')
-    backend3, storage_dir3 = make_storage(third_backend, tmpdir / 'storage3')
-
-    make_file(storage_dir1 / 'file1', 'abcd')
-
-    syncer = Syncer([backend1, backend2, backend3], 'test')
-    cleanup(syncer.stop_syncing)
-    syncer.start_syncing()
-
-    dirs = [storage_dir1, storage_dir2, storage_dir3]
-
-    time.sleep(2)
-
-    for d in dirs:
-        assert (d / 'file1').exists()
-        assert read_file(d / 'file1') == 'abcd'
-
-    os.unlink(storage_dir2 / 'file1')
-
-    time.sleep(2)
-
-    for d in dirs:
-        assert not (d / 'file1').exists()
