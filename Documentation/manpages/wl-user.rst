@@ -96,8 +96,8 @@ See help for :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>` and
 .. program:: wl-user-import
 .. _wl-user-import:
 
-:command:`wl user import [--path path] url_or_path`
----------------------------------------------------
+:command:`wl user import [--path path] [--bridge-owner user] url_or_path`
+-------------------------------------------------------------------------
 
 Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
 to manifests and Wildland urls to containers.
@@ -110,3 +110,7 @@ For Wildland container path, will import all referenced bridges and their refere
 .. option:: --path
 
    Overwrite bridge paths with provided paths. Optional. Can be repeated.
+
+.. option:: --bridge-owner
+
+    Override the owner of created bridge manifests with provided owner.

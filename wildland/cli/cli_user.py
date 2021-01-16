@@ -285,7 +285,8 @@ def _do_import_manifest(obj, path) -> Tuple[Path, str]:
 
 
 def _do_process_imported_manifest(
-        obj: ContextObj, copied_manifest_path: Path, manifest_url: str, paths: Iterable[str]):
+        obj: ContextObj, copied_manifest_path: Path, manifest_url: str,
+        paths: Iterable[str], default_user: str):
     """
     Perform followup actions after importing a manifest: create a Bridge manifest for a user,
     import a Bridge manifest's target user
@@ -293,6 +294,7 @@ def _do_process_imported_manifest(
     :param copied_manifest_path: Path to where the manifest was copied
     :param manifest_url: url to manifest (local or remote, depending on input)
     :param paths: list of paths to use in created Bridge manifest
+    :param default_user: owner of the manifests to be created
     """
     manifest = Manifest.from_file(copied_manifest_path, obj.session.sig)
 
@@ -304,11 +306,8 @@ def _do_process_imported_manifest(
         else:
             new_paths = [PurePosixPath(p) for p in paths]
 
-        default_owner = obj.client.config.get('@default-owner')
-        if not default_owner:
-            raise CliError('Cannot import user when @default-owner is not set.')
         bridge = Bridge(
-            owner=default_owner,
+            owner=default_user,
             user_location=manifest_url,
             user_pubkey=user.pubkeys[0],
             paths=new_paths,
@@ -322,17 +321,28 @@ def _do_process_imported_manifest(
         _do_import_manifest(obj, bridge.user_location)
 
 
-def import_manifest(obj: ContextObj, name, paths):
+def import_manifest(obj: ContextObj, name, paths, bridge_owner):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
     Optionally override bridge paths with paths provided via --paths.
     Separate function so that it can be used by both wl bridge and wl user
     """
+    if bridge_owner:
+        try:
+            default_user = obj.client.load_user_by_name(bridge_owner).owner
+        except WildlandError as ex:
+            raise CliError(f'Cannot load bridge-owner {bridge_owner}') from ex
+    else:
+        default_user = obj.client.config.get('@default-owner')
+
+    if not default_user:
+        raise CliError('Cannot import user or bridge without a --bridge-owner or a default user.')
+
     if Path(name).exists() or obj.client.is_url_file_path(name):
         # try to import manifest file
         copied_manifest_path, manifest_url = _do_import_manifest(obj, name)
-        _do_process_imported_manifest(obj, copied_manifest_path, manifest_url, paths)
+        _do_process_imported_manifest(obj, copied_manifest_path, manifest_url, paths, default_user)
     else:
         # this didn't work out, perhaps we have an url to a bunch of bridges?
         try:
@@ -341,7 +351,7 @@ def import_manifest(obj: ContextObj, name, paths):
                 raise CliError('Cannot import multiple bridges with --path override.')
             for bridge in bridges:
                 new_bridge = Bridge(
-                    owner=obj.client.config.get('@default-owner'),
+                    owner=default_user,
                     user_location=bridge.user_location,
                     user_pubkey=bridge.user_pubkey,
                     paths=paths or bridge.paths,
@@ -360,22 +370,23 @@ def import_manifest(obj: ContextObj, name, paths):
 @click.option('--path', 'paths', multiple=True,
               help='path for resulting bridge manifest (can be repeated); if omitted, will'
                    ' use user\'s paths')
+@click.option('--bridge-owner', help="specify a different (then default) user to be used as the "
+                                     "owner of created bridge manifests")
 @click.argument('name', metavar='NAME')
-def user_import(obj: ContextObj, name, paths):
+def user_import(obj: ContextObj, name, paths, bridge_owner):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
     Optionally override bridge paths with paths provided via --paths.
+    Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
-    # TODO: option: specify a different owner for bridge manifests created here
     # TODO: remove files on failure
     # TODO: option: import only first bridge
     # TODO: do not import existing users?
-    # TODO: tests for --path opt
 
     obj.client.recognize_users()
 
-    import_manifest(obj, name, paths)
+    import_manifest(obj, name, paths, bridge_owner)
 
 
 user_.add_command(sign)

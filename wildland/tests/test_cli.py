@@ -1242,3 +1242,22 @@ def test_import_bridge_wl_path(cli, base_dir, tmpdir):
     assert 'paths:\n- /IMPORT' in bridge_data
 
     assert (base_dir / 'users/Bob.user.yaml').read_bytes() == bob_user_manifest
+
+
+def test_import_user_bridge_owner(cli, base_dir, tmpdir):
+    test_data = _create_user_manifest('0xbbb')
+    destination = tmpdir / 'Bob.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+    cli('user', 'create', 'Carol', '--key', '0xccc')
+    cli('user', 'import', '--bridge-owner', 'Carol', str(destination))
+
+    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+
+    bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
+    assert 'object: bridge' in bridge_data
+    assert 'owner: \'0xccc\'' in bridge_data
+    assert f'user: file://{destination}' in bridge_data
+    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'paths:\n- /PATH' in bridge_data

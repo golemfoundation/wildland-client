@@ -127,16 +127,19 @@ def list_(obj: ContextObj):
 @click.option('--path', 'paths', multiple=True,
               help='path for resulting bridge manifest (can be repeated); if omitted, will'
                    ' use user\'s paths')
+@click.option('--bridge-owner', help="specify a different (then default) user to be used as the "
+                                     "owner of created bridge manifests")
 @click.argument('name', metavar='NAME')
-def bridge_import(obj: ContextObj, name, paths):
+def bridge_import(obj: ContextObj, name, paths, bridge_owner):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
     Optionally override bridge paths with paths provided via --paths.
+    Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
     obj.client.recognize_users()
 
-    import_manifest(obj, name, paths)
+    import_manifest(obj, name, paths, bridge_owner)
 
 
 bridge_.add_command(sign)
