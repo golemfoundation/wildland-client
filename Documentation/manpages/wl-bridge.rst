@@ -78,8 +78,8 @@ List all known bridges.
 .. program:: wl-bridge-import
 .. _wl-bridge-import:
 
-:command:`wl bridge import [--path path] [--bridge-owner user] url_or_path`
----------------------------------------------------------------------------
+:command:`wl bridge import [--path path] [--bridge-owner user] [--only-first] url_or_path`
+------------------------------------------------------------------------------------------
 
 Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
 to manifests and Wildland urls to containers.
@@ -96,3 +96,8 @@ For Wildland container path, will import all referenced bridges and their refere
 .. option:: --bridge-owner
 
     Override the owner of created bridge manifests with provided owner.
+
+.. option:: --only-first
+
+    Import only the first encountered bridge manifest. Ignored except for WL container paths.
+    Particularly useful if --path is used.

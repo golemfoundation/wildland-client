@@ -328,7 +328,7 @@ def _do_process_imported_manifest(
         _do_import_manifest(obj, bridge.user_location)
 
 
-def import_manifest(obj: ContextObj, name, paths, bridge_owner):
+def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
@@ -356,6 +356,10 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner):
         # this didn't work out, perhaps we have an url to a bunch of bridges?
         try:
             bridges = list(obj.client.read_bridge_from_url(name))
+            if not bridges:
+                raise CliError('No bridges found.')
+            if only_first:
+                bridges = [bridges[0]]
             if len(bridges) > 1 and paths:
                 raise CliError('Cannot import multiple bridges with --path override.')
             for bridge in bridges:
@@ -381,20 +385,23 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner):
                    ' use user\'s paths')
 @click.option('--bridge-owner', help="specify a different (then default) user to be used as the "
                                      "owner of created bridge manifests")
+@click.option('--only-first', is_flag=True, default=False,
+              help="import only first encountered bridge "
+                   "(ignored in all cases except WL container paths)")
 @click.argument('name', metavar='NAME')
-def user_import(obj: ContextObj, name, paths, bridge_owner):
+def user_import(obj: ContextObj, name, paths, bridge_owner, only_first):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
     Optionally override bridge paths with paths provided via --paths.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
-    # TODO: remove files on failure
-    # TODO: option: import only first bridge
+    # TODO: remove imported keys and manifests on failure: requires some thought about how to
+    # collect information on (potentially) multiple objects created
 
     obj.client.recognize_users()
 
-    import_manifest(obj, name, paths, bridge_owner)
+    import_manifest(obj, name, paths, bridge_owner, only_first)
 
 
 user_.add_command(sign)
