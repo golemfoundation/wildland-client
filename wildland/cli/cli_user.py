@@ -21,7 +21,7 @@
 Manage users
 '''
 
-from typing import Tuple, Iterable
+from typing import Tuple, Iterable, Optional
 from pathlib import PurePosixPath, Path
 import binascii
 import click
@@ -243,7 +243,7 @@ def _remove_suffix(s: str, suffix: str) -> str:
     return s
 
 
-def _do_import_manifest(obj, path) -> Tuple[Path, str]:
+def _do_import_manifest(obj, path) -> Tuple[Optional[Path], Optional[str]]:
     """
     Takes a manifest as pointed towards by path (can be local file path, url, wildland url),
     imports its public keys, copies the manifest itself.
@@ -273,6 +273,13 @@ def _do_import_manifest(obj, path) -> Tuple[Path, str]:
 
     if import_type not in ['user', 'bridge']:
         raise CliError('Can import only user or bridge manifests')
+
+    # do not import existing users
+    if import_type == 'user':
+        imported_user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
+        for user in obj.client.load_users():
+            if user.owner == imported_user.owner:
+                return None, None
 
     # copying the user manifest
     file_name = _remove_suffix(file_name, '.' + import_type)
@@ -342,6 +349,8 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner):
     if Path(name).exists() or obj.client.is_url_file_path(name):
         # try to import manifest file
         copied_manifest_path, manifest_url = _do_import_manifest(obj, name)
+        if not copied_manifest_path or not manifest_url:
+            return
         _do_process_imported_manifest(obj, copied_manifest_path, manifest_url, paths, default_user)
     else:
         # this didn't work out, perhaps we have an url to a bunch of bridges?
@@ -382,7 +391,6 @@ def user_import(obj: ContextObj, name, paths, bridge_owner):
     """
     # TODO: remove files on failure
     # TODO: option: import only first bridge
-    # TODO: do not import existing users?
 
     obj.client.recognize_users()
 

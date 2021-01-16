@@ -1141,20 +1141,22 @@ def test_import_user(cli, base_dir, tmpdir):
     assert 'pubkey: key.0xbbb' in bridge_data
     assert 'paths:\n- /PATH' in bridge_data
 
+    destination.write(_create_user_manifest('0xccc'))
     cli('user', 'import', '--path', '/IMPORT', str(destination))
 
-    assert (base_dir / 'users/Bob.1.user.yaml').read_bytes() == test_data
+    assert (base_dir / 'users/Bob.1.user.yaml').read_bytes() == _create_user_manifest('0xccc')
 
     bridge_data = (base_dir / 'bridges/Bob.1.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xaaa\'' in bridge_data
     assert f'user: file://{destination}' in bridge_data
-    assert 'pubkey: key.0xbbb' in bridge_data
+    assert 'pubkey: key.0xccc' in bridge_data
     assert 'paths:\n- /IMPORT' in bridge_data
 
+    destination.write(_create_user_manifest('0xeee'))
     cli('user', 'import', '--path', '/IMPORT', 'file://' + str(destination))
 
-    assert (base_dir / 'users/Bob.2.user.yaml').read_bytes() == test_data
+    assert (base_dir / 'users/Bob.2.user.yaml').read_bytes() == _create_user_manifest('0xeee')
 
 
 def test_import_bridge(cli, base_dir, tmpdir):
@@ -1261,3 +1263,17 @@ def test_import_user_bridge_owner(cli, base_dir, tmpdir):
     assert f'user: file://{destination}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert 'paths:\n- /PATH' in bridge_data
+
+
+def test_import_user_existing(cli, base_dir, tmpdir):
+    test_data = _create_user_manifest('0xbbb')
+    destination = tmpdir / 'Bob.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('user', 'import', str(destination))
+
+    # nothing should be imported if the user already exists locally
+    assert not (base_dir / 'bridges').exists()
+    assert len(os.listdir(base_dir / 'users')) == 2
