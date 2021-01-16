@@ -30,6 +30,7 @@ from ..manifest.manifest import ManifestError
 from ..bridge import Bridge
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
+from .cli_user import import_manifest
 
 
 @aliased_group('bridge', short_help='bridge management')
@@ -119,6 +120,23 @@ def list_(obj: ContextObj):
         click.echo(f'  owner: {bridge.owner}' + user_desc)
         click.echo('  paths: ' + ', '.join([str(p) for p in bridge.paths]))
         click.echo()
+
+
+@bridge_.command('import', short_help='import bridge or user manifest', alias=['im'])
+@click.pass_obj
+@click.option('--path', 'paths', multiple=True,
+              help='path for resulting bridge manifest (can be repeated); if omitted, will'
+                   ' use user\'s paths')
+@click.argument('name', metavar='NAME')
+def bridge_import(obj: ContextObj, name, paths):
+    """
+    Import a provided user or bridge manifest.
+    Accepts a local path, an url or a Wildland path to manifest or to bridge.
+    Optionally override bridge paths with paths provided via --paths.
+    """
+    obj.client.recognize_users()
+
+    import_manifest(obj, name, paths)
 
 
 bridge_.add_command(sign)

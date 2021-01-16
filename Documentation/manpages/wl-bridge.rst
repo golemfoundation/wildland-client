@@ -74,3 +74,22 @@ and :ref:`wl edit <wl-edit>` documentation.
 -------------------------
 
 List all known bridges.
+
+.. program:: wl-bridge-import
+.. _wl-bridge-import:
+
+:command:`wl bridge import [--path path] url_or_path`
+-----------------------------------------------------
+
+Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
+to manifests and Wildland urls to containers.
+
+For users, will import the user and create an appropriate bridge manifest referencing the user.
+For bridge manifests, will import the bridge manifest and import the referenced user.
+
+For Wildland container path, will import all referenced bridges and their reference users.
+
+.. option:: --path
+
+   Overwrite bridge paths with provided paths. Optional. Can be repeated.
+

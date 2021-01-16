@@ -322,26 +322,13 @@ def _do_process_imported_manifest(
         _do_import_manifest(obj, bridge.user_location)
 
 
-@user_.command('import', short_help='import bridge or user manifest', alias=['im'])
-@click.pass_obj
-@click.option('--path', 'paths', multiple=True,
-              help='path for resulting bridge manifest (can be repeated); if omitted, will'
-                   ' use user\'s paths')
-@click.argument('name', metavar='NAME')
 def import_manifest(obj: ContextObj, name, paths):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
     Optionally override bridge paths with paths provided via --paths.
+    Separate function so that it can be used by both wl bridge and wl user
     """
-    # TODO: this should be also available as bridge import
-    # TODO: option: specify a different owner for bridge manifests created here
-    # TODO: remove files on failure
-    # TODO: option: import only first bridge
-    # TODO: do not import existing users?
-
-    obj.client.recognize_users()
-
     if Path(name).exists() or obj.client.is_url_file_path(name):
         # try to import manifest file
         copied_manifest_path, manifest_url = _do_import_manifest(obj, name)
@@ -366,6 +353,29 @@ def import_manifest(obj: ContextObj, name, paths):
                 _do_import_manifest(obj, bridge.user_location)
         except WildlandError as wl_ex:
             raise CliError(f'Failed to import manifest: {str(wl_ex)}') from wl_ex
+
+
+@user_.command('import', short_help='import bridge or user manifest', alias=['im'])
+@click.pass_obj
+@click.option('--path', 'paths', multiple=True,
+              help='path for resulting bridge manifest (can be repeated); if omitted, will'
+                   ' use user\'s paths')
+@click.argument('name', metavar='NAME')
+def user_import(obj: ContextObj, name, paths):
+    """
+    Import a provided user or bridge manifest.
+    Accepts a local path, an url or a Wildland path to manifest or to bridge.
+    Optionally override bridge paths with paths provided via --paths.
+    """
+    # TODO: option: specify a different owner for bridge manifests created here
+    # TODO: remove files on failure
+    # TODO: option: import only first bridge
+    # TODO: do not import existing users?
+    # TODO: tests for --path opt
+
+    obj.client.recognize_users()
+
+    import_manifest(obj, name, paths)
 
 
 user_.add_command(sign)
