@@ -179,11 +179,30 @@ def list_(obj: ContextObj):
     '''
 
     obj.client.recognize_users()
+
     for storage in obj.client.load_storages():
         click.echo(storage.local_path)
         click.echo(f'  type: {storage.storage_type}')
+        if 'backend_id' in storage.params:
+            click.echo(f'  backend_id: {storage.params["backend_id"]}')
         if storage.storage_type in ['local', 'local-cached', 'local-dir-cached']:
             click.echo(f'  location: {storage.params["location"]}')
+
+    for container in obj.client.load_containers():
+        storages = []
+        for storage in container.backends:
+            if not isinstance(storage, str):
+                storages.append(storage)
+        if not storages:
+            continue
+
+        click.echo(f'{container.local_path} (inline)')
+        for storage in storages:
+            click.echo(f'  - type: {storage["type"]}')
+            if 'backend_id' in storage:
+                click.echo(f'    backend_id: {storage["backend_id"]}')
+            if storage['type'] in ['local', 'local-cached', 'local-dir-cached']:
+                click.echo(f'    location: {storage["location"]}')
 
 
 @storage_.command('delete', short_help='delete a storage', alias=['rm'])
