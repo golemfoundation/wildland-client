@@ -108,7 +108,7 @@ class Search:
         Yield all bridges matching the given WL path.
         '''
         if self.wlpath.file_path is not None:
-            raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
+            raise PathError(f'Expecting an object path, not a file path: {self.wlpath}')
 
         for step in self._resolve_all():
             if step.bridge:

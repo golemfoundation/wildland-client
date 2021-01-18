@@ -82,16 +82,17 @@ List all known bridges.
 ------------------------------------------------------------------------------------------
 
 Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
-to manifests and Wildland urls to containers.
+to manifests and Wildland urls to Wildland objects.
 
 For users, will import the user and create an appropriate bridge manifest referencing the user.
 For bridge manifests, will import the bridge manifest and import the referenced user.
 
-For Wildland container path, will import all referenced bridges and their reference users.
+For Wildland object path, will import all referenced bridges and their reference users.
 
 .. option:: --path
 
-   Overwrite bridge paths with provided paths. Optional. Can be repeated.
+   Overwrite bridge paths with provided paths. Optional. Can be repeated. Works only if a single
+   bridge is to imported (to avoid duplicate paths.
 
 .. option:: --bridge-owner
 

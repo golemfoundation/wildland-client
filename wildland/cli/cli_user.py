@@ -255,7 +255,7 @@ def _do_import_manifest(obj, path) -> Tuple[Optional[Path], Optional[str]]:
     if Path(path).exists():
         file_data = Path(path).read_bytes()
         file_name = Path(path).stem
-        file_url = 'file://' + str(Path(path).absolute())
+        file_url = obj.client.local_url(Path(path).absolute())
     else:
         try:
             file_data = obj.client.read_from_url(path, obj.client.config.get('@default'))
@@ -388,8 +388,8 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
 @click.option('--only-first', is_flag=True, default=False,
               help="import only first encountered bridge "
                    "(ignored in all cases except WL container paths)")
-@click.argument('name', metavar='NAME')
-def user_import(obj: ContextObj, name, paths, bridge_owner, only_first):
+@click.argument('path-or-url')
+def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
@@ -401,7 +401,7 @@ def user_import(obj: ContextObj, name, paths, bridge_owner, only_first):
 
     obj.client.recognize_users()
 
-    import_manifest(obj, name, paths, bridge_owner, only_first)
+    import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
 
 
 user_.add_command(sign)
