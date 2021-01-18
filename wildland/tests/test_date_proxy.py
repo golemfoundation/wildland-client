@@ -85,9 +85,9 @@ def storage(data_dir):
         'storage': {
             'type': 'local',
             'location': str(data_dir),
-            'backend_id': 'test'
+            'backend-id': 'test'
         },
-        'backend_id': 'test2'
+        'backend-id': 'test2'
     }
 
 
@@ -163,7 +163,7 @@ def container(cli, base_dir, data_dir):
                     'type': 'date-proxy',
                     'owner': '0xaaa',
                     'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
-                    'backend_id': str(uuid.uuid4()),
+                    'backend-id': str(uuid.uuid4()),
                     'reference-container': {
                         'object': 'container',
                         'owner': '0xaaa',
@@ -175,7 +175,7 @@ def container(cli, base_dir, data_dir):
                                 'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
                                 'type': 'local',
                                 'location': str(data_dir),
-                                'backend_id': str(uuid.uuid4())
+                                'backend-id': str(uuid.uuid4())
                             }]
                         }
                     }
@@ -213,7 +213,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
         'owner': container.owner,
         'container-path': str(subcontainers[0].paths[0]),
         'reference-container': f'wildland:@default:{container.paths[0]}:',
-        'backend_id': str(subcontainers[0].paths[0])[7:]
+        'backend-id': str(subcontainers[0].paths[0])[7:]
     }
     assert subcontainers[1].paths[1:] == [PurePosixPath('/timeline/2010/05/07')]
     assert subcontainers[1].backends[0]['subdirectory'] == '/2010/05/07'

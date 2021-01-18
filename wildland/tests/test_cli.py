@@ -218,7 +218,7 @@ def test_storage_create(cli, base_dir):
 
     assert "owner: '0xaaa'" in data
     assert "location: /PATH" in data
-    assert "backend_id:" in data
+    assert "backend-id:" in data
 
 
 def test_storage_create_not_inline(cli, base_dir):

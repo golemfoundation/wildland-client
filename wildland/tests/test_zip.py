@@ -45,7 +45,7 @@ def storage(base_dir):
     return {
         'type': 'zip-archive',
         'location': str(base_dir / 'archive.zip'),
-        'backend_id': str(uuid.uuid4()),
+        'backend-id': str(uuid.uuid4()),
     }
 
 

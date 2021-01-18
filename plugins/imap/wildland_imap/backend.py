@@ -39,7 +39,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         '''
         self.client.connect()
 
-    def umount(self):
+    def unmount(self):
         '''
         unmounts the filesystem
         '''

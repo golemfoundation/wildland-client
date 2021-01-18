@@ -56,13 +56,13 @@ class Storage:
         self.trusted = trusted
         self.local_path = local_path
         self.manifest_pattern = manifest_pattern
-        if 'backend_id' not in params:
+        if 'backend-id' not in params:
             hasher = hashlib.md5()
             # skip 'storage' object if present, it is derived from reference-container
             params_for_hash = dict((k, v) for (k, v) in params.items()
                                    if k != 'storage')
             hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
-            self.params['backend_id'] = str(uuid.UUID(hasher.hexdigest()))
+            self.params['backend-id'] = str(uuid.UUID(hasher.hexdigest()))
 
     def __repr__(self):
         return (f'{type(self).__name__}('
