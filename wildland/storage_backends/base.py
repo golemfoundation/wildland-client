@@ -186,7 +186,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.hash_db = None
         self.mounted = 0
 
-        self.backend_id = self.params['backend_id']
+        self.backend_id = self.params['backend-id']
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -463,7 +463,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         '''
 
         if deduplicate:
-            deduplicate = params['backend_id']
+            deduplicate = params['backend-id']
             if deduplicate in StorageBackend._cache:
                 return StorageBackend._cache[deduplicate]
 

@@ -389,7 +389,7 @@ class TestBackend(GeneratedStorageMixin, StorageBackend):
     '''
 
     def __init__(self, content):
-        super().__init__(params={'backend_id': str(uuid.uuid4()), 'type': ''})
+        super().__init__(params={'backend-id': str(uuid.uuid4()), 'type': ''})
         self.content = content
 
     def get_root(self):
@@ -474,7 +474,7 @@ infrastructures:
        location: {storage_path}
        owner: '0xfff'
        container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-       backend_id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
+       backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob
         path: /manifests/{{path}}/*.yaml

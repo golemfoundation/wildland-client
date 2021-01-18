@@ -58,7 +58,7 @@ def container(env, storage_type):
         'owner': '0x3333',
         'location': str(env.test_dir / 'storage/storage1'),
         'container_path': '/container1',
-        'backend_id': str(uuid.uuid4()),
+        'backend-id': str(uuid.uuid4()),
     })
     return 'container1'
 
@@ -167,7 +167,7 @@ def storage_manifest(env, path, storage_type, read_only=False):
         'type': storage_type,
         'location': str(env.test_dir / path),
         'read-only': read_only,
-        'backend_id': str(uuid.uuid4())
+        'backend-id': str(uuid.uuid4())
     }
 
 

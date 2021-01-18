@@ -86,9 +86,9 @@ def storage(data_dir):
         'storage': {
             'type': 'local',
             'location': str(data_dir),
-            'backend_id': str(uuid.uuid4()),
+            'backend-id': str(uuid.uuid4()),
         },
-        'backend_id': str(uuid.uuid4()),
+        'backend-id': str(uuid.uuid4()),
     }
 
 
@@ -97,11 +97,11 @@ def storage_subdir(data_dir):
     return {
         'type': 'delegate',
         'subdirectory': '/dir1',
-        'backend_id': str(uuid.uuid4()),
+        'backend-id': str(uuid.uuid4()),
         'storage': {
             'type': 'local',
             'location': str(data_dir),
-            'backend_id': str(uuid.uuid4())
+            'backend-id': str(uuid.uuid4())
         }
     }
 

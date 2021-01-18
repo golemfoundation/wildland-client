@@ -165,6 +165,6 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
                     'type': 'delegate',
                     'reference-container': 'wildland:@default:@parent-container:',
                     'subdirectory': '/' + date,
-                    'backend_id': str(uuid.uuid3(ns, date))
+                    'backend-id': str(uuid.uuid3(ns, date))
                 }]}
             }
