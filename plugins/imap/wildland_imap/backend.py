@@ -113,8 +113,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         bp = PurePosixPath('/users')
         for s in e.senders:
             rv.add(bp / PurePosixPath(s) / PurePosixPath('sender'))
-        for r in e.receipients:
-            rv.add(bp / PurePosixPath(r) / PurePosixPath('receipient'))
+        for r in e.recipients:
+            rv.add(bp / PurePosixPath(r) / PurePosixPath('recipient'))
 
         return sorted(str(p) for p in rv)
 

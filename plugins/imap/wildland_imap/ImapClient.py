@@ -29,7 +29,7 @@ class MessageEnvelopeData:
     # element and expose it as part of sender list.
     senders: List[str]
     # Again, we do not differentiate between To and Cc fields.
-    receipients: List[str]
+    recipients: List[str]
     subject: str
     recv_t: datetime
 
@@ -281,11 +281,11 @@ class ImapClient:
         sub = decode_header(env.subject.decode())
         subject = _decode_text(sub)
 
-        receipients = set()
+        recipients = set()
         for addr in [env.to, env.cc, env.bcc]:
-            receipients |= self._parse_address(addr)
+            recipients |= self._parse_address(addr)
 
-        hdr = MessageEnvelopeData(msgid, list(senders), list(receipients),
+        hdr = MessageEnvelopeData(msgid, list(senders), list(recipients),
                                   subject, env.date)
         self._envelope_cache[msgid] = hdr
         self._all_ids.add(msgid)

@@ -55,7 +55,7 @@ follows:
   was retrieved
 - `/users/{email-or-name}/sender` - for each address appearing in
   `From` or `Sender` headers
-- `/users/{email-or-name}/receipient` - for each address
+- `/users/{email-or-name}/recipient` - for each address
   appearing in `To` or `Cc` headers
 
 
