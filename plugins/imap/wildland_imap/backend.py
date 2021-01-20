@@ -3,20 +3,34 @@ Wildland storage backend exposing read only IMAP mailbox
 '''
 import logging
 from functools import partial
+from pathlib import PurePosixPath
+from typing import Iterable, List, Set
+from datetime import timezone
 
+import uuid
 import click
 
 from wildland.storage_backends.base import StorageBackend
+from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
-from .ImapClient import ImapClient
-from .name_helpers import FileNameFormatter, TimelineFormatter
-from .TimelineDate import TimelineDate, DatePart
-
+from .ImapClient import ImapClient, MessageEnvelopeData, \
+    MessagePart
 
 logger = logging.getLogger('storage-imap')
 
+class ImapStorageWatcher(SimpleStorageWatcher):
+    '''
+    A watcher for IMAP server. This implementation just queries
+    the server and reports an update if message list has changed.
+    '''
 
+    def __init__(self, backend: 'ImapStorageBackend'):
+        super().__init__(backend)
+        self.client = backend.client
+
+    def get_token(self):
+        return self.client.refresh_if_needed()
 
 class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     '''
@@ -45,6 +59,13 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         '''
         self.client.disconnect()
 
+    def watcher(self):
+        return ImapStorageWatcher(self)
+
+    def list_subcontainers(self) -> Iterable[dict]:
+        for msg in self.client.all_messages_env():
+            yield self._make_msg_container(msg)
+
     def get_root(self):
         '''
         returns wildland entry to the root directory
@@ -52,63 +73,80 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         return FuncDirEntry('.', self._root)
 
     def _root(self):
-        '''
-        returns statically defined contents of the root directory:
-        senders/ - containing list of sender directories
-        timeline/ - containing timeline entries for received messages
-        '''
-        yield FuncDirEntry('senders', self._senders)
-        yield FuncDirEntry('timeline', partial(self._timeline_dir,
-                                               TimelineDate()))
+        logger.info("_root() requested for %s", self.backend_id)
+        for envelope in self.client.all_messages_env():
+            yield FuncDirEntry(self._id_for_message(envelope),
+                               partial(self._msg_contents,
+                                       envelope))
 
-    def _senders(self):
-        '''
-        generates contents of senders/ directory
-        '''
-        for s in self.client.all_senders():
-            yield FuncDirEntry(s, partial(self._sender_dir, s))
+    def _msg_contents(self, e: MessageEnvelopeData):
+        # This little method should populate the message directory
+        # with message parts decomposed into MIME attachements.
+        for part in self.client.get_message(e.msg_uid):
+            yield FuncFileEntry(part.attachment_name,
+                                on_read=partial(self._read_part,
+                                                part),
+                                timestamp=e.recv_t.replace(tzinfo=timezone.utc).timestamp())
 
-    def _sender_dir(self, sender_id):
-        '''
-        Generates the content of sender directory for sender
-        with given id (email address). This is effectively
-        the listing of email messages.
-        '''
+    def _read_part(self, msg_part: MessagePart) -> bytes:
+        # pylint: disable=no-self-use
+        return msg_part.content
 
-        logger.debug('requesting listing for sender %s', sender_id)
-        fnf = FileNameFormatter()
-        for mid, hdr in self.client.sender_messages(sender_id):
-            fn = _filename(hdr)
-            logger.debug('message %d resolved to %s', mid, fn)
-
-            yield FuncFileEntry(fnf.format(fn),
-                                on_read=partial(self._read_msg,
-                                                mid))
-
-    def _timeline_dir(self, parent: TimelineDate):
+    def _get_message_categories(self, e: MessageEnvelopeData) -> List[str]:
         '''
-        Generates a timeline directory for given "parent" in
-        timeline.
+        Generate the list of category paths that the message will
+        appear under.
         '''
-        logger.debug('listing contents of timeline dir %s', parent)
-        if parent.accuracy == DatePart.DAY:
-            # we're rendering emails here
-            fmt = FileNameFormatter()
-            for mid, hdr in self.client.mails_at_date(parent):
-                fn = _filename(hdr)
-                yield FuncFileEntry(fmt.format(fn),
-                                    on_read=partial(self._read_msg,
-                                                    mid))
-        else:
-            # Here we render next level of the time scale
-            fmt = TimelineFormatter(parent.accuracy.advance())
-            for te in self.client.timeline_children(parent):
-                yield FuncDirEntry(fmt.format(te),
-                                   partial(self._timeline_dir, te))
+        rv: Set[PurePosixPath] = set()
 
-    def _read_msg(self, msg_id):
-        logger.debug('_read_msg called for %d', msg_id)
-        return self.client.get_message(msg_id)
+        # entry in timeline
+        rv.add(PurePosixPath('/timeline') /
+               PurePosixPath('%04d' % e.recv_t.year) /
+               PurePosixPath('%02d' % e.recv_t.month) /
+               PurePosixPath('%02d' % e.recv_t.day))
+
+        # (static) entry in folder path
+        rv.add(PurePosixPath('/folder') /
+               PurePosixPath(self.params['folder']))
+
+        # email address tagging
+        bp = PurePosixPath('/users')
+        for s in e.senders:
+            rv.add(bp / PurePosixPath(s) / PurePosixPath('sender'))
+        for r in e.recipients:
+            rv.add(bp / PurePosixPath(r) / PurePosixPath('recipient'))
+
+        return sorted(str(p) for p in rv)
+
+    def _id_for_message(self, env: MessageEnvelopeData) -> str:
+        '''
+        returns a string representation of stable uuid identifying
+        email message of which the envelope is given.
+        '''
+        ns = uuid.UUID(self.backend_id)
+        return str(uuid.uuid3(ns, str(env.msg_uid)))
+
+
+    def _make_msg_container(self, env: MessageEnvelopeData) -> dict:
+        '''
+        Create a container manifest for a single mail message.
+        '''
+        ident = self._id_for_message(env)
+        paths = [f'/.uuid/{ident}']
+        logger.debug('making msg container for msg %d as %s',
+                     env.msg_uid, ident)
+        categories = self._get_message_categories(env)
+        return {
+            'paths': paths,
+            'title': f'{env.subject} - {ident}',
+            'categories': categories,
+            'backends': {'storage': [{
+                'type': 'delegate',
+                'reference-container': 'wildland:@default:@parent-container:',
+                'subdirectory': '/' + ident
+                }]}
+        }
+
 
     @classmethod
     def cli_options(cls):
@@ -141,7 +179,3 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             'folder': data['folder'],
             'ssl': data['ssl']
             }
-
-
-def _filename(hdr) -> str:
-    return f'{hdr.sender}-{hdr.subject}'

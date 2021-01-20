@@ -22,32 +22,23 @@ sudo chmod 0666 /dev/fuse
 ./wl storage create imap --container Imap --host 127.0.0.1 --login user \
      --password test --trusted --no-ssl
 ./wl start
-./wl container mount Imap
+./wl container mount --with-subcontainers Imap
 
-ROOT=$HOME/wildland/imap
+ROOT=$HOME/wildland
 
 # List full tree
 time -p chronic tree $ROOT
 
 # List contents of sender2 dir
-time -p chronic ls -l $ROOT/senders/sender1@dev.null
+time -p chronic ls -l $ROOT/users/sender1@dev.null/sender/
 
 # List contents of February timeline dir
 time -p chronic ls -l $ROOT/timeline/2020/02/02
 
 # Read contents of a files
-time -p chronic grep 'Test number 1' $ROOT/senders/sender2@dev.null/sender2@dev.null-Test\ 1
-time -p chronic grep 'Test number 2' $ROOT/senders/sender2@dev.null/sender2@dev.null-Test\ 2
-time -p chronic grep 'Test number 1' $ROOT/timeline/2020/01/01/sender3@dev.null-Test\ 1
-
-# Test if backend refreshes its contents to reflect server changes
-find /home/user/Maildir -type f -exec grep -q 'From: sender3' {} \; \
-     -exec grep -q 'Test number 1' {} \; -delete
-sleep 10s
-test ! -r $ROOT/timeline/2020/01/01/sender3@dev.null-Test\ 1
-test ! -r $ROOT/senders/sender3@dev.null/sender3@dev.null-Test\ 1
-time -p chronic grep 'Test number 2' $ROOT/timeline/2020/02/02/sender3@dev.null-Test\ 2
-time -p chronic grep 'Test number 2' $ROOT/senders/sender3@dev.null/sender3@dev.null-Test\ 2
+time -p chronic grep 'Test number 1' $ROOT/users/sender2@dev.null/sender/Test\ 1*/main_body.txt
+time -p chronic grep 'Test number 2' $ROOT/users/sender2@dev.null/sender/Test\ 2*/main_body.txt
+time -p chronic grep 'Test number 1' $ROOT/timeline/2020/01/01/Test\ 1*/main_body.txt
 
 # Unmount container
 time -p chronic ./wl container unmount Imap
