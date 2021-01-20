@@ -201,7 +201,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. option:: --ipfs-hash <URL>
 
-   IPFS CID or IPNS name to access the resource, of the form ``ipfs:///{ipfs,ipns}/{cid,name}``. Required.
+   IPFS CID or IPNS name to access the resource, of the form ``/ipfs/CID`` or ``/ipns/name``. Required.
 
 .. option:: --endpoint-addr <multiaddress>
             

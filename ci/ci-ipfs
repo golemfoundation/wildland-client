@@ -18,7 +18,7 @@ HASH=$(ipfs add -r ~/tmp/ipfs-data/ | grep -E 'Qm.{44} ipfs-data$' -o | head -c 
 
 ./wl user create ipfs-user
 ./wl container create ipfs-con --path /ipfs
-./wl storage create ipfs --container ipfs-con --ipfs-hash ipfs:///ipfs/$HASH ipfs-storage
+./wl storage create ipfs --container ipfs-con --ipfs-hash /ipfs/$HASH ipfs-storage
 ./wl start --container ipfs-con
 
 # Testing

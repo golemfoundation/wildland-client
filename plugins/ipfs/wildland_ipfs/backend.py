@@ -23,7 +23,6 @@ IPFS storage backend
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 import logging
-from urllib.parse import urlparse
 import errno
 import stat
 
@@ -71,8 +70,8 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         "properties": {
             "ipfs_hash": {
                 "type": ["string"],
-                "description": "IPFS URL, in the ipfs:///ipfs/IPFS_CID or ipfs:///ipns/IPNS_NAME",
-                "pattern": "^ipfs://.*$"
+                "description": "IPFS URL, in the /ipfs/IPFS_CID or /ipns/IPNS_NAME form",
+                "pattern": "^/ip[f|n]s/.*$"
             },
             "endpoint_addr": {
                 "oneOf": [
@@ -90,18 +89,16 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         super().__init__(**kwds)
         self.read_only = True
 
-        ipfs_hash = urlparse(self.params['ipfs_hash'])
-        assert ipfs_hash.scheme == 'ipfs'
-        assert ipfs_hash.netloc == ""
-
         if 'endpoint_addr' in self.params.keys():
             endpoint = self.params['endpoint_addr']
         else:
             endpoint = '/ip4/127.0.0.1/tcp/8080/http'
-
         self.client = ipfshttpclient.connect(endpoint)
-        self.base_path = PurePosixPath(ipfs_hash.path)
-        if ipfs_hash.path[:6] == '/ipns/':
+
+        ipfs_hash = self.params['ipfs_hash']
+        self.base_path = PurePosixPath(ipfs_hash)
+        assert ipfs_hash[:6] in ['/ipfs/', '/ipns/']
+        if ipfs_hash[:6] == '/ipns/':
             logger.info("Resolving IPNS name to IPFS CID...")
             self.base_path = PurePosixPath(self.client.name.resolve(self.base_path)['Path'])
 
@@ -114,8 +111,8 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def cli_options(cls):
         return [
             click.Option(['--ipfs-hash'], metavar='URL', required=True,
-                         help='IPFS cid or IPNS name to access the '
-                         'resource in ipfs:///{ipfs,ipns}/{cid,name} format'),
+                         help='IPFS CID or IPNS name to access the '
+                         'resource in /ipfs/CID or /ipns/name format'),
             click.Option(['--endpoint-addr'], metavar='MULTIADDRESS', required=False,
                          help='Override default IPFS gateway address '
                          '(/ip4/127.0.0.1/tcp/8080/http) with the given address.',

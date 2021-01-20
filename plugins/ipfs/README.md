@@ -6,9 +6,9 @@ IPFS backend for Wildland client. Allows to use IPFS as read-only storage for WL
 
 Installation of a local IPFS node is optional. If you want to go quick and dirty - just use a public gateway (see section below). Otherwise - install a go-ipfs client using your OS preffered way, initalize it and start it as a daemon.
 ```bash
-wl storage create ipfs --container MYCONTAINER --ipfs-hash /ipfs:///ipfs/IPFS_HASH
+wl storage create ipfs --container MYCONTAINER --ipfs-hash /ipfs/IPFS_HASH
 # or
-wl storage create ipfs --container MYCONTAINER --ipfs-hash /ipfs:///ipns/IPNS_NAME
+wl storage create ipfs --container MYCONTAINER --ipfs-hash /ipns/IPNS_NAME
 ```
 
 ### Mounting
@@ -31,7 +31,7 @@ If storage is mounted using IPNS name, IPNS name needs to be resolved to IPFS CI
 This plugin expects that IPFS gateway API is exposed at '/ip4/127.0.0.1/tcp/8080/http'. You can override this setting by providing `--endpoint-addr` parameter. Example value is '/dns/ipfs.io/tcp/443/https'.
 
 ```bash
-wl storage create ipfs --container MYCONTAINER --endpoint-addr /dns/ipfs.io/tcp/443/https --ipfs-hash /ipfs://IPFS_OR_IPNS_URL
+wl storage create ipfs --container MYCONTAINER --endpoint-addr /dns/ipfs.io/tcp/443/https --ipfs-hash /ipfs/CID
 ```
 
 ### IPFS documentation
@@ -45,4 +45,4 @@ wl storage create ipfs --container MYCONTAINER --endpoint-addr /dns/ipfs.io/tcp/
 ### Issues
 
 * `ipfs add -r <mountpoint>` produces a different hash than mounted CID. Problem is likely in the way file flags are handled.
-* Handles files published using default settings of `ipfs add -r`. Does not cover features marked as experimental nor CIDv1.
+* Handles files published using default settings of `ipfs add -r`. Does not cover CIDv1 nor features marked as experimental.
