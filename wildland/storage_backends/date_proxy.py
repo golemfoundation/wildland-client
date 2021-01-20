@@ -22,7 +22,7 @@ Date proxy backend
 '''
 
 import uuid
-from typing import Tuple, Optional, Iterable
+from typing import Tuple, Optional, Iterable, List
 from pathlib import PurePosixPath
 import errno
 import datetime
@@ -151,7 +151,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     def list_subcontainers(
         self,
         sig_context: Optional[SigContext] = None,
-        trusted_owner: Optional[str] = None,
+        owners_whitelist: Optional[List[str]] = None,
     ) -> Iterable[dict]:
         ns = uuid.UUID(self.backend_id)
         dates = []

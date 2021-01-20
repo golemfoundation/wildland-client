@@ -26,19 +26,22 @@ import time
 from pathlib import Path, PurePosixPath
 import logging
 import threading
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Iterable
 import select
 import inotify_simple
 
 import click
 
-from .base import StorageBackend, File, Attr
+from .base import StorageBackend, File, Attr, StaticSubcontainerStorageMixin
+from ..manifest.manifest import Manifest
+from ..manifest.sig import SigContext
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
 
 __all__ = ['LocalStorageBackend']
 
+logger = logging.getLogger('local-storage')
 
 def to_attr(st: os.stat_result) -> Attr:
     '''
@@ -111,7 +114,7 @@ class LocalFile(File):
         self.file.flush()
 
 
-class LocalStorageBackend(StorageBackend):
+class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
     '''Local, file-based storage'''
     SCHEMA = Schema({
         "type": "object",

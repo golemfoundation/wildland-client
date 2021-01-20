@@ -34,6 +34,7 @@ import logging
 import click
 
 from ..manifest.sig import SigContext
+from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
 from ..hashdb import HashDb
 
@@ -440,7 +441,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def list_subcontainers(
             self,
             sig_context: Optional[SigContext] = None,
-            trusted_owner: Optional[str] = None,
+            owners_whitelist: Optional[List[str]] = None,
         ) -> Iterable[dict]:
         """
         List sub-containers provided by this storage.
@@ -503,6 +504,34 @@ class StorageBackend(metaclass=abc.ABCMeta):
         cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
 
+
+class StaticSubcontainerStorageMixin:
+    '''
+    A backend storage mixin that is used in all backends that support `subcontainers` key
+    in their manifests.
+
+    The `subcontainers` key is an array that holds a list of relative paths to the subcontainers
+    manifests within the storage itself. The paths are relative to the storage's root (ie  `path`
+    for Local storage backend).
+    '''
+
+    def list_subcontainers(
+        self,
+        sig_context: Optional[SigContext] = None,
+        owners_whitelist: Optional[List[str]] = None,
+    ) -> Iterable[dict]:
+        if not sig_context:
+            raise ValueError('Signature context must be defined for static subcontainers')
+
+        for subcontainer_path in self.params.get('subcontainers', []):
+            with self.open(PurePosixPath(subcontainer_path), os.O_RDONLY) as file:
+                manifest = Manifest.from_bytes(
+                    data=file.read(None, 0),
+                    sig_context=sig_context,
+                )
+
+                if not owners_whitelist or manifest.fields.get('owner') in owners_whitelist:
+                    yield manifest.fields
 
 def _inner_proxy(method_name):
     def method(self, *args, **kwargs):

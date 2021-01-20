@@ -278,7 +278,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
     def list_subcontainers(
         self,
         sig_context: Optional[SigContext] = None,
-        trusted_owner: Optional[str] = None,
+        owners_whitelist: Optional[List[str]] = None,
     ) -> Iterable[dict]:
         for ident, title, tags, _timestamp in \
                 self.bear_db.get_notes_with_metadata():
