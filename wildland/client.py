@@ -803,7 +803,7 @@ class Client:
 
         if owner not in local_owners:
             logger.warning(
-                'Trying to load file URL for invalid owner: %s (expected %s)',
+                'Trying to load file URL for an owner not in local_owners (%s not in %s)',
                 owner, local_owners)
             return None
 
