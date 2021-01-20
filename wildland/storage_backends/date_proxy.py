@@ -151,7 +151,6 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     def list_subcontainers(
         self,
         sig_context: Optional[SigContext] = None,
-        owners_whitelist: Optional[List[str]] = None,
     ) -> Iterable[dict]:
         ns = uuid.UUID(self.backend_id)
         dates = []

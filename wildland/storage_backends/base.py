@@ -118,7 +118,7 @@ class File(metaclass=abc.ABCMeta):
     def release(self, flags: int) -> None:
         raise NotImplementedError()
 
-    def read(self, length: int, offset: int) -> bytes:
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         raise OptionalError()
 
     def write(self, data: bytes, offset: int) -> int:
@@ -441,7 +441,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def list_subcontainers(
             self,
             sig_context: Optional[SigContext] = None,
-            owners_whitelist: Optional[List[str]] = None,
         ) -> Iterable[dict]:
         """
         List sub-containers provided by this storage.
@@ -513,12 +512,21 @@ class StaticSubcontainerStorageMixin:
     The `subcontainers` key is an array that holds a list of relative paths to the subcontainers
     manifests within the storage itself. The paths are relative to the storage's root (ie  `path`
     for Local storage backend).
+
+    When adding this mixin, you should append the following snippet to the backend's SCHEMA
+    ```
+    "subcontainers" : {
+        "type": "array",
+        "items": {
+            "$ref": "types.json#rel-path",
+        }
+    }
+    ```
     '''
 
     def list_subcontainers(
         self,
         sig_context: Optional[SigContext] = None,
-        owners_whitelist: Optional[List[str]] = None,
     ) -> Iterable[dict]:
         '''
         Return list of subcontainers manifest fields based and perform an integrity check on each
@@ -534,7 +542,7 @@ class StaticSubcontainerStorageMixin:
                     sig_context=sig_context,
                 )
 
-                if not owners_whitelist or manifest.fields.get('owner') in owners_whitelist:
+                if self.params.get('owner') == manifest.fields.get('owner'):
                     yield manifest.fields
 
 def _inner_proxy(method_name):
