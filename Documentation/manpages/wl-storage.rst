@@ -57,6 +57,16 @@ Delete a storage from local filesystem.
 
 Create local storage.
 
+A local storage refers to a directory on a local filesystem. To access a
+directory, storage owner either needs to be listed in ``local-owners`` config
+option, or in a ``.wildland-owners`` file in the directory (or any of it
+parents). For example, to allow user ``0x123456`` to access files under
+``/home/user/Dropbox``, create a ``/home/user/Dropbox/.wildland-owners`` file
+with content like this:
+
+   # empty lines and comments starting with '#' are ignored
+   0x123456
+
 .. include:: include/wl-storage-create.rsti
 
 .. option:: --location <filesystem_path>
@@ -69,6 +79,9 @@ Create local storage.
 :command:`wl storage create local-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
 -----------------------------------------------------------------------------------------------------------------------------
 
+Create cached local storage. See ``local`` storage description above for
+details.
+
 .. include:: include/wl-storage-create.rsti
 
 .. option:: --location <filesystem_path>
@@ -78,6 +91,9 @@ Create local storage.
 
 :command:`wl storage create local-dir-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
 ---------------------------------------------------------------------------------------------------------------------------------
+
+Create directory cached local storage. See ``local`` storage description above
+for details.
 
 .. include:: include/wl-storage-create.rsti
 
