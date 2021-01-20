@@ -23,7 +23,7 @@ S3 storage backend
 
 from pathlib import PurePosixPath
 from io import BytesIO
-from typing import Optional, Iterable, Tuple, Set, List
+from typing import Iterable, Tuple, Set, List
 import mimetypes
 import logging
 from urllib.parse import urlparse
@@ -38,12 +38,10 @@ import boto3
 import botocore
 import click
 
-from wildland.manifest.sig import SigContext
 from wildland.storage_backends.base import StorageBackend, Attr, StaticSubcontainerStorageMixin
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
-from wildland.manifest.manifest import Manifest
 
 
 logger = logging.getLogger('storage-s3')

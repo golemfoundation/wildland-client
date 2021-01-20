@@ -520,6 +520,10 @@ class StaticSubcontainerStorageMixin:
         sig_context: Optional[SigContext] = None,
         owners_whitelist: Optional[List[str]] = None,
     ) -> Iterable[dict]:
+        '''
+        Return list of subcontainers manifest fields based and perform an integrity check on each
+        container.
+        '''
         if not sig_context:
             raise ValueError('Signature context must be defined for static subcontainers')
 

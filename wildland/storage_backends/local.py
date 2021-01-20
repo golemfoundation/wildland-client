@@ -26,15 +26,13 @@ import time
 from pathlib import Path, PurePosixPath
 import logging
 import threading
-from typing import Optional, List, Dict, Tuple, Iterable
+from typing import Optional, List, Dict, Tuple
 import select
 import inotify_simple
 
 import click
 
 from .base import StorageBackend, File, Attr, StaticSubcontainerStorageMixin
-from ..manifest.manifest import Manifest
-from ..manifest.sig import SigContext
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
