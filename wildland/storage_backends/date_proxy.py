@@ -22,7 +22,7 @@ Date proxy backend
 '''
 
 import uuid
-from typing import Tuple, Optional, Iterable, List
+from typing import Tuple, Optional, Iterable
 from pathlib import PurePosixPath
 import errno
 import datetime

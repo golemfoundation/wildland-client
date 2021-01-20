@@ -92,7 +92,10 @@ class Buffer:
             self.last_used[page_num] = self.counter
             self.counter += 1
 
-    def get_needed_range(self, length: Optional[int] = None, start: int = 0) -> Optional[Tuple[int, int]]:
+    def get_needed_range(self,
+                         length: Optional[int] = None,
+                         start: int = 0
+        ) -> Optional[Tuple[int, int]]:
         '''
         Returns a range (length, start) necessary to load before reading
         or writing to a file, or None if everything is loaded already.
