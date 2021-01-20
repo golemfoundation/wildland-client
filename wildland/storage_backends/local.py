@@ -123,7 +123,13 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
             "location": {
                 "$ref": "types.json#abs-path",
                 "description": "Path in the local filesystem"
-            }
+            },
+            "subcontainers" : {
+                "type": "array",
+                "items": {
+                    "$ref": "types.json#rel-path",
+                }
+            },
         }
     })
     TYPE = 'local'
@@ -143,12 +149,17 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
         return [
             click.Option(['--location'], metavar='PATH',
                          help='path in local filesystem',
-                         required=True)
+                         required=True),
+            click.Option(['--subcontainer'], metavar='PATH', multiple=True,
+                         help='Relative path to a subcontainer manifest (can be repeated)'),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'location': data['location']}
+        return {
+            'location': data['location'],
+            'subcontainers': list(data['subcontainer']),
+        }
 
     def _path(self, path: PurePosixPath) -> Path:
         '''Given path inside filesystem, calculate path on disk, relative to

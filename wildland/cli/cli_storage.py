@@ -121,7 +121,7 @@ def _do_create(
         if value is None or value == []:
             del params[param]
 
-    params['backend_id'] = str(uuid.uuid4())
+    params['backend-id'] = str(uuid.uuid4())
 
     manifest_pattern_dict = None
     if manifest_pattern:

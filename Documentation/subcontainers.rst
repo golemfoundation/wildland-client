@@ -138,3 +138,12 @@ file (or edit existing one using ``wl container edit``)
 
 This file can be signed with ``wl container sign`` (the edit command will do
 that automatically), then mounted using ``wl container mount``.
+
+``--only-subcontainers`` option example
+---------------------------------------
+
+There are use-cases where you want treat a parent container only as a wrapper for the subcontainers.
+This means that you want to point at the parent container, mount all of its subcontainers but skip
+mounting the parent container's storage itself.
+
+This option is going to work only if ``--with-subcontainers`` is set to ``true``.
