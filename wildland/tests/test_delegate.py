@@ -85,6 +85,8 @@ def storage(data_dir):
         'type': 'delegate',
         'storage': {
             'type': 'local',
+            'owner': '0xaaa',
+            'is-local-owner': True,
             'location': str(data_dir),
             'backend-id': str(uuid.uuid4()),
         },
@@ -100,6 +102,8 @@ def storage_subdir(data_dir):
         'backend-id': str(uuid.uuid4()),
         'storage': {
             'type': 'local',
+            'owner': '0xaaa',
+            'is-local-owner': True,
             'location': str(data_dir),
             'backend-id': str(uuid.uuid4())
         }

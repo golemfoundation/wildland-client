@@ -30,7 +30,7 @@ import pytest
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
-from ..storage_backends.base import StorageBackend
+from ..storage_backends.base import StorageBackend, verify_local_access
 from ..storage_backends.watch import FileEvent
 
 

@@ -56,6 +56,7 @@ def container(env, storage_type):
     env.mount_storage(['/container1'], {
         'type': storage_type,
         'owner': '0x3333',
+        'is-local-owner': True,
         'location': str(env.test_dir / 'storage/storage1'),
         'container_path': '/container1',
         'backend-id': str(uuid.uuid4()),
@@ -161,9 +162,10 @@ def test_cmd_info(env, container, storage_type):
     }
 
 
-def storage_manifest(env, path, storage_type, read_only=False):
+def storage_manifest(env, path, storage_type, read_only=False, is_local_owner=True):
     return {
         'owner': '0x3333',
+        'is-local-owner': is_local_owner,
         'type': storage_type,
         'location': str(env.test_dir / path),
         'read-only': read_only,
@@ -188,6 +190,27 @@ def test_cmd_mount_already_mounted(env, container, storage_type):
     env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
     with pytest.raises(FuseError):
         env.mount_storage(['/.uuid/XYZ', '/container3'], storage)
+
+
+def test_cmd_mount_not_local_owner(env, storage_type):
+    storage = storage_manifest(env, 'storage/storage2', storage_type, is_local_owner=False)
+    with pytest.raises(FuseError):
+        env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
+
+
+def test_cmd_mount_owner_file(env, storage_type):
+    storage = storage_manifest(env, 'storage/storage2', storage_type, is_local_owner=False)
+    (env.test_dir / 'storage/storage2').mkdir(parents=True)
+    (env.test_dir / 'storage/storage2' / '.wildland-owners').write_bytes(b'0x3333\n')
+    env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
+    assert os.listdir(env.mnt_dir) == ['.uuid', 'container2']
+
+
+def test_cmd_mount_owner_file_parent(env, storage_type):
+    storage = storage_manifest(env, 'storage/storage2', storage_type, is_local_owner=False)
+    (env.test_dir / '.wildland-owners').write_bytes(b'0x3333\n')
+    env.mount_storage(['/.uuid/XYZ', '/container2'], storage)
+    assert os.listdir(env.mnt_dir) == ['.uuid', 'container2']
 
 
 def test_cmd_mount_remount(env, container, storage_type):

@@ -23,7 +23,7 @@ Storage class
 import hashlib
 import uuid
 from pathlib import PurePosixPath, Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 import yaml
 
@@ -87,12 +87,17 @@ class Storage:
         manifest.apply_schema(backend.SCHEMA)
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Storage':
+    def from_manifest(cls, manifest: Manifest,
+                      local_path=None,
+                      local_owners: Optional[List[str]] = None) -> 'Storage':
         '''
         Construct a Storage instance from a manifest.
         '''
 
         manifest.apply_schema(cls.BASE_SCHEMA)
+        params = manifest.fields
+        if local_owners is not None:
+            params['is-local-owner'] = manifest.fields['owner'] in local_owners
         return cls(
             owner=manifest.fields['owner'],
             storage_type=manifest.fields['type'],

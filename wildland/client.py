@@ -353,14 +353,16 @@ class Client:
         trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_storage(
             path.read_bytes(), path,
-            trusted_owner=trusted_owner)
+            trusted_owner=trusted_owner,
+            local_owners=self.config.get('local-owners'))
 
     def load_storage_from_url(self, url: str, owner: str) -> Storage:
         '''
         Load storage from URL.
         '''
 
-        return self.session.load_storage(self.read_from_url(url, owner))
+        return self.session.load_storage(self.read_from_url(url, owner),
+                                         local_owners=self.config.get('local-owners'))
 
     def load_storage_from_dict(self, dict_: dict, owner: str) -> Storage:
         '''
@@ -370,7 +372,9 @@ class Client:
 
         content = ('---\n' + yaml.dump(dict_)).encode()
         trusted_owner = owner
-        return self.session.load_storage(content, trusted_owner=trusted_owner)
+        return self.session.load_storage(content,
+                                         trusted_owner=trusted_owner,
+                                         local_owners=self.config.get('local-owners'))
 
     def resolve_storage_name_to_path(self, name: str) -> Optional[Path]:
         """

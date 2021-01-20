@@ -274,7 +274,8 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
 
         manifest.sign(client.session.sig)
 
-        storage = Storage.from_manifest(manifest)
+        storage = Storage.from_manifest(manifest,
+                                        local_owners=client.config.get('local-owners'))
         backend = StorageBackend.from_params(storage.params)
 
         # make an empty directory
