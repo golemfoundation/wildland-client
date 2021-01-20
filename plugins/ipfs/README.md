@@ -44,5 +44,5 @@ wl storage create ipfs --container MYCONTAINER --endpoint-addr /dns/ipfs.io/tcp/
 
 ### Issues
 
-* Plugin downloads full contents of mounted CID on first opening of mount point. This is slow if contents are big. Solution: stop using CachedStorageMixin.  
 * `ipfs add -r <mountpoint>` produces a different hash than mounted CID. Problem is likely in the way file flags are handled.
+* Handles files published using default settings of `ipfs add -r`. Does not cover features marked as experimental nor CIDv1.

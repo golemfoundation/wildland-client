@@ -24,7 +24,6 @@ from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 import logging
 from urllib.parse import urlparse
-import os
 import errno
 import stat
 
@@ -33,7 +32,7 @@ import click
 
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile
-from wildland.storage_backends.cached import CachedStorageMixin
+from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 from .unixfsv1_pb2 import Data
 
@@ -60,7 +59,7 @@ class IPFSFile(FullBufferedFile):
         raise IOError(errno.EROFS, str(self.cid))
 
 
-class IPFSStorageBackend(CachedStorageMixin, StorageBackend):
+class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     '''
     IPFS (readonly) storage.
     '''
@@ -103,6 +102,7 @@ class IPFSStorageBackend(CachedStorageMixin, StorageBackend):
         self.client = ipfshttpclient.connect(endpoint)
         self.base_path = PurePosixPath(ipfs_hash.path)
         if ipfs_hash.path[:6] == '/ipns/':
+            logger.info("Resolving IPNS name to IPFS CID...")
             self.base_path = PurePosixPath(self.client.name.resolve(self.base_path)['Path'])
 
         resp = self.client.object.stat(self.base_path)
@@ -153,40 +153,35 @@ class IPFSStorageBackend(CachedStorageMixin, StorageBackend):
     def _is_file(obj) -> bool:
         return obj['LinksSize'] + obj['DataSize'] == obj['CumulativeSize']
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        all_dirs = set()
-        to_visit = set()
-        to_visit.add(self.base_path)
-        while to_visit:
-            full_ipfs_path = to_visit.pop()
-            relative_path = PurePosixPath(os.path.relpath(full_ipfs_path, self.base_path))
-            resp = self.client.object.links(
-                full_ipfs_path
-            )
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+        '''
+        List a directory.
+        '''
+        dirs = set()
+        resp = self.client.object.links(
+            self.key(path)
+        )
+        full_ipfs_path = self.base_path / path
 
-            for summary in resp['Links']:
-                try:
-                    ipfs_path = full_ipfs_path / summary['Name']
-                    local_path = relative_path / summary['Name']
-                    resp = self.client.object.stat(ipfs_path)
-                except ValueError:
-                    logger.info("skipping %s", ipfs_path)
-                    continue
+        for link_summary in resp['Links']:
+            try:
+                ipfs_path = full_ipfs_path / link_summary['Name']
+                local_path = path / link_summary['Name']
+                resp = self.client.object.stat(ipfs_path)
+            except ValueError:
+                continue
 
-                if self._is_file(resp):
-                    yield local_path, self._stat(summary)
-                else:
-                    to_visit.add(ipfs_path)
-                    all_dirs.add(local_path)
+            if self._is_file(resp):
+                yield str(link_summary['Name']), self._stat(link_summary)
+            else:
+                dirs.add(local_path)
 
-        all_dirs.add(PurePosixPath('.'))
         dir_stat = Attr(
             mode=stat.S_IFDIR | 0o555,
             size=0,
             timestamp=1)
-        for dir_path in all_dirs:
-            yield dir_path, dir_stat
-
+        for dir_path in dirs:
+            yield str(dir_path), dir_stat
 
     def open(self, path: PurePosixPath, flags: int) -> File:
 
