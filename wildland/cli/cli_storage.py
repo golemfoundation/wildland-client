@@ -252,7 +252,7 @@ def delete(obj: ContextObj, name, force, cascade):
     storage.local_path.unlink()
 
 
-def do_create_storage_fom_set(client, container, storage_set, local_dir):
+def do_create_storage_from_set(client, container, storage_set, local_dir):
     """
     Create storages for a container from a given StorageSet.
     :param client: Wildland client
@@ -322,7 +322,7 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
         raise CliError(f'Storage set {storage_set} not found.') from fnf
 
     try:
-        do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
+        do_create_storage_from_set(obj.client, container, storage_set, local_dir)
     except ValueError:
         pass
 
