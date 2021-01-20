@@ -89,6 +89,7 @@ class IPFSStorageBackend(CachedStorageMixin, StorageBackend):
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
+        self.read_only = True
 
         ipfs_hash = urlparse(self.params['ipfs_hash'])
         assert ipfs_hash.scheme == 'ipfs'
@@ -189,18 +190,10 @@ class IPFSStorageBackend(CachedStorageMixin, StorageBackend):
 
     def open(self, path: PurePosixPath, flags: int) -> File:
 
-        def clear_cache_noop():
-            pass
-
         key = self.key(path)
         head = self.client.object.stat(key)
         attr = self._stat(head)
-        if flags & (os.O_WRONLY | os.O_RDWR):
-            return IPFSFile(
-                self.client, self.key(path),
-                attr, clear_cache_noop)
-
-        return IPFSFile(self.client, self.key(path), attr, clear_cache_noop)
+        return IPFSFile(self.client, self.key(path), attr, None)
 
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
