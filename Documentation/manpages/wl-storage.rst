@@ -206,6 +206,24 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
    will be invisible in the mounted filesystem, but they can be used to browse
    the S3 bucket when it's exposed using public HTTP.
 
+
+.. program:: wl-storage-create-ipfs
+.. _wl-storage-create-ipfs:
+
+:command:`wl storage create ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-address <multiaddress> <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --ipfs-hash <URL>
+
+   IPFS CID or IPNS name to access the resource, of the form ``/ipfs/CID`` or ``/ipns/name``. Required.
+
+.. option:: --endpoint-addr <multiaddress>
+            
+   Override default IPFS gateway address (/ip4/127.0.0.1/tcp/8080/http) with the given address.
+
+
 .. program:: wl-storage-create-webdav
 .. _wl-storage-create-webdav:
 

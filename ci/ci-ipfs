@@ -1,0 +1,27 @@
+#!/bin/bash -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/ipfs/
+
+# IPFS
+
+mkdir -p ~/tmp/ipfs-data/subdir
+printf "foo" > ~/tmp/ipfs-data/file
+printf "bar" > ~/tmp/ipfs-data/subdir/file
+
+ipfs init
+ipfs daemon &
+sleep 5
+HASH=$(ipfs add -r ~/tmp/ipfs-data/ | grep -E 'Qm.{44} ipfs-data$' -o | head -c 46)
+
+# Wildland
+
+./wl user create ipfs-user
+./wl container create ipfs-con --path /ipfs
+./wl storage create ipfs --container ipfs-con --ipfs-hash /ipfs/$HASH ipfs-storage
+./wl start --container ipfs-con
+
+# Testing
+
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfs/file) == "foo" ]]'
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfs/subdir/file) == "bar" ]]'
