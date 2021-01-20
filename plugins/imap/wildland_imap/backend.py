@@ -124,9 +124,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         email message of which the envelope is given.
         '''
         ns = uuid.UUID(self.backend_id)
-        msg_id = ':'.join((self.params['host'], self.params['login'],
-                          str(env.msg_uid)))
-        return str(uuid.uuid3(ns, msg_id))
+        return str(uuid.uuid3(ns, str(env.msg_uid)))
 
 
     def _make_msg_container(self, env: MessageEnvelopeData) -> dict:
