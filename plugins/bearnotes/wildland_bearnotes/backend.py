@@ -42,7 +42,7 @@ from wildland.storage_backends.generated import (
 )
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.schema import Schema
-
+from wildland.manifest.sig import SigContext
 
 logger = logging.getLogger('storage-bear')
 
@@ -275,7 +275,11 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             }]}
         }
 
-    def list_subcontainers(self) -> Iterable[dict]:
+    def list_subcontainers(
+        self,
+        sig_context: Optional[SigContext] = None,
+        trusted_owner: Optional[str] = None,
+    ) -> Iterable[dict]:
         for ident, title, tags, _timestamp in \
                 self.bear_db.get_notes_with_metadata():
             yield self._make_note_container(ident, title, tags)

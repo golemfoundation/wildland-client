@@ -309,34 +309,39 @@ container_.add_command(edit)
 
 
 def _mount(obj, container, container_name, is_default_user, remount, with_subcontainers,
-           subcontainer_of, quiet):
+           subcontainer_of, quiet, only_subcontainers):
     try:
         storage = obj.client.select_storage(container)
     except ManifestError:
         print(f'Cannot mount {container_name}: no storage available')
         return
 
+    if with_subcontainers:
+        subcontainers = list(obj.client.all_subcontainers(container))
+
     param_tuple = (container, storage, is_default_user, subcontainer_of)
 
-    if obj.fs_client.find_storage_id(container) is None:
-        if not quiet:
-            print(f'new: {container_name}')
-        yield param_tuple
-    elif remount:
-        if obj.fs_client.should_remount(container, storage, is_default_user):
+    if not subcontainers or not only_subcontainers:
+        if obj.fs_client.find_storage_id(container) is None:
             if not quiet:
-                print(f'changed: {container_name}')
+                print(f'new: {container_name}')
             yield param_tuple
+        elif remount:
+            if obj.fs_client.should_remount(container, storage, is_default_user):
+                if not quiet:
+                    print(f'changed: {container_name}')
+                yield param_tuple
+            else:
+                if not quiet:
+                    print(f'not changed: {container_name}')
         else:
-            if not quiet:
-                print(f'not changed: {container_name}')
-    else:
-        raise CliError('Already mounted: {container.local_path}')
+            raise CliError('Already mounted: {container.local_path}')
 
     if with_subcontainers:
-        for subcontainer in obj.client.all_subcontainers(container):
+        for subcontainer in subcontainers:
             yield from _mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
-                              is_default_user, remount, with_subcontainers, container, quiet)
+                              is_default_user, remount, with_subcontainers, container, quiet,
+                              only_subcontainers)
 
 
 @container_.command(short_help='mount container')
@@ -346,11 +351,14 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
               help='Save the container to be mounted at startup')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
               help='Do not mount subcontainers of this container.')
+@click.option('--only-subcontainers', '-b', is_flag=True, default=False,
+              help='If a container has subcontainers, mount only the subcontainers')
 @click.option('--quiet', '-q', is_flag=True,
               help='Do not list what is mounted')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, quiet):
+def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: bool,
+          only_subcontainers: bool, quiet):
     '''
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -365,8 +373,8 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, q
         for container in obj.client.load_containers_from(container_name):
             is_default_user = container.owner == obj.client.config.get("@default")
 
-            params.extend(_mount(obj, container, container.local_path,
-                                 is_default_user, remount, with_subcontainers, None, quiet))
+            params.extend(_mount(obj, container, container.local_path, is_default_user,
+                                 remount, with_subcontainers, None, quiet, only_subcontainers))
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
@@ -395,7 +403,7 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers, q
 
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
-    help='mount path to search for')
+              help='mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
               help='Do not umount subcontainers.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
@@ -533,7 +541,7 @@ class Remounter:
             storage = self.client.select_storage(container)
             if self.fs_client.should_remount(container, storage, is_default_user):
                 logger.info('  (mount)')
-                self.to_mount.append((container, storage, is_default_user))
+                self.to_mount.append((container, storage, is_default_user, None))
             else:
                 logger.info('  (no change)')
 

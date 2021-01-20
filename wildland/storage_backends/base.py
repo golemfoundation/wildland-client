@@ -33,6 +33,7 @@ import logging
 
 import click
 
+from ..manifest.sig import SigContext
 from ..manifest.schema import Schema
 from ..hashdb import HashDb
 
@@ -436,7 +437,11 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
-    def list_subcontainers(self) -> Iterable[dict]:
+    def list_subcontainers(
+            self,
+            sig_context: Optional[SigContext] = None,
+            trusted_owner: Optional[str] = None,
+        ) -> Iterable[dict]:
         """
         List sub-containers provided by this storage.
 
