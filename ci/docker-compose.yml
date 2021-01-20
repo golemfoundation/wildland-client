@@ -31,3 +31,17 @@ services:
       - ..:/home/user/wildland-client:ro
       - ../artifacts/:/home/user/wildland-client/artifacts:rw
 
+  wildland-client-ci-ipfs:
+    build:
+      context: ..
+      dockerfile: ./ci/Dockerfile-ipfs
+    image: wildland-client-ci-ipfs
+    container_name: wildland-client-ci-ipfs
+    privileged: true
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    volumes:
+      - ..:/home/user/wildland-client:ro
+      - ../artifacts/:/home/user/wildland-client/artifacts:rw

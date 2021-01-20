@@ -1,7 +1,7 @@
 '''
 Unit tests for email decoding
 '''
-from ..ImapClient import _decode_subject
+from ..ImapClient import _decode_text
 
 
 def test_decode_nasty_subject():
@@ -15,6 +15,6 @@ def test_decode_nasty_subject():
               (b', wi\xc4\x99c nie ma ani osobowo\xc5\x9bci', 'utf-8'),
               (b', ani charakteru', None)]
 
-    decoded = _decode_subject(inputs)
+    decoded = _decode_text(inputs)
 
     assert decoded == expected

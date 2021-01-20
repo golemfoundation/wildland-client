@@ -448,6 +448,7 @@ def test_traverse_other_key(cli, base_dir, client, signer):
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'
+    (base_dir / 'storage3/.wildland-owners').write_bytes(b'0xfff\n')
     os.mkdir(base_dir / 'storage1/users/')
 
     remote_user_file = base_dir / 'storage1/users/DummyUser.user.yaml'

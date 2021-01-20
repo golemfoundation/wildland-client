@@ -1,34 +1,63 @@
 # Wildland backend for exposing IMAP mailbox as FS
 
 This plugin allows read-only access to IMAPv4 mailbox
-folder. Mailbox contents is organized into two separate category
-groups:
-
-- **senders**, containing e-mails grouped by senders
-- **timeline**, which allows browsing e-mails in timeline
-  structure, based on mail receive time.
+folder. Mailbox contents is exposed as separate directories, so
+that each e-mail message has it's own directory. 
 
 ## Message naming and contents
 
-Each message retrieved from IMAP is represented as a pseudo file,
-named according to the following pattern:
+Each message retrieved from IMAP is identified represented as a
+separate directory. The contents of this directory are files
+representing:
 
-`{sender}-{subject}[-{number}]`
+- main contents (body) of the message
+- direct attachements of the message
 
-where number is added if there is more than one message with the
-same name in the directory.
+Each file has a modification time equal to value of `Date` header
+of the message.
 
-The file content reflects main content of the message, decoded
-and represented in plain text form. Attachments, alternative and
-multipart messages are not supported.
+Directory name is in essence an UUID identifying the message. The
+directory is populated as described below.
 
-## Directory structure
+### Main contents (body) of the message
+The backend tries to identify the main contents of the message
+and expose it in a file named `main_body.{htm|txt}`. In case of
+`multipart/alternative` MIME messages it treats the html part as
+main content, if available, or falls back to plain text
+otherwise.
 
-Messagesare accessible through the following dynamically
-generated riectories:
+File extension for the file representing main contents is guessed
+according to the corresponding MIME type.
 
- - `/timeline/{year}/{month}/{day}/`
- - `/sender/{email}/`
+### Direct attachments of the message
+
+Any attachments of the message (i.e. `Content-Disposition` header is
+set to `attachment`) are made available in the message directory
+as files named according to `Content-Disposition` header
+(i.e. using value of `filename` attribute.
+
+## Support for Wildland subcontainers
+
+The backend can expose individual messages as subcontainers. If
+container is mounted using `--with-subcontainers` option, for
+each of messages a corresponding subcontainer will be created.
+
+A message container `title` is set to a `{subject} - {id}` where
+_subject_ is the subject of the message and _id_ is it's unique
+identifier.
+
+Additionally, message container is assigned to categories as
+follows:
+
+- `/timeline/{year}/{month}/{day}/` - corresponding to the date
+  of the message
+- `/folder/{IMAP Folder}/` - an imap folder, from which message
+  was retrieved
+- `/users/{email-or-name}/sender` - for each address appearing in
+  `From` or `Sender` headers
+- `/users/{email-or-name}/recipient` - for each address
+  appearing in `To` or `Cc` headers
+
 
 ## Initializing and mounting
 
@@ -61,13 +90,22 @@ wl start
 wl container mount mail
 ```
 
+or 
+
+```
+wl start
+wl container mount --with-subcontainers mail
+```
+
+
 ## Other implementation details
 
 ### Synchronization
-Current implementation will naively poll for mailbox changes in
-10 second intervals. New messages will be silently added to the
-directory structure. Messages deleted or moved from the IMAP
-folder will be removed from the file system.
+Whenever a root directory is accessed, the backend will recheck
+the corresponding IMAP folder for changes (actually, due to
+performance considerations this is limited to 1 query per
+minute). If changes are detected, the contents of file system is
+updated accordingly.
 
 ### Message retrieval and caching
 Message contents will be retrieved on first access, what may
@@ -80,4 +118,13 @@ contents is cached in RAM in decoded form.
   to conserve memory,
 - browsing through multiple folders is not supported yet (this
   can be mitigated by configuring separate backend for every
-  mailbox folder which needs to be exposed.
+  mailbox folder which needs to be exposed,
+- the backend does not offer very good support for HTML messages
+  using `cid` URL schemes (see RFC 2392). One could envision that
+  future version of the backend would be able to expose
+  message parts with `Content-ID` identifiers assigned as files
+  in the meessage directory and rewrite references in HTML body
+  accordingly,
+- no support for digitally signed and/or encrypted e-mails is
+  available.
+  
