@@ -85,7 +85,9 @@ def storage(data_dir):
         'storage': {
             'type': 'local',
             'location': str(data_dir),
-            'backend-id': 'test'
+            'backend-id': 'test',
+            'owner': '0xaaa',
+            'is-local-owner': True,
         },
         'backend-id': 'test2'
     }

@@ -91,7 +91,9 @@ For a local URL to be recognized, two conditions must be met:
 
 1. The owner providing the URL (i.e. owner of the manifest the URL is found
    in) must be added to ``local_owners`` in the Wildland configuration file
-   (``$HOME/.config/wildland/users``).
+   (``$HOME/.config/wildland/users``). Alternatively, a directory (or any of
+   its parents) where the referenced file lives needs to have a
+   ``.wildland-owners`` file that includes the URL owner id.
 
    This is to prevent arbitrary signers causing you to access your local
    system.
@@ -103,6 +105,9 @@ For a local URL to be recognized, two conditions must be met:
    This is in order to differentiate between your machines: if you configure
    them with different ``local_hostname``, then file URLs intended for one
    machine will not load on the other.
+
+The rules in the first point apply also to storage backends accessing local
+files (``local``, ``local-cached``, etc).
 
 Unsigned manifests and trusted storage
 --------------------------------------

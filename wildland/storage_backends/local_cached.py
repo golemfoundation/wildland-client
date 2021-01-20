@@ -31,7 +31,7 @@ import click
 
 from .cached import CachedStorageMixin, DirectoryCachedStorageMixin
 from .buffered import FullBufferedFile, PagedFile, File
-from .base import StorageBackend, Attr
+from .base import StorageBackend, Attr, verify_local_access
 from .local import LocalStorageWatcher
 from ..manifest.schema import Schema
 
@@ -125,6 +125,10 @@ class BaseCached(StorageBackend):
 
     def _local(self, path: PurePosixPath) -> Path:
         return self.root / path
+
+    def mount(self) -> None:
+        verify_local_access(self.root, self.params['owner'],
+                            self.params.get('is-local-owner', False))
 
     def open(self, path: PurePosixPath, flags: int) -> File:
         if isinstance(path, str):

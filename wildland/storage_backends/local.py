@@ -32,7 +32,7 @@ import inotify_simple
 
 import click
 
-from .base import StorageBackend, File, Attr
+from .base import StorageBackend, File, Attr, verify_local_access
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
@@ -161,6 +161,10 @@ class LocalStorageBackend(StorageBackend):
         return ret
 
     # pylint: disable=missing-docstring
+
+    def mount(self) -> None:
+        verify_local_access(self.root, self.params['owner'],
+                            self.params.get('is-local-owner', False))
 
     def open(self, path, flags):
         if self.ignore_own_events and self.watcher_instance:

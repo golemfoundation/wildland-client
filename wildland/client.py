@@ -39,7 +39,7 @@ from .wlpath import WildlandPath, PathError
 from .manifest.sig import DummySigContext, SignifySigContext
 from .manifest.manifest import ManifestError, Manifest
 from .session import Session
-from .storage_backends.base import StorageBackend
+from .storage_backends.base import StorageBackend, verify_local_access
 from .fs_client import WildlandFSClient
 from .config import Config
 from .exc import WildlandError
@@ -353,14 +353,16 @@ class Client:
         trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_storage(
             path.read_bytes(), path,
-            trusted_owner=trusted_owner)
+            trusted_owner=trusted_owner,
+            local_owners=self.config.get('local-owners'))
 
     def load_storage_from_url(self, url: str, owner: str) -> Storage:
         '''
         Load storage from URL.
         '''
 
-        return self.session.load_storage(self.read_from_url(url, owner))
+        return self.session.load_storage(self.read_from_url(url, owner),
+                                         local_owners=self.config.get('local-owners'))
 
     def load_storage_from_dict(self, dict_: dict, owner: str) -> Storage:
         '''
@@ -370,7 +372,9 @@ class Client:
 
         content = ('---\n' + yaml.dump(dict_)).encode()
         trusted_owner = owner
-        return self.session.load_storage(content, trusted_owner=trusted_owner)
+        return self.session.load_storage(content,
+                                         trusted_owner=trusted_owner,
+                                         local_owners=self.config.get('local-owners'))
 
     def resolve_storage_name_to_path(self, name: str) -> Optional[Path]:
         """
@@ -801,13 +805,15 @@ class Client:
                 url, local_hostname)
             return None
 
-        if owner not in local_owners:
-            logger.warning(
-                'Trying to load file URL for invalid owner: %s (expected %s)',
-                owner, local_owners)
+        path = Path(parse_result.path)
+
+        try:
+            verify_local_access(path, owner, owner in local_owners)
+        except PermissionError as e:
+            logger.warning('Cannot load %s: %s', url, e)
             return None
 
-        return Path(parse_result.path)
+        return path
 
     @staticmethod
     def _select_storage_for_publishing(storage):

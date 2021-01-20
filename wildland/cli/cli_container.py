@@ -35,7 +35,7 @@ from xdg import BaseDirectory
 from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit
-from .cli_storage import do_create_storage_fom_set
+from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..storage import Storage, StorageBackend
 from ..client import Client
@@ -143,7 +143,7 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
 
     if storage_set:
         try:
-            do_create_storage_fom_set(obj.client, container, storage_set, local_dir)
+            do_create_storage_from_set(obj.client, container, storage_set, local_dir)
         except FileNotFoundError as fnf:
             click.echo(f'Removing container: {path}')
             path.unlink()

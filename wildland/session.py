@@ -22,7 +22,7 @@ Session class
 '''
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 from .manifest.manifest import Manifest
 from .manifest.sig import SigContext
@@ -128,6 +128,7 @@ class Session:
         data: bytes,
         local_path: Optional[Path] = None,
         trusted_owner: Optional[str] = None,
+        local_owners: Optional[List[str]] = None,
     ) -> Storage:
         '''
         Load a container manifest, creating a Storage object.
@@ -137,7 +138,7 @@ class Session:
             data,
             self.sig,
             trusted_owner=trusted_owner)
-        return Storage.from_manifest(manifest, local_path)
+        return Storage.from_manifest(manifest, local_path, local_owners=local_owners)
 
     def dump_storage(self, storage: Storage) -> bytes:
         '''

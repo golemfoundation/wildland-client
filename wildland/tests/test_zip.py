@@ -44,6 +44,8 @@ def env():
 def storage(base_dir):
     return {
         'type': 'zip-archive',
+        'owner': '0xaaaa',
+        'is-local-owner': True,
         'location': str(base_dir / 'archive.zip'),
         'backend-id': str(uuid.uuid4()),
     }

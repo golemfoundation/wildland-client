@@ -30,7 +30,7 @@ import pytest
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
-from ..storage_backends.base import StorageBackend
+from ..storage_backends.base import StorageBackend, verify_local_access
 from ..storage_backends.watch import FileEvent
 
 
@@ -301,3 +301,29 @@ def test_walk(tmpdir, storage_backend):
                       ('dir1/subdir1/subsubdir1/testfile5', False)]
 
     assert sorted(received_files) == sorted(expected_files)
+
+
+def test_local_access(tmp_path):
+    # local-owner
+    verify_local_access(tmp_path, '0xaaaa', True)
+    with pytest.raises(PermissionError):
+        verify_local_access(tmp_path, '0xaaaa', False)
+
+
+def test_local_access_file(tmp_path):
+    (tmp_path / '.wildland-owners').write_bytes(
+        b'0xaaaa\n'
+        b'0xbbbb # comment\n'
+        b'\n'
+        b'# comment\n'
+        b'# 0xcccc\n'
+        b'0xdddd'  # no newline
+    )
+    verify_local_access(tmp_path, '0xaaaa', False)
+    verify_local_access(tmp_path, '0xbbbb', False)
+    with pytest.raises(PermissionError):
+        verify_local_access(tmp_path, '0xcccc', False)
+    verify_local_access(tmp_path, '0xdddd', False)
+
+    verify_local_access(tmp_path / 'subdir/', '0xaaaa', False)
+    verify_local_access(tmp_path / 'subdir/filename', '0xaaaa', False)

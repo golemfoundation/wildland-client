@@ -33,7 +33,7 @@ import click
 from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr
+from .base import StorageBackend, Attr, verify_local_access
 from .watch import SimpleStorageWatcher
 
 
@@ -117,6 +117,10 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
 
     def watcher(self):
         return ZipArchiveWatcher(self)
+
+    def mount(self) -> None:
+        verify_local_access(self.zip_path, self.params['owner'],
+                            self.params.get('is-local-owner', False))
 
     def _update(self):
         # Update when the ZIP file changes.

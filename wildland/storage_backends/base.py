@@ -22,7 +22,8 @@ Abstract classes for storage
 '''
 
 import abc
-from pathlib import PurePosixPath
+import itertools
+from pathlib import PurePosixPath, Path
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 from dataclasses import dataclass
 from collections import namedtuple
@@ -505,3 +506,41 @@ def _inner_proxy(method_name):
 
     method.__name__ = method_name
     return method
+
+
+def verify_local_access(path: Path, user: str, is_local_owner: bool):
+    """
+    Check if given WL user can access a local file.
+
+    This includes checking if user is on a local-owners list,
+    or if a accessed directory (or any of its ancestors)
+    have explicitly allowed given user access using `.wildland-owners` file.
+
+    If access is given, returns True, otherwise throws PermissionError
+
+    :param path: path to check
+    :param user: user id (string like 0x...)
+    :param is_local_owner: whether the user is in local owners list
+    :return:
+    """
+
+    if is_local_owner:
+        return True
+
+    for parent in itertools.chain([path], path.parents):
+        flag_file = parent / '.wildland-owners'
+        try:
+            allowed_owners = flag_file.read_text('utf-8', 'ignore').splitlines()
+            for owner in allowed_owners:
+                owner = owner.partition('#')[0].strip()
+                if owner == user:
+                    return True
+        except (FileNotFoundError, NotADirectoryError):
+            # silently ignore those
+            pass
+        except OSError as e:
+            logger.warning('Cannot read %s: %s', flag_file, e)
+
+    raise PermissionError(
+        'User {} is not allowed to access {}: not in local-owners nor .wildland-owners file'.
+            format(user, path))
