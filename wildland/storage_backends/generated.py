@@ -169,7 +169,10 @@ class StaticFile(File):
         self.attr = attr
         self.attr.size = len(data)
 
-    def read(self, length, offset):
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
+        if length is None:
+            length = self.attr.size - offset
+
         return self.data[offset:offset+length]
 
     def release(self, flags):

@@ -91,7 +91,7 @@ class LocalFile(File):
             st.size = self.file.seek(0, 2)
         return st
 
-    def read(self, length, offset):
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         with self.lock:
             self.file.seek(offset)
             return self.file.read(length)

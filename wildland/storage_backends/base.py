@@ -326,7 +326,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def release(self, _path: PurePosixPath, flags: int, obj: File) -> None:
         obj.release(flags)
 
-    def read(self, _path: PurePosixPath, length: int, offset: int, obj: File) -> bytes:
+    def read(self, _path: PurePosixPath, length: Optional[int], offset: int, obj: File) -> bytes:
         return obj.read(length, offset)
 
     def write(self, _path: PurePosixPath, data: bytes, offset: int, obj: File) -> int:
