@@ -278,16 +278,17 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
                                         local_owners=client.config.get('local-owners'))
         backend = StorageBackend.from_params(storage.params)
 
-        # make an empty directory
-        backend.mount()
         try:
-            backend.mkdir(PurePosixPath(''))
-        except FileExistsError:
-            pass
-        except FileNotFoundError:
-            click.echo('Cannot create storage root.')
-        finally:
-            backend.unmount()
+            backend.mount()
+
+            try:
+                backend.mkdir(PurePosixPath(''))
+            except Exception:
+                click.echo('WARNING: Cannot create storage root. Proceeding conditionally.')
+            finally:
+                backend.unmount()
+        except Exception:
+            click.echo('WARNING: Cannot mount storage. Proceeding conditionally.')
 
         _do_save_new_storage(client=client, container=container, storage=storage,
                              inline=(t == 'inline'), update_container=True, name=storage_set.name)
