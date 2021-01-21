@@ -20,6 +20,7 @@ Templates for manifests.
 """
 
 import logging
+import re
 import uuid
 from typing import List
 from pathlib import Path
@@ -52,6 +53,21 @@ def get_file_from_name(directory: Path, name: str, suffix: str) -> Path:
     raise FileNotFoundError
 
 
+# Custom jinja2 filters
+def regex_replace(s, find, replace):
+    '''
+    Implementation of regex_replace for jinja2
+    '''
+    return re.sub(find, replace, s)
+
+
+def regex_contains(s, pattern):
+    '''
+    Implementation of regex_contains for jinja2
+    '''
+    return re.search(pattern, s) is not None
+
+
 class StorageTemplate:
     """
     Template for a storage manifest. Uses yaml and jinja2 template language.
@@ -65,8 +81,11 @@ path: /home/user/{{ uuid }}
 type: local
 
     """
+
     def __init__(self, source_data: str, file_name: str, name: str = None):
         self.template = Template(source=source_data, undefined=StrictUndefined)
+        self.template.environment.filters['regex_replace'] = regex_replace
+        self.template.environment.tests['regex_contains'] = regex_contains
         self.file_name = file_name
         if not name:
             self.name = self.file_name.rstrip(TEMPLATE_SUFFIX)
