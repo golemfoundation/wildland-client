@@ -34,6 +34,8 @@ import logging
 
 import click
 
+from ..manifest.sig import SigContext
+from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
 from ..hashdb import HashDb
 
@@ -117,7 +119,7 @@ class File(metaclass=abc.ABCMeta):
     def release(self, flags: int) -> None:
         raise NotImplementedError()
 
-    def read(self, length: int, offset: int) -> bytes:
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         raise OptionalError()
 
     def write(self, data: bytes, offset: int) -> int:
@@ -325,7 +327,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def release(self, _path: PurePosixPath, flags: int, obj: File) -> None:
         obj.release(flags)
 
-    def read(self, _path: PurePosixPath, length: int, offset: int, obj: File) -> bytes:
+    def read(self, _path: PurePosixPath, length: Optional[int], offset: int, obj: File) -> bytes:
         return obj.read(length, offset)
 
     def write(self, _path: PurePosixPath, data: bytes, offset: int, obj: File) -> int:
@@ -437,7 +439,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
-    def list_subcontainers(self) -> Iterable[dict]:
+    def list_subcontainers(
+            self,
+            sig_context: Optional[SigContext] = None,
+        ) -> Iterable[dict]:
         """
         List sub-containers provided by this storage.
 
@@ -499,6 +504,47 @@ class StorageBackend(metaclass=abc.ABCMeta):
         cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
 
+
+class StaticSubcontainerStorageMixin:
+    '''
+    A backend storage mixin that is used in all backends that support `subcontainers` key
+    in their manifests.
+
+    The `subcontainers` key is an array that holds a list of relative paths to the subcontainers
+    manifests within the storage itself. The paths are relative to the storage's root (ie  `path`
+    for Local storage backend).
+
+    When adding this mixin, you should append the following snippet to the backend's SCHEMA
+    ```
+    "subcontainers" : {
+        "type": "array",
+        "items": {
+            "$ref": "types.json#rel-path",
+        }
+    }
+    ```
+    '''
+
+    def list_subcontainers(
+        self,
+        sig_context: Optional[SigContext] = None,
+    ) -> Iterable[dict]:
+        '''
+        Return list of subcontainers manifest fields based and perform an integrity check on each
+        container.
+        '''
+        if not sig_context:
+            raise ValueError('Signature context must be defined for static subcontainers')
+
+        for subcontainer_path in self.params.get('subcontainers', []):
+            with self.open(PurePosixPath(subcontainer_path), os.O_RDONLY) as file:
+                manifest = Manifest.from_bytes(
+                    data=file.read(None, 0),
+                    sig_context=sig_context,
+                )
+
+                if self.params.get('owner') == manifest.fields.get('owner'):
+                    yield manifest.fields
 
 def _inner_proxy(method_name):
     def method(self, *args, **kwargs):

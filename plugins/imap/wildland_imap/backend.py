@@ -4,12 +4,13 @@ Wildland storage backend exposing read only IMAP mailbox
 import logging
 from functools import partial
 from pathlib import PurePosixPath
-from typing import Iterable, List, Set
+from typing import Iterable, List, Set, Optional
 from datetime import timezone
 
 import uuid
 import click
 
+from wildland.manifest.sig import SigContext
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.storage_backends.generated import \
@@ -62,7 +63,10 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def watcher(self):
         return ImapStorageWatcher(self)
 
-    def list_subcontainers(self) -> Iterable[dict]:
+    def list_subcontainers(
+        self,
+        sig_context: Optional[SigContext] = None,
+    ) -> Iterable[dict]:
         for msg in self.client.all_messages_env():
             yield self._make_msg_container(msg)
 

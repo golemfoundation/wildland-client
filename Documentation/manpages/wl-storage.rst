@@ -52,8 +52,8 @@ Delete a storage from local filesystem.
 .. program:: wl-storage-create-local
 .. _wl-storage-create-local:
 
-:command:`wl storage create local --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
-----------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local --container <container> [-u] [--user <user>] [--subcontainer] --location <filesystem_path> <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------
 
 Create local storage.
 
@@ -72,6 +72,10 @@ with content like this:
 .. option:: --location <filesystem_path>
 
    Path to directory containing the backend. Required.
+
+.. option:: --subcontainer <filesystem_path>
+
+   Relative path to a subcontainer manifest (can be repeated). Optional.
 
 .. program:: wl_storage_create_local-cached
 .. _wl_storage_create_local-cached:

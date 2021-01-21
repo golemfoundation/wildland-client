@@ -38,7 +38,7 @@ import boto3
 import botocore
 import click
 
-from wildland.storage_backends.base import StorageBackend, Attr
+from wildland.storage_backends.base import StorageBackend, Attr, StaticSubcontainerStorageMixin
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
@@ -125,7 +125,7 @@ class PagedS3File(PagedFile):
         return response['Body'].read()
 
 
-class S3StorageBackend(CachedStorageMixin, StorageBackend):
+class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, StorageBackend):
     '''
     Amazon S3 storage.
     '''
@@ -159,6 +159,12 @@ class S3StorageBackend(CachedStorageMixin, StorageBackend):
             "with-index": {
                 "type": "boolean",
                 "description": "Maintain index.html files with directory listings",
+            },
+            "subcontainers" : {
+                "type": "array",
+                "items": {
+                    "$ref": "types.json#rel-path",
+                }
             }
         }
     })

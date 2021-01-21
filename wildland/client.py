@@ -697,7 +697,9 @@ class Client:
         for storage in self.all_storages(container):
             try:
                 with StorageBackend.from_params(storage.params, deduplicate=True) as backend:
-                    for subcontainer in backend.list_subcontainers():
+                    for subcontainer in backend.list_subcontainers(
+                        sig_context=self.session.sig,
+                    ):
                         yield self._postprocess_subcontainer(container, backend, subcontainer)
             except NotImplementedError:
                 continue

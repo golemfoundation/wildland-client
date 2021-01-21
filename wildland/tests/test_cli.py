@@ -532,14 +532,14 @@ def test_container_mount_save(cli, base_dir, control_client):
     cli('container', 'mount', '--save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.SafeLoader)
     assert config['default-containers'] == ['Container']
 
     # Will not add the same container twice
     cli('container', 'mount', '--save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.SafeLoader)
     assert config['default-containers'] == ['Container']
 
 
@@ -855,13 +855,13 @@ def test_cli_set_add(cli, base_dir):
     cli('storage-set', 'add', '--inline', 't3', '--inline', 't2', 'set2')
 
     with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
-        read_data = yaml.load(f)
+        read_data = yaml.load(f, Loader=yaml.SafeLoader)
         assert read_data == {'name': 'set1',
                              'templates':
                                  [{'file': 't1.template.jinja', 'type': 'file'},
                                   {'file': 't2.template.jinja', 'type': 'inline'}]}
     with open(base_dir / 'templates/set2.set.yaml', 'r') as f:
-        read_data = yaml.load(f)
+        read_data = yaml.load(f, Loader=yaml.SafeLoader)
         assert read_data == {'name': 'set2',
                              'templates':
                                  [{'file': 't3.template.jinja', 'type': 'inline'},
@@ -1015,7 +1015,7 @@ def test_user_create_default_set(cli, base_dir):
     with open(base_dir / 'config.yaml') as f:
         data = f.read()
 
-    config = yaml.load(data)
+    config = yaml.load(data, Loader=yaml.SafeLoader)
     default_user = config["@default-owner"]
     assert f'\'{default_user}\': set' in data
 
@@ -1278,3 +1278,108 @@ def test_import_user_existing(cli, base_dir, tmpdir):
     # nothing should be imported if the user already exists locally
     assert not (base_dir / 'bridges').exists()
     assert len(os.listdir(base_dir / 'users')) == 2
+
+
+def test_only_subcontainers(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    parent_container_path = base_dir / 'containers/Parent.container.yaml'
+    child_container_path = base_dir / 'containers/Child.container.yaml'
+    child_storage_dir = (base_dir / 'foo')
+    child_storage_file = (base_dir / 'foo/file')
+
+    child_storage_dir.mkdir()
+    child_storage_file.write_text('hello')
+
+    cli('user', 'create', 'User',
+        '--key', '0xaaa')
+    cli('user', 'create', 'Malicious',
+        '--key', '0xbbb')
+    cli('container', 'create', 'Parent',
+        '--path', '/PATH_PARENT',
+        '--user', '0xaaa')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', base_dir / 'containers',
+        '--container', 'Parent',
+        '--subcontainer', './Child.container.yaml',
+        '--subcontainer', './MaliciousChild.container.yaml')
+    cli('container', 'create', 'Child',
+        '--path', '/PATH_CHILD',
+        '--user', '0xaaa')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', base_dir / 'foo',
+        '--container', 'Child')
+    cli('container', 'create', 'MaliciousChild',
+        '--path', '/PATH_CHILD_B',
+        '--user', '0xbbb')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', base_dir / 'foo',
+        '--container', 'MaliciousChild')
+
+    # Sanity check of container files
+    assert parent_container_path.exists()
+    assert child_container_path.exists()
+
+    # Extract containers auto-generated UUIDs
+    with open(base_dir / 'containers/Parent.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        uuid_path_parent = documents[1]['paths'][0]
+
+    with open(base_dir / 'containers/Child.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        uuid_path_child = documents[1]['paths'][0]
+
+    # Mount the parent container with subcontainers INCLUDING itself
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+    cli('container', 'mount', 'Parent')
+
+    parent_paths = [
+        f'/.users/0xaaa{uuid_path_parent}',
+        '/.users/0xaaa/PATH_PARENT',
+        uuid_path_parent,
+        '/PATH_PARENT',
+    ]
+
+    child_paths = [
+        f'/.users/0xaaa{uuid_path_child}',
+        '/.users/0xaaa/PATH_CHILD',
+        uuid_path_child,
+        '/PATH_CHILD',
+    ]
+
+    # Verify the mounted paths
+    command = control_client.calls['mount']['items']
+    assert len(command) == 2
+    assert command[0]['paths'] == parent_paths
+    assert command[1]['paths'] == child_paths
+
+    control_client.expect('info', {
+        '1': {
+            'paths': parent_paths,
+            'type': 'local',
+            'extra': {},
+        },
+        '2': {
+            'paths': child_paths,
+            'type': 'local',
+            'extra': {'subcontainer_of': f'0xaaa:{uuid_path_parent}'},
+        },
+    })
+    control_client.expect('unmount')
+
+    # Unmount the parent+subcontainers mount
+    cli('container', 'unmount', 'Parent')
+
+    # Mount the parent container with subcontainers EXCLUDING itself
+    cli('container', 'mount', 'Parent', '--only-subcontainers')
+
+    # Verify the mounted paths
+    command = control_client.calls['mount']['items']
+    assert len(command) == 1
+    assert command[0]['paths'] == [
+        f'/.users/0xaaa{uuid_path_child}',
+        '/.users/0xaaa/PATH_CHILD',
+        uuid_path_child,
+        '/PATH_CHILD',
+    ]

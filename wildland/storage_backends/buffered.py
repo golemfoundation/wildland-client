@@ -92,13 +92,16 @@ class Buffer:
             self.last_used[page_num] = self.counter
             self.counter += 1
 
-    def get_needed_range(self, length: int, start: int) -> Optional[Tuple[int, int]]:
+    def get_needed_range(self,
+                         length: Optional[int] = None,
+                         start: int = 0
+        ) -> Optional[Tuple[int, int]]:
         '''
         Returns a range (length, start) necessary to load before reading
         or writing to a file, or None if everything is loaded already.
         '''
 
-        if start + length > self.size:
+        if length is None or start + length > self.size:
             length = self.size - start
 
         if length == 0:
@@ -116,12 +119,12 @@ class Buffer:
         end = (pages[-1] + 1) * self.page_size
         return end-start, start
 
-    def read(self, length: int, start: int) -> bytes:
+    def read(self, length: Optional[int] = None, start: int = 0) -> bytes:
         '''
         Read data from buffer. The necessary pages must be loaded first.
         '''
 
-        if start + length > self.size:
+        if length is None or start + length > self.size:
             length = self.size - start
 
         result = bytearray(length)
@@ -179,7 +182,7 @@ class PagedFile(File, metaclass=abc.ABCMeta):
 
         raise NotImplementedError()
 
-    def read(self, length: int, offset: int) -> bytes:
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         with self.buf_lock:
             needed_range = self.buf.get_needed_range(length, offset)
 
@@ -248,9 +251,13 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
             self.buf = bytearray(self.read_full())
             self.loaded = True
 
-    def read(self, length: int, offset: int) -> bytes:
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         with self.buf_lock:
             self._load()
+
+            if length is None:
+                length = len(self.buf) - offset
+
             return bytes(self.buf[offset:offset+length])
 
     def write(self, data: bytes, offset: int) -> int:

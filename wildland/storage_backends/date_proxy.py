@@ -32,6 +32,7 @@ import click
 from .base import StorageBackend, File, Attr
 from .cached import CachedStorageMixin
 from ..manifest.schema import Schema
+from ..manifest.sig import SigContext
 
 
 class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
@@ -147,7 +148,10 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
         return self.inner.open(inner_path, flags)
 
-    def list_subcontainers(self) -> Iterable[dict]:
+    def list_subcontainers(
+        self,
+        sig_context: Optional[SigContext] = None,
+    ) -> Iterable[dict]:
         ns = uuid.UUID(self.backend_id)
         dates = []
         for year in self.readdir(PurePosixPath('')):

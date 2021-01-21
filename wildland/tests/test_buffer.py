@@ -36,12 +36,19 @@ def test_get_needed_range():
     # all pages present
     assert buf.get_needed_range(3, 1) is None
 
-    # need pages 2..4 (exclusive)
+    # need pages 2..3
+    assert buf.get_needed_range(6, 1) == (4, 4)
     assert buf.get_needed_range(7, 1) == (4, 4)
 
-    # need pages 2..6
+    # need pages 2..4, but 4 is loaded
+    assert buf.get_needed_range(8, 1) == (4, 4)
+    assert buf.get_needed_range(9, 1) == (4, 4)
+
+    # need pages 2..5
     # (even though page 4 is loaded)
-    assert buf.get_needed_range(16, 3) == (8, 4)
+    assert buf.get_needed_range(8, 3) == (8, 4)
+    assert buf.get_needed_range(8, 3) == (8, 4)
+    assert buf.get_needed_range(999, 3) == (8, 4)
 
 
 def test_read():
@@ -53,6 +60,8 @@ def test_read():
     }
     assert buf.read(5, 3) == b'defgh'
     assert buf.read(10, 3) == b'defghij'
+    assert buf.read(None, 0) == b'abcdefghij'
+    assert buf.read(None, 2) == b'cdefghij'
 
 
 def test_set_read_trim():

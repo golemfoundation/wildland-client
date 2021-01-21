@@ -32,13 +32,14 @@ import inotify_simple
 
 import click
 
-from .base import StorageBackend, File, Attr, verify_local_access
+from .base import StorageBackend, File, Attr, verify_local_access, StaticSubcontainerStorageMixin
 from ..fuse_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
 
 __all__ = ['LocalStorageBackend']
 
+logger = logging.getLogger('local-storage')
 
 def to_attr(st: os.stat_result) -> Attr:
     '''
@@ -90,7 +91,7 @@ class LocalFile(File):
             st.size = self.file.seek(0, 2)
         return st
 
-    def read(self, length, offset):
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         with self.lock:
             self.file.seek(offset)
             return self.file.read(length)
@@ -111,7 +112,7 @@ class LocalFile(File):
         self.file.flush()
 
 
-class LocalStorageBackend(StorageBackend):
+class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
     '''Local, file-based storage'''
     SCHEMA = Schema({
         "type": "object",
@@ -120,7 +121,13 @@ class LocalStorageBackend(StorageBackend):
             "location": {
                 "$ref": "types.json#abs-path",
                 "description": "Path in the local filesystem"
-            }
+            },
+            "subcontainers" : {
+                "type": "array",
+                "items": {
+                    "$ref": "types.json#rel-path",
+                }
+            },
         }
     })
     TYPE = 'local'
@@ -140,12 +147,17 @@ class LocalStorageBackend(StorageBackend):
         return [
             click.Option(['--location'], metavar='PATH',
                          help='path in local filesystem',
-                         required=True)
+                         required=True),
+            click.Option(['--subcontainer'], metavar='PATH', multiple=True,
+                         help='Relative path to a subcontainer manifest (can be repeated)'),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'location': data['location']}
+        return {
+            'location': data['location'],
+            'subcontainers': list(data['subcontainer']),
+        }
 
     def _path(self, path: PurePosixPath) -> Path:
         '''Given path inside filesystem, calculate path on disk, relative to
