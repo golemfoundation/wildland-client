@@ -351,7 +351,14 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
         copied_manifest_path, manifest_url = _do_import_manifest(obj, name)
         if not copied_manifest_path or not manifest_url:
             return
-        _do_process_imported_manifest(obj, copied_manifest_path, manifest_url, paths, default_user)
+        try:
+            _do_process_imported_manifest(obj, copied_manifest_path, manifest_url,
+                                          paths, default_user)
+        except Exception as ex:
+            click.echo(
+                f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
+            copied_manifest_path.unlink()
+            raise CliError(f'Failed to import: {str(ex)}') from ex
     else:
         # this didn't work out, perhaps we have an url to a bunch of bridges?
         try:
@@ -362,6 +369,11 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                 bridges = [bridges[0]]
             if len(bridges) > 1 and paths:
                 raise CliError('Cannot import multiple bridges with --path override.')
+        except WildlandError as wl_ex:
+            raise CliError(f'Failed to import manifest: {str(wl_ex)}') from wl_ex
+
+        copied_files = []
+        try:
             for bridge in bridges:
                 new_bridge = Bridge(
                     owner=default_user,
@@ -373,9 +385,14 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                 bridge_name = bridge_name.replace(':', '_').replace('/', '_')
                 bridge_path = obj.client.save_new_bridge(new_bridge, bridge_name, None)
                 click.echo(f'Created: {bridge_path}')
+                copied_files.append(bridge_path)
                 _do_import_manifest(obj, bridge.user_location)
-        except WildlandError as wl_ex:
-            raise CliError(f'Failed to import manifest: {str(wl_ex)}') from wl_ex
+        except Exception as ex:
+            for file in copied_files:
+                click.echo(
+                    f'Import error occurred. Removing created files: {str(file)}')
+                file.unlink(missing_ok=True)
+            raise CliError(f'Failed to import: {str(ex)}') from ex
 
 
 @user_.command('import', short_help='import bridge or user manifest', alias=['im'])
