@@ -199,6 +199,7 @@ class Syncer:
                 logger.warning("Container %s: cannot sync file %s to storage %s. "
                                "Operation not supported by storage backend.",
                                self.container_name, path, target_storage.backend_id)
+                return
             except NotADirectoryError:
                 # Can occur if there's a file/directory conflict and we are trying to sync a file
                 # located in a directory that's a file in another storage
