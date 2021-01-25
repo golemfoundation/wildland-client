@@ -151,8 +151,11 @@ Example:
     signature: ...
     ---
     owner: '0x5a7a224844d80b086445'
-    containers:
+    infrastructures:
       - file:///path/to/container.yaml
+    pubkeys:
+      - RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
+      - ...
 
 Fields:
 
@@ -242,11 +245,7 @@ Example:
    ---
    owner: '0x5a7a224844d80b086445'
    user: ./User.yaml
-   pubkey: 'untrusted comment: signify public key
-
-    RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
-
-    '
+   pubkey: RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
    paths:
    - /users/User
 
