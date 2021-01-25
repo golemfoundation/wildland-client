@@ -326,6 +326,12 @@ def _do_process_imported_manifest(
         click.echo(f'Created: {bridge_path}')
     else:
         bridge = Bridge.from_manifest(manifest)
+        # adjust imported bridge
+        if paths:
+            bridge.paths = paths
+        if default_user:
+            bridge.owner = default_user
+        copied_manifest_path.write_bytes(obj.session.dump_bridge(bridge))
         _do_import_manifest(obj, bridge.user_location)
 
 

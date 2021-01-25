@@ -1178,7 +1178,7 @@ def test_import_bridge(cli, base_dir, tmpdir):
     bridge_data = (base_dir / 'bridges/BobBridge.bridge.yaml').read_text()
 
     assert 'object: bridge' in bridge_data
-    assert 'owner: \'0xbbb\'' in bridge_data
+    assert 'owner: \'0xaaa\'' in bridge_data
     assert f'user: file://localhost{user_destination}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert 'paths:\n- /IMPORT' in bridge_data
