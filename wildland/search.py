@@ -111,7 +111,7 @@ class Search:
             raise PathError(f'Expecting an object path, not a file path: {self.wlpath}')
 
         for step in self._resolve_all():
-            if step.bridge:
+            if step.bridge and not step.container:
                 yield step.bridge
 
     def read_file(self) -> bytes:
