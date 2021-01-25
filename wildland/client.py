@@ -316,8 +316,13 @@ class Client:
         '''
 
         # Wildland path
-        if WildlandPath.match(name):
+        wlpath = None
+        if name.startswith(WILDLAND_URL_PREFIX):
+            wlpath = WildlandPath.from_str(name[len(WILDLAND_URL_PREFIX):])
+        elif WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
+
+        if wlpath:
             # TODO: what to do if there are more containers that match the path?
             try:
                 return next(self.load_container_from_wlpath(wlpath))
