@@ -714,26 +714,27 @@ class Client:
 
         return '://' in s or s.startswith(WILDLAND_URL_PREFIX)
 
-    def _wl_url_to_search(self, url: str):
+    def _wl_url_to_search(self, url: str, use_aliases: bool = False):
         wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
-        if not wlpath.owner:
+        if not wlpath.owner and not use_aliases:
             raise WildlandError(
                 'Wildland path in URL context has to have explicit owner')
         # TODO: Still a circular dependency with search
         # pylint: disable=import-outside-toplevel
         from .search import Search
 
-        search = Search(self, wlpath, {})
+        search = Search(self, wlpath,
+                        self.config.aliases if use_aliases else {})
 
         return search
 
-    def read_bridge_from_url(self, url: str) -> Iterable[Bridge]:
+    def read_bridge_from_url(self, url: str, use_aliases: bool = False) -> Iterable[Bridge]:
         """
         Return an iterator over all bridges encountered on a given Wildland path.
         """
         if not url.startswith(WILDLAND_URL_PREFIX):
             raise WildlandError('Missing Wildland path prefix')
-        search = self._wl_url_to_search(url)
+        search = self._wl_url_to_search(url, use_aliases=use_aliases)
         yield from search.read_bridge()
 
     def is_url_file_path(self, url: str):
@@ -748,7 +749,7 @@ class Client:
             return bool(search.wlpath.file_path)
         return True
 
-    def read_from_url(self, url: str, owner: str) -> bytes:
+    def read_from_url(self, url: str, owner: str, use_aliases: bool = False) -> bytes:
         '''
         Retrieve data from a given URL. The local (file://) URLs
         are recognized based on the 'local_hostname' and 'local_owners'
@@ -756,7 +757,7 @@ class Client:
         '''
 
         if url.startswith(WILDLAND_URL_PREFIX):
-            search = self._wl_url_to_search(url)
+            search = self._wl_url_to_search(url, use_aliases=use_aliases)
             return search.read_file()
 
         if url.startswith('file:'):
