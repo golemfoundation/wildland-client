@@ -211,6 +211,24 @@ def publish(obj: ContextObj, cont, wlpath=None):
     obj.client.publish_container(container, wlpath)
 
 
+def _container_info(client, container):
+    click.echo(container.local_path)
+    try:
+        user = client.load_user_by_name(container.owner)
+        if user.paths:
+            user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
+        else:
+            user_desc = ''
+    except ManifestError:
+        user_desc = ''
+    click.echo(f'  signer: {container.owner}' + user_desc)
+    for container_path in container.expanded_paths:
+        click.echo(f'  path: {container_path}')
+    for storage_path in container.backends:
+        click.echo(f'  storage: {storage_path}')
+    click.echo()
+
+
 @container_.command('list', short_help='list containers', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
@@ -220,21 +238,24 @@ def list_(obj: ContextObj):
 
     obj.client.recognize_users()
     for container in obj.client.load_containers():
-        click.echo(container.local_path)
-        try:
-            user = obj.client.load_user_by_name(container.owner)
-            if user.paths:
-                user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
-            else:
-                user_desc = ''
-        except ManifestError:
-            user_desc = ''
-        click.echo(f'  signer: {container.owner}' + user_desc)
-        for container_path in container.expanded_paths:
-            click.echo(f'  path: {container_path}')
-        for storage_path in container.backends:
-            click.echo(f'  storage: {storage_path}')
-        click.echo()
+        _container_info(obj.client, container)
+
+
+@container_.command(short_help='show container summary')
+@click.argument('name', metavar='CONTAINER')
+@click.pass_obj
+def info(obj: ContextObj, name):
+    '''
+    Show information about single container.
+    '''
+
+    obj.client.recognize_users()
+    try:
+        container = obj.client.load_container_from(name)
+    except ManifestError as ex:
+        raise CliError(f'Failed to load manifest: {ex}') from ex
+
+    _container_info(obj.client, container)
 
 
 @container_.command('delete', short_help='delete a container', alias=['rm'])
