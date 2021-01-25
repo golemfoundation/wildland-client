@@ -745,8 +745,8 @@ class Client:
         if not self.is_url(url):
             return False
         if url.startswith(WILDLAND_URL_PREFIX):
-            search = self._wl_url_to_search(url)
-            return bool(search.wlpath.file_path)
+            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+            return bool(wlpath.file_path)
         return True
 
     def read_from_url(self, url: str, owner: str, use_aliases: bool = False) -> bytes:
