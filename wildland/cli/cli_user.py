@@ -258,7 +258,8 @@ def _do_import_manifest(obj, path) -> Tuple[Optional[Path], Optional[str]]:
         file_url = obj.client.local_url(Path(path).absolute())
     else:
         try:
-            file_data = obj.client.read_from_url(path, obj.client.config.get('@default'))
+            file_data = obj.client.read_from_url(path, obj.client.config.get('@default'),
+                                                 use_aliases=True)
             file_name = _remove_suffix(path.split('/')[-1], '.yaml')
             file_url = path
         except WildlandError as ex:
@@ -362,7 +363,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     else:
         # this didn't work out, perhaps we have an url to a bunch of bridges?
         try:
-            bridges = list(obj.client.read_bridge_from_url(name))
+            bridges = list(obj.client.read_bridge_from_url(name, use_aliases=True))
             if not bridges:
                 raise CliError('No bridges found.')
             if only_first:
