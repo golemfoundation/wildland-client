@@ -35,6 +35,7 @@ echo
 echo "SMB server is running at smb://localhost/wildland/"
 echo
 
+wl start
 
 if [ -n "$1" ]; then
     exec "$@"
