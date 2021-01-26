@@ -26,7 +26,9 @@ RUN apt-get -qy update && apt-get install -y \
       netcat-openbsd \
       moreutils \
       git \
-      curl
+      curl \
+      tmux \
+      screen
 
 RUN useradd --create-home user
 RUN echo user_allow_other >> /etc/fuse.conf
@@ -39,7 +41,6 @@ WORKDIR /home/user/wildland-client
 COPY ./requirements.txt .
 RUN python3 -m venv /home/user/env/
 RUN /home/user/env/bin/pip install -r requirements.txt
-
 
 RUN mkdir -p /tmp/docker-user-runtime
 ENV XDG_RUNTIME_DIR /tmp/docker-user-runtime
