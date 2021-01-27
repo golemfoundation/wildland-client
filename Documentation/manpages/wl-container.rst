@@ -9,6 +9,8 @@ Synopsis
 ========
 
 | :command:`wl container list`
+| :command:`wl container info NAME`
+| :command:`wl container delete [--force] [--cascade] NAME`
 | :command:`wl container create [--user <user>] --path <path> [--path <path2> ...] [--storage-set <storage_set>]`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
@@ -35,6 +37,15 @@ Commands
 ----------------------------
 
 List known containers.
+
+.. program:: wl-container-info
+.. _wl-container-info:
+
+:command:`wl container info NAME`
+---------------------------------------------------------
+
+Display a short summary of a single container. The information is equivalent to
+:command:`wl container list`, but for one container only.
 
 .. program:: wl-container-delete
 .. _wl-container-delete:
