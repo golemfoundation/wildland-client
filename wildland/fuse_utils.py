@@ -170,23 +170,6 @@ def fuse_repr(obj):
     return '{}({})'.format(name, ', '.join(attribs))
 
 
-# stolen from python-fuse/example/xmp.py
-_FLAGS_TO_MODE = {os.O_RDONLY: 'rb', os.O_WRONLY: 'wb', os.O_RDWR: 'wb+'}
-
-def flags_to_mode(flags):
-    '''Convert binary flags for ``open(2)`` to *mode* in python's
-    :func:`open`
-
-    Args:
-        flags (int): the flags
-    Returns:
-        str: the appropriate mode
-    '''
-    mode = _FLAGS_TO_MODE[flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR)]
-    if flags | os.O_APPEND:
-        mode = mode.replace('w', 'a', 1)
-    return mode
-
 class Tracer:
     # pylint: disable=missing-docstring
     def __init__(self, current_frame):
