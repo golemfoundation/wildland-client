@@ -119,7 +119,7 @@ class Client:
             self.session.recognize_user(user)
 
     @staticmethod
-    def find_local_manifest(base_dir: Path, suffix: Optional[str], name: str) -> Path:
+    def find_local_manifest(base_dir: Path, suffix: Optional[str], name: str) -> Optional[Path]:
         '''
         Find local manifest based on a (potentially ambiguous) name.
         '''
@@ -140,7 +140,7 @@ class Client:
         if path.exists():
             return path
 
-        raise ManifestError(f'Manifest not found: {name}')
+        return None
 
     def load_users(self) -> Iterator[User]:
         '''
@@ -180,7 +180,7 @@ class Client:
 
         return self.session.load_user(data)
 
-    def find_user_manifest(self, name: str) -> Path:
+    def find_user_manifest(self, name: str) -> Optional[Path]:
         '''
         Find user's manifest based on a (potentially ambiguous) name.
         '''

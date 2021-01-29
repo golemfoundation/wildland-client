@@ -56,11 +56,9 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
             'storage': lambda: client.find_local_manifest(client.storage_dir, 'storage', name),
             'bridge': lambda: client.find_local_manifest(client.bridge_dir, 'bridge', name),
         }[manifest_type]
-
-        try:
-            return search_func()
-        except ManifestError as e:
-            raise click.ClickException(f'{e}')
+        path = search_func()
+        if path:
+            return path
 
     raise click.ClickException(f'Not found: {name}')
 

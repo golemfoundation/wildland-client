@@ -283,7 +283,7 @@ def test_user_del_path(cli, base_dir):
     assert data.count('/xyz') == 1
 
     # FIXME: invalid path
-    #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
+    # cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
 def test_user_add_pubkey(cli, base_dir):
@@ -346,6 +346,7 @@ def test_user_del_pubkey(cli, base_dir):
     #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
+
 ## Storage
 
 def test_storage_create(cli, base_dir):
@@ -372,27 +373,6 @@ def test_storage_create_not_inline(cli, base_dir):
 
     storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert str(storage_path) in data
-
-
-def test_storage_edit(cli, base_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
-        '--container', 'Container', '--no-inline')
-
-    manifest = base_dir / 'storage/Storage.storage.yaml'
-
-    editor = r'sed -i s,PATH,HTAP,g'
-    cli('storage', 'edit', 'Storage', '--editor', editor)
-    with open(manifest) as f:
-        data = f.read()
-    assert "location: /HTAP" in data
-
-    editor = r'sed -i s,HTAP,PATH,g'
-    cli('storage', 'edit', manifest, '--editor', editor)
-    with open(manifest) as f:
-        data = f.read()
-    assert "location: /PATH" in data
 
 
 def test_storage_create_inline(cli, base_dir):
@@ -458,6 +438,27 @@ def test_storage_list(cli, base_dir):
     assert result.splitlines() == ok
     result = cli('storages', 'list', capture=True)
     assert result.splitlines() == ok
+
+
+def test_storage_edit(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    manifest = base_dir / 'storage/Storage.storage.yaml'
+
+    editor = r'sed -i s,PATH,HTAP,g'
+    cli('storage', 'edit', 'Storage', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "location: /HTAP" in data
+
+    editor = r'sed -i s,HTAP,PATH,g'
+    cli('storage', 'edit', manifest, '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "location: /PATH" in data
 
 
 ## Container
@@ -641,7 +642,7 @@ def test_container_del_path(cli, base_dir):
     assert data.count('/xyz') == 1
 
     # FIXME: invalid path
-    #cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
+    # cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
 
 
 def test_container_set_title(cli, base_dir):
@@ -722,7 +723,7 @@ def test_container_del_category(cli, base_dir):
     assert data.count('- /xyz') == 1
 
     # FIXME: invalid path
-    #cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
+    # cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
 
 
 def test_container_create_update_user(cli, base_dir):

@@ -283,7 +283,7 @@ def delete(obj: ContextObj, name, force, cascade):
         if force:
             click.echo(f'Failed to load manifest: {ex}')
             try:
-                path = obj.client.resolve_container_name_to_path(name)
+                path = obj.client.find_local_manifest(obj.client.container_dir, 'container', name)
                 if path:
                     click.echo(f'Deleting file {path}')
                     path.unlink()
