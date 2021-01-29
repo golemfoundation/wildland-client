@@ -35,6 +35,16 @@ RUN chown -R user /var/lock/apache2
 # samba
 COPY ./docker/smb.conf /etc/samba/smb.conf
 
+# add IPFS client
+
+RUN curl -sL \
+  https://github.com/ipfs/go-ipfs/releases/download/v0.7.0/go-ipfs_v0.7.0_linux-amd64.tar.gz \
+  -o go-ipfs_v0.7.0_linux-amd64.tar.gz
+
+RUN tar -xf go-ipfs_v0.7.0_linux-amd64.tar.gz
+RUN install go-ipfs/ipfs /bin/
+RUN rm -rf go-ipfs go-ipfs_v0.7.0_linux-amd64.tar.gz
+
 USER user
 
 ENTRYPOINT ["./docker/entrypoint.sh"]
