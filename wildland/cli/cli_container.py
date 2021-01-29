@@ -662,10 +662,14 @@ def syncer_pidfile_for_container(container: Container) -> Path:
 
 @container_.command('sync', short_help='start syncing a container')
 @click.argument('cont', metavar='CONTAINER')
+@click.option('--target-remote', help='specify which remote storage should be kept in sync'
+                                      'with the local storage. Default: first listed in manifest. '
+                                      'Can be specified as backend_id or as storage type (e.g. s3')
 @click.pass_obj
-def sync_container(obj: ContextObj, cont):
+def sync_container(obj: ContextObj, target_remote, cont):
     """
-    Keep the given container in sync across storages.
+    Keep the given container in sync across the local storage and selected remote storage
+    (by default the first listed in manifest).
     """
 
     obj.client.recognize_users()
@@ -680,9 +684,24 @@ def sync_container(obj: ContextObj, cont):
     storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
 
+    try:
+        target_storages = [[storage for storage in storages if storage.TYPE == 'local'][0]]
+    except IndexError:
+        raise CliError('No local storage backend found')  # pylint: disable=raise-missing-from
+
+    try:
+        target_storages.append(
+            [storage for storage in storages
+             if target_remote in (storage.backend_id, storage.TYPE) or
+             (not target_remote and storage.TYPE != 'local')][0])
+    except IndexError:
+        # pylint: disable=raise-missing-from
+        raise CliError('No remote storage backend found: specify --target-remote or check '
+                       'if specified --target-remote exists.')
+
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
-    hash_db.update_storages_for_containers(container.ensure_uuid(), storages)
+    hash_db.update_storages_for_containers(container.ensure_uuid(), target_storages)
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
@@ -691,7 +710,7 @@ def sync_container(obj: ContextObj, cont):
         container_path = PurePosixPath(container.local_path)
         container_name = container_path.name.replace(''.join(container_path.suffixes), '')
 
-        syncer = Syncer(storages, container_name=container_name,
+        syncer = Syncer(target_storages, container_name=container_name,
                         config_dir=obj.client.config.base_dir)
         try:
             syncer.start_syncing()

@@ -819,9 +819,10 @@ def test_cli_container_sync(tmpdir, cleanup):
             '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
     wl_call(base_config_dir, 'storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage1_data)
-    wl_call(base_config_dir, 'storage', 'create', 'local',
+    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
             '--container', 'AliceContainer', '--location', storage2_data)
-    wl_call(base_config_dir, 'container', 'sync', 'AliceContainer')
+    wl_call(base_config_dir, 'container', 'sync', '--target-remote', 'local-cached',
+            'AliceContainer')
 
     time.sleep(1)
 
