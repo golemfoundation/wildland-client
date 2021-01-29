@@ -40,5 +40,3 @@ def flags_to_mode(flags):
     if flags | os.O_APPEND:
         mode = mode.replace('w', 'a', 1)
     return mode
-
-

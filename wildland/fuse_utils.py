@@ -25,7 +25,6 @@ import errno
 import functools
 import itertools
 import logging
-import os
 import sys
 import threading
 
