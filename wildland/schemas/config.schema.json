@@ -79,6 +79,14 @@
             "patternProperties": {
                 "^0x[a-f0-9]+$": { "type": "string" }
             }
+        },
+
+        "default-remote-for-container": {
+            "type": "object",
+            "description": "A dictionary of default remote storage for each container",
+            "patternProperties": {
+                "^0x[a-f0-9]+$": { "type": "string" }
+            }
         }
     },
     "additionalProperties": false

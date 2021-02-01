@@ -719,6 +719,14 @@ class Client:
 
         return '://' in s or s.startswith(WILDLAND_URL_PREFIX)
 
+    @staticmethod
+    def is_local_storage(storage: StorageBackend):
+        """
+        Check if the given storage is local. Currently checks for TYPE matching local, local-cached
+        or local-dir-cached.
+        """
+        return storage.TYPE in ['local', 'local-cached', 'local-dir-cached']
+
     def _wl_url_to_search(self, url: str, use_aliases: bool = False):
         wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
         if not wlpath.owner and not use_aliases:

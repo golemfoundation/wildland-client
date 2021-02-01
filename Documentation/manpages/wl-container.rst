@@ -268,7 +268,8 @@ storage in the manifest).
 .. option:: --target-remote <id_or_type>
 
    Specify which remote storage should be synced; can be specified as a backend-id or as storage
-   type (e.g. 's3')
+   type (e.g. 's3'). The choice will be saved in config and used as default in future container
+   syncs.
 
 
 .. program:: wl-container-stop-sync

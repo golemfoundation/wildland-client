@@ -685,19 +685,37 @@ def sync_container(obj: ContextObj, target_remote, cont):
                 obj.client.all_storages(container)]
 
     try:
-        target_storages = [[storage for storage in storages if storage.TYPE == 'local'][0]]
+        target_storages = [[storage for storage in storages
+                            if obj.client.is_local_storage(storage)][0]]
     except IndexError:
         raise CliError('No local storage backend found')  # pylint: disable=raise-missing-from
 
-    try:
-        target_storages.append(
-            [storage for storage in storages
-             if target_remote in (storage.backend_id, storage.TYPE) or
-             (not target_remote and storage.TYPE != 'local')][0])
-    except IndexError:
-        # pylint: disable=raise-missing-from
-        raise CliError('No remote storage backend found: specify --target-remote or check '
-                       'if specified --target-remote exists.')
+    default_remotes = obj.client.config.get('default-remote-for-container')
+
+    if target_remote:
+        try:
+            target_remote = [storage for storage in storages
+                             if target_remote in (storage.backend_id, storage.TYPE)][0]
+        except IndexError:
+            # pylint: disable=raise-missing-from
+            raise CliError('No remote storage backend found: check if specified'
+                           ' --target-remote exists.')
+        default_remotes[container.ensure_uuid()] = target_remote.backend_id
+        obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
+
+    else:
+        target_remote_id = default_remotes.get(container.ensure_uuid(), None)
+        try:
+            target_remote = [
+                storage for storage in storages
+                if target_remote_id == storage.backend_id
+                   or (not target_remote_id and not obj.client.is_local_storage(storage))][0]
+        except IndexError:
+            # pylint: disable=raise-missing-from
+            raise CliError('No remote storage backend found: specify --target-remote.')
+
+    click.echo(f'Using remote backend {target_remote.backend_id} of type {target_remote.TYPE}')
+    target_storages.append(target_remote)
 
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
