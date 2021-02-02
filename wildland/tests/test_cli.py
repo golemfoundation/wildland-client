@@ -461,6 +461,20 @@ def test_storage_edit(cli, base_dir):
     assert "location: /PATH" in data
 
 
+def test_storage_set_location(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/LOC',
+        '--container', 'Container', '--no-inline')
+
+    manifest_path = base_dir / 'storage/Storage.storage.yaml'
+
+    cli('storage', 'modify', 'set-location', 'Storage', '--location', '/OTHER')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'location: /OTHER' in data
+
+
 ## Container
 
 

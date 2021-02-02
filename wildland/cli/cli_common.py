@@ -298,6 +298,7 @@ def del_field(fields: dict, field: str, values: List[str]) -> dict:
 def set_field(fields: dict, field: str, values: List[str]) -> dict:
     '''
     Callback function for `modify_manifest`. Sets value of the specified field.
+    `values` should be a one-item list.
     '''
     fields[field] = values.pop()
 

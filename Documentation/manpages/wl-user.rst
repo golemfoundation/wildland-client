@@ -12,6 +12,7 @@ Synopsis
 | :command:`wl user create <name> --key <key>`
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
+| :command:`wl user modify {add-path|del-path|add-pubkey|del-pubkey} [...] <file>`
 
 Description
 ===========
@@ -131,3 +132,51 @@ Iterate over bridges and import all user manifest that those bridges refer to.
 Note: This command will override the existing users' manifests.
 
 Unless USER name is provided, the command will iterate over all bridges.
+
+.. program:: wl-user-modify
+.. _wl-user-modify:
+
+.. _wl-user-modify-add-path:
+
+:command:`wl user modify add-path --path PATH <file>`
+-----------------------------------------------------
+
+Add Wildland path to a user |~| manifest given by *<file>*.
+
+.. option:: --path
+
+   Path to add. Can be repeated.
+
+.. _wl-user-modify-del-path:
+
+:command:`wl user modify del-path --path PATH <file>`
+-----------------------------------------------------
+
+Remove Wildland path from a user |~| manifest given by *<file>*.
+
+.. option:: --path
+
+   Path to remove. Can be repeated.
+
+.. _wl-user-modify-add-pubkey:
+
+:command:`wl user modify add-pubkey --pubkey PUBKEY <file>`
+-----------------------------------------------------------
+
+Add public key to a user |~| manifest given by *<file>*.
+
+.. option:: --pubkey
+
+   Public key to add (the same format as in the public key file). Can be repeated.
+
+.. _wl-user-modify-del-pubkey:
+
+:command:`wl user modify del-pubkey --pubkey PUBKEY <file>`
+-----------------------------------------------------------
+
+Remove public key from a user |~| manifest given by *<file>*.
+
+.. option:: --pubkey
+
+   Public key to remove (the same format as in the public key file). Can be repeated.
+
