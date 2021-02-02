@@ -57,13 +57,11 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--container'], metavar='CONTAINER',
                      required=True,
                      help='Container this storage is for'),
-        click.Option(['--update-container/--no-update-container', '-u/-n'], default=True,
-                     help='Update the container after creating storage'),
         click.Option(['--trusted'], is_flag=True,
-                     help='Make the storage trusted'),
+                     help='Make the storage trusted. Default: false'),
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
-                     'manifest, instead of saving it to a file'),
+                     'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--manifest-pattern'], metavar='GLOB',
                      help='Set the manifest pattern for storage'),
         click.Argument(['name'], metavar='NAME', required=False),
@@ -94,14 +92,10 @@ def _do_create(
         backend: Type[StorageBackend],
         name,
         container,
-        update_container,
         trusted,
         manifest_pattern,
         inline,
         **data):
-
-    if inline and not update_container:
-        raise click.ClickException('The --inline option requires --update-container')
 
     obj: ContextObj = click.get_current_context().obj
 
@@ -140,10 +134,10 @@ def _do_create(
     )
     storage.validate()
 
-    _do_save_new_storage(obj.client, container, storage, inline, update_container, name)
+    _do_save_new_storage(obj.client, container, storage, inline, name)
 
 
-def _do_save_new_storage(client, container, storage, inline, update_container, name):
+def _do_save_new_storage(client, container, storage, inline, name):
     """
     Save a new storage manifest.
     :param client: Wildland client
@@ -151,8 +145,6 @@ def _do_save_new_storage(client, container, storage, inline, update_container, n
     :param storage: Wildland storage to be saved
     :param inline: boolean, if the storage should be inline in the container manifest (True) or
         a separate file (False)
-    :param update_container: boolean, if the container manifest should be updated with the storage
-        (ignored if inline is True)
     :param name: storage name
     """
     if inline:
@@ -164,11 +156,10 @@ def _do_save_new_storage(client, container, storage, inline, update_container, n
         storage_path = client.save_new_storage(storage, name)
         click.echo('Created: {}'.format(storage_path))
 
-        if update_container:
-            click.echo('Adding storage to container')
-            container.backends.append(client.local_url(storage_path))
-            click.echo(f'Saving: {container.local_path}')
-            client.save_container(container)
+        click.echo('Adding storage to container')
+        container.backends.append(client.local_url(storage_path))
+        click.echo(f'Saving: {container.local_path}')
+        client.save_container(container)
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
@@ -310,7 +301,7 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
             click.echo('WARNING: Cannot mount storage. Proceeding conditionally.')
 
         _do_save_new_storage(client=client, container=container, storage=storage,
-                             inline=(t == 'inline'), update_container=True, name=storage_set.name)
+                             inline=(t == 'inline'), name=storage_set.name)
 
 
 @storage_.command('create-from-set', short_help='create a storage from a set of templates',
