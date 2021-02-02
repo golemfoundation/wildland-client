@@ -33,7 +33,7 @@ import inotify_simple
 import click
 
 from .base import StorageBackend, File, Attr, verify_local_access, StaticSubcontainerStorageMixin
-from ..fuse_utils import flags_to_mode
+from ..fs_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
 
