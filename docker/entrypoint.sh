@@ -29,10 +29,19 @@ fi
 
 cd /home/user
 
+
+ipfs init &> /dev/null
+ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
+ipfs daemon &> /dev/null &
+echo "Starting IPFS daemon: ipfs."
+
+
 echo
 echo "WebDAV server is running at dav://localhost:8080/"
 echo
 echo "SMB server is running at smb://localhost/wildland/"
+echo
+echo "IPFS is running at /ip4/127.0.0.1/tcp/8888"
 echo
 
 if [ -n "$1" ]; then
