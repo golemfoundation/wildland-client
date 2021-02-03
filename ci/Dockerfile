@@ -30,6 +30,16 @@ RUN apt-get -qy update && apt-get install -y \
       tmux \
       screen
 
+# add IPFS client
+
+RUN curl -sL \
+  https://github.com/ipfs/go-ipfs/releases/download/v0.7.0/go-ipfs_v0.7.0_linux-amd64.tar.gz \
+  -o go-ipfs_v0.7.0_linux-amd64.tar.gz \
+  && echo "1d5910f27e8d7ea333145f15c6edcbacc1e8db3a99365f0847467bdfa7c73f4d7a05562e46be8e932056c8324ed0769ca1b6758dfb0ac4c2e1b6066b57c4a086  go-ipfs_v0.7.0_linux-amd64.tar.gz" | sha512sum --check --status \
+  && tar -xf go-ipfs_v0.7.0_linux-amd64.tar.gz \
+  && install go-ipfs/ipfs /bin/ \
+  && rm -rf go-ipfs go-ipfs_v0.7.0_linux-amd64.tar.gz
+
 RUN useradd --create-home user
 RUN echo user_allow_other >> /etc/fuse.conf
 
