@@ -20,7 +20,7 @@
 '''
 The container
 '''
-
+from copy import deepcopy
 from pathlib import PurePosixPath, Path
 import uuid
 from typing import Optional, List, Union
@@ -85,11 +85,23 @@ class Container:
         Has to be signed separately.
         '''
 
+        # remove redundant fields from inline manifest
+        cleaned_backends = deepcopy(self.backends)
+        for backend in cleaned_backends:
+            if not isinstance(backend, dict):
+                continue
+            if 'owner' in backend:
+                del backend['owner']
+            if 'container-path' in backend:
+                del backend['container-path']
+            if 'object' in backend:
+                del backend['object']
+
         manifest = Manifest.from_fields(dict(
             object=type(self).__name__.lower(),
             owner=self.owner,
             paths=[str(p) for p in self.paths],
-            backends={'storage': self.backends},
+            backends={'storage': cleaned_backends},
             title=self.title,
             categories=[str(cat) for cat in self.categories],
         ))
