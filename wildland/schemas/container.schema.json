@@ -33,7 +33,7 @@
                     "items": {
                         "oneOf": [
                             { "$ref": "/schemas/types.json#url" },
-                            { "$ref": "/schemas/storage.schema.json" }
+                            { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" }
                         ]
                     },
                     "description": "list of storage backend URLs, or inlined storage manifests"
