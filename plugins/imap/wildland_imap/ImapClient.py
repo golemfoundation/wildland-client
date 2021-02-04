@@ -92,7 +92,7 @@ class ImapClient:
         self.logger.debug('connecting to IMAP server')
         self.imap = IMAPClient(self.host, use_uid=True, ssl=self.ssl)
         self.imap.login(self.login, self.password)
-        self.imap.select_folder(self.folder)
+        self.imap.select_folder(self.folder, True)
         self._envelope_cache = dict()
         self._message_cache = dict()
         self._all_ids = set()
