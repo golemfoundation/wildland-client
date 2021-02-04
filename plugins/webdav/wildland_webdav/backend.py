@@ -106,7 +106,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         "required": ["url", "credentials"],
         "properties": {
             "url": {
-            "$ref": "types.json#http-url",
+            "$ref": "/schemas/types.json#http-url",
                 "description": "HTTP URL, e.g. https://example.com/remote.php/dav/files/user/"
             },
             "credentials": {

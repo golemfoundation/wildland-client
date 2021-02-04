@@ -7,6 +7,9 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2021-02-04) JSON Schemas should be referenced with '/schemas/' prefix now,
+  for example ``{ "$ref": "/schemas/types.json#url"}``.
+
 * (2020-01-08) Renamed --user to --owner when creating a bridge to not confuse
   user to whom the bridge is pointing vs user who is signing (hence owning)
   the bridge manifest.

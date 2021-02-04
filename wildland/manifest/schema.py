@@ -39,6 +39,8 @@ def load_common_files():
     for name in COMMON_FILES:
         with pkg_resources.resource_stream('wildland', 'schemas/' + name) as f:
             yield name, json.load(f)
+            f.seek(0)
+            yield '/schemas/' + name, json.load(f)
 
 
 

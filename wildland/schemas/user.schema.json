@@ -4,10 +4,10 @@
     "required": ["object", "owner", "paths", "pubkeys"],
     "properties": {
         "object": { "const": "user" },
-        "owner": { "$ref": "types.json#fingerprint" },
+        "owner": { "$ref": "/schemas/types.json#fingerprint" },
         "paths": {
             "type": "array",
-            "items": { "$ref": "types.json#abs-path" },
+            "items": { "$ref": "/schemas/types.json#abs-path" },
             "minItems": 1,
             "description": "list of paths for this user"
         },
@@ -18,15 +18,15 @@
         },
         "containers": {
             "type": "array",
-            "items": { "$ref": "types.json#url" },
+            "items": { "$ref": "/schemas/types.json#url" },
             "description": "deprecated alias for infrastructures"
         },
         "infrastructures": {
             "type": "array",
             "items": {
                 "oneOf": [
-                    { "$ref": "types.json#url" },
-                    { "$ref": "container.schema.json" }
+                    { "$ref": "/schemas/types.json#url" },
+                    { "$ref": "/schemas/container.schema.json" }
                 ]
             },
             "description": "list of container URLs (for finding this user's manifests); can also contain inline containers"

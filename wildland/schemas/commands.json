@@ -16,7 +16,7 @@
                         "properties": {
                             "paths": {
                                 "type": "array",
-                                "items": { "$ref": "types.json#abs-path" },
+                                "items": { "$ref": "/schemas/types.json#abs-path" },
                                 "minItems": 1,
                                 "description": "list of absolute paths in Wildland namespace"
                             },

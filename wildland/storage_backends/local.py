@@ -118,7 +118,7 @@ class LocalStorageBackend(StorageBackend):
         "required": ["location"],
         "properties": {
             "location": {
-                "$ref": "types.json#abs-path",
+                "$ref": "/schemas/types.json#abs-path",
                 "description": "Path in the local filesystem"
             }
         }

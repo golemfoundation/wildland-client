@@ -5,7 +5,7 @@
     "properties": {
         "object": { "const": "storage" },
         "owner": {
-            "$ref": "types.json#fingerprint",
+            "$ref": "/schemas/types.json#fingerprint",
             "description": "Signer of the manifest. Needs to match the owner of the container."
         },
         "type": {
@@ -13,7 +13,7 @@
             "description": "Storage backend. The manifest should contain backend-specific parameters"
         },
         "container-path": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
         },
         "backend-id":{
