@@ -212,7 +212,7 @@ def test_storage_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
-        '--container', 'Container', '--no-update-container', '--no-inline')
+        '--container', 'Container', '--no-inline')
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
 
@@ -319,9 +319,10 @@ def test_container_create_update_user(cli, base_dir):
 def test_container_update(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('container', 'create', 'Container2', '--path', '/PATH2')
 
-    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
-        '--container', 'Container', '--no-update-container', '--no-inline')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH2',
+        '--container', 'Container2', '--no-inline')
     cli('container', 'update', 'Container', '--storage', 'Storage')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
