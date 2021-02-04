@@ -20,3 +20,8 @@
 
    Create a separate storage manifest instead of adding the storage definition directly to
    container manifest.
+
+.. option:: --base-url <url>
+
+   Files in this storage are available under this url, joined with relative
+   path of the file in question.

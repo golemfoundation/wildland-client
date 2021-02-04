@@ -538,6 +538,7 @@ class StorageDriver:
 
         try:
             self.storage_backend.write(relpath, data, 0, obj)
+            return relpath
         finally:
             self.storage_backend.release(relpath, 0, obj)
 

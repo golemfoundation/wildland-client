@@ -48,6 +48,7 @@ class Storage:
                  trusted: bool,
                  params: Dict[str, Any],
                  manifest_pattern: Optional[Dict[str, Any]] = None,
+                 base_url: Optional[str] = None,
                  local_path: Optional[Path] = None):
         self.owner = owner
         self.storage_type = storage_type
@@ -56,6 +57,7 @@ class Storage:
         self.trusted = trusted
         self.local_path = local_path
         self.manifest_pattern = manifest_pattern
+        self.base_url = base_url
         if 'backend-id' not in params:
             hasher = hashlib.md5()
             # skip 'storage' object if present, it is derived from reference-container
@@ -71,6 +73,7 @@ class Storage:
             f'container_path={self.container_path!r}, '
             f'trusted={self.trusted!r}, '
             f'manifest_pattern={self.manifest_pattern!r}, '
+            f'base_url={self.base_url!r}, '
             f'local_path={self.local_path!r})')
 
     @property
@@ -111,6 +114,7 @@ class Storage:
             container_path=PurePosixPath(manifest.fields['container-path']),
             trusted=manifest.fields.get('trusted', False),
             manifest_pattern=manifest.fields.get('manifest-pattern'),
+            base_url=manifest.fields.get('base-url'),
             params=manifest.fields,
             local_path=local_path,
         )
@@ -127,6 +131,8 @@ class Storage:
             fields['trusted'] = True
         if self.manifest_pattern:
             fields['manifest-pattern'] = self.manifest_pattern
+        if self.base_url:
+            fields['base-url'] = self.base_url
         return fields
 
     def to_unsigned_manifest(self) -> Manifest:

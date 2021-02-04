@@ -22,15 +22,18 @@ Abstract classes for storage
 '''
 
 import abc
+import hashlib
 import itertools
+import logging
+import os
+import pathlib
+import posixpath
+import stat
+import urllib.parse
+from collections import namedtuple
+from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
-from dataclasses import dataclass
-from collections import namedtuple
-import stat
-import hashlib
-import os
-import logging
 
 import click
 
@@ -521,6 +524,16 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = manifest.fields['type']
         cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
+
+    def get_url_for_path(self, path):
+        '''
+        Return a URL, under which a file can be accessed.
+        '''
+        assert not path.is_absolute()
+        if 'base-url' not in self.params:
+            return None
+        return posixpath.join(self.params['base-url'],
+            urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
 
 
 class StaticSubcontainerStorageMixin:

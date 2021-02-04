@@ -827,6 +827,24 @@ def test_container_publish(cli, tmp_path):
     assert (tmp_path / 'published.yaml').exists()
 
 
+def test_container_publish_rewrite(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--inline', '--base-url', 'https://example.invalid/')
+
+    cli('container', 'publish', 'Container', '0xaaa:/PATH:/published.yaml')
+
+    assert (tmp_path / 'published.yaml').exists()
+    with open(tmp_path / 'published.yaml') as file:
+        for line in file:
+            print(line)
+            if 'example.invalid' in line:
+                break
+        else:
+            assert False
+
+
 def test_container_delete(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')

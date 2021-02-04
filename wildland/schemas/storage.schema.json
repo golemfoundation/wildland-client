@@ -41,6 +41,10 @@
                 "watcher-interval": {
                     "type": "integer",
                     "description": "Timer to use for watcher mechanism for this storage. Will cause a simple, brute-force watcher that scans the storage every watcher-interval seconds to be used. If omitted, a mechanism native to the backend will be used, or none, if not available."
+                },
+                "base-url": {
+                    "type": "string",
+                    "description": "Base for public URL. Files can be accessed by joining this base and the path relative to storage root."
                 }
             }
         },
