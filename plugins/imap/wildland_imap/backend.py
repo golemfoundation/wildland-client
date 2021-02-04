@@ -14,7 +14,7 @@ from wildland.manifest.sig import SigContext
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.storage_backends.generated import \
-    GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
+    GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
 from .ImapClient import ImapClient, MessageEnvelopeData, \
     MessagePart
 
@@ -87,10 +87,9 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         # This little method should populate the message directory
         # with message parts decomposed into MIME attachements.
         for part in self.client.get_message(e.msg_uid):
-            yield FuncFileEntry(part.attachment_name,
-                                on_read=partial(self._read_part,
-                                                part),
-                                timestamp=e.recv_t.replace(tzinfo=timezone.utc).timestamp())
+            yield StaticFileEntry(part.attachment_name,
+                                  part.content,
+                                  e.recv_t.replace(tzinfo=timezone.utc).timestamp())
 
     def _read_part(self, msg_part: MessagePart) -> bytes:
         # pylint: disable=no-self-use
