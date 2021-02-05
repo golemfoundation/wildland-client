@@ -73,6 +73,13 @@ class Storage:
             f'manifest_pattern={self.manifest_pattern!r}, '
             f'local_path={self.local_path!r})')
 
+    @property
+    def is_writeable(self) -> bool:
+        '''
+        Returns False if read-only param was set to True
+        '''
+        return not self.params.get('read-only', False)
+
     def validate(self):
         '''
         Validate storage assuming it's of a known type.

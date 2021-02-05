@@ -833,7 +833,7 @@ class Client:
 
     @staticmethod
     def _select_storage_for_publishing(storage):
-        return storage.manifest_pattern is not None
+        return storage.manifest_pattern is not None and storage.is_writeable
 
     @staticmethod
     def _manifest_filenames_from_patern(container: Container, path_pattern):
