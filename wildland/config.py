@@ -178,6 +178,7 @@ class Config:
             'local-owners': [],
             'default-containers': [],
             'default-storage-set-for-user': {},
+            'default-remote-for-container': {},
         }
 
     @staticmethod

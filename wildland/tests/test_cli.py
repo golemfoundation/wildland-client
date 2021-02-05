@@ -820,9 +820,10 @@ def test_cli_container_sync(tmpdir, cleanup):
             '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
     wl_call(base_config_dir, 'storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage1_data)
-    wl_call(base_config_dir, 'storage', 'create', 'local',
+    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
             '--container', 'AliceContainer', '--location', storage2_data)
-    wl_call(base_config_dir, 'container', 'sync', 'AliceContainer')
+    wl_call(base_config_dir, 'container', 'sync', '--target-remote', 'local-cached',
+            'AliceContainer')
 
     time.sleep(1)
 
@@ -836,7 +837,77 @@ def test_cli_container_sync(tmpdir, cleanup):
         assert file.read() == 'test data'
 
 
+def test_cli_container_sync_tg_remote(tmpdir, cleanup):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+    storage3_data = base_data_dir / 'storage3'
+
+    os.mkdir(base_config_dir)
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+    os.mkdir(storage3_data)
+
+    cleanup(lambda: wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer'))
+
+    wl_call(base_config_dir, 'user', 'create', 'Alice')
+    wl_call(base_config_dir, 'container', 'create',
+            '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage1_data)
+    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
+            '--container', 'AliceContainer', '--location', storage2_data)
+    wl_call(base_config_dir, 'storage', 'create', 'local-dir-cached',
+            '--container', 'AliceContainer', '--location', storage3_data)
+    wl_call(base_config_dir, 'container', 'sync', '--target-remote', 'local-dir-cached',
+            'AliceContainer')
+
+    time.sleep(1)
+
+    with open(storage1_data / 'testfile', 'w') as f:
+        f.write("test data")
+
+    time.sleep(1)
+
+    assert (storage3_data / 'testfile').exists()
+    assert not (storage2_data / 'testfile').exists()
+    with open(storage3_data / 'testfile') as file:
+        assert file.read() == 'test data'
+
+    with open(base_config_dir / 'containers/AliceContainer.container.yaml') as f:
+        cont_data = f.read().split('\n', 4)[-1]
+        cont_yaml = yaml.safe_load(cont_data)
+
+    container_id = cont_yaml['paths'][0][7:]
+    assert cont_yaml['backends']['storage'][2]['type'] == 'local-dir-cached'
+    backend_id = cont_yaml['backends']['storage'][2]['backend-id']
+
+    with open(base_config_dir / 'config.yaml') as f:
+        data = f.read()
+
+    config = yaml.load(data, Loader=yaml.SafeLoader)
+    default_storage = config["default-remote-for-container"]
+    assert default_storage[container_id] == backend_id
+
+    wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer')
+    wl_call(base_config_dir, 'container', 'sync', 'AliceContainer')
+
+    time.sleep(1)
+
+    with open(storage1_data / 'testfile2', 'w') as f:
+        f.write("get value from config")
+
+    time.sleep(1)
+
+    assert (storage3_data / 'testfile2').exists()
+    assert not (storage2_data / 'testfile2').exists()
+    with open(storage3_data / 'testfile2') as file:
+        assert file.read() == "get value from config"
+
 # Storage sets
+
 
 def setup_storage_sets(config_dir):
     os.mkdir(config_dir / 'templates')

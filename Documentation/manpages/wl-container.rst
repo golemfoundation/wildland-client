@@ -259,10 +259,17 @@ and :ref:`wl edit <wl-edit>` documentation.
 .. program:: wl-container-sync
 .. _wl-container-sync:
 
-:command:`wl container sync <container>`
-----------------------------------------
+:command:`wl container sync [--target-remote <id_or_type>] <container>`
+-----------------------------------------------------------------------
 
-Start synchronizing container's storages.
+Start synchronizing container's local storage with a remote storage (by default, first non-local
+storage in the manifest).
+
+.. option:: --target-remote <id_or_type>
+
+   Specify which remote storage should be synced; can be specified as a backend-id or as storage
+   type (e.g. 's3'). The choice will be saved in config and used as default in future container
+   syncs.
 
 
 .. program:: wl-container-stop-sync
