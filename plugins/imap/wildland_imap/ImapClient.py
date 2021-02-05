@@ -7,6 +7,7 @@ update-sensitive and includes primitive caching support.
 import logging
 import time
 import mimetypes
+import imaplib
 from dataclasses import dataclass
 from threading import Lock
 from typing import List, Set
@@ -149,7 +150,7 @@ class ImapClient:
                         try:
                             reply = self.imap.noop()
                             again = False
-                        except ConnectionResetError:
+                        except (ConnectionResetError, imaplib.IMAP4.abort):
                             if repeats > 0:
                                 repeats -= 1
                                 self.logger.debug('connection lost, trying to reconnect')
@@ -197,8 +198,12 @@ class ImapClient:
         subj = _decode_text(subj)
 
         body = msg.get_body(('html', 'plain'))
-        content = body.get_payload(decode=True)
-        charset = body.get_content_charset()
+        if body:
+            content = body.get_payload(decode=True)
+            charset = body.get_content_charset()
+        else:
+            content = "This message contains no decodable body part."
+
         if not charset:
             charset = 'utf-8'
         content = content.decode(charset)
