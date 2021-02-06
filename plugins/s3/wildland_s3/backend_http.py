@@ -92,7 +92,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.read_only = True
 
         self.base_url = self.params['url']
-        self.base_path = PurePosixPath(urlparse(self.base_url).path)
+        self.base_path = PurePosixPath(urlparse(self.base_url).path or '/')
 
     @classmethod
     def cli_options(cls):
@@ -115,7 +115,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         return urljoin(self.base_url, quote(str(full_path)))
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
-        url = self.make_url(path) + '/'
+        url = self.make_url(path)
         resp = requests.request(
             method='GET',
             url=url,

@@ -215,6 +215,21 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
             self.watcher_instance.ignore_event('delete', path)
         return os.rmdir(self._path(path))
 
+    def chmod(self, path: PurePosixPath, mode: int):
+        return os.chmod(self._path(path), mode)
+
+    def chown(self, path: PurePosixPath, uid: int, gid: int):
+        return os.chown(self._path(path), uid, gid)
+
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+        return os.rename(self._path(move_from), self._path(move_to))
+
+    def utimens(self, path: str, atime, mtime):
+        atime_s = atime.tv_nsec / 1e9 if atime.tv_nsec and atime.tv_nsec > 0 else atime.tv_sec
+        mtime_s = mtime.tv_nsec / 1e9 if mtime.tv_nsec and mtime.tv_nsec > 0 else mtime.tv_sec
+
+        return os.utime(self._path(path), times=(atime_s, mtime_s))
+
     def watcher(self):
         """
         If manifest explicitly specifies a watcher-interval, use default implementation. If not,

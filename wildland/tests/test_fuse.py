@@ -146,6 +146,49 @@ def test_container_mkdir_rmdir(env, container):
         os.stat(dirpath)
 
 
+def test_container_rename_file_in_same_directory(env, container):
+    env.create_file('storage/storage1/foo', 'hello world')
+    os.rename(env.test_dir / 'storage/storage1/foo', env.test_dir / 'storage/storage1/bar')
+
+    with open(env.mnt_dir / container / 'bar', 'r') as f:
+        content = f.read()
+
+    assert content == 'hello world'
+
+
+def test_container_rename_file_in_different_directory(env, container):
+    env.create_dir('storage/storage1/subdir')
+    env.create_file('storage/storage1/foo', 'hello world')
+    os.rename(env.test_dir / 'storage/storage1/foo', env.test_dir / 'storage/storage1/subdir/bar')
+
+    with open(env.mnt_dir / container / 'subdir/bar', 'r') as f:
+        content = f.read()
+
+    assert content == 'hello world'
+
+
+def test_container_rename_empty_directory(env, container):
+    env.create_dir('storage/storage1/foodir')
+    os.rename(env.test_dir / 'storage/storage1/foodir', env.test_dir / 'storage/storage1/bardir')
+
+    assert not (env.mnt_dir / container / 'foodir').exists()
+    assert (env.mnt_dir / container / 'bardir').exists()
+
+
+def test_container_rename_directory_with_files(env, container):
+    env.create_dir('storage/storage1/foodir')
+    env.create_file('storage/storage1/foodir/foo', 'hello world')
+    os.rename(env.test_dir / 'storage/storage1/foodir', env.test_dir / 'storage/storage1/bardir')
+
+    assert not (env.mnt_dir / container / 'foodir').exists()
+    assert (env.mnt_dir / container / 'bardir').exists()
+
+    with open(env.mnt_dir / container / 'bardir/foo', 'r') as f:
+        content = f.read()
+
+    assert content == 'hello world'
+
+
 def test_cmd_paths(env, container):
     assert env.run_control_command('paths') == {
         '/' + container: [1],

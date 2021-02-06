@@ -12,6 +12,9 @@ mkdir -p /tmp/minio-data/the-bucket/subdir
 
 printf "foo" > /tmp/minio-data/the-bucket/file
 printf "bar" > /tmp/minio-data/the-bucket/subdir/file
+printf "copy_me" > /tmp/minio-data/the-bucket/abbott
+printf "move_me" > /tmp/minio-data/the-bucket/floating
+
 
 MINIO_ACCESS_KEY='dmr' MINIO_SECRET_KEY='/.,/.,/.,' /tmp/minio server /tmp/minio-data &
 
@@ -31,3 +34,24 @@ aws configure set aws_secret_access_key '/.,/.,/.,'
 
 time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/file) == "foo" ]]'
 time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/file) == "bar" ]]'
+
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/abbott) == "copy_me" ]]'
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/floating) == "move_me" ]]'
+
+time -p chronic /bin/bash -c '$(cp ~/wildland/s3/abbott ~/wildland/s3/costello)'
+time -p chronic /bin/bash -c '$(mv ~/wildland/s3/floating ~/wildland/s3/subdir/im_new)'
+
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/costello) == "copy_me" ]]'
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/im_new) == "move_me" ]]'
+
+time -p chronic /bin/bash -c '$(mv ~/wildland/s3/subdir/im_new ~/wildland/s3/subdir/still_same_dir)'
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/still_same_dir) == "move_me" ]]'
+
+time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/floating ]]'
+time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/im_new ]]'
+
+time -p chronic /bin/bash -c '$(rm ~/wildland/s3/abbott)'
+
+time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/abbott ]]'
+
+
