@@ -846,7 +846,7 @@ class Client:
             yield PurePosixPath(path_pattern).relative_to('/')
 
     def publish_container(self, container: Container,
-            wlpath: Optional[WildlandPath] = None) -> None:
+                          wlpath: Optional[WildlandPath] = None) -> None:
         '''
         Publish a container to another container owner by the same user
         '''
@@ -864,26 +864,29 @@ class Client:
         owner = self.load_user_by_name(container.owner)
         containers = owner.containers
         for cont in containers:
-            cont = (self.load_container_from_url(cont, container.owner)
-                if isinstance(cont, str)
-                else self.load_container_from_dict(cont, container.owner))
-
-            if cont.paths == container.paths:
-                # do not publish container to itself
-                continue
-
             try:
-                storage = self.select_storage(cont,
-                    predicate=self._select_storage_for_publishing)
-                break
-            except ManifestError:
+                cont = (self.load_container_from_url(cont, container.owner)
+                        if isinstance(cont, str)
+                        else self.load_container_from_dict(cont, container.owner))
+
+                if cont.paths == container.paths:
+                    # do not publish container to itself
+                    continue
+
+                storage = self.select_storage(cont, predicate=self._select_storage_for_publishing)
+
+                # Attempt to mount the storage driver first.
+                # Fail to mount should try the next container from the list.
+                with StorageDriver.from_storage(storage) as driver:
+                    break
+            except (ManifestError, WildlandError) as ex:
+                logger.info("Failed to mount storage when publishing with Exception: %s", str(ex))
                 continue
 
-        else: # didn't break, i.e. storage not found
+        else:  # didn't break, i.e. storage not found
             raise WildlandError(
                 'cannot find any container suitable as publishing platform')
 
-        assert storage.manifest_pattern['type'] == 'glob'
         for relpath in self._manifest_filenames_from_patern(container,
                                                             storage.manifest_pattern['path']):
             with StorageDriver.from_storage(storage) as driver:
