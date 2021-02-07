@@ -28,7 +28,8 @@ RUN apt-get -qy update && apt-get install -y \
       git \
       curl \
       tmux \
-      screen
+      screen \
+      jq
 
 # add IPFS client
 

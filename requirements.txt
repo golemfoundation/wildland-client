@@ -8,6 +8,10 @@ alabaster==0.7.12 \
     --hash=sha256:446438bdcca0e05bd45ea2de1668c1d9b032e1a9154c2c259092d77031ddd359 \
     --hash=sha256:a661d72d58e6ea8a57f7a86e37d86716863ee5e92788398526d58b26a4e4dc02
     # via sphinx
+argcomplete==1.12.2 \
+    --hash=sha256:17f01a9b9b9ece3e6b07058eae737ad6e10de8b4e149105f84614783913aba71 \
+    --hash=sha256:de0e1282330940d52ea92a80fea2e4b9e0da1932aaa570f84d268939d1897b04
+    # via yq
 astroid==2.4.2 \
     --hash=sha256:2f4078c2a41bf377eea06d71c9d2ba4eb8f6b1af2135bec27bbbb7d8f12bb703 \
     --hash=sha256:bc58d83eb610252fd8de6363e39d4f1d0619c894b0ed24603b881c02e64c7386
@@ -386,7 +390,9 @@ pyyaml==5.3.1 \
     --hash=sha256:b8eac752c5e14d3eca0e6dd9199cd627518cb5ec06add0de9d32baeee6fe645d \
     --hash=sha256:cc8955cfbfc7a115fa81d85284ee61147059a753344bc51098f3ccd69b0d7e0c \
     --hash=sha256:d13155f591e6fcc1ec3b30685d50bf0711574e2c0dfffd7644babf8b5102ca1a
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   yq
 requests==2.25.1 \
     --hash=sha256:27973dd4a904a4f13b263a19c866c13b92a39ed1c964655f025f3f8d3d75b804 \
     --hash=sha256:c210084e36a42ae6b9219e00e48287def368a26d03a048ddad7bfee44f75871e
@@ -452,6 +458,7 @@ toml==0.10.2 \
     # via
     #   pylint
     #   pytest
+    #   yq
 typed-ast==1.4.2 \
     --hash=sha256:07d49388d5bf7e863f7fa2f124b1b1d89d8aa0e2f7812faff0a5658c01c59aa1 \
     --hash=sha256:14bf1522cdee369e8f5581238edac09150c765ec1cb33615855889cf33dcb92d \
@@ -501,6 +508,14 @@ varint==1.0.2 \
 wrapt==1.12.1 \
     --hash=sha256:b62ffa81fb85f4332a4f609cab4ac40709470da05643a082ec1eb88e6d9b97d7
     # via astroid
+xmltodict==0.12.0 \
+    --hash=sha256:50d8c638ed7ecb88d90561beedbf720c9b4e851a9fa6c47ebd64e99d166d8a21 \
+    --hash=sha256:8bbcb45cc982f48b2ca8fe7e7827c5d792f217ecf1792626f808bf41c3b86051
+    # via yq
+yq==2.12.0 \
+    --hash=sha256:1d2ad403504d306b5258b86c698f9856d7ad58b7bb17a2b875691a6a7b8c4c20 \
+    --hash=sha256:1f124f48dee77ad5e0be8607777fed183e96c8d31fa577de14201c7a614e4819
+    # via -r requirements.in
 
 # WARNING: The following packages were not pinned, but pip requires them to be
 # pinned when the requirements file includes hashes. Consider using the --allow-unsafe flag.

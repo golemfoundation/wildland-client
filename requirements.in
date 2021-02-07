@@ -18,7 +18,6 @@ inotify_simple
 python-daemon
 pyxdg
 
-
 # Development / testing
 pip-tools
 pytest
@@ -26,6 +25,7 @@ pytest-cov
 pylint
 mypy
 python-lorem
+yq
 
 # Documentation
 sphinx
