@@ -201,7 +201,8 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         # executing any S3 operation on the bucket
         #
         # This service is AWS specific.
-        self.sts_client = session.client(service_name='sts',)
+        if not self.params.get('endpoint_url', None):
+            self.sts_client = session.client(service_name='sts')
 
         s3_url = urlparse(self.params['s3_url'])
         assert s3_url.scheme == 's3'
@@ -258,7 +259,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             if self.sts_client:
                 self.sts_client.get_caller_identity()
         except botocore.exceptions.ClientError as ex:
-            raise WildlandError(f"Could not connect to AWS with Exception: {ex}")
+            raise WildlandError(f"Could not connect to AWS with Exception: {ex}") from ex
 
         if self.with_index and not self.read_only:
             self.refresh()

@@ -879,7 +879,7 @@ class Client:
                 # Fail to mount should try the next container from the list.
                 with StorageDriver.from_storage(storage) as driver:
                     break
-            except (ManifestError, WildlandError) as ex:
+            except (ManifestError, WildlandError, PermissionError, FileNotFoundError) as ex:
                 logger.info("Failed to mount storage when publishing with Exception: %s", str(ex))
                 continue
 
