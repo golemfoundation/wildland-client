@@ -201,7 +201,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         # executing any S3 operation on the bucket
         #
         # This service is AWS specific.
-        if not self.params.get('endpoint_url', None):
+        if self.params.get('endpoint_url', None):
+            self.sts_client = None
+        else:
             self.sts_client = session.client(service_name='sts')
 
         s3_url = urlparse(self.params['s3_url'])
