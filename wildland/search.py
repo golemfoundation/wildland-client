@@ -362,8 +362,9 @@ class Search:
                 # Container URL
                 try:
                     manifest_content = client.read_from_url(container_spec, user.owner)
-                except WildlandError:
-                    logger.warning('cannot load container: %s', container_spec)
+                except (WildlandError, FileNotFoundError) as ex:
+                    logger.warning('cannot load container: %s. Exception: %s',
+                                   container_spec, str(ex))
                     continue
 
                 container = client.session.load_container(manifest_content)
