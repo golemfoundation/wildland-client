@@ -52,14 +52,14 @@ class DelegateProxyStorageBackend(StorageBackend):
         "properties": {
             "reference-container": {
                 "oneOf": [
-                    {"$ref": "types.json#url"},
-                    {"$ref": "container.schema.json"}
+                    {"$ref": "/schemas/types.json#url"},
+                    {"$ref": "/schemas/container.schema.json"}
                 ],
                 "description": ("Container to be used, either as URL "
                                 "or as an inlined manifest"),
             },
             "subdirectory": {
-                "$ref": "types.json#abs-path",
+                "$ref": "/schemas/types.json#abs-path",
                 "description": ("Subdirectory of reference-container to be exposed"),
             },
         }

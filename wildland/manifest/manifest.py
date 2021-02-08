@@ -90,8 +90,6 @@ class Manifest:
             if 'signer' in fields:
                 fields['owner'] = fields['signer']
                 del fields['signer']
-            else:
-                raise ManifestError('owner field not found')
 
         if 'inner-container' in fields:
             fields['reference-container'] = fields['inner-container']

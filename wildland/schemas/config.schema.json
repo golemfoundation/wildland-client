@@ -3,31 +3,31 @@
     "type": "object",
     "properties": {
         "user-dir": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "path to user manifests (default: $HOME/.config/wildland/users)"
         },
         "storage-dir": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "path to storage manifests (default: $HOME/.config/wildland/storage)"
         },
         "container-dir": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "path to container manifests (default: $HOME/.config/wildland/users)"
         },
         "bridge-dir": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "path to bridge manifests (default: $HOME/.config/wildland/bridges)"
         },
         "key-dir": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "path to Signify private keys (default: $HOME/.config/wildland/keys)"
         },
         "mount-dir": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "FUSE mount path (default: $HOME/wildland)"
         },
         "socket-path": {
-            "$ref": "types.json#abs-path",
+            "$ref": "/schemas/types.json#abs-path",
             "description": "Path to control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"
         },
 
@@ -37,18 +37,18 @@
         },
 
         "@default": {
-            "$ref": "types.json#fingerprint",
+            "$ref": "/schemas/types.json#fingerprint",
             "description": "default user for mounted containers"
         },
         "@default-owner": {
-            "$ref": "types.json#fingerprint",
+            "$ref": "/schemas/types.json#fingerprint",
             "description": "default user for newly created containers"
         },
         "aliases": {
             "$type": "object",
             "description": "A dictionary of custom aliases (other than @default and @default-owner)",
             "patternProperties": {
-                "^@[a-z][a-z0-9-]*$": { "$ref": "types.json#fingerprint" }
+                "^@[a-z][a-z0-9-]*$": { "$ref": "/schemas/types.json#fingerprint" }
             },
             "additionalProperties": false
         },
@@ -60,7 +60,7 @@
         "local-owners": {
             "type": "array",
             "items": {
-                "$ref": "types.json#fingerprint"
+                "$ref": "/schemas/types.json#fingerprint"
             },
             "description": "list of owners for which file:// URLs are recognized on this machine"
         },

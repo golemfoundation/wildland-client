@@ -7,10 +7,10 @@
     },
     "properties": {
         "object": { "const": "container"},
-        "owner": { "$ref": "types.json#fingerprint" },
+        "owner": { "$ref": "/schemas/types.json#fingerprint" },
         "paths": {
             "type": "array",
-            "items": { "$ref": "types.json#abs-path" },
+            "items": { "$ref": "/schemas/types.json#abs-path" },
             "minItems": 1,
             "description": "list of paths for this container, should start with a unique /.uuid/UUID path"
         },
@@ -20,7 +20,7 @@
         },
         "categories": {
             "type": "array",
-            "items": { "$ref": "types.json#abs-path" },
+            "items": { "$ref": "/schemas/types.json#abs-path" },
             "minItems": 0,
             "description": "list of categories for this container. Requires title property."
         },
@@ -32,8 +32,8 @@
                     "type": "array",
                     "items": {
                         "oneOf": [
-                            { "$ref": "types.json#url" },
-                            { "$ref": "storage.schema.json" }
+                            { "$ref": "/schemas/types.json#url" },
+                            { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" }
                         ]
                     },
                     "description": "list of storage backend URLs, or inlined storage manifests"

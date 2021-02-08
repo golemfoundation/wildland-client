@@ -244,6 +244,9 @@ def test_storage_create_inline(cli, base_dir):
         data = f.read()
 
     assert '/STORAGE' in data
+    # inline storage shouldn't have owner repeated
+    assert '  owner:' not in data
+    assert '  container-path:' not in data
 
 
 def test_storage_delete(cli, base_dir):

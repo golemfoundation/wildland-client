@@ -142,7 +142,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             },
             "endpoint_url": {
                 "oneOf": [
-                    {"$ref": "types.json#http-url"},
+                    {"$ref": "/schemas/types.json#http-url"},
                     {"type": "null"}
                 ],
                 "description": "Override default AWS S3 URL with the given URL."

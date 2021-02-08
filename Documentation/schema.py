@@ -81,7 +81,7 @@ class SchemaDirective(Directive):
 
     @staticmethod
     def _path(file_name):
-        return Path(__file__).parent / '../wildland/schemas' / file_name
+        return Path(__file__).parent / '../wildland/schemas' / file_name.replace('/schemas/', '')
 
     def _resolve_ref(self, ref):
         file_name, _, path = ref.partition('#')

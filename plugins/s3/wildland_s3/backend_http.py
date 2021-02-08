@@ -78,7 +78,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         "required": ["url"],
         "properties": {
             "url": {
-                "$ref": "types.json#http-url",
+                "$ref": "/schemas/types.json#http-url",
                 "description": "HTTP URL pointing to an index",
             },
         }

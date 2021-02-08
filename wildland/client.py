@@ -265,6 +265,10 @@ class Client:
         in another manifest.
         '''
 
+        # fill in fields that are determined by the context
+        if 'owner' not in dict_:
+            dict_['owner'] = owner
+
         content = ('---\n' + yaml.dump(dict_)).encode()
         trusted_owner = owner
         return self.session.load_container(content, trusted_owner=trusted_owner)
@@ -369,11 +373,19 @@ class Client:
         return self.session.load_storage(self.read_from_url(url, owner),
                                          local_owners=self.config.get('local-owners'))
 
-    def load_storage_from_dict(self, dict_: dict, owner: str) -> Storage:
+    def load_storage_from_dict(self, dict_: dict, owner: str, container_path: str) -> Storage:
         '''
         Load storage from a dictionary. Used when a storage manifest is inlined
         in another manifest.
         '''
+
+        # fill in fields that are determined by the context
+        if 'owner' not in dict_:
+            dict_['owner'] = str(owner)
+        if 'container-path' not in dict_:
+            dict_['container-path'] = str(container_path)
+        if 'object' not in dict_:
+            dict_['object'] = 'storage'
 
         content = ('---\n' + yaml.dump(dict_)).encode()
         trusted_owner = owner
@@ -565,7 +577,8 @@ class Client:
             else:
                 name = '(inline)'
                 try:
-                    storage = self.load_storage_from_dict(url_or_dict, container.owner)
+                    storage = self.load_storage_from_dict(
+                        url_or_dict, container.owner, container.paths[0])
                 except WildlandError:
                     logging.exception('Error loading inline manifest')
                     continue

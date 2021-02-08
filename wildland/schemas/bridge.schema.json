@@ -4,9 +4,9 @@
     "required": ["object", "owner", "user", "pubkey", "paths"],
     "properties": {
         "object": { "const": "bridge"} ,
-        "owner": { "$ref": "types.json#fingerprint" },
+        "owner": { "$ref": "/schemas/types.json#fingerprint" },
         "user": {
-            "$ref": "types.json#url-or-relpath",
+            "$ref": "/schemas/types.json#url-or-relpath",
             "description": "path to user manifest"
         },
         "pubkey": {
@@ -15,7 +15,7 @@
         },
         "paths": {
             "type": "array",
-            "items": { "$ref": "types.json#abs-path" },
+            "items": { "$ref": "/schemas/types.json#abs-path" },
             "minItems": 1,
             "description": "list of paths this user is visible under"
         }

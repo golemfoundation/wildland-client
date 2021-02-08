@@ -85,7 +85,7 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         "required": ["location"],
         "properties": {
             "location": {
-                "$ref": "types.json#abs-path",
+                "$ref": "/schemas/types.json#abs-path",
                 "description": "Path to the ZIP file",
             },
         }

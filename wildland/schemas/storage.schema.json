@@ -1,45 +1,49 @@
 {
-    "title": "Storage manifest (common schema)",
-    "type": "object",
+    "allOf": [{"$ref": "#/definitions/storage-inline"}],
     "required": ["object", "owner", "type", "container-path"],
-    "properties": {
-        "object": { "const": "storage" },
-        "owner": {
-            "$ref": "types.json#fingerprint",
-            "description": "Signer of the manifest. Needs to match the owner of the container."
-        },
-        "type": {
-            "type": "string",
-            "description": "Storage backend. The manifest should contain backend-specific parameters"
-        },
-        "container-path": {
-            "$ref": "types.json#abs-path",
-            "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
-        },
-        "backend-id":{
-            "type": "string",
-            "description": "storage UUID; optional, but if it is missing it will be generated automatically"
-        },
-        "read-only": {
-            "type": "boolean",
-            "description": "Mount as read-only"
-        },
-        "trusted": {
-            "type": "boolean",
-            "description": "Allow loading unsigned manifests (for the same owner) from this storage"
-        },
-        "manifest-pattern": {
-            "oneOf": [
-                { "$ref": "#/definitions/pattern-glob" }
-            ],
-            "description": "A strategy for finding manifests in this storage, based on path."
-        },
-        "watcher-interval": {
-            "type": "integer",
-            "description": "Timer to use for watcher mechanism for this storage. Will cause a simple, brute-force watcher that scans the storage every watcher-interval seconds to be used. If omitted, a mechanism native to the backend will be used, or none, if not available."
-        }
-    },
     "definitions": {
+        "storage-inline": {
+            "title": "Storage manifest (common schema)",
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "object": { "const": "storage" },
+                "owner": {
+                    "$ref": "/schemas/types.json#fingerprint",
+                    "description": "Signer of the manifest. Needs to match the owner of the container."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Storage backend. The manifest should contain backend-specific parameters"
+                },
+                "container-path": {
+                    "$ref": "/schemas/types.json#abs-path",
+                    "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
+                },
+                "backend-id":{
+                    "type": "string",
+                    "description": "storage UUID; optional, but if it is missing it will be generated automatically"
+                },
+                "read-only": {
+                    "type": "boolean",
+                    "description": "Mount as read-only"
+                },
+                "trusted": {
+                    "type": "boolean",
+                    "description": "Allow loading unsigned manifests (for the same owner) from this storage"
+                },
+                "manifest-pattern": {
+                    "oneOf": [
+                    { "$ref": "#/definitions/pattern-glob" }
+                    ],
+                    "description": "A strategy for finding manifests in this storage, based on path."
+                },
+                "watcher-interval": {
+                    "type": "integer",
+                    "description": "Timer to use for watcher mechanism for this storage. Will cause a simple, brute-force watcher that scans the storage every watcher-interval seconds to be used. If omitted, a mechanism native to the backend will be used, or none, if not available."
+                }
+            }
+        },
         "pattern-glob": {
             "type": "object",
             "required": ["type", "path"],

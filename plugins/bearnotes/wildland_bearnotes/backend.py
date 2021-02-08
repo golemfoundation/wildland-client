@@ -210,7 +210,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         "required": ["path"],
         "properties": {
             "path": {
-                "$ref": "types.json#abs-path",
+                "$ref": "/schemas/types.json#abs-path",
                 "description": "Path to the Bear SQLite database",
             },
             "with-content": {
