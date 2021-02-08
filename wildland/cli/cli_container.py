@@ -85,7 +85,7 @@ class OptionRequires(click.Option):
 @container_.command(short_help='create container')
 @click.option('--owner', '--user',
     help='user for signing')
-@click.option('--path', multiple=True, required=True,
+@click.option('--path', multiple=True, required=False,
     help='mount path (can be repeated)')
 @click.option('--category', multiple=True, required=False,
     help='category, will be used to generate mount paths')
@@ -123,6 +123,9 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         if not name:
             raise CliError('--category option requires --title or container name')
         title = name
+
+    if not category and not title and not path:
+        raise CliError('--path is required if --category and --title are not set')
 
     if set_name:
         try:
