@@ -811,6 +811,47 @@ backends:
     ]
 
 
+def test_container_mount_local_subcontainers_trusted(cli, base_dir, control_client, tmp_path):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        print(f.read())
+    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    with open(tmp_path / 'subcontainer.yaml', 'w') as f:
+        f.write(f"""---
+owner: '0xaaa'
+paths:
+ - {path2}
+ - /subcontainer
+backends:
+  storage:
+    - type: delegate
+      backend-id: 0000-1111-2222-3333-4444
+      reference-container: 'wildland:@default:@parent-container:'
+      subdirectory: '/subdir'
+""")
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--trusted', '--subcontainer', './subcontainer.yaml')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', '--only-subcontainers', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert len(command) == 1
+    assert command[0]['storage']['owner'] == '0xaaa'
+    assert command[0]['storage']['type'] == 'delegate'
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xaaa{path2}',
+        '/.users/0xaaa/subcontainer',
+        path2,
+        '/subcontainer',
+    ]
+
+
 def test_container_unmount(cli, base_dir, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
