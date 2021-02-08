@@ -673,6 +673,144 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     cli('container', 'mount', manifest_path)
 
 
+def test_container_mount_no_subcontainers(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', '--without-subcontainers', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xaaa'
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xaaa{path}',
+        '/.users/0xaaa/PATH',
+        path,
+        '/PATH',
+    ]
+
+
+def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        print(f.read())
+    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    with open(tmp_path / 'subcontainer.yaml', 'w') as f:
+        f.write(f"""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - {path2}
+ - /subcontainer
+backends:
+  storage:
+    - type: delegate
+      backend-id: 0000-1111-2222-3333-4444
+      reference-container: 'wildland:@default:@parent-container:'
+      subdirectory: '/subdir'
+""")
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--subcontainer', './subcontainer.yaml')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', '--with-subcontainers', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert len(command) == 2
+    assert command[0]['storage']['owner'] == '0xaaa'
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xaaa{path}',
+        '/.users/0xaaa/PATH',
+        path,
+        '/PATH',
+    ]
+    assert command[1]['storage']['owner'] == '0xaaa'
+    assert command[1]['storage']['type'] == 'delegate'
+    assert command[1]['storage']['container-path'] == path2
+    assert command[1]['storage']['reference-container'] == f'wildland:@default:{path}:'
+    assert command[1]['storage']['subdirectory'] == '/subdir'
+    assert command[1]['storage']['storage'] == command[0]['storage']
+
+    assert sorted(command[1]['paths']) == [
+        f'/.users/0xaaa{path2}',
+        '/.users/0xaaa/subcontainer',
+        path2,
+        '/subcontainer',
+    ]
+
+
+def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        print(f.read())
+    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    with open(tmp_path / 'subcontainer.yaml', 'w') as f:
+        f.write(f"""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - {path2}
+ - /subcontainer
+backends:
+  storage:
+    - type: delegate
+      backend-id: 0000-1111-2222-3333-4444
+      reference-container: 'wildland:@default:@parent-container:'
+      subdirectory: '/subdir'
+""")
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--subcontainer', './subcontainer.yaml')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', '--only-subcontainers', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert len(command) == 1
+    assert command[0]['storage']['owner'] == '0xaaa'
+    assert command[0]['storage']['type'] == 'delegate'
+    assert command[0]['storage']['container-path'] == path2
+    assert command[0]['storage']['reference-container'] == f'wildland:@default:{path}:'
+    assert command[0]['storage']['subdirectory'] == '/subdir'
+    assert command[0]['storage']['storage']['type'] == 'local'
+    assert command[0]['storage']['storage']['location'] == os.fspath(tmp_path)
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xaaa{path2}',
+        '/.users/0xaaa/subcontainer',
+        path2,
+        '/subcontainer',
+    ]
+
+
 def test_container_unmount(cli, base_dir, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
