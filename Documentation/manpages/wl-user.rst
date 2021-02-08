@@ -124,10 +124,10 @@ For Wildland object path, will import all referenced bridges and their reference
 .. program:: wl-user-refresh
 .. _wl-user-refresh:
 
-:command:`wl user refresh BRIDGE`
+:command:`wl user refresh USER`
 ----------------------------------------
 
 Iterate over bridges and import all user manifest that those bridges refer to.
-Note: This command will override the existing users' bridges.
+Note: This command will override the existing users' manifests.
 
-Unless BRIDGE name is provided, the command will iterate over all bridges.
+Unless USER name is provided, the command will iterate over all bridges.

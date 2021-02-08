@@ -287,7 +287,7 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
                     return None, None
 
                 click.echo(f'User {user.owner} already exists. Forcing user import.')
-                file_name = Path(user.local_path).name.split('.')[0]
+                file_name = Path(user.local_path).name.rsplit('.', 2)[0]
 
     # copying the user manifest
     destination = obj.client.new_path(import_type, file_name, skip_numeric_suffix=force)
@@ -436,21 +436,20 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
                alias=['r'])
 @click.pass_obj
-@click.argument('name', metavar='BRIDGE', required=False)
+@click.argument('name', metavar='USER', required=False)
 def user_refresh(obj: ContextObj, name):
     '''
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     '''
     obj.client.recognize_users()
+    user = obj.client.load_user_by_name(name) if name else None
 
     for bridge in obj.client.load_bridges():
-        if name and Path(bridge.local_path).name.split('.')[0] != name:
+        if user and user.owner != obj.client.session.sig._fingerprint(bridge.user_pubkey):
             continue
 
-        path = bridge.user_location
-
         try:
-            _do_import_manifest(obj, path, force=True)
+            _do_import_manifest(obj, bridge.user_location, force=True)
         except WildlandError as ex:
             click.echo(f"Error while refreshing bridge: {ex}")
 

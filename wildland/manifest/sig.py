@@ -207,6 +207,9 @@ class DummySigContext(SigContext):
             return False
         return True
 
+    @staticmethod
+    def _fingerprint(pubkey: str) -> str:
+        return pubkey.replace('key.', '')
 
 class SignifySigContext(SigContext):
     """
