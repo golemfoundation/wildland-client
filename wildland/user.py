@@ -52,6 +52,11 @@ class User:
         self.local_path = local_path
         self.pubkeys = pubkeys
 
+    @property
+    def primary_pubkey(self):
+        """Primary pubkey for signatures. User manifest needs to be signed with this key"""
+        return self.pubkeys[0]
+
     @classmethod
     def from_manifest(cls, manifest: Manifest, pubkey, local_path=None) -> 'User':
         '''
