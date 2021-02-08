@@ -223,7 +223,7 @@ def edit(ctx, editor, input_file, remount):
         if obj.fs_client.find_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')
 
-            is_default_user = container.owner == obj.client.config.get("@default")
+            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
             storage = obj.client.select_storage(container)
             obj.fs_client.mount_container(
-                container, storage, is_default_user, remount=remount)
+                container, storage, user_paths, remount=remount)

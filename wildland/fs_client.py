@@ -20,8 +20,7 @@
 '''
 Wildland FS client
 '''
-
-import os
+import itertools
 import time
 from pathlib import Path, PurePosixPath
 import subprocess
@@ -204,19 +203,20 @@ class WildlandFSClient:
     def mount_container(self,
                         container: Container,
                         storage: Storage,
-                        is_default_user: bool = False,
+                        user_paths: Iterable[PurePosixPath] = (PurePosixPath('/'),),
                         subcontainer_of: Optional[Container] = None,
                         remount: bool = False):
         '''
         Mount a container, assuming a storage has been already selected.
         '''
 
-        self.mount_multiple_containers([(container, storage, is_default_user, subcontainer_of)],
+        self.mount_multiple_containers([(container, storage, user_paths, subcontainer_of)],
                                        remount=remount)
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, Storage, bool, Optional[Container]]],
+            params: Iterable[Tuple[Container, Storage, Iterable[PurePosixPath],
+                                   Optional[Container]]],
             remount: bool = False):
         '''
         Mount multiple containers using a single command.
@@ -225,9 +225,9 @@ class WildlandFSClient:
         self.clear_cache()
         commands = [
             self.get_command_for_mount_container(
-                container, storage, is_default_user,
+                container, storage, user_paths,
                 remount=remount, subcontainer_of=subcontainer_of)
-            for container, storage, is_default_user, subcontainer_of in params
+            for container, storage, user_paths, subcontainer_of in params
         ]
         self.run_control_command('mount', items=commands)
 
@@ -423,7 +423,7 @@ class WildlandFSClient:
         return self.info_cache
 
     def should_remount(self, container: Container, storage: Storage,
-                       is_default_user: bool) -> bool:
+                       user_paths: Iterable[PurePosixPath]) -> bool:
         '''
         Check if a storage has to be remounted.
         '''
@@ -433,11 +433,12 @@ class WildlandFSClient:
             return True
 
         paths = [
-            os.fspath(self.get_user_path(container.owner, path))
+            str(user_path / path.relative_to('/'))
             for path in container.expanded_paths
+            for user_path in itertools.chain(
+                user_paths,
+                [self.get_user_path(container.owner, PurePosixPath('/'))])
         ]
-        if is_default_user:
-            paths.extend(os.fspath(p) for p in container.expanded_paths)
 
         info = self.get_info()
         tag = self.get_storage_tag(paths, storage.params)
@@ -446,7 +447,7 @@ class WildlandFSClient:
     def get_command_for_mount_container(self,
                                         container: Container,
                                         storage: Storage,
-                                        is_default_user: bool,
+                                        user_paths: Iterable[PurePosixPath],
                                         subcontainer_of: Optional[Container],
                                         remount: bool = False):
         '''
@@ -455,16 +456,17 @@ class WildlandFSClient:
         Args:
             container (Container): the container to be mounted
             storage (Storage): the storage selected for container
-            is_default_user: mount in default user's namespace
+            user_paths: paths to the owner, should include '/' for default user
             remount: remount if mounted already (otherwise, will fail if
             mounted already)
         '''
         paths = [
-            os.fspath(self.get_user_path(container.owner, path))
+            str(user_path / path.relative_to('/'))
             for path in container.expanded_paths
+            for user_path in itertools.chain(
+                user_paths,
+                [self.get_user_path(container.owner, PurePosixPath('/'))])
         ]
-        if is_default_user:
-            paths.extend(os.fspath(p) for p in container.expanded_paths)
 
         trusted_owner: Optional[str]
         if storage.params.get('trusted'):

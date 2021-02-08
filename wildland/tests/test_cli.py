@@ -480,6 +480,41 @@ def test_container_mount(cli, base_dir, control_client):
     ]
     assert command[0]['extra']['trusted_owner'] is None
 
+def test_container_mount_with_bridges(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'Other', '--key', '0xbbb')
+    cli('bridge', 'create', '--ref-user', 'Other',
+                            '--ref-user-path', '/users/other',
+                            '--ref-user-path', '/people/other',
+                            '--ref-user-location', 'file:///dev/null',
+                            'br-other')
+    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    print(documents)
+    path = documents[1]['paths'][0]
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xbbb{path}',
+        '/.users/0xbbb/PATH',
+        f'/people/other{path}',
+        '/people/other/PATH',
+        f'/users/other{path}',
+        '/users/other/PATH',
+    ]
+
 
 def test_container_mount_store_trusted_owner(cli, control_client):
     control_client.expect('status', {})

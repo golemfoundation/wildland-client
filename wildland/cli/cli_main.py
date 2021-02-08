@@ -97,8 +97,8 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         commands = []
         for container in obj.client.load_containers_from(name):
             storage = obj.client.select_storage(container)
-            is_default_user = container.owner == obj.client.config.get("@default")
-            commands.append((container, storage, is_default_user, None))
+            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+            commands.append((container, storage, user_paths, None))
 
         click.echo(f'Mounting {len(to_mount)}')
         try:

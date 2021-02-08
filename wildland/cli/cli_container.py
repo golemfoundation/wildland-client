@@ -329,7 +329,7 @@ container_.add_command(verify)
 container_.add_command(edit)
 
 
-def _mount(obj, container, container_name, is_default_user, remount, with_subcontainers,
+def _mount(obj, container, container_name, user_paths, remount, with_subcontainers,
            subcontainer_of, quiet, only_subcontainers):
     try:
         storage = obj.client.select_storage(container)
@@ -340,7 +340,7 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
     if with_subcontainers:
         subcontainers = list(obj.client.all_subcontainers(container))
 
-    param_tuple = (container, storage, is_default_user, subcontainer_of)
+    param_tuple = (container, storage, user_paths, subcontainer_of)
 
     if not subcontainers or not only_subcontainers:
         if obj.fs_client.find_storage_id(container) is None:
@@ -348,7 +348,7 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
                 print(f'new: {container_name}')
             yield param_tuple
         elif remount:
-            if obj.fs_client.should_remount(container, storage, is_default_user):
+            if obj.fs_client.should_remount(container, storage, user_paths):
                 if not quiet:
                     print(f'changed: {container_name}')
                 yield param_tuple
@@ -361,7 +361,7 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
     if with_subcontainers:
         for subcontainer in subcontainers:
             yield from _mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
-                              is_default_user, remount, with_subcontainers, container, quiet,
+                              user_paths, remount, with_subcontainers, container, quiet,
                               only_subcontainers)
 
 
@@ -389,12 +389,11 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
-    params: List[Tuple[Container, Storage, bool]] = []
+    params: List[Tuple[Container, Storage, List[PurePosixPath], Container]] = []
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
-            is_default_user = container.owner == obj.client.config.get("@default")
-
-            params.extend(_mount(obj, container, container.local_path, is_default_user,
+            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+            params.extend(_mount(obj, container, container.local_path, user_paths,
                                  remount, with_subcontainers, None, quiet, only_subcontainers))
 
     if len(params) > 1:
@@ -558,11 +557,11 @@ class Remounter:
 
             # Call should_remount to determine if we should mount this
             # container.
-            is_default_user = container.owner == self.client.config.get("@default")
+            user_paths = self.client.get_bridge_paths_for_user(container.owner)
             storage = self.client.select_storage(container)
-            if self.fs_client.should_remount(container, storage, is_default_user):
+            if self.fs_client.should_remount(container, storage, user_paths):
                 logger.info('  (mount)')
-                self.to_mount.append((container, storage, is_default_user, None))
+                self.to_mount.append((container, storage, user_paths, None))
             else:
                 logger.info('  (no change)')
 
