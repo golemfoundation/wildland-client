@@ -243,7 +243,7 @@ def _remove_suffix(s: str, suffix: str) -> str:
     return s
 
 
-def _do_import_manifest(obj, path) -> Tuple[Optional[Path], Optional[str]]:
+def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path], Optional[str]]:
     """
     Takes a manifest as pointed towards by path (can be local file path, url, wildland url),
     imports its public keys, copies the manifest itself.
@@ -275,17 +275,22 @@ def _do_import_manifest(obj, path) -> Tuple[Optional[Path], Optional[str]]:
     if import_type not in ['user', 'bridge']:
         raise CliError('Can import only user or bridge manifests')
 
-    # do not import existing users
+    file_name = _remove_suffix(file_name, '.' + import_type)
+
+    # do not import existing users, unless forced
     if import_type == 'user':
         imported_user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
         for user in obj.client.load_users():
             if user.owner == imported_user.owner:
-                return None, None
+                if not force:
+                    click.echo(f'User {user.owner} already exists. Skipping import.')
+                    return None, None
+
+                click.echo(f'User {user.owner} already exists. Forcing user import.')
+                file_name = Path(user.local_path).name.rsplit('.', 2)[0]
 
     # copying the user manifest
-    file_name = _remove_suffix(file_name, '.' + import_type)
-    destination = obj.client.new_path(import_type, file_name)
-
+    destination = obj.client.new_path(import_type, file_name, skip_numeric_suffix=force)
     destination.write_bytes(file_data)
     click.echo(f'Created: {str(destination)}')
 
@@ -426,6 +431,27 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
     obj.client.recognize_users()
 
     import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
+
+
+@user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
+               alias=['r'])
+@click.pass_obj
+@click.argument('name', metavar='USER', required=False)
+def user_refresh(obj: ContextObj, name):
+    '''
+    Iterates over bridges and fetches each user's file from the URL specified in the bridge
+    '''
+    obj.client.recognize_users()
+    user = obj.client.load_user_by_name(name) if name else None
+
+    for bridge in obj.client.load_bridges():
+        if user and user.owner != obj.client.session.sig._fingerprint(bridge.user_pubkey):
+            continue
+
+        try:
+            _do_import_manifest(obj, bridge.user_location, force=True)
+        except WildlandError as ex:
+            click.echo(f"Error while refreshing bridge: {ex}")
 
 
 user_.add_command(sign)

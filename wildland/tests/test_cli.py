@@ -80,7 +80,6 @@ def cleanup():
     for f in cleanup_functions:
         f()
 
-
 # Users
 
 def test_user_create(cli, base_dir):
@@ -1548,3 +1547,34 @@ def test_only_subcontainers(cli, base_dir, control_client):
         uuid_path_child,
         '/PATH_CHILD',
     ]
+
+def test_user_refresh(cli, base_dir, tmpdir):
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+
+    # Import Alice user with path /FOO
+    test_data = _create_user_manifest('0xbbb', path='/FOO')
+    destination = tmpdir / 'Alice.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'import', str(destination))
+
+    user_data = (base_dir / 'users/Alice.user.yaml').read_text()
+    assert 'paths:\n- /FOO' in user_data
+
+    # Refresh *all* users
+    test_data = _create_user_manifest('0xbbb', path='/BAR')
+    destination.write(test_data)
+
+    cli('user', 'refresh')
+
+    user_data = (base_dir / 'users/Alice.user.yaml').read_text()
+    assert 'paths:\n- /BAR' in user_data
+
+    # Refresh *only Alice*
+    test_data = _create_user_manifest('0xbbb', path='/MEH')
+    destination.write(test_data)
+
+    cli('user', 'refresh', 'Alice')
+
+    user_data = (base_dir / 'users/Alice.user.yaml').read_text()
+    assert 'paths:\n- /MEH' in user_data

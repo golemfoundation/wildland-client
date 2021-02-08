@@ -520,7 +520,7 @@ class Client:
         bridge.local_path = path
         return path
 
-    def new_path(self, manifest_type, name: str) -> Path:
+    def new_path(self, manifest_type, name: str, skip_numeric_suffix: bool = False) -> Path:
         """
         Create a path in Wildland base_dir to save a new object of type manifest_type and name
         name. It follows Wildland conventions.
@@ -548,7 +548,7 @@ class Client:
         while True:
             suffix = '' if i == 0 else f'.{i}'
             path = base_dir / f'{name}{suffix}.{manifest_type}.yaml'
-            if not path.exists():
+            if skip_numeric_suffix or not path.exists():
                 return path
             i += 1
 
