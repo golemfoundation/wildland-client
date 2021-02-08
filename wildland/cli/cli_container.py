@@ -342,6 +342,8 @@ def _mount(obj, container, container_name, user_paths, remount, with_subcontaine
 
     if with_subcontainers:
         subcontainers = list(obj.client.all_subcontainers(container))
+    else:
+        subcontainers = []
 
     param_tuple = (container, storage, user_paths, subcontainer_of)
 
