@@ -9,7 +9,7 @@
 Synopsis
 ========
 
-| :command:`wl storage list`
+| :command:`wl {storage|storages} list`
 | :command:`wl storage create <type> --container <container> [-u|-n] [--user <user>] [<type-specific-options>] <storage>`
 | :command:`wl storage {sign|verify|edit} [...]`
 | :command:`wl storage create-from-set --storage-set <storage_set> <container>`
@@ -27,8 +27,8 @@ Commands
 .. program:: wl-storage-list
 .. _wl-storage-list:
 
-:command:`wl storage list`
---------------------------
+:command:`wl {storage|storages} list`
+-------------------------------------
 
 Display known storages.
 

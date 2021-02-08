@@ -8,7 +8,7 @@
 Synopsis
 ========
 
-| :command:`wl container list`
+| :command:`wl {container|containers} list`
 | :command:`wl container info NAME`
 | :command:`wl container delete [--force] [--cascade] NAME`
 | :command:`wl container create [--user <user>] --path <path> [--path <path2> ...] [--storage-set <storage_set>]`
@@ -33,8 +33,8 @@ Commands
 .. program:: wl-container-list
 .. _wl-container-list:
 
-:command:`wl container list`
-----------------------------
+:command:`wl {container|containers} list`
+-----------------------------------------
 
 List known containers.
 

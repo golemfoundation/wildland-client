@@ -8,6 +8,7 @@
 Synopsis
 ========
 
+| :command:`wl {bridge|bridges} list`
 | :command:`wl bridge create`
 | :command:`wl bridge edit`
 | :command:`wl bridge sign`
@@ -70,8 +71,8 @@ and :ref:`wl edit <wl-edit>` documentation.
 .. program:: wl-bridge-list
 .. _wl-bridge-list:
 
-:command:`wl bridge list`
--------------------------
+:command:`wl {bridge|bridges} list`
+-----------------------------------
 
 List all known bridges.
 
