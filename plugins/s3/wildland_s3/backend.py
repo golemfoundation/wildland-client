@@ -42,6 +42,7 @@ from wildland.storage_backends.base import StorageBackend, Attr, StaticSubcontai
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
+from wildland.exc import WildlandError
 
 
 logger = logging.getLogger('storage-s3')
@@ -196,6 +197,15 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             endpoint_url=self.params.get('endpoint_url', None),
         )
 
+        # Security token services client allows to verify credentials before
+        # executing any S3 operation on the bucket
+        #
+        # This service is AWS specific.
+        if self.params.get('endpoint_url', None):
+            self.sts_client = None
+        else:
+            self.sts_client = session.client(service_name='sts')
+
         s3_url = urlparse(self.params['s3_url'])
         assert s3_url.scheme == 's3'
 
@@ -246,6 +256,12 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         '''
         Regenerate index files on mount.
         '''
+
+        try:
+            if self.sts_client:
+                self.sts_client.get_caller_identity()
+        except botocore.exceptions.ClientError as ex:
+            raise WildlandError(f"Could not connect to AWS with Exception: {ex}") from ex
 
         if self.with_index and not self.read_only:
             self.refresh()
@@ -499,4 +515,4 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
     def release(self, _path: PurePosixPath, flags: int, obj: File) -> None:
         super().release(_path, flags, obj)
         if isinstance(obj, S3File):
-            self._update_index(obj.parent)
+            self._update_index(_path.parent)
