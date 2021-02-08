@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import time
 import os
+import re
 
 import pytest
 import yaml
@@ -307,6 +308,95 @@ def test_container_create(cli, base_dir):
     assert "owner: '0xaaa'" in data
     assert "/PATH" in data
     assert "/.uuid/" in data
+
+
+def test_container_duplicate(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        base_data = f.read().split('\n', 4)[-1]
+    with open(base_dir / 'containers/Duplicate.container.yaml') as f:
+        copy_data = f.read().split('\n', 4)[-1]
+
+    old_uuid = re.search('/.uuid/(.+?)\n', base_data).group(1)
+    new_uuid = re.search('/.uuid/(.+?)\n', copy_data).group(1)
+
+    assert old_uuid != new_uuid
+    assert base_data.replace(old_uuid, new_uuid) == copy_data
+
+
+def test_container_duplicate_storage(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        base_data = f.read().split('\n', 4)[-1]
+    with open(base_dir / 'containers/Duplicate.container.yaml') as f:
+        copy_data = f.read().split('\n', 4)[-1]
+
+    old_uuid = re.search('/.uuid/(.+?)\n', base_data).group(1)
+    new_uuid = re.search('/.uuid/(.+?)\n', copy_data).group(1)
+
+    old_backend_id = re.search('backend-id:(.+?)\n', base_data).group(1)
+    new_backend_id = re.search('backend-id:(.+?)\n', copy_data).group(1)
+
+    assert old_backend_id != new_backend_id
+    assert base_data.replace(old_uuid, new_uuid).replace(
+        old_backend_id, new_backend_id) == copy_data
+
+
+def test_container_duplicate_noinline(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
+
+    storage_path = base_dir / 'storage/Duplicate.storage.yaml'
+    container_path = base_dir / 'containers/Duplicate.container.yaml'
+    with open(container_path) as f:
+        container_data = f.read().split('\n', 4)[-1]
+    with open(storage_path) as f:
+        storage_data = f.read().split('\n', 4)[-1]
+
+    uuid = re.search('/.uuid/(.+?)\n', container_data).group(1)
+
+    assert f'container-path: /.uuid/{uuid}' in storage_data
+    assert f'- file://localhost{str(storage_path)}' in container_data
+
+
+def test_container_duplicate_mount(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+    cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
+
+    with open(base_dir / 'containers/Duplicate.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    path = documents[1]['paths'][0]
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Duplicate')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xaaa'
+    assert command[0]['paths'] == [
+        f'/.users/0xaaa{path}',
+        '/.users/0xaaa/PATH',
+        path,
+        '/PATH',
+    ]
 
 
 def test_container_create_update_user(cli, base_dir):

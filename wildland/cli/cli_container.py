@@ -24,6 +24,7 @@ Manage containers
 from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Dict, Optional
 import os
+import uuid
 import sys
 import logging
 import threading
@@ -789,3 +790,53 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
             print(f"Conflict detected in file {path} in containers {c1} and {c2}")
     else:
         print("No conflicts were detected by container sync.")
+
+
+@container_.command(short_help='duplicate a container')
+@click.option('--new-name', help='name of the new container')
+@click.argument('cont', metavar='CONTAINER')
+@click.pass_obj
+def duplicate(obj: ContextObj, new_name, cont):
+    '''
+    Duplicate an existing container manifest.
+    '''
+
+    obj.client.recognize_users()
+
+    container = obj.client.load_container_from(cont)
+    old_uuid = container.ensure_uuid()
+
+    new_container = Container(
+        owner=container.owner,
+        paths=container.paths[1:],
+        backends=container.backends,
+        title=container.title,
+        categories=container.categories,
+    )
+    new_uuid = new_container.ensure_uuid()
+
+    replace_backends = []
+    for backend in new_container.backends:
+        if isinstance(backend, dict):
+            backend['container-path'] = backend['container-path'].replace(old_uuid, new_uuid)
+            backend['backend-id'] = str(uuid.uuid4())
+        else:
+            storage = obj.client.load_storage_from_url(backend, container.owner)
+            storage.params['backend-id'] = str(uuid.uuid4())
+            new_storage = Storage(
+                container_path=PurePosixPath(str(storage.container_path).replace(
+                    old_uuid, new_uuid)),
+                storage_type=storage.storage_type,
+                owner=storage.owner,
+                params=storage.params,
+                trusted=storage.trusted)
+            new_path = obj.client.save_new_storage(new_storage, new_name)
+            click.echo(f'Created storage: {new_path}')
+            replace_backends.append((backend, obj.client.local_url(new_path)))
+
+    for old, new in replace_backends:
+        new_container.backends.remove(old)
+        new_container.backends.append(new)
+
+    path = obj.client.save_new_container(new_container, new_name)
+    click.echo(f'Created: {path}')

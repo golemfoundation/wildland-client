@@ -292,3 +292,18 @@ List all conflicts detected by container sync.
 .. option:: --force-scan
 
    Force checking all files in all storages and their hashes. Can be slow and bandwidth-intensive.
+
+
+.. program:: wl-container-duplicate
+.. _wl-container-duplicate:
+
+:command:`wl container duplicate [--new-name <new-name>] <container>`
+---------------------------------------------------------------------
+
+Duplicate a given container as a container called <new-name>, optionally adding it to the
+user manifest. UUIDs and backend-ids are updated, everything else remains the same.
+
+.. option:: --new-name <new-name>
+
+   Name for the newly created container.
+
