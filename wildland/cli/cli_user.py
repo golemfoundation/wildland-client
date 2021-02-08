@@ -317,7 +317,7 @@ def _do_process_imported_manifest(
         bridge = Bridge(
             owner=default_user,
             user_location=manifest_url,
-            user_pubkey=user.pubkeys[0],
+            user_pubkey=user.primary_pubkey,
             paths=new_paths,
         )
 
