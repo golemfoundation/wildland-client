@@ -5,6 +5,12 @@ pip install . plugins/ipfs/
 
 # IPFS
 
+ipfs daemon &> /dev/null &
+echo "Starting IPFS daemon: ipfs."
+
+echo "IPFS is running at /ip4/127.0.0.1/tcp/8888"
+echo
+
 mkdir -p ~/tmp/ipfs-data/subdir
 printf "foo" > ~/tmp/ipfs-data/file
 printf "bar" > ~/tmp/ipfs-data/subdir/file
