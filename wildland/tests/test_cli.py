@@ -460,7 +460,7 @@ def test_container_mount(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
-    assert command[0]['paths'] == [
+    assert sorted(command[0]['paths']) == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
         path,
@@ -518,8 +518,8 @@ def test_container_mount_glob(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert len(command) == 2
-    assert command[0]['paths'][1] == '/.users/0xaaa/PATH1'
-    assert command[1]['paths'][1] == '/.users/0xaaa/PATH2'
+    assert sorted(command[0]['paths'])[1] == '/.users/0xaaa/PATH1'
+    assert sorted(command[1]['paths'])[1] == '/.users/0xaaa/PATH2'
 
 
 def test_container_mount_save(cli, base_dir, control_client):
@@ -567,7 +567,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['storage']['location'] == '/STORAGE'
-    assert command[0]['paths'] == [
+    assert sorted(command[0]['paths']) == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
         path,
@@ -1426,8 +1426,8 @@ def test_only_subcontainers(cli, base_dir, control_client):
     # Verify the mounted paths
     command = control_client.calls['mount']['items']
     assert len(command) == 2
-    assert command[0]['paths'] == parent_paths
-    assert command[1]['paths'] == child_paths
+    assert sorted(command[0]['paths']) == parent_paths
+    assert sorted(command[1]['paths']) == child_paths
 
     control_client.expect('info', {
         '1': {
@@ -1452,7 +1452,7 @@ def test_only_subcontainers(cli, base_dir, control_client):
     # Verify the mounted paths
     command = control_client.calls['mount']['items']
     assert len(command) == 1
-    assert command[0]['paths'] == [
+    assert sorted(command[0]['paths']) == [
         f'/.users/0xaaa{uuid_path_child}',
         '/.users/0xaaa/PATH_CHILD',
         uuid_path_child,
