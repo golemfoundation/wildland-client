@@ -845,6 +845,49 @@ class Client:
         else:
             yield PurePosixPath(path_pattern).relative_to('/')
 
+    def get_storage_for_publish(self, published_container: Container):
+        '''
+        Retrieves suitable storage to publish container manifest.
+        '''
+        # pylint: disable=import-outside-toplevel, cyclic-import
+        from .search import StorageDriver
+
+        owner = self.load_user_by_name(published_container.owner)
+
+        for container_candidate in owner.containers:
+            try:
+                if isinstance(container_candidate, str):
+                    container_candidate = self.load_container_from_url(
+                                            container_candidate, published_container.owner)
+                else:
+                    container_candidate = self.load_container_from_dict(
+                                            container_candidate, published_container.owner)
+
+                if container_candidate.paths == published_container.paths:
+                    # do not publish container to itself
+                    continue
+
+                # Attempt to mount the storage driver first.
+                # Failure in attempt to mount the backend should try the next storage from the
+                # container and if still not mounted, move to the next container
+                for storage_candidate in self.all_storages(
+                                            container=container_candidate,
+                                            predicate=self._select_storage_for_publishing):
+                    try:
+                        with StorageDriver.from_storage(storage_candidate) as _driver:
+                            return storage_candidate
+                    except (WildlandError, PermissionError, FileNotFoundError) as ex:
+                        logger.debug("Failed to mount storage when publishing with Exception: %s",
+                                    str(ex))
+                        continue
+
+            except (ManifestError, WildlandError) as ex:
+                logger.debug("Failed to load container when publishing with Exception: %s",
+                             str(ex))
+                continue
+
+        return None
+
     def publish_container(self, container: Container,
                           wlpath: Optional[WildlandPath] = None) -> None:
         '''
@@ -861,29 +904,9 @@ class Client:
             search.write_file(data)
             return
 
-        owner = self.load_user_by_name(container.owner)
-        containers = owner.containers
-        for cont in containers:
-            try:
-                cont = (self.load_container_from_url(cont, container.owner)
-                        if isinstance(cont, str)
-                        else self.load_container_from_dict(cont, container.owner))
+        storage = self.get_storage_for_publish(container)
 
-                if cont.paths == container.paths:
-                    # do not publish container to itself
-                    continue
-
-                storage = self.select_storage(cont, predicate=self._select_storage_for_publishing)
-
-                # Attempt to mount the storage driver first.
-                # Fail to mount should try the next container from the list.
-                with StorageDriver.from_storage(storage) as driver:
-                    break
-            except (ManifestError, WildlandError, PermissionError, FileNotFoundError) as ex:
-                logger.info("Failed to mount storage when publishing with Exception: %s", str(ex))
-                continue
-
-        else:  # didn't break, i.e. storage not found
+        if not storage:
             raise WildlandError(
                 'cannot find any container suitable as publishing platform')
 
