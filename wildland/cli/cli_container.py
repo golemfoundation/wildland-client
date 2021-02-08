@@ -22,7 +22,7 @@ Manage containers
 '''
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Iterable
 import os
 import sys
 import logging
@@ -332,8 +332,30 @@ container_.add_command(verify)
 container_.add_command(edit)
 
 
-def _mount(obj, container, container_name, user_paths, remount, with_subcontainers,
-           subcontainer_of, quiet, only_subcontainers):
+def prepare_mount(obj: ContextObj,
+                  container: Container,
+                  container_name: str,
+                  user_paths: Iterable[PurePosixPath],
+                  remount: bool,
+                  with_subcontainers: bool,
+                  subcontainer_of: Container,
+                  quiet: bool,
+                  only_subcontainers: bool):
+    """
+    Prepare 'params' argument for WildlandFSClient.mount_multiple_containers() to mount selected
+        container and its subcontainers (depending on options).
+
+    :param obj: command context from click
+    :param container: container object to mount
+    :param container_name: container name - used for diagnostic messages (unless quiet=True)
+    :param user_paths: paths of the container owner - ['/'] for default user
+    :param remount: should remount?
+    :param with_subcontainers: should include subcontainers?
+    :param subcontainer_of: it is a subcontainer
+    :param quiet: don't print messages
+    :param only_subcontainers: only mount subcontainers
+    :return: combined 'params' argument
+    """
     try:
         storage = obj.client.select_storage(container)
     except ManifestError:
@@ -365,9 +387,9 @@ def _mount(obj, container, container_name, user_paths, remount, with_subcontaine
 
     if with_subcontainers:
         for subcontainer in subcontainers:
-            yield from _mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
-                              user_paths, remount, with_subcontainers, container, quiet,
-                              only_subcontainers)
+            yield from prepare_mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
+                                     user_paths, remount, with_subcontainers, container, quiet,
+                                     only_subcontainers)
 
 
 @container_.command(short_help='mount container')
@@ -398,8 +420,9 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            params.extend(_mount(obj, container, container.local_path, user_paths,
-                                 remount, with_subcontainers, None, quiet, only_subcontainers))
+            params.extend(prepare_mount(
+                obj, container, container.local_path, user_paths,
+                remount, with_subcontainers, None, quiet, only_subcontainers))
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
