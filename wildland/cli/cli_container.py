@@ -83,7 +83,7 @@ class OptionRequires(click.Option):
 
 
 @container_.command(short_help='create container')
-@click.option('--user',
+@click.option('--owner', '--user',
     help='user for signing')
 @click.option('--path', multiple=True, required=True,
     help='mount path (can be repeated)')
@@ -101,18 +101,18 @@ class OptionRequires(click.Option):
               help="use user's default storage template set (ignored if --storage-set is used)")
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
+def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
            title=None, category=None, storage_set=None, local_dir=None):
     '''
     Create a new container manifest.
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_by_name(user or '@default-owner')
+    owner = obj.client.load_user_by_name(owner or '@default-owner')
 
     if default_storage_set and not storage_set:
         set_name = obj.client.config.get('default-storage-set-for-user')\
-            .get(user.owner, None)
+            .get(owner.owner, None)
     else:
         set_name = storage_set
 
@@ -131,7 +131,7 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
             raise CliError(f'Storage set {set_name} not found.') from fnf
 
     container = Container(
-        owner=user.owner,
+        owner=owner.owner,
         paths=[PurePosixPath(p) for p in path],
         backends=[],
         title=title,
@@ -154,12 +154,12 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
             raise CliError(f'Failed to create storage from set: {e}') from e
 
     if update_user:
-        if not user.local_path:
+        if not owner.local_path:
             raise CliError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        user.containers.append(str(obj.client.local_url(path)))
-        obj.client.save_user(user)
+        owner.containers.append(str(obj.client.local_url(path)))
+        obj.client.save_user(owner)
 
 
 @container_.command(short_help='update container')

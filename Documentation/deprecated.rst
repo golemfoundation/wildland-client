@@ -7,6 +7,8 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2021-02-08) Rename --user to --owner in ``wl container create``.
+
 * (2021-02-04) JSON Schemas should be referenced with '/schemas/' prefix now,
   for example ``{ "$ref": "/schemas/types.json#url"}``.
 

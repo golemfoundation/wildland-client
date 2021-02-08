@@ -649,7 +649,7 @@ def test_container_other_signer(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa', '--add-pubkey', 'key.0xbbb')
     cli('user', 'create', 'User2', '--key', '0xbbb')
 
-    cli('container', 'create', 'Container', '--path', '/PATH', '--user', 'User2')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--owner', 'User2')
 
     modify_file(base_dir / 'containers/Container.container.yaml',
                 "owner: '0xbbb'", "owner: '0xaaa'")
@@ -737,7 +737,7 @@ def test_container_wrong_signer(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
 
-    cli('container', 'create', 'Container', '--path', '/PATH', '--user', 'User2')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--owner', 'User2')
 
     modify_file(base_dir / 'containers/Container.container.yaml',
                 "owner: '0xbbb'", "owner: '0xaaa'")
@@ -820,7 +820,7 @@ def test_cli_container_sync(tmpdir, cleanup):
 
     wl_call(base_config_dir, 'user', 'create', 'Alice')
     wl_call(base_config_dir, 'container', 'create',
-            '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
+            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
     wl_call(base_config_dir, 'storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage1_data)
     wl_call(base_config_dir, 'storage', 'create', 'local-cached',
@@ -857,7 +857,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
 
     wl_call(base_config_dir, 'user', 'create', 'Alice')
     wl_call(base_config_dir, 'container', 'create',
-            '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
+            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
     wl_call(base_config_dir, 'storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage1_data)
     wl_call(base_config_dir, 'storage', 'create', 'local-cached',
@@ -1133,11 +1133,11 @@ def test_different_default_user(cli, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('container', 'create',
-            '--user', 'Bob', '--path', '/Bob', 'BobContainer')
+            '--owner', 'Bob', '--path', '/Bob', 'BobContainer')
     cli('storage', 'create', 'local',
             '--container', 'BobContainer', '--location', storage_dir)
     cli('container', 'create',
-            '--user', 'Alice', '--path', '/Alice', 'AliceContainer')
+            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
     cli('storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage_dir)
 
@@ -1372,7 +1372,7 @@ def test_only_subcontainers(cli, base_dir, control_client):
         '--key', '0xbbb')
     cli('container', 'create', 'Parent',
         '--path', '/PATH_PARENT',
-        '--user', '0xaaa')
+        '--owner', '0xaaa')
     cli('storage', 'create', 'local', 'Storage',
         '--location', base_dir / 'containers',
         '--container', 'Parent',
@@ -1380,13 +1380,13 @@ def test_only_subcontainers(cli, base_dir, control_client):
         '--subcontainer', './MaliciousChild.container.yaml')
     cli('container', 'create', 'Child',
         '--path', '/PATH_CHILD',
-        '--user', '0xaaa')
+        '--owner', '0xaaa')
     cli('storage', 'create', 'local', 'Storage',
         '--location', base_dir / 'foo',
         '--container', 'Child')
     cli('container', 'create', 'MaliciousChild',
         '--path', '/PATH_CHILD_B',
-        '--user', '0xbbb')
+        '--owner', '0xbbb')
     cli('storage', 'create', 'local', 'Storage',
         '--location', base_dir / 'foo',
         '--container', 'MaliciousChild')
