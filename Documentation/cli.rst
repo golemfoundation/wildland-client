@@ -69,9 +69,7 @@ YAML.
 Keys and signatures
 -------------------
 
-Public key cryptography is handled by `Signify
-<https://github.com/aperezdc/signify>`_, OpenBSD's tool for signing and
-verification.
+Public key cryptography is handled by libsodium.
 
 After generating, the keys are stored in ``key-dir`` (by default,
 ``~/.config/wildland/keys``). The public-private key pair is stored in

@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 from ..manifest.manifest import Manifest, Header, ManifestError
-from ..manifest.sig import SignifySigContext
+from ..manifest.sig import SodiumSigContext
 
 
 @pytest.fixture(scope='session')
@@ -36,13 +36,14 @@ def key_dir():
 
 @pytest.fixture(scope='session')
 def sig(key_dir):
-    return SignifySigContext(key_dir)
+    return SodiumSigContext(key_dir)
 
 
 @pytest.fixture(scope='session')
 def owner(sig):
-    return sig.generate()[0]
-
+    own, pubkey = sig.generate()
+    sig.add_pubkey(pubkey)
+    return own
 
 
 def make_header(sig, owner, test_data):
@@ -64,6 +65,24 @@ key2: "value2"
     assert manifest.fields['owner'] == owner
     assert manifest.fields['key1'] == 'value1'
     assert manifest.fields['key2'] == 'value2'
+
+
+def test_parse_key_not_loaded(sig):
+    # This should fail because a key that was not explicitly loaded into sig context should not
+    # be usable
+    owner, _ = sig.generate()
+
+    test_data = f'''
+    object: test
+    owner: "{owner}"
+    key1: value1
+    key2: "value2"
+    '''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+
+    with pytest.raises(ManifestError):
+        Manifest.from_bytes(data, sig)
 
 
 def test_parse_deprecated(sig, owner):

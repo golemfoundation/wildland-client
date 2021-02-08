@@ -40,7 +40,7 @@ List all known users.
 
 Create a new user manifest and save it.
 
-Unless ``--key`` is provided, the command will generate a new Signify key pair.
+Unless ``--key`` is provided, the command will generate a new key pair.
 
 .. option:: --key <fingerprint>
 

@@ -26,7 +26,7 @@ from ..manifest.sig import DummySigContext
 
 @pytest.fixture(scope='session')
 def sig():
-    return DummySigContext()
+    return DummySigContext(None)
 
 
 @pytest.fixture(scope='session')

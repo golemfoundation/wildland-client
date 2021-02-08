@@ -20,7 +20,7 @@
         },
         "key-dir": {
             "$ref": "/schemas/types.json#abs-path",
-            "description": "path to Signify private keys (default: $HOME/.config/wildland/keys)"
+            "description": "path to private key directory (default: $HOME/.config/wildland/keys)"
         },
         "mount-dir": {
             "$ref": "/schemas/types.json#abs-path",
@@ -33,7 +33,7 @@
 
         "dummy": {
             "type": "boolean",
-            "description": "use 'dummy' keys and signatures instead of Signify"
+            "description": "use 'dummy' keys and signatures instead of Sodium"
         },
 
         "@default": {

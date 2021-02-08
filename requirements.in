@@ -4,6 +4,7 @@ jsonschema
 pyyaml
 click
 entrypoints
+pynacl
 
 # Storage
 https://github.com/ipfs-shipyard/py-ipfs-http-client/archive/bcec97aa83cf0b0348d8e160c3f68dc8495dbc1b.zip

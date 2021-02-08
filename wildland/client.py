@@ -38,7 +38,7 @@ from .container import Container
 from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath, PathError
-from .manifest.sig import DummySigContext, SignifySigContext
+from .manifest.sig import DummySigContext, SodiumSigContext
 from .manifest.manifest import ManifestError, Manifest
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
@@ -90,10 +90,10 @@ class Client:
 
         if sig is None:
             if self.config.get('dummy'):
-                sig = DummySigContext()
+                sig = DummySigContext(Path(self.config.get('key-dir')))
             else:
                 key_dir = Path(self.config.get('key-dir'))
-                sig = SignifySigContext(key_dir)
+                sig = SodiumSigContext(key_dir)
 
         self.session: Session = Session(sig)
 
