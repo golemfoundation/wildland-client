@@ -818,7 +818,6 @@ def duplicate(obj: ContextObj, new_name, cont):
     replace_backends = []
     for backend in new_container.backends:
         if isinstance(backend, dict):
-            backend['container-path'] = backend['container-path'].replace(old_uuid, new_uuid)
             backend['backend-id'] = str(uuid.uuid4())
         else:
             storage = obj.client.load_storage_from_url(backend, container.owner)
