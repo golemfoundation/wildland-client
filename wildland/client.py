@@ -839,7 +839,7 @@ class Client:
     def _manifest_filenames_from_patern(container: Container, path_pattern):
         path_pattern = path_pattern.replace('*', container.ensure_uuid())
         if '{path}' in path_pattern:
-            for path in container.paths:
+            for path in container.expanded_paths:
                 yield PurePosixPath(path_pattern.replace(
                     '{path}', str(path.relative_to('/')))).relative_to('/')
         else:
