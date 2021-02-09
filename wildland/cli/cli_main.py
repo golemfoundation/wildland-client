@@ -73,7 +73,8 @@ main.add_command(cli_storage.storage_)
 main.add_command(cli_storage_set.storage_set_)
 main.add_command(cli_container.container_)
 main.add_command(cli_bridge.bridge_)
-main.add_alias(u='user', s='storage', c='container', b='bridge')
+main.add_alias(users='user', u='user', storages='storage', s='storage', containers='container',
+               c='container', bridges='bridge', b='bridge')
 
 main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)

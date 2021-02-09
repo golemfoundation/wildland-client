@@ -8,7 +8,7 @@
 Synopsis
 ========
 
-| :command:`wl user list`
+| :command:`wl {user|users} list`
 | :command:`wl user create <name> --key <key>`
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
@@ -26,8 +26,8 @@ Commands
 .. program:: wl-user-list
 .. _wl-user-list:
 
-:command:`wl user list [OPTIONS]`
----------------------------------
+:command:`wl {user|users} list [OPTIONS]`
+-----------------------------------------
 
 List all known users.
 

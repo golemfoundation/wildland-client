@@ -106,9 +106,7 @@ def test_user_create_additional_keys(cli, base_dir):
 def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa',
         '--path', '/users/Foo', '--path', '/users/Bar')
-    cli('user', 'create', 'User2', '--key', '0xbbb')
-    result = cli('user', 'list', capture=True)
-    assert result.splitlines() == [
+    ok = [
         str(base_dir / 'users/User1.user.yaml') + ' (@default) (@default-owner)',
         '  owner: 0xaaa',
         '  private and public keys available',
@@ -121,6 +119,11 @@ def test_user_list(cli, base_dir):
         '   path: /users/User2',
         ''
     ]
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+    result = cli('user', 'list', capture=True)
+    assert result.splitlines() == ok
+    result = cli('users', 'list', capture=True)
+    assert result.splitlines() == ok
 
 
 def test_user_delete(cli, base_dir):
@@ -287,12 +290,16 @@ def test_storage_list(cli, base_dir):
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container', '--no-inline')
 
-    result = cli('storage', 'list', capture=True)
-    assert result.splitlines() == [
+    ok = [
         str(base_dir / 'storage/Storage.storage.yaml'),
         '  type: local',
         '  location: /PATH',
     ]
+
+    result = cli('storage', 'list', capture=True)
+    assert result.splitlines() == ok
+    result = cli('storages', 'list', capture=True)
+    assert result.splitlines() == ok
 
 
 ## Container
@@ -525,6 +532,10 @@ def test_container_list(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH')
 
     result = cli('container', 'list', capture=True)
+    out_lines = result.splitlines()
+    assert str(base_dir / 'containers/Container.container.yaml') in out_lines
+    assert '  path: /PATH' in out_lines
+    result = cli('containers', 'list', capture=True)
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
     assert '  path: /PATH' in out_lines
