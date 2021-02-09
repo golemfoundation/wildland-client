@@ -805,12 +805,12 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '/.users/0xaaa/PATH',
         '/.users/0xaaa/c1/c2/title',
         '/.users/0xaaa/c3/title',
-        '/.users/0xaaa/c1/c2/c3/title',
-        '/.users/0xaaa/c3/c1/c2/title',
+        '/.users/0xaaa/c1/c2/@c3/title',
+        '/.users/0xaaa/c3/@c1/c2/title',
         '/c1/c2/title',
         '/c3/title',
-        '/c1/c2/c3/title',
-        '/c3/c1/c2/title',
+        '/c1/c2/@c3/title',
+        '/c3/@c1/c2/title',
         path,
         '/PATH',
     ])
@@ -827,8 +827,8 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '/.users/0xaaa/PATH',
         '/.users/0xaaa/c1/c2/title',
         '/.users/0xaaa/c3/title',
-        '/.users/0xaaa/c1/c2/c3/title',
-        '/.users/0xaaa/c3/c1/c2/title',
+        '/.users/0xaaa/c1/c2/@c3/title',
+        '/.users/0xaaa/c3/@c1/c2/title',
     ]
     assert command[0]['extra']['trusted_owner'] is None
 

@@ -113,7 +113,7 @@ def test_expanded_paths(client, cli):
 
     container = client.load_container_from('ContainerExt')
 
-    assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/t3/title', '/t3/t1/t2/title'} \
+    assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/@t3/title', '/t3/@t1/t2/title'} \
            == {str(p) for p in container.expanded_paths if 'uuid' not in str(p)}
 
 

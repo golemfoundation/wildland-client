@@ -120,6 +120,7 @@ class Container:
             for path in self.categories:
                 paths.append(path / self.title)
             for p1, p2 in itertools.permutations(self.categories, 2):
-                paths.append(p1 / p2.relative_to(p2.anchor) / self.title)
+                subpath = PurePosixPath ('@' + str(p2.relative_to(p2.anchor)))
+                paths.append(p1 / subpath / self.title)
         self._expanded_paths = paths
         return self._expanded_paths
