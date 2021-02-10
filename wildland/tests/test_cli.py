@@ -397,7 +397,7 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
-    assert command[0]['paths'] == [
+    assert sorted(command[0]['paths']) == [
         f'/.users/0xaaa{path}',
         '/.users/0xaaa/PATH',
         path,
