@@ -483,7 +483,7 @@ def prepare_mount(obj: ContextObj,
                   user_paths: Iterable[PurePosixPath],
                   remount: bool,
                   with_subcontainers: bool,
-                  subcontainer_of: Container,
+                  subcontainer_of: Optional[Container],
                   quiet: bool,
                   only_subcontainers: bool):
     """
@@ -572,7 +572,7 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
             for container in obj.client.load_containers_from(container_name):
                 user_paths = obj.client.get_bridge_paths_for_user(container.owner)
                 params.extend(prepare_mount(
-                    obj, container, container.local_path, user_paths,
+                    obj, container, str(container.local_path), user_paths,
                     remount, with_subcontainers, None, quiet, only_subcontainers))
         except WildlandError as ex:
             failed = True
@@ -687,7 +687,10 @@ class Remounter:
             self.patterns.append(str(PurePosixPath('/') / relpath))
 
         # Queued operations
-        self.to_mount: List[Tuple[Container, Storage, bool]] = []
+        self.to_mount: List[Tuple[Container,
+                                  Storage,
+                                  Iterable[PurePosixPath],
+                                  Optional[Container]]] = []
         self.to_unmount: List[int] = []
 
         # manifest path -> main container path
