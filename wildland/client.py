@@ -20,7 +20,7 @@
 '''
 Client class
 '''
-
+import functools
 import glob
 import logging
 import os
@@ -449,6 +449,40 @@ class Client:
             path.read_bytes(), path,
             trusted_owner=trusted_owner)
 
+    @functools.lru_cache
+    def get_bridge_paths_for_user(self, user: Union[User, str], owner: Optional[User] = None) \
+            -> Iterable[PurePosixPath]:
+        """
+        Get bridge paths to the *user* using bridges owned by *owner*. If owner is not specified,
+        use default user (``@default``).
+
+        :param user: user to look paths for (user id is accepted too)
+        :param owner: owner of bridges to consider
+        :return: list of paths collected from bridges
+        """
+        if owner is None:
+            try:
+                owner = self.load_user_by_name('@default')
+            except WildlandError:
+                # if default cannot be loaded, just behave as no bridges were found
+                return []
+
+        if isinstance(user, str):
+            user = self.load_user_by_name(user)
+
+        if owner.primary_pubkey == user.primary_pubkey:
+            return [PurePosixPath('/')]
+
+        paths = []
+        for bridge in self.load_bridges():
+            if bridge.owner != owner.owner:
+                continue
+            if bridge.user_pubkey != user.primary_pubkey:
+                continue
+            paths.extend(bridge.paths)
+
+        return set(paths)
+
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
         '''
         Save a user manifest. If path is None, the user has to have
@@ -518,6 +552,9 @@ class Client:
 
         path.write_bytes(self.session.dump_bridge(bridge))
         bridge.local_path = path
+        # cache_clear is added by a decorator, which pylint doesn't see
+        # pylint: disable=no-member
+        self.get_bridge_paths_for_user.cache_clear()
         return path
 
     def new_path(self, manifest_type, name: str, skip_numeric_suffix: bool = False) -> Path:

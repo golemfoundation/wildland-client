@@ -536,11 +536,13 @@ class StaticSubcontainerStorageMixin:
         if not sig_context:
             raise ValueError('Signature context must be defined for static subcontainers')
 
+        trusted_owner = self.params.get('owner') if self.params.get('trusted') else None
         for subcontainer_path in self.params.get('subcontainers', []):
             with self.open(PurePosixPath(subcontainer_path), os.O_RDONLY) as file:
                 manifest = Manifest.from_bytes(
                     data=file.read(None, 0),
                     sig_context=sig_context,
+                    trusted_owner=trusted_owner,
                 )
 
                 if self.params.get('owner') == manifest.fields.get('owner'):

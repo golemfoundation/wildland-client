@@ -22,7 +22,7 @@ Manage containers
 '''
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Iterable
 import os
 import uuid
 import sys
@@ -84,9 +84,9 @@ class OptionRequires(click.Option):
 
 
 @container_.command(short_help='create container')
-@click.option('--user',
+@click.option('--owner', '--user',
     help='user for signing')
-@click.option('--path', multiple=True, required=True,
+@click.option('--path', multiple=True, required=False,
     help='mount path (can be repeated)')
 @click.option('--category', multiple=True, required=False,
     help='category, will be used to generate mount paths')
@@ -102,18 +102,18 @@ class OptionRequires(click.Option):
               help="use user's default storage template set (ignored if --storage-set is used)")
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
+def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
            title=None, category=None, storage_set=None, local_dir=None):
     '''
     Create a new container manifest.
     '''
 
     obj.client.recognize_users()
-    user = obj.client.load_user_by_name(user or '@default-owner')
+    owner = obj.client.load_user_by_name(owner or '@default-owner')
 
     if default_storage_set and not storage_set:
         set_name = obj.client.config.get('default-storage-set-for-user')\
-            .get(user.owner, None)
+            .get(owner.owner, None)
     else:
         set_name = storage_set
 
@@ -125,6 +125,9 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
             raise CliError('--category option requires --title or container name')
         title = name
 
+    if not category and not title and not path:
+        raise CliError('--path is required if --category and --title are not set')
+
     if set_name:
         try:
             storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
@@ -132,7 +135,7 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
             raise CliError(f'Storage set {set_name} not found.') from fnf
 
     container = Container(
-        owner=user.owner,
+        owner=owner.owner,
         paths=[PurePosixPath(p) for p in path],
         backends=[],
         title=title,
@@ -155,12 +158,12 @@ def create(obj: ContextObj, user, path, name, update_user, default_storage_set,
             raise CliError(f'Failed to create storage from set: {e}') from e
 
     if update_user:
-        if not user.local_path:
+        if not owner.local_path:
             raise CliError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        user.containers.append(str(obj.client.local_url(path)))
-        obj.client.save_user(user)
+        owner.containers.append(str(obj.client.local_url(path)))
+        obj.client.save_user(owner)
 
 
 @container_.command(short_help='update container')
@@ -330,8 +333,30 @@ container_.add_command(verify)
 container_.add_command(edit)
 
 
-def _mount(obj, container, container_name, is_default_user, remount, with_subcontainers,
-           subcontainer_of, quiet, only_subcontainers):
+def prepare_mount(obj: ContextObj,
+                  container: Container,
+                  container_name: str,
+                  user_paths: Iterable[PurePosixPath],
+                  remount: bool,
+                  with_subcontainers: bool,
+                  subcontainer_of: Container,
+                  quiet: bool,
+                  only_subcontainers: bool):
+    """
+    Prepare 'params' argument for WildlandFSClient.mount_multiple_containers() to mount selected
+        container and its subcontainers (depending on options).
+
+    :param obj: command context from click
+    :param container: container object to mount
+    :param container_name: container name - used for diagnostic messages (unless quiet=True)
+    :param user_paths: paths of the container owner - ['/'] for default user
+    :param remount: should remount?
+    :param with_subcontainers: should include subcontainers?
+    :param subcontainer_of: it is a subcontainer
+    :param quiet: don't print messages
+    :param only_subcontainers: only mount subcontainers
+    :return: combined 'params' argument
+    """
     try:
         storage = obj.client.select_storage(container)
     except ManifestError:
@@ -340,8 +365,10 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
 
     if with_subcontainers:
         subcontainers = list(obj.client.all_subcontainers(container))
+    else:
+        subcontainers = []
 
-    param_tuple = (container, storage, is_default_user, subcontainer_of)
+    param_tuple = (container, storage, user_paths, subcontainer_of)
 
     if not subcontainers or not only_subcontainers:
         if obj.fs_client.find_storage_id(container) is None:
@@ -349,7 +376,7 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
                 print(f'new: {container_name}')
             yield param_tuple
         elif remount:
-            if obj.fs_client.should_remount(container, storage, is_default_user):
+            if obj.fs_client.should_remount(container, storage, user_paths):
                 if not quiet:
                     print(f'changed: {container_name}')
                 yield param_tuple
@@ -361,9 +388,9 @@ def _mount(obj, container, container_name, is_default_user, remount, with_subcon
 
     if with_subcontainers:
         for subcontainer in subcontainers:
-            yield from _mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
-                              is_default_user, remount, with_subcontainers, container, quiet,
-                              only_subcontainers)
+            yield from prepare_mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
+                                     user_paths, remount, with_subcontainers, container, quiet,
+                                     only_subcontainers)
 
 
 @container_.command(short_help='mount container')
@@ -390,13 +417,13 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
-    params: List[Tuple[Container, Storage, bool]] = []
+    params: List[Tuple[Container, Storage, List[PurePosixPath], Container]] = []
     for container_name in container_names:
         for container in obj.client.load_containers_from(container_name):
-            is_default_user = container.owner == obj.client.config.get("@default")
-
-            params.extend(_mount(obj, container, container.local_path, is_default_user,
-                                 remount, with_subcontainers, None, quiet, only_subcontainers))
+            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+            params.extend(prepare_mount(
+                obj, container, container.local_path, user_paths,
+                remount, with_subcontainers, None, quiet, only_subcontainers))
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
@@ -559,11 +586,11 @@ class Remounter:
 
             # Call should_remount to determine if we should mount this
             # container.
-            is_default_user = container.owner == self.client.config.get("@default")
+            user_paths = self.client.get_bridge_paths_for_user(container.owner)
             storage = self.client.select_storage(container)
-            if self.fs_client.should_remount(container, storage, is_default_user):
+            if self.fs_client.should_remount(container, storage, user_paths):
                 logger.info('  (mount)')
-                self.to_mount.append((container, storage, is_default_user, None))
+                self.to_mount.append((container, storage, user_paths, None))
             else:
                 logger.info('  (no change)')
 

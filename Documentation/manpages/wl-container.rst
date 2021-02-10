@@ -11,7 +11,7 @@ Synopsis
 | :command:`wl {container|containers} list`
 | :command:`wl container info NAME`
 | :command:`wl container delete [--force] [--cascade] NAME`
-| :command:`wl container create [--user <user>] --path <path> [--path <path2> ...] [--storage-set <storage_set>]`
+| :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage_set>]`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
@@ -66,8 +66,8 @@ Delete a container from local filesystem.
 .. program:: wl-container-create
 .. _wl-container-create:
 
-:command:`wl container create [--user <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>]`
----------------------------------------------------------------------------------------------------------------
+:command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>]`
+----------------------------------------------------------------------------------------------------------------
 
 Create a |~| new container manifest.
 
@@ -75,9 +75,9 @@ Create a |~| new container manifest.
 
    The paths under which the container will be mounted.
 
-.. option:: --user <user>
+.. option:: --owner <user>, --user <user>
 
-   The owner of the container.
+   The owner of the container. The ``--user`` alias is deprecated.
 
    .. todo:: Write the config name for default user.
 
