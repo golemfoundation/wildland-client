@@ -1060,7 +1060,8 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
     cli('bridge', 'create', '--ref-user', 'Other',
                             '--ref-user-path', '/users/other',
                             '--ref-user-path', '/people/other',
-                            '--ref-user-location', 'file:///dev/null',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/Other.user.yaml'),
                             'br-other')
     cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -1072,10 +1073,29 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
 
     path = f'/.uuid/{uuid}'
 
+    # add infrastructure container
+    with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
+        documents = list(yaml.safe_load_all(f))
+        documents[1]['infrastructures'].append({
+            'paths': ['/.uuid/1111-2222-3333-4444'],
+            'owner': '0xbbb',
+            'backends': {'storage': [{
+                'type': 'local',
+                'location': str(base_dir / 'containers'),
+                'manifest-pattern': {
+                    'type': 'glob',
+                    'path': '/*.yaml',
+                }
+            }]}
+        })
+        f.seek(0)
+        f.write('signature: |\n  dummy.0xbbb\n---\n')
+        f.write(yaml.safe_dump(documents[1]))
+
     control_client.expect('paths', {})
     control_client.expect('mount')
 
-    cli('container', 'mount', 'Container')
+    cli('container', 'mount', 'wildland::/users/other:/PATH:')
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
@@ -1087,6 +1107,147 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         f'/users/other{path}',
         '/users/other/PATH',
     ]
+
+def test_container_mount_with_import(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'Other', '--key', '0xbbb')
+    os.mkdir(base_dir / 'other-infra')
+    # add infrastructure container
+    with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
+        documents = list(yaml.safe_load_all(f))
+        documents[1]['infrastructures'].append({
+            'paths': ['/.uuid/1111-2222-3333-4444'],
+            'owner': '0xbbb',
+            'backends': {'storage': [{
+                'type': 'local',
+                'location': str(base_dir / 'other-infra'),
+                'manifest-pattern': {
+                    'type': 'glob',
+                    'path': '/*.yaml',
+                }
+            }]}
+        })
+        f.seek(0)
+        f.write('signature: |\n  dummy.0xbbb\n---\n')
+        f.write(yaml.safe_dump(documents[1]))
+    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    # move user manifest out of the default path, so the bridge would be the only way to access it
+    os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
+    # same for the container manifest
+    os.rename(base_dir / 'containers/Container.container.yaml',
+              base_dir / 'other-infra/Container.container.yaml')
+    cli('bridge', 'create', '--ref-user-path', '/users/other',
+                            '--ref-user-path', '/people/other',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'user-Other.user.yaml'),
+                            'br-other')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    # first mount without importing - should still work
+    cli('container', 'mount', '--no-import-users', 'wildland::/users/other:/PATH:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert '/.users/0xbbb/PATH' in command[0]['paths']
+
+    users = cli('user', 'list', capture=True)
+    assert users.count('0xbbb') == 0
+
+    control_client.calls = {}
+
+    cli('container', 'mount', 'wildland::/users/other:/PATH:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert '/.users/0xbbb/PATH' in command[0]['paths']
+
+    control_client.calls = {}
+
+    # now the user should be imported and mounting directly should work
+    cli('container', 'mount', 'wildland:0xbbb:/PATH:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert '/.users/0xbbb/PATH' in command[0]['paths']
+
+    users = cli('user', 'list', capture=True)
+    assert users.count('0xbbb') > 0
+
+    bridges = cli('bridge', 'list', capture=True)
+    assert bridges.count('/people/other') == 2
+
+
+def test_container_mount_with_import_delegate(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'Other', '--key', '0xbbb')
+    os.mkdir(base_dir / 'other-infra')
+    # add infrastructure container
+    with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
+        documents = list(yaml.safe_load_all(f))
+        documents[1]['infrastructures'].append({
+            'paths': ['/.uuid/1111-2222-3333-4444'],
+            'owner': '0xbbb',
+            'backends': {'storage': [{
+                'type': 'local',
+                'location': str(base_dir / 'other-infra'),
+                'manifest-pattern': {
+                    'type': 'glob',
+                    'path': '/*.yaml',
+                }
+            }]}
+        })
+        f.seek(0)
+        f.write('signature: |\n  dummy.0xbbb\n---\n')
+        f.write(yaml.safe_dump(documents[1]))
+    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    # move user manifest out of the default path, so the bridge would be the only way to access it
+    os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
+    # same for the container manifest
+    os.rename(base_dir / 'containers/Container.container.yaml',
+              base_dir / 'other-infra/Container.container.yaml')
+    cli('bridge', 'create', '--ref-user-path', '/users/other',
+                            '--ref-user-path', '/people/other',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'user-Other.user.yaml'),
+                            'br-other')
+
+    cli('container', 'create', 'Container', '--owner', 'User', '--path', '/PROXY-PATH')
+    cli('storage', 'create', 'delegate', 'Storage',
+        '--reference-container-url', 'wildland:0xaaa:/users/other:/PATH:',
+        '--container', 'Container')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'wildland::/PROXY-PATH:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['storage']['owner'] == '0xbbb'
+    assert '/.users/0xaaa/PROXY-PATH' in command[0]['paths']
+
+    control_client.calls = {}
+
+    # now the user should be imported and mounting directly should work
+    cli('container', 'mount', 'wildland:0xbbb:/PATH:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert '/.users/0xbbb/PATH' in command[0]['paths']
+
+    bridges = cli('bridge', 'list', capture=True)
+    assert bridges.count('/people/other') == 2
 
 
 def test_container_mount_store_trusted_owner(cli, control_client):

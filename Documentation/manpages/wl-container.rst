@@ -145,8 +145,8 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount [--quiet/-q] [--remount/--no-remount] [--with-subcontainers/--without-subcontainers] [--only-subcontainers] <container> [<container>...]`
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl container mount [--quiet/-q] [--remount/--no-remount] [options] <container> [<container>...]`
+----------------------------------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl start <wl-start>`.
@@ -165,6 +165,18 @@ be mounted first, see :ref:`wl start <wl-start>`.
 
    Add the containers to ``default-containers`` in configuration file, so
    that they will be mounted at startup.
+
+.. option:: --import-users
+
+   Import user manifests encountered when loading the containers to mount. This
+   is applicable when contianer is given as a WL path. When enabled, further
+   mounts of the same user container can reference the user directly, instead of
+   through a directory (specifically - a bridge manifest in it).
+   Enabled by default.
+
+.. option:: --no-import-users
+
+   Do not import user manifests when mounting a container through a WL path.
 
 .. option:: -w, --with-subcontainers
 

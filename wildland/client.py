@@ -17,6 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# pylint: disable=too-many-lines
+
 '''
 Client class
 '''
@@ -92,6 +94,9 @@ class Client:
                 self.config.override(override_fields={'@default': default_user})
         except (ConnectionRefusedError, FileNotFoundError):
             pass
+
+        #: save (import) users encountered while traversing WL paths
+        self.auto_import_users = False
 
         key_dir = Path(self.config.get('key-dir'))
 
@@ -238,6 +243,36 @@ class Client:
 
         raise WildlandError(f'User not found: {name}')
 
+    def recognize_users_from_search(self, final_step):
+        """
+        Recognize users and bridges encountered while traversing WL path.
+        If self.auto_import_users is set, bridge and user manifests are
+        saved into ~/.config/wildland as is - without changing bridge owner or its paths
+        (contrary to wl user import command).
+
+        :param final_step: final step returned by Search.resolve_raw()
+        :return:
+        """
+
+        # save users and bridges if requested
+        if self.auto_import_users:
+            for step in final_step.steps_chain():
+                if not step.bridge or step.user.owner in self.users:
+                    # not a user transition, or user already known
+                    continue
+                user = step.user
+                logger.info('importing user %s', user.owner)
+                # save the original manifest, don't risk the need to re-sign
+                path = self.new_path('user', user.owner)
+                path.write_bytes(user.manifest.to_bytes())
+                path = self.new_path('bridge', user.owner)
+                path.write_bytes(step.bridge.manifest.to_bytes())
+
+        # load encountered users to the current context - may be needed for subcontainers
+        self.recognize_users(
+            [ustep.user for ustep in final_step.steps_chain()
+             if ustep.user is not None])
+
     def load_containers(self) -> Iterator[Container]:
         '''
         Load containers from the containers directory.
@@ -263,12 +298,21 @@ class Client:
             path.read_bytes(), path,
             trusted_owner=trusted_owner)
 
-    def load_container_from_wlpath(self, wlpath: WildlandPath) -> Iterable[Container]:
+    def load_container_from_wlpath(self,
+                                   wlpath: WildlandPath,
+                                   aliases: Optional[dict] = None) -> Iterable[Container]:
         """
         Load containers referring to a given WildlandPath.
         """
-        search = Search(self, wlpath, self.config.aliases)
-        yield from search.read_container()
+        if aliases is None:
+            aliases = self.config.aliases
+        search = Search(self, wlpath, aliases)
+        for final_step in search.resolve_raw():
+            if final_step.container is None:
+                continue
+            self.recognize_users_from_search(final_step)
+
+            yield final_step.container
 
     def load_container_from_url(self, url: str, owner: str) -> Container:
         '''
@@ -278,10 +322,8 @@ class Client:
         if WildlandPath.match(url):
             wlpath = WildlandPath.from_str(url)
             if wlpath.file_path is None:
-
-                search = Search(self, wlpath, {'default': owner})
                 try:
-                    return next(search.read_container())
+                    return next(self.load_container_from_wlpath(wlpath, {'default': owner}))
                 except StopIteration as ex:
                     raise PathError(f'Container not found for path: {wlpath}') from ex
 

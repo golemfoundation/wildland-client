@@ -48,6 +48,7 @@ from ..manifest.template import TemplateManager
 from ..sync import Syncer, list_storage_conflicts
 from ..hashdb import HashDb
 from ..log import init_logging
+from ..wlpath import WildlandPath
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
@@ -542,6 +543,8 @@ def prepare_mount(obj: ContextObj,
               help='Remount existing container, if found')
 @click.option('--save', '-s', is_flag=True,
               help='Save the container to be mounted at startup')
+@click.option('--import-users/--no-import-users', is_flag=True, default=True,
+              help='Import encountered users on the WildLand path to the container(s)')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
               help='Do not mount subcontainers of this container.')
 @click.option('--only-subcontainers', '-b', is_flag=True, default=False,
@@ -550,8 +553,8 @@ def prepare_mount(obj: ContextObj,
               help='Do not list what is mounted')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: bool,
-          only_subcontainers: bool, quiet):
+def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
+          with_subcontainers: bool, only_subcontainers: bool, quiet):
     '''
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -564,12 +567,22 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
     except WildlandError as ex:
         raise ClickException(ex) from ex
 
+    if import_users:
+        obj.client.auto_import_users = True
+
     params: List[Tuple[Container, Storage, List[PurePosixPath], Container]] = []
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
     for container_name in container_names:
         try:
-            for container in obj.client.load_containers_from(container_name):
+            # wildland paths are special, because may require importing intermediate users
+            if WildlandPath.match(container_name):
+                containers = obj.client.load_container_from_wlpath(
+                    WildlandPath.from_str(container_name),
+                )
+            else:
+                containers = obj.client.load_containers_from(container_name)
+            for container in containers:
                 user_paths = obj.client.get_bridge_paths_for_user(container.owner)
                 params.extend(prepare_mount(
                     obj, container, str(container.local_path), user_paths,
