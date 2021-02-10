@@ -468,7 +468,7 @@ def modify_file(path, pattern, replacement):
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_other_key(cli, base_dir, client, owner):
+def test_traverse_other_key(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users()
@@ -535,9 +535,10 @@ paths:
         assert data == b'Hello world'
 
     elif owner == '0xbbb':
-        with pytest.raises(ManifestError,
-                           match="Manifest owner does not have access to signing key"):
+        with pytest.raises(FileNotFoundError):
             data = search.read_file()
+        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        assert "Manifest owner does not have access to signing key" in logs
 
 
 def test_search_two_containers(base_dir, cli):

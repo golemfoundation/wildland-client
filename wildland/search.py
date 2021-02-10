@@ -344,8 +344,12 @@ class Search:
                 return
             logger.debug('%s: remote user manifest: %s',
                          part, location)
-
-        user = next_client.session.load_user(user_manifest_content)
+        try:
+            user = next_client.session.load_user(user_manifest_content)
+        except WildlandError as e:
+            logger.warning('Could not load user manifest %s: %s',
+                           location, e)
+            return
 
         yield from self._user_step(
             user, next_owner, next_client, bridge)
