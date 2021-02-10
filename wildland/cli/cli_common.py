@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Callable, List
 
 import click
-import yaml
 
 from .cli_base import ContextObj
 from ..client import Client
@@ -220,8 +219,7 @@ def edit(ctx, editor, input_file, remount):
                 container, storage, user_paths, remount=remount)
 
 
-def modify_manifest(ctx, name: str, edit_func: Callable[[dict, str, List[str]], dict], field: str,
-                    values: List[str]):
+def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
     '''
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
@@ -233,26 +231,21 @@ def modify_manifest(ctx, name: str, edit_func: Callable[[dict, str, List[str]], 
         manifest_type = None
 
     manifest_path = find_manifest_file(obj.client, name, manifest_type)
-    data = manifest_path.read_bytes()
 
-    if HEADER_SEPARATOR in data:
-        _, data = split_header(data)
-
-    # TODO: editing the structure like this should be done in Manifest
-    # ...but Manifest is designed to be immutable
-    body_str = data.decode('utf-8')
-    fields = yaml.safe_load(body_str)
-    fields = Manifest.update_obsolete(fields)
-
-    fields = edit_func(fields, field, values)
-
-    manifest = Manifest.from_fields(fields)
+    obj.client.recognize_users()
+    sig_ctx = obj.client.session.sig
+    manifest = Manifest.from_file(manifest_path, sig_ctx)
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
 
-    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+    fields = edit_func(manifest.fields, *args)
+    modified = Manifest.from_fields(fields)
+    if manifest_type is not None:
+        validate_manifest(modified, manifest_type)
 
-    signed_data = manifest.to_bytes()
+    modified.sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+
+    signed_data = modified.to_bytes()
     with open(manifest_path, 'wb') as f:
         f.write(signed_data)
 
@@ -295,11 +288,10 @@ def del_field(fields: dict, field: str, values: List[str]) -> dict:
     return fields
 
 
-def set_field(fields: dict, field: str, values: List[str]) -> dict:
+def set_field(fields: dict, field: str, value: str) -> dict:
     '''
     Callback function for `modify_manifest`. Sets value of the specified field.
-    `values` should be a one-item list.
     '''
-    fields[field] = values.pop()
+    fields[field] = value
 
     return fields

@@ -370,7 +370,7 @@ def set_title(ctx, input_file, title):
     '''
     Set title in the manifest.
     '''
-    modify_manifest(ctx, input_file, set_field, 'title', [title])
+    modify_manifest(ctx, input_file, set_field, 'title', title)
 
 
 @modify.command(short_help='add category to the manifest')

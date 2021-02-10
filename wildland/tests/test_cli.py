@@ -289,8 +289,8 @@ def test_user_del_path(cli, base_dir):
 def test_user_add_pubkey(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
-    pubkey1 = 'RWTZF9fAbx7aKEqNbtCskKtmBhpGaL9+41axbs/+YkVw481MU6UpnGQ8'
-    pubkey2 = 'RWT3ws3CovcqXP0gohvoVkEIF9dNilN6o/Qb0Sc2G/yWSsnGYslCY1Ah'
+    pubkey1 = 'key.0xbbb'
+    pubkey2 = 'key.0xccc'
     manifest_path = base_dir / 'users/User.user.yaml'
 
     cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1)
@@ -318,9 +318,9 @@ def test_user_add_pubkey(cli, base_dir):
 def test_user_del_pubkey(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
-    pubkey1 = 'RWTZF9fAbx7aKEqNbtCskKtmBhpGaL9+41axbs/+YkVw481MU6UpnGQ8'
-    pubkey2 = 'RWT3ws3CovcqXP0gohvoVkEIF9dNilN6o/Qb0Sc2G/yWSsnGYslCY1Ah'
-    pubkey3 = 'RWSbeZuIxsbFm/vs5JNM7hIBQJjedEY4slHUniWOT4rWUrgNO90od6tk'
+    pubkey1 = 'key.0xbbb'
+    pubkey2 = 'key.0xccc'
+    pubkey3 = 'key.0xddd'
     manifest_path = base_dir / 'users/User.user.yaml'
     cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1)
 
@@ -344,7 +344,6 @@ def test_user_del_pubkey(cli, base_dir):
 
     # FIXME: invalid path
     #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
-
 
 
 ## Storage

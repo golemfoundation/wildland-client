@@ -348,7 +348,7 @@ Add category to a container |~| manifest given by *<file>*.
 :command:`wl container modify del-category --category PATH <file>`
 ------------------------------------------------------------------
 
-Rremove category from a container |~| manifest given by *<file>*.
+Remove category from a container |~| manifest given by *<file>*.
 
 .. option:: --category
 

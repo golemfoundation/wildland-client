@@ -361,4 +361,4 @@ def set_location(ctx, input_file, location):
     '''
     Set location in the manifest.
     '''
-    modify_manifest(ctx, input_file, set_field, 'location', [location])
+    modify_manifest(ctx, input_file, set_field, 'location', location)
