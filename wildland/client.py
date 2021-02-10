@@ -27,7 +27,7 @@ import glob
 import logging
 import os
 from pathlib import Path, PurePosixPath
-from typing import Optional, Iterator, List, Tuple, Union, Dict, Iterable
+from typing import Optional, Iterator, Tuple, Union, Dict, Iterable
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -103,7 +103,7 @@ class Client:
 
         self.session: Session = Session(sig)
 
-        self.users: List[User] = []
+        self.users: Dict[str, User] = {}
 
         self._select_reference_storage_cache = {}
 
@@ -123,7 +123,7 @@ class Client:
         '''
 
         for user in self.load_users():
-            self.users.append(user)
+            self.users[user.owner] = user
             self.session.recognize_user(user)
 
     @staticmethod
@@ -210,6 +210,10 @@ class Client:
             if name is None:
                 raise WildlandError('user not specified and @default-owner not set')
 
+        # Already loaded
+        if name in self.users:
+            return self.users[name].local_path
+
         # Key
         if name.startswith('0x'):
             for user in self.load_users():
@@ -220,9 +224,11 @@ class Client:
         return self.find_local_manifest(self.user_dir, 'user', name)
 
     def load_user_by_name(self, name: str) -> User:
-        '''
+        """
         Load a user based on a (potentially ambiguous) name.
-        '''
+        """
+        if name in self.users:
+            return self.users[name]
         path = self.find_user_manifest(name)
         if path:
             return self.load_user_from_path(path)
