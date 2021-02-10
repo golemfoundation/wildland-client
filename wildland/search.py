@@ -69,6 +69,16 @@ class Step:
     # User, if we're changing users at this step
     user: Optional[User]
 
+    # Previous step, if any
+    previous: Optional['Step']
+
+    def steps_chain(self):
+        """Iterate over all steps leading to this resolved path"""
+        step = self
+        while step is not None:
+            yield step
+            step = step.previous
+
 
 
 class Search:
@@ -95,6 +105,14 @@ class Search:
         self.local_containers = list(self.client.load_containers())
         self.local_users = list(self.client.load_users())
         self.local_bridges = list(self.client.load_bridges())
+
+    def resolve_raw(self) -> Iterable[Step]:
+        """
+        Resolve the non-file part of the wildland path and yield raw resolution results.
+
+        :return: result of path resolution, may be multiple entries
+        """
+        yield from self._resolve_all()
 
     def read_container(self) -> Iterable[Container]:
         '''
@@ -198,15 +216,17 @@ class Search:
 
     def _resolve_first(self):
         # Try local containers
-        yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner)
+        yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner, None)
 
         # Try user's infrastructure containers
         for user in self.local_users:
             if user.owner == self.initial_owner:
-                for step in self._user_step(user, self.initial_owner, self.client, None):
+                for step in self._user_step(user, self.initial_owner, self.client, None, None):
                     yield from self._resolve_next(step, 0)
 
-    def _resolve_local(self, part: PurePosixPath, owner: str) -> Iterable[Step]:
+    def _resolve_local(self, part: PurePosixPath,
+                       owner: str,
+                       step: Optional[Step]) -> Iterable[Step]:
         '''
         Resolve a path part based on locally stored manifests, in the context
         of a given owner.
@@ -223,7 +243,8 @@ class Search:
                     client=self.client,
                     container=container,
                     user=None,
-                    bridge=None
+                    bridge=None,
+                    previous=step,
                 )
 
         for bridge in self.local_bridges:
@@ -231,7 +252,7 @@ class Search:
                 logger.debug('%s: local bridge manifest: %s', part,
                             bridge.local_path)
                 yield from self._bridge_step(
-                    self.client, owner, part, None, None, bridge)
+                    self.client, owner, part, None, None, bridge, step)
 
     def _resolve_next(self, step: Step, i: int) -> Iterable[Step]:
         '''
@@ -244,7 +265,7 @@ class Search:
         part = self.wlpath.parts[i]
 
         # Try local paths first
-        yield from self._resolve_local(part, step.owner)
+        yield from self._resolve_local(part, step.owner, step)
 
         storage, storage_backend = self._find_storage(step)
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
@@ -273,7 +294,8 @@ class Search:
                     yield from self._bridge_step(
                         step.client, step.owner,
                         part, manifest_path, storage_backend,
-                        container_or_bridge)
+                        container_or_bridge,
+                        step)
 
     # pylint: disable=no-self-use
 
@@ -298,6 +320,7 @@ class Search:
             container=container,
             user=None,
             bridge=None,
+            previous=step,
         )
 
     def _bridge_step(self,
@@ -306,7 +329,8 @@ class Search:
                      part: PurePosixPath,
                      manifest_path: Optional[PurePosixPath],
                      storage_backend: Optional[StorageBackend],
-                     bridge: Bridge) -> Iterable[Step]:
+                     bridge: Bridge,
+                     step: Optional[Step]) -> Iterable[Step]:
 
         self._verify_owner(bridge, owner)
 
@@ -352,13 +376,14 @@ class Search:
             return
 
         yield from self._user_step(
-            user, next_owner, next_client, bridge)
+            user, next_owner, next_client, bridge, step)
 
     def _user_step(self,
                    user: User,
                    owner: str,
                    client: Client,
-                   current_bridge: Optional[Bridge]) -> Iterable[Step]:
+                   current_bridge: Optional[Bridge],
+                   step: Optional[Step]) -> Iterable[Step]:
 
         self._verify_owner(user, owner)
         yield Step(
@@ -366,7 +391,8 @@ class Search:
             client=client,
             container=None,
             user=user,
-            bridge=current_bridge
+            bridge=current_bridge,
+            previous=step,
         )
 
         for container_spec in user.containers:
@@ -405,7 +431,8 @@ class Search:
                 client=client,
                 container=container,
                 user=user,
-                bridge=current_bridge
+                bridge=current_bridge,
+                previous=step,
             )
 
     def _verify_owner(self, obj, expected_owner):
