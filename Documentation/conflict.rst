@@ -82,10 +82,6 @@ The mounted files and directories will be as follows::
            b.jpg
            c.jpg
 
-         2020-01-03/
-           b.jpg
-           c.jpg
-
 The ``Photos/2020-01-02`` folder is read-only, you are not allowed to add,
 remove or rename files in it. However, you can still modify the source
 directories using the ``.uuid/`` paths.

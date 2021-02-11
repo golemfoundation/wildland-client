@@ -42,7 +42,7 @@ to be provided.
 
 .. option:: --ref-user USER
 
-   User which to whom the bridge is pointing. This must be an existing user in your wildland directory together wtith its pubkey.
+   User which to whom the bridge is pointing. This must be an existing user in your wildland directory together with its pubkey.
    This field is optional but recommended to use instead of relying solely on --ref-user-location.
 
 .. option:: --ref-user-location URL

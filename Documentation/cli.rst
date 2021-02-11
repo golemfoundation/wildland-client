@@ -74,7 +74,7 @@ Public key cryptography is handled by `Signify
 verification.
 
 After generating, the keys are stored in ``key-dir`` (by default,
-``~/.config/wildland/keys``). The public-private key pair is stured in
+``~/.config/wildland/keys``). The public-private key pair is stored in
 ``<fingerprint>.pub`` and ``<fingerprint>.sec`` files.
 
 Manual pages

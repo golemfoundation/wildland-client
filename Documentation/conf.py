@@ -33,7 +33,7 @@ import manhelper
 # -- Project information -----------------------------------------------------
 
 project = 'Wildland'
-copyright = '2020, Invisible Things Lab'
+copyright = '2021, Invisible Things Lab'
 author = 'Invisible Things Lab'
 
 # The short X.Y version
