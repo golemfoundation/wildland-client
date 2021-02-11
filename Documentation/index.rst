@@ -21,6 +21,7 @@ Welcome to Wildland's documentation!
    subcontainers
    sync
    deprecated
+   contributing
 
 Indices and tables
 ==================
