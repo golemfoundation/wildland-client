@@ -410,6 +410,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
 
     def chmod(self, path: str, mode: int):
         logger.debug("chmod dummy op %s mode %d", str(path), mode)
+        logger.info(self.readdir_cache)
 
     def chown(self, path: str, uid: int, gid: int):
         logger.debug("chown dummy op %s uid %d gid %d", str(path), uid, gid)
@@ -419,27 +420,35 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         This method should be called if and only if the source and destination is
         within the same bucket.
         '''
-
-        # TODO: Renaming directories should be efficient
-        if self.getattr(move_from).is_dir():
-            return -errno.EXDEV
-
-        logger.debug('renaming %s to %s', f"{self.bucket}/{self.key(move_from)}", self.key(move_to))
-        # S3 doesn't support renaming. you *must* copy and delete an object
-        # in order to rename
-        self.client.copy_object(
-            Bucket=self.bucket,
-            Key=self.key(move_to),
-            CopySource=f"{self.bucket}/{self.key(move_from)}",
-        )
-
-        self.unlink(move_from)
+        self._rename(move_from, move_to)
 
         self.clear_cache()
         self._update_index(move_from.parent)
         self._update_index(move_to.parent)
 
-        return 0
+    def _rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+        '''
+        Internal recursive handler for rename()
+        '''
+        if self.getattr(move_from).is_dir():
+            for obj in self.readdir(move_from):
+                self._rename(move_from / obj, move_to / obj)
+
+            # in case of empty directories
+            self.rmdir(move_from)
+            self.mkdir(move_to)
+        else:
+            logger.debug('renaming %s to %s',
+                         f"{self.bucket}/{self.key(move_from)}", self.key(move_to))
+
+            # S3 doesn't support renaming. you *must* copy and delete an object
+            # in order to rename
+            self.client.copy_object(
+                Bucket=self.bucket,
+                Key=self.key(move_to),
+                CopySource=f"{self.bucket}/{self.key(move_from)}",
+            )
+            self.unlink(move_from)
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:
         logger.debug("utimens dummy op %s", str(path))
