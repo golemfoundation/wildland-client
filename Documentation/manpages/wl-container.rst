@@ -15,6 +15,7 @@ Synopsis
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
+| :command:`wl container modify {add-path|del-path|add-category|del-category|set-title} [...] <file>`
 
 Description
 ===========
@@ -293,7 +294,6 @@ List all conflicts detected by container sync.
 
    Force checking all files in all storages and their hashes. Can be slow and bandwidth-intensive.
 
-
 .. program:: wl-container-duplicate
 .. _wl-container-duplicate:
 
@@ -307,3 +307,60 @@ user manifest. UUIDs and backend-ids are updated, everything else remains the sa
 
    Name for the newly created container.
 
+.. program:: wl-container-modify
+.. _wl-container-modify:
+
+.. _wl-container-modify-add-path:
+
+:command:`wl container modify add-path --path PATH <file>`
+----------------------------------------------------------
+
+Add Wildland path to a container |~| manifest given by *<file>*.
+
+.. option:: --path
+
+   Path to add. Can be repeated.
+
+.. _wl-container-modify-del-path:
+
+:command:`wl container modify del-path --path PATH <file>`
+----------------------------------------------------------
+
+Remove Wildland path from a container |~| manifest given by *<file>*.
+
+.. option:: --path
+
+   Path to remove. Can be repeated.
+
+.. _wl-container-modify-add-category:
+
+:command:`wl container modify add-category --category PATH <file>`
+------------------------------------------------------------------
+
+Add category to a container |~| manifest given by *<file>*.
+
+.. option:: --category
+
+   Category to add. Can be repeated.
+
+.. _wl-container-modify-del-category:
+
+:command:`wl container modify del-category --category PATH <file>`
+------------------------------------------------------------------
+
+Remove category from a container |~| manifest given by *<file>*.
+
+.. option:: --category
+
+   Category to remove. Can be repeated.
+
+.. _wl-container-modify-set-title:
+
+:command:`wl container modify set-title --title TEXT <file>`
+------------------------------------------------------------
+
+Set title in a container |~| manifest given by *<file>*.
+
+.. option:: --title
+
+   Title to set.

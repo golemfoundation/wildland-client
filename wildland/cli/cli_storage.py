@@ -29,7 +29,7 @@ import uuid
 import click
 
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit
+from .cli_common import sign, verify, edit, modify_manifest, set_field
 from ..storage import Storage
 from ..manifest.template import TemplateManager
 
@@ -216,7 +216,7 @@ def delete(obj: ContextObj, name, force, cascade):
         if force:
             click.echo(f'Failed to load manifest: {ex}')
             try:
-                path = obj.client.resolve_storage_name_to_path(name)
+                path = obj.client.find_local_manifest(obj.client.storage_dir, 'storage', name)
                 if path:
                     click.echo(f'Deleting file {path}')
                     path.unlink()
@@ -344,3 +344,21 @@ storage_.add_command(verify)
 storage_.add_command(edit)
 
 _add_create_commands(create)
+
+
+@storage_.group(short_help='modify storage manifest')
+def modify():
+    '''
+    Commands for modifying storage manifests.
+    '''
+
+
+@modify.command(short_help='set location in the manifest')
+@click.argument('input_file', metavar='FILE')
+@click.option('--location', metavar='PATH', required=True, help='Location to set')
+@click.pass_context
+def set_location(ctx, input_file, location):
+    '''
+    Set location in the manifest.
+    '''
+    modify_manifest(ctx, input_file, set_field, 'location', location)

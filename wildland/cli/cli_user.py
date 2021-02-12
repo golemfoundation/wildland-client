@@ -31,7 +31,7 @@ from ..user import User
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import WILDLAND_URL_PREFIX
 from ..bridge import Bridge
-from .cli_common import sign, verify, edit
+from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
@@ -457,3 +457,56 @@ def user_refresh(obj: ContextObj, name):
 user_.add_command(sign)
 user_.add_command(verify)
 user_.add_command(edit)
+
+
+@user_.group(short_help='modify user manifest')
+def modify():
+    '''
+    Commands for modifying user manifests.
+    '''
+
+
+@modify.command(short_help='add path to the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_path(ctx, input_file, path):
+    '''
+    Add path to the manifest.
+    '''
+    modify_manifest(ctx, input_file, add_field, 'paths', path)
+
+
+@modify.command(short_help='remove path from the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_path(ctx, input_file, path):
+    '''
+    Remove path from the manifest.
+    '''
+    modify_manifest(ctx, input_file, del_field, 'paths', path)
+
+
+@modify.command(short_help='add public key to the manifest')
+@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True, help='Public key to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_pubkey(ctx, input_file, pubkey):
+    '''
+    Add public key to the manifest.
+    '''
+    # TODO: validate values, schema is not enough
+    modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkey)
+
+
+@modify.command(short_help='remove public key from the manifest')
+@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True,
+              help='Public key to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_pubkey(ctx, input_file, pubkey):
+    '''
+    Remove public key from the manifest.
+    '''
+    modify_manifest(ctx, input_file, del_field, 'pubkeys', pubkey)

@@ -23,6 +23,7 @@ Common commands (sign, edit, ...) for multiple object types
 
 import sys
 from pathlib import Path
+from typing import Callable, List
 
 import click
 
@@ -46,28 +47,17 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     '''
 
-    # TODO this duplicates Client.load_*_from
-
-    if (manifest_type in ['user', 'container', 'storage', 'bridge'] and
-        not name.endswith('.yaml')):
-
-        base_dir = {
-            'user': client.user_dir,
-            'container': client.container_dir,
-            'storage': client.storage_dir,
-            'bridge': client.bridge_dir,
+    if manifest_type in ['user', 'container', 'storage', 'bridge']:
+        search_func = {
+            'user': lambda: client.find_user_manifest(name),
+            'container': lambda: client.find_local_manifest(client.container_dir, 'container',
+                                                            name),
+            'storage': lambda: client.find_local_manifest(client.storage_dir, 'storage', name),
+            'bridge': lambda: client.find_local_manifest(client.bridge_dir, 'bridge', name),
         }[manifest_type]
-        path = base_dir / f'{name}.yaml'
-        if path.exists():
+        path = search_func()
+        if path:
             return path
-
-        path = base_dir / f'{name}.{manifest_type}.yaml'
-        if path.exists():
-            return path
-
-    path = Path(name)
-    if path.exists():
-        return path
 
     raise click.ClickException(f'Not found: {name}')
 
@@ -227,3 +217,81 @@ def edit(ctx, editor, input_file, remount):
             storage = obj.client.select_storage(container)
             obj.fs_client.mount_container(
                 container, storage, user_paths, remount=remount)
+
+
+def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
+    '''
+    Edit manifest (identified by `name`) fields using a specified callback.
+    This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
+    '''
+    obj: ContextObj = ctx.obj
+
+    manifest_type = ctx.parent.parent.command.name
+    if manifest_type == 'main':
+        manifest_type = None
+
+    manifest_path = find_manifest_file(obj.client, name, manifest_type)
+
+    obj.client.recognize_users()
+    sig_ctx = obj.client.session.sig
+    manifest = Manifest.from_file(manifest_path, sig_ctx)
+    if manifest_type is not None:
+        validate_manifest(manifest, manifest_type)
+
+    fields = edit_func(manifest.fields, *args)
+    modified = Manifest.from_fields(fields)
+    if manifest_type is not None:
+        validate_manifest(modified, manifest_type)
+
+    modified.sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+
+    signed_data = modified.to_bytes()
+    with open(manifest_path, 'wb') as f:
+        f.write(signed_data)
+
+    click.echo(f'Saved: {manifest_path}')
+
+
+def add_field(fields: dict, field: str, values: List[str]) -> dict:
+    '''
+    Callback function for `modify_manifest`. Adds values to the specified field.
+    Duplicates are ignored.
+    '''
+    if fields.get(field) is None:
+        fields[field] = []
+
+    for value in values:
+        if value not in fields[field]:
+            fields[field].append(value)
+        else:
+            click.echo(f'{value} is already in the manifest')
+            continue
+
+    return fields
+
+
+def del_field(fields: dict, field: str, values: List[str]) -> dict:
+    '''
+    Callback function for `modify_manifest`. Removes values from the specified field.
+    Non-existent values are ignored.
+    '''
+    if fields.get(field) is None:
+        fields[field] = []
+
+    for value in values:
+        if value in fields[field]:
+            fields[field].remove(value)
+        else:
+            click.echo(f'{value} is not in the manifest')
+            continue
+
+    return fields
+
+
+def set_field(fields: dict, field: str, value: str) -> dict:
+    '''
+    Callback function for `modify_manifest`. Sets value of the specified field.
+    '''
+    fields[field] = value
+
+    return fields

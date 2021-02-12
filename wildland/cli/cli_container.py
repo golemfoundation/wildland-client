@@ -35,7 +35,7 @@ import daemon
 from xdg import BaseDirectory
 from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit
+from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, set_field
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..storage import Storage, StorageBackend
@@ -283,7 +283,7 @@ def delete(obj: ContextObj, name, force, cascade):
         if force:
             click.echo(f'Failed to load manifest: {ex}')
             try:
-                path = obj.client.resolve_container_name_to_path(name)
+                path = obj.client.find_local_manifest(obj.client.container_dir, 'container', name)
                 if path:
                     click.echo(f'Deleting file {path}')
                     path.unlink()
@@ -331,6 +331,70 @@ def delete(obj: ContextObj, name, force, cascade):
 container_.add_command(sign)
 container_.add_command(verify)
 container_.add_command(edit)
+
+
+@container_.group(short_help='modify container manifest')
+def modify():
+    '''
+    Commands for modifying container manifests.
+    '''
+
+
+@modify.command(short_help='add path to the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_path(ctx, input_file, path):
+    '''
+    Add path to the manifest.
+    '''
+    modify_manifest(ctx, input_file, add_field, 'paths', path)
+
+
+@modify.command(short_help='remove path from the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_path(ctx, input_file, path):
+    '''
+    Remove path from the manifest.
+    '''
+    modify_manifest(ctx, input_file, del_field, 'paths', path)
+
+
+@modify.command(short_help='set title in the manifest')
+@click.argument('input_file', metavar='FILE')
+@click.option('--title', metavar='TEXT', required=True, help='Title to set')
+@click.pass_context
+def set_title(ctx, input_file, title):
+    '''
+    Set title in the manifest.
+    '''
+    modify_manifest(ctx, input_file, set_field, 'title', title)
+
+
+@modify.command(short_help='add category to the manifest')
+@click.option('--category', metavar='PATH', required=True, multiple=True,
+              help='Category to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_category(ctx, input_file, category):
+    '''
+    Add category to the manifest.
+    '''
+    modify_manifest(ctx, input_file, add_field, 'categories', category)
+
+
+@modify.command(short_help='remove category from the manifest')
+@click.option('--category', metavar='PATH', required=True, multiple=True,
+              help='Category to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_category(ctx, input_file, category):
+    '''
+    Remove category from the manifest.
+    '''
+    modify_manifest(ctx, input_file, del_field, 'categories', category)
 
 
 def prepare_mount(obj: ContextObj,

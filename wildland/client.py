@@ -118,6 +118,30 @@ class Client:
             self.users.append(user)
             self.session.recognize_user(user)
 
+    @staticmethod
+    def find_local_manifest(base_dir: Path, suffix: Optional[str], name: str) -> Optional[Path]:
+        '''
+        Find local manifest based on a (potentially ambiguous) name.
+        '''
+
+        # Short name
+        if not name.endswith('.yaml'):
+            path = base_dir / f'{name}.yaml'
+            if path.exists():
+                return path
+
+            if suffix is not None:
+                path = base_dir / f'{name}.{suffix}.yaml'
+                if path.exists():
+                    return path
+
+        # Local path
+        path = Path(name)
+        if path.exists():
+            return path
+
+        return None
+
     def load_users(self) -> Iterator[User]:
         '''
         Load users from the users directory.
@@ -156,52 +180,46 @@ class Client:
 
         return self.session.load_user(data)
 
-    def load_user_by_name(self, name: str) -> User:
+    def find_user_manifest(self, name: str) -> Optional[Path]:
         '''
-        Load a user based on a (potentially ambiguous) name.
+        Find user's manifest based on a (potentially ambiguous) name.
         '''
 
-        # Default user
+        # Aliases
         if name == '@default':
             try:
                 fuse_status = self.fs_client.run_control_command('status')
             except (ConnectionRefusedError, FileNotFoundError):
                 fuse_status = {}
-            default_user = fuse_status.get('default-user', None)
-            if not default_user:
-                default_user = self.config.get('@default')
-            if default_user is None:
+            name = fuse_status.get('default-user', None)
+            if not name:
+                name = self.config.get('@default')
+            if not name:
                 raise WildlandError('user not specified and @default not set')
-            return self.load_user_by_name(default_user)
 
         if name == '@default-owner':
-            default_owner = self.config.get('@default-owner')
-            if default_owner is None:
+            name = self.config.get('@default-owner')
+            if name is None:
                 raise WildlandError('user not specified and @default-owner not set')
-            return self.load_user_by_name(default_owner)
-
-        # Short name
-        if not name.endswith('.yaml'):
-            path = self.user_dir / f'{name}.yaml'
-            if path.exists():
-                return self.load_user_from_path(path)
-
-            path = self.user_dir / f'{name}.user.yaml'
-            if path.exists():
-                return self.load_user_from_path(path)
 
         # Key
         if name.startswith('0x'):
             for user in self.load_users():
                 if user.owner == name:
-                    return user
+                    return user.local_path
 
         # Local path
-        path = Path(name)
-        if path.exists():
+        return self.find_local_manifest(self.user_dir, 'user', name)
+
+    def load_user_by_name(self, name: str) -> User:
+        '''
+        Load a user based on a (potentially ambiguous) name.
+        '''
+        path = self.find_user_manifest(name)
+        if path:
             return self.load_user_from_path(path)
 
-        raise ManifestError(f'User not found: {name}')
+        raise WildlandError(f'User not found: {name}')
 
     def load_containers(self) -> Iterator[Container]:
         '''
@@ -293,27 +311,6 @@ class Client:
         for path in paths:
             yield self.load_container_from_path(Path(path))
 
-    def resolve_container_name_to_path(self, name: str) -> Optional[Path]:
-        """
-        Resolve a (non-Wildland Path) container name/path to Path.
-        """
-        # Short name
-        if not name.endswith('.yaml'):
-            path = self.container_dir / f'{name}.yaml'
-            if path.exists():
-                return path
-
-            path = self.container_dir / f'{name}.container.yaml'
-            if path.exists():
-                return path
-
-        # Local path
-        path = Path(name)
-        if path.exists():
-            return path
-
-        return None
-
     def load_container_from(self, name: str) -> Container:
         '''
         Load a container based on a (potentially ambiguous) name.
@@ -333,7 +330,7 @@ class Client:
             except StopIteration as ex:
                 raise PathError(f'Container not found for path: {wlpath}') from ex
 
-        path = self.resolve_container_name_to_path(name)
+        path = self.find_local_manifest(self.container_dir, 'container', name)
         if path:
             return self.load_container_from_path(path)
 
@@ -393,32 +390,11 @@ class Client:
                                          trusted_owner=trusted_owner,
                                          local_owners=self.config.get('local-owners'))
 
-    def resolve_storage_name_to_path(self, name: str) -> Optional[Path]:
-        """
-        Resolve a storage name (potentially ambiguous) into a Path.
-        """
-        # Short name
-        if not name.endswith('.yaml'):
-            path = self.storage_dir / f'{name}.yaml'
-            if path.exists():
-                return path
-
-            path = self.storage_dir / f'{name}.storage.yaml'
-            if path.exists():
-                return path
-
-        # Local path
-        path = Path(name)
-        if path.exists():
-            return path
-
-        return None
-
     def load_storage_from(self, name: str) -> Storage:
         '''
         Load a storage based on a (potentially ambiguous) name.
         '''
-        path = self.resolve_storage_name_to_path(name)
+        path = self.find_local_manifest(self.storage_dir, 'storage', name)
         if path:
             return self.load_storage_from_path(path)
 

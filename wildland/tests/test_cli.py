@@ -159,9 +159,14 @@ def test_user_delete_cascade(cli, base_dir):
     assert not container_path.exists()
 
 
-def test_user_verify(cli):
+def test_user_verify(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'verify', 'User')
+    cli('user', 'verify', 'User.user')
+    cli('user', 'verify', '0xaaa')
+    cli('user', 'verify', '@default')
+    cli('user', 'verify', '@default-owner')
+    cli('user', 'verify', base_dir / 'users/User.user.yaml')
 
 
 def test_user_verify_bad_sig(cli, cli_fail, base_dir):
@@ -187,6 +192,13 @@ def test_user_sign(cli, cli_fail, base_dir):
     cli('user', 'sign', '-i', tmp_file)
     cli('user', 'verify', tmp_file)
 
+    user_file = base_dir / 'users/User.user.yaml'
+    modify_file(user_file, 'dummy.0xaaa', 'outdated.0xaaa')
+    cli_fail('user', 'verify', user_file)
+
+    cli('user', 'sign', '-i', 'User')
+    cli('user', 'verify', '0xaaa')
+
 
 def test_user_edit(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -195,6 +207,12 @@ def test_user_edit(cli, base_dir):
     with open(base_dir / 'users/User.user.yaml') as f:
         data = f.read()
     assert '"0xaaa"' in data
+
+    editor = r'sed -i s,\"0xaaa\",\'0xaaa\',g'
+    cli('user', 'edit', '@default', '--editor', editor)
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert '\'0xaaa\'' in data
 
 
 def test_user_edit_bad_fields(cli, cli_fail):
@@ -207,6 +225,125 @@ def test_user_edit_editor_failed(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     editor = 'false'
     cli_fail('user', 'edit', 'User', '--editor', editor)
+
+
+def test_user_add_path(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    manifest_path = base_dir / 'users/User.user.yaml'
+
+    cli('user', 'modify', 'add-path', 'User', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' in data
+
+    cli('user', 'modify', 'add-path', '@default', '--path', '/xyz')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/xyz' in data
+
+    # duplicates should be ignored
+    cli('user', 'modify', 'add-path', 'User', '--path', '/xyz')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/xyz') == 1
+
+    # multiple paths
+    cli('user', 'modify', 'add-path', 'User.user', '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 1
+    assert data.count('/def') == 1
+
+    # invalid path
+    cli_fail('user', 'modify', 'add-path', 'User', '--path', 'abc')
+
+
+def test_user_del_path(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    manifest_path = base_dir / 'users/User.user.yaml'
+    cli('user', 'modify', 'add-path', 'User', '--path', '/abc')
+
+    cli('user', 'modify', 'del-path', 'User', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' not in data
+
+    # non-existent paths should be ignored
+    cli('user', 'modify', 'del-path', 'User.user', '--path', '/xyz')
+
+    # multiple paths
+    cli('user', 'modify', 'add-path', 'User', '--path', '/abc', '--path', '/def', '--path', '/xyz')
+    cli('user', 'modify', 'del-path', manifest_path, '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 0
+    assert data.count('/def') == 0
+    assert data.count('/xyz') == 1
+
+    # FIXME: invalid path
+    # cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
+
+
+def test_user_add_pubkey(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    pubkey1 = 'key.0xbbb'
+    pubkey2 = 'key.0xccc'
+    manifest_path = base_dir / 'users/User.user.yaml'
+
+    cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1)
+    with open(manifest_path) as f:
+        data = f.read()
+    assert pubkey1 in data
+
+    # duplicates should be ignored
+    cli('user', 'modify', 'add-pubkey', manifest_path, '--pubkey', pubkey1)
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count(pubkey1) == 1
+
+    # multiple keys
+    cli('user', 'modify', 'add-pubkey', 'User.user', '--pubkey', pubkey1, '--pubkey', pubkey2)
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count(pubkey1) == 1
+    assert data.count(pubkey2) == 1
+
+    # TODO: invalid key
+    #cli_fail('user', 'modify', 'add-pubkey', 'User', '--pubkey', 'abc')
+
+
+def test_user_del_pubkey(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    pubkey1 = 'key.0xbbb'
+    pubkey2 = 'key.0xccc'
+    pubkey3 = 'key.0xddd'
+    manifest_path = base_dir / 'users/User.user.yaml'
+    cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1)
+
+    cli('user', 'modify', 'del-pubkey', 'User', '--pubkey', pubkey1)
+    with open(manifest_path) as f:
+        data = f.read()
+    assert pubkey1 not in data
+
+    # non-existent keys should be ignored
+    cli('user', 'modify', 'del-pubkey', 'User.user', '--pubkey', pubkey2)
+
+    # multiple keys
+    cli('user', 'modify', 'add-pubkey', 'User', '--pubkey', pubkey1, '--pubkey', pubkey2,
+        '--pubkey', pubkey3)
+    cli('user', 'modify', 'del-pubkey', manifest_path, '--pubkey', pubkey1, '--pubkey', pubkey2)
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count(pubkey1) == 0
+    assert data.count(pubkey2) == 0
+    assert data.count(pubkey3) == 1
+
+    # FIXME: invalid path
+    #cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
 ## Storage
@@ -300,6 +437,41 @@ def test_storage_list(cli, base_dir):
     assert result.splitlines() == ok
     result = cli('storages', 'list', capture=True)
     assert result.splitlines() == ok
+
+
+def test_storage_edit(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    manifest = base_dir / 'storage/Storage.storage.yaml'
+
+    editor = r'sed -i s,PATH,HTAP,g'
+    cli('storage', 'edit', 'Storage', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "location: /HTAP" in data
+
+    editor = r'sed -i s,HTAP,PATH,g'
+    cli('storage', 'edit', manifest, '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "location: /PATH" in data
+
+
+def test_storage_set_location(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/LOC',
+        '--container', 'Container', '--no-inline')
+
+    manifest_path = base_dir / 'storage/Storage.storage.yaml'
+
+    cli('storage', 'modify', 'set-location', 'Storage', '--location', '/OTHER')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'location: /OTHER' in data
 
 
 ## Container
@@ -403,6 +575,168 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
         path,
         '/PATH',
     ]
+
+
+def test_container_edit(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    editor = r'sed -i s,PATH,HTAP,g'
+    cli('container', 'edit', 'Container', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "/HTAP" in data
+
+    editor = r'sed -i s,HTAP,PATH,g'
+    cli('container', 'edit', 'Container.container', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "/PATH" in data
+
+
+def test_container_add_path(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' in data
+
+    cli('container', 'modify', 'add-path', 'Container.container', '--path', '/xyz')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/xyz' in data
+
+    # duplicates should be ignored
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/xyz')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/xyz') == 1
+
+    # multiple paths
+    cli('container', 'modify', 'add-path', manifest_path, '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 1
+    assert data.count('/def') == 1
+
+    # invalid path
+    cli_fail('container', 'modify', 'add-path', 'Container', '--path', 'abc')
+
+
+def test_container_del_path(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
+
+    cli('container', 'modify', 'del-path', 'Container', '--path', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '/abc' not in data
+
+    # non-existent paths should be ignored
+    cli('container', 'modify', 'del-path', 'Container.container', '--path', '/xyz')
+
+    # multiple paths
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/abc', '--path', '/def',
+        '--path', '/xyz')
+    cli('container', 'modify', 'del-path', manifest_path, '--path', '/abc', '--path', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().split()]
+    assert data.count('/abc') == 0
+    assert data.count('/def') == 0
+    assert data.count('/xyz') == 1
+
+    # FIXME: invalid path
+    # cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
+
+
+def test_container_set_title(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'set-title', 'Container.container', '--title', 'something')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'title: something' in data
+
+    cli('container', 'modify', 'set-title', 'Container', '--title', 'another thing')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'title: another thing' in data
+
+
+def test_container_add_category(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /abc' in data
+
+    cli('container', 'modify', 'add-category', 'Container.container', '--category', '/xyz')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /xyz' in data
+
+    # duplicates should be ignored
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/xyz')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().splitlines()]
+    assert data.count('- /xyz') == 1
+
+    # multiple values
+    cli('container', 'modify', 'add-category', manifest_path, '--category', '/abc',
+        '--category', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().splitlines()]
+    assert data.count('- /abc') == 1
+    assert data.count('- /def') == 1
+
+    # invalid category
+    cli_fail('container', 'modify', 'add-category', 'Container', '--category', 'abc')
+
+
+def test_container_del_category(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/abc')
+
+    cli('container', 'modify', 'del-category', 'Container', '--category', '/abc')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /abc' not in data
+
+    # non-existent paths should be ignored
+    cli('container', 'modify', 'del-category', 'Container.container', '--category', '/xyz')
+
+    # multiple values
+    cli('container', 'modify', 'add-category', 'Container', '--category', '/abc',
+        '--category', '/def', '--category', '/xyz')
+    cli('container', 'modify', 'del-category', manifest_path, '--category', '/abc',
+        '--category', '/def')
+    with open(manifest_path) as f:
+        data = [i.strip() for i in f.read().splitlines()]
+    assert data.count('- /abc') == 0
+    assert data.count('- /def') == 0
+    assert data.count('- /xyz') == 1
+
+    # FIXME: invalid path
+    # cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
 
 
 def test_container_create_update_user(cli, base_dir):

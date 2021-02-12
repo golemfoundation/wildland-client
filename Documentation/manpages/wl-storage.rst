@@ -13,6 +13,7 @@ Synopsis
 | :command:`wl storage create <type> --container <container> [-u|-n] [--user <user>] [<type-specific-options>] <storage>`
 | :command:`wl storage {sign|verify|edit} [...]`
 | :command:`wl storage create-from-set --storage-set <storage_set> <container>`
+| :command:`wl storage modify {set-location} [...] <file>`
 
 Description
 ===========
@@ -299,3 +300,17 @@ Create storages for a given container based on the set provided.
 .. option:: --local-dir <local_dir>
 
     Local directory to be passed to storage templates as a parameter.
+
+.. program:: wl-storage-modify
+.. _wl-storage-modify:
+
+.. _wl-storage-modify-set-location:
+
+:command:`wl storage modify set-location --location PATH <file>`
+----------------------------------------------------------------
+
+Set location in a storage |~| manifest given by *<file>*.
+
+.. option:: --location
+
+   Path to directory containing the backend.
