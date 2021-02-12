@@ -410,7 +410,6 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
 
     def chmod(self, path: str, mode: int):
         logger.debug("chmod dummy op %s mode %d", str(path), mode)
-        logger.info(self.readdir_cache)
 
     def chown(self, path: str, uid: int, gid: int):
         logger.debug("chown dummy op %s uid %d gid %d", str(path), uid, gid)

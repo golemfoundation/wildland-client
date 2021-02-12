@@ -26,7 +26,6 @@ import subprocess
 import time
 import socket
 import uuid
-from pathlib import Path
 
 import pytest
 
@@ -573,7 +572,7 @@ def test_watch_local_dir(local_env):
 
 def test_container_rename_file_in_same_directory(env, container):
     env.create_file('storage/storage1/foo', 'hello world')
-    os.rename(env.test_dir / 'storage/storage1/foo', env.test_dir / 'storage/storage1/bar')
+    os.rename(env.mnt_dir / 'container1/foo', env.mnt_dir / 'container1/bar')
 
     with open(env.mnt_dir / container / 'bar', 'r') as f:
         content = f.read()
@@ -584,7 +583,7 @@ def test_container_rename_file_in_same_directory(env, container):
 def test_container_rename_file_in_different_directory(env, container):
     env.create_dir('storage/storage1/subdir')
     env.create_file('storage/storage1/foo', 'hello world')
-    os.rename(env.test_dir / 'storage/storage1/foo', env.test_dir / 'storage/storage1/subdir/bar')
+    os.rename(env.mnt_dir / 'container1/foo', env.mnt_dir / 'container1/subdir/bar')
 
     with open(env.mnt_dir / container / 'subdir/bar', 'r') as f:
         content = f.read()
@@ -594,7 +593,7 @@ def test_container_rename_file_in_different_directory(env, container):
 
 def test_container_rename_empty_directory(env, container):
     env.create_dir('storage/storage1/foodir')
-    os.rename(env.test_dir / 'storage/storage1/foodir', env.test_dir / 'storage/storage1/bardir')
+    os.rename(env.mnt_dir / 'container1/foodir', env.mnt_dir / 'container1/bardir')
 
     assert not (env.mnt_dir / container / 'foodir').exists()
     assert (env.mnt_dir / container / 'bardir').exists()
@@ -603,7 +602,7 @@ def test_container_rename_empty_directory(env, container):
 def test_container_rename_directory_with_files(env, container):
     env.create_dir('storage/storage1/foodir')
     env.create_file('storage/storage1/foodir/foo', 'hello world')
-    os.rename(env.test_dir / 'storage/storage1/foodir', env.test_dir / 'storage/storage1/bardir')
+    os.rename(env.mnt_dir / 'container1/foodir', env.mnt_dir / 'container1/bardir')
 
     assert not (env.mnt_dir / container / 'foodir').exists()
     assert (env.mnt_dir / container / 'bardir').exists()
@@ -623,13 +622,5 @@ def test_container_rename_cross_storage_both_mounted(env, container):
 
     with pytest.raises(OSError) as err:
         os.rename(env.mnt_dir / 'container1/file1', env.mnt_dir / 'container2/file1')
-
-    assert err.value.errno == errno.EXDEV
-
-def test_container_rename_cross_storage_single_mount(env, container):
-    Path('/tmp/file1').write_bytes(b'hello')
-
-    with pytest.raises(OSError) as err:
-        os.rename('/tmp/file1', env.mnt_dir / 'container1/file1')
 
     assert err.value.errno == errno.EXDEV
