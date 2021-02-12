@@ -604,7 +604,7 @@ class WildlandFS(fuse.Fuse):
         return -errno.ENOSYS
 
     def rename(self, move_from: str, move_to: str):
-        resolved_from = self._resolve_path(Path(move_from), parent=True)
+        resolved_from = self._resolve_path(Path(move_from), parent=False)
         resolved_to = self._resolve_path(Path(move_to), parent=True)
 
         if not self._is_same_storage(resolved_from, resolved_to):
@@ -613,7 +613,7 @@ class WildlandFS(fuse.Fuse):
         dst_relative = self._get_storage_relative_path(Path(move_to).name, resolved_to, parent=True)
 
         return self.proxy('rename', Path(move_from), dst_relative, resolved_path=resolved_from,
-                          parent=True, modify=True, event_type='update')
+                          parent=False, modify=True, event_type='update')
 
     def rmdir(self, path):
         return self.proxy('rmdir', path, parent=True, modify=True, event_type='delete')
