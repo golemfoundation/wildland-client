@@ -18,6 +18,7 @@ inotify_simple
 python-daemon
 pyxdg
 pybear @ https://github.com/golemfoundation/pybear/archive/7af236fef1bce0466188b00f8e96b5a269e38959.zip
+dropbox
 
 # Development / testing
 pip-tools

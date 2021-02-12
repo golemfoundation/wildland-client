@@ -1,0 +1,96 @@
+#!/bin/bash -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/dropbox
+
+function cleanup {
+    time -p chronic rm -rf "$1"
+    time -p chronic ./wl container unmount dropbox-test-container
+}
+
+ROOT="$HOME/wildland"
+MNT_DIR_1="dropbox-mnt-1"
+MNT_DIR_2="dropbox-mnt-2"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
+MNT_PATH_2="$ROOT/$MNT_DIR_2"
+
+# Wildland
+
+./wl user create dropbox-user
+./wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" dropbox-test-container
+./wl storage create dropbox --container dropbox-test-container --inline --token "$1"
+./wl start --container dropbox-test-container
+
+# Create temporary timestamped test directory
+
+DIRNAME_DATE="$(date +%Y-%m-%d_%H:%M:%S)"
+TEST_DIRPATH="$(mktemp -d -p "$MNT_PATH_1" -t gitlab-ci-dropbox-testdir_${DIRNAME_DATE}_XXXXXXXXXX)"
+
+# Test adding 10 directories
+
+time -p chronic mkdir -p "$TEST_DIRPATH"/dir{00..02}/subdir{00,01}
+
+# Set cleanup handler to make sure Dropbox test directory is removed even if test doesn't pass
+
+trap "cleanup $TEST_DIRPATH" EXIT
+
+# List content of the root directory
+
+time -p chronic ls -lai "$TEST_DIRPATH"
+
+# Test non-empty files creation with echo
+
+DEST="$TEST_DIRPATH/123.txt" time -p chronic /bin/bash -c 'echo "one two three" > "$DEST"'
+DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo "four five six" > "$DEST"'
+
+# Test file append
+
+DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo "seven eight" >> "$DEST"'
+DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo "nine ten" >> "$DEST"'
+
+# Test file copy
+
+time -p chronic cp "$TEST_DIRPATH/123.txt" "$TEST_DIRPATH/123_copy.txt"
+
+# Test getattr sycall
+
+time -p chronic stat "$TEST_DIRPATH/123.txt"
+time -p chronic stat "$TEST_DIRPATH/456.txt"
+time -p chronic du "$TEST_DIRPATH/123.txt"
+time -p chronic du "$TEST_DIRPATH/456.txt"
+
+# Recursive directory listing test after creation of the above files and directories
+
+time -p chronic tree -a --inodes "$TEST_DIRPATH"
+
+# Test readdir for both mountpoints and assert identical listing results
+
+time -p chronic diff -rq "$MNT_PATH_1" "$MNT_PATH_2"
+
+# Test file removal
+
+time -p chronic rm "$TEST_DIRPATH/123_copy.txt"
+
+# Test truncating test file
+
+time -p chronic truncate --size 4 "$TEST_DIRPATH/456.txt"
+SRC="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four" ]]'
+
+# Below 2 tests check whether big file are handled correctly. Each of the below tests takes about
+# 1 min to complete successfully when ran locally on Docker and over 20 minutes in GitLab pipeline.
+# Running those tests may also lead to running out of space on the GitLab CI/CD server.
+
+# Test creating 140 MiB (146800640 bytes) file and check if correct file size is reported
+# (files < 150 MB are handled by different Dropbox API call than those > 150 MB)
+#
+# time -p chronic dd if=/dev/urandom of="$TEST_DIRPATH/140MB_file" bs=1M count=140
+# sleep 10  # without sleep it reports 0 bytes for some time; issue with caching?
+# FILE_SIZE=$(stat -c%s "$TEST_DIRPATH/140MB_file")
+# ((FILE_SIZE==146800640))
+
+# Test creating 300 MiB (314572800 bytes) file and check if correct file size is reported
+# (files < 150 MB are handled by different Dropbox API call than those > 150 MB)
+#
+# time -p chronic dd if=/dev/urandom of="$TEST_DIRPATH/300MB_file" bs=1M count=300
+# FILE_SIZE=$(stat -c%s "$TEST_DIRPATH/300MB_file")
+# ((FILE_SIZE==314572800))

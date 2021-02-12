@@ -187,6 +187,19 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
    Use SSL or unencrypted connection. Default is to use SSL.
 
 
+.. program:: wl-storage-create-dropbox
+.. _wl-storage-create-dropbox:
+
+:command:`wl storage create dropbox --container <container> [-u] [--user <user>] --token <access_token>`
+--------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --token <access_token>
+
+   Dropbox app token. You can generate it with Dropbox App Console.
+
+
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
 
@@ -224,7 +237,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
    IPFS CID or IPNS name to access the resource, of the form ``/ipfs/CID`` or ``/ipns/name``. Required.
 
 .. option:: --endpoint-addr <multiaddress>
-            
+
    Override default IPFS gateway address (/ip4/127.0.0.1/tcp/8080/http) with the given address.
 
 

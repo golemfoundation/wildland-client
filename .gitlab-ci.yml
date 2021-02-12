@@ -70,6 +70,12 @@ s3-test:
   script:
     - ./ci/ci-s3
 
+dropbox-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-dropbox $DROPBOX_TEST_ACCESS_TOKEN
+
 smoke-test:
   stage: test
   image: docker/compose:latest
