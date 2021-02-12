@@ -31,13 +31,14 @@ import logging
 from hashlib import sha256
 
 from nacl.signing import SigningKey, VerifyKey
-from nacl.public import PrivateKey
+from nacl.public import PrivateKey, SealedBox, PublicKey
 from nacl.encoding import RawEncoder
-from nacl.exceptions import BadSignatureError
+from nacl.exceptions import BadSignatureError, CryptoError
 
 from ..exc import WildlandError
 
 logger = logging.getLogger('sig')
+
 
 class SigError(WildlandError):
     """
@@ -208,6 +209,19 @@ class SigContext:
         secret_key_file = self.key_dir / f'{key_id}.sec'
         return secret_key_file.exists()
 
+    def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
+        """
+        Encrypt data to be readable by keys. Returns a tuple: encrypted message,
+        list of encrypted keys.
+        """
+        raise NotImplementedError()
+
+    def decrypt(self, data: str, encrypted_keys: List[str]):
+        """
+        Attempt to decrypt data using all available keys.
+        """
+        raise NotImplementedError()
+
 
 class DummySigContext(SigContext):
     """
@@ -276,6 +290,24 @@ class DummySigContext(SigContext):
     @staticmethod
     def _fingerprint(pubkey: str) -> str:
         return pubkey.replace('key.', '')
+
+    def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
+        """
+        Encrypt data to be readable by keys. Returns a tuple: encrypted message,
+        list of encrypted keys.
+        """
+        return 'enc.' + data, ['enc.' + key for key in keys]
+
+    def decrypt(self, data: str, encrypted_keys: List[str]) -> str:
+        """
+        Attempt to decrypt data using all available keys.
+        """
+        if not data.startswith('enc.') or \
+                [key for key in encrypted_keys if not key.startswith('enc.')]:
+            raise SigError('Cannot decrypt data')
+
+        return data[4:]
+
 
 class SodiumSigContext(SigContext):
     """
@@ -405,8 +437,8 @@ class SodiumSigContext(SigContext):
         return self._key_to_files(signing_public, encryption_public,
                                   signing_private, encryption_private)
 
-    def _get_users_key_set(self, owner: str, signing: bool,
-                           only_use_primary_key: bool = False) -> Tuple[str, bytes]:
+    def _get_private_key(self, owner: str, signing: bool,
+                         only_use_primary_key: bool = False) -> Tuple[str, bytes]:
         """
         Get first available secret key of a given user, returns a tuple of key id, private key.
         :param signing: should we retrieve the signing key
@@ -438,7 +470,7 @@ class SodiumSigContext(SigContext):
         """
         assert len(owner) == self.FINGERPRINT_LEN
 
-        key_id, secret_key = self._get_users_key_set(
+        key_id, secret_key = self._get_private_key(
             owner, signing=True, only_use_primary_key=only_use_primary_key)
 
         secret_key_loaded = SigningKey(secret_key, encoder=RawEncoder)
@@ -470,3 +502,47 @@ class SodiumSigContext(SigContext):
             return self.fingerprint(pubkey)
         except BadSignatureError as bse:
             raise SigError(f'Could not verify signature for {signer}') from bse
+
+    def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
+        private_key = PrivateKey.generate()
+        private_key_bytes = private_key.encode(encoder=RawEncoder)
+        sealed_box = SealedBox(private_key.public_key)
+
+        encrypted_message = base64.b64encode(sealed_box.encrypt(data)).decode()
+
+        encrypted_keys = []
+
+        for key in keys:
+            key_bytes = self._key_to_subkey(key, public=True, signing=False)
+            box = SealedBox(PublicKey(key_bytes, encoder=RawEncoder))
+            encrypted_keys.append(base64.b64encode(box.encrypt(private_key_bytes)).decode())
+
+        return encrypted_message, encrypted_keys
+
+    def decrypt(self, data: str, encrypted_keys: List[str]) -> str:
+        decryption_key = None
+        for key in self.keys:
+            try:
+                _, private_key = self._get_private_key(key, signing=False)
+            except SigError:
+                # File not found
+                continue
+
+            box = SealedBox(PrivateKey(private_key, encoder=RawEncoder))
+
+            for encrypted_key in encrypted_keys:
+                try:
+                    decryption_key = box.decrypt(base64.b64decode(encrypted_key))
+                except CryptoError:
+                    pass
+            if decryption_key:
+                break
+
+        if not decryption_key:
+            raise SigError('Failed to find decryption key')
+
+        box = SealedBox(PrivateKey(decryption_key, encoder=RawEncoder))
+        try:
+            return box.decrypt(base64.b64decode(data))
+        except CryptoError as ce:
+            raise SigError('Failed to decrypt data')from ce

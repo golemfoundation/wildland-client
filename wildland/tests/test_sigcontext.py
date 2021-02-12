@@ -33,19 +33,19 @@ def key_dir():
         yield Path(d)
 
 
-@pytest.fixture(scope='session', params=[SodiumSigContext])
+@pytest.fixture(params=[SodiumSigContext])
 def sig(key_dir, request):
     return request.param(key_dir)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def owner(sig):
     owner, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
     return owner
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def other_owner(sig):
     owner, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
@@ -216,3 +216,57 @@ def test_check_if_key_available(sig):
 
     assert not sig.is_private_key_available(primary_owner)
     assert sig.is_private_key_available(additional_owner)
+
+
+def test_encrypt(sig, owner):
+    pubkey = sig.get_primary_pubkey(owner)
+
+    test_data = b'hello world'
+
+    enc_data, enc_keys = sig.encrypt(test_data, [pubkey])
+
+    assert sig.decrypt(enc_data, enc_keys) == test_data
+
+
+def test_encrypt_not_found(sig, owner):
+    pubkey = sig.get_primary_pubkey(owner)
+
+    test_data = b'hello world'
+
+    enc_data, enc_keys = sig.encrypt(test_data, [pubkey])
+
+    (sig.key_dir / f'{owner}.sec').unlink()
+
+    with pytest.raises(SigError):
+        sig.decrypt(enc_data, enc_keys)
+
+
+def test_encrypt_mangled(sig, owner):
+    pubkey = sig.get_primary_pubkey(owner)
+
+    test_data = b'hello world'
+
+    _, enc_keys = sig.encrypt(test_data, [pubkey])
+    enc_data_2, _ = sig.encrypt(test_data, [pubkey])
+
+    with pytest.raises(SigError):
+        sig.decrypt(enc_data_2, enc_keys)
+
+
+def test_encrypt_multiple_owners(sig):
+    owner, pubkey = sig.generate()
+    _, additional_pubkey = sig.generate()
+
+    sig.add_pubkey(pubkey)
+    sig.add_pubkey(additional_pubkey)
+
+    test_data = b'hello world'
+
+    enc_data, enc_keys = sig.encrypt(test_data, [pubkey, additional_pubkey])
+
+    assert len(enc_keys) == 2
+
+    (sig.key_dir / f'{owner}.sec').unlink()
+
+    assert sig.decrypt(enc_data, enc_keys) == test_data
+    assert sig.decrypt(enc_data, [enc_keys[1], enc_keys[0]]) == test_data
