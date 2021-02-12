@@ -225,10 +225,7 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
         return os.rename(self._path(move_from), self._path(move_to))
 
     def utimens(self, path: str, atime, mtime):
-        atime_s = atime.tv_nsec / 1e9 if atime.tv_nsec and atime.tv_nsec > 0 else atime.tv_sec
-        mtime_s = mtime.tv_nsec / 1e9 if mtime.tv_nsec and mtime.tv_nsec > 0 else mtime.tv_sec
-
-        return os.utime(self._path(path), times=(atime_s, mtime_s))
+        return os.utime(self._path(path), times=(atime.tv_sec, mtime.tv_sec))
 
     def watcher(self):
         """
