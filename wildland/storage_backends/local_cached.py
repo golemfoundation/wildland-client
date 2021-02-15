@@ -205,7 +205,10 @@ class BaseCached(StorageBackend):
         self.clear_cache()
 
     def utimens(self, path: str, atime, mtime):
-        os.utime(self._local(path), times=(atime.tv_sec, mtime.tv_sec))
+        atime_ns = atime.tv_sec * 1e9 + atime.tv_nsec
+        mtime_ns = mtime.tv_sec * 1e9 + mtime.tv_nsec
+
+        os.utime(self._local(path), ns=(atime_ns, mtime_ns))
         self.clear_cache()
 
     def watcher(self):
