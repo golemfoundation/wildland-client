@@ -19,6 +19,7 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 
+import errno
 import os
 import stat
 import subprocess
@@ -29,7 +30,6 @@ import uuid
 import pytest
 
 from .fuse_env import FuseEnv, FuseError
-
 
 @pytest.fixture
 def env():
@@ -145,7 +145,6 @@ def test_container_mkdir_rmdir(env, container):
     with pytest.raises(FileNotFoundError):
         os.stat(dirpath)
 
-
 def test_cmd_paths(env, container):
     assert env.run_control_command('paths') == {
         '/' + container: [1],
@@ -161,7 +160,6 @@ def test_cmd_info(env, container, storage_type):
         },
     }
 
-
 def storage_manifest(env, path, storage_type, read_only=False, is_local_owner=True):
     return {
         'owner': '0x3333',
@@ -171,7 +169,6 @@ def storage_manifest(env, path, storage_type, read_only=False, is_local_owner=Tr
         'read-only': read_only,
         'backend-id': str(uuid.uuid4())
     }
-
 
 def test_cmd_test(env):
     assert env.run_control_command('test', {'foo': 'bar'}) == {'kwargs': {'foo': 'bar'}}
@@ -571,3 +568,59 @@ def test_watch_local_dir(local_env):
     event = local_env.recv_event()
     assert event == [{'type': 'delete', 'path': 'dir2',
                       'storage-id': 1, 'watch-id': watch_id}]
+
+
+def test_container_rename_file_in_same_directory(env, container):
+    env.create_file('storage/storage1/foo', 'hello world')
+    os.rename(env.mnt_dir / 'container1/foo', env.mnt_dir / 'container1/bar')
+
+    with open(env.mnt_dir / container / 'bar', 'r') as f:
+        content = f.read()
+
+    assert content == 'hello world'
+
+
+def test_container_rename_file_in_different_directory(env, container):
+    env.create_dir('storage/storage1/subdir')
+    env.create_file('storage/storage1/foo', 'hello world')
+    os.rename(env.mnt_dir / 'container1/foo', env.mnt_dir / 'container1/subdir/bar')
+
+    with open(env.mnt_dir / container / 'subdir/bar', 'r') as f:
+        content = f.read()
+
+    assert content == 'hello world'
+
+
+def test_container_rename_empty_directory(env, container):
+    env.create_dir('storage/storage1/foodir')
+    os.rename(env.mnt_dir / 'container1/foodir', env.mnt_dir / 'container1/bardir')
+
+    assert not (env.mnt_dir / container / 'foodir').exists()
+    assert (env.mnt_dir / container / 'bardir').exists()
+
+
+def test_container_rename_directory_with_files(env, container):
+    env.create_dir('storage/storage1/foodir')
+    env.create_file('storage/storage1/foodir/foo', 'hello world')
+    os.rename(env.mnt_dir / 'container1/foodir', env.mnt_dir / 'container1/bardir')
+
+    assert not (env.mnt_dir / container / 'foodir').exists()
+    assert (env.mnt_dir / container / 'bardir').exists()
+
+    with open(env.mnt_dir / container / 'bardir/foo', 'r') as f:
+        content = f.read()
+
+    assert content == 'hello world'
+
+
+def test_container_rename_cross_storage_both_mounted(env, container):
+    storage = storage_manifest(env, 'storage/storage2', 'local')
+    env.create_dir('storage/storage2')
+    env.mount_storage(['/container2'], storage)
+
+    env.create_file('storage/storage1/file1')
+
+    with pytest.raises(OSError) as err:
+        os.rename(env.mnt_dir / 'container1/file1', env.mnt_dir / 'container2/file1')
+
+    assert err.value.errno == errno.EXDEV

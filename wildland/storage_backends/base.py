@@ -362,6 +362,24 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def rmdir(self, path: PurePosixPath) -> None:
         raise OptionalError()
 
+    def chmod(self, path: PurePosixPath, mode: int) -> None:
+        raise OptionalError()
+
+    def chown(self, _path: PurePosixPath, _uid: int, _gid: int) -> None:
+        return OptionalError()
+
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+        raise OptionalError()
+
+    def utimens(self, path: PurePosixPath, atime, mtime) -> None:
+        '''
+        https://github.com/libfuse/python-fuse/blob/6c3990f9e3dce927c693e66dc14138822b42564b/fuse.py#L474
+
+        :param atime: fuse.Timespec access time
+        :param mtime: fuse.Timespec modification time
+        '''
+        raise OptionalError()
+
     # Other operations
 
     def get_file_token(self, path: PurePosixPath) -> Optional[int]:

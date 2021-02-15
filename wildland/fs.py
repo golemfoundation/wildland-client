@@ -33,7 +33,7 @@ import fuse
 fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
-from .conflict import ConflictResolver
+from .conflict import ConflictResolver, Resolved
 from .storage_backends.base import StorageBackend, Attr
 from .storage_backends.watch import FileEvent, StorageWatcher
 from .exc import WildlandError
@@ -166,7 +166,7 @@ class WildlandFS(fuse.Fuse):
         if current_ident is not None:
             if remount:
                 logger.info('Unmounting current storage: %s, for main path: %s',
-                             current_ident, main_path)
+                            current_ident, main_path)
                 self._unmount_storage(current_ident)
             else:
                 raise WildlandError(f'Storage already mounted under main path: {main_path}')
@@ -426,6 +426,23 @@ class WildlandFS(fuse.Fuse):
         self.storage_watches[watch.storage_id].remove(watch_id)
         del self.watches[watch_id]
 
+    def _get_storage_relative_path(self, file_name: str, resolved_path: Resolved,
+                                   parent: bool) -> PurePosixPath:
+        return resolved_path.relpath / file_name if parent else resolved_path.relpath
+
+    def _resolve_path(self, path: PurePosixPath, parent: bool) -> Resolved:
+        path = path.parent if parent else path
+
+        _, res = self.resolver.getattr_extended(path)
+
+        if not res:
+            raise IOError(errno.EACCES, str(path))
+
+        return res
+
+    def _is_same_storage(self, resolved_src_path: Resolved, resolved_dst_path: Resolved) -> bool:
+        return resolved_src_path.ident == resolved_dst_path.ident
+
     #
     # FUSE API
     #
@@ -442,7 +459,8 @@ class WildlandFS(fuse.Fuse):
             for storage_id in list(self.storages):
                 self._unmount_storage(storage_id)
 
-    def proxy(self, method_name, path, *args,
+    def proxy(self, method_name, path: str, *args,
+              resolved_path: Optional[PurePosixPath]=None,
               parent=False,
               modify=False,
               event_type=None,
@@ -462,14 +480,10 @@ class WildlandFS(fuse.Fuse):
         '''
 
         path = PurePosixPath(path)
-        to_resolve = path.parent if parent else path
-
-        _st, res = self.resolver.getattr_extended(to_resolve)
-        if not res:
-            raise IOError(errno.EACCES, str(path))
+        resolved = self._resolve_path(path, parent) if not resolved_path else resolved_path
 
         with self.mount_lock:
-            storage = self.storages[res.ident]
+            storage = self.storages[resolved.ident]
 
         if not hasattr(storage, method_name):
             raise IOError(errno.ENOSYS, str(path))
@@ -477,12 +491,13 @@ class WildlandFS(fuse.Fuse):
         if modify and storage.read_only:
             raise IOError(errno.EROFS, str(path))
 
-        relpath = res.relpath / path.name if parent else res.relpath
+        relpath = self._get_storage_relative_path(path.name, resolved, parent)
+
         result = getattr(storage, method_name)(relpath, *args, **kwargs)
         # If successful, notify watches.
 
         if event_type is not None:
-            self._notify_storage_watches(event_type, relpath, res.ident)
+            self._notify_storage_watches(event_type, relpath, resolved.ident)
         return result
 
     def open(self, path, flags):
@@ -558,11 +573,11 @@ class WildlandFS(fuse.Fuse):
     def bmap(self, *args):
         return -errno.ENOSYS
 
-    def chmod(self, *args):
-        return -errno.ENOSYS
+    def chmod(self, path, mode):
+        return self.proxy('chmod', path, mode, modify=True, event_type='update')
 
-    def chown(self, *args):
-        return -errno.ENOSYS
+    def chown(self, path, uid, gid):
+        return self.proxy('chown', path, uid, gid, modify=True, event_type='update')
 
     def getxattr(self, *args):
         return -errno.ENOSYS
@@ -588,8 +603,17 @@ class WildlandFS(fuse.Fuse):
     def removexattr(self, *args):
         return -errno.ENOSYS
 
-    def rename(self, *args):
-        return -errno.ENOSYS
+    def rename(self, move_from: str, move_to: str):
+        resolved_from = self._resolve_path(Path(move_from), parent=False)
+        resolved_to = self._resolve_path(Path(move_to), parent=True)
+
+        if not self._is_same_storage(resolved_from, resolved_to):
+            return -errno.EXDEV
+
+        dst_relative = self._get_storage_relative_path(Path(move_to).name, resolved_to, parent=True)
+
+        return self.proxy('rename', Path(move_from), dst_relative, resolved_path=resolved_from,
+                          parent=False, modify=True, event_type='update')
 
     def rmdir(self, path):
         return self.proxy('rmdir', path, parent=True, modify=True, event_type='delete')
@@ -609,11 +633,9 @@ class WildlandFS(fuse.Fuse):
     def unlink(self, path):
         return self.proxy('unlink', path, parent=True, modify=True, event_type='delete')
 
-    def utime(self, *args):
-        return -errno.ENOSYS
-
-    def utimens(self, *args):
-        return -errno.ENOSYS
+    def utimens(self, path: str, atime: fuse.Timespec, mtime: fuse.Timespec):
+        return self.proxy('utimens', path, atime, mtime, parent=True, modify=True,
+                          event_type='modify')
 
 
 class WildlandFSConflictResolver(ConflictResolver):

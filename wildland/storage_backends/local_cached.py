@@ -188,6 +188,29 @@ class BaseCached(StorageBackend):
         self._local(path).rmdir()
         self.clear_cache()
 
+    def chmod(self, path: PurePosixPath, mode: int):
+        os.chmod(self._local(path), mode)
+        self.clear_cache()
+
+    def chown(self, path: PurePosixPath, uid: int, gid: int):
+        os.chown(self._local(path), uid, gid)
+        self.clear_cache()
+
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+        if self.ignore_own_events and self.watcher_instance:
+            self.watcher_instance.ignore_event('create', move_to)
+            self.watcher_instance.ignore_event('delete', move_from)
+
+        os.rename(self._local(move_from), self._local(move_to))
+        self.clear_cache()
+
+    def utimens(self, path: str, atime, mtime):
+        atime_ns = atime.tv_sec * 1e9 + atime.tv_nsec
+        mtime_ns = mtime.tv_sec * 1e9 + mtime.tv_nsec
+
+        os.utime(self._local(path), ns=(atime_ns, mtime_ns))
+        self.clear_cache()
+
     def watcher(self):
         """
         If manifest explicitly specifies a watcher-delay, use default implementation. If not, we can
