@@ -330,8 +330,8 @@ def test_nested_mounts(env, storage_type):
     assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
         'file-c1-nested',
         'file-c2-nested',
-        'file-conflict.1.wl',
-        'file-conflict.2.wl',
+        'file-conflict.wl_1',
+        'file-conflict.wl_2',
     ]
     assert os.path.isdir(env.mnt_dir / 'container1/nested2')
     assert sorted(os.listdir(env.mnt_dir / 'container1/nested2')) == [
@@ -340,7 +340,7 @@ def test_nested_mounts(env, storage_type):
     ]
 
     # I should be able to read and write to conflicted files
-    path1 = env.mnt_dir / 'container1/nested1/file-conflict.1.wl'
+    path1 = env.mnt_dir / 'container1/nested1/file-conflict.wl_1'
     with open(path1) as f:
         assert f.read() == 'c1'
     with open(path1, 'w') as f:
@@ -365,11 +365,11 @@ def test_nested_mounts(env, storage_type):
 
     # ...and that will cause a conflict and rename under the first path
     assert sorted(os.listdir(env.mnt_dir / 'container1/nested1')) == [
-        'file-c1-nested.1.wl',
-        'file-c1-nested.2.wl',
+        'file-c1-nested.wl_1',
+        'file-c1-nested.wl_2',
         'file-c2-nested',
-        'file-conflict.1.wl',
-        'file-conflict.2.wl',
+        'file-conflict.wl_1',
+        'file-conflict.wl_2',
     ]
 
 

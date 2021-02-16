@@ -154,13 +154,14 @@ class ConflictResolver(metaclass=abc.ABCMeta):
       directory with this name. The directory is read only (i.e. the list of
       files cannot be modified, but the files themselves can).
     - If there are multiple files with the same name, or a single file with the
-      same name as directory, add a '.<storage>.wl' suffix to the name.
+      same name as directory, the file name is changed to '{name.stem}.wl_{storage}.{name.suffix}'
+      (with stem and suffix being PurePosixPath semantic).
 
     For examples, look at tests/test_conflict.py.
     '''
 
-    SUFFIX_FORMAT = '{}.{}.wl'
-    SUFFIX_RE = r'^(.*).(\d+).wl$'
+    CONFLICT_FORMAT = r'{}.wl_{}{}'  # name.stem, id, name.suffix
+    CONFLICT_RE = r'^(.*).wl_(\d+)(.*)$'
 
     def __init__(self):
         self.root: MountDir = MountDir()
@@ -271,11 +272,13 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 st = handle_io_error(self.storage_getattr, res.ident, res.relpath / name)
                 if st is None:
                     # Treat inaccessible files as files, not directories.
-                    result.add(self.SUFFIX_FORMAT.format(name, res.ident))
+                    pname = PurePosixPath(name)
+                    result.add(self.CONFLICT_FORMAT.format(pname.stem, res.ident, pname.suffix))
                 elif stat.S_ISDIR(st.mode):
                     result.add(name)
                 else:
-                    result.add(self.SUFFIX_FORMAT.format(name, res.ident))
+                    pname = PurePosixPath(name)
+                    result.add(self.CONFLICT_FORMAT.format(pname.stem, res.ident, pname.suffix))
 
         return sorted(result)
 
@@ -301,14 +304,14 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 mode=stat.S_IFDIR | 0o555,
             ), None
 
-        m = re.match(self.SUFFIX_RE, path.name)
-        suffix: Optional[int]
+        m = re.match(self.CONFLICT_RE, path.name)
+        id: Optional[int]
         if m:
-            real_path = path.with_name(m.group(1))
-            suffix = int(m.group(2))
+            real_path = path.with_name(m.group(1) + m.group(3))
+            id = int(m.group(2))
         else:
             real_path = path
-            suffix = None
+            id = None
 
         if self.root.is_synthetic(real_path):
             return Attr(
@@ -320,7 +323,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             raise FileNotFoundError(errno.ENOENT, '')
 
         if len(resolved) == 1:
-            if suffix is not None:
+            if id is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             # Single storage. Run storage_getattr directly so that all IOErrors
@@ -343,14 +346,14 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
         if len(dir_results) == 1:
             # This is a directory in a single storage.
-            if suffix is not None:
+            if id is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             return dir_results[0]
 
         if len(dir_results) > 1:
             # Multiple directories, return a synthetic read-only directory.
-            if suffix is not None:
+            if id is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             st = Attr(
@@ -360,17 +363,17 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
         if len(file_results) == 1:
             # This is a single file, not conflicting with anything.
-            if suffix is not None:
+            if id is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             return file_results[0]
 
         if len(file_results) > 1:
-            # There are multiple files, so expect an added suffix.
-            if suffix is None:
+            # There are multiple files, so expect an added id.
+            if id is None:
                 raise FileNotFoundError(errno.ENOENT, '')
             for st, res in file_results:
-                if res.ident == suffix:
+                if res.ident == id:
                     return (st, res)
             raise FileNotFoundError(errno.ENOENT, '')
 
