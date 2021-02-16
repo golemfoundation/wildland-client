@@ -133,6 +133,16 @@ for details.
    Subdirectory within reference container. When set, content of this directory
    will be considered content of the container.
 
+.. program:: wl-storage-create-dummy
+.. _wl-storage-create-dummy:
+
+:command:`wl storage create dummy --container <container> [-u] [--user <user>]`
+-------------------------------------------------------------------------------
+
+Creates dummy storage, presenting empty directory not backed by any actual data.
+
+.. include:: include/wl-storage-create.rsti
+
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
 
