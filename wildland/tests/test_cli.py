@@ -93,6 +93,7 @@ def test_user_create(cli, base_dir):
         config = f.read()
     assert "'@default': '0xaaa'" in config
     assert "'@default-owner': '0xaaa'" in config
+    assert "- '0xaaa'" in config
 
 
 def test_user_create_additional_keys(cli, base_dir):
@@ -141,6 +142,43 @@ def test_user_delete(cli, base_dir):
     cli('user', 'delete', '--force', 'User')
     assert not user_path.exists()
     assert container_path.exists()
+
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+
+    assert "'@default': '0xaaa'" not in config
+    assert "'@default-owner': '0xaaa'" not in config
+    assert "- '0xaaa'" not in config
+
+
+def test_multiple_user_config_file(cli, base_dir):
+    cli('user', 'create', 'UserA', '--key', '0xaaa')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+
+    assert "'@default': '0xaaa'" in config
+    assert "'@default-owner': '0xaaa'" in config
+    assert "- '0xaaa'" in config
+    assert "- '0xbbb'" in config
+
+    cli('user', 'delete', 'UserA')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+
+    assert "'@default': '0xaaa'" not in config
+    assert "'@default-owner': '0xaaa'" not in config
+    assert "- '0xaaa'" not in config
+    assert "- '0xbbb'" in config  # sic!
+
+    cli('user', 'delete', 'UserB')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+
+    assert "- '0xbbb'" not in config
 
 
 def test_user_delete_cascade(cli, base_dir):

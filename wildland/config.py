@@ -91,6 +91,20 @@ class Config:
         '''
 
         self.file_fields.update(values)
+        self._save_config()
+
+    def remove_key_and_save(self, key: str):
+        '''
+        Removes a key from the dict and saves the config file.
+        '''
+
+        self.file_fields.pop(key)
+        self._save_config()
+
+    def _save_config(self):
+        '''
+        Save fields from current ctx to the yaml file.
+        '''
         with open(self.path, 'w') as f:
             yaml.dump(self.file_fields, f, sort_keys=False)
 
