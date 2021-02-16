@@ -504,7 +504,7 @@ class Client:
 
         path = path or container.local_path
         assert path is not None
-        path.write_bytes(self.session.dump_container(container))
+        path.write_bytes(self.session.dump_object(container))
         return path
 
     def save_new_container(self, container: Container, name: Optional[str] = None) -> Path:
@@ -515,7 +515,7 @@ class Client:
 
         ident = container.ensure_uuid()
         path = self.new_path('container', name or ident)
-        path.write_bytes(self.session.dump_container(container))
+        path.write_bytes(self.session.dump_object(container))
         container.local_path = path
         return path
 
@@ -526,7 +526,7 @@ class Client:
         '''
 
         path = self.new_path('storage', name or storage.container_path.name)
-        path.write_bytes(self.session.dump_storage(storage))
+        path.write_bytes(self.session.dump_object(storage))
         storage.local_path = path
         return path
 
@@ -540,7 +540,7 @@ class Client:
             assert name is not None
             path = self.new_path('bridge', name)
 
-        path.write_bytes(self.session.dump_bridge(bridge))
+        path.write_bytes(self.session.dump_object(bridge))
         bridge.local_path = path
         # cache_clear is added by a decorator, which pylint doesn't see
         # pylint: disable=no-member
@@ -927,7 +927,7 @@ class Client:
             driver,  # driver: StorageDriver, except circular import
             storage: Storage,
             container_expanded_paths):
-        data = self.session.dump_storage(storage)
+        data = self.session.dump_object(storage)
 
         relpath = None
         for relpath in self._manifest_filenames_from_pattern(
@@ -942,7 +942,7 @@ class Client:
     def _publish_container_to_driver(self,
             driver,  # driver: StorageDriver, except circular import
             container: Container):
-        data = self.session.dump_container(container)
+        data = self.session.dump_object(container)
 
         relpath = None
         for relpath in self._manifest_filenames_from_pattern(

@@ -49,7 +49,9 @@ class Storage:
                  params: Dict[str, Any],
                  manifest_pattern: Optional[Dict[str, Any]] = None,
                  base_url: Optional[str] = None,
-                 local_path: Optional[Path] = None):
+                 local_path: Optional[Path] = None,
+                 manifest: Manifest = None):
+
         self.owner = owner
         self.storage_type = storage_type
         self.container_path = container_path
@@ -58,6 +60,8 @@ class Storage:
         self.local_path = local_path
         self.manifest_pattern = manifest_pattern
         self.base_url = base_url
+        self.manifest = manifest
+
         if 'backend-id' not in params:
             hasher = hashlib.md5()
             # skip 'storage' object if present, it is derived from reference-container
@@ -117,6 +121,7 @@ class Storage:
             base_url=manifest.fields.get('base-url'),
             params=manifest.fields,
             local_path=local_path,
+            manifest=manifest
         )
 
     def _get_manifest_fields(self) -> Dict[str, Any]:

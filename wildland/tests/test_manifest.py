@@ -34,12 +34,12 @@ def key_dir():
         yield Path(d)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def sig(key_dir):
     return SodiumSigContext(key_dir)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def owner(sig):
     own, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
@@ -177,3 +177,25 @@ key2: "value2"
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
     manifest = Manifest.from_bytes(data, sig)
     assert manifest.fields['object'] == 'user'
+
+
+def test_original_bytes(sig, owner):
+    test_data = f'''
+object: test
+owner: "{owner}"
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+
+    (sig.key_dir / f'{owner}.sec').unlink()
+
+    data = manifest.to_bytes()
+
+    manifest_2 = Manifest.from_bytes(data, sig)
+
+    assert manifest_2.fields['owner'] == owner
+    assert manifest_2.fields['key1'] == 'value1'
+    assert manifest_2.fields['key2'] == 'value2'

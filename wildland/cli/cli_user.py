@@ -349,7 +349,7 @@ def _do_process_imported_manifest(
             bridge.paths = paths
         if default_user:
             bridge.owner = default_user
-        copied_manifest_path.write_bytes(obj.session.dump_bridge(bridge))
+        copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location)
 
 

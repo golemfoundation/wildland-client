@@ -40,12 +40,14 @@ class Bridge:
                  user_location: str,
                  user_pubkey: str,
                  paths: List[PurePosixPath],
-                 local_path: Optional[Path] = None):
+                 local_path: Optional[Path] = None,
+                 manifest: Manifest = None):
         self.owner = owner
         self.user_location = user_location
         self.user_pubkey = user_pubkey
         self.paths = paths
         self.local_path = local_path
+        self.manifest = manifest
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Bridge':
@@ -60,6 +62,7 @@ class Bridge:
             user_pubkey=manifest.fields['pubkey'],
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             local_path=local_path,
+            manifest=manifest
         )
 
     def to_unsigned_manifest(self) -> Manifest:

@@ -40,7 +40,8 @@ class Container:
                  backends: List[Union[str, dict]],
                  title: Optional[str] = None,
                  categories: Optional[List[PurePosixPath]] = None,
-                 local_path: Optional[Path] = None):
+                 local_path: Optional[Path] = None,
+                 manifest: Manifest = None):
         self.owner = owner
         # make sure uuid path is first
         self.paths = sorted(paths,
@@ -50,6 +51,7 @@ class Container:
         self.categories = categories if categories else []
         self.local_path = local_path
         self._expanded_paths: Optional[List[PurePosixPath]] = None
+        self.manifest = manifest
 
     def ensure_uuid(self) -> str:
         '''
@@ -77,6 +79,7 @@ class Container:
             title=manifest.fields.get('title', None),
             categories=[Path(p) for p in manifest.fields.get('categories', [])],
             local_path=local_path,
+            manifest=manifest
         )
 
     def to_unsigned_manifest(self) -> Manifest:
