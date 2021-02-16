@@ -47,10 +47,10 @@ def user_():
 
 @user_.command(short_help='create user')
 @click.option('--key', metavar='KEY',
-    help='use existing key pair (provide a filename (without extension); it must be in '
-         '~/.config/wildland/keys/')
+              help='use existing key pair (provide a filename (without extension); it must be in '
+                   '~/.config/wildland/keys/')
 @click.option('--path', 'paths', multiple=True,
-    help='path (can be repeated)')
+              help='path (can be repeated)')
 @click.option('--add-pubkey', 'additional_pubkeys', multiple=True,
               help='an additional public key that this user owns (can be repeated)')
 @click.argument('name', metavar='NAME', required=False)
@@ -173,7 +173,6 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
     '''
     Delete a user.
     '''
-    # TODO check config file (aliases, etc.)
 
     obj.client.recognize_users()
 
@@ -232,6 +231,20 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
         else:
             print("Removing key", user.owner)
             obj.session.sig.remove_key(user.owner)
+
+    for alias in ['@default', '@default-owner']:
+        fingerprint = obj.client.config.get(alias)
+        if fingerprint is not None:
+            if fingerprint == user.owner:
+                print(f'Removing {alias} from configuration file')
+                obj.client.config.remove_key_and_save(alias)
+
+    local_owners = obj.client.config.get('local-owners')
+
+    if local_owners is not None and user.owner in local_owners:
+        local_owners.remove(user.owner)
+        click.echo(f'Removing {user.owner} from local_owners')
+        obj.client.config.update_and_save({'local-owners': local_owners})
 
     click.echo(f'Deleting: {user.local_path}')
     user.local_path.unlink()
