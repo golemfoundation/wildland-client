@@ -179,6 +179,89 @@ key2: "value2"
     assert manifest.fields['object'] == 'user'
 
 
+def test_encrypt(sig, owner):
+    test_data = {
+        'owner': owner,
+        'key': 'VALUE'
+    }
+    encrypted_data = Manifest.encrypt(test_data, sig)
+    assert list(encrypted_data.keys()) == ['encrypted']
+    assert list(encrypted_data['encrypted'].keys()) == ['encrypted-data', 'encrypted-keys']
+    decrypted_data = Manifest.decrypt(encrypted_data, sig)
+    assert decrypted_data['owner'] == owner
+    assert decrypted_data['key'] == 'VALUE'
+    assert decrypted_data['encrypted'] == encrypted_data['encrypted']
+
+
+def test_encrypt_fail(sig, owner):
+    test_data = {
+        'owner': owner,
+        'key': 'VALUE'
+    }
+    encrypted_data = Manifest.encrypt(test_data, sig)
+    (sig.key_dir / f'{owner}.sec').unlink()
+    with pytest.raises(ManifestError):
+        Manifest.decrypt(encrypted_data, sig)
+
+
+def test_encrypt_access(sig, owner):
+    additional_owner, pubkey = sig.generate()
+    sig.add_pubkey(pubkey)
+
+    test_data = {
+        'owner': owner,
+        'key': 'VALUE',
+        'access': [{'user': additional_owner}]
+    }
+    encrypted_data = Manifest.encrypt(test_data, sig)
+
+    (sig.key_dir / f'{owner}.sec').unlink()
+
+    decrypted_data = Manifest.decrypt(encrypted_data, sig)
+    assert decrypted_data['owner'] == owner
+    assert decrypted_data['key'] == 'VALUE'
+    assert decrypted_data['encrypted'] == encrypted_data['encrypted']
+
+
+def test_encrypt_no(sig, owner):
+    test_data = {
+        'owner': owner,
+        'key': 'VALUE',
+        'access': 'open'
+    }
+    encrypted_data = Manifest.encrypt(test_data, sig)
+    assert encrypted_data == test_data
+
+
+def test_encrypt_subcontainer(sig, owner):
+    additional_owner, pubkey = sig.generate()
+    sig.add_pubkey(pubkey)
+
+    test_data = {
+        'owner': owner,
+        'key': 'VALUE',
+        'access': 'open',
+        'backends': {
+            'storage': [
+                {'key3': 'VALUE3'},
+                {'key2': 'VALUE2',
+                 'access': [{'user': additional_owner}]}
+            ]
+        }
+    }
+    encrypted_data = Manifest.encrypt(test_data, sig)
+    assert 'owner' in encrypted_data
+    assert encrypted_data['owner'] == owner
+    assert 'backends' in encrypted_data
+    assert 'storage' in encrypted_data['backends']
+    assert len(encrypted_data['backends']['storage']) == 2
+    assert 'encrypted' in encrypted_data['backends']['storage'][1]
+    assert len(encrypted_data['backends']['storage'][1]['encrypted']['encrypted-keys']) == 2
+
+    decrypted_data = Manifest.decrypt(encrypted_data, sig)
+    assert test_data == decrypted_data
+
+
 def test_original_bytes(sig, owner):
     test_data = f'''
 object: test

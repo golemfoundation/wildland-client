@@ -21,7 +21,7 @@
 Classes for handling signed Wildland manifests
 '''
 
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
 import re
 import logging
 
@@ -74,6 +74,90 @@ class Manifest:
         if not self.header:
             raise ManifestError('Trying to read an unsigned manifest')
         return self._fields
+
+    @classmethod
+    def encrypt(cls, fields: dict, sig: SigContext, known_keys: Optional[List[str]] = None) -> dict:
+        """
+        Encrypt provided dict with the SigContext.
+        Encrypts to 'owner' keys, unless 'access' field specifies otherwise.
+        Inline storages may have their own access fields.
+        Returns encrypted dict.
+        """
+        keys_to_encrypt = []
+        if 'owner' in fields.keys():
+            keys_to_encrypt.append(sig.get_primary_pubkey(fields['owner']))
+        if known_keys:
+            keys_to_encrypt.extend(known_keys)
+
+        if not keys_to_encrypt:
+            raise ManifestError('Owner not found')
+
+        if 'backends' in fields.keys():
+            backends_update = []
+            for backend in fields['backends']['storage']:
+                if isinstance(backend, dict) and 'access' in backend:
+                    backends_update.append((backend, cls.encrypt(backend, sig, keys_to_encrypt)))
+
+            for old, new in backends_update:
+                fields['backends']['storage'].remove(old)
+                fields['backends']['storage'].append(new)
+
+        # TODO: consider sanity checks?
+        # TODO: eliminate duplicate encryption keys if someone does something extremely unwise?
+
+        if 'access' in fields.keys():
+            # TODO: document and improve
+            if fields['access'] == 'open':
+                return fields
+            for data_dict in fields['access']:
+                user = data_dict['user']
+                pubkey = sig.get_primary_pubkey(user)
+                if not pubkey:
+                    raise ManifestError(f'Cannot encrypt to {user}.')
+                keys_to_encrypt.append(pubkey)
+        data_to_encrypt = yaml.dump(fields).encode()
+        try:
+            encrypted_data, encrypted_keys = sig.encrypt(data_to_encrypt, keys_to_encrypt)
+        except SigError as se:
+            raise ManifestError('Cannot encrypt manifest.') from se
+        return {'encrypted': {'encrypted-data': encrypted_data, 'encrypted-keys': encrypted_keys}}
+
+    @classmethod
+    def decrypt(cls, fields: dict, sig: SigContext) -> dict:
+        """
+        Decrypt provided dict within provided SigContext.
+        Assumes encrypted (sub) dict contains an 'encrypted' fields that contains a dict
+        with two fields: 'encrypted-data' and 'encrypted-keys'.
+        Returns decrypted dict.
+        """
+        if list(fields.keys()) == ['encrypted']:
+            encrypted_dict = fields['encrypted']
+
+            if not isinstance(encrypted_dict, dict) or \
+                    sorted(encrypted_dict.keys()) != ['encrypted-data', 'encrypted-keys']:
+                raise ManifestError('Encrypted field malformed.')
+
+            try:
+                decrypted_raw = sig.decrypt(encrypted_dict['encrypted-data'],
+                                            encrypted_dict['encrypted-keys'])
+            except SigError as se:
+                raise ManifestError('Cannot decrypt manifest.') from se
+
+            decrypted_data = yaml.safe_load(decrypted_raw)
+
+            fields.update(decrypted_data)
+
+        if 'backends' in fields.keys():
+            backends_update = []
+            for backend in fields['backends']['storage']:
+                if isinstance(backend, dict) and 'encrypted' in backend:
+                    backends_update.append((backend, cls.decrypt(backend, sig)))
+
+            for old, new in backends_update:
+                fields['backends']['storage'].remove(old)
+                fields['backends']['storage'].append(new)
+
+        return fields
 
     @classmethod
     def update_obsolete(cls, fields: dict) -> dict:

@@ -216,7 +216,7 @@ class SigContext:
         """
         raise NotImplementedError()
 
-    def decrypt(self, data: str, encrypted_keys: List[str]):
+    def decrypt(self, data: str, encrypted_keys: List[str]) -> str:
         """
         Attempt to decrypt data using all available keys.
         """
@@ -503,7 +503,7 @@ class SodiumSigContext(SigContext):
         except BadSignatureError as bse:
             raise SigError(f'Could not verify signature for {signer}') from bse
 
-    def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
+    def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
         private_key = PrivateKey.generate()
         private_key_bytes = private_key.encode(encoder=RawEncoder)
         sealed_box = SealedBox(private_key.public_key)
@@ -519,7 +519,7 @@ class SodiumSigContext(SigContext):
 
         return encrypted_message, encrypted_keys
 
-    def decrypt(self, data: str, encrypted_keys: List[str]) -> str:
+    def decrypt(self, data: str, encrypted_keys: List[str]) -> bytes:
         decryption_key = None
         for key in self.keys:
             try:
