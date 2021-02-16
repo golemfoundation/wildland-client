@@ -152,12 +152,12 @@ def test_readdir_merged_storages():
     assert fs.dir('/mount1') == ['mount2']
     assert fs.dir('/mount1/mount2') == [
         'dir',
-        'file1.wl.0', 'file1.wl.1',
+        'file1.0.wl', 'file1.1.wl',
         'file2', 'file3',
     ]
     assert fs.dir('/mount1/mount2/dir') == [
-        'file3.wl.0',
-        'file3.wl.1',
+        'file3.0.wl',
+        'file3.1.wl',
         'file4',
         'file5',
     ]
@@ -170,14 +170,14 @@ def test_readdir_merged_storages():
         fs.dir('/mount1/mount2/file2')
 
     assert fs.mode('/mount1/mount2/dir') == stat.S_IFDIR | 0o555
-    assert fs.mode('/mount1/mount2/file1.wl.0') == stat.S_IFREG | 0o0644
-    assert fs.mode('/mount1/mount2/file1.wl.1') == stat.S_IFREG | 0o0644
+    assert fs.mode('/mount1/mount2/file1.0.wl') == stat.S_IFREG | 0o0644
+    assert fs.mode('/mount1/mount2/file1.1.wl') == stat.S_IFREG | 0o0644
     assert fs.mode('/mount1/mount2/file2') == stat.S_IFREG | 0o0644
 
     with pytest.raises(FileNotFoundError):
         fs.mode('/mount1/mount2/file1')
     with pytest.raises(FileNotFoundError):
-        fs.mode('/mount1/mount2/file2.wl.0')
+        fs.mode('/mount1/mount2/file2.0.wl')
 
 
 def test_readdir_file_and_dir():
@@ -209,12 +209,12 @@ def test_readdir_file_and_dir():
         'file1',
         'file2',
         'file3',
-        'file3.wl.2',
-        'file3.wl.3',
+        'file3.2.wl',
+        'file3.3.wl',
     ]
     assert fs.dir('/mount1/file3') == [
-        'file4.wl.0',
-        'file4.wl.1',
+        'file4.0.wl',
+        'file4.1.wl',
         'file5',
         'file6',
     ]

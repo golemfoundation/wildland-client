@@ -154,13 +154,13 @@ class ConflictResolver(metaclass=abc.ABCMeta):
       directory with this name. The directory is read only (i.e. the list of
       files cannot be modified, but the files themselves can).
     - If there are multiple files with the same name, or a single file with the
-      same name as directory, add a '.wl.<storage>' suffix to the name.
+      same name as directory, add a '.<storage>.wl' suffix to the name.
 
     For examples, look at tests/test_conflict.py.
     '''
 
-    SUFFIX_FORMAT = '{}.wl.{}'
-    SUFFIX_RE = re.compile(r'^(.*).wl.(\d+)$')
+    SUFFIX_FORMAT = '{}.{}.wl'
+    SUFFIX_RE = r'^(.*).(\d+).wl$'
 
     def __init__(self):
         self.root: MountDir = MountDir()
@@ -182,8 +182,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         self._resolve.cache_clear()
 
     @abc.abstractmethod
-    def storage_getattr(self, ident: int, relpath: PurePosixPath) \
-        -> Attr:
+    def storage_getattr(self, ident: int, relpath: PurePosixPath) -> Attr:
         '''
         Execute getattr() on a path in storage.
         Raise an IOError if the file cannot be accessed.
@@ -194,8 +193,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def storage_readdir(self, ident: int, relpath: PurePosixPath) \
-        -> List[str]:
+    def storage_readdir(self, ident: int, relpath: PurePosixPath) -> List[str]:
         '''
         Execute readdir() on a path in storage.
         Raise IOError if the path cannot be accessed.
@@ -288,8 +286,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         st, _ = self.getattr_extended(path)
         return st
 
-    def getattr_extended(self, path: PurePosixPath) -> \
-        Tuple[Attr, Optional[Resolved]]:
+    def getattr_extended(self, path: PurePosixPath) -> Tuple[Attr, Optional[Resolved]]:
         '''
         Resolve the path to the right storage and run getattr() on the right
         storage(s). Raises FileNotFoundError if file cannot be found.
@@ -304,7 +301,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 mode=stat.S_IFDIR | 0o555,
             ), None
 
-        m = re.match(r'^(.*).wl.(\d+)$', path.name)
+        m = re.match(self.SUFFIX_RE, path.name)
         suffix: Optional[int]
         if m:
             real_path = path.with_name(m.group(1))
