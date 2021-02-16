@@ -305,13 +305,13 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             ), None
 
         m = re.match(self.CONFLICT_RE, path.name)
-        id: Optional[int]
+        ident: Optional[int]
         if m:
             real_path = path.with_name(m.group(1) + m.group(3))
-            id = int(m.group(2))
+            ident = int(m.group(2))
         else:
             real_path = path
-            id = None
+            ident = None
 
         if self.root.is_synthetic(real_path):
             return Attr(
@@ -323,7 +323,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             raise FileNotFoundError(errno.ENOENT, '')
 
         if len(resolved) == 1:
-            if id is not None:
+            if ident is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             # Single storage. Run storage_getattr directly so that all IOErrors
@@ -346,14 +346,14 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
         if len(dir_results) == 1:
             # This is a directory in a single storage.
-            if id is not None:
+            if ident is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             return dir_results[0]
 
         if len(dir_results) > 1:
             # Multiple directories, return a synthetic read-only directory.
-            if id is not None:
+            if ident is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             st = Attr(
@@ -363,17 +363,17 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
         if len(file_results) == 1:
             # This is a single file, not conflicting with anything.
-            if id is not None:
+            if ident is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
             return file_results[0]
 
         if len(file_results) > 1:
             # There are multiple files, so expect an added id.
-            if id is None:
+            if ident is None:
                 raise FileNotFoundError(errno.ENOENT, '')
             for st, res in file_results:
-                if res.ident == id:
+                if res.ident == ident:
                     return (st, res)
             raise FileNotFoundError(errno.ENOENT, '')
 
