@@ -493,7 +493,11 @@ class WildlandFS(fuse.Fuse):
 
         relpath = self._get_storage_relative_path(path.name, resolved, parent)
 
-        result = getattr(storage, method_name)(relpath, *args, **kwargs)
+        try:
+            result = getattr(storage, method_name)(relpath, *args, **kwargs)
+        except PermissionError as e:
+            if e.errno is None:
+                raise PermissionError(errno.EACCES, str(e)) from e
         # If successful, notify watches.
 
         if event_type is not None:
