@@ -102,7 +102,7 @@ def test_simple():
     with pytest.raises(FileNotFoundError):
         fs.mode('/mount1/mount2/other')
     with pytest.raises(FileNotFoundError):
-        fs.mode('/mount1/mount2/file1.wl.0')
+        fs.mode('/mount1/mount2/file1.wl_0')
 
 
 def test_readdir_separate_storages():
@@ -131,19 +131,23 @@ def test_readdir_separate_storages():
 def test_readdir_merged_storages():
     fs = TestFS(
         (PurePosixPath('/mount1/mount2'), {
-            'file1': None,
+            'file0.xyz.jpg': None,
+            'file1.txt': None,
             'file2': None,
             'dir': {
                 'file3': None,
-                'file4': None
+                'file4': None,
+                'file6': None
             },
         }),
         (PurePosixPath('/mount1/mount2'), {
-            'file1': None,
+            'file0.xyz.jpg': None,
+            'file1.txt': None,
             'file3': None,
             'dir': {
                 'file3': None,
-                'file5': None
+                'file5': None,
+                'file6.txt': None
             },
         }),
     )
@@ -152,14 +156,17 @@ def test_readdir_merged_storages():
     assert fs.dir('/mount1') == ['mount2']
     assert fs.dir('/mount1/mount2') == [
         'dir',
-        'file1.wl.0', 'file1.wl.1',
+        'file0.xyz.wl_0.jpg', 'file0.xyz.wl_1.jpg',
+        'file1.wl_0.txt', 'file1.wl_1.txt',
         'file2', 'file3',
     ]
     assert fs.dir('/mount1/mount2/dir') == [
-        'file3.wl.0',
-        'file3.wl.1',
+        'file3.wl_0',
+        'file3.wl_1',
         'file4',
         'file5',
+        'file6',
+        'file6.txt',
     ]
 
     with pytest.raises(FileNotFoundError):
@@ -170,14 +177,15 @@ def test_readdir_merged_storages():
         fs.dir('/mount1/mount2/file2')
 
     assert fs.mode('/mount1/mount2/dir') == stat.S_IFDIR | 0o555
-    assert fs.mode('/mount1/mount2/file1.wl.0') == stat.S_IFREG | 0o0644
-    assert fs.mode('/mount1/mount2/file1.wl.1') == stat.S_IFREG | 0o0644
+    assert fs.mode('/mount1/mount2/file0.xyz.wl_0.jpg') == stat.S_IFREG | 0o0644
+    assert fs.mode('/mount1/mount2/file1.wl_0.txt') == stat.S_IFREG | 0o0644
+    assert fs.mode('/mount1/mount2/file1.wl_1.txt') == stat.S_IFREG | 0o0644
     assert fs.mode('/mount1/mount2/file2') == stat.S_IFREG | 0o0644
 
     with pytest.raises(FileNotFoundError):
         fs.mode('/mount1/mount2/file1')
     with pytest.raises(FileNotFoundError):
-        fs.mode('/mount1/mount2/file2.wl.0')
+        fs.mode('/mount1/mount2/file2.wl_0')
 
 
 def test_readdir_file_and_dir():
@@ -209,12 +217,12 @@ def test_readdir_file_and_dir():
         'file1',
         'file2',
         'file3',
-        'file3.wl.2',
-        'file3.wl.3',
+        'file3.wl_2',
+        'file3.wl_3',
     ]
     assert fs.dir('/mount1/file3') == [
-        'file4.wl.0',
-        'file4.wl.1',
+        'file4.wl_0',
+        'file4.wl_1',
         'file5',
         'file6',
     ]
