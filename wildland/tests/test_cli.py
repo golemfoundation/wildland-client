@@ -19,11 +19,12 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
+import itertools
+import os
+import re
 import shutil
 import subprocess
 import time
-import os
-import re
 
 import pytest
 import yaml
@@ -818,13 +819,44 @@ def test_container_update(cli, base_dir):
 
 def test_container_publish(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
-        '--container', 'Container', '--inline')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--manifest-pattern', '/*.yaml')
 
-    cli('container', 'publish', 'Container', '0xaaa:/PATH:/published.yaml')
+    cli('container', 'publish', 'Container')
 
-    assert (tmp_path / 'published.yaml').exists()
+    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+
+
+def test_container_publish_rewrite(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--no-inline',
+        '--manifest-pattern', '/m-*.yaml',
+        '--base-url', 'https://example.invalid/')
+
+    cli('container', 'publish', 'Container')
+
+    # “Always two there are. No more, no less. A master and an apprentice.”
+    m1, m2 = tmp_path.glob('*.yaml')
+
+    # “But which was destroyed, the master or the apprentice?”
+    with open(m1) as file1:
+        with open(m2) as file2:
+            for line in itertools.chain(file1, file2):
+                print(line)
+                if re.fullmatch(
+                        r'- https://example\.invalid/m-[A-Za-z0-9-]+.yaml',
+                        line.strip()):
+                    break
+            else:
+                assert False
 
 
 def test_container_delete(cli, base_dir):

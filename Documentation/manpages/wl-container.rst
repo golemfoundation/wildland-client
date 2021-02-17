@@ -242,10 +242,10 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-publish
 .. _wl-container-publish:
 
-:command:`wl container publish <container> [<wlpath>]`
+:command:`wl container publish <container>`
 ------------------------------------------------------
 
-Publish a container manifest into user's infrastructure container or under specified wildland path.
+Publish a container manifest into user's infrastructure container.
 
 .. _wl-container-sign:
 .. _wl-container-verify:

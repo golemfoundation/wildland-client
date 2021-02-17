@@ -64,6 +64,8 @@ def _make_create_command(backend: Type[StorageBackend]):
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--manifest-pattern'], metavar='GLOB',
                      help='Set the manifest pattern for storage'),
+        click.Option(['--base-url'], metavar='BASEURL',
+                     help='Set public base URL'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -95,6 +97,7 @@ def _do_create(
         trusted,
         manifest_pattern,
         inline,
+        base_url,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
@@ -116,6 +119,8 @@ def _do_create(
             del params[param]
 
     params['backend-id'] = str(uuid.uuid4())
+    if base_url is not None:
+        params['base-url'] = base_url
 
     manifest_pattern_dict = None
     if manifest_pattern:

@@ -500,15 +500,17 @@ class StorageDriver:
     A contraption to directly manipulate
     :py:type:`wildland.storage_backends.base.StorageBackend`
     '''
-    def __init__(self, storage_backend: StorageBackend):
+    def __init__(self, storage_backend: StorageBackend, storage=None):
         self.storage_backend = storage_backend
+        self.storage = storage
+
     @classmethod
     def from_storage(cls, storage: Storage) -> 'StorageDriver':
         '''
         Create :py:type:`StorageDriver` from
         :py:class:`wildland.storage.Storage`
         '''
-        return cls(StorageBackend.from_params(storage.params))
+        return cls(StorageBackend.from_params(storage.params), storage=storage)
 
     def __enter__(self):
         self.storage_backend.mount()
@@ -519,7 +521,7 @@ class StorageDriver:
 
     def write_file(self, relpath, data):
         '''
-        Write a file to StorageBackend, using FUSE commands.
+        Write a file to StorageBackend, using FUSE commands. Returns ``(StorageBackend, relpath)``.
         '''
 
         try:
@@ -538,6 +540,7 @@ class StorageDriver:
 
         try:
             self.storage_backend.write(relpath, data, 0, obj)
+            return relpath
         finally:
             self.storage_backend.release(relpath, 0, obj)
 

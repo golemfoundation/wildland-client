@@ -20,6 +20,8 @@
 '''
 Client class
 '''
+
+import collections.abc
 import functools
 import glob
 import logging
@@ -290,6 +292,18 @@ class Client:
         content = ('---\n' + yaml.dump(dict_)).encode()
         trusted_owner = owner
         return self.session.load_container(content, trusted_owner=trusted_owner)
+
+    # pylint: disable=inconsistent-return-statements
+    def load_container_from_url_or_dict(self,
+            obj: Union[str, dict], owner: str):
+        '''
+        Load container, suitable for loading directly from manifest.
+        '''
+        if isinstance(obj, str):
+            return self.load_container_from_url(obj, owner)
+        if isinstance(obj, collections.abc.Mapping):
+            return self.load_container_from_dict(obj, owner)
+        assert False
 
     def load_containers_from(self, name: str) -> Iterator[Container]:
         '''
@@ -862,82 +876,103 @@ class Client:
         return storage.manifest_pattern is not None and storage.is_writeable
 
     @staticmethod
-    def _manifest_filenames_from_patern(container: Container, path_pattern):
-        path_pattern = path_pattern.replace('*', container.ensure_uuid())
-        if '{path}' in path_pattern:
-            for path in container.expanded_paths:
-                yield PurePosixPath(path_pattern.replace(
-                    '{path}', str(path.relative_to('/')))).relative_to('/')
-        else:
-            yield PurePosixPath(path_pattern).relative_to('/')
+    def _manifest_filenames_from_pattern(
+            path_pattern, obj_uuid, container_expanded_paths):
+        path_pattern = path_pattern.replace('*', obj_uuid)
 
-    def get_storage_for_publish(self, published_container: Container):
+        if '{path}' not in path_pattern:
+            yield PurePosixPath(path_pattern).relative_to('/')
+            return
+
+        for path in container_expanded_paths:
+            yield PurePosixPath(path_pattern.replace(
+                '{path}', str(path.relative_to('/')))).relative_to('/')
+
+    def get_storage_for_publish(self, owner: str):
         '''
         Retrieves suitable storage to publish container manifest.
         '''
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import StorageDriver
 
-        owner = self.load_user_by_name(published_container.owner)
+        myowner = self.load_user_by_name(owner)
 
-        for container_candidate in owner.containers:
+        for container_candidate in myowner.containers:
             try:
-                if isinstance(container_candidate, str):
-                    container_candidate = self.load_container_from_url(
-                                            container_candidate, published_container.owner)
-                else:
-                    container_candidate = self.load_container_from_dict(
-                                            container_candidate, published_container.owner)
-
-                if container_candidate.paths == published_container.paths:
-                    # do not publish container to itself
-                    continue
+                container_candidate = self.load_container_from_url_or_dict(
+                    container_candidate, owner)
 
                 # Attempt to mount the storage driver first.
                 # Failure in attempt to mount the backend should try the next storage from the
                 # container and if still not mounted, move to the next container
                 for storage_candidate in self.all_storages(
-                                            container=container_candidate,
-                                            predicate=self._select_storage_for_publishing):
+                        container=container_candidate,
+                        predicate=self._select_storage_for_publishing):
                     try:
                         with StorageDriver.from_storage(storage_candidate) as _driver:
                             return storage_candidate
                     except (WildlandError, PermissionError, FileNotFoundError) as ex:
-                        logger.debug("Failed to mount storage when publishing with Exception: %s",
-                                    str(ex))
+                        logger.debug('Failed to mount storage when publishing with Exception: %s',
+                            str(ex))
                         continue
 
             except (ManifestError, WildlandError) as ex:
-                logger.debug("Failed to load container when publishing with Exception: %s",
-                             str(ex))
+                logger.debug('Failed to load container when publishing with Exception: %s',
+                    str(ex))
                 continue
 
-        return None
+        raise WildlandError('cannot find any container suitable as publishing platform')
 
-    def publish_container(self, container: Container,
-                          wlpath: Optional[WildlandPath] = None) -> None:
+    def _publish_storage_to_driver(self,
+            driver,  # driver: StorageDriver, except circular import
+            storage: Storage,
+            container_expanded_paths):
+        data = self.session.dump_storage(storage)
+
+        relpath = None
+        for relpath in self._manifest_filenames_from_pattern(
+                driver.storage.manifest_pattern['path'],
+                storage.params['backend-id'],
+                container_expanded_paths=container_expanded_paths):
+            driver.makedirs(relpath.parent)
+            relpath = driver.write_file(relpath, data)
+        assert relpath is not None
+        return driver.storage_backend.get_url_for_path(relpath)
+
+    def _publish_container_to_driver(self,
+            driver,  # driver: StorageDriver, except circular import
+            container: Container):
+        data = self.session.dump_container(container)
+
+        relpath = None
+        for relpath in self._manifest_filenames_from_pattern(
+                driver.storage.manifest_pattern['path'],
+                container.ensure_uuid(),
+                container_expanded_paths=container.expanded_paths):
+            driver.makedirs(relpath.parent)
+            relpath = driver.write_file(relpath, data)
+        assert relpath is not None
+        return driver.storage_backend.get_url_for_path(relpath)
+
+    def publish_container(self, container: Container) -> None:
         '''
-        Publish a container to another container owner by the same user
+        Publish a container to a container owner by the same user.
         '''
 
         # pylint: disable=import-outside-toplevel, cyclic-import
-        from .search import Search, StorageDriver
+        from .search import StorageDriver
 
-        data = self.session.dump_container(container)
+        storage = self.get_storage_for_publish(container.owner)
+        assert storage.manifest_pattern['type'] == 'glob'
+        with StorageDriver.from_storage(storage) as driver:
+            for i in range(len(container.backends)):
+                if isinstance(container.backends[i], collections.abc.Mapping):
+                    continue
+                backend = self.load_storage_from_url(container.backends[i],
+                    container.owner)
+                new_url = self._publish_storage_to_driver(driver, backend,
+                    container_expanded_paths=container.expanded_paths)
+                assert new_url is not None
+                container.backends[i] = new_url
 
-        if wlpath is not None:
-            search = Search(self, wlpath, self.config.aliases)
-            search.write_file(data)
-            return
-
-        storage = self.get_storage_for_publish(container)
-
-        if not storage:
-            raise WildlandError(
-                'cannot find any container suitable as publishing platform')
-
-        for relpath in self._manifest_filenames_from_patern(container,
-                                                            storage.manifest_pattern['path']):
-            with StorageDriver.from_storage(storage) as driver:
-                driver.makedirs(relpath.parent)
-                driver.write_file(relpath, data)
+            self._publish_container_to_driver(driver, container)
