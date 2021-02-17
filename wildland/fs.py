@@ -496,8 +496,8 @@ class WildlandFS(fuse.Fuse):
         try:
             result = getattr(storage, method_name)(relpath, *args, **kwargs)
         except PermissionError as e:
-            if e.errno is None:
-                raise PermissionError(errno.EACCES, str(e)) from e
+            err = e.errno or errno.EACCES
+            raise PermissionError(err, str(e)) from e
         # If successful, notify watches.
 
         if event_type is not None:
