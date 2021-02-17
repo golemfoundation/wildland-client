@@ -22,6 +22,7 @@ Dropbox client wrapping and exposing Dropbox API calls that are relevant for the
 
 import errno
 from pathlib import PurePosixPath
+from typing import List
 
 from dropbox import Dropbox
 from dropbox.exceptions import AuthError, BadInputError
@@ -59,7 +60,7 @@ class DropboxClient:
         self.connection.close()
         self.connection = None
 
-    def list_folder(self, path: PurePosixPath) -> list[Metadata]:
+    def list_folder(self, path: PurePosixPath) -> List[Metadata]:
         """
         List content of the given directory.
         """
