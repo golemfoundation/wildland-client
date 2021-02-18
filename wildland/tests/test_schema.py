@@ -40,9 +40,33 @@ def container():
     }
 
 
+def container_access():
+    return {
+        'object': 'container',
+        'owner': '0x3333',
+        'paths': [
+            '/home/photos',
+        ],
+        'backends': {
+            'storage': [
+                'file:///tmp/storage1.yaml',
+            ]
+        },
+        "access": [
+            {"user": '0x4444'}
+        ]
+    }
+
+
 def test_validate():
     schema = Schema('container')
     schema.validate(container())
+
+    schema.validate(container_access())
+
+    c = container_access()
+    c['access'][0]['user'] = '*'
+    schema.validate(c)
 
 
 def test_validate_errors():
@@ -61,4 +85,9 @@ def test_validate_errors():
     c = container()
     c['paths'].clear()
     with pytest.raises(SchemaError, match=r"paths: \[\] is too short"):
+        schema.validate(c)
+
+    c = container_access()
+    c['access'].append({'user': '*'})
+    with pytest.raises(SchemaError, match=r"not valid"):
         schema.validate(c)

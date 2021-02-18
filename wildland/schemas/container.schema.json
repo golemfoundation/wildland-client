@@ -40,6 +40,10 @@
                 }
             },
             "additionalProperties": false
+        },
+        "access": {
+            "$ref": "/schemas/types.json#access",
+            "description": "access control; by default manifests are encrypted to their owner"
         }
     },
     "additionalProperties": false

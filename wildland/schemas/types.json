@@ -43,5 +43,38 @@
         "type": "string",
         "description": "fingerprint",
         "pattern": "^0x[0-9a-f]+$"
+    },
+    "access-full": {
+        "type": "object",
+        "description": "access entry for full access",
+        "properties": {
+            "user": {
+                "const": "*"
+            }
+        }
+    },
+    "access-user": {
+        "type": "object",
+        "description": "access entry for a user",
+        "properties": {
+            "user": {
+                "$ref": "#/fingerprint"
+            }
+        }
+    },
+    "access": {
+        "oneOf": [
+            {
+                "type": "array",
+                "items": {"$ref":  "#/access-full"},
+                "description": "list of storage backend URLs, or inlined storage manifests"
+            },
+            {
+                "type": "array",
+                "items": {"$ref":  "#/access-user"},
+                "description": "list of storage backend URLs, or inlined storage manifests"
+            }
+        ],
+        "description": "complete access entry"
     }
 }
