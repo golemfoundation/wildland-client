@@ -299,9 +299,10 @@ def edit(ctx, editor, input_file, remount):
             click.echo('Container is mounted, remounting')
 
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            storage = obj.client.select_storage(container)
+            storages = obj.client.get_storages_to_mount(container)
+
             obj.fs_client.mount_container(
-                container, storage, user_paths, remount=remount)
+                container, storages, user_paths, remount=remount)
 
 
 def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):

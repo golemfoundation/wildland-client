@@ -174,7 +174,7 @@ def _do_save_new_storage(client, container, storage, inline, name):
     :param name: storage name
     """
     if inline:
-        click.echo('Adding storage directly to container')
+        click.echo(f'Adding storage {storage.backend_id} directly to the container')
         container.backends.append(storage.to_unsigned_manifest()._fields)
         click.echo(f'Saving: {container.local_path}')
         client.save_container(container)
@@ -182,7 +182,7 @@ def _do_save_new_storage(client, container, storage, inline, name):
         storage_path = client.save_new_storage(storage, name)
         click.echo('Created: {}'.format(storage_path))
 
-        click.echo('Adding storage to container')
+        click.echo('Adding storage {storage.backend_id} to the container')
         container.backends.append(client.local_url(storage_path))
         click.echo(f'Saving: {container.local_path}')
         client.save_container(container)
