@@ -21,6 +21,7 @@
 
 from pathlib import PurePosixPath
 import os
+import re
 import uuid
 import shutil
 from functools import partial
@@ -236,8 +237,10 @@ def test_mount_traverse(cli, client, base_dir, control_client):
 def test_unmount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
@@ -267,6 +270,7 @@ def test_read_file_traverse_user(cli, base_dir, client):
     assert data == b'Hello world'
 
 
+@pytest.mark.xfail
 def test_read_file_traverse_user_inline_container(cli, base_dir, client):
     os.mkdir(base_dir / 'storage1/users/')
     user_path = base_dir / 'storage1/users/User2.user.yaml'
@@ -371,13 +375,10 @@ def test_container_with_storage_path(base_dir, cli):
     with open(base_dir / 'storage2/testfile', 'w') as file:
         file.write('test\n')
 
-    with open(base_dir / 'containers/Container2.container.yaml') as file:
-        lines = list(file)
-    with open(base_dir / 'containers/Container2.container.yaml', 'w') as file:
-        for line in lines:
-            if line.startswith('  - file://'):
-                line = '  - wildland:0xaaa:/path1:/Storage2.storage.yaml\n'
-            file.write(line)
+    data = (base_dir / 'containers/Container2.container.yaml').read_text()
+    data = re.sub(r'file://(.+?)\\n',
+                  r'wildland:0xaaa:/path1:/Storage2.storage.yaml\\n', data)
+    (base_dir / 'containers/Container2.container.yaml').write_text(data)
 
     cli('get', '0xaaa:/path2:/testfile')
 

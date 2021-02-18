@@ -70,7 +70,10 @@ key2: "value2"
 def test_parse_key_not_loaded(sig):
     # This should fail because a key that was not explicitly loaded into sig context should not
     # be usable
-    owner, _ = sig.generate()
+    owner, pubkey = sig.generate()
+    sig_2 = sig.copy()
+
+    sig.add_pubkey(pubkey)
 
     test_data = f'''
     object: test
@@ -82,7 +85,7 @@ def test_parse_key_not_loaded(sig):
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
 
     with pytest.raises(ManifestError):
-        Manifest.from_bytes(data, sig)
+        Manifest.from_bytes(data, sig_2)
 
 
 def test_parse_deprecated(sig, owner):
@@ -145,7 +148,8 @@ key2: "value2"
 def test_parse_guess_manifest_type_container(sig, owner):
     test_data = f'''
 owner: "{owner}"
-backends: []
+backends: 
+    storage: []
 key1: value1
 key2: "value2"
 '''.encode()
@@ -190,7 +194,6 @@ def test_encrypt(sig, owner):
     decrypted_data = Manifest.decrypt(encrypted_data, sig)
     assert decrypted_data['owner'] == owner
     assert decrypted_data['key'] == 'VALUE'
-    assert decrypted_data['encrypted'] == encrypted_data['encrypted']
 
 
 def test_encrypt_fail(sig, owner):
@@ -220,7 +223,6 @@ def test_encrypt_access(sig, owner):
     decrypted_data = Manifest.decrypt(encrypted_data, sig)
     assert decrypted_data['owner'] == owner
     assert decrypted_data['key'] == 'VALUE'
-    assert decrypted_data['encrypted'] == encrypted_data['encrypted']
 
 
 def test_encrypt_no(sig, owner):

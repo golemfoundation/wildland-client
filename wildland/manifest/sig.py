@@ -30,6 +30,8 @@ import stat
 import logging
 from hashlib import sha256
 
+import nacl.utils
+from nacl.secret import SecretBox
 from nacl.signing import SigningKey, VerifyKey
 from nacl.public import PrivateKey, SealedBox, PublicKey
 from nacl.encoding import RawEncoder
@@ -291,14 +293,15 @@ class DummySigContext(SigContext):
     def _fingerprint(pubkey: str) -> str:
         return pubkey.replace('key.', '')
 
-    def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
+    def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
         """
         Encrypt data to be readable by keys. Returns a tuple: encrypted message,
         list of encrypted keys.
         """
+        data = data.decode()
         return 'enc.' + data, ['enc.' + key for key in keys]
 
-    def decrypt(self, data: str, encrypted_keys: List[str]) -> str:
+    def decrypt(self, data: str, encrypted_keys: List[str]) -> bytes:
         """
         Attempt to decrypt data using all available keys.
         """
@@ -448,7 +451,10 @@ class SodiumSigContext(SigContext):
         :return: key id, signing or encrypting private key
         :rtype: str, bytes
         """
-        key_candidates = [owner]
+        if owner in self.keys:
+            key_candidates = [owner]
+        else:
+            key_candidates = []
 
         if not only_use_primary_key:
             key_candidates.extend([key_id for key_id in self.key_ownership
@@ -504,18 +510,17 @@ class SodiumSigContext(SigContext):
             raise SigError(f'Could not verify signature for {signer}') from bse
 
     def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
-        private_key = PrivateKey.generate()
-        private_key_bytes = private_key.encode(encoder=RawEncoder)
-        sealed_box = SealedBox(private_key.public_key)
+        private_key = nacl.utils.random(SecretBox.KEY_SIZE)
+        secret_box = SecretBox(private_key)
 
-        encrypted_message = base64.b64encode(sealed_box.encrypt(data)).decode()
+        encrypted_message = base64.b64encode(secret_box.encrypt(data)).decode()
 
         encrypted_keys = []
 
         for key in keys:
             key_bytes = self._key_to_subkey(key, public=True, signing=False)
             box = SealedBox(PublicKey(key_bytes, encoder=RawEncoder))
-            encrypted_keys.append(base64.b64encode(box.encrypt(private_key_bytes)).decode())
+            encrypted_keys.append(base64.b64encode(box.encrypt(private_key)).decode())
 
         return encrypted_message, encrypted_keys
 
@@ -541,7 +546,7 @@ class SodiumSigContext(SigContext):
         if not decryption_key:
             raise SigError('Failed to find decryption key')
 
-        box = SealedBox(PrivateKey(decryption_key, encoder=RawEncoder))
+        box = SecretBox(decryption_key)
         try:
             return box.decrypt(base64.b64decode(data))
         except CryptoError as ce:

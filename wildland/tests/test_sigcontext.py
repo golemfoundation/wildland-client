@@ -87,10 +87,8 @@ def test_verify_key_not_loaded(sig):
     test_data = b'hello world'
     owner, _ = sig.generate()
 
-    signature = sig.sign(owner, test_data)
-
     with pytest.raises(SigError):
-        sig.verify(signature, test_data)
+        sig.sign(owner, test_data)
 
 
 def test_verify_wrong_data(sig, owner):

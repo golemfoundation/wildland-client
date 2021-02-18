@@ -87,12 +87,12 @@ class Manifest:
         if 'owner' in fields.keys():
             keys_to_encrypt.append(sig.get_primary_pubkey(fields['owner']))
         if known_keys:
-            keys_to_encrypt.extend(known_keys)
+            keys_to_encrypt.extend([p for p in known_keys if p not in keys_to_encrypt])
 
         if not keys_to_encrypt:
             raise ManifestError('Owner not found')
 
-        if 'backends' in fields.keys():
+        if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
             backends_update = []
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'access' in backend:
@@ -103,7 +103,6 @@ class Manifest:
                 fields['backends']['storage'].append(new)
 
         # TODO: consider sanity checks?
-        # TODO: eliminate duplicate encryption keys if someone does something extremely unwise?
 
         if 'access' in fields.keys():
             # TODO: document and improve
@@ -143,14 +142,13 @@ class Manifest:
             except SigError as se:
                 raise ManifestError('Cannot decrypt manifest.') from se
 
-            decrypted_data = yaml.safe_load(decrypted_raw)
+            fields = yaml.safe_load(decrypted_raw)
 
-            fields.update(decrypted_data)
-
-        if 'backends' in fields.keys():
+        if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
             backends_update = []
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'encrypted' in backend:
+                    # TODO: handle missing
                     backends_update.append((backend, cls.decrypt(backend, sig)))
 
             for old, new in backends_update:
@@ -209,19 +207,20 @@ class Manifest:
         return fields
 
     @classmethod
-    def from_fields(cls, fields: dict) -> 'Manifest':
+    def from_fields(cls, fields: dict, sig: SigContext = None) -> 'Manifest':
         '''
         Create a manifest based on a dict of fields.
 
         Has to be signed separately.
         '''
-
+        if sig:
+            fields = cls.decrypt(fields, sig)
         fields = cls.update_obsolete(fields)
         data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
         return cls(None, fields, data)
 
     @classmethod
-    def from_unsigned_bytes(cls, data: bytes) -> 'Manifest':
+    def from_unsigned_bytes(cls, data: bytes, sig: SigContext = None) -> 'Manifest':
         '''
         Create a new Manifest based on existing YAML-serialized
         content. The content can include an existing header, it will be ignored.
@@ -234,21 +233,35 @@ class Manifest:
 
         rest_str = data.decode('utf-8')
         fields = yaml.safe_load(rest_str)
+        if sig:
+            fields = cls.decrypt(fields, sig)
         fields = cls.update_obsolete(fields)
         return cls(None, fields, data)
 
-    def sign(self, sig_context: SigContext, only_use_primary_key: bool = False):
+    def sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
+             encrypt=True):
         '''
         Sign a previously unsigned manifest.
         If attach_pubkey is true, attach the public key to the signature.
+        Can force not encrypting, if needed.
         '''
 
         if self.header is not None:
             raise ManifestError('Manifest already signed')
 
+        fields = self._fields
+        data = self.original_data
+
+        if fields['object'] in ['container', 'storage'] and encrypt:
+            fields = self.encrypt(fields, sig_context)
+            data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
+
         owner = self._fields['owner']
-        signature = sig_context.sign(owner, self.original_data,
+        signature = sig_context.sign(owner, data,
                                      only_use_primary_key=only_use_primary_key)
+
+        self.original_data = data
+        self._fields = fields
         self.header = Header(signature)
 
     def skip_signing(self):
@@ -302,8 +315,7 @@ class Manifest:
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e)) from e
-
-        fields = cls._parse_yaml(rest_data)
+        fields = cls._parse_yaml(rest_data, sig_context)
 
         if header.signature is None:
             if fields.get('owner') != trusted_owner:
@@ -319,7 +331,6 @@ class Manifest:
                 raise ManifestError(
                     'Manifest owner does not have access to signer key: header {!r}, '
                     'manifest {!r}'.format(header_signer, fields.get('owner')))
-
         manifest = cls(header, fields, rest_data)
         if schema:
             manifest.apply_schema(schema)
@@ -356,7 +367,7 @@ class Manifest:
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
-        fields = cls._parse_yaml(rest_data)
+        fields = cls._parse_yaml(rest_data, sig_context)
         # to be able to import keys from both bridge ('pubkey' field) and user ('pubkeys' field)
         # we have to handle both fields
         pubkeys = fields.get('pubkeys', [])
@@ -379,9 +390,10 @@ class Manifest:
             sig_context.add_pubkey(pubkey, owner)
 
     @classmethod
-    def _parse_yaml(cls, data: bytes):
+    def _parse_yaml(cls, data: bytes, sig: SigContext):
         try:
             fields = yaml.safe_load(data.decode('utf-8'))
+            fields = cls.decrypt(fields, sig)
             return cls.update_obsolete(fields)
         except ValueError as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e

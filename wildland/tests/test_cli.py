@@ -395,7 +395,7 @@ def test_storage_create(cli, base_dir):
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
 
-    assert "owner: '0xaaa'" in data
+    assert "owner: ''0xaaa''" in data
     assert "location: /PATH" in data
     assert "backend-id:" in data
 
@@ -582,7 +582,7 @@ def test_container_duplicate_noinline(cli, base_dir):
     with open(storage_path) as f:
         storage_data = f.read().split('\n', 4)[-1]
 
-    uuid = re.search('/.uuid/(.+?)\n', container_data).group(1)
+    uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
 
     assert f'container-path: /.uuid/{uuid}' in storage_data
     assert f'- file://localhost{str(storage_path)}' in container_data
@@ -598,8 +598,10 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
 
     with open(base_dir / 'containers/Duplicate.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -796,9 +798,9 @@ def test_container_create_no_path(cli, base_dir):
         data = f.read()
 
     assert "owner: '0xaaa'" in data
-    assert "categories:\n- /colors/blue" in data
-    assert "title: Sky\n" in data
-    assert "paths:\n- /.uuid/" in data
+    assert "categories:\\n- /colors/blue" in data
+    assert "title: Sky\\n" in data
+    assert "paths:\\n- /.uuid/" in data
 
 
 def test_container_update(cli, base_dir):
@@ -929,8 +931,11 @@ def test_container_delete_umount(cli, base_dir, control_client):
     (base_dir / 'storage/Storage.storage.yaml').unlink()
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
+
     control_client.expect('unmount')
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
@@ -967,8 +972,10 @@ def test_container_mount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1012,9 +1019,10 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    print(documents)
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1108,8 +1116,10 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
         '--container', 'Container', '--inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1186,8 +1196,10 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1209,8 +1221,7 @@ def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
@@ -1231,8 +1242,10 @@ backends:
         '--container', 'Container', '--subcontainer', './subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1268,8 +1281,7 @@ def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_p
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
@@ -1290,8 +1302,10 @@ backends:
         '--container', 'Container', '--subcontainer', './subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1315,13 +1329,12 @@ backends:
     ]
 
 
-def test_container_mount_local_subcontainers_trusted(cli, base_dir, control_client, tmp_path):
+def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path):
     control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""---
@@ -1362,8 +1375,10 @@ def test_container_unmount(cli, base_dir, control_client):
     cli('container', 'create', 'Container', '--path', '/PATH')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
@@ -1420,8 +1435,10 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1571,6 +1588,7 @@ def test_cli_container_sync(tmpdir, cleanup):
         assert file.read() == 'test data'
 
 
+@pytest.mark.xfail
 def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     base_config_dir = tmpdir / '.wildland'
     base_data_dir = tmpdir / 'wldata'
@@ -1715,11 +1733,9 @@ def test_cli_set_use_inline(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
         '--storage-set', 'set1')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-
-        assert f'location: {base_dir}/Test' in output_lines
-        assert 'type: local' in output_lines
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
+    assert f'location: {base_dir}/Test' in data
+    assert 'type: local' in data
 
     assert (base_dir / 'Test').exists()
 
@@ -1739,10 +1755,8 @@ def test_cli_set_use_file(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
         '--storage-set', 'set1')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-
-        assert f'file://localhost{base_dir}/storage/set1.storage.yaml' in output_lines
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
+    assert f'file://localhost{base_dir}/storage/set1.storage.yaml' in data
 
     assert (base_dir / 'Test').exists()
 
@@ -1762,11 +1776,10 @@ def test_cli_set_missing_title(cli, base_dir):
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--storage-set', 'set1')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'location: {base_dir}/test' in output_lines
-        assert 'type: local' in output_lines
+    assert f'location: {base_dir}/test' in data
+    assert 'type: local' in data
 
 
 def test_cli_set_missing_param(cli, base_dir):
@@ -1803,11 +1816,10 @@ def test_cli_set_local_dir(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
         '--storage-set', 'set1', '--local-dir', '/test/test')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'location: {base_dir}/test/test' in output_lines
-        assert 'type: local' in output_lines
+    assert f'location: {base_dir}/test/test' in data
+    assert 'type: local' in data
 
     assert (base_dir / 'test/test').exists()
 
@@ -1834,11 +1846,9 @@ def test_cli_set_use_default(cli, base_dir):
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-        print(output_lines)
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+    assert f'file://localhost{base_dir}/storage/set.storage.yaml' in data
 
 
 def test_cli_set_use_def_storage(cli, base_dir):
@@ -1850,11 +1860,9 @@ def test_cli_set_use_def_storage(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
     cli('storage', 'create-from-set', 'Container')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-        print(output_lines)
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+    assert f'file://localhost{base_dir}/storage/set.storage.yaml' in data
 
 
 def test_different_default_user(cli, base_dir):
@@ -2128,12 +2136,14 @@ def test_only_subcontainers(cli, base_dir, control_client):
 
     # Extract containers auto-generated UUIDs
     with open(base_dir / 'containers/Parent.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        uuid_path_parent = documents[1]['paths'][0]
+        parent_data = f.read().split('\n', 4)[-1]
+        parent_uuid = re.search(r'/.uuid/(.+?)\\n', parent_data).group(1)
+        uuid_path_parent = f'/.uuid/{parent_uuid}'
 
     with open(base_dir / 'containers/Child.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        uuid_path_child = documents[1]['paths'][0]
+        child_data = f.read().split('\n', 4)[-1]
+        child_uuid = re.search(r'/.uuid/(.+?)\\n', child_data).group(1)
+        uuid_path_child = f'/.uuid/{child_uuid}'
 
     # Mount the parent container with subcontainers INCLUDING itself
     control_client.expect('paths', {})

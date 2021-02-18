@@ -94,6 +94,8 @@ def sign(ctx, input_file, output_file, in_place):
     '''
     obj: ContextObj = ctx.obj
 
+    obj.client.recognize_users()
+
     manifest_type = ctx.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
@@ -110,11 +112,9 @@ def sign(ctx, input_file, output_file, in_place):
     else:
         data = sys.stdin.buffer.read()
 
-    manifest = Manifest.from_unsigned_bytes(data)
+    manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     if manifest_type:
         validate_manifest(manifest, manifest_type)
-
-    obj.client.recognize_users()
 
     try:
         manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
@@ -199,7 +199,7 @@ def edit(ctx, editor, input_file, remount):
     data = edited_s.encode()
 
     obj.client.recognize_users()
-    manifest = Manifest.from_unsigned_bytes(data)
+    manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
     manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))

@@ -287,7 +287,7 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
             click.echo(f'Failed to create manifest in template {file.file_name}: {ex}')
             raise ex
 
-        manifest.sign(client.session.sig)
+        manifest.sign(client.session.sig, encrypt=False)
 
         storage = Storage.from_manifest(manifest,
                                         local_owners=client.config.get('local-owners'))
