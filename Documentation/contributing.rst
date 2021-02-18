@@ -109,21 +109,14 @@ You should add docstrings to all of the public methods, classes and modules.
 .. _PEP-257: https://www.python.org/dev/peps/pep-0257/
 
 
-Plugins
--------
+Commit messages
+---------------
 
-Wildland exposes an API to register new storage drivers. Currently Wildland have `Bear`_,
-`Dropbox`_, `IMAP`_, `IPFS`_, `S3`_ and `WebDAV`_ plugins among the others. All of the plugins live
-in their own installable Python modules, in ``plugins/`` directory. To add a new plugin, create a
-package, make sure it has a right entry point in ``setup.py``, and install it in Python environment.
+Keep your git history clean before opening merge request. When you commit your code, follow `good
+practices`_, in particular:
+- explain the reason for the change,
+- refer to related GitLab tickets (e.g. `fixes #100`),
+- make it searchable: if your commit fixes a bug, you can mention error message that inspired the change,
+- don't just explain _what_ you've changed, but also _why_.
 
-Each plugin is self-contained and needs to implement filesystem operations, manifest schema, command
-line argument handling for ``wl storage create``. For reference, see how were implemented existing
-Wildland plugins.
-
-.. _Bear: https://bear.app/
-.. _Dropbox: https://en.wikipedia.org/wiki/Dropbox_(service)
-.. _IMAP: https://en.wikipedia.org/wiki/Internet_Message_Access_Protocol
-.. _IPFS: https://en.wikipedia.org/wiki/InterPlanetary_File_System
-.. _S3: https://en.wikipedia.org/wiki/Amazon_S3
-.. _WebDAV: https://en.wikipedia.org/wiki/WebDAV
+.. _good practices: https://dhwthompson.com/2019/my-favourite-git-commit

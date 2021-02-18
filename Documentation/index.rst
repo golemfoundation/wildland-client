@@ -22,6 +22,7 @@ Welcome to Wildland's documentation!
    sync
    deprecated
    contributing
+   plugins-howto
 
 Indices and tables
 ==================

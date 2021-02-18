@@ -320,9 +320,17 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def open(self, path: PurePosixPath, flags: int) -> File:
+        """
+        Open a file with given ``path``. Access ``flags`` should be used to check if the operation
+        is permitted.
+        """
         raise NotImplementedError()
 
     def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
+        """
+        Create and open a file. If the file does not exist, first create it with the specified mode,
+        and then open it.
+        """
         raise OptionalError()
 
     # Method proxied to the File instance
@@ -331,9 +339,21 @@ class StorageBackend(metaclass=abc.ABCMeta):
         obj.release(flags)
 
     def read(self, _path: PurePosixPath, length: Optional[int], offset: int, obj: File) -> bytes:
+        """
+        Read data from an open file.
+
+        Read should return exactly the number of bytes requested except on EOF or error, otherwise
+        the rest of the data will be substituted with zeroes. An exception to this is when the
+        ``direct_io`` mount option is specified, in which case the return value of the read system
+        call will reflect the return value of this operation.
+        """
         return obj.read(length, offset)
 
     def write(self, _path: PurePosixPath, data: bytes, offset: int, obj: File) -> int:
+        """
+        Write data to an open file. Write should return exactly the number of bytes requested except
+        on error. An exception to this is when the ``direct_io`` mount option is specified.
+        """
         return obj.write(data, offset)
 
     def fgetattr(self, _path: PurePosixPath, obj: File) -> Attr:
@@ -348,21 +368,39 @@ class StorageBackend(metaclass=abc.ABCMeta):
     # Other FUSE operations
 
     def getattr(self, path: PurePosixPath) -> Attr:
+        """
+        Get file attributes.
+        """
         raise OptionalError()
 
     def readdir(self, path: PurePosixPath) -> Iterable[str]:
+        """
+        Return iterable of files' names living in the given directory.
+        """
         raise OptionalError()
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
+        """
+        Truncate or extend the given file so that it is precisely ``length`` bytes long.
+        """
         raise OptionalError()
 
     def unlink(self, path: PurePosixPath) -> None:
+        """
+        Remove a file.
+        """
         raise OptionalError()
 
     def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
+        """
+        Create a directory with the given name. The directory permissions are encoded in ``mode``.
+        """
         raise OptionalError()
 
     def rmdir(self, path: PurePosixPath) -> None:
+        """
+        Remove a directory.
+        """
         raise OptionalError()
 
     def chmod(self, path: PurePosixPath, mode: int) -> None:
