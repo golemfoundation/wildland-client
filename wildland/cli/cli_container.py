@@ -16,7 +16,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+# pylint: disable=too-many-lines
 '''
 Manage containers
 '''
@@ -46,6 +46,7 @@ from ..manifest.template import TemplateManager
 from ..sync import Syncer, list_storage_conflicts
 from ..hashdb import HashDb
 from ..log import init_logging
+from ..exc import WildlandError
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
@@ -99,10 +100,15 @@ class OptionRequires(click.Option):
               help='local directory to be passed to storage templates (requires --storage-set)')
 @click.option('--default-storage-set/--no-default-storage-set', default=True,
               help="use user's default storage template set (ignored if --storage-set is used)")
+@click.option('--access', multiple=True, required=False,
+              help="allow additional users access to this container manifest")
+@click.option('--encrypt-manifest/--no-encrypt-manifest', default=True, required=False,
+              help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
+                   "and --access cannot be used." )
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
-           title=None, category=None, storage_set=None, local_dir=None):
+def create(obj: ContextObj, owner, path, name, update_user, default_storage_set, access,
+           title=None, category=None, storage_set=None, local_dir=None, encrypt_manifest=True):
     '''
     Create a new container manifest.
     '''
@@ -133,12 +139,24 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         except FileNotFoundError as fnf:
             raise CliError(f'Storage set {set_name} not found.') from fnf
 
+    if access and not encrypt_manifest:
+        raise CliError('--no-encrypt and --access are mutually exclusive.')
+
+    if access:
+        try:
+            access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
+        except WildlandError as ex:
+            raise CliError(f'Cannot create container: {ex}') from ex
+    elif not encrypt_manifest:
+        access = [{'user': '*'}]
+
     container = Container(
         owner=owner.owner,
         paths=[PurePosixPath(p) for p in path],
         backends=[],
         title=title,
-        categories=category
+        categories=category,
+        access=access
     )
 
     path = obj.client.save_new_container(container, name)
@@ -238,7 +256,7 @@ def list_(obj: ContextObj):
     for container in obj.client.load_containers():
         _container_info(obj.client, container)
 
-
+# TODO: add --raw option here?
 @container_.command(short_help='show container summary')
 @click.argument('name', metavar='CONTAINER')
 @click.pass_obj
@@ -389,6 +407,72 @@ def del_category(ctx, input_file, category):
     Remove category from the manifest.
     '''
     modify_manifest(ctx, input_file, del_field, 'categories', category)
+
+
+@modify.command(short_help='allow additional user(s) access to this encrypted manifest')
+@click.option('--access', metavar='PATH', required=True, multiple=True,
+              help='Users to add access for')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_access(ctx, input_file, access):
+    """
+    Allow an additional user access to this manifest.
+    """
+    ctx.obj.client.recognize_users()
+
+    processed_access = []
+
+    try:
+        for user in access:
+            user = ctx.obj.client.load_user_by_name(user)
+            processed_access.append({'user': user.owner})
+    except WildlandError as ex:
+        raise CliError(f'Cannot modify access: {ex}') from ex
+
+    modify_manifest(ctx, input_file, add_field, 'access', processed_access)
+
+
+@modify.command(short_help='stop additional user(s) from having access to this encrypted manifest')
+@click.option('--access', metavar='PATH', required=True, multiple=True,
+              help='Users whose access should be revoked')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_access(ctx, input_file, access):
+    '''
+    Remove category from the manifest.
+    '''
+    ctx.obj.client.recognize_users()
+
+    processed_access = []
+
+    try:
+        for user in access:
+            user = ctx.obj.client.load_user_by_name(user)
+            processed_access.append({'user': user.owner})
+    except WildlandError as ex:
+        raise CliError(f'Cannot modify access: {ex}') from ex
+
+    modify_manifest(ctx, input_file, del_field, 'access', processed_access)
+
+
+@modify.command(short_help='do not encrypt this manifest at all')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def set_no_encrypt_manifest(ctx, input_file):
+    '''
+    Set title in the manifest.
+    '''
+    modify_manifest(ctx, input_file, set_field, 'access', [{'user': '*'}])
+
+
+@modify.command(short_help='encrypt this manifest so that it is accessible only to its owner')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def set_encrypt_manifest(ctx, input_file):
+    '''
+    Set title in the manifest.
+    '''
+    modify_manifest(ctx, input_file, set_field, 'access', [])
 
 
 def prepare_mount(obj: ContextObj,

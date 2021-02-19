@@ -66,15 +66,27 @@
         "oneOf": [
             {
                 "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
                 "items": {"$ref":  "#/access-full"},
                 "description": "list of storage backend URLs, or inlined storage manifests"
             },
             {
                 "type": "array",
                 "items": {"$ref":  "#/access-user"},
+                "minItems": 0,
                 "description": "list of storage backend URLs, or inlined storage manifests"
             }
         ],
         "description": "complete access entry"
+    },
+    "encrypted": {
+        "type": "object",
+        "description": "encrypted data",
+        "required": ["encrypted-data", "encrypted-keys"],
+        "properties": {
+            "encrypted-data": { "type": "string"},
+            "encrypted-keys": { "type":  "array", "items":  {"type": "string"}}
+        }
     }
 }

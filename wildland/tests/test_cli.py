@@ -254,6 +254,18 @@ def test_user_edit(cli, base_dir):
     assert '\'0xaaa\'' in data
 
 
+def test_user_edit_encryption(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', '--path', '/PATH', 'Container')
+
+    editor = r'sed -i s,encrypted,FAILURE,g'
+
+    cli('container', 'edit', 'Container', '--editor', editor)
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert '"FAILURE"' not in data
+
+
 def test_user_edit_bad_fields(cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     editor = 'sed -i s,owner,Signer,g'
@@ -521,6 +533,28 @@ def test_container_create(cli, base_dir):
     assert "/.uuid/" in data
 
 
+def test_container_create_access(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        data = f.read()
+
+    assert "owner: '0xaaa'" in data
+    assert "/PATH" in data
+    assert "/.uuid/" in data
+    assert not 'encrypted' in data
+
+    cli('container', 'create', 'Container2', '--path', '/PATH', '--access', 'UserB')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        base_data = f.read().split('\n', 3)[-1]
+        data = yaml.safe_load(base_data)
+
+    assert 'encrypted' in data.keys()
+    assert len(data['encrypted']['encrypted-keys']) == 2
+
+
 def test_container_duplicate(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -765,6 +799,31 @@ def test_container_del_category(cli, base_dir):
     # cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
 
 
+def test_container_modify_access(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'add-access', 'Container', '--access', 'User2')
+    base_data = manifest_path.read_text().split('\n', 3)[-1]
+    data = yaml.safe_load(base_data)
+    assert len(data['encrypted']['encrypted-keys']) == 2
+
+    cli('container', 'modify', 'del-access', 'Container', '--access', 'User2')
+    base_data = manifest_path.read_text().split('\n', 3)[-1]
+    data = yaml.safe_load(base_data)
+    assert len(data['encrypted']['encrypted-keys']) == 1
+
+    cli('container', 'modify', 'set-no-encrypt-manifest', 'Container')
+    assert 'encrypted' not in manifest_path.read_text()
+
+    cli('container', 'modify', 'set-encrypt-manifest', 'Container')
+    assert 'encrypted' in manifest_path.read_text()
+
+
 def test_container_create_update_user(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
@@ -818,10 +877,10 @@ def test_container_publish(cli, tmp_path):
     assert len(tuple(tmp_path.glob('*.yaml'))) == 1
 
 
-@pytest.mark.xfail
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
+        '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
@@ -1574,7 +1633,6 @@ def test_cli_container_sync(tmpdir, cleanup):
         assert file.read() == 'test data'
 
 
-@pytest.mark.xfail
 def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     base_config_dir = tmpdir / '.wildland'
     base_data_dir = tmpdir / 'wldata'
@@ -1592,7 +1650,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
 
     wl_call(base_config_dir, 'user', 'create', 'Alice')
     wl_call(base_config_dir, 'container', 'create',
-            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
+            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer', '--no-encrypt-manifest')
     wl_call(base_config_dir, 'storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage1_data)
     wl_call(base_config_dir, 'storage', 'create', 'local-cached',
@@ -1717,7 +1775,7 @@ def test_cli_set_use_inline(cli, base_dir):
     cli('user', 'create', 'User')
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
-        '--storage-set', 'set1')
+        '--storage-set', 'set1', '--no-encrypt-manifest')
 
     data = (base_dir / 'containers/Container.container.yaml').read_text()
     assert f'location: {base_dir}/Test' in data
@@ -1760,7 +1818,8 @@ def test_cli_set_missing_title(cli, base_dir):
     cli('storage-set', 'add', '--inline', 'title', 'set1')
     cli('user', 'create', 'User')
 
-    cli('container', 'create', 'Container', '--path', '/PATH', '--storage-set', 'set1')
+    cli('container', 'create', 'Container', '--path', '/PATH',
+        '--storage-set', 'set1', '--no-encrypt-manifest')
 
     data = (base_dir / 'containers/Container.container.yaml').read_text()
 

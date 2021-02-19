@@ -229,7 +229,7 @@ def test_encrypt_no(sig, owner):
     test_data = {
         'owner': owner,
         'key': 'VALUE',
-        'access': 'open'
+        'access': [{'user': '*'}]
     }
     encrypted_data = Manifest.encrypt(test_data, sig)
     assert encrypted_data == test_data
@@ -242,7 +242,7 @@ def test_encrypt_subcontainer(sig, owner):
     test_data = {
         'owner': owner,
         'key': 'VALUE',
-        'access': 'open',
+        'access': [{'user': '*'}],
         'backends': {
             'storage': [
                 {'key3': 'VALUE3'},

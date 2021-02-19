@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Callable, List
 
 import click
+import yaml
 
 from .cli_base import ContextObj
 from ..client import Client
@@ -189,7 +190,13 @@ def edit(ctx, editor, input_file, remount):
         manifest_type = None
 
     path = find_manifest_file(obj.client, input_file, manifest_type)
-    data = path.read_bytes()
+
+    obj.client.recognize_users()
+    try:
+        manifest = Manifest.from_file(path, obj.client.session.sig)
+        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
+    except ManifestError:
+        data = path.read_bytes()
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
@@ -198,7 +205,6 @@ def edit(ctx, editor, input_file, remount):
                           require_save=False)
     data = edited_s.encode()
 
-    obj.client.recognize_users()
     manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)

@@ -21,7 +21,7 @@
 Classes for handling signed Wildland manifests
 '''
 
-from typing import Tuple, Optional, Dict, List
+from typing import Tuple, Optional, Dict
 import re
 import logging
 
@@ -76,45 +76,42 @@ class Manifest:
         return self._fields
 
     @classmethod
-    def encrypt(cls, fields: dict, sig: SigContext, known_keys: Optional[List[str]] = None) -> dict:
+    def encrypt(cls, fields: dict, sig: SigContext, owner_pubkey: Optional[str] = None) -> dict:
         """
         Encrypt provided dict with the SigContext.
         Encrypts to 'owner' keys, unless 'access' field specifies otherwise.
         Inline storages may have their own access fields.
         Returns encrypted dict.
         """
-        keys_to_encrypt = []
-        if 'owner' in fields.keys():
-            keys_to_encrypt.append(sig.get_primary_pubkey(fields['owner']))
-        if known_keys:
-            keys_to_encrypt.extend([p for p in known_keys if p not in keys_to_encrypt])
-
-        if not keys_to_encrypt:
-            raise ManifestError('Owner not found')
+        if not owner_pubkey:
+            owner = fields.get('owner', None)
+            if not owner:
+                raise ManifestError('Owner not found')
+            owner_pubkey = sig.get_primary_pubkey(owner)
 
         if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
             backends_update = []
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'access' in backend:
-                    backends_update.append((backend, cls.encrypt(backend, sig, keys_to_encrypt)))
+                    backends_update.append((backend, cls.encrypt(backend, sig, owner_pubkey)))
 
             for old, new in backends_update:
                 fields['backends']['storage'].remove(old)
                 fields['backends']['storage'].append(new)
 
         # TODO: consider sanity checks?
+        keys_to_encrypt = [owner_pubkey]
 
         if 'access' in fields.keys():
-            # TODO: document and improve
-            if fields['access'] == 'open':
-                return fields
             for data_dict in fields['access']:
                 user = data_dict['user']
+                if user == '*':
+                    return fields
                 pubkey = sig.get_primary_pubkey(user)
                 if not pubkey:
                     raise ManifestError(f'Cannot encrypt to {user}.')
                 keys_to_encrypt.append(pubkey)
-        data_to_encrypt = yaml.dump(fields).encode()
+        data_to_encrypt = yaml.dump(fields, sort_keys=False).encode()
         try:
             encrypted_data, encrypted_keys = sig.encrypt(data_to_encrypt, keys_to_encrypt)
         except SigError as se:
@@ -149,7 +146,11 @@ class Manifest:
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'encrypted' in backend:
                     # TODO: handle missing
-                    backends_update.append((backend, cls.decrypt(backend, sig)))
+                    try:
+                        backends_update.append((backend, cls.decrypt(backend, sig)))
+                    except SigError:
+                        # we don't have the appropriate keys, and that's okay
+                        pass
 
             for old, new in backends_update:
                 fields['backends']['storage'].remove(old)
