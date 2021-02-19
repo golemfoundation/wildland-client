@@ -150,7 +150,7 @@ validated, see ``wildland/schemas/commands.json``.
   .. schema:: commands.json args unmount
 
 
-* ``clear-cache`` - clear cache for a storage by number.  This invalidates the
+* ``clear-cache`` - clear cache for a storage by number. This invalidates the
   cached data in storage. (The cache is currently very short-lived, so this
   endpoint is useful mostly for testing).
 

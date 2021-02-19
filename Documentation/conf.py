@@ -33,7 +33,7 @@ import manhelper
 # -- Project information -----------------------------------------------------
 
 project = 'Wildland'
-copyright = '2020, Invisible Things Lab'
+copyright = '2021, Invisible Things Lab'
 author = 'Invisible Things Lab'
 
 # The short X.Y version
@@ -103,9 +103,7 @@ nitpick_ignore = [
     ('py:class', 'click.core.Option'),
     ('py:class', 'fuse.Stat'),
     # sphinx does not like dataclasses
-    ('py:class', 'wildland.storage_backends.base.FileEvent'),
-    ('py:class', 'wildland.storage_backends.base.File'),
-    ('py:class', 'wildland.storage_backends.base.Attr'),
+    ('py:class', 'wildland.storage_backends.base.FileEvent')
 ]
 
 todo_include_todos = True

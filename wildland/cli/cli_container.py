@@ -96,7 +96,7 @@ class OptionRequires(click.Option):
 @click.option('--storage-set', '--set', multiple=False, required=False,
               help='Use a storage template set to generate storages (see wl storage-set)')
 @click.option('--local-dir', multiple=False, required=False,
-              help='local directory to be passed to storage templates (requires --storage-set')
+              help='local directory to be passed to storage templates (requires --storage-set)')
 @click.option('--default-storage-set/--no-default-storage-set', default=True,
               help="use user's default storage template set (ignored if --storage-set is used)")
 @click.argument('name', metavar='CONTAINER', required=False)

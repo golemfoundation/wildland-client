@@ -184,7 +184,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
         return attr
 
-    def open(self, path: PurePosixPath, flags: int) -> PagedHttpFile:
+    def open(self, path: PurePosixPath, _flags: int) -> PagedHttpFile:
         url = self.make_url(path)
         attr = self._get_single_file_attr(url)
         return PagedHttpFile(url, attr)

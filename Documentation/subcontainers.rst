@@ -1,3 +1,5 @@
+.. _subcontainers:
+
 Subcontainers (experimental)
 ============================
 
@@ -10,8 +12,8 @@ accessed directly), it is recommended to not add any extra paths to the parent
 container or use one in a hidden directory (the "uuid" path will be added
 automatically anyway).
 
-A subcontainer usually has one storage backend of *delegate* type, pointint at
-its parent container and specitying a subdirectory that should be used. Parent
+A subcontainer usually has one storage backend of *delegate* type, pointing at
+its parent container and specifying a subdirectory that should be used. Parent
 container can be conveniently pointed via a Wildland URL
 ``wildland:@default:@parent-container:``. Note ``@default`` in this context
 always means the owner of the container (not the default user in the Wildland
@@ -22,7 +24,7 @@ Storage backend that wants to implement subcontainers, should implement a
 ``list_subcontainers()`` method that returns a list of container manifests (in
 a form of ``dict`` with the same structure). It is recommended to include
 storage manifests inline. Some of the fields can be skipped, as they are
-unambigously determined by the parent container:
+unambiguously determined by the parent container:
 
  - ``owner`` in the container part
  - ``owner`` in the storage backend part
