@@ -83,10 +83,28 @@
     "encrypted": {
         "type": "object",
         "description": "encrypted data",
-        "required": ["encrypted-data", "encrypted-keys"],
+        "required": [
+            "encrypted"
+        ],
         "properties": {
-            "encrypted-data": { "type": "string"},
-            "encrypted-keys": { "type":  "array", "items":  {"type": "string"}}
+            "encrypted": {
+                "type": "object",
+                "required": [
+                    "encrypted-data",
+                    "encrypted-keys"
+                ],
+                "properties": {
+                    "encrypted-data": {
+                        "type": "string"
+                    },
+                    "encrypted-keys": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     }
 }

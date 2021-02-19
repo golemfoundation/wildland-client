@@ -99,7 +99,6 @@ class Manifest:
                 fields['backends']['storage'].remove(old)
                 fields['backends']['storage'].append(new)
 
-        # TODO: consider sanity checks?
         keys_to_encrypt = [owner_pubkey]
 
         if 'access' in fields.keys():
@@ -132,7 +131,6 @@ class Manifest:
             if not isinstance(encrypted_dict, dict) or \
                     sorted(encrypted_dict.keys()) != ['encrypted-data', 'encrypted-keys']:
                 raise ManifestError('Encrypted field malformed.')
-
             try:
                 decrypted_raw = sig.decrypt(encrypted_dict['encrypted-data'],
                                             encrypted_dict['encrypted-keys'])
@@ -145,17 +143,14 @@ class Manifest:
             backends_update = []
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'encrypted' in backend:
-                    # TODO: handle missing
                     try:
                         backends_update.append((backend, cls.decrypt(backend, sig)))
-                    except SigError:
+                    except ManifestError:
                         # we don't have the appropriate keys, and that's okay
                         pass
-
             for old, new in backends_update:
                 fields['backends']['storage'].remove(old)
                 fields['backends']['storage'].append(new)
-
         return fields
 
     @classmethod
@@ -194,7 +189,7 @@ class Manifest:
         # Nested manifests too
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
-                if isinstance(storage, dict):
+                if isinstance(storage, dict) and list(storage.keys()) != ['encrypted']:
                     cls.update_obsolete(storage)
         if 'infrastructures' in fields:
             for container in fields['infrastructures']:

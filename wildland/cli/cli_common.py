@@ -28,7 +28,7 @@ from typing import Callable, List
 import click
 import yaml
 
-from .cli_base import ContextObj
+from .cli_base import ContextObj, CliError
 from ..client import Client
 from ..user import User
 from ..container import Container
@@ -201,14 +201,24 @@ def edit(ctx, editor, input_file, remount):
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
 
+    original_data = data
     edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
                           require_save=False)
     data = edited_s.encode()
 
+    if original_data == data:
+        click.echo('No changes detected, not saving.')
+        return
+
     manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
-    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+
+    try:
+        manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+    except SigError as se:
+        raise CliError(f'Cannot save manifest: {se}') from se
+
     signed_data = manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)

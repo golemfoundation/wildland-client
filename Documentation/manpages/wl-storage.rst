@@ -324,3 +324,26 @@ Set location in a storage |~| manifest given by *<file>*.
 .. option:: --location
 
    Path to directory containing the backend.
+
+.. _wl-storage-modify-add-access:
+
+:command:`wl storage modify add-access --access USER <file>`
+------------------------------------------------------------
+
+Allow an additional user |~| access to manifest given by *<file>*.
+
+.. option:: --access
+
+   User to add access for. Can be repeated.
+
+.. _wl-storage-modify-del-access:
+
+:command:`wl storage modify del-acccess --access USER <file>`
+-------------------------------------------------------------
+
+Revoke user's |~| access to manifest given by *<file>*.
+
+.. option:: --access
+
+   User to revoke access from. Can be repeated.
+

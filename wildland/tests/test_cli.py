@@ -240,30 +240,19 @@ def test_user_sign(cli, cli_fail, base_dir):
 
 
 def test_user_edit(cli, base_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    editor = r'sed -i s,\'0xaaa\',\"0xaaa\",g'
+    user_path = base_dir / 'users/User.user.yaml'
+    cli('user', 'create', 'User', '--key', '0xaaa', '--path', '/PATH')
+    editor = r'sed -i s,PATH,XYZ,g'
     cli('user', 'edit', 'User', '--editor', editor)
-    with open(base_dir / 'users/User.user.yaml') as f:
-        data = f.read()
-    assert '"0xaaa"' in data
 
-    editor = r'sed -i s,\"0xaaa\",\'0xaaa\',g'
+    assert '/XYZ' in user_path.read_text()
+    assert '/PATH' not in user_path.read_text()
+
+    editor = r'sed -i s,XYZ,PATH,g'
     cli('user', 'edit', '@default', '--editor', editor)
-    with open(base_dir / 'users/User.user.yaml') as f:
-        data = f.read()
-    assert '\'0xaaa\'' in data
 
-
-def test_user_edit_encryption(cli, base_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', '--path', '/PATH', 'Container')
-
-    editor = r'sed -i s,encrypted,FAILURE,g'
-
-    cli('container', 'edit', 'Container', '--editor', editor)
-    with open(base_dir / 'users/User.user.yaml') as f:
-        data = f.read()
-    assert '"FAILURE"' not in data
+    assert '/PATH' in user_path.read_text()
+    assert '/XYZ' not in user_path.read_text()
 
 
 def test_user_edit_bad_fields(cli, cli_fail):
@@ -663,6 +652,18 @@ def test_container_edit(cli, base_dir):
     with open(manifest) as f:
         data = f.read()
     assert "/PATH" in data
+
+
+def test_container_edit_encryption(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', '--path', '/PATH', 'Container')
+
+    editor = r'sed -i s,encrypted,FAILURE,g'
+
+    cli('container', 'edit', 'Container', '--editor', editor)
+    with open(base_dir / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert '"FAILURE"' not in data
 
 
 def test_container_add_path(cli, cli_fail, base_dir):
@@ -1595,6 +1596,11 @@ def test_bridge_create(cli, base_dir):
 def wl_call(base_config_dir, *args):
     subprocess.check_call(['./wl', '--base-dir', base_config_dir, *args])
 
+
+def wl_call_output(base_config_dir, *args):
+    return subprocess.check_output(['./wl', '--base-dir', base_config_dir, *args])
+
+
 # container-sync
 
 
@@ -1701,6 +1707,33 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     assert not (storage2_data / 'testfile2').exists()
     with open(storage3_data / 'testfile2') as file:
         assert file.read() == "get value from config"
+
+
+# Encryption of inline storage manifests
+
+
+def test_container_edit_inline_storage(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+
+    alice_output = wl_call_output(base_config_dir, 'user', 'create', 'Alice')
+    alice_key = alice_output.decode().splitlines()[0].split(' ')[2]
+    wl_call(base_config_dir, 'user', 'create', 'Bob')
+
+    wl_call(base_config_dir, 'container', 'create',
+            '--owner', 'Alice', '--path', '/Alice', '--access', 'Bob', 'AliceContainer')
+
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage1_data, '--access', 'Alice')
+
+    os.unlink(base_config_dir / f'keys/{alice_key}.sec')
+
+    container_list = wl_call_output(base_config_dir, 'container', 'list').decode()
+    assert '/Alice' in container_list  # main container data is decrypted
+    assert 'encrypted' in container_list  # but the storage is encrypted
+    assert 'location' not in container_list  # and it's data is inaccesible
+
 
 # Storage sets
 
