@@ -35,7 +35,7 @@ import daemon
 from xdg import BaseDirectory
 from daemon import pidfile
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, set_field
+from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, set_field, dump
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..storage import Storage, StorageBackend
@@ -256,7 +256,7 @@ def list_(obj: ContextObj):
     for container in obj.client.load_containers():
         _container_info(obj.client, container)
 
-# TODO: add --raw option here?
+
 @container_.command(short_help='show container summary')
 @click.argument('name', metavar='CONTAINER')
 @click.pass_obj
@@ -343,6 +343,7 @@ def delete(obj: ContextObj, name, force, cascade):
 container_.add_command(sign)
 container_.add_command(verify)
 container_.add_command(edit)
+container_.add_command(dump)
 
 
 @container_.group(short_help='modify container manifest')

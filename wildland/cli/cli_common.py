@@ -60,6 +60,9 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
         if path:
             return path
 
+    if Path(name).exists():
+        return Path(name)
+
     raise click.ClickException(f'Not found: {name}')
 
 
@@ -166,6 +169,36 @@ def verify(ctx, input_file):
     except ManifestError as e:
         raise click.ClickException(f'Error verifying manifest: {e}')
     click.echo('Manifest is valid')
+
+
+@click.command(short_help='verify and dump contents of specified file')
+@click.option('--decrypt/--no-decrypt', '-d/-n', default=True,
+    help='decrypt manifest (if applicable)')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def dump(ctx, input_file, decrypt):
+    """
+    Dump the input manifest in a machine-readable format (currently just json). By default decrypts
+    the manifest, if possible.
+    """
+    obj: ContextObj = ctx.obj
+
+    manifest_type = ctx.parent.command.name
+    if manifest_type == 'main':
+        manifest_type = None
+
+    path = find_manifest_file(obj.client, input_file, manifest_type)
+
+    if decrypt:
+        obj.client.recognize_users()
+        manifest = Manifest.from_file(path, obj.client.session.sig)
+        print(yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False).decode())
+
+    else:
+        data = path.read_bytes()
+        if HEADER_SEPARATOR in data:
+            _, data = split_header(data)
+        print(data.decode())
 
 
 @click.command(short_help='edit manifest in external tool')

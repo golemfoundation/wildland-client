@@ -263,11 +263,12 @@ Publish a container manifest into user's infrastructure container.
 .. _wl-container-sign:
 .. _wl-container-verify:
 .. _wl-container-edit:
+.. _wl-container-dump:
 
 :command:`wl container {sign|verify|edit} [...]`
 ------------------------------------------------------
 
-See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
+See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-dump>`
 and :ref:`wl edit <wl-edit>` documentation.
 
 .. program:: wl-container-sync

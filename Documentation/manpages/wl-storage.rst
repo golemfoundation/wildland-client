@@ -287,11 +287,12 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:
+.. _wl-storage-dump:
 
 :command:`wl storage {sign|verify|edit} [...]`
 ----------------------------------------------
 
-See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
+See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-dump>`
 and :ref:`wl edit <wl-edit>` documentation.
 
 

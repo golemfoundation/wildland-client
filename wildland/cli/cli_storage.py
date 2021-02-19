@@ -29,7 +29,7 @@ import uuid
 import click
 
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field
+from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
 from ..storage import Storage
 from ..manifest.template import TemplateManager
 
@@ -364,6 +364,7 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
 storage_.add_command(sign)
 storage_.add_command(verify)
 storage_.add_command(edit)
+storage_.add_command(dump)
 
 _add_create_commands(create)
 

@@ -1735,6 +1735,36 @@ def test_container_edit_inline_storage(tmpdir):
     assert 'location' not in container_list  # and it's data is inaccesible
 
 
+def test_dump(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+
+    alice_output = wl_call_output(base_config_dir, 'user', 'create', 'Alice')
+    alice_key = alice_output.decode().splitlines()[0].split(' ')[2]
+    wl_call(base_config_dir, 'user', 'create', 'Bob')
+
+    wl_call(base_config_dir, 'container', 'create',
+            '--owner', 'Alice', '--path', '/Alice', '--access', 'Bob', 'AliceContainer')
+
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage1_data, '--access', 'Alice')
+
+    dump_container = wl_call_output(base_config_dir, 'container', 'dump', 'AliceContainer').decode()
+    yaml_container = yaml.safe_load(dump_container)
+    assert 'enc' not in dump_container
+    assert '/Alice' in dump_container
+
+    assert yaml_container['object'] == 'container'
+
+    os.unlink(base_config_dir / f'keys/{alice_key}.sec')
+
+    dump_container = wl_call_output(base_config_dir, 'container', 'dump', 'AliceContainer').decode()
+    yaml_container = yaml.safe_load(dump_container)
+
+    assert 'encrypted' in dump_container
+    assert yaml_container['object'] == 'container'
+
 # Storage sets
 
 

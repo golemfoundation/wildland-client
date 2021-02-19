@@ -31,7 +31,7 @@ from ..user import User
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import WILDLAND_URL_PREFIX
 from ..bridge import Bridge
-from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field
+from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, dump
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
@@ -470,6 +470,7 @@ def user_refresh(obj: ContextObj, name):
 user_.add_command(sign)
 user_.add_command(verify)
 user_.add_command(edit)
+user_.add_command(dump)
 
 
 @user_.group(short_help='modify user manifest')
