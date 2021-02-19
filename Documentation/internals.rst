@@ -11,9 +11,119 @@ Client interface
    :members:
 
 
+Storage backends
+----------------
+
+.. autoclass:: wildland.storage_backends.base.StorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.local_cached.BaseCached
+   :members:
+
+.. autoclass:: wildland.storage_backends.date_proxy.DateProxyStorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.delegate.DelegateProxyStorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.dummy.DummyStorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.local_cached.LocalCachedStorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.local_cached.LocalDirectoryCachedStorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.local.LocalStorageBackend
+   :members:
+
+.. autoclass:: wildland.storage_backends.zip_archive.ZipArchiveStorageBackend
+   :members:
+
+
+File/dir entries
+----------------
+
+.. autoclass:: wildland.storage_backends.generated.CachedDirEntry
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.DirEntry
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.Entry
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.FileEntry
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.FuncDirEntry
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.FuncFileEntry
+   :members:
+
+
+Files
+-----
+
+.. autoclass:: wildland.storage_backends.base.File
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.CommandFile
+   :members:
+
+.. autoclass:: wildland.storage_backends.zip_archive.FullBufferedFile
+   :members:
+
+.. autoclass:: wildland.storage_backends.buffered.PagedFile
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.StaticFile
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.StaticFileEntry
+   :members:
+
+.. autoclass:: wildland.storage_backends.zip_archive.ZipArchiveFile
+   :members:
+
+
+File attributes
+---------------
+
+.. autoclass:: wildland.storage_backends.base.Attr
+   :members:
+
+.. autoclass:: plugins.dropbox.wildland_dropbox.backend.DropboxFileAttr
+   :members:
+
+
+Mixins
+------
+
+.. autoclass:: wildland.storage_backends.cached.CachedStorageMixin
+   :members:
+
+.. autoclass:: wildland.storage_backends.cached.DirectoryCachedStorageMixin
+   :members:
+
+.. autoclass:: wildland.storage_backends.generated.GeneratedStorageMixin
+   :members:
+
+.. autoclass:: wildland.storage_backends.base.StaticSubcontainerStorageMixin
+   :members:
+
+
+Watchers
+--------
+
+.. autoclass:: wildland.storage_backends.zip_archive.ZipArchiveWatcher
+   :members:
+
+
 Data transfer objects
 ---------------------
-
 
 .. autoclass:: wildland.user.User
    :members:
@@ -27,6 +137,7 @@ Data transfer objects
 .. autoclass:: wildland.bridge.Bridge
    :members:
 
+
 Manifests
 ---------
 
@@ -39,17 +150,16 @@ Manifests
 .. autoclass:: wildland.manifest.schema.Schema
    :members:
 
+
 Signing
 -------
 
 .. autoclass:: wildland.manifest.sig.SigContext
    :members:
 
+
 FUSE driver
 -----------
 
 .. autoclass:: wildland.fs.WildlandFS
-   :members:
-
-.. autoclass:: wildland.storage_backends.base.StorageBackend
    :members:

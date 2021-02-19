@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Abstract classes for storage
-'''
+"""
 
 import abc
 import hashlib
@@ -55,12 +55,12 @@ class StorageError(BaseException):
 
 
 class OptionalError(NotImplementedError):
-    '''
+    """
     A variant of NotImplementedError.
 
     This is a hack to stop pylint from complaining about methods that do not
     have to be implemented.
-    '''
+    """
 
 
 class HashMismatchError(BaseException):
@@ -71,26 +71,26 @@ class HashMismatchError(BaseException):
 
 @dataclass
 class Attr:
-    '''
-    File attributes. A subset of statinfo.
-    '''
+    """
+    File attributes. A subset of ``statinfo``.
+    """
 
     mode: int
     size: int = 0
     timestamp: int = 0
 
     def is_dir(self) -> bool:
-        '''
+        """
         Convenience method to check if this is a directory.
-        '''
+        """
 
         return stat.S_ISDIR(self.mode)
 
     @staticmethod
     def file(size: int = 0, timestamp: int = 0) -> 'Attr':
-        '''
-        Simple file with default access mode
-        '''
+        """
+        Simple file with default access mode.
+        """
 
         return Attr(
             mode=stat.S_IFREG | 0o644,
@@ -99,9 +99,9 @@ class Attr:
 
     @staticmethod
     def dir(size: int = 0, timestamp: int = 0) -> 'Attr':
-        '''
-        Simple directory with default access mode
-        '''
+        """
+        Simple directory with default access mode.
+        """
 
         return Attr(
             mode=stat.S_IFDIR | 0o755,
@@ -110,22 +110,33 @@ class Attr:
 
 
 class File(metaclass=abc.ABCMeta):
-    '''
-    Abstract base class for a file. To be returned from open() and create().
+    """
+    Abstract base class for a file. To be returned from ``open()`` and ``create()``.
 
-    Methods are optional to implement, except release().
-    '''
+    Methods are optional to implement, except :meth:`File.release`.
+    """
 
     # pylint: disable=missing-docstring, no-self-use
 
     @abc.abstractmethod
     def release(self, flags: int) -> None:
+        """
+        Releases file-related resources.
+        """
         raise NotImplementedError()
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
+        """
+        Read data from an open file. This method is a proxy for
+        :meth:`wildland.storage_backends.base.StorageBackend.read`.
+        """
         raise OptionalError()
 
     def write(self, data: bytes, offset: int) -> int:
+        """
+        Write data to an open file. This method is a proxy for
+        :meth:`wildland.storage_backends.base.StorageBackend.write`.
+        """
         raise OptionalError()
 
     def fgetattr(self) -> Attr:
@@ -145,7 +156,7 @@ class File(metaclass=abc.ABCMeta):
 
 
 class StorageBackend(metaclass=abc.ABCMeta):
-    '''Abstract storage implementation.
+    """Abstract storage implementation.
 
     Any implementation should inherit from this class.
 
@@ -163,7 +174,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     See also Python documentation for OS exceptions:
     https://docs.python.org/3/library/exceptions.html#os-exceptions
-    '''
+    """
     SCHEMA = Schema('storage')
     TYPE = ''
 
@@ -196,23 +207,23 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
-        '''
+        """
         Provide a list of command-line options needed to create this storage.
-        '''
+        """
         raise OptionalError()
 
     @classmethod
     def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        '''
+        """
         Convert provided command-line arguments to a list of storage parameters.
-        '''
+        """
         raise OptionalError()
 
     @staticmethod
     def types() -> Dict[str, Type['StorageBackend']]:
-        '''
+        """
         Lazily initialized type -> storage class mapping.
-        '''
+        """
 
         if not StorageBackend._types:
             # pylint: disable=import-outside-toplevel,cyclic-import
@@ -263,9 +274,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
 
     def clear_cache(self) -> None:
-        '''
+        """
         Clear cache, if any.
-        '''
+        """
 
     def start_watcher(self, handler, ignore_own_events=False):
         self.ignore_own_events = ignore_own_events
@@ -346,13 +357,19 @@ class StorageBackend(metaclass=abc.ABCMeta):
         the rest of the data will be substituted with zeroes. An exception to this is when the
         ``direct_io`` mount option is specified, in which case the return value of the read system
         call will reflect the return value of this operation.
+
+        This method is proxied to :meth:`wildland.storage_backends.base.File.read`.
         """
         return obj.read(length, offset)
 
     def write(self, _path: PurePosixPath, data: bytes, offset: int, obj: File) -> int:
         """
-        Write data to an open file. Write should return exactly the number of bytes requested except
-        on error. An exception to this is when the ``direct_io`` mount option is specified.
+        Write data to an open file.
+
+        Write should return exactly the number of bytes requested except on error. An exception to
+        this is when the ``direct_io`` mount option is specified.
+
+        This method is proxied to :meth:`wildland.storage_backends.base.File.write`.
         """
         return obj.write(data, offset)
 
@@ -413,12 +430,12 @@ class StorageBackend(metaclass=abc.ABCMeta):
         raise OptionalError()
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:
-        '''
+        """
         https://github.com/libfuse/python-fuse/blob/6c3990f9e3dce927c693e66dc14138822b42564b/fuse.py#L474
 
         :param atime: fuse.Timespec access time
         :param mtime: fuse.Timespec modification time
-        '''
+        """
         raise OptionalError()
 
     # Other operations
@@ -519,13 +536,13 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     @staticmethod
     def from_params(params, read_only=False, deduplicate=False) -> 'StorageBackend':
-        '''
+        """
         Construct a Storage from fields originating from manifest.
 
         Assume the fields have been validated before.
 
         :param deduplicate: return cached object instance when called with the same params
-        '''
+        """
 
         if deduplicate:
             deduplicate = params['backend-id']
@@ -548,25 +565,25 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     @staticmethod
     def is_type_supported(storage_type):
-        '''
+        """
         Check if the storage type is supported.
-        '''
+        """
         return storage_type in StorageBackend.types()
 
     @staticmethod
     def validate_manifest(manifest):
-        '''
+        """
         Validate manifest, assuming it's of a supported type.
-        '''
+        """
 
         storage_type = manifest.fields['type']
         cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
 
     def get_url_for_path(self, path):
-        '''
+        """
         Return a URL, under which a file can be accessed.
-        '''
+        """
         assert not path.is_absolute()
         if 'base-url' not in self.params:
             return None
@@ -575,33 +592,33 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
 
 class StaticSubcontainerStorageMixin:
-    '''
-    A backend storage mixin that is used in all backends that support `subcontainers` key
-    in their manifests.
+    """
+    A backend storage mixin that is used in all backends that support ``subcontainers`` key in their
+    manifests.
 
-    The `subcontainers` key is an array that holds a list of relative paths to the subcontainers
-    manifests within the storage itself. The paths are relative to the storage's root (ie  `path`
+    The ``subcontainers`` key is an array that holds a list of relative paths to the subcontainers
+    manifests within the storage itself. The paths are relative to the storage's root (i.e. ``path``
     for Local storage backend).
 
-    When adding this mixin, you should append the following snippet to the backend's SCHEMA
-    ```
-    "subcontainers" : {
-        "type": "array",
-        "items": {
-            "$ref": "types.json#rel-path",
+    When adding this mixin, you should append the following snippet to the backend's ``SCHEMA``::
+
+        "subcontainers" : {
+            "type": "array",
+            "items": {
+                "$ref": "types.json#rel-path",
+            }
         }
-    }
-    ```
-    '''
+
+    """
 
     def list_subcontainers(
         self,
         sig_context: Optional[SigContext] = None,
     ) -> Iterable[dict]:
-        '''
+        """
         Return list of subcontainers manifest fields based and perform an integrity check on each
         container.
-        '''
+        """
         if not sig_context:
             raise ValueError('Signature context must be defined for static subcontainers')
 
