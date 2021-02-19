@@ -304,7 +304,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_note(self, ident: str, title: str, timestamp: int):
         name = re.sub(r'[\0\\/:*?"<>|]', '-', title)
-        yield StaticFileEntry(f'{name}.md', self._get_note(ident), timestamp=timestamp)
+        yield StaticFileEntry(f'note.md', self._get_note(ident), timestamp=timestamp)
 
     def _get_note(self, ident):
         note = self.bear_db.get_note(ident)
