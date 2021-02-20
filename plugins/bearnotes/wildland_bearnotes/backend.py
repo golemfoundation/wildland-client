@@ -262,6 +262,8 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
         paths = [f'/.uuid/{ident}']
         categories = get_note_categories(tags)
+        if len (title) == 0:
+            title = f"{ident}" 
         return {
             'object': 'container',
             'title': '"' + title.replace ('/', '_') + '"',
