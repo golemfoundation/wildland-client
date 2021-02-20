@@ -264,7 +264,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         categories = get_note_categories(tags)
         return {
             'object': 'container',
-            'title': title,
+            'title': '"' + title.replace ('/', '_') + '"',
             'paths': paths,
             'categories': categories,
             'backends': {'storage': [{
