@@ -117,12 +117,15 @@ class Client:
         owner = sig.add_pubkey(pubkey)
         return Client(config=self.config, sig=sig), owner
 
-    def recognize_users(self):
-        '''
-        Load and recognize users from the users directory.
-        '''
+    def recognize_users(self, users: Optional[Iterable[User]] = None):
+        """
+        Load and recognize users from the users directory or a given iterable.
+        """
 
-        for user in self.load_users():
+        if users is None:
+            users = self.load_users()
+
+        for user in users:
             self.users[user.owner] = user
             self.session.recognize_user(user)
 
