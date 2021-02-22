@@ -13,9 +13,9 @@ Synopsis
 Description
 -----------
 
-Sign a |~| manifest given by *<path>*, or stdin if not given. The input file
-can be a |~| manifest with or without header. The existing header will be
-ignored.
+Sign and encrypt (as needed according to `access` fields) a |~| manifest given by *<path>*,
+or stdin if not given. The input file can be a |~| manifest with or without header.
+The existing header will be ignored.
 
 If invoked with manifest type (:command:`wl user sign`, etc.), it will also
 validate the manifest against schema.

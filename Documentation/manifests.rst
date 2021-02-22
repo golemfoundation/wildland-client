@@ -73,6 +73,17 @@ The canonical format for fingerprints is ``0x`` followed by a sha256 hash of the
 encoded in hex. Note that **the fingerprint has to be quoted**, otherwise it will be interpreted as
 a YAML number and fail validation.
 
+Keys are stored in key_dir (as per config file, by default it's (``$HOME/.config/wildland/keys``),
+in files <key_id>.pub (for public key) and <key_id>.sec (for private key).
+
+The public key file format is: key prefix (`Ed`) concatenated with 32 bytes of public signing key
+and 32 bytes of public encryption key, all encoded in base64.
+
+The private key file format is: key prefix (`Ed`) concatenated with 32 bytes of public signing key,
+32 bytes of public encryption key, 32 bytes of private signing key and 32 bytes of private
+encryption key, all encoded in base64.
+
+
 Local URLs
 ----------
 
