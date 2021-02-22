@@ -316,15 +316,18 @@ class Client:
         tilde (~), but only in case of local files.
         '''
 
-        if '*' not in name and '~' not in name:
+        if WildlandPath.match(name):
+            wlpath = WildlandPath.from_str(name)
             try:
-                yield self.load_container_from(name)
+                yield from self.load_container_from_wlpath(wlpath)
             except WildlandError as ex:
                 raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return
 
-        assert not WildlandPath.match(name), \
-            'glob patterns in WildlandPath are not supported'
+        path = self.find_local_manifest(self.container_dir, 'container', name)
+        if path:
+            yield self.load_container_from_path(path)
+            return
 
         paths = sorted(glob.glob(os.path.expanduser(name)))
         logger.debug('expanded %r to %s', name, paths)

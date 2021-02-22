@@ -104,7 +104,7 @@ class WildlandPath:
 
         parts = []
         for part in split[1:-1]:
-            if not cls.ABSPATH_RE.match(part):
+            if part != '*' and not cls.ABSPATH_RE.match(part):
                 raise PathError('Unrecognized absolute path: {!r}'.format(part))
             parts.append(PurePosixPath(part))
 

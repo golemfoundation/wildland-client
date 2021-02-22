@@ -116,13 +116,16 @@ def setup(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb', '--path', '/users/User2')
 
-    cli('container', 'create', 'Container1', '--path', '/path', '--no-encrypt-manifest')
+    cli('container', 'create', 'Container1', '--path', '/path',
+        '--path', '/.uuid/0000000000-1111-0000-1111-000000000000',
+        '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
         '--trusted', '--no-inline')
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest',
+        '--path', '/.uuid/0000000000-1111-1111-1111-000000000000',
         '--path', '/path/subpath',
         '--path', '/other/path',
         '--path', '/unsigned')
@@ -131,6 +134,7 @@ def setup(base_dir, cli):
         '--container', 'Container2', '--no-inline')
 
     cli('container', 'create', 'C.User2',
+        '--path', '/.uuid/0000000000-2222-0000-1111-000000000000',
         '--user', 'User2',
         '--path', '/users/User2',
         '--update-user', '--no-encrypt-manifest')
@@ -322,8 +326,10 @@ def setup_pattern(request, base_dir, cli):
         '--manifest-pattern', request.param)
 
     cli('container', 'create', 'Container2',
+        '--path', '/.uuid/0000000000-0000-0000-2222-000000000000',
         '--path', '/path1', '--no-encrypt-manifest')
     cli('container', 'create', 'Container3',
+        '--path', '/.uuid/0000000000-0000-0000-3333-000000000000',
         '--path', '/path2', '--no-encrypt-manifest')
 
     os.mkdir(base_dir / 'storage1/manifests/')
@@ -331,6 +337,14 @@ def setup_pattern(request, base_dir, cli):
                     base_dir / 'storage1/manifests/path1.yaml')
     shutil.copyfile(base_dir / 'containers/Container3.container.yaml',
                     base_dir / 'storage1/manifests/path2.yaml')
+    if '{path}' in request.param:
+        os.mkdir(base_dir / 'storage1/manifests/.uuid/')
+        shutil.copyfile(
+            base_dir / 'containers/Container2.container.yaml',
+            base_dir / 'storage1/manifests/.uuid/0000000000-0000-0000-2222-000000000000.yaml')
+        shutil.copyfile(
+            base_dir / 'containers/Container3.container.yaml',
+            base_dir / 'storage1/manifests/.uuid/0000000000-0000-0000-3333-000000000000.yaml')
 
 
 def test_read_container_traverse_pattern(setup_pattern, base_dir):
@@ -347,6 +361,19 @@ def test_read_container_traverse_pattern(setup_pattern, base_dir):
         aliases={'default': '0xaaa'})
     container = next(search.read_container())
     assert PurePosixPath('/path2') in container.paths
+
+def test_read_container_wildcard(setup_pattern, base_dir):
+    # pylint: disable=unused-argument
+    client = Client(base_dir=base_dir)
+    client.recognize_users()
+
+    search = Search(client, WildlandPath.from_str(':/path:*:'),
+        aliases={'default': '0xaaa'})
+    containers = list(search.read_container())
+    assert len(containers) == 2
+    paths = sorted([p for p in c.paths if '/path' in str(p)]
+                   for c in containers)
+    assert paths == [[PurePosixPath('/path1')], [PurePosixPath('/path2')]]
 
 
 ## Manifests with wildland paths
