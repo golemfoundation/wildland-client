@@ -88,7 +88,10 @@ type: local
         self.template.environment.tests['regex_contains'] = regex_contains
         self.file_name = file_name
         if not name:
-            self.name = self.file_name.rstrip(TEMPLATE_SUFFIX)
+            if self.file_name.endswith(TEMPLATE_SUFFIX):
+                self.name = self.file_name[:-len(TEMPLATE_SUFFIX)]
+            else:
+                self.name = self.file_name
         else:
             self.name = name
 
