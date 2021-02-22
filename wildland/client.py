@@ -88,11 +88,12 @@ class Client:
         except (ConnectionRefusedError, FileNotFoundError):
             pass
 
+        key_dir = Path(self.config.get('key-dir'))
+
         if sig is None:
             if self.config.get('dummy'):
-                sig = DummySigContext(Path(self.config.get('key-dir')))
+                sig = DummySigContext(key_dir)
             else:
-                key_dir = Path(self.config.get('key-dir'))
                 sig = SodiumSigContext(key_dir)
 
         self.session: Session = Session(sig)

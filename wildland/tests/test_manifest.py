@@ -202,7 +202,7 @@ def test_encrypt_fail(sig, owner):
         'key': 'VALUE'
     }
     encrypted_data = Manifest.encrypt(test_data, sig)
-    (sig.key_dir / f'{owner}.sec').unlink()
+    del sig.private_keys[owner]
     with pytest.raises(ManifestError):
         Manifest.decrypt(encrypted_data, sig)
 
@@ -235,7 +235,7 @@ def test_encrypt_no(sig, owner):
     assert encrypted_data == test_data
 
 
-def test_encrypt_subcontainer(sig, owner):
+def test_encrypt_inline_storage(sig, owner):
     additional_owner, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
 

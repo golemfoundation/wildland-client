@@ -59,11 +59,10 @@ class SigContext:
     def __init__(self, key_dir: Path):
         """
         Sets up the SigContext. By default, assumes keys are files stored in a key_dir.
-        :param key_dir:
-        :type key_dir:
         """
         self.key_dir = key_dir
         self.keys: Dict[str, str] = {}
+        self.private_keys: Dict[str, str] = {}
         self.key_ownership: Dict[str, List[str]] = {}
         self.use_local_keys = False
 
@@ -72,7 +71,6 @@ class SigContext:
         """
         Turns a public key into owner/key id.
         :return: key_id
-        :rtype: str
         """
         return '0x' + sha256(base64.b64decode(pubkey)).hexdigest()
 
@@ -89,6 +87,7 @@ class SigContext:
         """
         sig = self.__class__(self.key_dir)
         sig.keys.update(self.keys)
+        sig.private_keys.update(self.private_keys)
         sig.key_ownership.update(self.key_ownership)
         return sig
 
@@ -122,6 +121,12 @@ class SigContext:
                     self.key_ownership[key_id].append(owner)
             else:
                 self.key_ownership[key_id] = [owner]
+
+        private_key_file = self.key_dir / f'{key_id}.sec'
+        if private_key_file.exists():
+            private_key = private_key_file.read_text()
+            self.private_keys[key_id] = private_key
+
         return key_id
 
     def get_primary_pubkey(self, owner: str) -> str:
@@ -198,15 +203,16 @@ class SigContext:
         if key_id in self.key_ownership:
             del self.key_ownership[key_id]
 
-    def is_private_key_available(self, key_id):
+    def is_private_key_available(self, key_id: str) -> bool:
         """
         :param key_id: key id for the key to check
-        :type key_id: str
         :return: if private key for the given key is available
-        :rtype: bool
         """
         if key_id not in self.keys:
             return False
+
+        if key_id in self.private_keys:
+            return True
 
         secret_key_file = self.key_dir / f'{key_id}.sec'
         return secret_key_file.exists()
@@ -254,6 +260,7 @@ class DummySigContext(SigContext):
                     self.key_ownership[key_id].append(owner)
             else:
                 self.key_ownership[key_id] = [owner]
+        self.private_keys[key_id] = pubkey
         return key_id
 
     def get_primary_pubkey(self, owner: str) -> str:
@@ -285,9 +292,7 @@ class DummySigContext(SigContext):
             del self.key_ownership[key_id]
 
     def is_private_key_available(self, key_id):
-        if key_id not in self.keys:
-            return False
-        return True
+        return key_id in self.private_keys
 
     @staticmethod
     def _fingerprint(pubkey: str) -> str:
@@ -364,13 +369,9 @@ class SodiumSigContext(SigContext):
         Turn a concatenated base64 key string into a key bytes. Handles private/public keys
         and signing/encryption keys.
         :param key: key string in base64
-        :type key: str
         :param public: return public key (if False, return private key)
-        :type public: bool
         :param signing: return signing key (if False, return encryption key)
-        :type signing: bool
         :return: key bytes
-        :rtype: bytes
         """
         key_bytes = base64.b64decode(key)
         if not key_bytes[:len(self.KEY_PREFIX)] == self.KEY_PREFIX:
@@ -386,39 +387,32 @@ class SodiumSigContext(SigContext):
             return key_bytes[self.PUBKEY_LEN:]
 
         key_bytes = key_bytes[(2 * self.PUBKEY_LEN):]
-        if signing:
-            if not len(key_bytes) == 2 * self.PRIVATE_KEY_LEN:
-                raise SigError('Incorrect key format')
 
+        if not len(key_bytes) == 2 * self.PRIVATE_KEY_LEN:
+            raise SigError('Incorrect key format')
+
+        if signing:
             return key_bytes[:self.PRIVATE_KEY_LEN]
         return key_bytes[self.PRIVATE_KEY_LEN:]
 
-    def _files_to_key(self, key_id: str, signing: bool = True) -> Tuple[bytes, bytes]:
+    def _get_key(self, key_id: str, public: bool = True, signing: bool = True) -> bytes:
         """
-        Takes a key_id and returns pair of bytes: public and private signing or encryptiong keys
-        (optionally public key and None if private key does not exist)
-        signing = True returns the signing key, False the encryption key.
+        Takes a key_id and tries to load it, first from cache, then from disk:
+        returns public or private signing or encrypting key
         """
-        public_file = self.key_dir / f'{key_id}.pub'
-        private_file = self.key_dir / f'{key_id}.sec'
-
-        if not public_file.exists():
-            raise FileNotFoundError(f'File {public_file} not found.')
-
-        public_bytes = self._key_to_subkey(public_file.read_text(), public=True, signing=signing)
-
-        if private_file.exists():
-            if not private_file.read_bytes().startswith(public_file.read_bytes()):
-                raise SigError(f'Private key file {private_file} format incorrect.')
-
-            private_text = private_file.read_text()
-
-            private_bytes = self._key_to_subkey(private_text, public=False, signing=signing)
-
+        if public:
+            key = self.keys.get(key_id, None)
         else:
-            private_bytes = None
+            key = self.private_keys.get(key_id, None)
 
-        return public_bytes, private_bytes
+        if not key and self.use_local_keys:
+            file = self.key_dir / f'{key_id}.pub' if public else self.key_dir / f'{key_id}.sec'
+            key = file.read_text()
+
+        if not key:
+            raise FileNotFoundError
+
+        return self._key_to_subkey(key, public=public, signing=signing)
 
     def generate(self) -> Tuple[str, str]:
         """
@@ -445,11 +439,8 @@ class SodiumSigContext(SigContext):
         """
         Get first available secret key of a given user, returns a tuple of key id, private key.
         :param signing: should we retrieve the signing key
-        :type signing: bool
         :param owner: for which user
-        :type owner: str
         :return: key id, signing or encrypting private key
-        :rtype: str, bytes
         """
         if owner in self.keys:
             key_candidates = [owner]
@@ -461,10 +452,10 @@ class SodiumSigContext(SigContext):
                                    if owner in self.key_ownership[key_id]])
 
         for key_candidate in key_candidates:
-            _, secret_key = self._files_to_key(key_candidate, signing)
-
-            if secret_key:
-                return key_candidate, secret_key
+            try:
+                return key_candidate, self._get_key(key_candidate, public=False, signing=signing)
+            except FileNotFoundError:
+                continue
 
         raise SigError(f'Secret key not found: {owner}')
 
@@ -526,18 +517,16 @@ class SodiumSigContext(SigContext):
 
     def decrypt(self, data: str, encrypted_keys: List[str]) -> bytes:
         decryption_key = None
-        for key in self.keys:
-            try:
-                _, private_key = self._get_private_key(key, signing=False)
-            except SigError:
-                # File not found
-                continue
+
+        for key in self.private_keys.values():
+            private_key = self._key_to_subkey(key, public=False, signing=False)
 
             box = SealedBox(PrivateKey(private_key, encoder=RawEncoder))
 
             for encrypted_key in encrypted_keys:
                 try:
                     decryption_key = box.decrypt(base64.b64decode(encrypted_key))
+                    break
                 except CryptoError:
                     pass
             if decryption_key:

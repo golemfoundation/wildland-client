@@ -661,7 +661,7 @@ def test_container_edit_encryption(cli, base_dir):
     editor = r'sed -i s,encrypted,FAILURE,g'
 
     cli('container', 'edit', 'Container', '--editor', editor)
-    with open(base_dir / 'users/User.user.yaml') as f:
+    with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
     assert '"FAILURE"' not in data
 

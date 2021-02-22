@@ -181,9 +181,7 @@ def test_signing_multiple_keys(sig):
     sig.add_pubkey(primary_pubkey)
     sig.add_pubkey(additional_pubkey, primary_owner)
 
-    private_file = sig.key_dir / f'{primary_owner}.sec'
-
-    private_file.unlink()
+    del sig.private_keys[primary_owner]
 
     test_data = b'hello world'
 
@@ -233,7 +231,7 @@ def test_encrypt_not_found(sig, owner):
 
     enc_data, enc_keys = sig.encrypt(test_data, [pubkey])
 
-    (sig.key_dir / f'{owner}.sec').unlink()
+    del sig.private_keys[owner]
 
     with pytest.raises(SigError):
         sig.decrypt(enc_data, enc_keys)

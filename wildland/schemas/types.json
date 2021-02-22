@@ -69,13 +69,13 @@
                 "minItems": 1,
                 "maxItems": 1,
                 "items": {"$ref":  "#/access-full"},
-                "description": "list of storage backend URLs, or inlined storage manifests"
+                "description": "Open access to manifest (no encryption)"
             },
             {
                 "type": "array",
                 "items": {"$ref":  "#/access-user"},
                 "minItems": 0,
-                "description": "list of storage backend URLs, or inlined storage manifests"
+                "description": "list of users with access to the manifest (owner always has access and does not have to be listed here)"
             }
         ],
         "description": "complete access entry"

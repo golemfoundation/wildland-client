@@ -75,8 +75,8 @@ class Manifest:
             raise ManifestError('Trying to read an unsigned manifest')
         return self._fields
 
-    @classmethod
-    def encrypt(cls, fields: dict, sig: SigContext, owner_pubkey: Optional[str] = None) -> dict:
+    @staticmethod
+    def encrypt(fields: dict, sig: SigContext, owner_pubkey: Optional[str] = None) -> dict:
         """
         Encrypt provided dict with the SigContext.
         Encrypts to 'owner' keys, unless 'access' field specifies otherwise.
@@ -93,7 +93,7 @@ class Manifest:
             backends_update = []
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'access' in backend:
-                    backends_update.append((backend, cls.encrypt(backend, sig, owner_pubkey)))
+                    backends_update.append((backend, Manifest.encrypt(backend, sig, owner_pubkey)))
 
             for old, new in backends_update:
                 fields['backends']['storage'].remove(old)
@@ -234,8 +234,8 @@ class Manifest:
         fields = cls.update_obsolete(fields)
         return cls(None, fields, data)
 
-    def sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
-             encrypt=True):
+    def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
+                         encrypt=True):
         '''
         Sign a previously unsigned manifest.
         If attach_pubkey is true, attach the public key to the signature.

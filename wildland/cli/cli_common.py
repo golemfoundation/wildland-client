@@ -121,7 +121,7 @@ def sign(ctx, input_file, output_file, in_place):
         validate_manifest(manifest, manifest_type)
 
     try:
-        manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+        manifest.encrypt_and_sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
     except SigError as e:
         raise click.ClickException(f'Error signing manifest: {e}')
     signed_data = manifest.to_bytes()
@@ -248,7 +248,8 @@ def edit(ctx, editor, input_file, remount):
         validate_manifest(manifest, manifest_type)
 
     try:
-        manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+        manifest.encrypt_and_sign(obj.client.session.sig,
+                                  only_use_primary_key=(manifest_type == 'user'))
     except SigError as se:
         raise CliError(f'Cannot save manifest: {se}') from se
 
@@ -292,7 +293,7 @@ def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
     if manifest_type is not None:
         validate_manifest(modified, manifest_type)
 
-    modified.sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+    modified.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
 
     signed_data = modified.to_bytes()
     with open(manifest_path, 'wb') as f:

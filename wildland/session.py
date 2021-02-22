@@ -91,16 +91,18 @@ class Session:
         '''
         Create a signed manifest out of a User object.
         '''
+
+        manifest = user.to_unsigned_manifest()
+
         try:
-            if user.manifest and user.manifest.fields == user.to_unsigned_manifest().fields:
+            if user.manifest and user.manifest.fields == manifest.fields:
                 return user.manifest.to_bytes()
         except ManifestError:
             pass
 
-        manifest = user.to_unsigned_manifest()
         sig_temp = self.sig.copy()
         user.add_user_keys(sig_temp)
-        manifest.sign(sig_temp, only_use_primary_key=True)
+        manifest.encrypt_and_sign(sig_temp, only_use_primary_key=True)
         return manifest.to_bytes()
 
     def load_container(
@@ -158,11 +160,13 @@ class Session:
         from a signed manifest and did not change, returns that object, otherwise creates and
         signs the manifest.
         """
+        manifest = obj.to_unsigned_manifest()
+
         try:
-            if obj.manifest and obj.manifest.fields == obj.to_unsigned_manifest().fields:
+            if obj.manifest and obj.manifest.fields == manifest.fields:
                 return obj.manifest.to_bytes()
         except ManifestError:
             pass
-        manifest = obj.to_unsigned_manifest()
-        manifest.sign(self.sig)
+
+        manifest.encrypt_and_sign(self.sig)
         return manifest.to_bytes()

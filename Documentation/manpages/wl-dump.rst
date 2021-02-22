@@ -13,7 +13,7 @@ Description
 -----------
 
 The command will output manifest contents (without signature and by default decrypted)
-in a machine-readable way (JSON).
+in a machine-readable way.
 
 If invoked with manifest type (:command:`wl user dump`, etc.), can also be used with short user/
 container/etc names such as 'User'.
