@@ -121,7 +121,8 @@ def sign(ctx, input_file, output_file, in_place):
         validate_manifest(manifest, manifest_type)
 
     try:
-        manifest.encrypt_and_sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+        manifest.encrypt_and_sign(obj.client.session.sig,
+                                  only_use_primary_key=(manifest_type == 'user'))
     except SigError as e:
         raise click.ClickException(f'Error signing manifest: {e}')
     signed_data = manifest.to_bytes()

@@ -75,41 +75,40 @@ class Manifest:
             raise ManifestError('Trying to read an unsigned manifest')
         return self._fields
 
-    @staticmethod
-    def encrypt(fields: dict, sig: SigContext, owner_pubkey: Optional[str] = None) -> dict:
+    @classmethod
+    def encrypt(cls, fields: dict, sig: SigContext, owner: Optional[str] = None) -> dict:
         """
         Encrypt provided dict with the SigContext.
         Encrypts to 'owner' keys, unless 'access' field specifies otherwise.
         Inline storages may have their own access fields.
         Returns encrypted dict.
         """
-        if not owner_pubkey:
+        if not owner:
             owner = fields.get('owner', None)
             if not owner:
                 raise ManifestError('Owner not found')
-            owner_pubkey = sig.get_primary_pubkey(owner)
 
         if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
             backends_update = []
             for backend in fields['backends']['storage']:
                 if isinstance(backend, dict) and 'access' in backend:
-                    backends_update.append((backend, Manifest.encrypt(backend, sig, owner_pubkey)))
+                    backends_update.append((backend, cls.encrypt(backend, sig, owner)))
 
             for old, new in backends_update:
                 fields['backends']['storage'].remove(old)
                 fields['backends']['storage'].append(new)
 
-        keys_to_encrypt = [owner_pubkey]
+        keys_to_encrypt = sig.get_all_pubkeys(owner)
 
         if 'access' in fields.keys():
             for data_dict in fields['access']:
                 user = data_dict['user']
                 if user == '*':
                     return fields
-                pubkey = sig.get_primary_pubkey(user)
-                if not pubkey:
+                pubkeys = sig.get_all_pubkeys(user)
+                if not pubkeys:
                     raise ManifestError(f'Cannot encrypt to {user}.')
-                keys_to_encrypt.append(pubkey)
+                keys_to_encrypt.extend(pubkeys)
         data_to_encrypt = yaml.dump(fields, sort_keys=False).encode()
         try:
             encrypted_data, encrypted_keys = sig.encrypt(data_to_encrypt, keys_to_encrypt)
@@ -249,7 +248,7 @@ class Manifest:
         data = self.original_data
 
         if fields['object'] in ['container', 'storage'] and encrypt:
-            fields = self.encrypt(fields, sig_context)
+            fields = Manifest.encrypt(fields, sig_context)
             data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
 
         owner = self._fields['owner']

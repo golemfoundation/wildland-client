@@ -129,6 +129,13 @@ class SigContext:
 
         return key_id
 
+    def get_all_pubkeys(self, owner: str):
+        """
+        Get all pubkeys owned by a given owner.
+        """
+        return [self.keys[key_id] for key_id in self.key_ownership
+                if owner in self.key_ownership[key_id]] + [self.get_primary_pubkey(owner)]
+
     def get_primary_pubkey(self, owner: str) -> str:
         """
         Get owner's primary/own pubkey.
@@ -162,6 +169,9 @@ class SigContext:
 
         pubkey = public_path.read_text()
         owner = self.fingerprint(pubkey)
+        if owner != key_id:
+            logger.warning('Suspicious key fingerprint encountered; expected %s, got %s',
+                           key_id, owner)
         return owner, pubkey
 
     def sign(self, owner: str, data: bytes, only_use_primary_key: bool = False) -> str:
@@ -214,8 +224,7 @@ class SigContext:
         if key_id in self.private_keys:
             return True
 
-        secret_key_file = self.key_dir / f'{key_id}.sec'
-        return secret_key_file.exists()
+        return False
 
     def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
         """
@@ -480,6 +489,11 @@ class SodiumSigContext(SigContext):
         """
         Verify signature for data, along with pubkey returning the recognized owner.
         """
+        if len(signature) == 100:
+            raise SigError(
+                'Old key format detected. Please create new encryption and signing keys '
+                'using the new format.')
+
         try:
             signer, signature = signature.split(':', 1)
         except ValueError as ve:

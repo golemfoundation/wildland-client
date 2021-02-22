@@ -218,6 +218,27 @@ def test_encrypt_access(sig, owner):
     }
     encrypted_data = Manifest.encrypt(test_data, sig)
 
+    del sig.private_keys[owner]
+    (sig.key_dir / f'{owner}.sec').unlink()
+
+    decrypted_data = Manifest.decrypt(encrypted_data, sig)
+    assert decrypted_data['owner'] == owner
+    assert decrypted_data['key'] == 'VALUE'
+
+
+def test_encrypt_add_owner(sig, owner):
+    _, additional_pubkey = sig.generate()
+    sig.add_pubkey(additional_pubkey, owner)
+
+    test_data = {
+        'owner': owner,
+        'key': 'VALUE',
+    }
+    encrypted_data = Manifest.encrypt(test_data, sig)
+
+    assert len(encrypted_data['encrypted']['encrypted-keys']) == 2
+
+    del sig.private_keys[owner]
     (sig.key_dir / f'{owner}.sec').unlink()
 
     decrypted_data = Manifest.decrypt(encrypted_data, sig)
