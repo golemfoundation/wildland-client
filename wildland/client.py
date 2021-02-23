@@ -76,6 +76,11 @@ class Client:
         self.bridge_dir = Path(self.config.get('bridge-dir'))
         self.template_dir = Path(self.config.get('template-dir'))
 
+        dirs = [self.user_dir, self.container_dir, self.storage_dir,
+                self.bridge_dir, self.template_dir]
+        for d in dirs:
+            d.mkdir(exist_ok=True, parents=True)
+
         mount_dir = Path(self.config.get('mount-dir'))
         socket_path = Path(self.config.get('socket-path'))
         self.fs_client = WildlandFSClient(mount_dir, socket_path)

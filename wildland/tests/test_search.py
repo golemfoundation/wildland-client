@@ -483,7 +483,6 @@ infrastructures:
 
     remote_user_file.write_bytes(user_data)
 
-    os.mkdir(base_dir / 'bridges/')
     bridge_file = base_dir / 'bridges/TestBridge1.bridge.yaml'
     bridge_file.write_bytes(f"""\
 signature: |

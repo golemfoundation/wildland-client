@@ -2082,7 +2082,6 @@ def test_import_user_existing(cli, base_dir, tmpdir):
     cli('user', 'import', str(destination))
 
     # nothing should be imported if the user already exists locally
-    assert not (base_dir / 'bridges').exists()
     assert len(os.listdir(base_dir / 'users')) == 2
 
 

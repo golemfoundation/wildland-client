@@ -198,7 +198,7 @@ class TemplateManager:
     def __init__(self, template_dir: Path):
         self.template_dir = template_dir
         if not self.template_dir.exists():
-            self.template_dir.mkdir()
+            self.template_dir.mkdir(parents=True)
 
     def storage_sets(self) -> List[StorageSet]:
         """
