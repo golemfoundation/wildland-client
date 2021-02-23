@@ -122,6 +122,8 @@ class File(metaclass=abc.ABCMeta):
     def release(self, flags: int) -> None:
         """
         Releases file-related resources.
+        Should accept flag constants from os module (e.g. os.O_RDWR), but they might be ignored
+        (depending on backend specifics).
         """
         raise NotImplementedError()
 
@@ -333,14 +335,18 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def open(self, path: PurePosixPath, flags: int) -> File:
         """
         Open a file with given ``path``. Access ``flags`` should be used to check if the operation
-        is permitted.
+        is permitted. Flags are expressed in POSIX style (see os module flag constants).
+        Caution: flags such as read-only may be ignored by backends, this is not checked
+        anywhere in base storage backend. For example of testing if flags are respected, see
+        test_backend.test_read_only_flags
         """
         raise NotImplementedError()
 
     def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
         """
         Create and open a file. If the file does not exist, first create it with the specified mode,
-        and then open it.
+        and then open it. Flags are expressed in POSIX style (see os module flag constants). They
+        might be ignored by backend implementation, depending on backend specifics.
         """
         raise OptionalError()
 
@@ -421,12 +427,21 @@ class StorageBackend(metaclass=abc.ABCMeta):
         raise OptionalError()
 
     def chmod(self, path: PurePosixPath, mode: int) -> None:
+        """
+        Set file/directory access mode. Optional.
+        """
         raise OptionalError()
 
-    def chown(self, _path: PurePosixPath, _uid: int, _gid: int) -> None:
-        return OptionalError()
+    def chown(self, path: PurePosixPath, uid: int, gid: int) -> None:
+        """
+        Set file/directory owner. Optional.
+        """
+        raise OptionalError()
 
     def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+        """
+        Move file/directory. Optional.
+        """
         raise OptionalError()
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:

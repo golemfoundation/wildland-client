@@ -19,6 +19,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 
 import os
+import io
 import sqlite3
 import time
 from typing import Callable, List, Tuple
@@ -30,7 +31,7 @@ import pytest
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
-from ..storage_backends.base import StorageBackend, verify_local_access
+from ..storage_backends.base import StorageBackend, verify_local_access, OptionalError
 from ..storage_backends.watch import FileEvent
 
 
@@ -327,3 +328,27 @@ def test_local_access_file(tmp_path):
 
     verify_local_access(tmp_path / 'subdir/', '0xaaaa', False)
     verify_local_access(tmp_path / 'subdir/filename', '0xaaaa', False)
+
+
+# Test respecting of read-only flags
+
+def test_read_only_flags(tmpdir, storage_backend):
+    backend, storage_dir = make_storage(tmpdir, storage_backend)
+    file_path = Path('testfile')
+    disk_path = Path(storage_dir / 'testfile')
+
+    file = backend.create(file_path, flags=os.O_CREAT)
+    file.release(0)
+
+    assert disk_path.exists()
+
+    with backend.open(file_path, flags=os.O_RDWR) as f:
+        f.write(b'test data', offset=0)
+
+    assert disk_path.read_bytes() == b'test data'
+
+    with backend.open(file_path, flags=os.O_RDONLY) as f:
+        with pytest.raises((io.UnsupportedOperation, OptionalError)):
+            f.write(b'other data', offset=0)
+
+        assert f.read() == b'test data'
