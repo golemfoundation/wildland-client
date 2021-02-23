@@ -107,6 +107,9 @@ class WildlandFS(fuse.Fuse):
         self.fuse_args.add('direct_io')
         # allow samba server to access it too
         self.fuse_args.add('allow_other')
+        # allow nonempty mount_dir (due to some operating systems insisting on putting random files
+        # in every directory); this is not destructive and, worst case scenario, leads to confusion
+        self.fuse_args.add('nonempty')
 
         self.resolver = WildlandFSConflictResolver(self)
         self.control_server = ControlServer()
