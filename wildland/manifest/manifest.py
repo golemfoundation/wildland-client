@@ -233,7 +233,7 @@ class Manifest:
                 possible_owners.extend(sig_context.get_possible_owners(header_signer))
             if fields.get('owner') not in possible_owners:
                 raise ManifestError(
-                    'Manifest owner does not have access to signer key: header {!r}, '
+                    'Manifest owner does not have access to signing key: header {!r}, '
                     'manifest {!r}'.format(header_signer, fields.get('owner')))
 
         manifest = cls(header, fields, rest_data)

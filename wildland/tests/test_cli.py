@@ -1473,7 +1473,7 @@ def test_container_wrong_signer(cli, base_dir):
     modify_file(base_dir / 'containers/Container.container.yaml',
                 "owner: '0xbbb'", "owner: '0xaaa'")
 
-    with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
+    with pytest.raises(ManifestError, match='Manifest owner does not have access to signing key'):
         cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
             '--container', 'Container')
 

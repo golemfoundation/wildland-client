@@ -78,7 +78,7 @@ pubkeys:
     # adding the pubkey should make a difference only when allow_only_primary_key is False
     sig.add_pubkey('key.0x999', owner)
 
-    with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
+    with pytest.raises(ManifestError, match='Manifest owner does not have access to signing key'):
         Manifest.from_bytes(test_data, sig, allow_only_primary_key=True)
 
     manifest = Manifest.from_bytes(test_data, sig, allow_only_primary_key=False)

@@ -108,7 +108,7 @@ key2: "value2"
 '''.encode()
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
 
-    with pytest.raises(ManifestError, match='Manifest owner does not have access to signer key'):
+    with pytest.raises(ManifestError, match='Manifest owner does not have access to signing key'):
         Manifest.from_bytes(data, sig)
 
 def test_parse_guess_manifest_type_bridge(sig, owner):
