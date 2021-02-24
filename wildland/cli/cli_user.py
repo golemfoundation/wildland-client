@@ -136,10 +136,7 @@ def list_(obj: ContextObj):
 
     default_user = obj.client.config.get('@default')
     default_owner = obj.client.config.get('@default-owner')
-    try:
-        default_override = 'default-user' in obj.fs_client.run_control_command('status')
-    except (ConnectionRefusedError, FileNotFoundError):
-        default_override = False
+    default_override = (default_user != obj.client.config.get('@default', use_override=False))
 
     for user in users:
         path_string = str(user.local_path)

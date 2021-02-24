@@ -60,7 +60,7 @@ class Config:
         self.file_fields = file_fields
         self.override_fields: Dict[str, Any] = {}
 
-    def get(self, name: str):
+    def get(self, name: str, use_override=True):
         '''
         Get a configuration value for given name. The name has to be known,
         i.e. exist in defaults.
@@ -68,8 +68,9 @@ class Config:
 
         assert name in self.default_fields, f'unknown config name: {name}'
 
-        if name in self.override_fields:
-            return self.override_fields[name]
+        if use_override:
+            if name in self.override_fields:
+                return self.override_fields[name]
         if name in self.file_fields:
             return self.file_fields[name]
         return self.default_fields[name]
