@@ -440,8 +440,8 @@ def modify_file(path, pattern, replacement):
         f.write(data)
 
 
-@pytest.mark.parametrize('signer', ['0xfff', '0xbbb'])
-def test_traverse_other_key(cli, base_dir, client, signer):
+@pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
+def test_traverse_other_key(cli, base_dir, client, owner):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users()
@@ -455,7 +455,7 @@ def test_traverse_other_key(cli, base_dir, client, signer):
 
     user_data = f'''\
 signature: |
-  dummy.{signer}
+  dummy.{owner}
 ---
 object: user
 owner: '0xfff'
@@ -503,13 +503,13 @@ paths:
         WildlandPath.from_str(':/path:/file.txt'),
         aliases={'default': '0xddd'})
 
-    if signer == '0xfff':
+    if owner == '0xfff':
         data = search.read_file()
         assert data == b'Hello world'
 
-    elif signer == '0xbbb':
+    elif owner == '0xbbb':
         with pytest.raises(ManifestError,
-                           match="Manifest owner does not have access to signer key"):
+                           match="Manifest owner does not have access to signing key"):
             data = search.read_file()
 
 

@@ -134,17 +134,17 @@ def list_(obj: ContextObj):
     obj.client.recognize_users()
     users = obj.client.load_users()
 
+    default_user = obj.client.config.get('@default')
+    default_owner = obj.client.config.get('@default-owner')
+    default_override = (default_user != obj.client.config.get('@default', use_override=False))
+
     for user in users:
         path_string = str(user.local_path)
-        if user.owner == obj.client.config.get('@default'):
+        if user.owner == default_user:
             path_string += ' (@default)'
-            try:
-                fuse_status = obj.fs_client.run_control_command('status')
-                if 'default-user' in fuse_status:
-                    path_string += '(@default overriden by wl start parameters)'
-            except (ConnectionRefusedError, FileNotFoundError):
-                pass
-        if user.owner == obj.client.config.get('@default-owner'):
+            if default_override:
+                path_string += ' (@default overriden by wl start parameters)'
+        if user.owner == default_owner:
             path_string += ' (@default-owner)'
         click.echo(path_string)
         click.echo(f'  owner: {user.owner}')

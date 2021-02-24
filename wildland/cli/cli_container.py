@@ -219,7 +219,7 @@ def _container_info(client, container):
             user_desc = ''
     except ManifestError:
         user_desc = ''
-    click.echo(f'  signer: {container.owner}' + user_desc)
+    click.echo(f'  owner: {container.owner}' + user_desc)
     for container_path in container.expanded_paths:
         click.echo(f'  path: {container_path}')
     for storage_path in container.backends:
