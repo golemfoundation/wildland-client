@@ -296,7 +296,8 @@ class WildlandFS(fuse.Fuse):
         supports default (default_user)
         """
         result = dict()
-        result['default-user'] = self.default_user
+        if self.default_user:
+            result['default-user'] = self.default_user
         return result
 
     @control_command('add-watch')
