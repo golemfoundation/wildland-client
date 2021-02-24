@@ -117,6 +117,7 @@ def set_default_(obj: ContextObj, user, name):
     Set default for a user.
     """
 
+    user_name = user
     template_manager = TemplateManager(obj.client.template_dir)
     try:
         template_manager.get_storage_set(name)
@@ -125,12 +126,12 @@ def set_default_(obj: ContextObj, user, name):
 
     obj.client.recognize_users()
     try:
-        user = obj.client.load_user_by_name(user)
+        user = obj.client.load_user_by_name(user_name)
     except ManifestError as ex:
-        raise CliError(f'User {user} load failed: {ex}') from ex
+        raise CliError(f'User {user_name} load failed: {ex}') from ex
 
     default_sets = obj.client.config.get('default-storage-set-for-user')
     default_sets[user.owner] = name
     obj.client.config.update_and_save({'default-storage-set-for-user': default_sets})
 
-    click.echo(f'Default storage set for {user} set to {name}.')
+    click.echo(f'Default storage set for {user_name} set to {name}.')

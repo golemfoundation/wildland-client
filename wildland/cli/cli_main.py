@@ -26,6 +26,7 @@ from pathlib import Path
 
 import click
 
+from wildland.exc import WildlandError
 from .cli_base import (
     aliased_group,
     CliError,
@@ -220,7 +221,10 @@ def stop(obj: ContextObj):
     '''
 
     click.echo(f'Unmounting: {obj.mount_dir}')
-    obj.fs_client.unmount()
+    try:
+        obj.fs_client.unmount()
+    except WildlandError as ex:
+        raise CliError(ex) from ex
 
 
 @main.command(short_help='watch for changes')

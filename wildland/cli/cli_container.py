@@ -32,12 +32,14 @@ import signal
 import click
 import daemon
 
-from xdg import BaseDirectory
+from click import ClickException
 from daemon import pidfile
+from xdg import BaseDirectory
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, set_field
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
+from ..exc import WildlandError
 from ..storage import Storage, StorageBackend
 from ..client import Client
 from ..fs_client import WildlandFSClient, WatchEvent
@@ -178,7 +180,7 @@ def update(obj: ContextObj, storage, cont):
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
     if container.local_path is None:
-        raise click.ClickException('Can only update a local manifest')
+        raise ClickException('Can only update a local manifest')
 
     if not storage:
         print('No change')
@@ -472,16 +474,25 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
 
     The Wildland system has to be mounted first, see ``wl mount``.
     '''
-    obj.fs_client.ensure_mounted()
-    obj.client.recognize_users()
+    try:
+        obj.fs_client.ensure_mounted()
+        obj.client.recognize_users()
+    except WildlandError as ex:
+        raise ClickException(ex) from ex
 
     params: List[Tuple[Container, Storage, List[PurePosixPath], Container]] = []
+    failed = False
+    exc_msg = 'Failed to load some container manifests:\n'
     for container_name in container_names:
-        for container in obj.client.load_containers_from(container_name):
-            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            params.extend(prepare_mount(
-                obj, container, container.local_path, user_paths,
-                remount, with_subcontainers, None, quiet, only_subcontainers))
+        try:
+            for container in obj.client.load_containers_from(container_name):
+                user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+                params.extend(prepare_mount(
+                    obj, container, container.local_path, user_paths,
+                    remount, with_subcontainers, None, quiet, only_subcontainers))
+        except WildlandError as ex:
+            failed = True
+            exc_msg += str(ex) + '\n'
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
@@ -507,6 +518,9 @@ def mount(obj: ContextObj, container_names, remount, save, with_subcontainers: b
             obj.client.config.update_and_save(
                 {'default-containers': new_default_containers})
 
+    if failed:
+        raise ClickException(exc_msg)
+
 
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
@@ -521,29 +535,38 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     identify the container by one of its path (using ``--path``).
     '''
 
-    obj.fs_client.ensure_mounted()
-    obj.client.recognize_users()
+    try:
+        obj.fs_client.ensure_mounted()
+        obj.client.recognize_users()
+    except WildlandError as ex:
+        raise ClickException(ex) from ex
 
     if bool(container_names) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
 
+    failed = False
+    exc_msg = 'Failed to load some container manifests:\n'
     if container_names:
         storage_ids = []
         for container_name in container_names:
-            for container in obj.client.load_containers_from(container_name):
-                storage_id = obj.fs_client.find_storage_id(container)
-                if storage_id is None:
-                    click.echo(f'Not mounted: {container.paths[0]}')
-                else:
-                    click.echo(f'Will unmount: {container.paths[0]}')
-                    storage_ids.append(storage_id)
-                if with_subcontainers:
-                    storage_ids.extend(
-                        obj.fs_client.find_all_subcontainers_storage_ids(container))
+            try:
+                for container in obj.client.load_containers_from(container_name):
+                    storage_id = obj.fs_client.find_storage_id(container)
+                    if storage_id is None:
+                        click.echo(f'Not mounted: {container.paths[0]}')
+                    else:
+                        click.echo(f'Will unmount: {container.paths[0]}')
+                        storage_ids.append(storage_id)
+                    if with_subcontainers:
+                        storage_ids.extend(
+                            obj.fs_client.find_all_subcontainers_storage_ids(container))
+            except WildlandError as ex:
+                failed = True
+                exc_msg += str(ex) + '\n'
     else:
         storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
         if storage_id is None:
-            raise click.ClickException('Container not mounted')
+            raise ClickException('Container not mounted')
         storage_ids = [storage_id]
         if with_subcontainers:
             storage_ids.extend(
@@ -551,11 +574,14 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
                     obj.fs_client.get_container_from_storage_id(storage_id)))
 
     if not storage_ids:
-        raise click.ClickException('No containers mounted')
+        raise ClickException('No containers mounted')
 
     click.echo(f'Unmounting {len(storage_ids)} containers')
     for storage_id in storage_ids:
         obj.fs_client.unmount_container(storage_id)
+
+    if failed:
+        raise ClickException(exc_msg)
 
 
 class Remounter:
@@ -681,7 +707,7 @@ def terminate_daemon(pfile, error_message):
             except ProcessLookupError:
                 os.remove(pfile)
     else:
-        raise click.ClickException(error_message)
+        raise ClickException(error_message)
 
 
 @container_.command('mount-watch', short_help='mount container')
@@ -696,8 +722,8 @@ def mount_watch(obj: ContextObj, container_names):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
     if os.path.exists(MW_PIDFILE):
-        raise click.ClickException("Mount-watch already running; use stop-mount-watch to stop it "
-                                   "or add-mount-watch to watch more containers.")
+        raise ClickException("Mount-watch already running; use stop-mount-watch to stop it "
+                             "or add-mount-watch to watch more containers.")
     if container_names:
         with open(MW_DATA_FILE, 'w') as file:
             file.truncate(0)
@@ -764,8 +790,8 @@ def sync_container(obj: ContextObj, target_remote, cont):
     sync_pidfile = syncer_pidfile_for_container(container)
 
     if os.path.exists(sync_pidfile):
-        raise click.ClickException("Sync process for this container is already running; use "
-                                   "stop-sync to stop it.")
+        raise ClickException("Sync process for this container is already running; use "
+                             "stop-sync to stop it.")
 
     storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
