@@ -150,7 +150,6 @@ def test_date_proxy_fuse_files(env, storage, data_dir):
 def container(cli, base_dir, data_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     # this needs to be saved, so client.load_containers() will see it
-    (base_dir / 'containers').mkdir(parents=True)
     with (base_dir / 'containers/macro.container.yaml').open('w') as f:
         f.write(yaml.dump({
             'object': 'container',

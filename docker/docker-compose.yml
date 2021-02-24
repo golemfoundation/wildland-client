@@ -27,7 +27,7 @@ services:
       - "139:139"
     volumes:
       - ..:/home/user/wildland-client:ro
-      - usercfg:/home/user/.config:rw
+      - ~/.config/wildland:/home/user/.config/wildland:rw
       - ./storage:/home/user/storage:rw
 
   wildland-forest:
