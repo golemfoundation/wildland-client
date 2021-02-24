@@ -470,8 +470,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         https://github.com/libfuse/python-fuse/blob/6c3990f9e3dce927c693e66dc14138822b42564b/fuse.py#L474
 
-        :param atime: fuse.Timespec access time
-        :param mtime: fuse.Timespec modification time
+        :param atime: Timespec access time
+        :param mtime: Timespec modification time
         """
         raise OptionalError()
 
