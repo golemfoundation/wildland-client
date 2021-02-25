@@ -426,8 +426,6 @@ def del_field(fields: dict, field: str, values: List[Any] = [], keys: List[Any] 
                     'Nothing is deleted.')
         return fields
 
-    fields[field] = obj
-
     return fields
 
 

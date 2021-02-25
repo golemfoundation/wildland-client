@@ -707,12 +707,13 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
 
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
+
+    # pylint: disable=too-many-nested-blocks
     if container_names:
         storage_ids = []
         for container_name in container_names:
             try:
                 for container in obj.client.load_containers_from(container_name):
-
                     for mount_path in obj.fs_client.get_mounted_primary_storage_paths(container):
                         storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
 
@@ -1099,6 +1100,7 @@ def duplicate(obj: ContextObj, new_name, cont):
         backends=container.backends,
         title=container.title,
         categories=container.categories,
+        access=container.access,
     )
     new_uuid = new_container.ensure_uuid()
 
