@@ -29,6 +29,7 @@ import time
 import pytest
 import yaml
 
+from click import ClickException
 from ..manifest.manifest import ManifestError
 from ..cli.cli_base import CliError
 
@@ -1162,13 +1163,13 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     # Should not mount if the storage is not trusted
 
     control_client.expect('info', make_info(None))
-    with pytest.raises(ManifestError, match='Signature expected'):
+    with pytest.raises(ClickException, match='Signature expected'):
         cli('container', 'mount', manifest_path)
 
     # Should not mount if the owner is different
 
     control_client.expect('info', make_info('0xbbb'))
-    with pytest.raises(ManifestError, match='Wrong owner for manifest without signature'):
+    with pytest.raises(ClickException, match='Wrong owner for manifest without signature'):
         cli('container', 'mount', manifest_path)
 
     # Should mount if the storage is trusted and with right owner
@@ -1261,6 +1262,56 @@ backends:
         path2,
         '/subcontainer',
     ]
+
+
+def test_container_mount_errors(cli, cli_fail, base_dir, control_client, tmp_path):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        print(f.read())
+    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    with open(tmp_path / 'subcontainer1.yaml', 'w') as f:
+        f.write(f"""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - {path2}
+ - /subcontainer1
+backends:
+  storage:
+    - type: delegate
+      backend-id: 0000-1111-2222-3333-4444
+      reference-container: 'file://{base_dir / 'containers/Container.container.yaml'}'
+      subdirectory: '/subdir1'
+""")
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--subcontainer', './subcontainer1.yaml')
+
+    subpath = tmp_path / 'subcontainer2.yaml'
+    shutil.copyfile(tmp_path / 'subcontainer1.yaml', subpath)
+    modify_file(subpath, 'subcontainer1', 'subcontainer2')
+    modify_file(subpath, 'subdir1', 'subdir2')
+    # corrupt signature so this one won't load
+    modify_file(subpath, 'dummy.0xaaa', 'dummy.0xZZZ')
+
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--subcontainer', './subcontainer2.yaml')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    output = cli_fail('container', 'mount', tmp_path / 'subcontainer*.yaml', capture=True)
+    assert 'Traceback' not in output
+    assert 'Failed to load some container manifests' in output
+
+    # the other subcontainer should still be mounted
+    command = control_client.calls['mount']['items']
+    assert len(command) == 1
+    assert command[0]['storage']['owner'] == '0xaaa'
+    assert '/subcontainer1' in command[0]['paths']
 
 
 def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):

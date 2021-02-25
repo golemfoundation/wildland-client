@@ -317,7 +317,10 @@ class Client:
         '''
 
         if '*' not in name and '~' not in name:
-            yield self.load_container_from(name)
+            try:
+                yield self.load_container_from(name)
+            except WildlandError as ex:
+                raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return
 
         assert not WildlandPath.match(name), \
@@ -327,8 +330,19 @@ class Client:
         logger.debug('expanded %r to %s', name, paths)
         if not paths:
             raise ManifestError(f'No container found matching pattern: {name}')
+
+        failed = False
+        exc_msg = 'Failed to load some container manifests:\n'
         for path in paths:
-            yield self.load_container_from_path(Path(path))
+            try:
+                yield self.load_container_from_path(Path(path))
+            except WildlandError as ex:
+                failed = True
+                exc_msg += str(ex) + '\n'
+                continue
+
+        if failed:
+            raise ManifestError(exc_msg)
 
     def load_container_from(self, name: str) -> Container:
         '''

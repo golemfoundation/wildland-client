@@ -56,10 +56,19 @@ def cli(base_dir, capsys):
 
 # TODO examine exception
 @pytest.fixture
-def cli_fail(cli):
-    def cli_fail(*args):
+def cli_fail(cli, capsys):
+    def cli_fail(*args, capture=False):
+        if capture:
+            capsys.readouterr()
+
         with pytest.raises(Exception):
             cli(*args)
+
+        if capture:
+            out, err = capsys.readouterr()
+            return out + err
+        return None
+
     return cli_fail
 
 
