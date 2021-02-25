@@ -31,6 +31,7 @@ from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
 
 from wildland import container
 from .manifest import Manifest
+from ..utils import load_yaml
 
 logger = logging.getLogger('wl-template')
 
@@ -120,7 +121,7 @@ type: local
         except UndefinedError as ex:
             raise ValueError(str(ex)) from ex
 
-        data = yaml.safe_load(raw_data)
+        data = load_yaml(raw_data)
         data['owner'] = cont.owner
         data['container-path'] = str(cont.paths[0])
         data['backend-id'] = str(uuid.uuid4())
@@ -158,7 +159,7 @@ class StorageSet:
         inline manifest.
         """
         with open(file) as f:
-            data = yaml.safe_load(f)
+            data = load_yaml(f)
 
         name = data['name']
         templates = []

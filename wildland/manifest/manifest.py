@@ -29,6 +29,7 @@ import yaml
 
 from .schema import Schema
 from .sig import SigContext, SigError
+from ..utils import load_yaml
 from ..exc import WildlandError
 
 
@@ -149,7 +150,10 @@ class Manifest:
             _, data = split_header(data)
 
         rest_str = data.decode('utf-8')
-        fields = yaml.safe_load(rest_str)
+        try:
+            fields = load_yaml(rest_str)
+        except yaml.YAMLError as e:
+            raise ManifestError('Manifest parse error: {}'.format(e)) from e
         fields = cls.update_obsolete(fields)
         return cls(None, fields, data)
 
@@ -297,9 +301,9 @@ class Manifest:
     @classmethod
     def _parse_yaml(cls, data: bytes):
         try:
-            fields = yaml.safe_load(data.decode('utf-8'))
+            fields = load_yaml(data.decode('utf-8'))
             return cls.update_obsolete(fields)
-        except ValueError as e:
+        except (ValueError, yaml.YAMLError) as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e
 
 

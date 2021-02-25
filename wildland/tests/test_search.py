@@ -36,6 +36,7 @@ from ..wlpath import WildlandPath, PathError
 from ..manifest.manifest import ManifestError
 from ..search import Search, storage_glob
 from ..config import Config
+from ..utils import load_yaml_all
 
 
 ## Path
@@ -236,7 +237,7 @@ def test_mount_traverse(cli, client, base_dir, control_client):
 def test_unmount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {
@@ -273,9 +274,9 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Load user and container manifest
     with open(base_dir / 'containers/C.User2.container.yaml') as f:
-        container_dict = list(yaml.safe_load_all(f))[1]
+        container_dict = list(load_yaml_all(f))[1]
     with open(base_dir / 'users/User2.user.yaml') as f:
-        user_dict = list(yaml.safe_load_all(f))[1]
+        user_dict = list(load_yaml_all(f))[1]
 
     # Remove original continer manifest (so that search doesn't use it)
     (base_dir / 'containers/C.User2.container.yaml').unlink()

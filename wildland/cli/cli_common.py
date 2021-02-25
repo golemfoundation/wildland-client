@@ -199,7 +199,11 @@ def edit(ctx, editor, input_file, remount):
     data = edited_s.encode()
 
     obj.client.recognize_users()
-    manifest = Manifest.from_unsigned_bytes(data)
+    try:
+        manifest = Manifest.from_unsigned_bytes(data)
+    except ManifestError as me:
+        raise click.ClickException(f'Manifest parse error: {me}') from me
+
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
     manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))

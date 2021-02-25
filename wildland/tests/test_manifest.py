@@ -158,3 +158,16 @@ key2: "value2"
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
     manifest = Manifest.from_bytes(data, sig)
     assert manifest.fields['object'] == 'user'
+
+
+def test_parse_duplicate_keys(sig, owner):
+    test_data = f'''
+owner: "{owner}"
+pubkeys: []
+key1: value1
+key1: value2
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    with pytest.raises(ManifestError):
+        Manifest.from_bytes(data, sig)
