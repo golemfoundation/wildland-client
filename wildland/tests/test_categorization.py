@@ -1,8 +1,6 @@
 """
 Unit tests for a categorization proxy
 """
-from pathlib import PurePosixPath
-
 from ..storage_backends.categorization_proxy import CategorizationProxyStorageBackend as cp
 
 
@@ -94,16 +92,3 @@ def test_filename_to_category_path_conversion():
     for filename, expected_category_path in dirname_to_category_tests.items():
         category_path = cp._filename_to_category_path(filename)
         assert category_path == expected_category_path
-
-def test_get_title_from_dir_path():
-    dirname_to_subcontainer_title_tests = {
-        'books_titles': 'titles',
-        'actors_humans_author': 'author',
-        'actors_humans__author': 'author',
-        '@authors': 'authors',
-        '@titles_title1': 'title1',
-        'author2_@titles_title3': 'title3',
-    }
-    for dirname, expected_subcontainer_title in dirname_to_subcontainer_title_tests.items():
-        subcontainer_title = cp._get_title_from_dir_path(PurePosixPath(dirname))
-        assert subcontainer_title == expected_subcontainer_title
