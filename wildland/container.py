@@ -129,6 +129,9 @@ class Container:
     def expanded_paths(self):
         """
         Paths expanded by the set of paths generated from title and categories (if provided)
+
+        This method MUST NOT change the order of paths so that /.uuid/{container_uuid} path remains
+        first in the list.
         """
         if self._expanded_paths:
             return self._expanded_paths
@@ -137,7 +140,7 @@ class Container:
             for path in self.categories:
                 paths.append(path / self.title)
             for p1, p2 in itertools.permutations(self.categories, 2):
-                subpath = PurePosixPath ('@' + str(p2.relative_to(p2.anchor)))
+                subpath = PurePosixPath('@' + str(p2.relative_to(p2.anchor)))
                 paths.append(p1 / subpath / self.title)
         self._expanded_paths = paths
         return self._expanded_paths
