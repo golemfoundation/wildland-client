@@ -12,6 +12,7 @@ Synopsis
 | :command:`wl storage-set add --template <template_file> --inline <storage_set>`
 | :command:`wl storage-set del <storage_set>`
 | :command:`wl storage-set set-default --user <user> <storage_set>`
+| :command:`wl storage-set modify {add-template|del-template} [...] <storage_set>`
 
 Description
 ===========
@@ -139,3 +140,34 @@ containers.
 .. option:: --user <user>
 
    User for which set the default.
+
+.. program:: wl-storage-set-modify
+.. _wl-storage-set-modify:
+
+.. _wl-storage-set-modify-add-template:
+
+:command:`wl storage-set modify add-template --template <template_file> --inline <template_file> <storage_set>`
+---------------------------------------------------------------------------------------------------------------
+
+Add templates to an existing set.
+
+.. option:: --template <template_file>, -t
+
+   Template file to add to the storage set as a standalone template.
+
+.. option:: --inline <template_file>, -i
+
+   Template file to add to the storage set as an inline template. At least one of this or
+   --template is required.
+
+.. _wl-storage-set-modify-del-template:
+
+:command:`wl storage-set modify del-template --template <template_file> <storage_set>`
+--------------------------------------------------------------------------------------
+
+Remove templates from an existing set.
+
+.. option:: --template <template_file>, -t
+
+   Template file to be removed from the storage set. If the template file appears more than once,
+   all of its occurrences will be removed.

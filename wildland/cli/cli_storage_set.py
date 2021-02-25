@@ -21,6 +21,7 @@ Storage set management
 '''
 
 import click
+import yaml
 
 from .cli_base import aliased_group, ContextObj, CliError
 from ..manifest.manifest import ManifestError
@@ -135,3 +136,64 @@ def set_default_(obj: ContextObj, user, name):
     obj.client.config.update_and_save({'default-storage-set-for-user': default_sets})
 
     click.echo(f'Default storage set for {user_name} set to {name}.')
+
+
+@storage_set_.group(short_help='modify storage set')
+def modify():
+    """
+    Commands for modifying container manifests.
+    """
+
+
+@modify.command(short_help='add template to storage set')
+@click.option('--template', '-t', multiple=True, required=False,
+              help='add this template file to set')
+@click.option('--inline', '-i', multiple=True, required=False,
+              help='add this template file to set as an inline template')
+@click.argument('storage_set', metavar='TEMPLATE_SET')
+@click.pass_obj
+def add_template(obj: ContextObj, storage_set, template, inline):
+    """
+    Add path to the manifest.
+    """
+    template_manager = TemplateManager(obj.client.template_dir)
+    try:
+        storage_set = template_manager.get_storage_set(storage_set)
+    except FileNotFoundError as fnf:
+        raise CliError(f'Template set \'{storage_set}\' not found.') from fnf
+
+    templates_to_add = [(t, 'file') for t in template] + [(t, 'inline') for t in inline]
+
+    for template_name, template_type in templates_to_add:
+        try:
+            storage_set.add_template(template_name, template_type)
+        except FileNotFoundError as fnf:
+            raise CliError(f'Template file {template_name} not found.') from fnf
+
+    click.echo(f'Saving modified storage set {storage_set.name} to {storage_set.path}.')
+    storage_set.path.write_text(yaml.dump(storage_set.to_dict()))
+
+
+@modify.command(short_help='remove path from the manifest')
+@click.option('--template', '-t', multiple=True, required=False,
+              help='remove this template file from set')
+@click.argument('storage_set', metavar='TEMPLATE_SET')
+@click.pass_obj
+def del_template(obj: ContextObj, storage_set, template):
+    '''
+    Remove path from the manifest.
+    '''
+    template_manager = TemplateManager(obj.client.template_dir)
+    try:
+        storage_set = template_manager.get_storage_set(storage_set)
+    except FileNotFoundError as fnf:
+        raise CliError(f'Template set \'{storage_set}\' not found.') from fnf
+
+    for t in template:
+        try:
+            storage_set.remove_template(t)
+        except FileNotFoundError as fnf:
+            raise CliError(f'Template file {t} not found.') from fnf
+
+    click.echo(f'Saving modified storage set {storage_set.name} to {storage_set.path}.')
+    storage_set.path.write_text(yaml.dump(storage_set.to_dict()))

@@ -1726,6 +1726,43 @@ def test_cli_set_add(cli, base_dir):
                                   {'file': 't2.template.jinja', 'type': 'inline'}]}
 
 
+def test_cli_set_modify(cli, base_dir):
+    setup_storage_sets(base_dir)
+    cli('storage-set', 'add', '--template', 't1', 'set1')
+
+    with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
+        read_data = yaml.load(f, Loader=yaml.SafeLoader)
+        assert read_data == {'name': 'set1',
+                             'templates':
+                                 [{'file': 't1.template.jinja', 'type': 'file'}]}
+
+    cli('storage-set', 'modify', 'add-template', '-t', 't2', '-i', 't3', 'set1')
+    with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
+        read_data = yaml.load(f, Loader=yaml.SafeLoader)
+        assert read_data == {'name': 'set1',
+                             'templates':
+                                 [{'file': 't1.template.jinja', 'type': 'file'},
+                                  {'file': 't2.template.jinja', 'type': 'file'},
+                                  {'file': 't3.template.jinja', 'type': 'inline'}]}
+
+    cli('storage-set', 'modify', 'del-template', '-t', 't2', 'set1')
+    with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
+        read_data = yaml.load(f, Loader=yaml.SafeLoader)
+        assert read_data == {'name': 'set1',
+                             'templates':
+                                 [{'file': 't1.template.jinja', 'type': 'file'},
+                                  {'file': 't3.template.jinja', 'type': 'inline'}]}
+
+    with pytest.raises(CliError):
+        cli('storage-set', 'modify', 'add-template', '-t', 't2', 'set123')
+    with pytest.raises(CliError):
+        cli('storage-set', 'modify', 'del-template', '-t', 't2', 'set123')
+    with pytest.raises(CliError):
+        cli('storage-set', 'modify', 'add-template', '-t', 't2123', 'set1')
+    with pytest.raises(CliError):
+        cli('storage-set', 'modify', 'del-template', '-t', 't2', 'set123')
+
+
 def test_cli_set_list(cli, base_dir):
     setup_storage_sets(base_dir)
     cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')

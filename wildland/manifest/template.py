@@ -142,9 +142,10 @@ class StorageSet:
         self.name = name
         self.templates: List[TemplateWithType] = []
         self.path = path
+        self.template_dir = template_dir
 
         for t in templates:
-            file = get_file_from_name(template_dir, t.template, TEMPLATE_SUFFIX)
+            file = get_file_from_name(self.template_dir, t.template, TEMPLATE_SUFFIX)
             template = StorageTemplate.from_file(file)
             self.templates.append(TemplateWithType(template, t.type))
 
@@ -190,6 +191,23 @@ class StorageSet:
             ]
         }
         return data
+
+    def add_template(self, file_name: str, template_type: str):
+        """
+        Add provided template to this set, with type of 'inline' or 'file'.
+        """
+        if template_type not in ['file', 'inline']:
+            raise ValueError(f'Incorrect template type: {template_type}')
+        file = get_file_from_name(self.template_dir, file_name, TEMPLATE_SUFFIX)
+        template = StorageTemplate.from_file(file)
+        self.templates.append(TemplateWithType(template, template_type))
+
+    def remove_template(self, template_name):
+        """
+        Remove all occurrences of the given template from the current set.
+        """
+        file = get_file_from_name(self.template_dir, template_name, TEMPLATE_SUFFIX).name
+        self.templates = [t for t in self.templates if t.template.file_name != file]
 
 
 class TemplateManager:
