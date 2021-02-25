@@ -1,6 +1,6 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2021 Golem Foundation,
 #                    Patryk Bęza <patryk@wildland.io>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -178,7 +178,7 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
                     title=subcontainer_title,
                     categories=list(all_categories))
 
-            return results
+        return results
 
     @staticmethod
     def _get_category_info(dir_name: str) -> Tuple[str, str]:
