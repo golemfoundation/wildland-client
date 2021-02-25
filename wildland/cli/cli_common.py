@@ -23,7 +23,7 @@ Common commands (sign, edit, ...) for multiple object types
 
 import sys
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Any
 
 import click
 import yaml
@@ -295,7 +295,7 @@ def edit(ctx, editor, input_file, remount):
 
     if remount and manifest_type == 'container' and obj.fs_client.is_mounted():
         container = obj.client.load_container_from_path(path)
-        if obj.fs_client.find_storage_id(container) is not None:
+        if obj.fs_client.find_primary_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')
 
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
@@ -305,7 +305,7 @@ def edit(ctx, editor, input_file, remount):
                 container, storages, user_paths, remount=remount)
 
 
-def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
+def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args, **kwargs):
     '''
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
@@ -324,7 +324,7 @@ def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type, obj.client)
 
-    fields = edit_func(manifest.fields, *args)
+    fields = edit_func(manifest.fields, *args, **kwargs)
     modified = Manifest.from_fields(fields)
     if manifest_type is not None:
         try:
@@ -359,20 +359,74 @@ def add_field(fields: dict, field: str, values: List[str]) -> dict:
     return fields
 
 
-def del_field(fields: dict, field: str, values: List[str]) -> dict:
+# pylint: disable=dangerous-default-value
+def del_nested_field(manifest_fields: dict, fields: List[str],
+                     values: List[Any] = [], keys: List[Any] = []) -> dict:
     '''
-    Callback function for `modify_manifest`. Removes values from the specified field.
-    Non-existent values are ignored.
+    Callback function for `modify_manifest` which is a wrapper for del_field callback
+    for nested fields (e.g. ['backends', 'storage'])
     '''
-    if fields.get(field) is None:
-        fields[field] = []
+    field = fields.pop(0)
 
-    for value in values:
-        if value in fields[field]:
-            fields[field].remove(value)
-        else:
-            click.echo(f'{value} is not in the manifest')
-            continue
+    if not fields:
+        return del_field(manifest_fields, field, values, keys)
+
+    next_obj = manifest_fields.get(field)
+
+    if isinstance(next_obj, dict):
+        manifest_fields[field] = del_nested_field(next_obj, fields, values, keys)
+    else:
+        click.echo(f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
+
+    return manifest_fields
+
+
+def del_field(fields: dict, field: str, values: List[Any] = [], keys: List[Any] = []) -> dict:
+    '''
+    Callback function for `modify_manifest`. Removes values from a list or a set either by values
+    or keys. Non-existent values or keys are ignored.
+    '''
+    if values and keys:
+        click.echo('You may not simultanously remove both by key and by value. Choose only one.')
+        return fields
+
+    obj = fields.get(field)
+
+    # We handle lists and sets differently.
+
+    if isinstance(obj, list):
+        # Remove by value
+        for value in values:
+            if value in obj:
+                obj.remove(value)
+            else:
+                click.echo(f'{value} is not in the manifest')
+                continue
+
+        # If remove by keys in a list, thus by indexes, they must be reversed so
+        # that we don't remove elements by indexes changing and moving upwards
+        for idx in sorted(keys, reverse=True):
+            try:
+                del obj[idx]
+            except IndexError:
+                click.echo(f'Given index [{idx}] does not exist. Skipped.')
+    elif isinstance(obj, dict):
+        for key in keys:
+            try:
+                del obj[key]
+            except KeyError:
+                click.echo(f'Given key [{key}] does not exist. Skipped.')
+
+        for value in values:
+            for key, item in obj.copy().items():
+                if value == item:
+                    del obj[key]
+    else:
+        click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
+                    'Nothing is deleted.')
+        return fields
+
+    fields[field] = obj
 
     return fields
 
