@@ -564,7 +564,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
 
-    The Wildland system has to be mounted first, see ``wl mount``.
+    The Wildland system has to be mounted first, see ``wl start``.
     '''
     try:
         obj.fs_client.ensure_mounted()

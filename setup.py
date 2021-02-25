@@ -15,6 +15,8 @@ setup(
             'date_proxy = wildland.storage_backends.date_proxy:DateProxyStorageBackend',
             'delegate = wildland.storage_backends.delegate:DelegateProxyStorageBackend',
             'zip_archive = wildland.storage_backends.zip_archive:ZipArchiveStorageBackend',
+            ('categorization_proxy = '
+             'wildland.storage_backends.categorization_proxy:CategorizationProxyStorageBackend'),
         ]
     }
 )

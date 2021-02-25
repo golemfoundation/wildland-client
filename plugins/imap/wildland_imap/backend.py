@@ -65,7 +65,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def list_subcontainers(
         self,
-        sig_context: Optional[SigContext] = None,
+        _sig_context: Optional[SigContext] = None,
     ) -> Iterable[dict]:
         for msg in self.client.all_messages_env():
             yield self._make_msg_container(msg)
