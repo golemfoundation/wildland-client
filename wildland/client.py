@@ -732,9 +732,9 @@ class Client:
             raise ManifestError('no supported storage manifest') from ex
 
     def get_storages_to_mount(self, container: Container) -> Iterable[Storage]:
-        '''
+        """
         Return valid, mountable storages for the given container
-        '''
+        """
         storages = list(self.all_storages(container, predicate=None))
 
         if not storages:

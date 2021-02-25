@@ -498,9 +498,9 @@ def set_encrypt_manifest(ctx, input_file):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_storage(ctx, input_file, storage):
-    '''
+    """
     Remove category from the manifest.
-    '''
+    """
     container_manifest = find_manifest_file(ctx.obj.client, input_file, 'container').read_bytes()
     container_yaml = list(yaml.safe_load_all(container_manifest))[1]
     storages_obj = container_yaml.get('backends', {}).get('storage', {})

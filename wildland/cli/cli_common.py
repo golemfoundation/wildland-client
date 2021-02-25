@@ -362,10 +362,10 @@ def add_field(fields: dict, field: str, values: List[str]) -> dict:
 # pylint: disable=dangerous-default-value
 def del_nested_field(manifest_fields: dict, fields: List[str],
                      values: List[Any] = [], keys: List[Any] = []) -> dict:
-    '''
+    """
     Callback function for `modify_manifest` which is a wrapper for del_field callback
     for nested fields (e.g. ['backends', 'storage'])
-    '''
+    """
     field = fields.pop(0)
 
     if not fields:
@@ -382,10 +382,10 @@ def del_nested_field(manifest_fields: dict, fields: List[str],
 
 
 def del_field(fields: dict, field: str, values: List[Any] = [], keys: List[Any] = []) -> dict:
-    '''
+    """
     Callback function for `modify_manifest`. Removes values from a list or a set either by values
     or keys. Non-existent values or keys are ignored.
-    '''
+    """
     if values and keys:
         click.echo('You may not simultanously remove both by key and by value. Choose only one.')
         return fields

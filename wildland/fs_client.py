@@ -234,9 +234,9 @@ class WildlandFSClient:
         self.run_control_command('mount', items=commands)
 
     def unmount_storage(self, storage_id: int):
-        '''
+        """
         Unmount a storage with given storage id.
-        '''
+        """
 
         self.clear_cache()
         self.run_control_command('unmount', storage_id=storage_id)
@@ -264,11 +264,11 @@ class WildlandFSClient:
         return storage_ids[0]
 
     def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
-        '''
+        """
         Returns list of mounted paths that are mounted but do not exist in the given container.
         This situation may happen when you want to remount a container that has some storages
         removed from the manifest since the last mount.
-        '''
+        """
         mounted_paths = self.get_unique_storage_paths(container)
         valid_paths = [storage.get_mount_path(container) for storage in storages_to_mount]
 
@@ -438,11 +438,11 @@ class WildlandFSClient:
 
     def get_unique_storage_paths(self, container: Optional[Container] = None) \
             -> Iterable[Path]:
-        '''
+        """
         Returns list of unique mount paths (ie '/.uuid/{container_uuid}/.backends/{backend_uuid}')
         for every storage in a given container. If no container is given, return unique mount paths
         for all mounted storages in every container.
-        '''
+        """
 
         paths = self.get_paths()
 
@@ -520,7 +520,7 @@ class WildlandFSClient:
 
     def get_storage_mount_paths(self, container: Container, storage: Storage,
                                 user_paths: Iterable[PurePosixPath]) -> List[PurePosixPath]:
-        '''
+        """
         Return all mount paths (incl. synthetic ones) for given storage.
 
         Container paths always start with `/.uuid/{container_uuid}` path which must always be
@@ -529,7 +529,7 @@ class WildlandFSClient:
         otherwise mount it under all directories.
 
         Note that this function will return `/.uuid/{container_uuid}/.backends/{storage_id}`.
-        '''
+        """
         paths = container.expanded_paths
 
         unique_backend_path = storage.get_mount_path(container)

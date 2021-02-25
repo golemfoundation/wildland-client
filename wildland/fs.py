@@ -30,7 +30,6 @@ import threading
 from dataclasses import dataclass
 
 import fuse
-fuse.fuse_python_api = 0, 2
 
 from .fuse_utils import debug_handler
 from .conflict import ConflictResolver, Resolved
@@ -41,7 +40,7 @@ from .log import init_logging
 from .control_server import ControlServer, ControlHandler, control_command
 from .manifest.schema import Schema
 
-
+fuse.fuse_python_api = 0, 2
 logger = logging.getLogger('fuse')
 
 
@@ -70,16 +69,16 @@ class WildlandFS(fuse.Fuse):
         super().__init__(*args, **kwds)
 
         self.parser.add_option(mountopt='log', metavar='PATH',
-            help='path to log file, use - for stderr')
+                               help='path to log file, use - for stderr')
 
         self.parser.add_option(mountopt='socket', metavar='SOCKET',
-            help='path to control socket file')
+                               help='path to control socket file')
 
         self.parser.add_option(mountopt='breakpoint', action='store_true',
-            help='enable .control/breakpoint')
+                               help='enable .control/breakpoint')
 
         self.parser.add_option(mountopt='single_thread', action='store_true',
-            help='run single-threaded')
+                               help='run single-threaded')
 
         self.parser.add_option(mountopt='default_user', help='override default_user')
 
@@ -201,7 +200,7 @@ class WildlandFS(fuse.Fuse):
         paths = self.storage_paths[storage_id]
 
         logger.info('Unmounting storage %r from paths: %s',
-                     storage, [str(p) for p in paths])
+                    storage, [str(p) for p in paths])
 
         storage.request_unmount()
 
@@ -213,7 +212,6 @@ class WildlandFS(fuse.Fuse):
             self.resolver.unmount(path, storage_id)
 
     # pylint: disable=missing-docstring
-
 
     #
     # .control API
@@ -420,8 +418,7 @@ class WildlandFS(fuse.Fuse):
         watch = self.watches[watch_id]
         logger.info('removing watch: %s', watch)
 
-        if (len(self.storage_watches[watch.storage_id]) == 1 and
-            watch.storage_id in self.watchers):
+        if (len(self.storage_watches[watch.storage_id]) == 1 and watch.storage_id in self.watchers):
 
             logger.info('stopping watcher for storage: %s', watch.storage_id)
             self.storages[watch.storage_id].stop_watcher()
@@ -464,7 +461,7 @@ class WildlandFS(fuse.Fuse):
                 self._unmount_storage(storage_id)
 
     def proxy(self, method_name, path: str, *args,
-              resolved_path: Optional[PurePosixPath]=None,
+              resolved_path: Optional[PurePosixPath] = None,
               parent=False,
               modify=False,
               event_type=None,

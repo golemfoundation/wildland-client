@@ -92,23 +92,23 @@ class Storage:
 
     @property
     def is_primary(self) -> bool:
-        '''
+        """
         Returns primary param
-        '''
+        """
         return self.primary
 
     def get_mount_path(self, container: Container) -> str:
-        '''
+        """
         Return unique mount path for this storage
-        '''
+        """
         return PurePosixPath(f'/.uuid/{container.ensure_uuid()}/.backends/{self.backend_id}')
 
     def validate(self):
-        '''
+        """
         Validate storage assuming it's of a known type.
         This is not done automatically because we might want to load an
         unrecognized storage.
-        '''
+        """
 
         manifest = self.to_unsigned_manifest()
         if not StorageBackend.is_type_supported(self.storage_type):
@@ -117,9 +117,9 @@ class Storage:
         manifest.apply_schema(backend.SCHEMA)
 
     def promote_to_primary(self):
-        '''
+        """
         Sets primary param to True
-        '''
+        """
         self.primary = True
 
     @classmethod

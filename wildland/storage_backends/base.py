@@ -246,9 +246,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     @staticmethod
     def generate_hash(params: Dict[str, Any]) -> str:
-        '''
+        """
         Returns hash for the given params. May be used eg. for caching.
-        '''
+        """
 
         hasher = hashlib.md5()
         params_for_hash = dict((k, v) for (k, v) in params.items() if k != 'storage')
