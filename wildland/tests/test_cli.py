@@ -31,6 +31,7 @@ import yaml
 
 from ..manifest.manifest import ManifestError
 from ..cli.cli_base import CliError
+from ..utils import load_yaml, load_yaml_all
 
 
 def modify_file(path, pattern, replacement):
@@ -598,7 +599,7 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
 
     with open(base_dir / 'containers/Duplicate.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -929,7 +930,7 @@ def test_container_delete_umount(cli, base_dir, control_client):
     (base_dir / 'storage/Storage.storage.yaml').unlink()
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
     control_client.expect('unmount')
     control_client.expect('paths', {
@@ -967,7 +968,7 @@ def test_container_mount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -1012,7 +1013,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     print(documents)
     path = documents[1]['paths'][0]
 
@@ -1088,14 +1089,14 @@ def test_container_mount_save(cli, base_dir, control_client):
     cli('container', 'mount', '--save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = yaml.load(f, Loader=yaml.SafeLoader)
+        config = load_yaml(f)
     assert config['default-containers'] == ['Container']
 
     # Will not add the same container twice
     cli('container', 'mount', '--save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = yaml.load(f, Loader=yaml.SafeLoader)
+        config = load_yaml(f)
     assert config['default-containers'] == ['Container']
 
 
@@ -1108,7 +1109,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
         '--container', 'Container', '--inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -1186,7 +1187,7 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -1231,7 +1232,7 @@ backends:
         '--container', 'Container', '--subcontainer', './subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -1290,7 +1291,7 @@ backends:
         '--container', 'Container', '--subcontainer', './subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -1362,7 +1363,7 @@ def test_container_unmount(cli, base_dir, control_client):
     cli('container', 'create', 'Container', '--path', '/PATH')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {
@@ -1420,7 +1421,7 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
     path = documents[1]['paths'][0]
 
     control_client.expect('paths', {})
@@ -1612,7 +1613,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
 
     with open(base_config_dir / 'containers/AliceContainer.container.yaml') as f:
         cont_data = f.read().split('\n', 4)[-1]
-        cont_yaml = yaml.safe_load(cont_data)
+        cont_yaml = load_yaml(cont_data)
 
     container_id = cont_yaml['paths'][0][7:]
     assert cont_yaml['backends']['storage'][2]['type'] == 'local-dir-cached'
@@ -1621,7 +1622,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     with open(base_config_dir / 'config.yaml') as f:
         data = f.read()
 
-    config = yaml.load(data, Loader=yaml.SafeLoader)
+    config = load_yaml(data)
     default_storage = config["default-remote-for-container"]
     assert default_storage[container_id] == backend_id
 
@@ -1661,13 +1662,13 @@ def test_cli_set_add(cli, base_dir):
     cli('storage-set', 'add', '--inline', 't3', '--inline', 't2', 'set2')
 
     with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
-        read_data = yaml.load(f, Loader=yaml.SafeLoader)
+        read_data = load_yaml(f)
         assert read_data == {'name': 'set1',
                              'templates':
                                  [{'file': 't1.template.jinja', 'type': 'file'},
                                   {'file': 't2.template.jinja', 'type': 'inline'}]}
     with open(base_dir / 'templates/set2.set.yaml', 'r') as f:
-        read_data = yaml.load(f, Loader=yaml.SafeLoader)
+        read_data = load_yaml(f)
         assert read_data == {'name': 'set2',
                              'templates':
                                  [{'file': 't3.template.jinja', 'type': 'inline'},
@@ -1821,7 +1822,7 @@ def test_user_create_default_set(cli, base_dir):
     with open(base_dir / 'config.yaml') as f:
         data = f.read()
 
-    config = yaml.load(data, Loader=yaml.SafeLoader)
+    config = load_yaml(data)
     default_user = config["@default-owner"]
     assert f'\'{default_user}\': set' in data
 
@@ -2127,11 +2128,11 @@ def test_only_subcontainers(cli, base_dir, control_client):
 
     # Extract containers auto-generated UUIDs
     with open(base_dir / 'containers/Parent.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
         uuid_path_parent = documents[1]['paths'][0]
 
     with open(base_dir / 'containers/Child.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(load_yaml_all(f))
         uuid_path_child = documents[1]['paths'][0]
 
     # Mount the parent container with subcontainers INCLUDING itself

@@ -30,6 +30,7 @@ import yaml
 
 from .manifest.schema import Schema, SchemaError
 from .exc import WildlandError
+from .utils import load_yaml
 
 logger = logging.getLogger('config')
 
@@ -152,7 +153,7 @@ class Config:
         path = base_dir / cls.filename
         if os.path.exists(path):
             with open(path, 'r') as f:
-                file_fields = yaml.safe_load(f)
+                file_fields = load_yaml(f)
                 if not file_fields:
                     file_fields = {}
         else:
