@@ -133,6 +133,8 @@ class Storage:
             fields['manifest-pattern'] = self.manifest_pattern
         if self.base_url:
             fields['base-url'] = self.base_url
+        if 'is-local-owner' in fields:
+            del fields['is-local-owner']
         return fields
 
     def to_unsigned_manifest(self) -> Manifest:
