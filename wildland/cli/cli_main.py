@@ -104,7 +104,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
                 remount=False, with_subcontainers=True, subcontainer_of=None, quiet=True,
                 only_subcontainers=False))
 
-        click.echo(f'Mounting {len(to_mount)}')
+        click.echo(f'Mounting {len(commands)}')
         try:
             fs_client.mount_multiple_containers(commands)
         except IOError as e:
