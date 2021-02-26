@@ -84,6 +84,99 @@ The private key file format is: key prefix (`Ed`) concatenated with 32 bytes of 
 encryption key, all encoded in base64.
 
 
+Encryption
+----------
+
+Container and storage manifests can be encrypted. By default, such manifests are encrypted to the
+key of their owner (and thus only readable by the owner). Access for additional users can be
+provided via 'access' fields, for example:
+
+.. code-block:: yaml
+
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /container1
+   access:
+     - user: '0x8c83f2a9b6fd91ee189e3d38eff661a7335322c9a81700ebfc99725235c098e2'
+   backends:
+     storage:
+       - file:///path/to/storage11.yaml
+
+This manifest will be encrypted to both its owner and any additional users specified in the 'access'
+field. To get an unencrypted manifest, a special value of ``user: '*'`` can be used:
+
+.. code-block:: yaml
+
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /container1
+   access:
+     - user: '*'
+   backends:
+     storage:
+       - file:///path/to/storage11.yaml
+
+Access field can also be used in an inline storage manifest. If provided, the inline manifest will
+be encrypted only to the users specified in the inline access field - which can be a smaller user
+set than for the entire manifest. This is useful especially for manifests with any sort of
+vulnerable data, such as access keys, inside.
+
+.. code-block:: yaml
+
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /container1
+   access:
+     - user: '*'
+   backends:
+     storage:
+        - type: local
+          path: '/path/to/storage'
+          owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+          access:
+             - user: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+
+Encrypted manifests are stored like normal manifests, as a signed yaml files.
+An encrypted manifest contains a single 'encrypted' field, with two properties: 'encrypted-data'
+and 'encrypted-keys'.
+
+.. code-block:: yaml
+
+    encrypted:
+      encrypted-data: uGiAkrAH2J3Ze0zExxkxsEw5MgesvckD17J8mhEovzrK15jII1Vr3/GtbFfOdpPRDd9YFIdnRQAuGJndP4HSxeIO4WRqhEXlYcSg+MRl5xBrVGOyGEgcABir2fNbuIx/OosEky4EQVRAt2VWJ8BXxgagWj8JlYJNeC70AZTCBgIvXD4ZJ5ERwPtqh5XpIE6Re2/uN9Vx8O7MqgPXErLd5ysdj80S/uX/VVpc5qK7QTxXFNPoONzh3g8UIJeyuK1ssrXuBM7Zi8Uzc7Th1TcZqnnEMdDolySiYO61mRwwHC/mutsJ9jY1H//K3vydE++exr4cfEMNWxC/FR2exCgrNGSRXRF+v2uEOTFPWBgEOxkVCw==
+      encrypted-keys:
+         - 9kZzha84yghdN7/P7Y7SCvRLDapcVHp4XSMuHVBmdz0eI/BEyLvOw1sOafrfaYc/miQMc7bkxtYH6AOWwzVbeuFbP7JudPDiByTEWniJfUQ=
+
+If the whole manifest is not encrypted, but a storage manifest inside is encrypted, same format is
+used for the inline manifest:
+
+.. code-block:: yaml
+
+    object: container
+    owner: '0x8c83f2a9b6fd91ee189e3d38eff661a7335322c9a81700ebfc99725235c098e2'
+    paths:
+       - /.uuid/a2b04017-c87f-48d7-9844-f230104c50db
+       - /container1
+    access:
+       - user: '*'
+    backends:
+       storage:
+        - encrypted:
+           encrypted-data: 84xb9yzus+DUAAGO1k9PuJjgMxfdHdbU/rKPDzC20Xo/w0uObSDDaQu/8NBGE6Bp+YP4wFftghaXRFIocm78e0hMfkVFRJQED8TPArdfw7KYO+vHjOVoAPBNn4+wTYGtuY4xSE94BoJ/wuoG7Vwg+zPUmsWtL063W4AYaxJckh9ZCxRsSyPyrM8bhF7OrT/h2lbzXNttX4FYFUa8hD1uSHNAu4AUCEhEToLHaWJ8tXd/pE8tlNJDaR40m6Shg00Q4JRlPSVGfsA9rFrtTRS3lsaxmgWS3KZ3yHAOXWBsWBnZsy2HKZza7m2gQb21Vv+nA/oXRTCFUgpeMQdb97Y=
+           encrypted-keys:
+              - 0/72AyRsv1zeZlq/spiH6kdXEeVLZgK+rbszXj4sPEb3ZPrgiSQFYi7PESNUR19ksDQumzrYkDehBzj6mMgG5/os3Z3Wh3JG5JTl+nT7JYA=
+              - FAlt1INt+phM9/I5d0wRKNALFA/+BRDzR6mYQD2dQ3EPavfHd+NFKs7UxaTs1y4WBYW26aPKykHDpHCKKAYji1cvE9UxxqA4X+AjAMiCa6E=
+
+Manifests are (if possible, that is, if appropriate keys are available) encrypted and decrypted
+transparently. ``wl edit`` allows the user to edit decrypted manifest, while ``wl dump`` allows
+to quickly see decrypted manifest contents. ``wl sign`` encrypts and signs any manifests provided
+to it.
+
+
 Local URLs
 ----------
 
