@@ -715,10 +715,8 @@ class Client:
             return None
 
         reference_storage = self.select_storage(container)
-        reference_manifest = reference_storage.to_unsigned_manifest()
-        reference_manifest.skip_signing()
-        self._select_reference_storage_cache[cache_key] = reference_manifest.fields
-        return reference_manifest.fields
+        self._select_reference_storage_cache[cache_key] = reference_storage.params
+        return reference_storage.params
 
     @staticmethod
     def _postprocess_subcontainer(container: Container,
