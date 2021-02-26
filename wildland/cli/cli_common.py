@@ -26,8 +26,9 @@ from pathlib import Path
 from typing import Callable, List
 
 import click
+import yaml
 
-from .cli_base import ContextObj
+from .cli_base import ContextObj, CliError
 from ..client import Client
 from ..user import User
 from ..container import Container
@@ -58,6 +59,9 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
         path = search_func()
         if path:
             return path
+
+    if Path(name).exists():
+        return Path(name)
 
     raise click.ClickException(f'Not found: {name}')
 
@@ -94,6 +98,8 @@ def sign(ctx, input_file, output_file, in_place):
     '''
     obj: ContextObj = ctx.obj
 
+    obj.client.recognize_users()
+
     manifest_type = ctx.parent.command.name
     if manifest_type == 'main':
         manifest_type = None
@@ -110,14 +116,13 @@ def sign(ctx, input_file, output_file, in_place):
     else:
         data = sys.stdin.buffer.read()
 
-    manifest = Manifest.from_unsigned_bytes(data)
+    manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     if manifest_type:
         validate_manifest(manifest, manifest_type)
 
-    obj.client.recognize_users()
-
     try:
-        manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+        manifest.encrypt_and_sign(obj.client.session.sig,
+                                  only_use_primary_key=(manifest_type == 'user'))
     except SigError as e:
         raise click.ClickException(f'Error signing manifest: {e}')
     signed_data = manifest.to_bytes()
@@ -167,6 +172,36 @@ def verify(ctx, input_file):
     click.echo('Manifest is valid')
 
 
+@click.command(short_help='verify and dump contents of specified file')
+@click.option('--decrypt/--no-decrypt', '-d/-n', default=True,
+    help='decrypt manifest (if applicable)')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def dump(ctx, input_file, decrypt):
+    """
+    Dump the input manifest in a machine-readable format (currently just json). By default decrypts
+    the manifest, if possible.
+    """
+    obj: ContextObj = ctx.obj
+
+    manifest_type = ctx.parent.command.name
+    if manifest_type == 'main':
+        manifest_type = None
+
+    path = find_manifest_file(obj.client, input_file, manifest_type)
+
+    if decrypt:
+        obj.client.recognize_users()
+        manifest = Manifest.from_file(path, obj.client.session.sig)
+        print(yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False).decode())
+
+    else:
+        data = path.read_bytes()
+        if HEADER_SEPARATOR in data:
+            _, data = split_header(data)
+        print(data.decode())
+
+
 @click.command(short_help='edit manifest in external tool')
 @click.option('--editor', metavar='EDITOR',
     help='custom editor')
@@ -189,24 +224,40 @@ def edit(ctx, editor, input_file, remount):
         manifest_type = None
 
     path = find_manifest_file(obj.client, input_file, manifest_type)
-    data = path.read_bytes()
+
+    obj.client.recognize_users()
+    try:
+        manifest = Manifest.from_file(path, obj.client.session.sig)
+        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
+    except ManifestError:
+        data = path.read_bytes()
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
 
+    original_data = data
     edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
                           require_save=False)
     data = edited_s.encode()
 
-    obj.client.recognize_users()
+    if original_data == data:
+        click.echo('No changes detected, not saving.')
+        return
+
     try:
-        manifest = Manifest.from_unsigned_bytes(data)
+        manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     except ManifestError as me:
         raise click.ClickException(f'Manifest parse error: {me}') from me
 
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type)
-    manifest.sign(obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
+
+    try:
+        manifest.encrypt_and_sign(obj.client.session.sig,
+                                  only_use_primary_key=(manifest_type == 'user'))
+    except SigError as se:
+        raise CliError(f'Cannot save manifest: {se}') from se
+
     signed_data = manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)
@@ -247,7 +298,7 @@ def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
     if manifest_type is not None:
         validate_manifest(modified, manifest_type)
 
-    modified.sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+    modified.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
 
     signed_data = modified.to_bytes()
     with open(manifest_path, 'wb') as f:

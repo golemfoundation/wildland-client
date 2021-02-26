@@ -40,7 +40,7 @@ List all known users.
 
 Create a new user manifest and save it.
 
-Unless ``--key`` is provided, the command will generate a new Signify key pair.
+Unless ``--key`` is provided, the command will generate a new key pair.
 
 .. option:: --key <fingerprint>
 
@@ -87,11 +87,12 @@ locally stored key pairs (``~/.config/wildland/keys/``).
 .. _wl-user-sign:
 .. _wl-user-verify:
 .. _wl-user-edit:
+.. _wl-user-dump:
 
 :command:`wl user {sign|verify|edit} [OPTIONS] <file>`
 ------------------------------------------------------
 
-See help for :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>` and
+See help for :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-dump>` and
 :ref:`wl edit <wl-edit>`.
 
 .. program:: wl-user-import

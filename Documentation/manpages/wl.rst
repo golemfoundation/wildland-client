@@ -49,6 +49,7 @@ Subcommands
 :ref:`wl-sign <wl-sign>`
 :ref:`wl-verify <wl-verify>`
 :ref:`wl-edit <wl-edit>`
+:ref:`wl-dump <wl-dump>`
 
 :ref:`wl-start <wl-start>`
 :ref:`wl-stop <wl-stop>`

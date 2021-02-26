@@ -29,13 +29,14 @@ import uuid
 import click
 
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit, modify_manifest, set_field
+from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
 from ..storage import Storage
 from ..manifest.template import TemplateManager
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
+from ..exc import WildlandError
 
 
 @aliased_group('storage', short_help='storage management')
@@ -66,6 +67,9 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help='Set the manifest pattern for storage'),
         click.Option(['--base-url'], metavar='BASEURL',
                      help='Set public base URL'),
+        click.Option(['--access'], multiple=True, required=False, metavar='USER',
+                     help="limit access to this storage to the provided users. "
+                          "Default: same as the container."),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -98,6 +102,7 @@ def _do_create(
         manifest_pattern,
         inline,
         base_url,
+        access,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
@@ -129,6 +134,17 @@ def _do_create(
             'path': manifest_pattern,
         }
 
+    if access:
+        try:
+            access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
+        except WildlandError as ex:
+            raise CliError(f'Failed to create storage: {ex}') from ex
+    else:
+        if container.access:
+            access = container.access
+        else:
+            access = None
+
     storage = Storage(
         storage_type=backend.TYPE,
         owner=container.owner,
@@ -136,6 +152,7 @@ def _do_create(
         params=params,
         trusted=params.get('trusted', trusted),
         manifest_pattern=params.get('manifest_pattern', manifest_pattern_dict),
+        access=access
     )
     storage.validate()
 
@@ -287,7 +304,7 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
             click.echo(f'Failed to create manifest in template {file.file_name}: {ex}')
             raise ex
 
-        manifest.sign(client.session.sig)
+        manifest.encrypt_and_sign(client.session.sig, encrypt=False)
 
         storage = Storage.from_manifest(manifest,
                                         local_owners=client.config.get('local-owners'))
@@ -347,6 +364,7 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
 storage_.add_command(sign)
 storage_.add_command(verify)
 storage_.add_command(edit)
+storage_.add_command(dump)
 
 _add_create_commands(create)
 
@@ -367,3 +385,49 @@ def set_location(ctx, input_file, location):
     Set location in the manifest.
     '''
     modify_manifest(ctx, input_file, set_field, 'location', location)
+
+
+@modify.command(short_help='allow additional user(s) access to this encrypted manifest')
+@click.option('--access', metavar='PATH', required=True, multiple=True,
+              help='Users to add access for')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_access(ctx, input_file, access):
+    '''
+    Add category to the manifest.
+    '''
+    ctx.obj.client.recognize_users()
+
+    processed_access = []
+
+    try:
+        for user in access:
+            user = ctx.obj.client.load_user_by_name(user)
+            processed_access.append({'user': user.owner})
+    except WildlandError as ex:
+        raise CliError(f'Cannot modify access: {ex}') from ex
+
+    modify_manifest(ctx, input_file, add_field, 'access', processed_access)
+
+
+@modify.command(short_help='stop additional user(s) from having access to this encrypted manifest')
+@click.option('--access', metavar='PATH', required=True, multiple=True,
+              help='Users whose access should be revoked')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_access(ctx, input_file, access):
+    '''
+    Remove category from the manifest.
+    '''
+    ctx.obj.client.recognize_users()
+
+    processed_access = []
+
+    try:
+        for user in access:
+            user = ctx.obj.client.load_user_by_name(user)
+            processed_access.append({'user': user.owner})
+    except WildlandError as ex:
+        raise CliError(f'Cannot modify access: {ex}') from ex
+
+    modify_manifest(ctx, input_file, del_field, 'access', processed_access)

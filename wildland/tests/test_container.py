@@ -63,7 +63,7 @@ def test_select_storage_unsupported(client, base_dir):
         'owner': '0xaaa',
         'type': 'unknown'
     })
-    storage_manifest.sign(client.session.sig)
+    storage_manifest.encrypt_and_sign(client.session.sig)
     with open(base_dir / 'storage' / 'Storage1.storage.yaml', 'wb') as f:
         f.write(storage_manifest.to_bytes())
 
@@ -83,8 +83,8 @@ def test_storage_without_backend_id(client, base_dir):
     storage_manifest = Manifest.from_fields(base_dict)
     storage_manifest_modified = Manifest.from_fields(modified_dict)
 
-    storage_manifest.sign(client.session.sig)
-    storage_manifest_modified.sign(client.session.sig)
+    storage_manifest.encrypt_and_sign(client.session.sig)
+    storage_manifest_modified.encrypt_and_sign(client.session.sig)
 
     with open(base_dir / 'storage' / 'Storage1.storage.yaml', 'wb') as f:
         f.write(storage_manifest.to_bytes())

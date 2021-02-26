@@ -32,7 +32,7 @@ import yaml
 from click import ClickException
 from ..manifest.manifest import ManifestError
 from ..cli.cli_base import CliError
-from ..utils import load_yaml, load_yaml_all
+from ..utils import load_yaml
 
 
 def modify_file(path, pattern, replacement):
@@ -242,18 +242,19 @@ def test_user_sign(cli, cli_fail, base_dir):
 
 
 def test_user_edit(cli, base_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    editor = r'sed -i s,\'0xaaa\',\"0xaaa\",g'
+    user_path = base_dir / 'users/User.user.yaml'
+    cli('user', 'create', 'User', '--key', '0xaaa', '--path', '/PATH')
+    editor = r'sed -i s,PATH,XYZ,g'
     cli('user', 'edit', 'User', '--editor', editor)
-    with open(base_dir / 'users/User.user.yaml') as f:
-        data = f.read()
-    assert '"0xaaa"' in data
 
-    editor = r'sed -i s,\"0xaaa\",\'0xaaa\',g'
+    assert '/XYZ' in user_path.read_text()
+    assert '/PATH' not in user_path.read_text()
+
+    editor = r'sed -i s,XYZ,PATH,g'
     cli('user', 'edit', '@default', '--editor', editor)
-    with open(base_dir / 'users/User.user.yaml') as f:
-        data = f.read()
-    assert '\'0xaaa\'' in data
+
+    assert '/PATH' in user_path.read_text()
+    assert '/XYZ' not in user_path.read_text()
 
 
 def test_user_edit_bad_fields(cli, cli_fail):
@@ -274,25 +275,19 @@ def test_user_add_path(cli, cli_fail, base_dir):
     manifest_path = base_dir / 'users/User.user.yaml'
 
     cli('user', 'modify', 'add-path', 'User', '--path', '/abc')
-    with open(manifest_path) as f:
-        data = f.read()
-    assert '/abc' in data
+    assert '/abc' in manifest_path.read_text()
 
     cli('user', 'modify', 'add-path', '@default', '--path', '/xyz')
-    with open(manifest_path) as f:
-        data = f.read()
-    assert '/xyz' in data
+    assert '/xyz' in manifest_path.read_text()
 
     # duplicates should be ignored
     cli('user', 'modify', 'add-path', 'User', '--path', '/xyz')
-    with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().split()]
+    data = manifest_path.read_text()
     assert data.count('/xyz') == 1
 
     # multiple paths
     cli('user', 'modify', 'add-path', 'User.user', '--path', '/abc', '--path', '/def')
-    with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().split()]
+    data = manifest_path.read_text()
     assert data.count('/abc') == 1
     assert data.count('/def') == 1
 
@@ -397,7 +392,7 @@ def test_storage_create(cli, base_dir):
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
 
-    assert "owner: '0xaaa'" in data
+    assert "owner: ''0xaaa''" in data
     assert "location: /PATH" in data
     assert "backend-id:" in data
 
@@ -529,6 +524,28 @@ def test_container_create(cli, base_dir):
     assert "/.uuid/" in data
 
 
+def test_container_create_access(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        data = f.read()
+
+    assert "owner: '0xaaa'" in data
+    assert "/PATH" in data
+    assert "/.uuid/" in data
+    assert not 'encrypted' in data
+
+    cli('container', 'create', 'Container2', '--path', '/PATH', '--access', 'UserB')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        base_data = f.read().split('\n', 3)[-1]
+        data = yaml.safe_load(base_data)
+
+    assert 'encrypted' in data.keys()
+    assert len(data['encrypted']['encrypted-keys']) == 2
+
+
 def test_container_duplicate(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -584,7 +601,7 @@ def test_container_duplicate_noinline(cli, base_dir):
     with open(storage_path) as f:
         storage_data = f.read().split('\n', 4)[-1]
 
-    uuid = re.search('/.uuid/(.+?)\n', container_data).group(1)
+    uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
 
     assert f'container-path: /.uuid/{uuid}' in storage_data
     assert f'- file://localhost{str(storage_path)}' in container_data
@@ -600,8 +617,10 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
 
     with open(base_dir / 'containers/Duplicate.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -637,6 +656,18 @@ def test_container_edit(cli, base_dir):
     assert "/PATH" in data
 
 
+def test_container_edit_encryption(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', '--path', '/PATH', 'Container')
+
+    editor = r'sed -i s,encrypted,FAILURE,g'
+
+    cli('container', 'edit', 'Container', '--editor', editor)
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        data = f.read()
+    assert '"FAILURE"' not in data
+
+
 def test_container_add_path(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -644,25 +675,19 @@ def test_container_add_path(cli, cli_fail, base_dir):
     manifest_path = base_dir / 'containers/Container.container.yaml'
 
     cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
-    with open(manifest_path) as f:
-        data = f.read()
-    assert '/abc' in data
+    assert '/abc' in manifest_path.read_text()
 
     cli('container', 'modify', 'add-path', 'Container.container', '--path', '/xyz')
-    with open(manifest_path) as f:
-        data = f.read()
-    assert '/xyz' in data
+    assert '/xyz' in manifest_path.read_text()
 
     # duplicates should be ignored
     cli('container', 'modify', 'add-path', 'Container', '--path', '/xyz')
-    with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().split()]
+    data = manifest_path.read_text()
     assert data.count('/xyz') == 1
 
     # multiple paths
     cli('container', 'modify', 'add-path', manifest_path, '--path', '/abc', '--path', '/def')
-    with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().split()]
+    data = manifest_path.read_text()
     assert data.count('/abc') == 1
     assert data.count('/def') == 1
 
@@ -678,9 +703,7 @@ def test_container_del_path(cli, base_dir):
     cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
 
     cli('container', 'modify', 'del-path', 'Container', '--path', '/abc')
-    with open(manifest_path) as f:
-        data = f.read()
-    assert '/abc' not in data
+    assert '/abc' not in manifest_path.read_text()
 
     # non-existent paths should be ignored
     cli('container', 'modify', 'del-path', 'Container.container', '--path', '/xyz')
@@ -689,8 +712,7 @@ def test_container_del_path(cli, base_dir):
     cli('container', 'modify', 'add-path', 'Container', '--path', '/abc', '--path', '/def',
         '--path', '/xyz')
     cli('container', 'modify', 'del-path', manifest_path, '--path', '/abc', '--path', '/def')
-    with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().split()]
+    data = manifest_path.read_text()
     assert data.count('/abc') == 0
     assert data.count('/def') == 0
     assert data.count('/xyz') == 1
@@ -735,14 +757,14 @@ def test_container_add_category(cli, cli_fail, base_dir):
     # duplicates should be ignored
     cli('container', 'modify', 'add-category', 'Container', '--category', '/xyz')
     with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().splitlines()]
+        data = f.read()
     assert data.count('- /xyz') == 1
 
     # multiple values
     cli('container', 'modify', 'add-category', manifest_path, '--category', '/abc',
         '--category', '/def')
     with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().splitlines()]
+        data = f.read()
     assert data.count('- /abc') == 1
     assert data.count('- /def') == 1
 
@@ -771,13 +793,38 @@ def test_container_del_category(cli, base_dir):
     cli('container', 'modify', 'del-category', manifest_path, '--category', '/abc',
         '--category', '/def')
     with open(manifest_path) as f:
-        data = [i.strip() for i in f.read().splitlines()]
+        data = f.read()
     assert data.count('- /abc') == 0
     assert data.count('- /def') == 0
     assert data.count('- /xyz') == 1
 
     # FIXME: invalid path
     # cli_fail('container', 'modify', 'del-path', 'Container', '--path', 'abc')
+
+
+def test_container_modify_access(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'add-access', 'Container', '--access', 'User2')
+    base_data = manifest_path.read_text().split('\n', 3)[-1]
+    data = yaml.safe_load(base_data)
+    assert len(data['encrypted']['encrypted-keys']) == 2
+
+    cli('container', 'modify', 'del-access', 'Container', '--access', 'User2')
+    base_data = manifest_path.read_text().split('\n', 3)[-1]
+    data = yaml.safe_load(base_data)
+    assert len(data['encrypted']['encrypted-keys']) == 1
+
+    cli('container', 'modify', 'set-no-encrypt-manifest', 'Container')
+    assert 'encrypted' not in manifest_path.read_text()
+
+    cli('container', 'modify', 'set-encrypt-manifest', 'Container')
+    assert 'encrypted' in manifest_path.read_text()
 
 
 def test_container_create_update_user(cli, base_dir):
@@ -798,9 +845,9 @@ def test_container_create_no_path(cli, base_dir):
         data = f.read()
 
     assert "owner: '0xaaa'" in data
-    assert "categories:\n- /colors/blue" in data
-    assert "title: Sky\n" in data
-    assert "paths:\n- /.uuid/" in data
+    assert "categories:\\n- /colors/blue" in data
+    assert "title: Sky\\n" in data
+    assert "paths:\\n- /.uuid/" in data
 
 
 def test_container_update(cli, base_dir):
@@ -835,7 +882,8 @@ def test_container_publish(cli, tmp_path):
 
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
+        '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
@@ -931,8 +979,11 @@ def test_container_delete_umount(cli, base_dir, control_client):
     (base_dir / 'storage/Storage.storage.yaml').unlink()
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
+
     control_client.expect('unmount')
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
@@ -969,8 +1020,10 @@ def test_container_mount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1014,9 +1067,10 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    print(documents)
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1110,8 +1164,10 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
         '--container', 'Container', '--inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1188,8 +1244,10 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1211,8 +1269,7 @@ def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
@@ -1233,8 +1290,10 @@ backends:
         '--container', 'Container', '--subcontainer', './subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1320,8 +1379,7 @@ def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_p
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
@@ -1342,8 +1400,10 @@ backends:
         '--container', 'Container', '--subcontainer', './subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1367,13 +1427,12 @@ backends:
     ]
 
 
-def test_container_mount_local_subcontainers_trusted(cli, base_dir, control_client, tmp_path):
+def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path):
     control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""---
@@ -1414,8 +1473,10 @@ def test_container_unmount(cli, base_dir, control_client):
     cli('container', 'create', 'Container', '--path', '/PATH')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
@@ -1472,8 +1533,10 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+        container_data = f.read().split('\n', 4)[-1]
+        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1585,6 +1648,11 @@ def test_bridge_create(cli, base_dir):
 def wl_call(base_config_dir, *args):
     subprocess.check_call(['./wl', '--base-dir', base_config_dir, *args])
 
+
+def wl_call_output(base_config_dir, *args):
+    return subprocess.check_output(['./wl', '--base-dir', base_config_dir, *args])
+
+
 # container-sync
 
 
@@ -1640,7 +1708,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
 
     wl_call(base_config_dir, 'user', 'create', 'Alice')
     wl_call(base_config_dir, 'container', 'create',
-            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
+            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer', '--no-encrypt-manifest')
     wl_call(base_config_dir, 'storage', 'create', 'local',
             '--container', 'AliceContainer', '--location', storage1_data)
     wl_call(base_config_dir, 'storage', 'create', 'local-cached',
@@ -1691,6 +1759,63 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     assert not (storage2_data / 'testfile2').exists()
     with open(storage3_data / 'testfile2') as file:
         assert file.read() == "get value from config"
+
+
+# Encryption of inline storage manifests
+
+
+def test_container_edit_inline_storage(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+
+    alice_output = wl_call_output(base_config_dir, 'user', 'create', 'Alice')
+    alice_key = alice_output.decode().splitlines()[0].split(' ')[2]
+    wl_call(base_config_dir, 'user', 'create', 'Bob')
+
+    wl_call(base_config_dir, 'container', 'create',
+            '--owner', 'Alice', '--path', '/Alice', '--access', 'Bob', 'AliceContainer')
+
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage1_data, '--access', 'Alice')
+
+    os.unlink(base_config_dir / f'keys/{alice_key}.sec')
+
+    container_list = wl_call_output(base_config_dir, 'container', 'list').decode()
+    assert '/Alice' in container_list  # main container data is decrypted
+    assert 'encrypted' in container_list  # but the storage is encrypted
+    assert 'location' not in container_list  # and it's data is inaccesible
+
+
+def test_dump(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+
+    alice_output = wl_call_output(base_config_dir, 'user', 'create', 'Alice')
+    alice_key = alice_output.decode().splitlines()[0].split(' ')[2]
+    wl_call(base_config_dir, 'user', 'create', 'Bob')
+
+    wl_call(base_config_dir, 'container', 'create',
+            '--owner', 'Alice', '--path', '/Alice', '--access', 'Bob', 'AliceContainer')
+
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage1_data, '--access', 'Alice')
+
+    dump_container = wl_call_output(base_config_dir, 'container', 'dump', 'AliceContainer').decode()
+    yaml_container = yaml.safe_load(dump_container)
+    assert 'enc' not in dump_container
+    assert '/Alice' in dump_container
+
+    assert yaml_container['object'] == 'container'
+
+    os.unlink(base_config_dir / f'keys/{alice_key}.sec')
+
+    dump_container = wl_call_output(base_config_dir, 'container', 'dump', 'AliceContainer').decode()
+    yaml_container = yaml.safe_load(dump_container)
+
+    assert 'encrypted' in dump_container
+    assert yaml_container['object'] == 'container'
 
 # Storage sets
 
@@ -1802,13 +1927,11 @@ def test_cli_set_use_inline(cli, base_dir):
     cli('user', 'create', 'User')
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
-        '--storage-set', 'set1')
+        '--storage-set', 'set1', '--no-encrypt-manifest')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-
-        assert f'location: {base_dir}/Test' in output_lines
-        assert 'type: local' in output_lines
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
+    assert f'location: {base_dir}/Test' in data
+    assert 'type: local' in data
 
     assert (base_dir / 'Test').exists()
 
@@ -1828,10 +1951,8 @@ def test_cli_set_use_file(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
         '--storage-set', 'set1')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-
-        assert f'file://localhost{base_dir}/storage/set1.storage.yaml' in output_lines
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
+    assert f'file://localhost{base_dir}/storage/set1.storage.yaml' in data
 
     assert (base_dir / 'Test').exists()
 
@@ -1849,13 +1970,13 @@ def test_cli_set_missing_title(cli, base_dir):
     cli('storage-set', 'add', '--inline', 'title', 'set1')
     cli('user', 'create', 'User')
 
-    cli('container', 'create', 'Container', '--path', '/PATH', '--storage-set', 'set1')
+    cli('container', 'create', 'Container', '--path', '/PATH',
+        '--storage-set', 'set1', '--no-encrypt-manifest')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'location: {base_dir}/test' in output_lines
-        assert 'type: local' in output_lines
+    assert f'location: {base_dir}/test' in data
+    assert 'type: local' in data
 
 
 def test_cli_set_missing_param(cli, base_dir):
@@ -1892,11 +2013,10 @@ def test_cli_set_local_dir(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test',
         '--storage-set', 'set1', '--local-dir', '/test/test')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'location: {base_dir}/test/test' in output_lines
-        assert 'type: local' in output_lines
+    assert f'location: {base_dir}/test/test' in data
+    assert 'type: local' in data
 
     assert (base_dir / 'test/test').exists()
 
@@ -1923,11 +2043,9 @@ def test_cli_set_use_default(cli, base_dir):
 
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-        print(output_lines)
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+    assert f'file://localhost{base_dir}/storage/set.storage.yaml' in data
 
 
 def test_cli_set_use_def_storage(cli, base_dir):
@@ -1939,11 +2057,9 @@ def test_cli_set_use_def_storage(cli, base_dir):
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'Test')
     cli('storage', 'create-from-set', 'Container')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        output_lines = [strip_yaml(line) for line in f.readlines()]
-        print(output_lines)
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-        assert f'file://localhost{base_dir}/storage/set.storage.yaml' in output_lines
+    assert f'file://localhost{base_dir}/storage/set.storage.yaml' in data
 
 
 def test_different_default_user(cli, base_dir):
@@ -2216,12 +2332,14 @@ def test_only_subcontainers(cli, base_dir, control_client):
 
     # Extract containers auto-generated UUIDs
     with open(base_dir / 'containers/Parent.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-        uuid_path_parent = documents[1]['paths'][0]
+        parent_data = f.read().split('\n', 4)[-1]
+        parent_uuid = re.search(r'/.uuid/(.+?)\\n', parent_data).group(1)
+        uuid_path_parent = f'/.uuid/{parent_uuid}'
 
     with open(base_dir / 'containers/Child.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-        uuid_path_child = documents[1]['paths'][0]
+        child_data = f.read().split('\n', 4)[-1]
+        child_uuid = re.search(r'/.uuid/(.+?)\\n', child_data).group(1)
+        uuid_path_child = f'/.uuid/{child_uuid}'
 
     # Mount the parent container with subcontainers INCLUDING itself
     control_client.expect('paths', {})

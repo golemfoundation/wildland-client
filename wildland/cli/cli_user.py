@@ -31,7 +31,7 @@ from ..user import User
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import WILDLAND_URL_PREFIX
 from ..bridge import Bridge
-from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field
+from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, dump
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
@@ -96,7 +96,7 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         path = obj.client.save_new_user(user, name)
     except binascii.Error as ex:
         # Separate error to provide some sort of readable feedback
-        # raised by SignifySigContext._fingerprint
+        # raised by SigContext.fingerprint through base64.b64decode
         click.echo(f'Failed to create user due to incorrect key provided (provide public '
                    f'key, not path to key file): {ex}')
         error_on_save = True
@@ -349,7 +349,7 @@ def _do_process_imported_manifest(
             bridge.paths = paths
         if default_user:
             bridge.owner = default_user
-        copied_manifest_path.write_bytes(obj.session.dump_bridge(bridge))
+        copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location)
 
 
@@ -470,6 +470,7 @@ def user_refresh(obj: ContextObj, name):
 user_.add_command(sign)
 user_.add_command(verify)
 user_.add_command(edit)
+user_.add_command(dump)
 
 
 @user_.group(short_help='modify user manifest')

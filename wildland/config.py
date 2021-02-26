@@ -128,6 +128,19 @@ class Config:
             file_fields.setdefault('@default-owner', file_fields['@default-signer'])
             del file_fields['@default-signer']
 
+        if len(file_fields.get('@default-owner', '')) == 22:
+            logger.warning('\'@default-owner\' uses obsolete Signify key format. '
+                           'Please update to the new format.')
+
+        if len(file_fields.get('@default', '')) == 22:
+            logger.warning('\'@default\' uses obsolete Signify key format. '
+                           'Please update to the new format.')
+
+        for owner in file_fields.get('local-owners', []):
+            if len(owner) == 22:
+                logger.warning('Owner %s in \'local-owners\' uses obsolete Signify key '
+                               'format. Please update to the new format.', owner)
+
     @classmethod
     def load(cls, base_dir=None):
         '''

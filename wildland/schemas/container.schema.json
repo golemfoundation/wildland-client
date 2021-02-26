@@ -33,13 +33,18 @@
                     "items": {
                         "oneOf": [
                             { "$ref": "/schemas/types.json#url" },
-                            { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" }
+                            { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" },
+                            { "$ref": "/schemas/types.json#encrypted" }
                         ]
                     },
                     "description": "list of storage backend URLs, or inlined storage manifests"
                 }
             },
             "additionalProperties": false
+        },
+        "access": {
+            "$ref": "/schemas/types.json#access",
+            "description": "access control; by default manifests are encrypted to their owner"
         }
     },
     "additionalProperties": false

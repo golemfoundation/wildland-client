@@ -29,7 +29,7 @@ import click
 from ..manifest.manifest import ManifestError
 from ..bridge import Bridge
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit
+from .cli_common import sign, verify, edit, dump
 from .cli_user import import_manifest
 
 
@@ -148,3 +148,4 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
 bridge_.add_command(sign)
 bridge_.add_command(verify)
 bridge_.add_command(edit)
+bridge_.add_command(dump)
