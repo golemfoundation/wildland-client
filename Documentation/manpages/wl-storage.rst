@@ -107,8 +107,8 @@ for details.
 .. program:: wl-storage-create-date-proxy
 .. _wl-storage-create-date-proxy:
 
-:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url>  <storage>`
--------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
+------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
@@ -146,8 +146,8 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
 
-:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --location <filesystem_path>  <storage>`
------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+----------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
@@ -208,7 +208,20 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. option:: --token <access_token>
 
-   Dropbox app token. You can generate it with Dropbox App Console.
+   Dropbox app token. You can generate it with Dropbox App Console. Required.
+
+
+.. program:: wl-storage-create-categorization
+.. _wl-storage-create-categorization:
+
+:command:`wl storage create categorization --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
+----------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --reference-container-url <url>
+
+   Inner container URL for this storage. Required.
 
 
 .. program:: wl-storage-create-s3
