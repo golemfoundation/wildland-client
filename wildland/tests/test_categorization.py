@@ -1,5 +1,5 @@
 """
-Unit tests for a categorization proxy
+Unit tests for the categorization proxy
 """
 from ..storage_backends.categorization_proxy import CategorizationProxyStorageBackend as cp
 
@@ -9,10 +9,12 @@ def test_filename_to_prefix_postfix_category_path():
     Test conversion from directory name into ``(prefix_category, postfix_category)`` where
     ``prefix_category`` and ``postfix_category`` are respectively: category parsed from part of
     directory name preceding and following ``@`` character (a.k.a. category tag). If ``@`` is not
-    present in directory name, then ``postfix_category`` is empty.
+    present in directory name, then ``postfix_category`` is empty. Underscores (``_``) are being
+    used as a category path separator in direcory name. Slash ``/`` plays the same role in a
+    subcontainer's manifest.
     """
     dirname_to_categories_tests = {
-        # Tests with no valid category tag embedded (note no '@' character in directories' names).
+        # Names with no valid category tag embedded (note no '@' character in directories' names).
         'author1': ('/author1', ''),
         'aaa': ('/aaa', ''),
         'aaa_bbb_ccc': ('/aaa/bbb/ccc', ''),
@@ -22,17 +24,17 @@ def test_filename_to_prefix_postfix_category_path():
         '_aaa bbb_ccc ddd_': ('/aaa bbb/ccc ddd', ''),
         ' ': ('/ ', ''),
         '_': ('/_', ''),
-        # Tests with invalid category tag. Treated as a plain directory name.
+        # Names with invalid category tag. Treated as a plain directory name.
         'aaa @': ('/aaa @', ''),
         '@': ('/@', ''),
         '_@': ('/_@', ''),
-        # Tests with multiple '@' characters indicating multiple category tags. Since we don't
+        # Names with multiple '@' characters indicating multiple category tags. Since we don't
         # support multiple tags in a directory name, we treat it as a plain directory name.
         'aaa_@bbb @ccc': ('/aaa_@bbb @ccc', ''),
         'aaa @@ bbb': ('/aaa @@ bbb', ''),
         '@aaa_bbb_ccc@': ('/@aaa_bbb_ccc@', ''),
         '@@@@@@@@': ('/@@@@@@@@', ''),
-        # Test cases with valid category name embedded.
+        # Names with valid category name embedded.
         '@authors': ('', '/authors'),
         '@titles_title1' : ('', '/titles/title1'),
         'author2_@titles_title3': ('/author2', '/titles/title3'),
@@ -58,8 +60,8 @@ def test_filename_to_prefix_postfix_category_path():
 
 def test_filename_to_category_path_conversion():
     """
-    Test conversion from category embedded in directory's name, into category path saved into
-    subcontainer's manifest.
+    Test conversion from category embedded in directory's name, into category path that is indented
+    to be saved into subcontainer's manifest.
     """
     dirname_to_category_tests = {
         'books_titles': '/books/titles',

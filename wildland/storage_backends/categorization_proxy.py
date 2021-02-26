@@ -22,9 +22,9 @@ Categorization proxy backend
 
 import logging
 import uuid
-from typing import Tuple, Optional, Iterable, List, Dict, Set
-from pathlib import PurePosixPath
 from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import Tuple, Optional, Iterable, Set
 
 import click
 
@@ -36,14 +36,15 @@ from ..manifest.sig import SigContext
 logger = logging.getLogger('categorization-proxy')
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class CategorizationSubcontainerMetaInfo:
     """
-    Categorization subcontainer metainformation
+    Categorization subcontainer metainformation. Every unique instance of this class corresponds to
+    a single subcontainer's manifest.
     """
     dir_path: PurePosixPath
     title: str
-    categories: List[str]
+    categories: frozenset[str]
 
 
 class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
@@ -112,56 +113,55 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
     def list_subcontainers(self, sig_context: Optional[SigContext] = None) -> Iterable[dict]:
         ns = uuid.UUID(self.backend_id)
         dir_path = PurePosixPath('')
-        categories_to_container_map = self._get_categories_to_subcontainer_map(dir_path)
+        subcontainer_metainfo_set = self._get_categories_to_subcontainer_map(dir_path)
 
-        # TODO DEBUG
-        logger.warning('DUPAA1')
-        logger.warning(repr(categories_to_container_map))
-        logger.warning('DUPAA2')
-        for (categories, title), subcontainer_metainfo in categories_to_container_map.items():
-            logger.warning('categories: %s vs %s', repr(categories), repr(subcontainer_metainfo.categories))
-            assert list(categories) == subcontainer_metainfo.categories
-            assert title == subcontainer_metainfo.title
-            subcontainer_path = str(subcontainer_metainfo.dir_path)
-            ident = str(uuid.uuid3(ns, subcontainer_path))
+        logger.debug('Collected subcontainers: %s', repr(subcontainer_metainfo_set))
+
+        for subcontainer_metainfo in subcontainer_metainfo_set:
+            dirpath = str(subcontainer_metainfo.dir_path)
+            title = subcontainer_metainfo.title
+            categories = list(subcontainer_metainfo.categories)
+            ident = str(uuid.uuid3(ns, dirpath))
             yield {
                 'paths': [f'/.uuid/{ident}'],
-                'title': subcontainer_metainfo.title,
-                'categories': list(categories),
+                'title': title,
+                'categories': categories,
                 'backends': {'storage': [{
                     'type': 'delegate',
                     'reference-container': 'wildland:@default:@parent-container:',
-                    'subdirectory': '/' + subcontainer_path,
-                    'backend-id': str(uuid.uuid3(ns, subcontainer_path))
+                    'subdirectory': '/' + dirpath,
+                    'backend-id': str(uuid.uuid3(ns, dirpath))
                 }]}
             }
 
     def _get_categories_to_subcontainer_map(self, dir_path: PurePosixPath) -> \
-            Dict[Tuple[frozenset, str], CategorizationSubcontainerMetaInfo]:
+            Set[CategorizationSubcontainerMetaInfo]:
         """
-        Recursively traverse directory tree and build categories to directory paths mapping.
+        Recursively traverse directory tree and generate subcontainers' metainformation based on the
+        directories' names: ``@`` starts new category path, ``_`` joins two categories.
         """
-        return self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), dict())
+        return self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), set())
 
     def _get_categories_to_subcontainer_map_recursive(
         self,
         dir_path: PurePosixPath,
         open_category: str,
         closed_categories: Set[str],
-        results: Dict[Tuple[frozenset, str], CategorizationSubcontainerMetaInfo]) -> \
-            Dict[Tuple[frozenset, str], CategorizationSubcontainerMetaInfo]:
-
+        results: Set[CategorizationSubcontainerMetaInfo]) -> \
+            Set[CategorizationSubcontainerMetaInfo]:
+        """
+        Recursively traverse directory tree, collect and return all of the metainformation needed to
+        create subcontainers based on the tags embedded in directories' names.
+        """
         for name in self.inner.readdir(dir_path):
-            # TODO DEBUG
-            logger.warning('DUPA > dir=%s, name=%s', str(dir_path), name)
             path = dir_path / name
             attr = self.inner.getattr(path)
             if attr.is_dir():
                 prefix_category, postfix_category = self._get_category_info(name)
                 if postfix_category:
-                    concatenated = open_category + prefix_category
-                    concatenated_set = {concatenated} if concatenated else set()
-                    new_closed_categories = closed_categories | concatenated_set
+                    closed_category = open_category + prefix_category
+                    closed_category_set = {closed_category} if closed_category else set()
+                    new_closed_categories = closed_categories | closed_category_set
                     new_open_category = postfix_category
                 else:
                     new_closed_categories = closed_categories
@@ -172,21 +172,17 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
                     new_closed_categories,
                     results)
             else:
-                tmp_open_category, _, subcontainer_title = open_category.rpartition('/')
-                if tmp_open_category:
-                    closed_categories.add(tmp_open_category)
+                prefix_category, _, subcontainer_title = open_category.rpartition('/')
+                if prefix_category:
+                    closed_categories.add(prefix_category)
                 all_categories = frozenset(closed_categories) or frozenset('/unclassified')
-                # TODO DEBUG
-                logger.warning('DUPAA > [%s] -> (%s, title=%s), open_category=%s, tmp_open_category=%s', path, repr(all_categories), subcontainer_title, open_category, tmp_open_category)
-                key = (all_categories, subcontainer_title)
-                if key in results:
-                    logger.warning('Asserting [%s] == [%s]', dir_path, results[key].dir_path)
-                    assert dir_path == results[key].dir_path
-                    continue
-                results[key] = CategorizationSubcontainerMetaInfo(
+                subcontainer_metainfo = CategorizationSubcontainerMetaInfo(
                     dir_path=dir_path,
                     title=subcontainer_title,
-                    categories=list(all_categories))
+                    categories=all_categories
+                )
+                if subcontainer_metainfo not in results:
+                    results.add(subcontainer_metainfo)
 
         return results
 
