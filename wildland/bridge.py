@@ -71,13 +71,14 @@ class Bridge:
         Has to be signed separately.
         '''
 
-        manifest = Manifest.from_fields(dict(
-            object=type(self).__name__.lower(),
-            owner=self.owner,
-            user=self.user_location,
-            pubkey=self.user_pubkey,
-            paths=[str(p) for p in self.paths],
-        ))
+        manifest = Manifest.from_fields({
+            "object": type(self).__name__.lower(),
+            "owner": self.owner,
+            "user": self.user_location,
+            "pubkey": self.user_pubkey,
+            "paths": [str(p) for p in self.paths],
+            "version": Manifest.CURRENT_VERSION
+        })
         manifest.apply_schema(self.SCHEMA)
         return manifest
 

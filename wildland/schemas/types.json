@@ -106,5 +106,9 @@
                 }
             }
         }
+    },
+    "version": {
+        "const": "1",
+        "description": "manifest version"
     }
 }

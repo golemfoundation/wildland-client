@@ -195,6 +195,38 @@ key1: value2
     with pytest.raises(ManifestError):
         Manifest.from_bytes(data, sig)
 
+
+def test_parse_update_obsolete(sig, owner):
+    test_data = f'''
+signer: "{owner}"
+backends: 
+    storage: []
+key1: value1
+key2: "value2"
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    manifest = Manifest.from_bytes(data, sig)
+    assert manifest.fields['object'] == 'container'
+    assert manifest.fields['owner'] == owner
+    assert manifest.fields['version'] == Manifest.CURRENT_VERSION
+
+
+def test_parse_version_1(sig, owner):
+    test_data = f'''
+signer: "{owner}"
+backends: 
+    storage: []
+key1: value1
+key2: "value2"
+version: '1'
+'''.encode()
+
+    data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
+    with pytest.raises(ManifestError):
+        Manifest.from_bytes(data, sig)
+
+
 def test_encrypt(sig, owner):
     test_data = {
         'owner': owner,

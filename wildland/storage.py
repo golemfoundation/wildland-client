@@ -135,6 +135,7 @@ class Storage:
             'owner': self.owner,
             'type': self.storage_type,
             'container-path': str(self.container_path),
+            'version': Manifest.CURRENT_VERSION
         }
         if self.trusted:
             fields['trusted'] = True

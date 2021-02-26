@@ -99,6 +99,7 @@ class User:
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,
             'pubkeys': self.pubkeys,
+            'version': Manifest.CURRENT_VERSION
         })
         manifest.apply_schema(self.SCHEMA)
         return manifest
