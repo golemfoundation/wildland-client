@@ -17,9 +17,9 @@ Here is an example of a signed manifest:
 
 .. code-block:: yaml
 
-   signature: RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
+   signature: 0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5:kJq+h9yXCILDmflwfy4rFYA17r42TzIAnp3y6khYlqqHlrYcD0KxIAOwFr1wXHjUAA2h4HEYQwzf6l4SRXEyDA==
    ---
-   owner: '0x5a7a224844d80b086445'
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
 
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -32,14 +32,6 @@ Here is an example of a signed manifest:
        - file:///path/to/storage12.yaml
 
    # vim: ts=2 sts=2 sw=2 et
-
-We also support the old signature format, with a comment:
-
-.. code-block:: yaml
-
-   signature: |
-     untrusted comment: signify signature
-     RWQIC9hESCJ6WgeQ90xQDJnqcpjcuefWByzLGf/eN5tm+TnaW3DiumWxVliUszTYr5t6Ih8lW3ETCpuEQw5D+s3AhaeH1gIdegw=
 
 Note that we recognize an **extremely limited YAML subset** in the header:
 
@@ -73,15 +65,24 @@ wildland-client repository
 Keys and signatures
 -------------------
 
-Public key cryptography is handled by `Signify
-<https://github.com/aperezdc/signify>`_, OpenBSD's tool for signing and
-verification. The keys and signatures use Signify's format: a single-line
-untrusted comment, then Base64-encoded data.
+Public key cryptography is handled by libsodium (see https://libsodium.gitbook.io/doc/).
+Keys are in the Ed25519 format, signatures consist of a key fingerprint (sha256 hash of public key)
+and base64 signature, separated by a ':'.
 
-The canonical format for fingerprints is ``0x`` followed by a 20 hexadecimal
-digits; the first 10 bytes of the key. Note that **the fingerprint has to be
-quoted**, otherwise it will be interpreted as a YAML number and fail
-validation.
+The canonical format for fingerprints is ``0x`` followed by a sha256 hash of the public key,
+encoded in hex. Note that **the fingerprint has to be quoted**, otherwise it will be interpreted as
+a YAML number and fail validation.
+
+Keys are stored in key_dir (as per config file, by default it's (``$HOME/.config/wildland/keys``),
+in files <key_id>.pub (for public key) and <key_id>.sec (for private key).
+
+The public key file format is: key prefix (`Ed`) concatenated with 32 bytes of public signing key
+and 32 bytes of public encryption key, all encoded in base64.
+
+The private key file format is: key prefix (`Ed`) concatenated with 32 bytes of public signing key,
+32 bytes of public encryption key, 32 bytes of private signing key and 32 bytes of private
+encryption key, all encoded in base64.
+
 
 Local URLs
 ----------
@@ -152,7 +153,7 @@ Example:
 
     signature: ...
     ---
-    owner: '0x5a7a224844d80b086445'
+    owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
     infrastructures:
       - file:///path/to/container.yaml
     pubkeys:
@@ -172,7 +173,7 @@ Example:
 
    signature: ...
    ---
-   owner: '0x5a7a224844d80b086445'
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
 
    paths:
      - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
@@ -191,7 +192,7 @@ Example:
         - file:///path/to/storage12.yaml
         - type: local
           path: '/path/to/storage'
-          owner: '0x5a7a224844d80b086445'
+          owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
           container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
 
 Fields:
@@ -210,7 +211,7 @@ Example:
 
    signature: ...
    ---
-   owner: '0x5a7a224844d80b086445'
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
    type: local
    container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    path: /path/to/storage/
@@ -245,7 +246,7 @@ Example:
 
    signature: ...
    ---
-   owner: '0x5a7a224844d80b086445'
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
    user: ./User.yaml
    pubkey: RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
    paths:

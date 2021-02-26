@@ -77,6 +77,83 @@ class Manifest:
         return self._fields
 
     @classmethod
+    def encrypt(cls, fields: dict, sig: SigContext, owner: Optional[str] = None) -> dict:
+        """
+        Encrypt provided dict with the SigContext.
+        Encrypts to 'owner' keys, unless 'access' field specifies otherwise.
+        Inline storages may have their own access fields.
+        Returns encrypted dict.
+        """
+        if not owner:
+            owner = fields.get('owner', None)
+            if not owner:
+                raise ManifestError('Owner not found')
+
+        if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
+            backends_update = []
+            for backend in fields['backends']['storage']:
+                if isinstance(backend, dict) and 'access' in backend:
+                    backends_update.append((backend, cls.encrypt(backend, sig, owner)))
+
+            for old, new in backends_update:
+                fields['backends']['storage'].remove(old)
+                fields['backends']['storage'].append(new)
+
+        keys_to_encrypt = sig.get_all_pubkeys(owner)
+
+        if 'access' in fields.keys():
+            for data_dict in fields['access']:
+                user = data_dict['user']
+                if user == '*':
+                    return fields
+                pubkeys = sig.get_all_pubkeys(user)
+                if not pubkeys:
+                    raise ManifestError(f'Cannot encrypt to {user}.')
+                keys_to_encrypt.extend(pubkeys)
+        data_to_encrypt = yaml.dump(fields, sort_keys=False).encode()
+        try:
+            encrypted_data, encrypted_keys = sig.encrypt(data_to_encrypt, keys_to_encrypt)
+        except SigError as se:
+            raise ManifestError('Cannot encrypt manifest.') from se
+        return {'encrypted': {'encrypted-data': encrypted_data, 'encrypted-keys': encrypted_keys}}
+
+    @classmethod
+    def decrypt(cls, fields: dict, sig: SigContext) -> dict:
+        """
+        Decrypt provided dict within provided SigContext.
+        Assumes encrypted (sub) dict contains an 'encrypted' fields that contains a dict
+        with two fields: 'encrypted-data' and 'encrypted-keys'.
+        Returns decrypted dict.
+        """
+        if list(fields.keys()) == ['encrypted']:
+            encrypted_dict = fields['encrypted']
+
+            if not isinstance(encrypted_dict, dict) or \
+                    sorted(encrypted_dict.keys()) != ['encrypted-data', 'encrypted-keys']:
+                raise ManifestError('Encrypted field malformed.')
+            try:
+                decrypted_raw = sig.decrypt(encrypted_dict['encrypted-data'],
+                                            encrypted_dict['encrypted-keys'])
+            except SigError as se:
+                raise ManifestError('Cannot decrypt manifest.') from se
+
+            fields = yaml.safe_load(decrypted_raw)
+
+        if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
+            backends_update = []
+            for backend in fields['backends']['storage']:
+                if isinstance(backend, dict) and 'encrypted' in backend:
+                    try:
+                        backends_update.append((backend, cls.decrypt(backend, sig)))
+                    except ManifestError:
+                        # we don't have the appropriate keys, and that's okay
+                        pass
+            for old, new in backends_update:
+                fields['backends']['storage'].remove(old)
+                fields['backends']['storage'].append(new)
+        return fields
+
+    @classmethod
     def update_obsolete(cls, fields: dict) -> dict:
         """
         Update any obsolete fields. Currently handles:
@@ -112,7 +189,7 @@ class Manifest:
         # Nested manifests too
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
-                if isinstance(storage, dict):
+                if isinstance(storage, dict) and list(storage.keys()) != ['encrypted']:
                     cls.update_obsolete(storage)
         if 'infrastructures' in fields:
             for container in fields['infrastructures']:
@@ -126,19 +203,20 @@ class Manifest:
         return fields
 
     @classmethod
-    def from_fields(cls, fields: dict) -> 'Manifest':
+    def from_fields(cls, fields: dict, sig: SigContext = None) -> 'Manifest':
         '''
         Create a manifest based on a dict of fields.
 
         Has to be signed separately.
         '''
-
+        if sig:
+            fields = cls.decrypt(fields, sig)
         fields = cls.update_obsolete(fields)
         data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
         return cls(None, fields, data)
 
     @classmethod
-    def from_unsigned_bytes(cls, data: bytes) -> 'Manifest':
+    def from_unsigned_bytes(cls, data: bytes, sig: SigContext = None) -> 'Manifest':
         '''
         Create a new Manifest based on existing YAML-serialized
         content. The content can include an existing header, it will be ignored.
@@ -154,21 +232,35 @@ class Manifest:
             fields = load_yaml(rest_str)
         except yaml.YAMLError as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e
+        if sig:
+            fields = cls.decrypt(fields, sig)
         fields = cls.update_obsolete(fields)
         return cls(None, fields, data)
 
-    def sign(self, sig_context: SigContext, only_use_primary_key: bool = False):
+    def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
+                         encrypt=True):
         '''
         Sign a previously unsigned manifest.
         If attach_pubkey is true, attach the public key to the signature.
+        Can force not encrypting, if needed.
         '''
 
         if self.header is not None:
             raise ManifestError('Manifest already signed')
 
+        fields = self._fields
+        data = self.original_data
+
+        if fields['object'] in ['container', 'storage'] and encrypt:
+            fields = Manifest.encrypt(fields, sig_context)
+            data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
+
         owner = self._fields['owner']
-        signature = sig_context.sign(owner, self.original_data,
+        signature = sig_context.sign(owner, data,
                                      only_use_primary_key=only_use_primary_key)
+
+        self.original_data = data
+        self._fields = fields
         self.header = Header(signature)
 
     def skip_signing(self):
@@ -222,8 +314,7 @@ class Manifest:
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e)) from e
-
-        fields = cls._parse_yaml(rest_data)
+        fields = cls._parse_yaml(rest_data, sig_context)
 
         if header.signature is None:
             if fields.get('owner') != trusted_owner:
@@ -239,7 +330,6 @@ class Manifest:
                 raise ManifestError(
                     'Manifest owner does not have access to signing key: header {!r}, '
                     'manifest {!r}'.format(header_signer, fields.get('owner')))
-
         manifest = cls(header, fields, rest_data)
         if schema:
             manifest.apply_schema(schema)
@@ -276,7 +366,7 @@ class Manifest:
         header_data, rest_data = split_header(data)
         header = Header.from_bytes(header_data)
 
-        fields = cls._parse_yaml(rest_data)
+        fields = cls._parse_yaml(rest_data, sig_context)
         # to be able to import keys from both bridge ('pubkey' field) and user ('pubkeys' field)
         # we have to handle both fields
         pubkeys = fields.get('pubkeys', [])
@@ -299,9 +389,10 @@ class Manifest:
             sig_context.add_pubkey(pubkey, owner)
 
     @classmethod
-    def _parse_yaml(cls, data: bytes):
+    def _parse_yaml(cls, data: bytes, sig: SigContext):
         try:
             fields = load_yaml(data.decode('utf-8'))
+            fields = cls.decrypt(fields, sig)
             return cls.update_obsolete(fields)
         except (ValueError, yaml.YAMLError) as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e

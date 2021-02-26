@@ -67,8 +67,8 @@ Delete a container from local filesystem.
 .. program:: wl-container-create
 .. _wl-container-create:
 
-:command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>]`
-----------------------------------------------------------------------------------------------------------------
+:command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create a |~| new container manifest.
 
@@ -113,6 +113,19 @@ Create a |~| new container manifest.
 .. option:: --no-default-storage-set
 
     Do not use default storage set for the user, even if available.
+
+.. option:: --encrypt-manifest
+
+    Encrypt container manifest so that it's readable only by the owner. This is the default.
+
+.. option:: --no-encrypt-manifest
+
+    Do not encrypt container manifest at all.
+
+.. option:: --access USER
+
+    Allow an additional user access to this container manifest. This requires --encrypt-manifest
+    (which is true by default).
 
 
 .. program:: wl-container-update
@@ -250,11 +263,12 @@ Publish a container manifest into user's infrastructure container.
 .. _wl-container-sign:
 .. _wl-container-verify:
 .. _wl-container-edit:
+.. _wl-container-dump:
 
 :command:`wl container {sign|verify|edit} [...]`
 ------------------------------------------------------
 
-See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
+See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-dump>`
 and :ref:`wl edit <wl-edit>` documentation.
 
 .. program:: wl-container-sync
@@ -332,6 +346,28 @@ Remove Wildland path from a container |~| manifest given by *<file>*.
 
    Path to remove. Can be repeated.
 
+.. _wl-container-modify-add-access:
+
+:command:`wl container modify add-access --access USER <file>`
+--------------------------------------------------------------
+
+Allow an additional user |~| access to manifest given by *<file>*.
+
+.. option:: --access
+
+   User to add access for. Can be repeated.
+
+.. _wl-container-modify-del-access:
+
+:command:`wl container modify del-acccess --access USER <file>`
+---------------------------------------------------------------
+
+Revoke user's |~| access to manifest given by *<file>*.
+
+.. option:: --access
+
+   User to revoke access from. Can be repeated.
+
 .. _wl-container-modify-add-category:
 
 :command:`wl container modify add-category --category PATH <file>`
@@ -364,3 +400,18 @@ Set title in a container |~| manifest given by *<file>*.
 .. option:: --title
 
    Title to set.
+
+.. _wl-container-modify-set-encrypt-manifest:
+
+:command:`wl container modify set-encrypt-manifest <file>`
+----------------------------------------------------------
+
+Encrypt manifest given by *<file>* so that it's only readable by its owner.
+
+.. _wl-container-modify-set-no-encrypt-manifest:
+
+:command:`wl container modify set-no-encrypt-manifest <file>`
+-------------------------------------------------------------
+
+Stop encrypting manifest given by *<file>*.
+

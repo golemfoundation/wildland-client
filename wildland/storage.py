@@ -49,7 +49,10 @@ class Storage:
                  params: Dict[str, Any],
                  manifest_pattern: Optional[Dict[str, Any]] = None,
                  base_url: Optional[str] = None,
-                 local_path: Optional[Path] = None):
+                 local_path: Optional[Path] = None,
+                 manifest: Manifest = None,
+                 access: Optional[List[dict]] = None):
+
         self.owner = owner
         self.storage_type = storage_type
         self.container_path = container_path
@@ -58,6 +61,9 @@ class Storage:
         self.local_path = local_path
         self.manifest_pattern = manifest_pattern
         self.base_url = base_url
+        self.manifest = manifest
+        self.access = access
+
         if 'backend-id' not in params:
             hasher = hashlib.md5()
             # skip 'storage' object if present, it is derived from reference-container
@@ -74,7 +80,8 @@ class Storage:
             f'trusted={self.trusted!r}, '
             f'manifest_pattern={self.manifest_pattern!r}, '
             f'base_url={self.base_url!r}, '
-            f'local_path={self.local_path!r})')
+            f'local_path={self.local_path!r})'
+            f'access={self.access}')
 
     @property
     def is_writeable(self) -> bool:
@@ -117,6 +124,8 @@ class Storage:
             base_url=manifest.fields.get('base-url'),
             params=manifest.fields,
             local_path=local_path,
+            manifest=manifest,
+            access=manifest.fields.get('access', None)
         )
 
     def _get_manifest_fields(self) -> Dict[str, Any]:
@@ -133,6 +142,8 @@ class Storage:
             fields['manifest-pattern'] = self.manifest_pattern
         if self.base_url:
             fields['base-url'] = self.base_url
+        if self.access:
+            fields['access'] = self.access
         if 'is-local-owner' in fields:
             del fields['is-local-owner']
         return fields

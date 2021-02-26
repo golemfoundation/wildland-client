@@ -38,7 +38,7 @@ from .container import Container
 from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath, PathError
-from .manifest.sig import DummySigContext, SignifySigContext
+from .manifest.sig import DummySigContext, SodiumSigContext
 from .manifest.manifest import ManifestError, Manifest
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
@@ -93,12 +93,13 @@ class Client:
         except (ConnectionRefusedError, FileNotFoundError):
             pass
 
+        key_dir = Path(self.config.get('key-dir'))
+
         if sig is None:
             if self.config.get('dummy'):
-                sig = DummySigContext()
+                sig = DummySigContext(key_dir)
             else:
-                key_dir = Path(self.config.get('key-dir'))
-                sig = SignifySigContext(key_dir)
+                sig = SodiumSigContext(key_dir)
 
         self.session: Session = Session(sig)
 
@@ -523,7 +524,7 @@ class Client:
 
         path = path or container.local_path
         assert path is not None
-        path.write_bytes(self.session.dump_container(container))
+        path.write_bytes(self.session.dump_object(container))
         return path
 
     def save_new_container(self, container: Container, name: Optional[str] = None) -> Path:
@@ -534,7 +535,7 @@ class Client:
 
         ident = container.ensure_uuid()
         path = self.new_path('container', name or ident)
-        path.write_bytes(self.session.dump_container(container))
+        path.write_bytes(self.session.dump_object(container))
         container.local_path = path
         return path
 
@@ -545,7 +546,7 @@ class Client:
         '''
 
         path = self.new_path('storage', name or storage.container_path.name)
-        path.write_bytes(self.session.dump_storage(storage))
+        path.write_bytes(self.session.dump_object(storage))
         storage.local_path = path
         return path
 
@@ -559,7 +560,7 @@ class Client:
             assert name is not None
             path = self.new_path('bridge', name)
 
-        path.write_bytes(self.session.dump_bridge(bridge))
+        path.write_bytes(self.session.dump_object(bridge))
         bridge.local_path = path
         # cache_clear is added by a decorator, which pylint doesn't see
         # pylint: disable=no-member
@@ -944,7 +945,7 @@ class Client:
             driver,  # driver: StorageDriver, except circular import
             storage: Storage,
             container_expanded_paths):
-        data = self.session.dump_storage(storage)
+        data = self.session.dump_object(storage)
 
         relpath = None
         for relpath in self._manifest_filenames_from_pattern(
@@ -959,7 +960,7 @@ class Client:
     def _publish_container_to_driver(self,
             driver,  # driver: StorageDriver, except circular import
             container: Container):
-        data = self.session.dump_container(container)
+        data = self.session.dump_object(container)
 
         relpath = None
         for relpath in self._manifest_filenames_from_pattern(

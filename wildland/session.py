@@ -24,7 +24,7 @@ Session class
 from pathlib import Path
 from typing import Optional, Union, List
 
-from .manifest.manifest import Manifest
+from .manifest.manifest import Manifest, ManifestError
 from .manifest.sig import SigContext
 from .user import User
 from .container import Container
@@ -93,9 +93,16 @@ class Session:
         '''
 
         manifest = user.to_unsigned_manifest()
+
+        try:
+            if user.manifest and user.manifest.fields == manifest.fields:
+                return user.manifest.to_bytes()
+        except ManifestError:
+            pass
+
         sig_temp = self.sig.copy()
         user.add_user_keys(sig_temp)
-        manifest.sign(sig_temp, only_use_primary_key=True)
+        manifest.encrypt_and_sign(sig_temp, only_use_primary_key=True)
         return manifest.to_bytes()
 
     def load_container(
@@ -114,15 +121,6 @@ class Session:
             trusted_owner=trusted_owner)
         return Container.from_manifest(manifest, local_path)
 
-    def dump_container(self, container: Container) -> bytes:
-        '''
-        Create a signed manifest out of a Container object.
-        '''
-
-        manifest = container.to_unsigned_manifest()
-        manifest.sign(self.sig)
-        return manifest.to_bytes()
-
     def load_storage(
         self,
         data: bytes,
@@ -140,15 +138,6 @@ class Session:
             trusted_owner=trusted_owner)
         return Storage.from_manifest(manifest, local_path, local_owners=local_owners)
 
-    def dump_storage(self, storage: Storage) -> bytes:
-        '''
-        Create a signed manifest out of a Storage object.
-        '''
-
-        manifest = storage.to_unsigned_manifest()
-        manifest.sign(self.sig)
-        return manifest.to_bytes()
-
     def load_bridge(
         self,
         data: bytes,
@@ -165,11 +154,19 @@ class Session:
             trusted_owner=trusted_owner)
         return Bridge.from_manifest(manifest, local_path)
 
-    def dump_bridge(self, bridge: Bridge) -> bytes:
-        '''
-        Create a signed manifest out of a Bridge object.
-        '''
+    def dump_object(self, obj: Union[Bridge, Storage, Container]) -> bytes:
+        """
+        Create a signed manifest out of a Bridge/Container/Storage object; if the object was created
+        from a signed manifest and did not change, returns that object, otherwise creates and
+        signs the manifest.
+        """
+        manifest = obj.to_unsigned_manifest()
 
-        manifest = bridge.to_unsigned_manifest()
-        manifest.sign(self.sig)
+        try:
+            if obj.manifest and obj.manifest.fields == manifest.fields:
+                return obj.manifest.to_bytes()
+        except ManifestError:
+            pass
+
+        manifest.encrypt_and_sign(self.sig)
         return manifest.to_bytes()

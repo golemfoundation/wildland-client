@@ -61,11 +61,12 @@ to be provided.
 .. _wl-bridge-sign:
 .. _wl-bridge-verify:
 .. _wl-bridge-edit:
+.. _wl-bridge-dump:
 
 :command:`wl bridge> {sign|verify|edit} [...]`
 ----------------------------------------------
 
-See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`
+See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-dump>`
 and :ref:`wl edit <wl-edit>` documentation.
 
 .. program:: wl-bridge-list

@@ -45,6 +45,10 @@
                 "base-url": {
                     "type": "string",
                     "description": "Base for public URL. Files can be accessed by joining this base and the path relative to storage root."
+                },
+                "access": {
+                    "$ref": "/schemas/types.json#access",
+                    "description": "access control; by default manifests are encrypted to their owner"
                 }
             }
         },

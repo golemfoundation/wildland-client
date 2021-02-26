@@ -11,7 +11,6 @@ Debian:
 .. code-block:: sh
 
    apt install \
-      signify-openbsd \
       python3-dev \
       python3-venv \
       fuse \
@@ -27,13 +26,6 @@ Fedora:
       fuse-devel \
       python3-devel \
       libbsd-devel
-
-Unfortunately, Signify has to be installed manually under Fedora:
-
-   git clone git@github.com:aperezdc/signify.git
-   cd signify
-   make
-   sudo make install
 
 
 Install Python packages

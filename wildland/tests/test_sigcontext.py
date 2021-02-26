@@ -21,11 +21,10 @@
 
 from pathlib import Path
 import tempfile
-import base64
 
 import pytest
 
-from ..manifest.sig import SignifySigContext, SigError
+from ..manifest.sig import SigError, SodiumSigContext
 
 
 @pytest.fixture(scope='session')
@@ -34,55 +33,47 @@ def key_dir():
         yield Path(d)
 
 
-@pytest.fixture(scope='session')
-def sig(key_dir):
-    return SignifySigContext(key_dir)
+@pytest.fixture(params=[SodiumSigContext])
+def sig(key_dir, request):
+    return request.param(key_dir)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def owner(sig):
     owner, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
     return owner
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def other_owner(sig):
     owner, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
     return owner
 
 
-@pytest.fixture(scope='session')
-def old_owner(sig):
-    old_owner = '0x6f94c183df4865c16445'
-    old_pubkey = '''\
-untrusted comment: signify public key
-RWTBZUjfg8GUbxnKZ1GUKveJjpjujEvSkXDaaWOyEWcI9vpZmmw9fbDG
-'''
-    old_privkey = '''\
-untrusted comment: signify secret key
-RWRCSwAAAABfzbTCuL45s/xXoWya590NMRDfqctndx3BZUjfg8GUb4Lbu6LnZuNih1iTc5CjbE6cIBYu9fiHShvRN+JdtQIeGcpnUZQq94mOmO6MS9KRcNppY7IRZwj2+lmabD19sMY=
-'''
-    public_file = sig.key_dir / f'{old_owner}.pub'
-    private_file = sig.key_dir / f'{old_owner}.sec'
+def test_generate_keys(sig):
+    owner, pubkey = sig.generate()
 
-    public_file.write_text(old_pubkey)
-    private_file.write_text(old_privkey)
+    assert sig.fingerprint(pubkey) == owner
+    assert (sig.key_dir / f'{owner}.pub').exists()
+    assert (sig.key_dir / f'{owner}.sec').exists()
 
-    sig.add_pubkey(old_pubkey)
+    loaded_owner, loaded_pubkey = sig.load_key(owner)
+    assert (loaded_owner, loaded_pubkey) == (owner, pubkey)
 
-    return old_owner
+    sig.add_pubkey(loaded_pubkey, owner)
 
-def test_pubkey_to_owner(sig):
-    pubkey = '''\
-untrusted comment: hello world
-RWS/mJgf4GTLPY2+qOnPzWSYhlfP6nwH1fFwUFMlW52/tKx52pnWwoA0
-'''
-    sig_data = pubkey.splitlines()[1]
-    assert base64.b64decode(sig_data)[:10] == b'\x45\x64\xbf\x98\x98\x1f\xe0\x64\xcb\x3d'
+    assert sig.get_primary_pubkey(owner) == pubkey
+    assert sig.is_private_key_available(owner)
 
-    assert sig._fingerprint(pubkey) == '0x3dcb64e01f9898bf6445'
+    sig.remove_key(owner)
+
+    with pytest.raises(SigError):
+        sig.load_key(owner)
+
+    assert not (sig.key_dir / f'{owner}.pub').exists()
+    assert not (sig.key_dir / f'{owner}.sec').exists()
 
 
 def test_verify(sig, owner):
@@ -90,6 +81,14 @@ def test_verify(sig, owner):
     signature = sig.sign(owner, test_data)
 
     assert sig.verify(signature, test_data) == owner
+
+
+def test_verify_key_not_loaded(sig):
+    test_data = b'hello world'
+    owner, _ = sig.generate()
+
+    with pytest.raises(SigError):
+        sig.sign(owner, test_data)
 
 
 def test_verify_wrong_data(sig, owner):
@@ -100,14 +99,30 @@ def test_verify_wrong_data(sig, owner):
         sig.verify(signature, test_data + b'more')
 
 
+def test_verify_wrong_owner(sig, owner):
+    test_data = b'hello world'
+    signature = sig.sign(owner, test_data)
+    signature = '0xaaa' + signature[4:]
+
+    with pytest.raises(SigError, match='Public key not found'):
+        sig.verify(signature, test_data)
+
 
 def test_verify_unknown_owner(sig, owner):
     test_data = b'hello world'
     signature = sig.sign(owner, test_data)
 
-    sig_2 = SignifySigContext(sig.key_dir)
+    sig_2 = SodiumSigContext(sig.key_dir)
     with pytest.raises(SigError, match='Public key not found'):
         sig_2.verify(signature, test_data)
+
+
+def test_pubkey_to_owner(sig):
+    pubkey = \
+        'RWSFTQBA3OKaC4EZCP8n7fz0PeeUuDOOwjxys/n7xOWkJG19mKu6bIGS/bWyV1eLB1zWhIuJtCCd4JnseOaEp/Q0'
+
+    assert sig.fingerprint(pubkey) == \
+           '0x57802d611b2f0226338a367513877a25980d730efd52b6d5127f90afe55c030d'
 
 
 def test_export_import_key(sig, owner):
@@ -116,7 +131,7 @@ def test_export_import_key(sig, owner):
     test_data = b'hello world'
     signature = sig.sign(owner, test_data)
 
-    sig_2 = SignifySigContext(sig.key_dir)
+    sig_2 = SodiumSigContext(sig.key_dir)
 
     owner_2 = sig_2.add_pubkey(pubkey)
     assert owner_2 == owner
@@ -127,7 +142,7 @@ def test_copy_and_import(sig, owner, other_owner):
     pubkey = sig.get_primary_pubkey(owner)
     pubkey2 = sig.get_primary_pubkey(other_owner)
 
-    g1 = SignifySigContext(sig.key_dir)
+    g1 = SodiumSigContext(sig.key_dir)
     assert g1.add_pubkey(pubkey) == owner
     assert owner in g1.keys
 
@@ -142,42 +157,6 @@ def test_load_key(sig, owner):
     sig.add_pubkey(found_key)
     pubkey = sig.get_primary_pubkey(owner)
     assert (found_owner, found_key) == (owner, pubkey)
-
-
-def test_new_key_to_owner(sig):
-    pubkey = '''RWS/mJgf4GTLPY2+qOnPzWSYhlfP6nwH1fFwUFMlW52/tKx52pnWwoA0'''
-
-    assert base64.b64decode(pubkey)[:10] == b'\x45\x64\xbf\x98\x98\x1f\xe0\x64\xcb\x3d'
-
-    assert sig._fingerprint(pubkey) == '0x3dcb64e01f9898bf6445'
-
-
-def test_old_verify(sig, old_owner):
-    test_data = b'hello world'
-    signature_old = sig.sign(old_owner, test_data)
-
-    assert sig.verify(signature_old, test_data) == old_owner
-
-
-def test_old_load_key(sig, old_owner):
-    found_owner, found_key = sig.load_key(old_owner)
-    sig.add_pubkey(found_key)
-    pubkey = sig.get_primary_pubkey(old_owner)
-    assert (found_owner, found_key) == (old_owner, pubkey)
-
-
-def test_copy_and_import_old(sig, owner, old_owner):
-    pubkey = sig.get_primary_pubkey(owner)
-    pubkey2 = sig.get_primary_pubkey(old_owner)
-
-    g1 = SignifySigContext(sig.key_dir)
-    assert g1.add_pubkey(pubkey) == owner
-    assert owner in g1.keys
-
-    g2 = g1.copy()
-    assert g2.add_pubkey(pubkey2) == old_owner
-    assert old_owner in g2.keys
-    assert old_owner not in g1.keys
 
 
 def test_multiple_pubkeys(sig, owner):
@@ -202,9 +181,7 @@ def test_signing_multiple_keys(sig):
     sig.add_pubkey(primary_pubkey)
     sig.add_pubkey(additional_pubkey, primary_owner)
 
-    private_file = sig.key_dir / f'{primary_owner}.sec'
-
-    private_file.unlink()
+    del sig.private_keys[primary_owner]
 
     test_data = b'hello world'
 
@@ -219,11 +196,73 @@ def test_signing_multiple_keys(sig):
 
 
 def test_check_if_key_available(sig):
-    primary_owner, _ = sig.generate()
-    additional_owner, _ = sig.generate()
+    primary_owner, pubkey = sig.generate()
+    additional_owner, additional_pubkey = sig.generate()
 
     private_file = sig.key_dir / f'{primary_owner}.sec'
     private_file.unlink()
 
+    # keys not loaded
+    assert not sig.is_private_key_available(primary_owner)
+    assert not sig.is_private_key_available(additional_owner)
+
+    # keys loaded
+    sig.add_pubkey(pubkey)
+    sig.add_pubkey(additional_pubkey)
+
     assert not sig.is_private_key_available(primary_owner)
     assert sig.is_private_key_available(additional_owner)
+
+
+def test_encrypt(sig, owner):
+    pubkey = sig.get_primary_pubkey(owner)
+
+    test_data = b'hello world'
+
+    enc_data, enc_keys = sig.encrypt(test_data, [pubkey])
+
+    assert sig.decrypt(enc_data, enc_keys) == test_data
+
+
+def test_encrypt_not_found(sig, owner):
+    pubkey = sig.get_primary_pubkey(owner)
+
+    test_data = b'hello world'
+
+    enc_data, enc_keys = sig.encrypt(test_data, [pubkey])
+
+    del sig.private_keys[owner]
+
+    with pytest.raises(SigError):
+        sig.decrypt(enc_data, enc_keys)
+
+
+def test_encrypt_mangled(sig, owner):
+    pubkey = sig.get_primary_pubkey(owner)
+
+    test_data = b'hello world'
+
+    _, enc_keys = sig.encrypt(test_data, [pubkey])
+    enc_data_2, _ = sig.encrypt(test_data, [pubkey])
+
+    with pytest.raises(SigError):
+        sig.decrypt(enc_data_2, enc_keys)
+
+
+def test_encrypt_multiple_owners(sig):
+    owner, pubkey = sig.generate()
+    _, additional_pubkey = sig.generate()
+
+    sig.add_pubkey(pubkey)
+    sig.add_pubkey(additional_pubkey)
+
+    test_data = b'hello world'
+
+    enc_data, enc_keys = sig.encrypt(test_data, [pubkey, additional_pubkey])
+
+    assert len(enc_keys) == 2
+
+    (sig.key_dir / f'{owner}.sec').unlink()
+
+    assert sig.decrypt(enc_data, enc_keys) == test_data
+    assert sig.decrypt(enc_data, [enc_keys[1], enc_keys[0]]) == test_data

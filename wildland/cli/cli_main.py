@@ -80,6 +80,7 @@ main.add_alias(users='user', u='user', storages='storage', s='storage', containe
 main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)
 main.add_command(cli_common.edit)
+main.add_command(cli_common.dump)
 
 main.add_command(cli_transfer.get)
 main.add_command(cli_transfer.put)

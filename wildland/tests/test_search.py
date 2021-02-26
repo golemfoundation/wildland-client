@@ -21,6 +21,7 @@
 
 from pathlib import PurePosixPath
 import os
+import re
 import uuid
 import shutil
 from functools import partial
@@ -115,13 +116,13 @@ def setup(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb', '--path', '/users/User2')
 
-    cli('container', 'create', 'Container1', '--path', '/path')
+    cli('container', 'create', 'Container1', '--path', '/path', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
         '--trusted', '--no-inline')
 
-    cli('container', 'create', 'Container2',
+    cli('container', 'create', 'Container2', '--no-encrypt-manifest',
         '--path', '/path/subpath',
         '--path', '/other/path',
         '--path', '/unsigned')
@@ -132,7 +133,7 @@ def setup(base_dir, cli):
     cli('container', 'create', 'C.User2',
         '--user', 'User2',
         '--path', '/users/User2',
-        '--update-user')
+        '--update-user', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage3',
         '--location', base_dir / 'storage3',
         '--container', 'C.User2', '--no-inline')
@@ -236,9 +237,10 @@ def test_mount_traverse(cli, client, base_dir, control_client):
 
 def test_unmount_traverse(cli, client, base_dir, control_client):
     # pylint: disable=unused-argument
-    with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-    path = documents[1]['paths'][0]
+    cont_path = base_dir / 'containers/Container2.container.yaml'
+    uuid = re.search(r'/.uuid/(.+?)\n', cont_path.read_text()).group(1)
+
+    path = f'/.uuid/{uuid}'
 
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
@@ -313,16 +315,16 @@ def setup_pattern(request, base_dir, cli):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
 
-    cli('container', 'create', 'Container1', '--path', '/path')
+    cli('container', 'create', 'Container1', '--path', '/path', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
         '--manifest-pattern', request.param)
 
     cli('container', 'create', 'Container2',
-        '--path', '/path1')
+        '--path', '/path1', '--no-encrypt-manifest')
     cli('container', 'create', 'Container3',
-        '--path', '/path2')
+        '--path', '/path2', '--no-encrypt-manifest')
 
     os.mkdir(base_dir / 'storage1/manifests/')
     shutil.copyfile(base_dir / 'containers/Container2.container.yaml',
@@ -355,12 +357,12 @@ def test_container_with_storage_path(base_dir, cli):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
 
-    cli('container', 'create', 'Container1', '--path', '/path1')
+    cli('container', 'create', 'Container1', '--path', '/path1', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1')
 
-    cli('container', 'create', 'Container2', '--path', '/path2')
+    cli('container', 'create', 'Container2', '--path', '/path2', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage2',
         '--location', base_dir / 'storage2',
         '--container', 'Container2', '--no-inline')
@@ -372,13 +374,10 @@ def test_container_with_storage_path(base_dir, cli):
     with open(base_dir / 'storage2/testfile', 'w') as file:
         file.write('test\n')
 
-    with open(base_dir / 'containers/Container2.container.yaml') as file:
-        lines = list(file)
-    with open(base_dir / 'containers/Container2.container.yaml', 'w') as file:
-        for line in lines:
-            if line.startswith('  - file://'):
-                line = '  - wildland:0xaaa:/path1:/Storage2.storage.yaml\n'
-            file.write(line)
+    data = (base_dir / 'containers/Container2.container.yaml').read_text()
+    data = re.sub(r'file://(.+?)\n',
+                  r'wildland:0xaaa:/path1:/Storage2.storage.yaml\n', data)
+    (base_dir / 'containers/Container2.container.yaml').write_text(data)
 
     cli('get', '0xaaa:/path2:/testfile')
 

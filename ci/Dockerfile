@@ -14,7 +14,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get -qy update && apt-get install -y \
       gcc \
       make \
-      signify-openbsd \
       python3-dev \
       python3-pip \
       python3-venv \

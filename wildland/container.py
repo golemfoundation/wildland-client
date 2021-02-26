@@ -40,7 +40,9 @@ class Container:
                  backends: List[Union[str, dict]],
                  title: Optional[str] = None,
                  categories: Optional[List[PurePosixPath]] = None,
-                 local_path: Optional[Path] = None):
+                 local_path: Optional[Path] = None,
+                 manifest: Manifest = None,
+                 access: Optional[List[dict]] = None):
         self.owner = owner
         # make sure uuid path is first
         self.paths = sorted(paths,
@@ -50,6 +52,8 @@ class Container:
         self.categories = categories if categories else []
         self.local_path = local_path
         self._expanded_paths: Optional[List[PurePosixPath]] = None
+        self.manifest = manifest
+        self.access = access
 
     def ensure_uuid(self) -> str:
         '''
@@ -77,6 +81,8 @@ class Container:
             title=manifest.fields.get('title', None),
             categories=[Path(p) for p in manifest.fields.get('categories', [])],
             local_path=local_path,
+            manifest=manifest,
+            access=manifest.fields.get('access', None)
         )
 
     def to_unsigned_manifest(self) -> Manifest:
@@ -97,14 +103,17 @@ class Container:
             if 'object' in backend:
                 del backend['object']
 
-        manifest = Manifest.from_fields(dict(
+        fields = dict(
             object=type(self).__name__.lower(),
             owner=self.owner,
             paths=[str(p) for p in self.paths],
             backends={'storage': cleaned_backends},
             title=self.title,
-            categories=[str(cat) for cat in self.categories],
-        ))
+            categories=[str(cat) for cat in self.categories])
+        if self.access:
+            fields['access'] = self.access
+
+        manifest = Manifest.from_fields(fields)
         manifest.apply_schema(self.SCHEMA)
         return manifest
 

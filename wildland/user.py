@@ -45,12 +45,14 @@ class User:
                  pubkeys: List[str],
                  paths: List[PurePosixPath],
                  containers: List[Union[str, dict]],
-                 local_path: Optional[Path] = None):
+                 local_path: Optional[Path] = None,
+                 manifest: Manifest = None):
         self.owner = owner
         self.paths = paths
         self.containers = containers
         self.local_path = local_path
         self.pubkeys = pubkeys
+        self.manifest = manifest
 
     @property
     def primary_pubkey(self):
@@ -65,7 +67,6 @@ class User:
         '''
 
         # TODO: local_path should be also part of Manifest?
-
         owner = manifest.fields['owner']
         manifest.apply_schema(cls.SCHEMA)
 
@@ -83,6 +84,7 @@ class User:
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             containers=manifest.fields.get('infrastructures', []),
             local_path=local_path,
+            manifest=manifest
         )
 
     def to_unsigned_manifest(self) -> Manifest:

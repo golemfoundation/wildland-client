@@ -43,5 +43,68 @@
         "type": "string",
         "description": "fingerprint",
         "pattern": "^0x[0-9a-f]+$"
+    },
+    "access-full": {
+        "type": "object",
+        "description": "access entry for full access",
+        "properties": {
+            "user": {
+                "const": "*"
+            }
+        }
+    },
+    "access-user": {
+        "type": "object",
+        "description": "access entry for a user",
+        "properties": {
+            "user": {
+                "$ref": "#/fingerprint"
+            }
+        }
+    },
+    "access": {
+        "oneOf": [
+            {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {"$ref":  "#/access-full"},
+                "description": "Open access to manifest (no encryption)"
+            },
+            {
+                "type": "array",
+                "items": {"$ref":  "#/access-user"},
+                "minItems": 0,
+                "description": "list of users with access to the manifest (owner always has access and does not have to be listed here)"
+            }
+        ],
+        "description": "complete access entry"
+    },
+    "encrypted": {
+        "type": "object",
+        "description": "encrypted data",
+        "required": [
+            "encrypted"
+        ],
+        "properties": {
+            "encrypted": {
+                "type": "object",
+                "required": [
+                    "encrypted-data",
+                    "encrypted-keys"
+                ],
+                "properties": {
+                    "encrypted-data": {
+                        "type": "string"
+                    },
+                    "encrypted-keys": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
     }
 }

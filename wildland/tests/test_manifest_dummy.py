@@ -18,6 +18,9 @@
 
 # pylint: disable=missing-docstring, redefined-outer-name
 
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from ..manifest.manifest import Manifest, ManifestError
@@ -25,8 +28,14 @@ from ..manifest.sig import DummySigContext
 
 
 @pytest.fixture(scope='session')
-def sig():
-    return DummySigContext()
+def key_dir():
+    with tempfile.TemporaryDirectory(prefix='wlsecret.') as d:
+        yield Path(d)
+
+
+@pytest.fixture(scope='session')
+def sig(key_dir):
+    return DummySigContext(key_dir)
 
 
 @pytest.fixture(scope='session')
