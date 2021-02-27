@@ -7,7 +7,7 @@ paths.
 
 It has the following form::
 
-    0xabcd:/path/one:/path/two:/path/to/file.txt
+    wildland:0xabcd:/path/one:/path/two:/path/to/file.txt
 
 * The first part (before ``:``) is the owner. It can be omitted, in which case
   the ``@default`` (from configuration) will be used.
@@ -15,7 +15,8 @@ It has the following form::
   The ``@default`` and ``@default-owner`` values are also supported, and
   resolved according to configuration.
 
-* The next parts are container or user paths. See "Path resolution" below.
+* The next parts are container or user (bridge) paths. This part may be set as
+  a ``*`` wildcard. See "Path resolution" below.
 
 * The last part is the file path inside container. It can be omitted, in which
   case the path refers to a container, not to a file inside.
@@ -52,6 +53,10 @@ container (and associated storage) for ``/path/one``.
 
 Normally, the manifest signature is verified, unless the storage is marked as
 ``trusted``, in which case we accept unsigned manifests.
+
+Furthermore, a path can be set as ``*`` wildcard. Currently a ``*`` on its own
+is supported, not full patterns (``:/path/one:*:`` is ok,
+``:/path/one:/path/*:`` is not).
 
 Local manifests
 ---------------

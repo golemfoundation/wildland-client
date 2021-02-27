@@ -150,6 +150,8 @@ Update a |~| container manifest.
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be mounted first, see :ref:`wl start <wl-start>`.
+Wildland paths are supported too, including unambiguous (with wildcards or else) ones.
+For example: ``wildland:@default:/path/to/user:*:``
 
 .. option:: -r, --remount
 
