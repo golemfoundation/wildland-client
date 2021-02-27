@@ -49,7 +49,6 @@ from .exc import WildlandError
 logger = logging.getLogger('client')
 
 
-WILDLAND_URL_PREFIX = 'wildland:'  # XXX or 'wildland://'?
 HTTP_TIMEOUT_SECONDS = 5
 
 
@@ -270,8 +269,8 @@ class Client:
         Load container from URL.
         '''
 
-        if url.startswith(WILDLAND_URL_PREFIX):
-            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+        if WildlandPath.match(url):
+            wlpath = WildlandPath.from_str(url)
             if wlpath.file_path is None:
                 # TODO: Still a circular dependency with search
                 # pylint: disable=import-outside-toplevel, cyclic-import
@@ -317,15 +316,18 @@ class Client:
         tilde (~), but only in case of local files.
         '''
 
-        if '*' not in name and '~' not in name:
+        if WildlandPath.match(name):
+            wlpath = WildlandPath.from_str(name)
             try:
-                yield self.load_container_from(name)
+                yield from self.load_container_from_wlpath(wlpath)
             except WildlandError as ex:
                 raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return
 
-        assert not WildlandPath.match(name), \
-            'glob patterns in WildlandPath are not supported'
+        path = self.find_local_manifest(self.container_dir, 'container', name)
+        if path:
+            yield self.load_container_from_path(path)
+            return
 
         paths = sorted(glob.glob(os.path.expanduser(name)))
         logger.debug('expanded %r to %s', name, paths)
@@ -351,13 +353,9 @@ class Client:
         '''
 
         # Wildland path
-        wlpath = None
-        if name.startswith(WILDLAND_URL_PREFIX):
-            wlpath = WildlandPath.from_str(name[len(WILDLAND_URL_PREFIX):])
-        elif WildlandPath.match(name):
+        if WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
 
-        if wlpath:
             # TODO: what to do if there are more containers that match the path?
             try:
                 return next(self.load_container_from_wlpath(wlpath))
@@ -738,8 +736,7 @@ class Client:
             sub_storage['owner'] = container.owner
             sub_storage['container-path'] = subcontainer_params['paths'][0]
             if isinstance(sub_storage.get('reference-container'), str) and \
-                    sub_storage['reference-container'].startswith(
-                        WILDLAND_URL_PREFIX):
+                    WildlandPath.match(sub_storage['reference-container']):
                 sub_storage['reference-container'] = \
                     sub_storage['reference-container'].replace(
                         ':@parent-container:', f':{container.paths[0]}:')
@@ -775,7 +772,7 @@ class Client:
         Check if string can be recognized as URL.
         '''
 
-        return '://' in s or s.startswith(WILDLAND_URL_PREFIX)
+        return '://' in s or WildlandPath.match(s)
 
     @staticmethod
     def is_local_storage(storage: StorageBackend):
@@ -786,7 +783,7 @@ class Client:
         return storage.TYPE in ['local', 'local-cached', 'local-dir-cached']
 
     def _wl_url_to_search(self, url: str, use_aliases: bool = False):
-        wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+        wlpath = WildlandPath.from_str(url)
         if not wlpath.owner and not use_aliases:
             raise WildlandError(
                 'Wildland path in URL context has to have explicit owner')
@@ -803,8 +800,8 @@ class Client:
         """
         Return an iterator over all bridges encountered on a given Wildland path.
         """
-        if not url.startswith(WILDLAND_URL_PREFIX):
-            raise WildlandError('Missing Wildland path prefix')
+        if not WildlandPath.match(url):
+            raise WildlandError('Invalid Wildland path')
         search = self._wl_url_to_search(url, use_aliases=use_aliases)
         yield from search.read_bridge()
 
@@ -815,8 +812,8 @@ class Client:
         """
         if not self.is_url(url):
             return False
-        if url.startswith(WILDLAND_URL_PREFIX):
-            wlpath = WildlandPath.from_str(url[len(WILDLAND_URL_PREFIX):])
+        if WildlandPath.match(url):
+            wlpath = WildlandPath.from_str(url)
             return bool(wlpath.file_path)
         return True
 
@@ -827,7 +824,7 @@ class Client:
         settings.
         '''
 
-        if url.startswith(WILDLAND_URL_PREFIX):
+        if WildlandPath.match(url):
             search = self._wl_url_to_search(url, use_aliases=use_aliases)
             return search.read_file()
 

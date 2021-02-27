@@ -29,6 +29,8 @@ import re
 
 from .exc import WildlandError
 
+WILDLAND_URL_PREFIX = 'wildland:'
+
 
 class PathError(WildlandError):
     '''
@@ -42,7 +44,7 @@ class WildlandPath:
 
     The path has the following form:
 
-        [owner]:(part:)+:[file_path]
+        [wildland:][owner]:(part:)+:[file_path]
 
     - owner (optional): owner determining the first container's namespace
     - parts: intermediate parts, identifying containers on the path
@@ -52,7 +54,7 @@ class WildlandPath:
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
     ALIAS_RE = re.compile(r'^@[a-z-]+$')
-    WLPATH_RE = re.compile(r'^(0x[0-9a-f]+|@[a-z-]+)?:')
+    WLPATH_RE = re.compile(r'^(wildland:)?(0x[0-9a-f]+|@[a-z-]+)?:')
 
     def __init__(
         self,
@@ -81,9 +83,14 @@ class WildlandPath:
 
     @classmethod
     def from_str(cls, s: str) -> 'WildlandPath':
-        '''
+        """
         Construct a WildlandPath from a string.
-        '''
+
+        Accepts paths both with and without 'wildland:' protocol prefix.
+        """
+        if s.startswith(WILDLAND_URL_PREFIX):
+            s = s[len(WILDLAND_URL_PREFIX):]
+
         if ':' not in s:
             raise PathError('The path has to start with owner and ":"')
 
@@ -97,7 +104,7 @@ class WildlandPath:
 
         parts = []
         for part in split[1:-1]:
-            if not cls.ABSPATH_RE.match(part):
+            if part != '*' and not cls.ABSPATH_RE.match(part):
                 raise PathError('Unrecognized absolute path: {!r}'.format(part))
             parts.append(PurePosixPath(part))
 

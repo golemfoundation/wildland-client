@@ -29,7 +29,7 @@ import click
 from ..user import User
 
 from .cli_base import aliased_group, ContextObj, CliError
-from ..client import WILDLAND_URL_PREFIX
+from ..wlpath import WILDLAND_URL_PREFIX
 from ..bridge import Bridge
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, dump
 from ..exc import WildlandError
@@ -406,7 +406,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                     user_pubkey=bridge.user_pubkey,
                     paths=paths or bridge.paths,
                 )
-                bridge_name = name[len(WILDLAND_URL_PREFIX):]
+                bridge_name = name.replace(WILDLAND_URL_PREFIX, '')
                 bridge_name = bridge_name.replace(':', '_').replace('/', '_')
                 bridge_path = obj.client.save_new_bridge(new_bridge, bridge_name, None)
                 click.echo(f'Created: {bridge_path}')

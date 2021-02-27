@@ -280,7 +280,7 @@ class Search:
 
         self._verify_owner(container, step.owner)
 
-        if part not in container.expanded_paths:
+        if str(part) != '*' and part not in container.expanded_paths:
             logger.debug('%s: path not found in manifest, skipping', part)
             return
 
@@ -302,7 +302,7 @@ class Search:
 
         self._verify_owner(bridge, owner)
 
-        if part not in bridge.paths:
+        if str(part) != '*' and part not in bridge.paths:
             return
 
         next_client, next_owner = client.sub_client_with_key(bridge.user_pubkey)
@@ -438,8 +438,14 @@ def storage_find_manifests(
 
     mp_type = manifest_pattern['type']
     if mp_type == 'glob':
-        glob_path = manifest_pattern['path'].replace(
-            '{path}', str(query_path.relative_to('/')))
+        if str(query_path) == '*':
+            # iterate over manifests saved under /.uuid/ path, to try to avoid loading the
+            # same manifests multiple times
+            glob_path = manifest_pattern['path'].replace(
+                '{path}', '.uuid/*')
+        else:
+            glob_path = manifest_pattern['path'].replace(
+                '{path}', str(query_path.relative_to('/')))
         return storage_glob(storage, glob_path)
     raise WildlandError(f'Unknown manifest_pattern: {mp_type}')
 
