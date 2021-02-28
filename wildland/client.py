@@ -408,6 +408,9 @@ class Client:
         in another manifest.
         '''
 
+        if list(dict_.keys()) == ['encrypted']:
+            raise ManifestError('This inline storage cannot be decrypted')
+
         # fill in fields that are determined by the context
         if 'owner' not in dict_:
             dict_['owner'] = str(owner)
