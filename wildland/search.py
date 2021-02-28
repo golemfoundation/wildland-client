@@ -278,7 +278,11 @@ class Search:
                         part: PurePosixPath,
                         container: Container) -> Iterable[Step]:
 
-        self._verify_owner(container, step.owner)
+        try:
+            self._verify_owner(container, step.owner)
+        except WildlandError as e:
+            logger.warning('container %s of user %s: %s', container, step.owner, str(e))
+            return
 
         if str(part) != '*' and part not in container.expanded_paths:
             logger.debug('%s: path not found in manifest, skipping', part)
@@ -363,12 +367,17 @@ class Search:
                 try:
                     manifest_content = client.read_from_url(container_spec, user.owner)
                 except (WildlandError, FileNotFoundError) as ex:
-                    logger.warning('cannot load container: %s. Exception: %s',
-                                   container_spec, str(ex))
+                    logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
+                                   user.owner, container_spec, str(ex))
                     continue
 
-                container = client.session.load_container(manifest_content)
-                container_desc = container_spec
+                try:
+                    container = client.session.load_container(manifest_content)
+                    container_desc = container_spec
+                except WildlandError:
+                    logger.warning('failed to load user %s infrastructure: %s: Exception: %s',
+                                   user.owner, container_spec, str(ex))
+                    continue
 
             else:
                 # Inline container

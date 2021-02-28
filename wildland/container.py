@@ -67,6 +67,10 @@ class Container:
         self.paths.insert(0, PurePosixPath('/.uuid/') / ident)
         return ident
 
+    def __str__(self):
+        """Friendly text representation of the container"""
+        return f'{self.owner}:{[str(p) for p in self.paths]}'
+
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
         '''
