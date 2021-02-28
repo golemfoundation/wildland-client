@@ -45,6 +45,7 @@ from .storage_backends.base import StorageBackend, verify_local_access
 from .fs_client import WildlandFSClient
 from .config import Config
 from .exc import WildlandError
+from .search import Search
 
 logger = logging.getLogger('client')
 
@@ -254,13 +255,9 @@ class Client:
             trusted_owner=trusted_owner)
 
     def load_container_from_wlpath(self, wlpath: WildlandPath) -> Iterable[Container]:
-        '''
+        """
         Load containers referring to a given WildlandPath.
-        '''
-
-        # TODO: Still a circular dependency with search
-        # pylint: disable=import-outside-toplevel, cyclic-import
-        from .search import Search
+        """
         search = Search(self, wlpath, self.config.aliases)
         yield from search.read_container()
 
@@ -272,9 +269,6 @@ class Client:
         if WildlandPath.match(url):
             wlpath = WildlandPath.from_str(url)
             if wlpath.file_path is None:
-                # TODO: Still a circular dependency with search
-                # pylint: disable=import-outside-toplevel, cyclic-import
-                from .search import Search
 
                 search = Search(self, wlpath, {'default': owner})
                 try:
@@ -790,9 +784,6 @@ class Client:
         if not wlpath.owner and not use_aliases:
             raise WildlandError(
                 'Wildland path in URL context has to have explicit owner')
-        # TODO: Still a circular dependency with search
-        # pylint: disable=import-outside-toplevel
-        from .search import Search
 
         search = Search(self, wlpath,
                         self.config.aliases if use_aliases else {})

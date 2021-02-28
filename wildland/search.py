@@ -21,6 +21,8 @@
 Utilities for URL resolving and traversing the path
 '''
 
+from __future__ import annotations
+
 import errno
 import logging
 import os
@@ -29,9 +31,9 @@ import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Optional, Tuple, Iterable, Mapping
+from typing import TYPE_CHECKING
 
 from .user import User
-from .client import Client
 from .container import Container
 from .bridge import Bridge
 from .storage import Storage
@@ -40,6 +42,8 @@ from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
+if TYPE_CHECKING:
+    from .client import Client
 
 logger = logging.getLogger('search')
 
