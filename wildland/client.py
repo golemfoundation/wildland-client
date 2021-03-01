@@ -35,7 +35,6 @@ from urllib.parse import urlparse, quote
 import yaml
 import requests
 
-from . import publish
 from .user import User
 from .container import Container
 from .storage import Storage
@@ -972,10 +971,3 @@ class Client:
             return None
 
         return path
-
-    def publish_container(self, container: Container) -> None:
-        """
-        Publish a container to a container owner by the same user.
-        """
-
-        return publish.publish_container(self, container)

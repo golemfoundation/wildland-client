@@ -16,6 +16,8 @@ Synopsis
 | :command:`wl container mount []`
 | :command:`wl container unmount`
 | :command:`wl container modify {add-path|del-path|add-category|del-category|set-title} [...] <file>`
+| :command:`wl container publish <container>`
+| :command:`wl container unpublish <container>`
 
 Description
 ===========
@@ -274,9 +276,17 @@ Stop the current mount-watch daemon.
 .. _wl-container-publish:
 
 :command:`wl container publish <container>`
-------------------------------------------------------
+-------------------------------------------
 
 Publish a container manifest into user's infrastructure container.
+
+.. program:: wl-container-unpublish
+.. _wl-container-unpublish:
+
+:command:`wl container unpublish <container>`
+---------------------------------------------
+
+Unublish a container manifest from all of user's infrastructure containers.
 
 .. _wl-container-sign:
 .. _wl-container-verify:

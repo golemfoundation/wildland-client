@@ -37,6 +37,7 @@ from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
 
+from .. import publish
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, \
     set_field, del_nested_field, find_manifest_file, dump
@@ -214,13 +215,26 @@ def update(obj: ContextObj, storage, cont):
 @click.pass_obj
 def publish(obj: ContextObj, cont):
     """
-    Publish a container manifest under a given wildland path
-    (or to an infrastructure container, if wlpath not given).
+    Publish a container manifest to an infrastructure container.
     """
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
-    obj.client.publish_container(container)
+    publish.publish_container(obj.client, container)
+
+
+@container_.command(short_help='unpublish container manifest')
+@click.argument('cont', metavar='CONTAINER')
+@click.pass_obj
+def unpublish(obj: ContextObj, cont):
+    '''
+    Attempt to unpublish a container manifest under a given wildland path
+    from all infrastructure containers.
+    '''
+
+    obj.client.recognize_users()
+    container = obj.client.load_container_from(cont)
+    publish.unpublish_container(obj.client, container)
 
 
 def _container_info(client, container):
