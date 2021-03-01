@@ -27,11 +27,9 @@ import subprocess
 import tempfile
 from subprocess import Popen, PIPE
 from pathlib import PurePosixPath, Path
-import datetime
 import logging
 import secrets
 import string
-import time
 from typing import Dict, List, Optional, Type
 
 import click
@@ -249,7 +247,6 @@ class GoCryptFS(EncryptedFSRunner):
     topdiriv: bytes
     ciphertextdir: PurePosixPath
     cleartextdir: Optional[PurePosixPath]
-    started_at: Optional[datetime.datetime]
 
     def __init__(self, tmpdir: PurePosixPath,
                  ciphertextdir: PurePosixPath,
@@ -307,21 +304,6 @@ class GoCryptFS(EncryptedFSRunner):
             if len(out.decode()) > 0:
                 logger.error(out.decode())
             raise WildlandFSError("Can't mount gocryptfs")
-        self.started_at = datetime.datetime.now()
-
-    def stop(self) -> int:
-        '''
-        Unmount.
-
-        Handles gocryptfs being unresponsive immediately after mounting.
-        '''
-        if self.started_at is not None:
-            earliest_unmount = self.started_at + datetime.timedelta(seconds=1)
-            delta = (earliest_unmount - datetime.datetime.now()) / datetime.timedelta(seconds=1)
-            if delta > 0:
-                time.sleep(delta)
-        return super().stop()
-
 
     @classmethod
     def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, _) -> 'GoCryptFS':
@@ -445,7 +427,7 @@ class EncryptedStorageBackend(StorageBackend):
         alphabet = string.ascii_letters + string.digits
         default = Path('~/.local/share/').expanduser()
         mountid = ''.join(secrets.choice(alphabet) for i in range(15))
-        tmpdir = PurePosixPath(os.getenv('XDG_HOME_DATA', default)) / 'wl' / 'encrypted'
+        tmpdir = PurePosixPath(os.getenv('XDG_DATA_HOME', default)) / 'wl' / 'encrypted'
         self.tmpdir_path =  tmpdir / mountid / self.engine
         self.cleartext_path = tmpdir / mountid / 'cleartext'
         Path(self.tmpdir_path).mkdir(parents=True)

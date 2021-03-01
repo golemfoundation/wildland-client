@@ -86,6 +86,12 @@ s3-test:
   script:
     - ./ci/ci-s3
 
+encrypted-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-encrypted
+
 dropbox-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
