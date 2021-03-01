@@ -682,6 +682,12 @@ class StorageDriver:
         finally:
             self.storage_backend.release(relpath, 0, obj)
 
+    def remove_file(self, relpath):
+        """
+        Remove a file.
+        """
+        self.storage_backend.unlink(relpath)
+
     def makedirs(self, relpath, mode=0o755):
         """
         Make directory, and it's parents if needed. Does not work across

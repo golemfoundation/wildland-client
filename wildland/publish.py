@@ -37,13 +37,13 @@ from .manifest.manifest import ManifestError
 
 logger = logging.getLogger('publish')
 
-def get_storage_for_publish(client: _client.Client, owner: str) -> _storage.Storage:
+def _get_storages_for_publish(client: _client.Client, owner: str) -> _storage.Storage:
     '''
-    Retrieves suitable storage to publish container manifest.
+    Iterate over all suitable storages to publish container manifest.
     '''
-
     myowner = client.load_user_by_name(owner)
 
+    ok = False
     rejected = []
     if not myowner.containers:
         rejected.append(f'user {owner} has no infrastructure containers')
@@ -82,7 +82,8 @@ def get_storage_for_publish(client: _client.Client, owner: str) -> _storage.Stor
                 # container and if still not mounted, move to the next container
                 try:
                     with _search.StorageDriver.from_storage(storage_candidate) as _driver:
-                        return storage_candidate
+                        ok = True
+                        yield storage_candidate
 
                 except (WildlandError, PermissionError, FileNotFoundError) as ex:
                     rejected.append(
@@ -105,9 +106,10 @@ def get_storage_for_publish(client: _client.Client, owner: str) -> _storage.Stor
                 ex)
             continue
 
-    raise WildlandError(
-        'Cannot find any container suitable as publishing platform:'
-        + ''.join(f'\n- {i}' for i in rejected))
+    if not ok:
+        raise WildlandError(
+            'Cannot find any container suitable as publishing platform:'
+            + ''.join(f'\n- {i}' for i in rejected))
 
 def _manifest_filenames_from_pattern(
         path_pattern, obj_uuid, container_expanded_paths):
@@ -154,12 +156,39 @@ def _publish_container_to_driver(
     assert relpath is not None
     return driver.storage_backend.get_url_for_path(relpath)
 
-def publish_container(client: _client.Client, container: _container.Container) -> None:
+def _unpublish_container_from_driver(
+        driver: _search.StorageDriver,
+        container: _container.Container):
+    for relpath in _manifest_filenames_from_pattern(
+            driver.storage.manifest_pattern['path'],
+            container.ensure_uuid(),
+            container_expanded_paths=container.expanded_paths):
+        try:
+            driver.remove_file(relpath)
+        except FileNotFoundError:
+            pass
+
+def _unpublish_storage_from_driver(
+        driver: _search.StorageDriver,
+        storage: _storage.Storage,
+        container_expanded_paths):
+
+    for relpath in _manifest_filenames_from_pattern(
+            driver.storage.manifest_pattern['path'],
+            storage.params['backend-id'],
+            container_expanded_paths=container_expanded_paths):
+        try:
+            driver.remove_file(relpath)
+        except FileNotFoundError:
+            pass
+
+def publish_container(
+        client: _client.Client, container: _container.Container) -> None:
     '''
     Publish a container to a container owner by the same user.
     '''
 
-    storage = get_storage_for_publish(client, container.owner)
+    storage = next(_get_storages_for_publish(client, container.owner))
     assert storage.manifest_pattern['type'] == 'glob'
     with _search.StorageDriver.from_storage(storage) as driver:
         for i in range(len(container.backends)):
@@ -173,3 +202,18 @@ def publish_container(client: _client.Client, container: _container.Container) -
             container.backends[i] = new_url
 
         _publish_container_to_driver(client, driver, container)
+
+def unpublish_container(
+        client: _client.Client, container: _container.Container) -> None:
+    '''
+    Unpublish a container from any container owned by its owner.
+    '''
+    for storage in _get_storages_for_publish(client, container.owner):
+        assert storage.manifest_pattern['type'] == 'glob'
+        with _search.StorageDriver.from_storage(storage) as driver:
+            for i in range(len(container.backends)):
+                backend = client.load_storage_from_url_or_dict(
+                    container.backends[i], container.owner, container.paths[0])
+                _unpublish_storage_from_driver(driver, backend,
+                    container_expanded_paths=container.expanded_paths)
+            _unpublish_container_from_driver(driver, container)

@@ -481,6 +481,17 @@ class Client:
 
         raise ManifestError(f'Storage not found: {name}')
 
+    def load_storage_from_url_or_dict(self,
+            obj: Union[str, dict], owner: str, container_path: str) -> Storage:
+        '''
+        Load storage, suitable for loading directly from manifest.
+        '''
+        if isinstance(obj, str):
+            return self.load_storage_from_url(obj, owner)
+        if isinstance(obj, collections.abc.Mapping):
+            return self.load_storage_from_dict(obj, owner, container_path)
+        assert False
+
     def load_bridges(self) -> Iterator[Bridge]:
         """
         Load bridge manifests from the bridges directory.
