@@ -133,6 +133,18 @@ class DelegateProxyStorageBackend(StorageBackend):
     def rmdir(self, path: PurePosixPath) -> None:
         self.reference.rmdir(self._path(path))
 
+    def chmod(self, path: PurePosixPath, mode: int) -> None:
+        self.reference.chmod(self._path(path), mode)
+
+    def chown(self, path: PurePosixPath, uid: int, gid: int) -> None:
+        self.reference.chown(self._path(path), uid, gid)
+
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+        self.reference.rename(self._path(move_from), self._path(move_to))
+
+    def utimens(self, path: PurePosixPath, atime, mtime) -> None:
+        self.reference.utimens(self._path(path), atime, mtime)
+
     def get_file_token(self, path: PurePosixPath) -> int:
         return self.reference.get_file_token(self._path(path))
 
