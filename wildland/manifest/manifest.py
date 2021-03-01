@@ -66,6 +66,15 @@ class Manifest:
         # Original data that has been signed.
         self.original_data = original_data
 
+    def copy_to_unsigned(self) -> 'Manifest':
+        """
+        Make an unsigned deep copy of this manifest. Useful for skipping signing, validation
+        and similar potentially destructive changes.
+        """
+        manifest = self.__class__.from_unsigned_bytes(
+            yaml.dump(self._fields, encoding='utf-8', sort_keys=False))
+        return manifest
+
     @property
     def fields(self):
         '''

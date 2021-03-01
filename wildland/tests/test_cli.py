@@ -496,6 +496,17 @@ def test_storage_edit(cli, base_dir):
     assert "location: /PATH" in data
 
 
+def test_storage_edit_fail(cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/LOCATION',
+        '--container', 'Container')
+
+    editor = r'sed -i s,/LOCATION,WRONGLOCATION,g'
+    with pytest.raises(CliError, match='does not match'):
+        cli('container', 'edit', 'Container', '--editor', editor)
+
+
 def test_storage_set_location(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
