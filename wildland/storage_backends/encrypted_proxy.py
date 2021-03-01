@@ -20,45 +20,59 @@
 Encrypted proxy backend
 '''
 
+import os
 import abc
-import enum
+import base64
 import subprocess
 import tempfile
 from subprocess import Popen, PIPE
-from pathlib import PurePosixPath
-from typing import Iterable, Tuple
+from pathlib import PurePosixPath, Path
 import logging
-import errno
 import secrets
-import stat
 import string
-from typing import List, Optional
+from typing import Optional
 
 import click
 
-from wildland.storage_backends.base import StorageBackend, File, Attr, OptionalError
+from wildland.storage_backends.base import StorageBackend, File, OptionalError
 from wildland.manifest.schema import Schema
-from wildland.storage_backends.local import LocalFile, LocalStorageBackend
+from wildland.storage_backends.local import LocalStorageBackend
+from wildland.fs_client import WildlandFSError
 
 
 logger = logging.getLogger('storage-encrypted')
 
-class AbsRunner(metaclass=abc.ABCMeta):
+class EncryptedFSRunner(metaclass=abc.ABCMeta):
+    '''
+    Abstract base class for cryptographic filesystem runner.
+
+    To be returned from ``init()``.
+    '''
     binary: str
 
-    @abc.abstractmethod
-    def run(self):
+    @classmethod
+    def init(cls, basedir: PurePosixPath, ciphertextdir: PurePosixPath) -> 'EncryptedFSRunner':
+        '''
+        Initialize and configure a cryptographic filesystem storage.
+        ``credentials()`` should be available after that.
+        '''
         raise NotImplementedError()
 
-    @classmethod
-    def init(cls):
+    @abc.abstractmethod
+    def run(self, cleartextdir: PurePosixPath):
+        '''
+        Mount and decrypt.
+        '''
         raise NotImplementedError()
 
     @abc.abstractmethod
     def stop(self):
+        '''
+        Unmount.
+        '''
         raise NotImplementedError()
 
-    def reencrypt(self):
+    def reencrypt(self, credentials: str):
         """
         Implements in-place re-encryption to a new key material / password.
 
@@ -67,7 +81,7 @@ class AbsRunner(metaclass=abc.ABCMeta):
         raise OptionalError()
 
     @abc.abstractmethod
-    def credentials(self):
+    def credentials(self) -> str:
         '''
         Return serialized credentials.
         '''
@@ -83,68 +97,104 @@ def generate_password(length: int) -> str:
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
 
-class GoCryptFS(AbsRunner):
+def _encode_credentials(password, config, topdiriv):
+    assert password
+    assert config
+    assert topdiriv
+    return password+";"+ \
+        base64.standard_b64encode(config.encode()).decode()+";"+ \
+        base64.standard_b64encode(topdiriv).decode()
+
+def _decode_credentials(encoded_credentials):
+    parts = encoded_credentials.split(';')
+    password = parts[0]
+    config = base64.standard_b64decode(parts[1]).decode()
+    topdiriv = base64.standard_b64decode(parts[2])
+    return (password, config, topdiriv)
+
+class GoCryptFS(EncryptedFSRunner):
     '''
     Runs gocryptfs via subprocess.
     '''
-    binary = 'gocryptfs'
-    helper = 'gocryptfs-xray'
-    masterkey: str
     password: str
+    config: str
+    topdiriv: bytes
+    ciphertextdir: PurePosixPath
+    cleartextdir: Optional[PurePosixPath]
 
-    def __init__(self, ciphertextdir: PurePosixPath, cleartextdir: PurePosixPath, credentials: Optional[str]):
+    def __init__(self, basedir: PurePosixPath,
+                 ciphertextdir: PurePosixPath,
+                 credentials: Optional[str]):
+        self.binary = 'gocryptfs'
         self.ciphertextdir = ciphertextdir
+        self.basedir = basedir
+        if credentials is not None:
+            (self.password, self.config, self.topdiriv) = _decode_credentials(credentials)
+
+    def credentials(self) -> str:
+        return _encode_credentials(self.password, self.config, self.topdiriv)
+
+    def _write_config(self):
+        config_fn = self.ciphertextdir / 'gocryptfs.conf'
+        if not config_fn.exists():
+            with open(config_fn, 'w') as tf:
+                tf.write(self.config)
+        diriv_fn = self.ciphertextdir / 'gocryptfs.diriv'
+        if not diriv_fn.exists():
+            with open(diriv_fn, 'wb') as bf:
+                bf.write(self.topdiriv)
+
+    def run(self, cleartextdir):
+        self._write_config()
         self.cleartextdir = cleartextdir
-        if credentials:
-            pos = credentials.index(';')
-            self.password = credentials[:pos]
-            self.masterkey = credentials[pos+1:]
-
-    def credentials(self):
-        assert self.password
-        assert self.masterkey
-        return self.password+";"+self.masterkey
-
-    def run(self):
-        cmd = [self.binary, '-masterkey', 'stdin', self.ciphertextdir, self.cleartextdir]
-        p = Popen(cmd, stdin=PIPE)
-        p.stdin.write((self.masterkey+'\n').encode())
-        p.stdin.flush() # will not unlock without this buffer flush
-        # TODO: grep "Filesystem mounted and ready" to avoid returning too early instead of sleeping
-        import time
-        time.sleep(1)
+        fn = self.basedir / 'gocryptfs-password-pipe2'
+        try:
+            os.mkfifo(fn)
+        except FileExistsError:
+            pass
+        cmd = [self.binary, '-passfile', fn, self.ciphertextdir, self.cleartextdir]
+        sp = Popen(cmd, stdout=PIPE)
+        with open(fn, 'w') as f:
+            f.write(self.password)
+            f.flush()
+        out, _ = sp.communicate()
+        assert out.decode().find('Filesystem mounted and ready.') > -1
+        os.unlink(fn)
 
     def stop(self):
-        # TODO A more portable way is needed!
-        res = subprocess.run(['umount', self.cleartextdir])
+        if self.cleartextdir is None:
+            raise WildlandFSError('Unmounting failed: mount point unknown')
+        res = subprocess.run(['umount', self.cleartextdir], check=True)
         return res.returncode
 
     @classmethod
-    def init(cls, ciphertextdir: PurePosixPath, cleartextdir: PurePosixPath) -> Optional['GoCryptFS']:
+    def init(cls, basedir: PurePosixPath, ciphertextdir: PurePosixPath) -> 'GoCryptFS':
         '''
         Create a new, empty gocryptfs storage.
 
-        Unfortunately requires two steps, since gocryptfs detects if stdout is being captured and hides the masterkey.
-        Fortunately, tool that extracts the masterkey is packaged with gocryptfs.
+        Loads contents of config and top directory's IV files
+        created by gocryptfs, so we can store them in the storage manifest.
         '''
-        gcfs = cls(ciphertextdir, cleartextdir, None)
-        gcfs.password = generate_password(20)
-        # TODO move tempdir to a secure location (WL operated FUSE mount point?)
-        # Otherwise password might be written into an unencrypted storage.
-        # Alternatively, input the password via stdin (possibly brittle?)
-        with tempfile.TemporaryDirectory(prefix='gocryptfs-password.') as d:
-            fn = PurePosixPath(d) / 'file'
-            with open(fn, 'w') as f:
-                f.write(gcfs.password) # writes with a newline
-            cmd = [gcfs.binary, '-init', '-passfile', fn, gcfs.ciphertextdir]
-            res = subprocess.run(cmd)
-            assert res.returncode == 0
-        cmd = [gcfs.helper, '-dumpmasterkey', PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.conf']
-        res = subprocess.run(cmd, capture_output=True, input=(gcfs.password + '\n').encode())
-        if res.returncode == 0:
-            gcfs.masterkey = res.stdout.decode()[:-1]
-            return gcfs
-        return None
+        gcfs = cls(basedir, ciphertextdir, None)
+        gcfs.password = generate_password(30)
+        passwordpipe = basedir / 'gocryptfs-password-pipe'
+        try:
+            os.mkfifo(passwordpipe)
+        except FileExistsError:
+            pass
+        cmd = [gcfs.binary, '-init', '-passfile', passwordpipe, gcfs.ciphertextdir]
+        sp = Popen(cmd, stdout=PIPE)
+        with open(passwordpipe, 'w') as f:
+            f.write(gcfs.password)
+            f.flush()
+        out, _ = sp.communicate()
+        os.unlink(passwordpipe)
+        assert out.decode().find('filesystem has been created successfully') > -1
+        with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.conf') as tf:
+            gcfs.config = tf.read()
+        with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.diriv', 'rb') as bf:
+            gcfs.topdiriv = bf.read()
+        return gcfs
 
 # pylint: disable=no-member
 
@@ -192,6 +242,8 @@ class EncryptedProxyStorageBackend(StorageBackend):
 
     def __init__(self, **kwds):
         logger.warning("INIT", kwds)
+        print("INIT kwds", kwds)
+        print("INIT kwds", dir(kwds))
         super().__init__(**kwds)
 
         self.read_only = False
@@ -202,7 +254,7 @@ class EncryptedProxyStorageBackend(StorageBackend):
         self._gen_backend_id(local_params)
         self.local = LocalStorageBackend(params=local_params)
 
-        self.params['storage-path'] = PurePosixPath('/home/pepesza/wildland/remote/')
+        self.params['storage-path'] = PurePosixPath('/home/pepesza/wildland/encrypted/')
 
         # below parameters are automatically generated based on
         # reference-container and MOUNT_REFERENCE_CONTAINER flag
@@ -213,6 +265,7 @@ class EncryptedProxyStorageBackend(StorageBackend):
 
         # the path where it got mounted (this is new)
         self.ciphertext_path = self.params['storage-path']
+
 
     def _gen_backend_id(self, params):
         # TODO fix this garbage
@@ -237,10 +290,12 @@ class EncryptedProxyStorageBackend(StorageBackend):
 
     @classmethod
     def cli_create(cls, data):
-        logger.warning("cli_create")
-        # TODO do a real key generation here
+        with tempfile.TemporaryDirectory(prefix='gocryptfs-encrypted-temp-dir.') as d:
+            d1 = PurePosixPath(d)
+            os.mkdir(d1 / 'encrypted')
+            runner = GoCryptFS.init(d1, d1 / 'encrypted')
         return {'reference-container': data['reference_container_url'],
-                'symmetrickey': '741A2eEB4b69EfB229Ae70FC805cbc1BbCDA629'}
+                'symmetrickey': runner.credentials()}
 
     def open(self, path: PurePosixPath, flags: int) -> File:
         return self.local.open(path, flags)
@@ -257,3 +312,8 @@ class EncryptedProxyStorageBackend(StorageBackend):
     def unlink(self, path: PurePosixPath):
         return self.local.unlink(path)
 
+    def mount(self) -> None:
+        logger.warning("mount")
+
+    def unmount(self) -> None:
+        logger.warning("unmount")

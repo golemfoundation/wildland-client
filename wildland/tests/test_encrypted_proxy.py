@@ -139,29 +139,31 @@ def container(cli, base_dir, data_dir):
 
 
 def test_gcfs_runner(base_dir):
-    import time
     cleardir = base_dir / 'clear'
+    initdir = base_dir / 'init'
     encdir = base_dir / 'enc'
-    os.mkdir(encdir)
     os.mkdir(cleardir)
-    runner = GoCryptFS.init(encdir, cleardir)
-    assert len(runner.masterkey) == 64
-    runner.run()
-    time.sleep(1)
+    os.mkdir(initdir)
+    os.mkdir(encdir)
+    # init, capture config
+    runner = GoCryptFS.init(base_dir, initdir)
+
+    # open for writing, working directory
+    runner2 = GoCryptFS(base_dir, encdir, runner.credentials())
+    runner2.run(cleardir)
     with open(cleardir / 'test.file', 'w') as f:
         f.write("string")
-    assert 0 == runner.stop()
+    assert 0 == runner2.stop()
 
-    credentials = runner.credentials()
-    runner2 = GoCryptFS(encdir, cleardir, credentials)
-    assert runner2.password
-    assert runner2.masterkey
-    runner2.run()
-    time.sleep(1)
-
+    # open for reading, working directory
+    runner3 = GoCryptFS(base_dir, encdir, runner.credentials())
+    assert runner3.password
+    assert runner3.config
+    assert runner3.topdiriv
+    runner3.run(cleardir)
     with open(cleardir / 'test.file', 'r') as f:
         assert "string" == f.read()
-    runner2.stop()
+    assert 0 == runner3.stop()
 
 def test_generate_password():
-    assert ';' not in generate_password()
+    assert ';' not in generate_password(100)
