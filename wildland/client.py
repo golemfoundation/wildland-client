@@ -932,10 +932,6 @@ class Client:
         return path
 
     @staticmethod
-    def _select_storage_for_publishing(storage):
-        return storage.manifest_pattern is not None and storage.is_writeable
-
-    @staticmethod
     def _manifest_filenames_from_pattern(
             path_pattern, obj_uuid, container_expanded_paths):
         path_pattern = path_pattern.replace('*', obj_uuid)
@@ -957,31 +953,70 @@ class Client:
 
         myowner = self.load_user_by_name(owner)
 
-        for container_candidate in myowner.containers:
+        rejected = []
+        if not myowner.containers:
+            rejected.append(f'user {owner} has no infrastructure containers')
+
+        for c in myowner.containers:
             try:
                 container_candidate = self.load_container_from_url_or_dict(
-                    container_candidate, owner)
+                    c, owner)
 
-                # Attempt to mount the storage driver first.
-                # Failure in attempt to mount the backend should try the next storage from the
-                # container and if still not mounted, move to the next container
-                for storage_candidate in self.all_storages(
-                        container=container_candidate,
-                        predicate=self._select_storage_for_publishing):
+                all_storages = list(
+                    self.all_storages(container=container_candidate))
+
+                if not all_storages:
+                    rejected.append(
+                        f'container {container_candidate.ensure_uuid()} '
+                        'has no available storages')
+                    continue
+
+                for storage_candidate in all_storages:
+                    if storage_candidate.manifest_pattern is None:
+                        rejected.append(
+                            f'storage {storage_candidate.params["backend-id"]} of '
+                            f'container {container_candidate.ensure_uuid()} '
+                            'does not have manifest_pattern')
+                        continue
+
+                    if not storage_candidate.is_writeable:
+                        rejected.append(
+                            f'storage {storage_candidate.params["backend-id"]} of '
+                            f'container {container_candidate.ensure_uuid()} '
+                            'is not writeable')
+                        continue
+
+                    # Attempt to mount the storage driver first.
+                    # Failure in attempt to mount the backend should try the next storage from the
+                    # container and if still not mounted, move to the next container
                     try:
                         with StorageDriver.from_storage(storage_candidate) as _driver:
                             return storage_candidate
+
                     except (WildlandError, PermissionError, FileNotFoundError) as ex:
-                        logger.debug('Failed to mount storage when publishing with Exception: %s',
-                            str(ex))
+                        rejected.append(
+                            f'storage {storage_candidate.params["backend-id"]} of '
+                            f'container {container_candidate.ensure_uuid()} '
+                            f'could not be mounted: {ex!s}')
+                        logger.debug(
+                            'Failed to mount storage when publishing with '
+                            'exception: %s',
+                            ex)
                         continue
 
             except (ManifestError, WildlandError) as ex:
-                logger.debug('Failed to load container when publishing with Exception: %s',
-                    str(ex))
+                rejected.append(
+                    f'container {container_candidate.ensure_uuid()} has '
+                    'serious problems: {ex!s}')
+                logger.debug(
+                    'Failed to load container when publishing with '
+                    'exception: %s',
+                    ex)
                 continue
 
-        raise WildlandError('cannot find any container suitable as publishing platform')
+        raise WildlandError(
+            'Cannot find any container suitable as publishing platform:'
+            + ''.join(f'\n- {i}' for i in rejected))
 
     def _publish_storage_to_driver(self,
             driver,  # driver: StorageDriver, except circular import

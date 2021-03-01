@@ -35,6 +35,7 @@ import daemon
 from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
+
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, set_field, dump
 from .cli_storage import do_create_storage_from_set
@@ -226,7 +227,11 @@ def publish(obj: ContextObj, cont):
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
-    obj.client.publish_container(container)
+    try:
+        obj.client.publish_container(container)
+    except WildlandError as exc:
+        print(str(exc))
+        sys.exit(1)
 
 
 def _container_info(client, container):
