@@ -672,8 +672,8 @@ class Client:
                 try:
                     storage = self.load_storage_from_dict(
                         url_or_dict, container.owner, container.paths[0])
-                except WildlandError:
-                    logging.exception('Error loading inline manifest')
+                except WildlandError as e:
+                    logging.info('Container %s: error loading inline manifest: %s', container, e)
                     continue
 
             if storage.owner != container.owner:
