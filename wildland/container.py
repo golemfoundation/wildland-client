@@ -69,7 +69,10 @@ class Container:
 
     def __str__(self):
         """Friendly text representation of the container"""
-        return f'{self.owner}:{[str(p) for p in self.paths]}'
+        local_str = ''
+        if self.local_path:
+            local_str = f' ({self.local_path})'
+        return f'{self.owner}:{[str(p) for p in self.paths]}' + local_str
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
