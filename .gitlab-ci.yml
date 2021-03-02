@@ -79,9 +79,7 @@ smoke-test:
   services:
     - docker:dind
   script:
-    - cd docker
-    - docker-compose build
-    - docker-compose run wildland-client wl-smoke-test < /dev/null
+    - ./wildland-docker.sh wl-smoke-test < /dev/null
 
 pages-test:
   stage: test
