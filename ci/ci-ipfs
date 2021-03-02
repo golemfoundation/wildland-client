@@ -5,7 +5,8 @@ pip install . plugins/ipfs/
 
 # IPFS
 
-ipfs daemon &> /dev/null &
+ipfs init
+ipfs daemon &
 echo "Starting IPFS daemon: ipfs."
 
 echo "IPFS is running at /ip4/127.0.0.1/tcp/8888"
@@ -15,9 +16,11 @@ mkdir -p ~/tmp/ipfs-data/subdir
 printf "foo" > ~/tmp/ipfs-data/file
 printf "bar" > ~/tmp/ipfs-data/subdir/file
 
-ipfs init
-ipfs daemon &
-sleep 5
+# wait for the daemon to start
+while ! ipfs diag sys &>/dev/null; do
+  sleep 1
+done
+
 HASH=$(ipfs add -r ~/tmp/ipfs-data/ | grep -E 'Qm.{44} ipfs-data$' -o | head -c 46)
 
 # Wildland
