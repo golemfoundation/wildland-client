@@ -12,7 +12,7 @@ Synopsis
 | :command:`wl user create <name> --key <key>`
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
-| :command:`wl user modify {add-path|del-path|add-pubkey|del-pubkey} [...] <file>`
+| :command:`wl user modify {add-path|del-path|add-pubkey|del-pubkey|add-infrastructure|del-infrastructure} [...] <file>`
 
 Description
 ===========
@@ -180,4 +180,26 @@ Remove public key from a user |~| manifest given by *<file>*.
 .. option:: --pubkey
 
    Public key to remove (the same format as in the public key file). Can be repeated.
+
+.. _wl-user-modify-add-infrastructure:
+
+:command:`wl user modify add-infrastructure --path path <file>`
+---------------------------------------------------------------
+
+Add infrastructure uri to a user |~| manifest given by *<file>*.
+
+.. option:: --path
+
+   Infrastructure uri to add. Can be repeated.
+
+.. _wl-user-modify-del-infrastructure:
+
+:command:`wl user modify del-infrastructure --path path <file>`
+---------------------------------------------------------------
+
+Remove infrastructure uri from a user |~| manifest given by *<file>*.
+
+.. option:: --path
+
+   Infrastructure uri to remove. Can be repeated.
 
