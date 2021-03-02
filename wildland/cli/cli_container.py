@@ -579,6 +579,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
     for container_name in container_names:
+        found = False
         try:
             # wildland paths are special, because may require importing intermediate users
             if WildlandPath.match(container_name):
@@ -599,12 +600,16 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
                     params.extend(prepare_mount(
                         obj, container, str(container), user_paths,
                         remount, with_subcontainers, None, quiet, only_subcontainers))
+                    found = True
                 except WildlandError as ex:
                     failed = True
                     exc_msg += str(ex) + '\n'
         except WildlandError as ex:
             failed = True
             exc_msg += str(ex) + '\n'
+        if not found:
+            failed = True
+            exc_msg += 'No container found for \'{}\'\n'.format(container_name)
 
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
@@ -613,7 +618,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
         click.echo('Mounting 1 container')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     else:
-        click.echo('No containers need remounting')
+        click.echo('No containers need (re)mounting')
 
     if save:
         default_containers = obj.client.config.get('default-containers')
