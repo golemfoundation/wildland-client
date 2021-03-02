@@ -26,6 +26,8 @@ import shutil
 import subprocess
 import time
 
+from unittest.mock import patch
+
 import pytest
 import yaml
 
@@ -503,8 +505,9 @@ def test_storage_edit_fail(cli):
         '--container', 'Container')
 
     editor = r'sed -i s,/LOCATION,WRONGLOCATION,g'
-    with pytest.raises(CliError, match='does not match'):
+    with patch('click.confirm', return_value=False) as mock:
         cli('container', 'edit', 'Container', '--editor', editor)
+        mock.assert_called()
 
 
 def test_storage_set_location(cli, base_dir):
