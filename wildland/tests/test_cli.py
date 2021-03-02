@@ -1504,17 +1504,18 @@ def test_container_mount_errors(cli, cli_fail, base_dir, control_client, tmp_pat
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        print(f.read())
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container')
     path2 = '/.uuid/0000-1111-2222-3333-4444'
-    with open(tmp_path / 'subcontainer1.yaml', 'w') as f:
+    # put the correct one last, to check if mount errors do not interrupt mount
+    with open(tmp_path / 'container-99.yaml', 'w') as f:
         f.write(f"""signature: |
   dummy.0xaaa
 ---
 owner: '0xaaa'
 paths:
  - {path2}
- - /subcontainer1
+ - /container-99
 backends:
   storage:
     - type: delegate
@@ -1522,31 +1523,33 @@ backends:
       reference-container: 'file://{base_dir / 'containers/Container.container.yaml'}'
       subdirectory: '/subdir1'
 """)
-    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
-        '--container', 'Container', '--subcontainer', './subcontainer1.yaml')
 
-    subpath = tmp_path / 'subcontainer2.yaml'
-    shutil.copyfile(tmp_path / 'subcontainer1.yaml', subpath)
-    modify_file(subpath, 'subcontainer1', 'subcontainer2')
+    subpath = tmp_path / 'container-2.yaml'
+    shutil.copyfile(tmp_path / 'container-99.yaml', subpath)
+    modify_file(subpath, 'container-99', 'container-2')
     modify_file(subpath, 'subdir1', 'subdir2')
     # corrupt signature so this one won't load
     modify_file(subpath, 'dummy.0xaaa', 'dummy.0xZZZ')
 
-    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
-        '--container', 'Container', '--subcontainer', './subcontainer2.yaml')
+    subpath = tmp_path / 'container-3.yaml'
+    shutil.copyfile(tmp_path / 'container-99.yaml', subpath)
+    modify_file(subpath, 'container-99', 'container-3')
+    modify_file(subpath, 'subdir1', 'subdir3')
+    # corrupt storage, so it will load but will fail to mount
+    modify_file(subpath, 'Container.container', 'NoSuchContainer')
 
     control_client.expect('paths', {})
     control_client.expect('mount')
 
-    output = cli_fail('container', 'mount', tmp_path / 'subcontainer*.yaml', capture=True)
+    output = cli_fail('container', 'mount', tmp_path / 'container-*.yaml', capture=True)
     assert 'Traceback' not in output
     assert 'Failed to load some container manifests' in output
 
-    # the other subcontainer should still be mounted
+    # the other container should still be mounted
     command = control_client.calls['mount']['items']
     assert len(command) == 1
     assert command[0]['storage']['owner'] == '0xaaa'
-    assert '/subcontainer1' in command[0]['paths']
+    assert '/container-99' in command[0]['paths']
 
 
 def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):
