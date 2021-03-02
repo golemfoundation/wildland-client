@@ -322,7 +322,7 @@ def delete(obj: ContextObj, name, force, cascade):
 
     # unmount if mounted
     try:
-        for mount_path in obj.fs_client.get_mounted_primary_storage_paths(container):
+        for mount_path in obj.fs_client.get_unique_storage_paths(container):
             storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
 
             if storage_id:
@@ -714,7 +714,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
         for container_name in container_names:
             try:
                 for container in obj.client.load_containers_from(container_name):
-                    for mount_path in obj.fs_client.get_mounted_primary_storage_paths(container):
+                    for mount_path in obj.fs_client.get_unique_storage_paths(container):
                         storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
 
                         if storage_id is None:
