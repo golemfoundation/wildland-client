@@ -502,6 +502,30 @@ def del_path(ctx, input_file, path):
     modify_manifest(ctx, input_file, del_field, 'paths', path)
 
 
+@modify.command(short_help='add infrastructure to the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True,
+              help='Infrastructure path to add')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def add_infrastructure(ctx, input_file, path):
+    '''
+    Add path to the manifest.
+    '''
+    modify_manifest(ctx, input_file, add_field, 'infrastructures', path)
+
+
+@modify.command(short_help='remove infrastructure from the manifest')
+@click.option('--path', metavar='PATH', required=True, multiple=True,
+              help='Infrastructure path to remove')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_infrastructure(ctx, input_file, path):
+    '''
+    Add path to the manifest.
+    '''
+    modify_manifest(ctx, input_file, del_field, 'infrastructures', path)
+
+
 @modify.command(short_help='add public key to the manifest')
 @click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True, help='Public key to add')
 @click.argument('input_file', metavar='FILE')
