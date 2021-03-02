@@ -9,7 +9,6 @@ before_script:
 variables:
   CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
   CONTAINER_TEST_IMAGE_IMAP: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-imap
-  CONTAINER_TEST_IMAGE_IPFS: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-ipfs
   CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
 
 build:
@@ -22,11 +21,9 @@ build:
     - docker-compose build
     - docker tag wildland-client-ci $CONTAINER_TEST_IMAGE
     - docker tag wildland-client-ci-imap $CONTAINER_TEST_IMAGE_IMAP
-    - docker tag wildland-client-ci-ipfs $CONTAINER_TEST_IMAGE_IPFS
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker push $CONTAINER_TEST_IMAGE
     - docker push $CONTAINER_TEST_IMAGE_IMAP
-    - docker push $CONTAINER_TEST_IMAGE_IPFS
 
 lint:
   stage: test
@@ -60,7 +57,7 @@ imap-test:
 
 ipfs-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_IPFS
+  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-ipfs
 
