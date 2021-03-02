@@ -458,7 +458,7 @@ def user_refresh(obj: ContextObj, name):
     user = obj.client.load_user_by_name(name) if name else None
 
     for bridge in obj.client.load_bridges():
-        if user and user.owner != obj.client.session.sig._fingerprint(bridge.user_pubkey):
+        if user and user.owner != obj.client.session.sig.fingerprint(bridge.user_pubkey):
             continue
 
         try:
