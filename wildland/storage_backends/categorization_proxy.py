@@ -21,15 +21,15 @@ Categorization proxy backend
 """
 
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Tuple, Optional, Iterable, Set
+from typing import List, Tuple, Optional, Iterable, Set
 
 import click
 
 from .base import StorageBackend, File, Attr
-from .cached import CachedStorageMixin
 from ..manifest.schema import Schema
 from ..manifest.sig import SigContext
 
@@ -47,7 +47,7 @@ class CategorizationSubcontainerMetaInfo:
     categories: frozenset[str]
 
 
-class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
+class CategorizationProxyStorageBackend(StorageBackend):
     """
     Storage backend exposing subcontainers based on category tags embedded in directories' names.
     For full description of the logic behind multicategorization tags, refer documentation.
@@ -92,20 +92,11 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
     def unmount(self) -> None:
         self.inner.request_unmount()
 
-    def clear_cache(self) -> None:
-        self.inner.clear_cache()
+    def getattr(self, path: PurePosixPath) -> Attr:
+        return self.inner.getattr(path)
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        yield from self._info_all_walk(PurePosixPath('.'))
-
-    def _info_all_walk(self, dir_path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        for name in self.inner.readdir(dir_path):
-            path = dir_path / name
-            attr = self.inner.getattr(path)
-            if attr.is_dir():
-                yield from self._info_all_walk(path)
-            else:
-                yield path, attr
+    def readdir(self, path: PurePosixPath) -> List[str]:
+        return self.inner.readdir(path)
 
     def open(self, path: PurePosixPath, flags: int) -> File:
         return self.inner.open(path, flags)
@@ -140,19 +131,19 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
         Recursively traverse directory tree and generate subcontainers' metainformation based on the
         directories' names: ``@`` starts new category path, ``_`` joins two categories.
         """
-        return self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), set())
+        return set(self._get_categories_to_subcontainer_map_recursive(dir_path, '', set()))
 
     def _get_categories_to_subcontainer_map_recursive(
         self,
         dir_path: PurePosixPath,
         open_category: str,
-        closed_categories: Set[str],
-        results: Set[CategorizationSubcontainerMetaInfo]) -> \
-            Set[CategorizationSubcontainerMetaInfo]:
+        closed_categories: Set[str]) -> Set[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree, collect and return all of the metainformation needed to
         create subcontainers based on the tags embedded in directories' names.
         """
+        dir_contains_files = False
+
         for name in self.inner.readdir(dir_path):
             path = dir_path / name
             attr = self.inner.getattr(path)
@@ -166,28 +157,25 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
                 else:
                     new_closed_categories = closed_categories
                     new_open_category = open_category + prefix_category
-                self._get_categories_to_subcontainer_map_recursive(
+                yield from self._get_categories_to_subcontainer_map_recursive(
                     path,
                     new_open_category,
-                    new_closed_categories,
-                    results)
+                    new_closed_categories)
             else:
-                prefix_category, _, subcontainer_title = open_category.rpartition('/')
-                if prefix_category:
-                    closed_categories.add(prefix_category)
-                all_categories = frozenset(closed_categories) or frozenset('/unclassified')
-                subcontainer_metainfo = CategorizationSubcontainerMetaInfo(
-                    dir_path=dir_path,
-                    title=subcontainer_title,
-                    categories=all_categories
-                )
-                if subcontainer_metainfo not in results:
-                    results.add(subcontainer_metainfo)
+                dir_contains_files = True
 
-        return results
+        if dir_contains_files:
+            prefix_category, _, subcontainer_title = open_category.rpartition('/')
+            if prefix_category:
+                closed_categories.add(prefix_category)
+            all_categories = frozenset(closed_categories) or frozenset({'/unclassified'})
+            yield CategorizationSubcontainerMetaInfo(
+                dir_path=dir_path,
+                title=subcontainer_title or 'unclassified',
+                categories=all_categories
+            )
 
-    @staticmethod
-    def _get_category_info(dir_name: str) -> Tuple[str, str]:
+    def _get_category_info(self, dir_name: str) -> Tuple[str, str]:
         """
         Extract category tag from directory name together with text preceding it (prefix) and text
         following it (postfix). Both prefix and postfix are treated as category paths joined with an
@@ -219,7 +207,6 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
             '_'                        ->  ('/_', '')
         """
         prefix, _, postfix = dir_name.partition('@')
-        cp = CategorizationProxyStorageBackend
 
         if dir_name.endswith('@') or postfix.find('@') != -1:
             logger.debug('Directory [%s] seems to either have multiple category tags or empty '
@@ -227,8 +214,8 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
                          'tag', dir_name)
             return '/' + dir_name, ''
 
-        return cp._filename_to_category_path(prefix), \
-               cp._filename_to_category_path(postfix)
+        return self._filename_to_category_path(prefix), \
+               self._filename_to_category_path(postfix)
 
     @staticmethod
     def _filename_to_category_path(category_path: str) -> str:
@@ -239,22 +226,10 @@ class CategorizationProxyStorageBackend(CachedStorageMixin, StorageBackend):
         them as a part of category name. ``category_path`` is assumed to not have slash characters
         ('/') since it is part of a file name.
         """
+        if category_path == '':
+            return ''
+
         if category_path == '_':
             return '/_'
 
-        converted_path = '' if category_path.startswith('_') else '/'
-        idx = 0
-        n = len(category_path)
-
-        while idx < n:
-            separator_idx = category_path.find('_', idx)
-            if separator_idx == -1:
-                converted_path += category_path[idx:]
-                break
-            converted_path += category_path[idx:separator_idx] + '/'
-            idx = separator_idx + 1
-            while idx < n and category_path[idx] == '_':
-                converted_path += '_'
-                idx += 1
-        # Result ends with '/' iff category_path ends with a single '_'
-        return converted_path[:-1] if converted_path.endswith('/') else converted_path
+        return '/' + re.sub(r'_(_*)', r'/\1', category_path).strip('/')
