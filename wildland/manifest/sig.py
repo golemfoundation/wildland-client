@@ -303,10 +303,6 @@ class DummySigContext(SigContext):
     def is_private_key_available(self, key_id):
         return key_id in self.private_keys
 
-    @staticmethod
-    def _fingerprint(pubkey: str) -> str:
-        return pubkey.replace('key.', '')
-
     def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
         """
         Encrypt data to be readable by keys. Returns a tuple: encrypted message,
