@@ -16,6 +16,7 @@ mkdir -p ~/tmp/ipfs-data/subdir
 printf "foo" > ~/tmp/ipfs-data/file
 printf "bar" > ~/tmp/ipfs-data/subdir/file
 
+sleep 5
 # wait for the daemon to start
 while ! ipfs diag sys &>/dev/null; do
   sleep 1
