@@ -22,7 +22,7 @@
     "wildland-url": {
         "type": "string",
         "description": "wildland: URL",
-        "pattern": "^wildland:.*$"
+        "pattern": "^wildland:.*:.+:.*$"
     },
     "url": {
         "description": "HTTP or file URL",

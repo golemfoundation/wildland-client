@@ -41,6 +41,7 @@ from ..manifest.manifest import (
     ManifestError,
     split_header,
 )
+from ..manifest.schema import SchemaError
 
 
 def find_manifest_file(client: Client, name, manifest_type) -> Path:
@@ -66,15 +67,25 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     raise click.ClickException(f'Not found: {name}')
 
 
-def validate_manifest(manifest: Manifest, manifest_type):
-    '''
+def validate_manifest(manifest: Manifest, manifest_type, client: Client):
+    """
     CLI helper: validate a manifest.
-    '''
+    """
 
     if manifest_type == 'user':
         manifest.apply_schema(User.SCHEMA)
     if manifest_type == 'container':
         manifest.apply_schema(Container.SCHEMA)
+
+        # copied to avoid problems with accessing / modifying existing manifest
+        manifest_copy = manifest.copy_to_unsigned()
+        manifest_copy.skip_signing()
+        for storage in manifest_copy.fields['backends']['storage']:
+            storage_obj = client.load_storage_from_dict(storage,
+                                                        manifest_copy.fields['owner'],
+                                                        manifest_copy.fields['paths'][0])
+            storage_obj.validate()
+
     if manifest_type == 'storage':
         manifest.apply_schema(Storage.BASE_SCHEMA)
     if manifest_type == 'bridge':
@@ -118,7 +129,10 @@ def sign(ctx, input_file, output_file, in_place):
 
     manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     if manifest_type:
-        validate_manifest(manifest, manifest_type)
+        try:
+            validate_manifest(manifest, manifest_type, obj.client)
+        except SchemaError as se:
+            raise CliError(f'Invalid manifest: {se}') from se
 
     try:
         manifest.encrypt_and_sign(obj.client.session.sig,
@@ -166,8 +180,8 @@ def verify(ctx, input_file):
         manifest = Manifest.from_bytes(data, obj.client.session.sig,
                                        allow_only_primary_key=(manifest_type == 'user'))
         if manifest_type:
-            validate_manifest(manifest, manifest_type)
-    except ManifestError as e:
+            validate_manifest(manifest, manifest_type, obj.client)
+    except (ManifestError, SchemaError) as e:
         raise click.ClickException(f'Error verifying manifest: {e}')
     click.echo('Manifest is valid')
 
@@ -236,29 +250,45 @@ def edit(ctx, editor, input_file, remount):
         _, data = split_header(data)
 
     original_data = data
-    edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
-                          require_save=False)
-    data = edited_s.encode()
 
-    if original_data == data:
-        click.echo('No changes detected, not saving.')
-        return
+    new_manifest = None
+    while not new_manifest:
+        edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
+                              require_save=False)
+        data = edited_s.encode()
 
-    try:
-        manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
-    except ManifestError as me:
-        raise click.ClickException(f'Manifest parse error: {me}') from me
+        if original_data == data:
+            click.echo('No changes detected, not saving.')
+            return
 
-    if manifest_type is not None:
-        validate_manifest(manifest, manifest_type)
+        try:
+            manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
+        except ManifestError as me:
+            click.echo(f'Manifest parse error: {me}')
+            if click.confirm('Do you want to edit the manifest again to fix the error?'):
+                continue
+            click.echo('Changes not saved.')
+            return
 
-    try:
-        manifest.encrypt_and_sign(obj.client.session.sig,
-                                  only_use_primary_key=(manifest_type == 'user'))
-    except SigError as se:
-        raise CliError(f'Cannot save manifest: {se}') from se
+        if manifest_type is not None:
+            try:
+                validate_manifest(manifest, manifest_type, obj.client)
+            except SchemaError as se:
+                click.echo(f'Manifest validation error: {se}')
+                if click.confirm('Do you want to edit the manifest again to fix the error?'):
+                    continue
+                click.echo('Changes not saved.')
+                return
 
-    signed_data = manifest.to_bytes()
+        try:
+            manifest.encrypt_and_sign(obj.client.session.sig,
+                                      only_use_primary_key=(manifest_type == 'user'))
+        except SigError as se:
+            raise CliError(f'Cannot save manifest: {se}') from se
+
+        new_manifest = manifest
+
+    signed_data = new_manifest.to_bytes()
     with open(path, 'wb') as f:
         f.write(signed_data)
     click.echo(f'Saved: {path}')
@@ -291,12 +321,15 @@ def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args):
     sig_ctx = obj.client.session.sig
     manifest = Manifest.from_file(manifest_path, sig_ctx)
     if manifest_type is not None:
-        validate_manifest(manifest, manifest_type)
+        validate_manifest(manifest, manifest_type, obj.client)
 
     fields = edit_func(manifest.fields, *args)
     modified = Manifest.from_fields(fields)
     if manifest_type is not None:
-        validate_manifest(modified, manifest_type)
+        try:
+            validate_manifest(modified, manifest_type, obj.client)
+        except SchemaError as se:
+            raise CliError(f'Invalid manifest: {se}') from se
 
     modified.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
 

@@ -26,6 +26,8 @@ import shutil
 import subprocess
 import time
 
+from unittest.mock import patch
+
 import pytest
 import yaml
 
@@ -494,6 +496,18 @@ def test_storage_edit(cli, base_dir):
     with open(manifest) as f:
         data = f.read()
     assert "location: /PATH" in data
+
+
+def test_storage_edit_fail(cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/LOCATION',
+        '--container', 'Container')
+
+    editor = r'sed -i s,/LOCATION,WRONGLOCATION,g'
+    with patch('click.confirm', return_value=False) as mock:
+        cli('container', 'edit', 'Container', '--editor', editor)
+        mock.assert_called()
 
 
 def test_storage_set_location(cli, base_dir):
