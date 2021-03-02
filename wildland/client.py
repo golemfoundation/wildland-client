@@ -779,9 +779,11 @@ class Client:
         """  # pylint: disable=unused-argument
         subcontainer_params['object'] = 'container'
         subcontainer_params['owner'] = container.owner
+        subcontainer_params['version'] = Manifest.CURRENT_VERSION
         for sub_storage in subcontainer_params['backends']['storage']:
             sub_storage['object'] = 'storage'
             sub_storage['owner'] = container.owner
+            subcontainer_params['version'] = Manifest.CURRENT_VERSION
             sub_storage['container-path'] = subcontainer_params['paths'][0]
             if isinstance(sub_storage.get('reference-container'), str) and \
                     WildlandPath.match(sub_storage['reference-container']):

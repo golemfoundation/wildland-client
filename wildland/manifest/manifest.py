@@ -52,6 +52,7 @@ class Manifest:
     The data (fields) should not be modified, because it needs to match the
     return signature.
     '''
+    CURRENT_VERSION = '1'  # update also in schemas/types.json
 
     def __init__(self, header: Optional['Header'], fields,
                  original_data: bytes):
@@ -163,16 +164,29 @@ class Manifest:
         return fields
 
     @classmethod
-    def update_obsolete(cls, fields: dict) -> dict:
+    def update_manifest_version(cls, fields: dict) -> dict:
         """
-        Update any obsolete fields. Currently handles:
-          - signer --> owner
-          - inner-container --> reference-container
-          - in local storages, path --> location
+        Update manifest version, if an old version is encountered.
+        Currently able to update from un-versioned to version 1.
         """
         if not isinstance(fields, dict):
             raise TypeError(f'expected dict, got {type(fields)} instance')
 
+        if "version" not in fields:
+            # Un-versioned manifest
+            fields = cls.update_to_version_1(fields, True)
+            return fields
+
+        return fields
+
+    @classmethod
+    def update_to_version_1(cls, fields: dict, add_version: bool = True) -> dict:
+        """
+        Update any obsolete fields, bringing manifest up to v1. Currently handles:
+          - signer --> owner
+          - inner-container --> reference-container
+          - in local storages, path --> location
+        """
         if 'owner' not in fields:
             if 'signer' in fields:
                 fields['owner'] = fields['signer']
@@ -199,15 +213,21 @@ class Manifest:
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
                 if isinstance(storage, dict) and list(storage.keys()) != ['encrypted']:
-                    cls.update_obsolete(storage)
+                    cls.update_to_version_1(storage, add_version=False)
         if 'infrastructures' in fields:
             for container in fields['infrastructures']:
                 if isinstance(container, dict):
-                    cls.update_obsolete(container)
+                    if container.get('version', None):
+                        raise ManifestError('Manifest version mismatch: expected no manifest'
+                                            'version in infrastructure container.')
+                    cls.update_to_version_1(container, add_version=True)
         if fields.get('type', None) in ['local', 'local-cached', 'local-dir-cached'] and \
                 'path' in fields:
             fields['location'] = fields['path']
             del fields['path']
+
+        if add_version:
+            fields['version'] = '1'
 
         return fields
 
@@ -220,7 +240,7 @@ class Manifest:
         '''
         if sig:
             fields = cls.decrypt(fields, sig)
-        fields = cls.update_obsolete(fields)
+        fields = cls.update_manifest_version(fields)
         data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
         return cls(None, fields, data)
 
@@ -243,7 +263,7 @@ class Manifest:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e
         if sig:
             fields = cls.decrypt(fields, sig)
-        fields = cls.update_obsolete(fields)
+        fields = cls.update_manifest_version(fields)
         return cls(None, fields, data)
 
     def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
@@ -402,7 +422,8 @@ class Manifest:
         try:
             fields = load_yaml(data.decode('utf-8'))
             fields = cls.decrypt(fields, sig)
-            return cls.update_obsolete(fields)
+            fields = cls.update_manifest_version(fields)
+            return fields
         except (ValueError, yaml.YAMLError) as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e
 

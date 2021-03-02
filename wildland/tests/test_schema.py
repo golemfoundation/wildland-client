@@ -27,6 +27,7 @@ from ..manifest.schema import Schema, SchemaError
 
 def container():
     return {
+        'version': '1',
         'object': 'container',
         'owner': '0x3333',
         'paths': [
@@ -40,8 +41,27 @@ def container():
     }
 
 
+def container_backends():
+    return {
+        'version': '1',
+        'object': 'container',
+        'owner': '0x3333',
+        'paths': [
+            '/home/photos',
+        ],
+        'backends': {
+            'storage': [
+                {'type': 'local',
+                 'location': '/path'
+                 }
+            ]
+        }
+    }
+
+
 def container_access():
     return {
+        'version': '1',
         'object': 'container',
         'owner': '0x3333',
         'paths': [
@@ -58,11 +78,24 @@ def container_access():
     }
 
 
+def user():
+    return {
+        'version': '1',
+        'object': 'user',
+        'owner': '0x3333',
+        'paths': [
+            '/Alice',
+        ],
+        'pubkeys': ['key.0x333'],
+    }
+
+
 def test_validate():
     schema = Schema('container')
     schema.validate(container())
 
     schema.validate(container_access())
+    schema.validate(container_backends())
 
     c = container_access()
     c['access'][0]['user'] = '*'
@@ -87,7 +120,30 @@ def test_validate_errors():
     with pytest.raises(SchemaError, match=r"paths: \[\] is too short"):
         schema.validate(c)
 
+    c = container()
+    del c['version']
+    with pytest.raises(SchemaError, match=r"'version' is a required property"):
+        schema.validate(c)
+
+    c = container()
+    c['version'] = '2'
+    with pytest.raises(SchemaError, match=r"'1' was expected"):
+        schema.validate(c)
+
     c = container_access()
     c['access'].append({'user': '*'})
     with pytest.raises(SchemaError, match=r"not valid"):
         schema.validate(c)
+
+
+def test_validate_user():
+    schema = Schema('user')
+    schema.validate(user())
+
+    u = user()
+    u['infrastructures'] = [container()]
+    schema.validate(u)
+
+    u['infrastructures'][0]['version'] = '2'
+    with pytest.raises(SchemaError, match=r"not valid"):
+        schema.validate(u)

@@ -1,9 +1,10 @@
 {
     "title": "User manifest",
     "type": "object",
-    "required": ["object", "owner", "paths", "pubkeys"],
+    "required": ["object", "owner", "paths", "pubkeys", "version"],
     "properties": {
         "object": { "const": "user" },
+        "version": { "$ref": "/schemas/types.json#version"},
         "owner": { "$ref": "/schemas/types.json#fingerprint" },
         "paths": {
             "type": "array",

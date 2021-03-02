@@ -1,9 +1,10 @@
 {
     "title": "Bridge manifest",
     "type": "object",
-    "required": ["object", "owner", "user", "pubkey", "paths"],
+    "required": ["object", "owner", "user", "pubkey", "paths", "version"],
     "properties": {
         "object": { "const": "bridge"} ,
+        "version": { "$ref": "/schemas/types.json#version"},
         "owner": { "$ref": "/schemas/types.json#fingerprint" },
         "user": {
             "$ref": "/schemas/types.json#url-or-relpath",

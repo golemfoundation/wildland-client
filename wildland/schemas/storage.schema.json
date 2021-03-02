@@ -1,7 +1,8 @@
 {
     "allOf": [{"$ref": "#/definitions/storage-inline"}],
-    "required": ["object", "owner", "type", "container-path"],
+    "required": ["object", "owner", "type", "container-path", "version"],
     "definitions": {
+        "version": { "$ref": "/schemas/types.json#version"},
         "storage-inline": {
             "title": "Storage manifest (common schema)",
             "type": "object",

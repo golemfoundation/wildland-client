@@ -110,13 +110,14 @@ class Container:
             if 'object' in backend:
                 del backend['object']
 
-        fields = dict(
-            object=type(self).__name__.lower(),
-            owner=self.owner,
-            paths=[str(p) for p in self.paths],
-            backends={'storage': cleaned_backends},
-            title=self.title,
-            categories=[str(cat) for cat in self.categories])
+        fields = {
+            "object": type(self).__name__.lower(),
+            "owner": self.owner,
+            "paths": [str(p) for p in self.paths],
+            "backends": {'storage': cleaned_backends},
+            "title": self.title,
+            "categories": [str(cat) for cat in self.categories],
+            "version": Manifest.CURRENT_VERSION}
         if self.access:
             fields['access'] = self.access
 
