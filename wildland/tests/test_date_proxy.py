@@ -28,6 +28,7 @@ import pytest
 
 from .fuse_env import FuseEnv
 from ..client import Client
+from ..manifest.manifest import Manifest
 
 
 def test_date_proxy_with_url(cli, base_dir):
@@ -154,6 +155,7 @@ def container(cli, base_dir, data_dir):
         f.write(yaml.dump({
             'object': 'container',
             'owner': '0xaaa',
+            'version': Manifest.CURRENT_VERSION,
             'paths': [
                 '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
                 '/PATH',
@@ -167,6 +169,7 @@ def container(cli, base_dir, data_dir):
                     'backend-id': str(uuid.uuid4()),
                     'reference-container': {
                         'object': 'container',
+                        'version': Manifest.CURRENT_VERSION,
                         'owner': '0xaaa',
                         'paths': ['/.uuid/39f437f3-b071-439c-806b-6d14fa55e827'],
                         'backends': {

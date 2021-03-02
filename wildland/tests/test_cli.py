@@ -32,7 +32,7 @@ import pytest
 import yaml
 
 from click import ClickException
-from ..manifest.manifest import ManifestError
+from ..manifest.manifest import ManifestError, Manifest
 from ..cli.cli_base import CliError
 from ..utils import load_yaml
 
@@ -1092,6 +1092,8 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         documents = list(yaml.safe_load_all(f))
         documents[1]['infrastructures'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
+            'object': 'container',
+            'version': Manifest.CURRENT_VERSION,
             'owner': '0xbbb',
             'backends': {'storage': [{
                 'type': 'local',
@@ -1122,6 +1124,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         '/users/other/PATH',
     ]
 
+
 def test_container_mount_with_import(cli, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -1134,6 +1137,8 @@ def test_container_mount_with_import(cli, base_dir, control_client):
         documents[1]['infrastructures'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xbbb',
+            'object': 'container',
+            'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'other-infra'),
@@ -1210,6 +1215,8 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
         documents[1]['infrastructures'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xbbb',
+            'object': 'container',
+            'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'other-infra'),
