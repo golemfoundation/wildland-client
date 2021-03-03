@@ -248,6 +248,9 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
 
     control_client.expect('paths', {
         f'/.users/0xaaa{path}': [101],
+        f'/.users/0xaaa{path}/.backends/0000-1111-2222-3333-4444': [102],
+        f'{path}': [103],
+        f'{path}/.backends/0000-1111-2222-3333-4444': [104],
     })
     control_client.expect('unmount')
     control_client.expect('status', {})

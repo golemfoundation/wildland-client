@@ -31,6 +31,7 @@ import sys
 import hashlib
 import dataclasses
 import glob
+import re
 
 from .container import Container
 from .storage import Storage
@@ -202,7 +203,7 @@ class WildlandFSClient:
 
     def mount_container(self,
                         container: Container,
-                        storage: Storage,
+                        storages: List[Storage],
                         user_paths: Iterable[PurePosixPath] = (PurePosixPath('/'),),
                         subcontainer_of: Optional[Container] = None,
                         remount: bool = False):
@@ -210,38 +211,41 @@ class WildlandFSClient:
         Mount a container, assuming a storage has been already selected.
         '''
 
-        self.mount_multiple_containers([(container, storage, user_paths, subcontainer_of)],
+        self.mount_multiple_containers([(container, storages, user_paths, subcontainer_of)],
                                        remount=remount)
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, Storage, Iterable[PurePosixPath],
+            params: Iterable[Tuple[Container, List[Storage], Iterable[PurePosixPath],
                                    Optional[Container]]],
             remount: bool = False):
         '''
         Mount multiple containers using a single command.
         '''
-
         self.clear_cache()
+
         commands = [
             self.get_command_for_mount_container(
                 container, storage, user_paths,
                 remount=remount, subcontainer_of=subcontainer_of)
-            for container, storage, user_paths, subcontainer_of in params
+            for container, storages, user_paths, subcontainer_of in params
+            for storage in storages
         ]
         self.run_control_command('mount', items=commands)
 
-    def unmount_container(self, storage_id: int):
-        '''
-        Unmount a container with given storage ID.
-        '''
+    def unmount_storage(self, storage_id: int):
+        """
+        Unmount a storage with given storage id.
+        """
 
         self.clear_cache()
         self.run_control_command('unmount', storage_id=storage_id)
 
-    def find_storage_id(self, container: Container) -> Optional[int]:
+    def find_primary_storage_id(self, container: Container) -> Optional[int]:
         '''
-        Find storage ID for a given container.
+        Find primary storage ID for a given container.
+        A primary storage is the one that mounts under all container paths and not just
+        under /.uuid/.../.backends/...
         '''
 
         mount_path = self.get_user_path(container.owner, container.paths[0])
@@ -251,7 +255,6 @@ class WildlandFSClient:
         '''
         Find storage ID for a given mount path.
         '''
-
         paths = self.get_paths()
         storage_ids = paths.get(path)
         if storage_ids is None:
@@ -259,6 +262,17 @@ class WildlandFSClient:
         if len(storage_ids) > 1:
             logger.warning('multiple storages found for path: %s', path)
         return storage_ids[0]
+
+    def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
+        """
+        Returns list of mounted paths that are mounted but do not exist in the given container.
+        This situation may happen when you want to remount a container that has some storages
+        removed from the manifest since the last mount.
+        """
+        mounted_paths = self.get_unique_storage_paths(container)
+        valid_paths = [storage.get_mount_path(container) for storage in storages_to_mount]
+
+        return list(set(mounted_paths) - set(valid_paths))
 
     def get_container_from_storage_id(self, storage_id: int):
         """
@@ -309,7 +323,7 @@ class WildlandFSClient:
                         recursive=recursive)
 
     def find_all_storage_ids_for_path(self, path: PurePosixPath) \
-        -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
+            -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
         '''
         Given a path, retrieve all mounted storages this path is inside.
 
@@ -324,8 +338,8 @@ class WildlandFSClient:
             if part not in tree.children:
                 break
             tree = tree.children[part]
-            storage_path = PurePosixPath(*path.parts[:i+1])
-            relpath = PurePosixPath(*path.parts[i+1:])
+            storage_path = PurePosixPath(*path.parts[:i + 1])
+            relpath = PurePosixPath(*path.parts[i + 1:])
             for storage_id in tree.storage_ids:
                 yield storage_id, storage_path, relpath
 
@@ -422,27 +436,49 @@ class WildlandFSClient:
         }
         return self.info_cache
 
+    def get_unique_storage_paths(self, container: Optional[Container] = None) \
+            -> Iterable[Path]:
+        """
+        Returns list of unique mount paths (ie '/.uuid/{container_uuid}/.backends/{backend_uuid}')
+        for every storage in a given container. If no container is given, return unique mount paths
+        for all mounted storages in every container.
+        """
+
+        paths = self.get_paths()
+
+        if container:
+            path_regex = re.compile(fr'^/.uuid/{container.ensure_uuid()}/.backends/[0-9a-z-]+$')
+        else:
+            path_regex = re.compile(r'^/.uuid/[0-9a-z-]+/.backends/[0-9a-z-]+$')
+
+        for path, _storage_id in paths.items():
+            if path_regex.match(str(path)):
+                yield path
+
     def should_remount(self, container: Container, storage: Storage,
                        user_paths: Iterable[PurePosixPath]) -> bool:
         '''
-        Check if a storage has to be remounted.
+        Check if a storage needs to be remounted.
         '''
 
-        storage_id = self.find_storage_id(container)
+        info = self.get_info()
+
+        mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
+        storage_id = self.find_storage_id_by_path(mount_paths[0])
+
         if storage_id is None:
+            logger.debug('Storage %s is new. Remounting it inside %s container.',
+                         storage.backend_id, container.paths[0])
             return True
 
-        paths = [
-            str(user_path / path.relative_to('/'))
-            for path in container.expanded_paths
-            for user_path in itertools.chain(
-                user_paths,
-                [self.get_user_path(container.owner, PurePosixPath('/'))])
-        ]
+        tag = self.get_storage_tag(mount_paths, storage.params)
 
-        info = self.get_info()
-        tag = self.get_storage_tag(paths, storage.params)
-        return info[storage_id]['tag'] != tag
+        if info[storage_id]['tag'] != tag:
+            logger.debug('Storage %s has changed. Remounting it inside %s container.',
+                         storage.backend_id, container.paths[0])
+            return True
+
+        return False
 
     def get_command_for_mount_container(self,
                                         container: Container,
@@ -455,18 +491,13 @@ class WildlandFSClient:
 
         Args:
             container (Container): the container to be mounted
-            storage (Storage): the storage selected for container
+            storages List(Storage): the storage selected for container
             user_paths: paths to the owner, should include '/' for default user
             remount: remount if mounted already (otherwise, will fail if
             mounted already)
         '''
-        paths = [
-            str(user_path / path.relative_to('/'))
-            for path in container.expanded_paths
-            for user_path in itertools.chain(
-                user_paths,
-                [self.get_user_path(container.owner, PurePosixPath('/'))])
-        ]
+
+        mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
 
         trusted_owner: Optional[str]
         if storage.params.get('trusted'):
@@ -475,10 +506,11 @@ class WildlandFSClient:
             trusted_owner = None
 
         return {
-            'paths': paths,
+            'paths': [str(p) for p in mount_paths],
             'storage': storage.params,
             'extra': {
-                'tag': self.get_storage_tag(paths, storage.params),
+                'tag': self.get_storage_tag(mount_paths, storage.params),
+                'primary': storage.is_primary,
                 'trusted_owner': trusted_owner,
                 'subcontainer_of': (f'{subcontainer_of.owner}:{subcontainer_of.paths[0]}'
                                     if subcontainer_of else None),
@@ -486,8 +518,39 @@ class WildlandFSClient:
             'remount': remount,
         }
 
+    def get_storage_mount_paths(self, container: Container, storage: Storage,
+                                user_paths: Iterable[PurePosixPath]) -> List[PurePosixPath]:
+        """
+        Return all mount paths (incl. synthetic ones) for given storage.
+
+        Container paths always start with `/.uuid/{container_uuid}` path which must always be
+        present (as defined in Container's constructor'). If a storage is a secondary storage, we
+        want to mount it solely under `/.uuid/{container_uuid}/.backends/{storage_uuid}` directory,
+        otherwise mount it under all directories.
+
+        Note that this function will return `/.uuid/{container_uuid}/.backends/{storage_id}`.
+        """
+        paths = container.expanded_paths
+
+        unique_backend_path = storage.get_mount_path(container)
+
+        if storage.is_primary:
+            storage_paths = [unique_backend_path, *paths]
+        else:
+            storage_paths = [unique_backend_path]
+
+        paths = [
+            user_path / path.relative_to('/')
+            for path in storage_paths
+            for user_path in itertools.chain(
+                user_paths,
+                [self.get_user_path(container.owner, PurePosixPath('/'))])
+        ]
+
+        return paths
+
     @staticmethod
-    def get_storage_tag(paths, params):
+    def get_storage_tag(paths: List[PurePosixPath], params):
         '''
         Compute a hash of storage params, to decide if a storage needs to be
         remounted.
@@ -495,7 +558,7 @@ class WildlandFSClient:
 
         param_str = json.dumps({
             'params': params,
-            'paths': paths,
+            'paths': [str(path) for path in paths],
         }, sort_keys=True)
         return hashlib.sha1(param_str.encode()).hexdigest()
 
@@ -506,8 +569,8 @@ class WildlandFSClient:
         '''
         return PurePosixPath('/.users/') / owner / path.relative_to('/')
 
-    def watch(self, patterns: Iterable[str], with_initial=False) -> \
-        Iterator[List[WatchEvent]]:
+    def watch(self, patterns: Iterable[str], with_initial=False) \
+            -> Iterator[List[WatchEvent]]:
         '''
         Watch for changes under the provided list of patterns (as absolute paths).
         lists of WatchEvent objects (so that simultaneous events can be grouped).

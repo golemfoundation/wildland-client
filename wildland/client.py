@@ -667,6 +667,27 @@ class Client:
                 except WildlandError:
                     logging.exception('Error loading manifest: %s', url_or_dict)
                     continue
+
+                # Checking storage owner and path is neccessary only in external
+                # storage files but not in inline ones.
+
+                if storage.owner != container.owner:
+                    logger.error(
+                        '%s: owner field mismatch: storage %s, container %s',
+                        name,
+                        storage.owner,
+                        container.owner
+                    )
+                    continue
+
+                if storage.container_path not in container.expanded_paths:
+                    logger.error(
+                        '%s: unrecognized container path for storage: %s, %s',
+                        name,
+                        storage.container_path,
+                        container.expanded_paths
+                    )
+                    continue
             else:
                 name = '(inline)'
                 try:
@@ -675,24 +696,6 @@ class Client:
                 except WildlandError as e:
                     logging.info('Container %s: error loading inline manifest: %s', container, e)
                     continue
-
-            if storage.owner != container.owner:
-                logger.error(
-                    '%s: owner field mismatch: storage %s, container %s',
-                    name,
-                    storage.owner,
-                    container.owner
-                )
-                continue
-
-            if storage.container_path not in container.expanded_paths:
-                logger.error(
-                    '%s: unrecognized container path for storage: %s, %s',
-                    name,
-                    storage.container_path,
-                    container.expanded_paths
-                )
-                continue
 
             if not StorageBackend.is_type_supported(storage.storage_type):
                 logging.warning('Unsupported storage manifest: %s (type %s)',
@@ -728,13 +731,38 @@ class Client:
         except StopIteration as ex:
             raise ManifestError('no supported storage manifest') from ex
 
+    def get_storages_to_mount(self, container: Container) -> Iterable[Storage]:
+        """
+        Return valid, mountable storages for the given container
+        """
+        storages = list(self.all_storages(container, predicate=None))
+
+        if not storages:
+            raise WildlandError('No valid storages found')
+
+        primaries = list(filter(lambda s: s.is_primary, storages))
+
+        if len(primaries) > 1:
+            raise WildlandError('There cannot be more than 1 primary storage defined. '
+                                'Verify the container manifest.')
+
+        if len(primaries) == 0:
+            # If no primaries were defined in the manifest, mark the first storage from the list as
+            # primary. There must be at least one storage designated as the primary storage.
+            storages[0].promote_to_primary()
+        else:
+            # Make sure the primary storage is first
+            storages = sorted(storages, key=lambda s: s.is_primary)
+
+        return storages
+
     def _select_reference_storage(
             self,
             container_url_or_dict: Union[str, Dict],
             owner: str,
             trusted: bool) -> Optional[Dict]:
         '''
-        Select an "reference" storage based on URL or dictionary. This resolves a
+        Select a "reference" storage based on URL or dictionary. This resolves a
         container specification and then selects storage for the container.
         '''
 

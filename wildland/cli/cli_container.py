@@ -31,13 +31,15 @@ import threading
 import signal
 import click
 import daemon
+import yaml
 
 from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
 
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, set_field, dump
+from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, \
+    set_field, del_nested_field, find_manifest_file, dump
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..exc import WildlandError
@@ -55,7 +57,6 @@ MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
 
 logger = logging.getLogger('cli_container')
-
 
 @aliased_group('container', short_help='container management')
 def container_():
@@ -88,13 +89,13 @@ class OptionRequires(click.Option):
 
 @container_.command(short_help='create container')
 @click.option('--owner', '--user',
-    help='user for signing')
+              help='user for signing')
 @click.option('--path', multiple=True, required=False,
-    help='mount path (can be repeated)')
+              help='mount path (can be repeated)')
 @click.option('--category', multiple=True, required=False,
-    help='category, will be used to generate mount paths')
+              help='category, will be used to generate mount paths')
 @click.option('--title', multiple=False, required=False,
-    help='container title')
+              help='container title')
 @click.option('--update-user/--no-update-user', '-u/-n', default=False,
               help='Attach the container to the user')
 @click.option('--storage-set', '--set', multiple=False, required=False,
@@ -321,11 +322,18 @@ def delete(obj: ContextObj, name, force, cascade):
 
     # unmount if mounted
     try:
-        storage_id = obj.fs_client.find_storage_id(container)
+        for mount_path in obj.fs_client.get_unique_storage_paths(container):
+            storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
+
+            if storage_id:
+                obj.fs_client.unmount_storage(storage_id)
+
+            for storage_id in obj.fs_client.find_all_subcontainers_storage_ids(container):
+                obj.fs_client.unmount_storage(storage_id)
+
     except FileNotFoundError:
-        storage_id = None
-    if storage_id:
-        obj.fs_client.unmount_container(storage_id)
+        pass
+
 
     has_local = False
     for url_or_dict in list(container.backends):
@@ -483,6 +491,35 @@ def set_encrypt_manifest(ctx, input_file):
     modify_manifest(ctx, input_file, set_field, 'access', [])
 
 
+@modify.command(short_help='remove storage backend from the manifest')
+@click.option('--storage', metavar='TEXT', required=True, multiple=True,
+              help='Storage to remove. Can be either the backend_id of a storage or position in '
+                   'storage list (starting from 0)')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def del_storage(ctx, input_file, storage):
+    """
+    Remove category from the manifest.
+    """
+    container_manifest = find_manifest_file(ctx.obj.client, input_file, 'container').read_bytes()
+    container_yaml = list(yaml.safe_load_all(container_manifest))[1]
+    storages_obj = container_yaml.get('backends', {}).get('storage', {})
+
+    idxs_to_delete = []
+
+    for s in storage:
+        if s.isnumeric():
+            idxs_to_delete.append(int(s))
+        else:
+            for idx, obj_storage in enumerate(storages_obj):
+                if obj_storage['backend-id'] == s:
+                    idxs_to_delete.append(idx)
+
+    click.echo('Storage indexes to remove: ' + str(idxs_to_delete))
+
+    modify_manifest(ctx, input_file, del_nested_field, ['backends', 'storage'], keys=idxs_to_delete)
+
+
 def prepare_mount(obj: ContextObj,
                   container: Container,
                   container_name: str,
@@ -507,34 +544,39 @@ def prepare_mount(obj: ContextObj,
     :param only_subcontainers: only mount subcontainers
     :return: combined 'params' argument
     """
-    try:
-        storage = obj.client.select_storage(container)
-    except ManifestError:
-        print(f'Cannot mount {container_name}: no storage available')
-        return
-
     if with_subcontainers:
         subcontainers = list(obj.client.all_subcontainers(container))
     else:
         subcontainers = []
 
-    param_tuple = (container, storage, user_paths, subcontainer_of)
+    storages = obj.client.get_storages_to_mount(container)
 
     if not subcontainers or not only_subcontainers:
-        if obj.fs_client.find_storage_id(container) is None:
+        if obj.fs_client.find_primary_storage_id(container) is None:
             if not quiet:
                 print(f'new: {container_name}')
-            yield param_tuple
+            yield (container, storages, user_paths, subcontainer_of)
         elif remount:
-            if obj.fs_client.should_remount(container, storage, user_paths):
-                if not quiet:
-                    print(f'changed: {container_name}')
-                yield param_tuple
-            else:
-                if not quiet:
-                    print(f'not changed: {container_name}')
+            storages_to_remount = []
+
+            for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
+                storage_id = obj.fs_client.find_storage_id_by_path(path)
+                print(f'Removing orphaned storage {path} (id: {storage_id} )')
+                obj.fs_client.unmount_storage(storage_id)
+
+            for storage in storages:
+                if obj.fs_client.should_remount(container, storage, user_paths):
+                    storages_to_remount.append(storage)
+
+                    if not quiet:
+                        print(f'changed: {storage.backend_id}')
+                else:
+                    if not quiet:
+                        print(f'not changed: {storage.backend_id})')
+
+            yield (container, storages_to_remount, user_paths, subcontainer_of)
         else:
-            raise CliError('Already mounted: {container.local_path}')
+            raise CliError(f'Already mounted: {container.local_path}')
 
     if with_subcontainers:
         for subcontainer in subcontainers:
@@ -575,9 +617,11 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     if import_users:
         obj.client.auto_import_users = True
 
-    params: List[Tuple[Container, Storage, List[PurePosixPath], Container]] = []
+    params: List[Tuple[Container, List[Storage], List[PurePosixPath], Container]] = []
+
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
+
     for container_name in container_names:
         found = False
         try:
@@ -663,17 +707,22 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
 
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
+
+    # pylint: disable=too-many-nested-blocks
     if container_names:
         storage_ids = []
         for container_name in container_names:
             try:
                 for container in obj.client.load_containers_from(container_name):
-                    storage_id = obj.fs_client.find_storage_id(container)
-                    if storage_id is None:
-                        click.echo(f'Not mounted: {container.paths[0]}')
-                    else:
-                        click.echo(f'Will unmount: {container.paths[0]}')
-                        storage_ids.append(storage_id)
+                    for mount_path in obj.fs_client.get_unique_storage_paths(container):
+                        storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
+
+                        if storage_id is None:
+                            click.echo(f'Not mounted: {mount_path}')
+                        else:
+                            click.echo(f'Will unmount: {mount_path}')
+                            storage_ids.append(storage_id)
+
                     if with_subcontainers:
                         storage_ids.extend(
                             obj.fs_client.find_all_subcontainers_storage_ids(container))
@@ -695,7 +744,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
 
     click.echo(f'Unmounting {len(storage_ids)} containers')
     for storage_id in storage_ids:
-        obj.fs_client.unmount_container(storage_id)
+        obj.fs_client.unmount_storage(storage_id)
 
     if failed:
         raise ClickException(exc_msg)
@@ -767,7 +816,7 @@ class Remounter:
                 del self.main_paths[event.path]
 
             if storage_id is not None:
-                logger.info('  (unmount %s)', storage_id)
+                logger.info('  (unmount %d)', storage_id)
                 self.to_unmount.append(storage_id)
             else:
                 logger.info('  (not mounted)')
@@ -781,22 +830,30 @@ class Remounter:
             self.main_paths[event.path] = self.fs_client.get_user_path(
                 container.owner, container.paths[0])
 
-            # Check if the container is NOT detected as currently mounted under
-            # this path. This might happen if the modified file changes UUID.
-            # In this case, we want to unmount the old one.
-            current_storage_id = self.fs_client.find_storage_id(container)
-            if storage_id is not None and storage_id != current_storage_id:
-                logger.info('  (unmount old: %s)', storage_id)
 
-            # Call should_remount to determine if we should mount this
-            # container.
             user_paths = self.client.get_bridge_paths_for_user(container.owner)
-            storage = self.client.select_storage(container)
-            if self.fs_client.should_remount(container, storage, user_paths):
-                logger.info('  (mount)')
-                self.to_mount.append((container, storage, user_paths, None))
+            storages = self.client.get_storages_to_mount(container)
+
+            if self.fs_client.find_primary_storage_id(container) is None:
+                logger.info('  new: %s', str(container))
+                self.to_mount.append((container, storages, user_paths, None))
             else:
-                logger.info('  (no change)')
+                storages_to_remount = []
+
+                for path in self.fs_client.get_orphaned_container_storage_paths(
+                        container, storages):
+                    storage_id = self.fs_client.find_storage_id_by_path(path)
+                    logger.info('  (removing orphan %s @ id: %d)', path, storage_id)
+                    self.fs_client.unmount_storage(storage_id)
+
+                for storage in storages:
+                    if self.fs_client.should_remount(container, storage, user_paths):
+                        logger.info('  (remounting: %s)', storage.backend_id)
+                        storages_to_remount.append(storage)
+                    else:
+                        logger.info('  (not changed: %s)', storage.backend_id)
+
+                self.to_mount.append((container, storages_to_remount, user_paths, None))
 
     def unmount_pending(self):
         '''
@@ -804,7 +861,7 @@ class Remounter:
         '''
 
         for storage_id in self.to_unmount:
-            self.fs_client.unmount_container(storage_id)
+            self.fs_client.unmount_storage(storage_id)
         self.to_unmount.clear()
 
     def mount_pending(self):
@@ -1043,6 +1100,7 @@ def duplicate(obj: ContextObj, new_name, cont):
         backends=container.backends,
         title=container.title,
         categories=container.categories,
+        access=container.access,
     )
     new_uuid = new_container.ensure_uuid()
 

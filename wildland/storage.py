@@ -20,17 +20,13 @@
 '''
 Storage class
 '''
-import hashlib
-import uuid
 from pathlib import PurePosixPath, Path
 from typing import Dict, Any, Optional, List
-
-import yaml
 
 from .storage_backends.base import StorageBackend
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
-
+from .container import Container
 
 class Storage:
     '''
@@ -63,25 +59,29 @@ class Storage:
         self.base_url = base_url
         self.manifest = manifest
         self.access = access
-
+        self.primary = self.params.get('primary', False)
         if 'backend-id' not in params:
-            hasher = hashlib.md5()
-            # skip 'storage' object if present, it is derived from reference-container
-            params_for_hash = dict((k, v) for (k, v) in params.items()
-                                   if k != 'storage')
-            hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
-            self.params['backend-id'] = str(uuid.UUID(hasher.hexdigest()))
+            self.params['backend-id'] = StorageBackend.generate_hash(params)
+
 
     def __repr__(self):
         return (f'{type(self).__name__}('
-            f'owner={self.owner!r}, '
-            f'storage_type={self.storage_type!r}, '
-            f'container_path={self.container_path!r}, '
-            f'trusted={self.trusted!r}, '
-            f'manifest_pattern={self.manifest_pattern!r}, '
-            f'base_url={self.base_url!r}, '
-            f'local_path={self.local_path!r})'
-            f'access={self.access}')
+                f'owner={self.owner!r}, '
+                f'storage_type={self.storage_type!r}, '
+                f'container_path={self.container_path!r}, '
+                f'trusted={self.trusted!r}, '
+                f'manifest_pattern={self.manifest_pattern!r}, '
+                f'base_url={self.base_url!r}, '
+                f'local_path={self.local_path!r}, '
+                f'access={self.access!r}, '
+                f'backend_id={self.params["backend-id"]!r})')
+
+    @property
+    def backend_id(self):
+        '''
+        Returns backend_id param
+        '''
+        return self.params['backend-id']
 
     @property
     def is_writeable(self) -> bool:
@@ -90,18 +90,37 @@ class Storage:
         '''
         return not self.params.get('read-only', False)
 
+    @property
+    def is_primary(self) -> bool:
+        """
+        Returns primary param
+        """
+        return self.primary
+
+    def get_mount_path(self, container: Container) -> str:
+        """
+        Return unique mount path for this storage
+        """
+        return PurePosixPath(f'/.uuid/{container.ensure_uuid()}/.backends/{self.backend_id}')
+
     def validate(self):
-        '''
+        """
         Validate storage assuming it's of a known type.
         This is not done automatically because we might want to load an
         unrecognized storage.
-        '''
+        """
 
         manifest = self.to_unsigned_manifest()
         if not StorageBackend.is_type_supported(self.storage_type):
             raise ManifestError(f'Unrecognized storage type: {self.storage_type}')
         backend = StorageBackend.types()[self.storage_type]
         manifest.apply_schema(backend.SCHEMA)
+
+    def promote_to_primary(self):
+        """
+        Sets primary param to True
+        """
+        self.primary = True
 
     @classmethod
     def from_manifest(cls, manifest: Manifest,

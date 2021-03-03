@@ -404,6 +404,18 @@ Remove category from a container |~| manifest given by *<file>*.
 
    Category to remove. Can be repeated.
 
+.. _wl-container-modify-del-storage:
+
+:command:`wl container modify del-storage --storage PATH <file>`
+----------------------------------------------------------------
+
+Remove storage(s) from a container |~| manifest given by *<file>*.
+
+.. option:: --storage
+
+   Storages to remove. Can be either the backend_id of a storage or position in
+   storage list (starting from 0). Can be repeated.
+
 .. _wl-container-modify-set-title:
 
 :command:`wl container modify set-title --title TEXT <file>`

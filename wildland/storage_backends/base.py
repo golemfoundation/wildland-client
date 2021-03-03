@@ -34,8 +34,10 @@ from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
+from uuid import UUID
 
 import click
+import yaml
 
 from ..manifest.sig import SigContext
 from ..manifest.manifest import Manifest
@@ -205,7 +207,15 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.hash_db = None
         self.mounted = 0
 
+        # Hash guarantees uniqueness per backend's params while backend-id does not
         self.backend_id = self.params['backend-id']
+        self.hash = self.generate_hash(self.params)
+
+    def __repr__(self):
+        return (f'{type(self).__name__}('
+                f'type={self.TYPE!r}, '
+                f'params={self.params!r})'
+        )
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -233,6 +243,18 @@ class StorageBackend(metaclass=abc.ABCMeta):
             StorageBackend._types = get_storage_backends()
 
         return StorageBackend._types
+
+    @staticmethod
+    def generate_hash(params: Dict[str, Any]) -> str:
+        """
+        Returns hash for the given params. May be used eg. for caching.
+        """
+
+        hasher = hashlib.md5()
+        params_for_hash = dict((k, v) for (k, v) in params.items() if k != 'storage')
+        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+
+        return str(UUID(hasher.hexdigest()))
 
     def request_mount(self) -> None:
         """
@@ -560,9 +582,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
 
         if deduplicate:
-            deduplicate = params['backend-id']
-            if deduplicate in StorageBackend._cache:
-                return StorageBackend._cache[deduplicate]
+            deduplicate_key = StorageBackend.generate_hash(params)
+            if deduplicate_key in StorageBackend._cache:
+                return StorageBackend._cache[deduplicate_key]
 
         # Recursively handle proxy storages
         if 'storage' in params:
@@ -575,7 +597,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
         if deduplicate:
-            StorageBackend._cache[deduplicate] = backend
+            StorageBackend._cache[deduplicate_key] = backend
         return backend
 
     @staticmethod
