@@ -104,7 +104,10 @@ def set_del_(obj: ContextObj, name):
     """
 
     template_manager = TemplateManager(obj.client.template_dir)
-    removed_path = template_manager.remove_storage_set(name)
+    try:
+        removed_path = template_manager.remove_storage_set(name)
+    except FileNotFoundError as fnf:
+        raise CliError(f'template set {name} not found.') from fnf
 
     click.echo(f'Deleted storage template set {removed_path}.')
 
