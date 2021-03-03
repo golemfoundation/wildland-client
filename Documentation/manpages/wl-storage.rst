@@ -231,6 +231,16 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/ipfs.rsti
 
+.. program:: wl-storage-create-encrypted-proxy
+.. _wl-storage-create-encrypted-proxy:
+
+:command:`wl storage create encrypted-proxy --container <container> --reference-container-url <url> <storage>`
+--------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/encrypted-proxy.rsti
+
+
 .. program:: wl-storage-create-webdav
 .. _wl-storage-create-webdav:
 
