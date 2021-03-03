@@ -23,7 +23,7 @@ S3 storage backend
 
 from pathlib import PurePosixPath
 from io import BytesIO
-from typing import Iterable, Tuple, Set, List
+from typing import Iterable, List, Optional, Set, Tuple
 import mimetypes
 import logging
 from urllib.parse import urlparse
@@ -464,11 +464,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             ContentType=self.get_content_type(path))
         self.clear_cache()
 
-    def get_file_token(self, path: PurePosixPath) -> int:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         s3attr = self.getattr(path)
-
-        # TODO In the future the hash won't have to be an int (see #103)
-        return int(s3attr.etag[0:15], 16)
+        return s3attr.etag
 
     def _remove_index(self, path):
         if self.read_only or not self.with_index:

@@ -22,6 +22,7 @@ Hash db.
 import sqlite3
 from pathlib import PurePosixPath
 from collections import namedtuple
+from typing import List, Tuple
 
 HashCache = namedtuple('HashCache', ['hash', 'token'])
 
@@ -44,9 +45,9 @@ class HashDb:
                          '(backend_id TEXT NOT NULL, '
                          'path TEXT NOT NULL, '
                          'hash TEXT, '
-                         'token NUMERIC, PRIMARY KEY (backend_id, path))')
+                         'token TEXT, PRIMARY KEY (backend_id, path))')
 
-    def update_storages_for_containers(self, container_uuid, storages):
+    def update_storages_for_containers(self, container_uuid, storages) -> None:
         """
         Storage information that given storages were associated with the given container.
         """
@@ -55,7 +56,7 @@ class HashDb:
                 conn.execute('INSERT OR REPLACE INTO container_backends VALUES (?, ?)',
                              (container_uuid, storage.backend_id))
 
-    def get_conflicts(self, container_uuid):
+    def get_conflicts(self, container_uuid) -> List[Tuple[str, str, str]]:
         """
         List all known file conflicts for a given storage across all known backends; the result
         is a list of tuples (path, container_1_uuid, container_2_uuid).
@@ -73,7 +74,7 @@ class HashDb:
 
             return cursor.fetchall()
 
-    def store_hash(self, backend_id, path, hash_cache):
+    def store_hash(self, backend_id, path, hash_cache) -> None:
         """
         Stores given HashCache tuple.
         :param backend_id: uuid of the backend
@@ -85,7 +86,7 @@ class HashDb:
             conn.execute('INSERT OR REPLACE INTO hashes VALUES (?, ?, ?, ?)',
                          (backend_id, str(path), hash_cache.hash, hash_cache.token))
 
-    def retrieve_hash(self, backend_id, path):
+    def retrieve_hash(self, backend_id, path) -> HashCache:
         """
         Retrieve hash (if available) for a given path.
         :param backend_id: uuid of the backend

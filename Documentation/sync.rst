@@ -35,7 +35,7 @@ The storage backend driver is responsible for:
 
 * a more efficient hashing algorithm (see get_hash in the StorageBackend class: it must return
   sha256 hash of the file)
-* implementing get_file_token(path) method, which should return an int that identifies current
+* implementing get_file_token(path) method, which should return a string that identifies current
   state of the file (when the file contents change, the int should change, and vice versa) - it is
   used for caching hashes to avoid absurd amounts of computing and recomputing hash
 * a more efficient change-watching mechanism (through a class inheriting from StorageWatcher)

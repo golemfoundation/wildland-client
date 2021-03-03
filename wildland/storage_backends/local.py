@@ -240,7 +240,7 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
             return LocalStorageWatcher(self)
         return default_watcher
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         try:
             current_timestamp = os.stat(self._path(path)).st_mtime
         except NotADirectoryError:
@@ -251,7 +251,7 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
             # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
             # but be warned: it can go as low as 2 seconds for FAT16/32
             return None
-        return int(current_timestamp * 1000)
+        return str(int(current_timestamp * 1000))
 
 
 class LocalStorageWatcher(StorageWatcher):
