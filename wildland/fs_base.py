@@ -65,10 +65,10 @@ class Timespec:
 
 class WildlandFSBase:
     '''A base class for implementations of Wildland'''
-    # pylint: disable=no-self-use,too-many-public-methods
+    # pylint: disable=no-self-use,too-many-public-methods,unused-argument
 
-    def __init__(self):
-
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_extra: Dict[int, Dict] = {}

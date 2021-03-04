@@ -52,14 +52,13 @@ class Watch:
         return f'{self.storage_id}:{self.pattern}'
 
 
-class WildlandFS(fuse.Fuse, WildlandFSBase):
+class WildlandFS(WildlandFSBase, fuse.Fuse):
     '''A FUSE implementation of Wildland'''
     # pylint: disable=no-self-use,too-many-public-methods
 
     def __init__(self, *args, **kwds):
         # this is before cmdline parsing
-        fuse.Fuse.__init__(self, *args, **kwds)
-        WildlandFSBase.__init__(self)
+        super().__init__(*args, **kwds)
         # Note that we need this intermediate class because
         # parser apparently uses some reflection approach
         # which enters infinite recursion in multiple inheritance
