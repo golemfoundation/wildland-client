@@ -20,6 +20,7 @@
 Dropbox storage backend
 """
 
+import logging
 import stat
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple, Optional, Callable
@@ -31,6 +32,8 @@ from wildland.storage_backends.buffered import File, FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 from .dropbox_client import DropboxClient
+
+logger = logging.getLogger('storage-dropbox')
 
 
 class DropboxFileAttr(Attr):
@@ -158,6 +161,9 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def rmdir(self, path: PurePosixPath) -> None:
         self.client.rmdir(path)
         self.clear_cache()
+
+    def utimens(self, path: PurePosixPath, _atime, _mtime) -> None:
+        logger.debug("utimens dummy op %s", str(path))
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
         """
