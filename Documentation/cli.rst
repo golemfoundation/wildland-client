@@ -33,10 +33,9 @@ and then attach storage to it::
    $ ./wl container create Container --path /C1
    Created: /home/user/.config/wildland/containers/Container.yaml
 
-   $ ./wl storage create local Storage1 --path /tmp/storage --container Container
+   $ ./wl storage create local --location /tmp/storage --container Container
    Using container: /home/user/.config/wildland/containers/Container.yaml (/.uuid/589e53d9-54ae-4036-95d7-4af261e7746f)
-   Created: /home/user/.config/wildland/storage/Storage1.yaml
-   Adding storage to container
+   Adding storage ed7594e7-5316-4fd3-b437-bd393b684fb4 directly to the container
    Saving: /home/user/.config/wildland/containers/Container.yaml
 
 Mount it all::
