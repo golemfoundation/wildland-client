@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Storage object
-'''
+"""
 
 from typing import Type
 from pathlib import PurePosixPath
@@ -42,16 +42,16 @@ from ..exc import WildlandError
 
 @aliased_group('storage', short_help='storage management')
 def storage_():
-    '''Manage storages for container'''
+    """Manage storages for container"""
 
 
 @storage_.group(short_help='create storage')
 def create():
-    '''
+    """
     Create a new storage manifest.
 
     The storage has to be associated with a specific container.
-    '''
+    """
 
 
 def _make_create_command(backend: Type[StorageBackend]):
@@ -191,9 +191,9 @@ def _do_save_new_storage(client, container, storage, inline, name):
 @storage_.command('list', short_help='list storages', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
-    '''
+    """
     Display known storages.
-    '''
+    """
 
     obj.client.recognize_users()
 
@@ -230,9 +230,9 @@ def list_(obj: ContextObj):
               help='remove reference from containers')
 @click.argument('name', metavar='NAME')
 def delete(obj: ContextObj, name, force, cascade):
-    '''
+    """
     Delete a storage.
-    '''
+    """
 
     obj.client.recognize_users()
 
@@ -375,9 +375,9 @@ _add_create_commands(create)
 
 @storage_.group(short_help='modify storage manifest')
 def modify():
-    '''
+    """
     Commands for modifying storage manifests.
-    '''
+    """
 
 
 @modify.command(short_help='set location in the manifest')
@@ -385,9 +385,9 @@ def modify():
 @click.option('--location', metavar='PATH', required=True, help='Location to set')
 @click.pass_context
 def set_location(ctx, input_file, location):
-    '''
+    """
     Set location in the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, set_field, 'location', location)
 
 
@@ -397,9 +397,9 @@ def set_location(ctx, input_file, location):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_access(ctx, input_file, access):
-    '''
+    """
     Add category to the manifest.
-    '''
+    """
     ctx.obj.client.recognize_users()
 
     processed_access = []
@@ -420,9 +420,9 @@ def add_access(ctx, input_file, access):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_access(ctx, input_file, access):
-    '''
+    """
     Remove category from the manifest.
-    '''
+    """
     ctx.obj.client.recognize_users()
 
     processed_access = []

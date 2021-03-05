@@ -73,9 +73,9 @@ class Schema:
 
     @classmethod
     def load_dict(cls, name: str, root_key: str) -> Dict[str, 'Schema']:
-        '''
+        """
         Load a dictionary of schemas from a file.
-        '''
+        """
 
         path = f'schemas/{name}'
         with pkg_resources.resource_stream('wildland', path) as f:

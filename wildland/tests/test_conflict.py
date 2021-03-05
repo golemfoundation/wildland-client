@@ -19,9 +19,9 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name
 
-'''
+"""
 Tests for conflict resolution
-'''
+"""
 
 from pathlib import PurePosixPath
 import stat

@@ -49,7 +49,7 @@ def modify_file(path, pattern, replacement):
 
 
 def strip_yaml(line):
-    '''Helper suitable for checking if some ``key: value`` is in yaml dump
+    """Helper suitable for checking if some ``key: value`` is in yaml dump
 
     The problem this solves:
 
@@ -72,7 +72,7 @@ def strip_yaml(line):
     True
     >>> 'key2: value2' in [strip_yaml(line) for line in dump2.split('\n')]
     True
-    '''
+    """
 
     return line.strip('\n -')
 

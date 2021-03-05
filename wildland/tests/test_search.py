@@ -414,9 +414,9 @@ def test_container_with_storage_path(base_dir, cli):
 ## Wildcard matching
 
 class TestBackend(GeneratedStorageMixin, StorageBackend):
-    '''
+    """
     A data-driven storage backend for tests.
-    '''
+    """
 
     def __init__(self, content):
         super().__init__(params={'backend-id': str(uuid.uuid4()), 'type': ''})

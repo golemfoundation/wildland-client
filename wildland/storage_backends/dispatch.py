@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Dispatch for built-in and added storage types.
-'''
+"""
 
 from typing import Dict, Type
 import logging
@@ -29,9 +29,9 @@ from .base import StorageBackend
 
 
 def load_backends() -> Dict[str, Type[StorageBackend]]:
-    '''
+    """
     Load StorageBackend classes.
-    '''
+    """
 
     result = {}
     for ep in entrypoints.get_group_all('wildland.storage_backends'):
@@ -49,9 +49,9 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
 
 
 def get_storage_backends() -> Dict[str, Type[StorageBackend]]:
-    '''
+    """
     Return a list of supported StorageBackend classes.
-    '''
+    """
 
     return _backends
 

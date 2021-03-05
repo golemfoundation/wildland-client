@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Assorted helpers for handling FUSE API
-'''
+"""
 
 import errno
 import functools
@@ -39,9 +39,9 @@ fuse_thread_local = threading.local()
 
 
 def start_coverage():
-    '''
+    """
     If we are running with coverage, start coverage from FUSE-created thread.
-    '''
+    """
 
     if not threading.current_thread().name.startswith('Dummy'):
         return
@@ -65,10 +65,11 @@ def start_coverage():
 
 
 def debug_handler(func, bound=False):
-    '''A decorator for wrapping FUSE API.
+    """A decorator for wrapping FUSE API.
 
     Helpful for debugging.
-    '''
+    """
+
     @functools.wraps(func)
     def wrapper(*args, **kwds):
         start_coverage()
@@ -102,9 +103,9 @@ def debug_handler(func, bound=False):
 
 
 def debug_repr(obj):
-    '''
+    """
     Return a representation for FUSE operation result, for logging.
-    '''
+    """
 
     if isinstance(obj, bytes):
         if len(obj) > 128:
@@ -131,9 +132,9 @@ def debug_repr(obj):
 
 
 def fuse_repr(obj):
-    '''
+    """
     Return a nice representation for a FUSE object.
-    '''
+    """
 
     fmt: Dict[str, Callable]
 

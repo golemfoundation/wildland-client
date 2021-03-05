@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Common commands (sign, edit, ...) for multiple object types
-'''
+"""
 
 import sys
 from pathlib import Path
@@ -45,9 +45,9 @@ from ..manifest.schema import SchemaError
 
 
 def find_manifest_file(client: Client, name, manifest_type) -> Path:
-    '''
+    """
     CLI helper: load a manifest by name.
-    '''
+    """
 
     if manifest_type in ['user', 'container', 'storage', 'bridge']:
         search_func = {
@@ -100,13 +100,13 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
 @click.argument('input_file', metavar='FILE', required=False)
 @click.pass_context
 def sign(ctx, input_file, output_file, in_place):
-    '''
+    """
     Sign a manifest given by FILE, or stdin if not given. The input file can be
     a manifest with or without header. The existing header will be ignored.
 
     If invoked with manifest type (``user sign``, etc.), the will also validate
     the manifest against schema.
-    '''
+    """
     obj: ContextObj = ctx.obj
 
     obj.client.recognize_users()
@@ -157,12 +157,12 @@ def sign(ctx, input_file, output_file, in_place):
 @click.argument('input_file', metavar='FILE', required=False)
 @click.pass_context
 def verify(ctx, input_file):
-    '''
+    """
     Verify a manifest signature given by FILE, or stdin if not given.
 
     If invoked with manifests type (``user verify``, etc.), the command will
     also validate the manifest against schema.
-    '''
+    """
     obj: ContextObj = ctx.obj
 
     manifest_type = ctx.parent.command.name
@@ -224,13 +224,13 @@ def dump(ctx, input_file, decrypt):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def edit(ctx, editor, input_file, remount):
-    '''
+    """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
 
     If invoked with manifests type (``user edit``, etc.), the command will
     also validate the manifest against schema.
-    '''
+    """
     obj: ContextObj = ctx.obj
 
     manifest_type = ctx.parent.command.name
@@ -306,10 +306,10 @@ def edit(ctx, editor, input_file, remount):
 
 
 def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args, **kwargs):
-    '''
+    """
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
-    '''
+    """
     obj: ContextObj = ctx.obj
 
     manifest_type = ctx.parent.parent.command.name
@@ -342,10 +342,10 @@ def modify_manifest(ctx, name: str, edit_func: Callable[[dict], dict], *args, **
 
 
 def add_field(fields: dict, field: str, values: List[str]) -> dict:
-    '''
+    """
     Callback function for `modify_manifest`. Adds values to the specified field.
     Duplicates are ignored.
-    '''
+    """
     if fields.get(field) is None:
         fields[field] = []
 
@@ -430,9 +430,9 @@ def del_field(fields: dict, field: str, values: List[Any] = [], keys: List[Any] 
 
 
 def set_field(fields: dict, field: str, value: str) -> dict:
-    '''
+    """
     Callback function for `modify_manifest`. Sets value of the specified field.
-    '''
+    """
     fields[field] = value
 
     return fields

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public LicenUnkse
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Utilities for URL resolving and traversing the path
-'''
+"""
 
 from __future__ import annotations
 
@@ -50,9 +50,9 @@ logger = logging.getLogger('search')
 
 @dataclass
 class Step:
-    '''
+    """
     A single step of a resolved path.
-    '''
+    """
 
     # Owner of the current manifest
     owner: str
@@ -80,9 +80,8 @@ class Step:
             step = step.previous
 
 
-
 class Search:
-    '''
+    """
     A class for traversing a Wildland path.
 
     Usage:
@@ -91,7 +90,7 @@ class Search:
 
         search = Search(client, wlpath, client.config.aliases)
         search.read_file()
-    '''
+    """
 
     def __init__(self,
             client: Client,
@@ -115,9 +114,9 @@ class Search:
         yield from self._resolve_all()
 
     def read_container(self) -> Iterable[Container]:
-        '''
+        """
         Yield all containers matching the given WL path.
-        '''
+        """
         if self.wlpath.file_path is not None:
             raise PathError(f'Expecting a container path, not a file path: {self.wlpath}')
 
@@ -126,9 +125,9 @@ class Search:
                 yield step.container
 
     def read_bridge(self) -> Iterable[Bridge]:
-        '''
+        """
         Yield all bridges matching the given WL path.
-        '''
+        """
         if self.wlpath.file_path is not None:
             raise PathError(f'Expecting an object path, not a file path: {self.wlpath}')
 
@@ -137,9 +136,9 @@ class Search:
                 yield step.bridge
 
     def read_file(self) -> bytes:
-        '''
+        """
         Read a file under the Wildland path.
-        '''
+        """
 
         # If there are multiple containers, this method uses the first
         # one. Perhaps it should try them all until it finds a container where
@@ -165,9 +164,9 @@ class Search:
         raise FileNotFoundError
 
     def write_file(self, data: bytes):
-        '''
+        """
         Read a file under the Wildland path.
-        '''
+        """
 
         if self.wlpath.file_path is None:
             raise PathError(f'Expecting a file path, not a container path: {self.wlpath}')
@@ -188,9 +187,9 @@ class Search:
         raise PathError(f'Container not found for path: {self.wlpath}')
 
     def _resolve_all(self) -> Iterable[Step]:
-        '''
+        """
         Resolve all path parts, yield all results that match.
-        '''
+        """
 
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
@@ -205,11 +204,11 @@ class Search:
             yield from self._resolve_rest(next_step, i+1)
 
     def _find_storage(self, step: Step) -> Tuple[Storage, StorageBackend]:
-        '''
+        """
         Find a storage for the latest resolved part.
 
         Returns (storage, storage_backend).
-        '''
+        """
 
         storage = self.client.select_storage(step.container)
         return storage, StorageBackend.from_params(storage.params)
@@ -227,10 +226,10 @@ class Search:
     def _resolve_local(self, part: PurePosixPath,
                        owner: str,
                        step: Optional[Step]) -> Iterable[Step]:
-        '''
+        """
         Resolve a path part based on locally stored manifests, in the context
         of a given owner.
-        '''
+        """
 
         for container in self.local_containers:
             if (container.owner == owner and
@@ -255,9 +254,9 @@ class Search:
                     self.client, owner, part, None, None, bridge, step)
 
     def _resolve_next(self, step: Step, i: int) -> Iterable[Step]:
-        '''
+        """
         Resolve next part by looking up a manifest in the current container.
-        '''
+        """
 
         if not step.container:
             return
@@ -453,9 +452,9 @@ class Search:
 
 
 def storage_read_file(storage, relpath) -> bytes:
-    '''
+    """
     Read a file from StorageBackend, using FUSE commands.
-    '''
+    """
 
     obj = storage.open(relpath, os.O_RDONLY)
     try:
@@ -469,7 +468,7 @@ def storage_find_manifests(
         storage: StorageBackend,
         manifest_pattern: dict,
         query_path: PurePosixPath) -> Iterable[PurePosixPath]:
-    '''
+    """
     Find all files satisfying a manifest_pattern. The following manifest_pattern
     values are supported:
 
@@ -478,7 +477,7 @@ def storage_find_manifests(
 
     Yields all files found in the storage, but without guarantee that you will
     be able to open or read them.
-    '''
+    """
 
     mp_type = manifest_pattern['type']
     if mp_type == 'glob':
@@ -496,12 +495,12 @@ def storage_find_manifests(
 
 def storage_glob(storage, glob_path: str) \
     -> Iterable[PurePosixPath]:
-    '''
+    """
     Find all files satisfying a pattern with possible wildcards (*).
 
     Yields all files found in the storage, but without guarantee that you will
     be able to open or read them.
-    '''
+    """
 
     path = PurePosixPath(glob_path)
     if path.parts[0] != '/':
@@ -546,20 +545,21 @@ def _find(storage: StorageBackend, prefix: PurePosixPath, path: PurePosixPath) \
 
 
 class StorageDriver:
-    '''
+    """
     A contraption to directly manipulate
     :py:type:`wildland.storage_backends.base.StorageBackend`
-    '''
+    """
+
     def __init__(self, storage_backend: StorageBackend, storage=None):
         self.storage_backend = storage_backend
         self.storage = storage
 
     @classmethod
     def from_storage(cls, storage: Storage) -> 'StorageDriver':
-        '''
+        """
         Create :py:type:`StorageDriver` from
         :py:class:`wildland.storage.Storage`
-        '''
+        """
         return cls(StorageBackend.from_params(storage.params), storage=storage)
 
     def __enter__(self):
@@ -570,9 +570,9 @@ class StorageDriver:
         self.storage_backend.unmount()
 
     def write_file(self, relpath, data):
-        '''
+        """
         Write a file to StorageBackend, using FUSE commands. Returns ``(StorageBackend, relpath)``.
-        '''
+        """
 
         try:
             self.storage_backend.getattr(relpath)
@@ -595,10 +595,10 @@ class StorageDriver:
             self.storage_backend.release(relpath, 0, obj)
 
     def makedirs(self, relpath, mode=0o755):
-        '''
+        """
         Make directory, and it's parents if needed. Does not work across
         containers.
-        '''
+        """
         for path in reversed((relpath, *relpath.parents)):
             try:
                 attr = self.storage_backend.getattr(path)

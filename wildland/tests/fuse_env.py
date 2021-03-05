@@ -40,7 +40,7 @@ class FuseError(Exception):
 
 
 class FuseEnv:
-    '''
+    """
     A class for testing wildland-fuse. Usage:
 
         env = FuseEnv()
@@ -55,7 +55,7 @@ class FuseEnv:
 
     This roughly corresponds to WildlandFSClient (fs_client.py), but
     intentionally does not depend on the rest of Wildland code.
-    '''
+    """
 
     def __init__(self):
         self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
@@ -153,9 +153,9 @@ class FuseEnv:
         shutil.rmtree(self.test_dir)
 
     def run_control_command(self, name: str, args=None):
-        '''
+        """
         Connect to the control server and run a command.
-        '''
+        """
 
         assert self.conn
 
@@ -174,9 +174,9 @@ class FuseEnv:
         return response['result']
 
     def recv_event(self):
-        '''
+        """
         Receive an event from control server.
-        '''
+        """
 
         assert self.conn
 

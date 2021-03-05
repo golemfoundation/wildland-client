@@ -17,12 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Common exception
-'''
+"""
+
 
 class WildlandError(Exception):
-    '''Common exception thrown by various part of the code
+    """Common exception thrown by various part of the code
 
     There are some subclasses in particular modules
-    '''
+    """

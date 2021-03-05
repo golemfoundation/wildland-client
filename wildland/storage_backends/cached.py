@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Cached storage
-'''
+"""
 
 from typing import Dict, List, Tuple, Iterable, Set
 import time
@@ -35,12 +35,12 @@ logger = logging.getLogger('storage-cached')
 
 
 class CachedStorageMixin:
-    '''
+    """
     A mixin for caching file information.
 
     You need to implement info_all(), and invalidate cache (by calling
     clear_cache()) in all operations that might change the result.
-    '''
+    """
 
     CACHE_TIMEOUT = 3.
 
@@ -55,16 +55,16 @@ class CachedStorageMixin:
         self.cache_lock = threading.Lock()
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        '''
+        """
         Retrieve information about all files in the storage.
-        '''
+        """
 
         raise NotImplementedError()
 
     def refresh(self):
-        '''
+        """
         Refresh cache.
-        '''
+        """
 
         with self.cache_lock:
             self._refresh()
@@ -97,9 +97,9 @@ class CachedStorageMixin:
             self._refresh()
 
     def clear_cache(self):
-        '''
+        """
         Invalidate cache.
-        '''
+        """
 
         with self.cache_lock:
             self.getattr_cache.clear()
@@ -107,9 +107,9 @@ class CachedStorageMixin:
             self.expiry = 0.
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        '''
+        """
         Cached implementation of getattr().
-        '''
+        """
         if isinstance(path, str):
             path = PurePosixPath(path)
         with self.cache_lock:
@@ -125,9 +125,9 @@ class CachedStorageMixin:
             return self.getattr_cache[path]
 
     def readdir(self, path: PurePosixPath) -> List[str]:
-        '''
+        """
         Cached implementation of readdir().
-        '''
+        """
         if isinstance(path, str):
             path = PurePosixPath(path)
 
@@ -143,12 +143,12 @@ class CachedStorageMixin:
 
 
 class DirectoryCachedStorageMixin:
-    '''
+    """
     A mixin for caching file information about a specific directory.
 
     You need to implement info_dir(), and invalidate cache (by calling
     clear_cache()) in all operations that might change the result.
-    '''
+    """
 
     CACHE_TIMEOUT = 3.
 
@@ -162,9 +162,9 @@ class DirectoryCachedStorageMixin:
         self.cache_lock = threading.Lock()
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
-        '''
+        """
         Retrieve information about files in a directory (readdir + getattr).
-        '''
+        """
 
         raise NotImplementedError()
 
@@ -203,9 +203,9 @@ class DirectoryCachedStorageMixin:
         self._refresh_dir(path)
 
     def clear_cache(self):
-        '''
+        """
         Invalidate cache.
-        '''
+        """
 
         with self.cache_lock:
             self.getattr_cache.clear()
@@ -213,9 +213,9 @@ class DirectoryCachedStorageMixin:
             self.dir_expiry.clear()
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        '''
+        """
         Cached implementation of getattr().
-        '''
+        """
         if isinstance(path, str):
             path = PurePosixPath(path)
         # We don't retrieve any information about the root directory's
@@ -232,9 +232,9 @@ class DirectoryCachedStorageMixin:
             return self.getattr_cache[path]
 
     def readdir(self, path: PurePosixPath) -> List[str]:
-        '''
+        """
         Cached implementation of readdir().
-        '''
+        """
         if isinstance(path, str):
             path = PurePosixPath(path)
         with self.cache_lock:

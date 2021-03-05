@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Manage bridges
-'''
+"""
 
 from pathlib import PurePosixPath, Path
 from typing import List, Optional
@@ -35,9 +35,9 @@ from .cli_user import import_manifest
 
 @aliased_group('bridge', short_help='bridge management')
 def bridge_():
-    '''
+    """
     Manage bridges
-    '''
+    """
 
 
 @bridge_.command(short_help='create bridge')
@@ -60,9 +60,9 @@ def create(obj: ContextObj,
            ref_user_paths: List[str],
            name: Optional[str],
            file_path: Optional[str]):
-    '''
+    """
     Create a new bridge manifest.
-    '''
+    """
 
     obj.client.recognize_users()
 
@@ -101,9 +101,9 @@ def create(obj: ContextObj,
 @bridge_.command('list', short_help='list bridges', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
-    '''
+    """
     Display known bridges.
-    '''
+    """
 
     obj.client.recognize_users()
     for bridge in obj.client.load_bridges():

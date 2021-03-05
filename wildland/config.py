@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Configuration file handling.
-'''
+"""
 import logging
 from pathlib import Path
 from typing import Dict, Any
@@ -38,14 +38,14 @@ STANDARD_ALIASES = ['@default', '@default-owner']
 
 
 class Config:
-    '''
+    """
     Wildland configuration, by default loaded from ~/.config/wildland/config.yaml.
 
     Consists of three layers:
     - default_fields (set here)
     - file_fields (loaded from file)
     - override_fields (provided from command line)
-    '''
+    """
 
     schema = Schema('config')
     filename = 'config.yaml'
@@ -62,10 +62,10 @@ class Config:
         self.override_fields: Dict[str, Any] = {}
 
     def get(self, name: str, use_override=True):
-        '''
+        """
         Get a configuration value for given name. The name has to be known,
         i.e. exist in defaults.
-        '''
+        """
 
         assert name in self.default_fields, f'unknown config name: {name}'
 
@@ -77,9 +77,9 @@ class Config:
         return self.default_fields[name]
 
     def override(self, dummy=False, override_fields: Dict = None):
-        '''
+        """
         Override configuration based on command line arguments.
-        '''
+        """
         if dummy:
             self.override_fields['dummy'] = True
         if override_fields:
@@ -88,25 +88,25 @@ class Config:
                 self.override_fields[name] = val
 
     def update_and_save(self, values: Dict[str, Any]):
-        '''
+        """
         Set new values and save to a file.
-        '''
+        """
 
         self.file_fields.update(values)
         self._save_config()
 
     def remove_key_and_save(self, key: str):
-        '''
+        """
         Removes a key from the dict and saves the config file.
-        '''
+        """
 
         self.file_fields.pop(key)
         self._save_config()
 
     def _save_config(self):
-        '''
+        """
         Save fields from current ctx to the yaml file.
-        '''
+        """
         with open(self.path, 'w') as f:
             yaml.dump(self.file_fields, f, sort_keys=False)
 
@@ -143,10 +143,10 @@ class Config:
 
     @classmethod
     def load(cls, base_dir=None):
-        '''
+        """
         Load a configuration file from base directory, if it exists; use
         defaults if not.
-        '''
+        """
 
         home_dir_s = os.getenv('HOME')
         assert home_dir_s
@@ -186,9 +186,9 @@ class Config:
 
     @classmethod
     def get_default_fields(cls, home_dir, base_dir) -> dict:
-        '''
+        """
         Compute the default values for all the unspecified fields.
-        '''
+        """
 
         return {
             'user-dir': base_dir / 'users',
@@ -212,10 +212,10 @@ class Config:
 
     @staticmethod
     def validate_aliases(file_fields):
-        '''
+        """
         Validate the configuration to check if it doesn't contain any custom
         aliases that collide with standard ones.
-        '''
+        """
 
         custom_aliases = file_fields.get('aliases', {})
         for key in STANDARD_ALIASES:
@@ -224,13 +224,13 @@ class Config:
 
     @property
     def aliases(self):
-        '''
+        """
         Access to aliases defined in config:
 
         >>> c = client.Client()
         >>> c.config.aliases['default']
         '0xaaa'
-        '''
+        """
 
         result = {}
         custom_aliases = self.get('aliases')

@@ -56,16 +56,16 @@ def get_file_from_name(directory: Path, name: str, suffix: str) -> Path:
 
 # Custom jinja2 filters
 def regex_replace(s, find, replace):
-    '''
+    """
     Implementation of regex_replace for jinja2
-    '''
+    """
     return re.sub(find, replace, s)
 
 
 def regex_contains(s, pattern):
-    '''
+    """
     Implementation of regex_contains for jinja2
-    '''
+    """
     return re.search(pattern, s) is not None
 
 

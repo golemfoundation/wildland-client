@@ -38,10 +38,10 @@ from ..storage_backends.watch import FileEvent
 @pytest.fixture(params=[LocalStorageBackend, LocalCachedStorageBackend,
                         LocalDirectoryCachedStorageBackend])
 def storage_backend(request) -> Callable:
-    '''
+    """
     Parametrize the tests by storage backend; at the moment include only those with watchers
     implemented.
-    '''
+    """
 
     return request.param
 

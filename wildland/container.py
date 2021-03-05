@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 The container
-'''
+"""
 from copy import deepcopy
 from pathlib import PurePosixPath, Path
 import uuid
@@ -31,7 +31,7 @@ from .manifest.schema import Schema
 
 
 class Container:
-    '''Wildland container'''
+    """Wildland container"""
     SCHEMA = Schema('container')
 
     def __init__(self, *,
@@ -56,9 +56,9 @@ class Container:
         self.access = access
 
     def ensure_uuid(self) -> str:
-        '''
+        """
         Find or create an UUID path for this container.
-        '''
+        """
 
         for path in self.paths:
             if path.parent == PurePosixPath('/.uuid/'):
@@ -76,9 +76,9 @@ class Container:
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
-        '''
+        """
         Construct a Container instance from a manifest.
-        '''
+        """
 
         manifest.apply_schema(cls.SCHEMA)
         return cls(
@@ -93,10 +93,10 @@ class Container:
         )
 
     def to_unsigned_manifest(self) -> Manifest:
-        '''
+        """
         Create a manifest based on Container's data.
         Has to be signed separately.
-        '''
+        """
 
         # remove redundant fields from inline manifest
         cleaned_backends = deepcopy(self.backends)

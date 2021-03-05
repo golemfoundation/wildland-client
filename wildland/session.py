@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Session class
-'''
+"""
 
 from pathlib import Path
 from typing import Optional, Union, List
@@ -33,9 +33,9 @@ from .bridge import Bridge
 
 
 class Session:
-    '''
+    """
     A low-level interface for loading and saving Wildland objects.
-    '''
+    """
 
     def __init__(self, sig: SigContext):
         self.sig = sig
@@ -44,9 +44,9 @@ class Session:
                   data: bytes,
                   local_path: Optional[Path] = None
     ) -> User:
-        '''
+        """
         Load a user manifest, creating a User object.
-        '''
+        """
 
         manifest = Manifest.from_bytes(data, self.sig, allow_only_primary_key=True)
 
@@ -67,9 +67,9 @@ class Session:
             local_path: Optional[Path] = None,
             trusted_owner: Optional[str] = None,
     ) -> Union[Container, Bridge]:
-        '''
+        """
         Load a manifest that can be either a container or bridge manifest.
-        '''
+        """
 
         manifest = Manifest.from_bytes(
             data,
@@ -81,16 +81,16 @@ class Session:
         return Container.from_manifest(manifest, local_path)
 
     def recognize_user(self, user: User):
-        '''
+        """
         Recognize the user as a valid owner and add their optional pubkeys.
-        '''
+        """
 
         user.add_user_keys(self.sig)
 
     def dump_user(self, user: User) -> bytes:
-        '''
+        """
         Create a signed manifest out of a User object.
-        '''
+        """
 
         manifest = user.to_unsigned_manifest()
 
@@ -111,9 +111,9 @@ class Session:
         local_path: Optional[Path] = None,
         trusted_owner: Optional[str] = None,
     ) -> Container:
-        '''
+        """
         Load a container manifest, creating a Container object.
-        '''
+        """
 
         manifest = Manifest.from_bytes(
             data,
@@ -128,9 +128,9 @@ class Session:
         trusted_owner: Optional[str] = None,
         local_owners: Optional[List[str]] = None,
     ) -> Storage:
-        '''
+        """
         Load a container manifest, creating a Storage object.
-        '''
+        """
 
         manifest = Manifest.from_bytes(
             data,
@@ -144,9 +144,9 @@ class Session:
         local_path: Optional[Path] = None,
         trusted_owner: Optional[str] = None,
     ) -> Bridge:
-        '''
+        """
         Load a bridge manifest, creating a Bridge object.
-        '''
+        """
 
         manifest = Manifest.from_bytes(
             data,

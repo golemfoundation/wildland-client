@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Socket server for controlling Wildland FS.
-'''
+"""
 
 from pathlib import Path
 import logging
@@ -34,7 +34,7 @@ logger = logging.getLogger('control-server')
 
 
 def control_command(name):
-    '''
+    """
     A decorator for a server command, using JSON for arguments and result.
 
     The function parameters will be used by name, converting underscores to
@@ -50,7 +50,7 @@ def control_command(name):
     This will correspond to a command taking the following JSON request:
 
         {"cmd": "get-manifest", "args": {"container-id": ...}}
-    '''
+    """
 
     def _wrapper(func):
         func._control_name = name
@@ -60,9 +60,9 @@ def control_command(name):
 
 
 class ControlHandler(BaseRequestHandler):
-    '''
+    """
     A class that handles a single client connection.
-    '''
+    """
 
     def __init__(self, request, client_address, server):
         self.commands = server.commands
@@ -74,17 +74,17 @@ class ControlHandler(BaseRequestHandler):
         super().__init__(request, client_address, server)
 
     def on_close(self, close_handler):
-        '''
+        """
         Register a callback to be called when the connection is finished.
-        '''
+        """
 
         self.close_handlers.append(close_handler)
 
     def send_event(self, event):
-        '''
+        """
         Send an asynchronous event to the user. Connection errors will be
         ignored, because the connection might be closed already.
-        '''
+        """
 
         try:
             self._send_message({'event': event})
@@ -157,7 +157,7 @@ class SocketServer(ThreadingMixIn, UnixStreamServer):
 
 
 class ControlServer:
-    '''
+    """
     A JSON-based socket server.
 
     Usage:
@@ -185,7 +185,7 @@ class ControlServer:
     In case of error:
 
         {"error": {"class": "<class>", "desc": "<description>"}, "id": 10}
-    '''
+    """
 
     def __init__(self):
         self.socket_server = None
@@ -194,9 +194,9 @@ class ControlServer:
         self.validators = None
 
     def register_commands(self, obj):
-        '''
+        """
         Register object methods decorated with @control_command.
-        '''
+        """
 
         for attr in dir(obj):
             val = getattr(obj, attr)
@@ -205,18 +205,18 @@ class ControlServer:
                 self.commands[name] = val
 
     def register_validators(self, validators: Dict[str, Callable]):
-        '''
+        """
         Register a dictionary of schemas to be checked. For a command ``cmd``
         with arguments ``args``, the server will call
         ``validators[cmd](args)``.
-        '''
+        """
 
         self.validators = validators
 
     def start(self, path: Path):
-        '''
+        """
         Start listening on a provided path.
-        '''
+        """
 
         logger.info('starting server at %s', path)
         if path.exists():
@@ -240,9 +240,9 @@ class ControlServer:
             logger.exception('error in server main thread')
 
     def stop(self):
-        '''
+        """
         Shut down the server, closing existing connections.
-        '''
+        """
 
         assert self.socket_server
         assert self.server_thread

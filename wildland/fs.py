@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Wildland Filesystem
-'''
+"""
 
 import logging
 import os
@@ -39,9 +39,9 @@ logger = logging.getLogger('fuse')
 
 @dataclass
 class Watch:
-    '''
+    """
     A watch added by a connected user.
-    '''
+    """
 
     id: int
     storage_id: int
@@ -49,11 +49,11 @@ class Watch:
     handler: ControlHandler
 
     def __str__(self):
-        return f'{self.storage_id}:{self.pattern}'
+        return f"{self.storage_id}:{self.pattern}"
 
 
 class WildlandFS(WildlandFSBase, fuse.Fuse):
-    '''A FUSE implementation of Wildland'''
+    """A FUSE implementation of Wildland"""
     # pylint: disable=no-self-use,too-many-public-methods
 
     def __init__(self, *args, **kwds):
@@ -117,9 +117,9 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
         super().main(args)
 
     def init_logging(self, args):
-        '''
+        """
         Configure logging module.
-        '''
+        """
 
         log_path = args.log or '/tmp/wlfuse.log'
         if log_path == '-':
@@ -129,7 +129,7 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
 
 
     def install_debug_handler(self):
-        '''Decorate all python-fuse entry points'''
+        """Decorate all python-fuse entry points"""
         for name in fuse.Fuse._attrs:
             if hasattr(self, name):
                 method = getattr(self, name)

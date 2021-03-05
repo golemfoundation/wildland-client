@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Wildland Filesystem
-'''
+"""
 
 import errno
 import logging
@@ -42,9 +42,9 @@ logger = logging.getLogger('fs')
 
 @dataclass
 class Watch:
-    '''
+    """
     A watch added by a connected user.
-    '''
+    """
 
     id: int
     storage_id: int
@@ -56,15 +56,15 @@ class Watch:
 
 @dataclass
 class Timespec:
-    '''
+    """
     fuse-free version of Fuse.Timespec
-    '''
+    """
     name: str
     tv_sec: int
     tv_nsec: int
 
 class WildlandFSBase:
-    '''A base class for implementations of Wildland'''
+    """A base class for implementations of Wildland"""
     # pylint: disable=no-self-use,too-many-public-methods,unused-argument
 
     def __init__(self, *args, **kwds):
@@ -98,9 +98,9 @@ class WildlandFSBase:
 
     def _mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend,
                        extra: Optional[Dict] = None, remount=False):
-        '''
+        """
         Mount a storage under a set of paths.
-        '''
+        """
 
         assert self.mount_lock.locked()
 
@@ -130,7 +130,7 @@ class WildlandFSBase:
             self.resolver.mount(path, ident)
 
     def _unmount_storage(self, storage_id: int):
-        '''Unmount a storage'''
+        """Unmount a storage"""
 
         assert self.mount_lock.locked()
 
@@ -197,11 +197,11 @@ class WildlandFSBase:
 
     @control_command('paths')
     def control_paths(self, _handler):
-        '''
+        """
         Mounted storages by path, for example::
 
             {"/foo": [0], "/bar/baz": [0, 1]}
-        '''
+        """
 
         result: Dict[str, List[int]] = {}
         with self.mount_lock:
@@ -212,7 +212,7 @@ class WildlandFSBase:
 
     @control_command('info')
     def control_info(self, _handler):
-        '''
+        """
         Storage info by main path, for example::
 
             {
@@ -223,7 +223,7 @@ class WildlandFSBase:
                     "extra": {}
                 }
             }
-        '''
+        """
 
         result: Dict[str, Dict] = {}
         with self.mount_lock:
@@ -403,7 +403,7 @@ class WildlandFSBase:
               modify=False,
               event_type=None,
               **kwargs):
-        '''
+        """
         Proxy a call to corresponding Storage.
 
         Flags:
@@ -415,7 +415,7 @@ class WildlandFSBase:
           to read-only storage.
 
           event_type: event to notify about (create, update, delete).
-        '''
+        """
 
         path = PurePosixPath(path)
         resolved = self._resolve_path(path, parent) if not resolved_path else resolved_path
@@ -579,9 +579,9 @@ class WildlandFSBase:
 
 
 class WildlandFSConflictResolver(ConflictResolver):
-    '''
+    """
     WildlandFS adapter for ConflictResolver.
-    '''
+    """
 
     def __init__(self, fs: WildlandFSBase):
         super().__init__()
