@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Storage class
-'''
+"""
 from pathlib import PurePosixPath, Path
 from typing import Dict, Any, Optional, List
 
@@ -29,9 +29,9 @@ from .manifest.schema import Schema
 from .container import Container
 
 class Storage:
-    '''
+    """
     A data transfer object representing Wildland storage.
-    '''
+    """
 
     BASE_SCHEMA = Schema('storage')
 
@@ -78,16 +78,16 @@ class Storage:
 
     @property
     def backend_id(self):
-        '''
+        """
         Returns backend_id param
-        '''
+        """
         return self.params['backend-id']
 
     @property
     def is_writeable(self) -> bool:
-        '''
+        """
         Returns False if read-only param was set to True
-        '''
+        """
         return not self.params.get('read-only', False)
 
     @property
@@ -126,9 +126,9 @@ class Storage:
     def from_manifest(cls, manifest: Manifest,
                       local_path=None,
                       local_owners: Optional[List[str]] = None) -> 'Storage':
-        '''
+        """
         Construct a Storage instance from a manifest.
-        '''
+        """
 
         manifest.apply_schema(cls.BASE_SCHEMA)
         params = manifest.fields
@@ -169,10 +169,10 @@ class Storage:
         return fields
 
     def to_unsigned_manifest(self) -> Manifest:
-        '''
+        """
         Create a manifest based on Storage's data.
         Has to be signed separately.
-        '''
+        """
 
         manifest = Manifest.from_fields(self._get_manifest_fields())
         manifest.apply_schema(self.BASE_SCHEMA)

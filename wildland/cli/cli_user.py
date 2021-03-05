@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Manage users
-'''
+"""
 
 from typing import Tuple, Iterable, Optional
 from pathlib import PurePosixPath, Path
@@ -40,9 +40,9 @@ from ..manifest.manifest import ManifestError, Manifest
 
 @aliased_group('user', short_help='user management')
 def user_():
-    '''
+    """
     Manage users
-    '''
+    """
 
 
 @user_.command(short_help='create user')
@@ -56,9 +56,9 @@ def user_():
 @click.argument('name', metavar='NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj, key, paths, additional_pubkeys, name):
-    '''
+    """
     Create a new user manifest and save it.
-    '''
+    """
 
     if key:
         try:
@@ -127,9 +127,9 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 @user_.command('list', short_help='list users', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
-    '''
+    """
     Display known users.
-    '''
+    """
 
     obj.client.recognize_users()
     users = obj.client.load_users()
@@ -170,9 +170,9 @@ def list_(obj: ContextObj):
               help='also remove user keys')
 @click.argument('name', metavar='NAME')
 def delete(obj: ContextObj, name, force, cascade, delete_keys):
-    '''
+    """
     Delete a user.
-    '''
+    """
 
     obj.client.recognize_users()
 
@@ -451,9 +451,9 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
 @click.pass_obj
 @click.argument('name', metavar='USER', required=False)
 def user_refresh(obj: ContextObj, name):
-    '''
+    """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
-    '''
+    """
     obj.client.recognize_users()
     user = obj.client.load_user_by_name(name) if name else None
 
@@ -475,9 +475,9 @@ user_.add_command(dump)
 
 @user_.group(short_help='modify user manifest')
 def modify():
-    '''
+    """
     Commands for modifying user manifests.
-    '''
+    """
 
 
 @modify.command(short_help='add path to the manifest')
@@ -485,9 +485,9 @@ def modify():
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_path(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, add_field, 'paths', path)
 
 
@@ -496,9 +496,9 @@ def add_path(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_path(ctx, input_file, path):
-    '''
+    """
     Remove path from the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'paths', path)
 
 
@@ -508,9 +508,9 @@ def del_path(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_infrastructure(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, add_field, 'infrastructures', path)
 
 
@@ -520,9 +520,9 @@ def add_infrastructure(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_infrastructure(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'infrastructures', path)
 
 
@@ -531,9 +531,9 @@ def del_infrastructure(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_pubkey(ctx, input_file, pubkey):
-    '''
+    """
     Add public key to the manifest.
-    '''
+    """
     # TODO: validate values, schema is not enough
     modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkey)
 
@@ -544,7 +544,7 @@ def add_pubkey(ctx, input_file, pubkey):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_pubkey(ctx, input_file, pubkey):
-    '''
+    """
     Remove public key from the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'pubkeys', pubkey)

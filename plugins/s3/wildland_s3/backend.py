@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 S3 storage backend
-'''
+"""
 
 from pathlib import PurePosixPath
 from io import BytesIO
@@ -60,10 +60,10 @@ class S3FileAttr(Attr):
 
     @classmethod
     def from_s3_object(cls, obj):
-        '''
+        """
         Convert S3's object summary, as returned by list_objects_v2 or
         head_object.
-        '''
+        """
         etag = obj['ETag'].strip('\"')
 
         timestamp = int(obj['LastModified'].timestamp())
@@ -76,9 +76,9 @@ class S3FileAttr(Attr):
 
 
 class S3File(FullBufferedFile):
-    '''
+    """
     A buffered S3 file.
-    '''
+    """
 
     def __init__(self, client, bucket, key, content_type, attr, clear_cache_callback):
         super().__init__(attr, clear_cache_callback)
@@ -106,9 +106,9 @@ class S3File(FullBufferedFile):
 
 
 class PagedS3File(PagedFile):
-    '''
+    """
     A read-only paged S3 file.
-    '''
+    """
 
     def __init__(self, client, bucket, key, attr):
         super().__init__(attr)
@@ -127,9 +127,9 @@ class PagedS3File(PagedFile):
 
 
 class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, StorageBackend):
-    '''
+    """
     Amazon S3 storage.
-    '''
+    """
 
     SCHEMA = Schema({
         "title": "Storage manifest (S3)",
@@ -253,9 +253,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         }
 
     def mount(self):
-        '''
+        """
         Regenerate index files on mount.
-        '''
+        """
 
         try:
             if self.sts_client:
@@ -271,17 +271,17 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
                 self._update_index(path)
 
     def key(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert path to S3 object key.
-        '''
+        """
         path = (self.base_path / path)
 
         return str(path.relative_to('/'))
 
     def url(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert path to relative S3 URL.
-        '''
+        """
         return str(self.base_path / path)
 
     @staticmethod
@@ -335,9 +335,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:
-        '''
+        """
         Guess the right content type for given path.
-        '''
+        """
 
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
@@ -415,10 +415,10 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         logger.debug("chown dummy op %s uid %d gid %d", str(path), uid, gid)
 
     def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
-        '''
+        """
         This method should be called if and only if the source and destination is
         within the same bucket.
-        '''
+        """
         self._rename(move_from, move_to)
 
         self.clear_cache()
@@ -426,9 +426,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         self._update_index(move_to.parent)
 
     def _rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
-        '''
+        """
         Internal recursive handler for rename()
-        '''
+        """
         if self.getattr(move_from).is_dir():
             for obj in self.readdir(move_from):
                 self._rename(move_from / obj, move_to / obj)

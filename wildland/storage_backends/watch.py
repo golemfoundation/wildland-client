@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Watching for changes.
-'''
+"""
 
 from typing import Optional, List, Callable, Dict
 from pathlib import PurePosixPath
@@ -35,18 +35,18 @@ logger = logging.getLogger('watch')
 
 @dataclass
 class FileEvent:
-    '''
+    """
     File change event.
-    '''
+    """
 
     type: str  # 'create', 'delete', 'modify'
     path: PurePosixPath
 
 
 class StorageWatcher(metaclass=abc.ABCMeta):
-    '''
+    """
     An object that watches for changes on a separate thread.
-    '''
+    """
 
     def __init__(self):
         self.handler = None
@@ -61,9 +61,9 @@ class StorageWatcher(metaclass=abc.ABCMeta):
             return
 
     def start(self, handler: Callable[[List[FileEvent]], None]):
-        '''
+        """
         Start the watcher on a separate thread.
-        '''
+        """
 
         self.handler = handler
         self.init()
@@ -80,32 +80,32 @@ class StorageWatcher(metaclass=abc.ABCMeta):
             logger.exception('error in watcher')
 
     def stop(self):
-        '''
+        """
         Stop the watching thread.
-        '''
+        """
         self.stop_event.set()
         self.thread.join()
         self.shutdown()
 
     @abc.abstractmethod
     def init(self) -> None:
-        '''
+        """
         Initialize the watcher. This will be called synchronously (before
         starting a separate thread).
-        '''
+        """
 
     @abc.abstractmethod
     def wait(self) -> Optional[List[FileEvent]]:
-        '''
+        """
         Wait for a list of change events. This should return as soon as
         self.stop_event is set.
-        '''
+        """
 
     @abc.abstractmethod
     def shutdown(self) -> None:
-        '''
+        """
         Clean up.
-        '''
+        """
 
 
 class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Wildland FS client
-'''
+"""
 import itertools
 import time
 from pathlib import Path, PurePosixPath
@@ -43,9 +43,9 @@ logger = logging.getLogger('fs_client')
 
 @dataclasses.dataclass
 class PathTree:
-    '''
+    """
     A prefix tree for efficient determining of mounted storages.
-    '''
+    """
 
     storage_ids: List[int]
     children: Dict[str, 'PathTree']
@@ -53,22 +53,22 @@ class PathTree:
 
 @dataclasses.dataclass
 class WatchEvent:
-    '''
+    """
     A file change event.
-    '''
+    """
 
     event_type: str  # create, modify, delete
     path: PurePosixPath  # absolute path in Wildland namespace
 
 
 class WildlandFSError(WildlandError):
-    '''Error while trying to control Wildland FS.'''
+    """Error while trying to control Wildland FS."""
 
 
 class WildlandFSClient:
-    '''
+    """
     A class to communicate with Wildland filesystem over the .control API.
-    '''
+    """
 
     def __init__(self, mount_dir: Path, socket_path: Path):
         self.mount_dir = mount_dir
@@ -79,16 +79,16 @@ class WildlandFSClient:
         self.info_cache: Optional[Dict[int, Dict]] = None
 
     def clear_cache(self):
-        '''
+        """
         Clear cached information after changing mount state of the system.
-        '''
+        """
         self.path_cache = None
         self.path_tree = None
         self.info_cache = None
 
     def mount(self, foreground=False, debug=False, single_thread=False,
               default_user=None) -> subprocess.Popen:
-        '''
+        """
         Mount the Wildland filesystem and wait until it is mounted.
 
         Returns the called process (running in case of foreground=True).
@@ -98,7 +98,7 @@ class WildlandFSClient:
             debug: Enable debug logs (only in case of foreground)
             single_thread: Run single-threaded
             default_user: specify a different default user
-        '''
+        """
         self.clear_cache()
 
         cmd = [sys.executable, '-m', 'wildland.fs', str(self.mount_dir)]
@@ -142,9 +142,9 @@ class WildlandFSClient:
             raise
 
     def unmount(self):
-        '''
+        """
         Unmount the Wildland filesystem.
-        '''
+        """
         self.clear_cache()
         cmd = ['umount', str(self.mount_dir)]
         try:
@@ -153,9 +153,9 @@ class WildlandFSClient:
             raise WildlandFSError(f'Failed to unmount: {e}') from e
 
     def is_mounted(self) -> bool:
-        '''
+        """
         Check if Wildland is currently mounted.
-        '''
+        """
 
         client = ControlClient()
         try:
@@ -166,9 +166,9 @@ class WildlandFSClient:
         return True
 
     def run_control_command(self, name, **kwargs):
-        '''
+        """
         Run a command using the control socket.
-        '''
+        """
 
         # TODO: This creates a new connection for every command. Improve
         # performance by keeping an open connection.
@@ -180,18 +180,18 @@ class WildlandFSClient:
             client.disconnect()
 
     def ensure_mounted(self):
-        '''
+        """
         Check that Wildland is mounted, and raise an exception otherwise.
-        '''
+        """
 
         if not self.is_mounted():
             raise WildlandFSError(
                 f'Wildland not mounted at {self.mount_dir}')
 
     def wait_for_mount(self, timeout=2):
-        '''
+        """
         Wait until Wildland is mounted.
-        '''
+        """
 
         delay = 0.1
         n_tries = int(timeout / delay)
@@ -207,9 +207,9 @@ class WildlandFSClient:
                         user_paths: Iterable[PurePosixPath] = (PurePosixPath('/'),),
                         subcontainer_of: Optional[Container] = None,
                         remount: bool = False):
-        '''
+        """
         Mount a container, assuming a storage has been already selected.
-        '''
+        """
 
         self.mount_multiple_containers([(container, storages, user_paths, subcontainer_of)],
                                        remount=remount)
@@ -219,9 +219,9 @@ class WildlandFSClient:
             params: Iterable[Tuple[Container, List[Storage], Iterable[PurePosixPath],
                                    Optional[Container]]],
             remount: bool = False):
-        '''
+        """
         Mount multiple containers using a single command.
-        '''
+        """
         self.clear_cache()
 
         commands = [
@@ -242,19 +242,19 @@ class WildlandFSClient:
         self.run_control_command('unmount', storage_id=storage_id)
 
     def find_primary_storage_id(self, container: Container) -> Optional[int]:
-        '''
+        """
         Find primary storage ID for a given container.
         A primary storage is the one that mounts under all container paths and not just
         under /.uuid/.../.backends/...
-        '''
+        """
 
         mount_path = self.get_user_path(container.owner, container.paths[0])
         return self.find_storage_id_by_path(mount_path)
 
     def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
-        '''
+        """
         Find storage ID for a given mount path.
-        '''
+        """
         paths = self.get_paths()
         storage_ids = paths.get(path)
         if storage_ids is None:
@@ -308,9 +308,9 @@ class WildlandFSClient:
 
     def find_all_subcontainers_storage_ids(self, container: Container,
                                            recursive: bool = True) -> Iterable[int]:
-        '''
+        """
         Find storage ID for a given mount path.
-        '''
+        """
 
         container_id = f'{container.owner}:{container.paths[0]}'
         info = self.get_info()
@@ -324,13 +324,13 @@ class WildlandFSClient:
 
     def find_all_storage_ids_for_path(self, path: PurePosixPath) \
             -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
-        '''
+        """
         Given a path, retrieve all mounted storages this path is inside.
 
         Note that this doesn't include synthetic directories leading up to
         mount path, e.g. if a storage is mounted under /a/b, then it will be
         included as a storage for /a/b and /a/b/c, but not for /a.
-        '''
+        """
 
         tree = self.get_path_tree()
         assert not tree.storage_ids  # root has no storages
@@ -344,13 +344,13 @@ class WildlandFSClient:
                 yield storage_id, storage_path, relpath
 
     def find_trusted_owner(self, local_path: Path) -> Optional[str]:
-        '''
+        """
         Given a path in the filesystem, check if this is a path from a trusted
         storage, and if so, return the trusted_owner value.
 
         If the path potentially belongs to multiple storages, this method will
         conservatively check if all of them would give the same answer.
-        '''
+        """
 
         if not self.is_mounted():
             return None
@@ -384,9 +384,9 @@ class WildlandFSClient:
         return list(trusted_owners)[0]
 
     def get_paths(self) -> Dict[PurePosixPath, List[int]]:
-        '''
+        """
         Read a path -> container ID mapping.
-        '''
+        """
         if self.path_cache is not None:
             return self.path_cache
 
@@ -398,9 +398,9 @@ class WildlandFSClient:
         return self.path_cache
 
     def get_path_tree(self) -> PathTree:
-        '''
+        """
         Return a path prefix tree, computing it if necessary.
-        '''
+        """
 
         if self.path_tree is not None:
             return self.path_tree
@@ -416,9 +416,9 @@ class WildlandFSClient:
         return self.path_tree
 
     def get_info(self) -> Dict[int, Dict]:
-        '''
+        """
         Read storage info served by FUSE driver.
-        '''
+        """
 
         if self.info_cache is not None:
             return self.info_cache
@@ -457,9 +457,9 @@ class WildlandFSClient:
 
     def should_remount(self, container: Container, storage: Storage,
                        user_paths: Iterable[PurePosixPath]) -> bool:
-        '''
+        """
         Check if a storage needs to be remounted.
-        '''
+        """
 
         info = self.get_info()
 
@@ -486,7 +486,7 @@ class WildlandFSClient:
                                         user_paths: Iterable[PurePosixPath],
                                         subcontainer_of: Optional[Container],
                                         remount: bool = False):
-        '''
+        """
         Prepare parameters for the control client to mount a container
 
         Args:
@@ -495,7 +495,7 @@ class WildlandFSClient:
             user_paths: paths to the owner, should include '/' for default user
             remount: remount if mounted already (otherwise, will fail if
             mounted already)
-        '''
+        """
 
         mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
 
@@ -551,10 +551,10 @@ class WildlandFSClient:
 
     @staticmethod
     def get_storage_tag(paths: List[PurePosixPath], params):
-        '''
+        """
         Compute a hash of storage params, to decide if a storage needs to be
         remounted.
-        '''
+        """
 
         param_str = json.dumps({
             'params': params,
@@ -564,20 +564,20 @@ class WildlandFSClient:
 
     @staticmethod
     def get_user_path(owner, path: PurePosixPath) -> PurePosixPath:
-        '''
+        """
         Prepend an absolute path with owner namespace.
-        '''
+        """
         return PurePosixPath('/.users/') / owner / path.relative_to('/')
 
     def watch(self, patterns: Iterable[str], with_initial=False) \
             -> Iterator[List[WatchEvent]]:
-        '''
+        """
         Watch for changes under the provided list of patterns (as absolute paths).
         lists of WatchEvent objects (so that simultaneous events can be grouped).
 
         If ``with_initial`` is true, also include initial synthetic events for
         files already found.
-        '''
+        """
 
         client = ControlClient()
         client.connect(self.socket_path)

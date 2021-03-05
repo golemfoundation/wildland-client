@@ -1,6 +1,6 @@
-'''
+"""
 Wildland storage backend exposing read only IMAP mailbox
-'''
+"""
 import logging
 from functools import partial
 from pathlib import PurePosixPath
@@ -21,10 +21,10 @@ from .ImapClient import ImapClient, MessageEnvelopeData, \
 logger = logging.getLogger('storage-imap')
 
 class ImapStorageWatcher(SimpleStorageWatcher):
-    '''
+    """
     A watcher for IMAP server. This implementation just queries
     the server and reports an update if message list has changed.
-    '''
+    """
 
     def __init__(self, backend: 'ImapStorageBackend'):
         super().__init__(backend)
@@ -34,9 +34,9 @@ class ImapStorageWatcher(SimpleStorageWatcher):
         return self.client.refresh_if_needed()
 
 class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
-    '''
+    """
     Backend responsible for serving imap mailbox content.
-    '''
+    """
 
     TYPE = 'imap'
 
@@ -49,15 +49,15 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
                                  self.params['ssl'])
 
     def mount(self):
-        '''
+        """
         mounts the file system
-        '''
+        """
         self.client.connect()
 
     def unmount(self):
-        '''
+        """
         unmounts the filesystem
-        '''
+        """
         self.client.disconnect()
 
     def watcher(self):
@@ -71,9 +71,9 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             yield self._make_msg_container(msg)
 
     def get_root(self):
-        '''
+        """
         returns wildland entry to the root directory
-        '''
+        """
         return FuncDirEntry('.', self._root)
 
     def _root(self):
@@ -96,10 +96,10 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         return msg_part.content
 
     def _get_message_categories(self, e: MessageEnvelopeData) -> List[str]:
-        '''
+        """
         Generate the list of category paths that the message will
         appear under.
-        '''
+        """
         rv: Set[PurePosixPath] = set()
 
         # entry in timeline
@@ -122,18 +122,18 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         return sorted(str(p) for p in rv)
 
     def _id_for_message(self, env: MessageEnvelopeData) -> str:
-        '''
+        """
         returns a string representation of stable uuid identifying
         email message of which the envelope is given.
-        '''
+        """
         ns = uuid.UUID(self.backend_id)
         return str(uuid.uuid3(ns, str(env.msg_uid)))
 
 
     def _make_msg_container(self, env: MessageEnvelopeData) -> dict:
-        '''
+        """
         Create a container manifest for a single mail message.
-        '''
+        """
         ident = self._id_for_message(env)
         paths = [f'/.uuid/{ident}']
         logger.debug('making msg container for msg %d as %s',

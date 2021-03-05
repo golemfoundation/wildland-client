@@ -16,9 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Storage set management
-'''
+"""
 
 import click
 import yaml
@@ -30,7 +30,7 @@ from ..manifest.template import TemplateManager, SET_SUFFIX
 
 @aliased_group('storage-set', short_help='storage setup sets management')
 def storage_set_():
-    '''Manage storages for container'''
+    """Manage storages for container"""
 
 
 @storage_set_.command('list', short_help='list storage setup sets', alias=['ls'])
@@ -183,9 +183,9 @@ def add_template(obj: ContextObj, storage_set, template, inline):
 @click.argument('storage_set', metavar='TEMPLATE_SET')
 @click.pass_obj
 def del_template(obj: ContextObj, storage_set, template):
-    '''
+    """
     Remove path from the manifest.
-    '''
+    """
     template_manager = TemplateManager(obj.client.template_dir)
     try:
         storage_set = template_manager.get_storage_set(storage_set)

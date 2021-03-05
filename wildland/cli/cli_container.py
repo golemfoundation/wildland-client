@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # pylint: disable=too-many-lines
-'''
+"""
 Manage containers
-'''
+"""
 
 from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Dict, Optional, Iterable
@@ -69,6 +69,7 @@ class OptionRequires(click.Option):
     """
     Helper class to provide conditional required for click.Option
     """
+
     def __init__(self, *args, **kwargs):
         try:
             self.required_opt = kwargs.pop('requires')
@@ -113,9 +114,9 @@ class OptionRequires(click.Option):
 @click.pass_obj
 def create(obj: ContextObj, owner, path, name, update_user, default_storage_set, access,
            title=None, category=None, storage_set=None, local_dir=None, encrypt_manifest=True):
-    '''
+    """
     Create a new container manifest.
-    '''
+    """
 
     obj.client.recognize_users()
     owner = obj.client.load_user_by_name(owner or '@default-owner')
@@ -193,9 +194,9 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
 @click.argument('cont', metavar='CONTAINER')
 @click.pass_obj
 def update(obj: ContextObj, storage, cont):
-    '''
+    """
     Update a container manifest.
-    '''
+    """
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
@@ -221,10 +222,10 @@ def update(obj: ContextObj, storage, cont):
 @click.argument('cont', metavar='CONTAINER')
 @click.pass_obj
 def publish(obj: ContextObj, cont):
-    '''
+    """
     Publish a container manifest under a given wildland path
     (or to an infrastructure container, if wlpath not given).
-    '''
+    """
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
@@ -256,9 +257,9 @@ def _container_info(client, container):
 @container_.command('list', short_help='list containers', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
-    '''
+    """
     Display known containers.
-    '''
+    """
 
     obj.client.recognize_users()
     for container in obj.client.load_containers():
@@ -269,9 +270,9 @@ def list_(obj: ContextObj):
 @click.argument('name', metavar='CONTAINER')
 @click.pass_obj
 def info(obj: ContextObj, name):
-    '''
+    """
     Show information about single container.
-    '''
+    """
 
     obj.client.recognize_users()
     try:
@@ -290,9 +291,9 @@ def info(obj: ContextObj, name):
               help='also delete local storage manifests')
 @click.argument('name', metavar='NAME')
 def delete(obj: ContextObj, name, force, cascade):
-    '''
+    """
     Delete a container.
-    '''
+    """
     # TODO: also consider detecting user-container link (i.e. user's main
     # container).
     obj.client.recognize_users()
@@ -363,9 +364,9 @@ container_.add_command(dump)
 
 @container_.group(short_help='modify container manifest')
 def modify():
-    '''
+    """
     Commands for modifying container manifests.
-    '''
+    """
 
 
 @modify.command(short_help='add path to the manifest')
@@ -373,9 +374,9 @@ def modify():
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_path(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, add_field, 'paths', path)
 
 
@@ -384,9 +385,9 @@ def add_path(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_path(ctx, input_file, path):
-    '''
+    """
     Remove path from the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'paths', path)
 
 
@@ -395,9 +396,9 @@ def del_path(ctx, input_file, path):
 @click.option('--title', metavar='TEXT', required=True, help='Title to set')
 @click.pass_context
 def set_title(ctx, input_file, title):
-    '''
+    """
     Set title in the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, set_field, 'title', title)
 
 
@@ -407,9 +408,9 @@ def set_title(ctx, input_file, title):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_category(ctx, input_file, category):
-    '''
+    """
     Add category to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, add_field, 'categories', category)
 
 
@@ -419,9 +420,9 @@ def add_category(ctx, input_file, category):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_category(ctx, input_file, category):
-    '''
+    """
     Remove category from the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'categories', category)
 
 
@@ -454,9 +455,9 @@ def add_access(ctx, input_file, access):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_access(ctx, input_file, access):
-    '''
+    """
     Remove category from the manifest.
-    '''
+    """
     ctx.obj.client.recognize_users()
 
     processed_access = []
@@ -475,9 +476,9 @@ def del_access(ctx, input_file, access):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def set_no_encrypt_manifest(ctx, input_file):
-    '''
+    """
     Set title in the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, set_field, 'access', [{'user': '*'}])
 
 
@@ -485,9 +486,9 @@ def set_no_encrypt_manifest(ctx, input_file):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def set_encrypt_manifest(ctx, input_file):
-    '''
+    """
     Set title in the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, set_field, 'access', [])
 
 
@@ -602,12 +603,12 @@ def prepare_mount(obj: ContextObj,
 @click.pass_obj
 def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
           with_subcontainers: bool, only_subcontainers: bool, quiet):
-    '''
+    """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
 
     The Wildland system has to be mounted first, see ``wl start``.
-    '''
+    """
     try:
         obj.fs_client.ensure_mounted()
         obj.client.recognize_users()
@@ -691,10 +692,10 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names):
-    '''
+    """
     Unmount a container_ You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
-    '''
+    """
 
     try:
         obj.fs_client.ensure_mounted()
@@ -751,9 +752,9 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
 
 
 class Remounter:
-    '''
+    """
     A class for watching files and remounting if necessary.
-    '''
+    """
 
     def __init__(self, client: Client, fs_client: WildlandFSClient,
                  container_names: List[str], additional_patterns: Optional[List[str]] = None):
@@ -779,9 +780,9 @@ class Remounter:
         self.main_paths: Dict[PurePosixPath, PurePosixPath] = {}
 
     def run(self):
-        '''
+        """
         Run the main loop.
-        '''
+        """
 
         logger.info('Using patterns: %r', self.patterns)
         for events in self.fs_client.watch(self.patterns, with_initial=True):
@@ -795,10 +796,10 @@ class Remounter:
             self.mount_pending()
 
     def handle_event(self, event: WatchEvent):
-        '''
+        """
         Handle a single file change event. Queue mount/unmount operations in
         self.to_mount and self.to_unmount.
-        '''
+        """
 
         logger.info('Event %s: %s', event.event_type, event.path)
 
@@ -856,18 +857,18 @@ class Remounter:
                 self.to_mount.append((container, storages_to_remount, user_paths, None))
 
     def unmount_pending(self):
-        '''
+        """
         Unmount queued containers.
-        '''
+        """
 
         for storage_id in self.to_unmount:
             self.fs_client.unmount_storage(storage_id)
         self.to_unmount.clear()
 
     def mount_pending(self):
-        '''
+        """
         Mount queued containers.
-        '''
+        """
 
         self.fs_client.mount_multiple_containers(self.to_mount, remount=True)
         self.to_mount.clear()
@@ -891,10 +892,10 @@ def terminate_daemon(pfile, error_message):
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
 def mount_watch(obj: ContextObj, container_names):
-    '''
+    """
     Watch for manifest files inside Wildland, and keep the filesystem mount
     state in sync.
-    '''
+    """
 
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
@@ -1034,9 +1035,9 @@ def sync_container(obj: ContextObj, target_remote, cont):
 @click.argument('cont', metavar='CONTAINER')
 @click.pass_obj
 def stop_syncing_container(obj: ContextObj, cont):
-    '''
+    """
     Keep the given container in sync across storages.
-    '''
+    """
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
@@ -1085,9 +1086,9 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
 @click.argument('cont', metavar='CONTAINER')
 @click.pass_obj
 def duplicate(obj: ContextObj, new_name, cont):
-    '''
+    """
     Duplicate an existing container manifest.
-    '''
+    """
 
     obj.client.recognize_users()
 

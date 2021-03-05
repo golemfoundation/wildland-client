@@ -17,17 +17,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Logging
-'''
+"""
 
 import logging.config
 
 
 class ConsoleFormatter(logging.Formatter):
-    '''
+    """
     A formatter that colors messages in console.
-    '''
+    """
 
     default_time_format = '%H:%M:%S'
     # https://en.wikipedia.org/wiki/ANSI_escape_code
@@ -69,9 +69,9 @@ class ConsoleFormatter(logging.Formatter):
 
 
 def init_logging(console=True, file_path=None, level='DEBUG'):
-    '''
+    """
     Configure logging module.
-    '''
+    """
 
     config: dict = {
         'version': 1,

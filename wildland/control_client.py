@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Client class for the control server
-'''
+"""
 
 from pathlib import Path
 import socket
@@ -33,15 +33,15 @@ logger = logging.getLogger('control-server')
 
 
 class ControlClientError(WildlandError):
-    '''
+    """
     An error originating from the control server.
-    '''
+    """
 
 
 class ControlClient:
-    '''
+    """
     A client for ControlServer.
-    '''
+    """
 
     def __init__(self):
         self.conn = None
@@ -50,18 +50,18 @@ class ControlClient:
         self.id_counter = 1
 
     def connect(self, path: Path):
-        '''
+        """
         Connect to a server listening under a given socket path.
-        '''
+        """
 
         self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.conn.connect(str(path))
         self.conn_file = self.conn.makefile()
 
     def disconnect(self):
-        '''
+        """
         Disconnect from server.
-        '''
+        """
 
         assert self.conn
         assert self.conn_file
@@ -72,13 +72,13 @@ class ControlClient:
         self.conn = None
 
     def run_command(self, name, **kwargs):
-        '''
+        """
         Run a command with given name and (named) arguments. The argument names
         will be converted to a proper format ('container_id' -> 'container-id').
 
         Returns a result, or raises ControlClientError if the server reported
         an error.
-        '''
+        """
 
         assert self.conn
         assert self.conn_file
@@ -117,11 +117,11 @@ class ControlClient:
         return response['result']
 
     def wait_for_events(self) -> List[dict]:
-        '''
+        """
         Wait for the server to send events (or return pending events).
 
         Empty list means the connection has been closed.
-        '''
+        """
 
         if self.pending_events:
             events = self.pending_events
@@ -137,9 +137,9 @@ class ControlClient:
         return [message['event']]
 
     def iter_events(self) -> Iterator[dict]:
-        '''
+        """
         Iterate over events from server.
-        '''
+        """
 
         while True:
             events = self.wait_for_events()
@@ -148,9 +148,9 @@ class ControlClient:
             yield from events
 
     def _recv_message(self) -> Optional[dict]:
-        '''
+        """
         Receive a message from the server. Returns None on EOF
-        '''
+        """
 
         assert self.conn_file
 

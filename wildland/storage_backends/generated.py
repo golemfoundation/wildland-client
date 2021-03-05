@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Generated storage - for auto-generated file lists
-'''
+"""
 
 from pathlib import PurePosixPath
 import abc
@@ -33,55 +33,55 @@ from .base import File, Attr
 
 
 class Entry(metaclass=abc.ABCMeta):
-    '''
+    """
     File or directory entry.
-    '''
+    """
 
     def __init__(self, name: str):
         self.name = name
 
     @abc.abstractmethod
     def getattr(self) -> Attr:
-        '''
+        """
         File attributes.
-        '''
+        """
         raise NotImplementedError()
 
 
 class FileEntry(Entry, metaclass=abc.ABCMeta):
-    '''
+    """
     File entry. Can be open, producing a File.
-    '''
+    """
 
     @abc.abstractmethod
     def open(self, flags: int) -> File:
-        '''
+        """
         Open a file.
-        '''
+        """
 
         raise NotImplementedError()
 
 
 class DirEntry(Entry, metaclass=abc.ABCMeta):
-    '''
+    """
     Directory entry. Can be listed.
-    '''
+    """
 
     @abc.abstractmethod
     def get_entries(self) -> Iterable[Entry]:
-        '''
+        """
         List all entries in this directory.
-        '''
+        """
 
         raise NotImplementedError()
 
     def get_entry(self, name: str) -> Entry:
-        '''
+        """
         Get a specific entry by name, or raise KeyError.
 
         By default, uses get_entries(), but you can override it for a more
         efficient implementation.
-        '''
+        """
 
         for entry in self.get_entries():
             if entry.name == name:
@@ -92,7 +92,7 @@ class DirEntry(Entry, metaclass=abc.ABCMeta):
 
 
 class FuncDirEntry(DirEntry):
-    '''
+    """
     Shortcut for creating function-based directories.
 
         def get_entries():
@@ -100,7 +100,7 @@ class FuncDirEntry(DirEntry):
             yield FuncFileEntry('bar.txt', lambda: b'bar')
 
     d = DirEntry('dir', get_entries)
-    '''
+    """
 
     def __init__(self, name: str,
                  get_entries_func: Callable[[], Iterable[Entry]],
@@ -117,9 +117,9 @@ class FuncDirEntry(DirEntry):
 
 
 class CachedDirEntry(FuncDirEntry):
-    '''
+    """
     A version of FuncDirEntry that cached its results.
-    '''
+    """
 
     def __init__(self, name: str,
                  get_entries_func: Callable[[], Iterable[Entry]],
@@ -132,9 +132,9 @@ class CachedDirEntry(FuncDirEntry):
         self.cache_lock = threading.Lock()
 
     def clear_cache(self):
-        '''
+        """
         Invalidate cache.
-        '''
+        """
 
         with self.cache_lock:
             self.expiry = 0
@@ -160,9 +160,9 @@ class CachedDirEntry(FuncDirEntry):
 
 
 class StaticFile(File):
-    '''
+    """
     A read-only file with pre-determined content.
-    '''
+    """
 
     def __init__(self, data: bytes, attr: Attr):
         self.data = data
@@ -183,9 +183,9 @@ class StaticFile(File):
 
 
 class CommandFile(File):
-    '''
+    """
     A write-only file that triggers a callback.
-    '''
+    """
 
     def __init__(self,
                  on_write: Callable[[bytes], None],
@@ -208,9 +208,9 @@ class CommandFile(File):
 
 
 class StaticFileEntry(FileEntry):
-    '''
+    """
     Shortcut for creating static files.
-    '''
+    """
 
     def __init__(self,
                  name: str,
@@ -232,7 +232,7 @@ class StaticFileEntry(FileEntry):
 
 
 class FuncFileEntry(FileEntry):
-    '''
+    """
     Shortcut for creating function-based files.
 
         def read_foo():
@@ -243,7 +243,7 @@ class FuncFileEntry(FileEntry):
 
         f1 = FileEntry('foo', on_read=read_foo)
         f2 = FileEntry('bar', on_write=write_bar)
-    '''
+    """
 
     def __init__(self, name: str,
                  on_read: Optional[Callable[[], bytes]] = None,
@@ -276,7 +276,7 @@ class FuncFileEntry(FileEntry):
 
 
 class GeneratedStorageMixin:
-    '''
+    """
     A mixin for auto-generated storage.
 
     A simple usage is to implement callbacks:
@@ -298,21 +298,21 @@ class GeneratedStorageMixin:
 
             def _file(self, i):
                 return f'This is {i}.txt'
-    '''
+    """
 
     # TODO cache
 
     def get_root(self) -> DirEntry:
-        '''
+        """
         Get the directory root.
-        '''
+        """
 
         raise NotImplementedError()
 
     def readdir(self, path: PurePosixPath) -> Iterable[str]:
-        '''
+        """
         readdir() for generated storage
-        '''
+        """
 
         entry = self._find_entry(path)
         if not isinstance(entry, DirEntry):
@@ -320,16 +320,16 @@ class GeneratedStorageMixin:
         return (sub_entry.name for sub_entry in entry.get_entries())
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        '''
+        """
         getattr() for generated storage
-        '''
+        """
 
         return self._find_entry(path).getattr()
 
     def open(self, path: PurePosixPath, flags: int) -> File:
-        '''
+        """
         open() for generated storage
-        '''
+        """
 
         entry = self._find_entry(path)
         if not isinstance(entry, FileEntry):

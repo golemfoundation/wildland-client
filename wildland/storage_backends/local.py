@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Local storage, similar to :command:`mount --bind`
-'''
+"""
 
 import os
 import time
@@ -42,9 +42,9 @@ __all__ = ['LocalStorageBackend']
 logger = logging.getLogger('local-storage')
 
 def to_attr(st: os.stat_result) -> Attr:
-    '''
+    """
     Convert os.stat_result to Attr.
-    '''
+    """
 
     return Attr(
         mode=st.st_mode,
@@ -54,10 +54,10 @@ def to_attr(st: os.stat_result) -> Attr:
 
 
 class LocalFile(File):
-    '''A file on disk
+    """A file on disk
 
     (does not need to be a regular file)
-    '''
+    """
 
     def __init__(self, path, realpath, flags, mode=0, ignore_callback=None):
         self.path = path
@@ -78,10 +78,10 @@ class LocalFile(File):
         return self.file.close()
 
     def fgetattr(self):
-        '''...
+        """...
 
         Without this method, at least :meth:`read` does not work.
-        '''
+        """
         with self.lock:
             st = to_attr(os.fstat(self.file.fileno()))
             # Make sure to return the correct size.
@@ -113,7 +113,7 @@ class LocalFile(File):
 
 
 class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
-    '''Local, file-based storage'''
+    """Local, file-based storage"""
     SCHEMA = Schema({
         "type": "object",
         "required": ["location"],
@@ -160,14 +160,14 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
         }
 
     def _path(self, path: PurePosixPath) -> Path:
-        '''Given path inside filesystem, calculate path on disk, relative to
+        """Given path inside filesystem, calculate path on disk, relative to
         :attr:`self.root`
 
         Args:
             path (pathlib.PurePosixPath): the path
         Returns:
             pathlib.Path: path relative to :attr:`self.root`
-        '''
+        """
         ret = (self.root / path).resolve()
         ret.relative_to(self.root) # this will throw ValueError if not relative
         return ret

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 A ZIP file storage.
-'''
+"""
 
 from typing import Iterable, Tuple
 import zipfile
@@ -41,9 +41,9 @@ logger = logging.getLogger('zip-archive')
 
 
 class ZipArchiveFile(FullBufferedFile):
-    '''
+    """
     A file inside a ZIP archive.
-    '''
+    """
 
     def __init__(self, zip_path: Path, path: PurePosixPath, attr):
         super().__init__(attr)
@@ -59,9 +59,9 @@ class ZipArchiveFile(FullBufferedFile):
 
 
 class ZipArchiveWatcher(SimpleStorageWatcher):
-    '''
+    """
     A watcher for the ZIP file.
-    '''
+    """
 
     def __init__(self, backend: 'ZipArchiveStorageBackend'):
         super().__init__(backend, interval=1)
@@ -76,9 +76,9 @@ class ZipArchiveWatcher(SimpleStorageWatcher):
 
 
 class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
-    '''
+    """
     ZIP archive storage. Read-only for now.
-    '''
+    """
 
     SCHEMA = Schema({
         "type": "object",

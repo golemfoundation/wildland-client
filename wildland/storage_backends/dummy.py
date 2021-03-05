@@ -16,9 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Local storage, similar to :command:`mount --bind`
-'''
+"""
 
 from pathlib import PurePosixPath
 import logging
@@ -31,7 +31,7 @@ __all__ = ['DummyStorageBackend']
 logger = logging.getLogger('dummy-storage')
 
 class DummyStorageBackend(StorageBackend):
-    '''Dummy storage'''
+    """Dummy storage"""
     SCHEMA = Schema({
         "type": "object",
         "required": [],

@@ -16,9 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 IPFS storage backend
-'''
+"""
 
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
@@ -42,9 +42,9 @@ logger = logging.getLogger('storage-ipfs')
 # pylint: disable=no-member
 
 class IPFSFile(FullBufferedFile):
-    '''
+    """
     A buffered IPFS file.
-    '''
+    """
 
     def __init__(self, client, cid, attr, clear_cache_callback):
         super().__init__(attr, clear_cache_callback)
@@ -59,9 +59,9 @@ class IPFSFile(FullBufferedFile):
 
 
 class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
-    '''
+    """
     IPFS (readonly) storage.
-    '''
+    """
 
     SCHEMA = Schema({
         "title": "Storage manifest (ipfs)",
@@ -127,16 +127,16 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         }
 
     def key(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert path to IPFS path.
-        '''
+        """
         return str((self.base_path / path))
 
     @staticmethod
     def _stat(obj) -> Attr:
-        '''
+        """
         Size is taken from IPFS API reply. Date is not available, so setting it to UNIX EPOCH
-        '''
+        """
         if 'Size' in obj:
             size = obj['Size']
         else:
@@ -151,9 +151,9 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         return obj['LinksSize'] + obj['DataSize'] == obj['CumulativeSize']
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
-        '''
+        """
         List a directory.
-        '''
+        """
         dirs = set()
         resp = self.client.object.links(
             self.key(path)

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 User manifest and user management
-'''
+"""
 
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Union
@@ -33,10 +33,10 @@ logger = logging.getLogger('user')
 
 
 class User:
-    '''
+    """
     A data transfer object representing Wildland user.
     Can be converted from/to a self-signed user manifest.
-    '''
+    """
 
     SCHEMA = Schema('user')
 
@@ -61,10 +61,10 @@ class User:
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, pubkey, local_path=None) -> 'User':
-        '''
+        """
         Construct a User instance from a manifest.
         Requires public key for backwards compatibility.
-        '''
+        """
 
         # TODO: local_path should be also part of Manifest?
         owner = manifest.fields['owner']
@@ -88,10 +88,10 @@ class User:
         )
 
     def to_unsigned_manifest(self) -> Manifest:
-        '''
+        """
         Create a manifest based on User's data.
         Has to be signed separately.
-        '''
+        """
 
         manifest = Manifest.from_fields({
             'object': type(self).__name__.lower(),

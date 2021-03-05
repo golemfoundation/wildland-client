@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Bridge manifest object
-'''
+"""
 
 from pathlib import PurePosixPath, Path
 from typing import Optional, List
@@ -29,11 +29,11 @@ from .manifest.schema import Schema
 
 
 class Bridge:
-    '''
+    """
     Bridge object: a wrapper for user manifests.
-    '''
+    """
 
-    SCHEMA = Schema('bridge')
+    SCHEMA = Schema("bridge")
 
     def __init__(self, *,
                  owner: str,
@@ -50,10 +50,10 @@ class Bridge:
         self.manifest = manifest
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Bridge':
-        '''
+    def from_manifest(cls, manifest: Manifest, local_path=None) -> "Bridge":
+        """
         Construct a Container instance from a manifest.
-        '''
+        """
 
         manifest.apply_schema(cls.SCHEMA)
         return cls(
@@ -66,10 +66,10 @@ class Bridge:
         )
 
     def to_unsigned_manifest(self) -> Manifest:
-        '''
+        """
         Create a manifest based on Bridge's data.
         Has to be signed separately.
-        '''
+        """
 
         manifest = Manifest.from_fields({
             "object": type(self).__name__.lower(),

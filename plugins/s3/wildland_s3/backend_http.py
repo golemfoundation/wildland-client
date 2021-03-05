@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Indexed HTTP storage backend
-'''
+"""
 
 from datetime import datetime
 from pathlib import PurePosixPath
@@ -42,9 +42,9 @@ logger = logging.getLogger('storage-s3')
 
 
 class PagedHttpFile(PagedFile):
-    '''
+    """
     A read-only paged HTTP file.
-    '''
+    """
 
     def __init__(self,
                  url: str,
@@ -68,9 +68,9 @@ class PagedHttpFile(PagedFile):
 
 
 class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
-    '''
+    """
     A read-only HTTP storage that gets its information from directory listings.
-    '''
+    """
 
     SCHEMA = Schema({
         "title": "Storage manifest (HTTP index)",
@@ -107,9 +107,9 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         }
 
     def make_url(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert a Path to resource URL.
-        '''
+        """
 
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))
