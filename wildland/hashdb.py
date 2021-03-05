@@ -19,11 +19,14 @@
 Hash db.
 """
 
+import logging
 import sqlite3
 from pathlib import PurePosixPath
 from collections import namedtuple
+from typing import List, Tuple
 
 HashCache = namedtuple('HashCache', ['hash', 'token'])
+logger = logging.getLogger('hashdb')
 
 
 class HashDb:
@@ -36,17 +39,49 @@ class HashDb:
         self.base_dir = base_dir
         self.hash_db_path = base_dir / 'wlhashes.db'
         with sqlite3.connect(self.hash_db_path) as conn:
-            conn.execute('CREATE TABLE IF NOT EXISTS container_backends '
-                         '(container_id TEXT NOT NULL, '
-                         'backend_id TEXT NOT NULL, '
-                         'PRIMARY KEY (container_id, backend_id))')
-            conn.execute('CREATE TABLE IF NOT EXISTS hashes '
-                         '(backend_id TEXT NOT NULL, '
-                         'path TEXT NOT NULL, '
-                         'hash TEXT, '
-                         'token NUMERIC, PRIMARY KEY (backend_id, path))')
+            self._create_container_backends_table(conn)
 
-    def update_storages_for_containers(self, container_uuid, storages):
+            if self._hashes_table_has_outdated_schema(conn):
+                logger.warning('SQLite hashes table from [%s] is outdated', self.hash_db_path)
+                self._remove_hashes_table(conn)
+
+            self._create_hashes_table_if_not_exist(conn)
+
+    @staticmethod
+    def _hashes_table_has_outdated_schema(conn) -> bool:
+        cursor = conn.cursor()
+        table_name = 'hashes'
+        column_name = 'token'
+        cursor.execute('SELECT type FROM pragma_table_info(?) WHERE name = ?',
+                       (table_name, column_name))
+        result = cursor.fetchone()
+        if not result:
+            return False
+        (column_type,) = result
+        # hashes.token column used to be integer instead of a string
+        return column_type != 'TEXT'
+
+    def _create_container_backends_table(self, conn) -> None:
+        logger.debug('Trying to create [container_backends] SQLite table in [%s]',
+                     self.hash_db_path)
+        conn.execute('CREATE TABLE IF NOT EXISTS container_backends '
+                     '(container_id TEXT NOT NULL, '
+                     'backend_id TEXT NOT NULL, '
+                     'PRIMARY KEY (container_id, backend_id))')
+
+    def _create_hashes_table_if_not_exist(self, conn) -> None:
+        logger.debug('Trying to create [hashes] SQLite table in [%s]', self.hash_db_path)
+        conn.execute('CREATE TABLE IF NOT EXISTS hashes '
+                     '(backend_id TEXT NOT NULL, '
+                     'path TEXT NOT NULL, '
+                     'hash TEXT, '
+                     'token TEXT, PRIMARY KEY (backend_id, path))')
+
+    def _remove_hashes_table(self, conn) -> None:
+        logger.warning('Removing SQLite hashes table from [%s]', self.hash_db_path)
+        conn.execute('DROP TABLE hashes')
+
+    def update_storages_for_containers(self, container_uuid, storages) -> None:
         """
         Storage information that given storages were associated with the given container.
         """
@@ -55,7 +90,7 @@ class HashDb:
                 conn.execute('INSERT OR REPLACE INTO container_backends VALUES (?, ?)',
                              (container_uuid, storage.backend_id))
 
-    def get_conflicts(self, container_uuid):
+    def get_conflicts(self, container_uuid) -> List[Tuple[str, str, str]]:
         """
         List all known file conflicts for a given storage across all known backends; the result
         is a list of tuples (path, container_1_uuid, container_2_uuid).
@@ -73,7 +108,7 @@ class HashDb:
 
             return cursor.fetchall()
 
-    def store_hash(self, backend_id, path, hash_cache):
+    def store_hash(self, backend_id, path, hash_cache) -> None:
         """
         Stores given HashCache tuple.
         :param backend_id: uuid of the backend
@@ -85,7 +120,7 @@ class HashDb:
             conn.execute('INSERT OR REPLACE INTO hashes VALUES (?, ?, ?, ?)',
                          (backend_id, str(path), hash_cache.hash, hash_cache.token))
 
-    def retrieve_hash(self, backend_id, path):
+    def retrieve_hash(self, backend_id, path) -> HashCache:
         """
         Retrieve hash (if available) for a given path.
         :param backend_id: uuid of the backend

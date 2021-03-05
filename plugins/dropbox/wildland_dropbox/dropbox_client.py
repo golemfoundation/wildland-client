@@ -82,7 +82,7 @@ class DropboxClient:
         path = self._convert_to_dropbox_path(path)
         try:
             _, response = self.connection.files_download(path)
-        except BadInputError as e:
+        except (AuthError, BadInputError) as e:
             raise PermissionError(errno.EACCES, f'No permissions to read files [{path}]') from e
         return response.content
 
@@ -93,7 +93,7 @@ class DropboxClient:
         path = self._convert_to_dropbox_path(path)
         try:
             return self.connection.files_delete_v2(path)
-        except BadInputError as e:
+        except (AuthError, BadInputError) as e:
             raise PermissionError(
                 errno.EACCES,
                 f'No permissions to remove files and directories [{path}]') from e
@@ -105,7 +105,7 @@ class DropboxClient:
         path = self._convert_to_dropbox_path(path)
         try:
             return self.connection.files_create_folder_v2(path, autorename=False)
-        except BadInputError as e:
+        except (AuthError, BadInputError) as e:
             raise PermissionError(errno.EACCES,
                                   f'No permissions to create directories [{path}]') from e
 
@@ -136,7 +136,7 @@ class DropboxClient:
             if len(data) > max_bytes_upload_size:
                 self._upload_large_file(data, dropbox_path)
             return self._upload_small_file(data, dropbox_path)
-        except BadInputError as e:
+        except (AuthError, BadInputError) as e:
             raise PermissionError(errno.EACCES, f'No permissions to write file [{path}]') from e
 
     def _upload_small_file(self, data: bytes, path: str) -> FileMetadata:

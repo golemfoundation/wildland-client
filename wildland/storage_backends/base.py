@@ -477,11 +477,11 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     # Other operations
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         # used to implement hash caching; should provide a token that changes when the file changes.
         raise OptionalError()
 
-    def get_hash(self, path: PurePosixPath):
+    def get_hash(self, path: PurePosixPath) -> str:
         """
         Return (and, if get_file_token is implemented, cache) sha256 hash for object at path.
         """
@@ -512,7 +512,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             self.store_hash(path, HashCache(new_hash, current_token))
         return new_hash
 
-    def store_hash(self, path, hash_cache):
+    def store_hash(self, path, hash_cache) -> None:
         """
         Store provided hash in persistent (if available) storage and in local dict.
         """
@@ -520,7 +520,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             self.hash_db.store_hash(self.backend_id, path, hash_cache)
         self.hash_cache[path] = hash_cache
 
-    def retrieve_hash(self, path):
+    def retrieve_hash(self, path) -> HashCache:
         """
         Get cached hash, if possible; priority is given to local dict, then to permanent storage.
         """

@@ -181,6 +181,6 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.client.upload_file(truncated_content, path)
         self.clear_cache()
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         attr: DropboxFileAttr = self.getattr(path)
-        return int(attr.content_hash, 16)
+        return attr.content_hash
