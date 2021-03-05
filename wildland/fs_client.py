@@ -58,6 +58,7 @@ class WatchEvent:
     """
 
     event_type: str  # create, modify, delete
+    pattern: str  # pattern that generated this event
     path: PurePosixPath  # absolute path in Wildland namespace
 
 
@@ -592,7 +593,7 @@ class WildlandFSClient:
                     logger.debug('watching %d:%s', storage_id, relpath)
                     watch_id = client.run_command(
                         'add-watch', storage_id=storage_id, pattern=str(relpath))
-                    watches[watch_id] = storage_path
+                    watches[watch_id] = (storage_path, pattern)
 
             if with_initial:
                 initial = []
@@ -601,7 +602,7 @@ class WildlandFSClient:
                     for file_path in glob.glob(str(local_path)):
                         fs_path = PurePosixPath('/') / Path(file_path).relative_to(
                             self.mount_dir)
-                        initial.append(WatchEvent('create', fs_path))
+                        initial.append(WatchEvent('create', pattern, fs_path))
                 if initial:
                     yield initial
 
@@ -609,10 +610,10 @@ class WildlandFSClient:
                 watch_events = []
                 for event in events:
                     watch_id = event['watch-id']
-                    storage_path = watches[watch_id]
+                    storage_path, pattern = watches[watch_id]
                     event_type = event['type']
                     path = PurePosixPath(event['path'])
-                    watch_events.append(WatchEvent(event_type, storage_path / path))
+                    watch_events.append(WatchEvent(event_type, pattern, storage_path / path))
                 yield watch_events
         finally:
             client.disconnect()
