@@ -61,7 +61,7 @@ class Timespec:
     '''
     name: str
     tv_sec: int
-    tv_usec: int
+    tv_nsec: int
 
 class WildlandFSBase:
     '''A base class for implementations of Wildland'''

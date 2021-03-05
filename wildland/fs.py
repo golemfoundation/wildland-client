@@ -153,7 +153,7 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
         return Timespec(
             name=ts.name,
             tv_sec=ts.tv_sec,
-            tv_usec=ts.tv_used
+            tv_nsec=ts.tv_nsec
         )
 
     #
