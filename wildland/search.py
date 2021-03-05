@@ -72,6 +72,9 @@ class Step:
     # Previous step, if any
     previous: Optional['Step']
 
+    # file pattern used to lookup the next step (if any)
+    pattern: Optional[str] = None
+
     def steps_chain(self):
         """Iterate over all steps leading to this resolved path"""
         step: Optional[Step] = self
@@ -269,9 +272,10 @@ class Search:
 
         storage, storage_backend = self._find_storage(step)
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
+        pattern = get_file_pattern(manifest_pattern, part)
+        step.pattern = pattern
         with storage_backend:
-            for manifest_path in storage_find_manifests(
-                    storage_backend, manifest_pattern, part):
+            for manifest_path in storage_glob(storage_backend, pattern):
                 trusted_owner = None
                 if storage.trusted:
                     trusted_owner = storage.owner
@@ -465,19 +469,15 @@ def storage_read_file(storage, relpath) -> bytes:
         storage.release(relpath, 0, obj)
 
 
-def storage_find_manifests(
-        storage: StorageBackend,
+def get_file_pattern(
         manifest_pattern: dict,
-        query_path: PurePosixPath) -> Iterable[PurePosixPath]:
+        query_path: PurePosixPath) -> str:
     """
-    Find all files satisfying a manifest_pattern. The following manifest_pattern
-    values are supported:
+    Return a file glob to find all files satisfying a manifest_pattern.
+    The following manifest_pattern values are supported:
 
     - {'type': 'glob', 'path': path} where path is an absolute path that can
       contain '*' and '{path}'
-
-    Yields all files found in the storage, but without guarantee that you will
-    be able to open or read them.
     """
 
     mp_type = manifest_pattern['type']
@@ -490,7 +490,7 @@ def storage_find_manifests(
         else:
             glob_path = manifest_pattern['path'].replace(
                 '{path}', str(query_path.relative_to('/')))
-        return storage_glob(storage, glob_path)
+        return glob_path
     raise WildlandError(f'Unknown manifest_pattern: {mp_type}')
 
 
