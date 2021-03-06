@@ -33,6 +33,7 @@ from pathlib import PurePosixPath
 from typing import Optional, Tuple, Iterable, Mapping
 from typing import TYPE_CHECKING
 
+from .fs_client import WildlandFSClient
 from .user import User
 from .container import Container
 from .bridge import Bridge
@@ -98,11 +99,13 @@ class Search:
     def __init__(self,
             client: Client,
             wlpath: WildlandPath,
-            aliases: Mapping[str, str] = types.MappingProxyType({})):
+            aliases: Mapping[str, str] = types.MappingProxyType({}),
+            fs_client: Optional[WildlandFSClient] = None):
         self.client = client
         self.wlpath = wlpath
         self.aliases = aliases
         self.initial_owner = self._subst_alias(wlpath.owner or '@default')
+        self.fs_client = fs_client
 
         self.local_containers = list(self.client.load_containers())
         self.local_users = list(self.client.load_users())
@@ -210,11 +213,26 @@ class Search:
         """
         Find a storage for the latest resolved part.
 
+        If self.fs_client is set and the container is mounted,
+        returns a local storage backend pointing at mounted FUSE dir.
+
         Returns (storage, storage_backend).
         """
 
         assert step.container is not None
         storage = self.client.select_storage(step.container)
+        if self.fs_client is not None:
+            fuse_path = self.fs_client.get_primary_unique_mount_path(step.container, storage)
+            mounted_path = self.fs_client.mount_dir / fuse_path.relative_to('/')
+            if mounted_path.exists():
+                local_storage = StorageBackend.from_params({
+                    'type': 'local',
+                    'backend-id': storage.backend_id,
+                    'location': mounted_path,
+                    'owner': step.container.owner,
+                    'is-local-owner': True,
+                })
+                return storage, local_storage
         return storage, StorageBackend.from_params(storage.params)
 
     def _resolve_first(self):

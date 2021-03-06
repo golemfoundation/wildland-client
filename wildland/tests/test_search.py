@@ -25,10 +25,12 @@ import re
 import uuid
 import shutil
 from functools import partial
+from unittest import mock
 
 import yaml
 import pytest
 
+from .utils import PartialDict
 from ..client import Client
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
@@ -589,3 +591,220 @@ def test_search_different_default_user(base_dir, cli):
 
     output = cli('get', '0xbbb:/Bob:/test', capture=True)
     assert output == 'testdata'
+
+DUMMY_BACKEND_UUID = '00000000-0000-0000-000000000000'
+
+@pytest.fixture
+def two_users_infra(base_dir, cli, control_client):
+    """
+    Create this structure:
+      KnownUser(0xaaa):
+        - infra: base_dir / infra-known-user
+          - /users/User2: bridge -> Dummy2 (0xbbb):
+            - infra: base_dir / infra2 (pattern: {path})
+              - /containers/c1 -> base_dir / storage-user2-1
+                - test1.txt: test1
+                - test2.txt: test2
+              - /containers/c2 -> base_dir / storage-user2-2
+                - test3.txt: test3
+          - /users/User3: bridge -> Dummy3 (0xccc):
+            - infra: base_dir / infra3 (pattern: *)
+              - /containers/c1 -> base_dir / storage-user3-1
+                - test1.txt: 42
+              - /containers/c2 -> base_dir / storage-user3-2
+                - test2.txt: 42
+    """
+    control_client.expect('status', {})
+    keys = {
+        'KnownUser': '0xaaa',
+        'Dummy2': '0xbbb',
+        'Dummy3': '0xccc',
+    }
+    cli('user', 'create', 'KnownUser', '--key', keys['KnownUser'])
+    cli('user', 'create', 'Dummy2', '--key', keys['Dummy2'])
+    cli('user', 'create', 'Dummy3', '--key', keys['Dummy3'])
+
+    def container_with_files(owner, name, wlpaths, location, files, c_args=(), s_args=()):
+        cli('container', 'create', name, '--owner', owner,
+            *['--path=' + wlpath for wlpath in wlpaths],
+            '--no-encrypt-manifest', *c_args)
+        cli('storage', 'create', 'local', '--container', name,
+            '--location', str(location), *s_args)
+        manifest_path = base_dir / 'containers' / (name + '.container.yaml')
+        manifest_text = manifest_path.read_text()
+        manifest_text = re.sub(r"backend-id: .*\n",
+                               f"backend-id: '{DUMMY_BACKEND_UUID}'\n",
+                               manifest_text)
+        manifest_path.write_text(manifest_text)
+        location.mkdir(parents=True, exist_ok=True)
+        with open(location / '.wildland-owners', 'a') as f:
+            f.write(keys[owner] + '\n')
+        for filename, content in files.items():
+            (location / filename).parent.mkdir(parents=True, exist_ok=True)
+            (location / filename).write_text(content)
+        return manifest_text
+
+    uuid_dummy2_c1 = '00000000-2222-1111-0000-000000000000'
+    manifest_dummy2_c1 = container_with_files(
+        'Dummy2', 'dummy2-c1', ['/containers/c1', f'/.uuid/{uuid_dummy2_c1}'],
+        base_dir / 'storage-user2-c1',
+        {'test1.txt': 'test1',
+         'test2.txt': 'test2'})
+    uuid_dummy2_c2 = '00000000-2222-2222-0000-000000000000'
+    manifest_dummy2_c2 = container_with_files(
+        'Dummy2', 'dummy2-c2', ['/containers/c2', f'/.uuid/{uuid_dummy2_c2}'],
+        base_dir / 'storage-user2-c2',
+        {'test3.txt': 'test3'})
+    uuid_dummy3_c1 = '00000000-3333-1111-0000-000000000000'
+    manifest_dummy3_c1 = container_with_files(
+        'Dummy3', 'dummy3-c1', ['/containers/c1', f'/.uuid/{uuid_dummy3_c1}'],
+        base_dir / 'storage-user3-c1',
+        {'test1.txt': '42'})
+    uuid_dummy3_c2 = '00000000-3333-2222-0000-000000000000'
+    manifest_dummy3_c2 = container_with_files(
+        'Dummy3', 'dummy3-c2', ['/containers/c2', f'/.uuid/{uuid_dummy3_c2}'],
+        base_dir / 'storage-user3-c2',
+        {'test1.txt': '42'})
+
+    # now infra containers
+    (base_dir / 'manifests').mkdir(parents=True, exist_ok=True)
+    (base_dir / 'manifests/.wildland-owners').write_text('0xaaa\n0xbbb\n0xccc\n')
+
+    manifest = container_with_files(
+        'Dummy2', 'dummy2-infra', ['/.infra', '/.uuid/00000000-2222-0000-0000-000000000000'],
+        base_dir / 'infra2',
+        {'containers/c1.yaml': manifest_dummy2_c1,
+         'containers/c2.yaml': manifest_dummy2_c2,
+         f'.uuid/{uuid_dummy2_c1}.yaml': manifest_dummy2_c1,
+         f'.uuid/{uuid_dummy2_c2}.yaml': manifest_dummy2_c2},
+        s_args=('--manifest-pattern', '/{path}.yaml'),
+    )
+    infra_path = (base_dir / 'manifests/dummy2-infra.yaml')
+    infra_path.write_text(manifest)
+    cli('user', 'modify', 'add-infrastructure', '--path', f'file://{infra_path}', 'Dummy2')
+
+    manifest = container_with_files(
+        'Dummy3', 'dummy3-infra', ['/.infra', '/.uuid/00000000-3333-0000-0000-000000000000'],
+        base_dir / 'infra3',
+        {'c1.yaml': manifest_dummy3_c1,
+         'c2.yaml': manifest_dummy3_c2},
+        s_args=('--manifest-pattern', '/*.yaml'),
+    )
+    infra_path = (base_dir / 'manifests/dummy3-infra.yaml')
+    infra_path.write_text(manifest)
+    cli('user', 'modify', 'add-infrastructure', '--path', f'file://{infra_path}', 'Dummy3')
+
+    # and finally bridges
+    container_with_files(
+        'KnownUser', 'infra-known', ['/.infra', '/.uuid/00000000-1111-0000-0000-000000000000'],
+        base_dir / 'infra-known', {},
+        s_args=('--manifest-pattern', '/{path}.yaml'),
+        c_args=('--update-user',),
+    )
+    (base_dir / 'infra-known/users').mkdir()
+    cli('bridge', 'create', '--owner', 'KnownUser',
+        '--ref-user', 'Dummy2',
+        '--ref-user-path', '/users/User2',
+        '--ref-user-location', f'file://{base_dir}/manifests/user2.yaml',
+        '--file-path', f'{base_dir}/infra-known/users/User2.yaml')
+    cli('bridge', 'create', '--owner', 'KnownUser',
+        '--ref-user', 'Dummy3',
+        '--ref-user-path', '/users/User3',
+        '--ref-user-location', f'file://{base_dir}/manifests/user3.yaml',
+        '--file-path', f'{base_dir}/infra-known/users/User3.yaml')
+
+    # all manifests done; now move them out of standard WL config,
+    # so Search() will really have some work to do
+    print((base_dir / 'users/Dummy2.user.yaml').read_text())
+    shutil.move(base_dir / 'users/Dummy2.user.yaml', base_dir / 'manifests/user2.yaml')
+    shutil.move(base_dir / 'users/Dummy3.user.yaml', base_dir / 'manifests/user3.yaml')
+    # container manifests are already published to relevant infra, remove them
+    for f in (base_dir / 'containers').glob('dummy*.yaml'):
+        f.unlink()
+
+
+@pytest.fixture
+def client2(two_users_infra, base_dir):
+    # pylint: disable=unused-argument
+    client = Client(base_dir=base_dir)
+    client.recognize_users()
+    return client
+
+
+def test_traverse_with_fs_client_empty(client2, control_client):
+    control_client.expect('status', {})
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User2:/containers/c1:/test1.txt'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    data = search.read_file()
+    assert data == b'test1'
+
+
+def test_traverse_with_fs_client_mounted(base_dir, control_client, client2):
+    control_client.expect('status', {})
+
+    # simulate mounted infrastructure
+    user2_infra_mount_path = base_dir / 'mnt' / \
+        f'.users/0xbbb/.uuid/00000000-2222-0000-0000-000000000000/.backends/{DUMMY_BACKEND_UUID}'
+    user2_infra_mount_path.parent.mkdir(parents=True)
+    user2_infra_mount_path.symlink_to(base_dir / 'infra2')
+
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User2:/containers/c1:/test1.txt'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    with mock.patch('wildland.storage_backends.base.StorageBackend.from_params',
+                    wraps=StorageBackend.from_params) as mock_storage_backend:
+        data = search.read_file()
+        assert data == b'test1'
+        mock_storage_backend.assert_any_call(PartialDict({
+            'type': 'local',
+            'location': user2_infra_mount_path
+        }))
+        # check if infra container was _not_ accessed directly
+        direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
+        assert direct_access not in mock_storage_backend.mock_calls
+
+
+def test_traverse_container_with_fs_client_mounted(
+        base_dir, control_client, client2):
+    control_client.expect('status', {})
+
+    # simulate mounted infrastructure
+    user2_infra_mount_path = base_dir / 'mnt' / \
+        f'.users/0xbbb/.uuid/00000000-2222-0000-0000-000000000000/.backends/{DUMMY_BACKEND_UUID}'
+    user2_infra_mount_path.parent.mkdir(parents=True)
+    user2_infra_mount_path.symlink_to(base_dir / 'infra2')
+
+    user1_infra_mount_path = base_dir / 'mnt' / \
+        f'.users/0xaaa/.uuid/00000000-1111-0000-0000-000000000000/.backends/{DUMMY_BACKEND_UUID}'
+    user1_infra_mount_path.parent.mkdir(parents=True)
+    user1_infra_mount_path.symlink_to(base_dir / 'infra-known')
+
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User2:/containers/c1:'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    with mock.patch('wildland.storage_backends.base.StorageBackend.from_params',
+                    wraps=StorageBackend.from_params) as mock_storage_backend:
+        containers = list(search.read_container())
+        assert len(containers) == 1
+        assert containers[0].owner == '0xbbb'
+        assert PurePosixPath('/containers/c1') in containers[0].paths
+
+        assert len(mock_storage_backend.mock_calls) == 2
+        mock_storage_backend.assert_any_call(PartialDict({
+            'type': 'local',
+            'location': user2_infra_mount_path
+        }))
+        mock_storage_backend.assert_any_call(PartialDict({
+            'type': 'local',
+            'location': user1_infra_mount_path
+        }))
+        # check if infra container was _not_ accessed directly
+        direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
+        assert direct_access not in mock_storage_backend.mock_calls
