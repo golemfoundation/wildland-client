@@ -641,5 +641,7 @@ class WildlandFSClient:
                     path = PurePosixPath(event['path'])
                     watch_events.append(WatchEvent(event_type, pattern, storage_path / path))
                 yield watch_events
+        except GeneratorExit:
+            pass
         finally:
             client.disconnect()

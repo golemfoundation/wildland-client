@@ -217,6 +217,10 @@ Example::
 This will attempt to mount, unmount and remount containers as the files matched
 by ``/*/*.yaml`` change.
 
+The pattern can be also a container WL path, either specific (like
+``wildland::/users/alice:/docs/notes:``), or wildcard (like
+``wildland::/users/alice:*:``).
+
 Make sure to use quotation marks, or the wildcard patterns will be expanded
 by the shell.
 
