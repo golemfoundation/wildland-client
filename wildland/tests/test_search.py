@@ -30,7 +30,7 @@ from unittest import mock
 import yaml
 import pytest
 
-from .utils import PartialDict
+from .utils import PartialDict, str_re
 from ..client import Client
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
@@ -808,3 +808,126 @@ def test_traverse_container_with_fs_client_mounted(
         # check if infra container was _not_ accessed directly
         direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
         assert direct_access not in mock_storage_backend.mock_calls
+
+
+def test_get_watch_params_not_mounted(control_client, client2):
+    control_client.expect('status', {})
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User2:/containers/c1:/test1.txt'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    control_client.expect('paths', {})
+
+    mount_cmds, patterns = search.get_watch_params()
+    assert len(mount_cmds) == 3
+    assert len(patterns) == 3
+
+    expected_patterns_re = [
+        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User2.yaml'),
+        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-0000-.*/containers/c1.yaml'),
+        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-1111-.*/test1.txt'),
+    ]
+    assert sorted(patterns) == expected_patterns_re
+    expected_mounts = [
+        # owner, uuid
+        ('0xaaa', '00000000-1111-0000-0000-000000000000'),
+        ('0xbbb', '00000000-2222-0000-0000-000000000000'),
+        ('0xbbb', '00000000-2222-1111-0000-000000000000'),
+    ]
+    sort_key = lambda cmd: f'{cmd[0].owner}:{cmd[0].paths[0]}'
+    sorted_commands = sorted(mount_cmds, key=sort_key)
+    # generator here would make failure message much less useful
+    # pylint: disable=use-a-generator
+    assert all([
+        (c[0].owner == e[0] and c[0].ensure_uuid() == e[1]  # container
+         and len(c[1]) == 1  # storage
+         and c[2] == []  # paths
+         and c[3] is None)  # subcontainer_of
+        for e, c in zip(expected_mounts, sorted_commands)
+    ]), f'{sorted_commands} does not match {expected_mounts}'
+
+
+def test_get_watch_params_mounted1_pattern_path(control_client, client2):
+    control_client.expect('status', {})
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User2:/containers/c1:'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    control_client.expect('paths', {
+        f'/.users/0xaaa/.uuid/00000000-1111-0000-0000-000000000000/'
+        f'.backends/{DUMMY_BACKEND_UUID}': [0],
+    })
+
+    mount_cmds, patterns = search.get_watch_params()
+    assert len(mount_cmds) == 1
+    assert len(patterns) == 2
+
+    expected_patterns_re = [
+        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User2.yaml'),
+        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-0000-.*/containers/c1.yaml'),
+    ]
+    assert sorted(patterns) == expected_patterns_re
+    assert mount_cmds[0][0].owner == '0xbbb'
+    assert mount_cmds[0][0].ensure_uuid() == '00000000-2222-0000-0000-000000000000'
+
+
+def test_get_watch_params_pattern_star(control_client, client2):
+    control_client.expect('status', {})
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User3:/containers/c1:'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    control_client.expect('paths', {})
+
+    mount_cmds, patterns = search.get_watch_params()
+    assert len(mount_cmds) == 2
+    assert len(patterns) == 2
+
+    expected_patterns_re = [
+        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User3.yaml'),
+        str_re(r'^/.users/0xccc/.uuid/00000000-3333-0000-.*/\*\.yaml'),
+    ]
+    assert sorted(patterns) == expected_patterns_re
+
+
+def test_get_watch_params_wildcard_pattern_star(control_client, client2):
+    control_client.expect('status', {})
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User3:*:'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    control_client.expect('paths', {})
+
+    mount_cmds, patterns = search.get_watch_params()
+    assert len(mount_cmds) == 2
+    assert len(patterns) == 2
+
+    expected_patterns_re = [
+        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User3.yaml'),
+        str_re(r'^/.users/0xccc/.uuid/00000000-3333-0000-.*/\*\.yaml'),
+    ]
+    assert sorted(patterns) == expected_patterns_re
+
+
+def test_get_watch_params_wildcard_pattern_path(control_client, client2):
+    control_client.expect('status', {})
+    search = Search(client2,
+        WildlandPath.from_str(':/users/User2:*:'),
+        aliases={'default': '0xaaa'},
+        fs_client=client2.fs_client)
+
+    control_client.expect('paths', {})
+
+    mount_cmds, patterns = search.get_watch_params()
+    assert len(mount_cmds) == 2
+    assert len(patterns) == 2
+
+    expected_patterns_re = [
+        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User2.yaml'),
+        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-0000-.*/.uuid/\*\.yaml'),
+    ]
+    assert sorted(patterns) == expected_patterns_re

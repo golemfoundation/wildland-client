@@ -30,7 +30,7 @@ import re
 import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Optional, Tuple, Iterable, Mapping
+from typing import Optional, Tuple, Iterable, Mapping, List, Set
 from typing import TYPE_CHECKING
 
 from .fs_client import WildlandFSClient
@@ -191,6 +191,75 @@ class Search:
                 continue
 
         raise PathError(f'Container not found for path: {self.wlpath}')
+
+    def _get_params_for_mount_step(self, step: Step) -> \
+            Tuple[PurePosixPath,
+                  Optional[Tuple[Container,
+                                 Iterable[Storage],
+                                 Iterable[PurePosixPath],
+                                 Optional[Container]]]]:
+        """
+        Return a FUSE mount command for a container for given step (if not mounted already).
+
+        :param step:
+        :return: a mount path and params to mount (if necessary)
+        """
+        assert step.container is not None
+        assert self.fs_client is not None
+        storage = self.client.select_storage(step.container)
+        fuse_path = self.fs_client.get_primary_unique_mount_path(step.container, storage)
+        if list(self.fs_client.find_all_storage_ids_for_path(fuse_path)):
+            # already mounted
+            return fuse_path, None
+        mount_params: Tuple[Container,
+                            Iterable[Storage],
+                            Iterable[PurePosixPath],
+                            Optional[Container]] = (step.container, [storage], [], None)
+        return fuse_path, mount_params
+
+    def get_watch_params(self) -> Tuple[List, Set[PurePosixPath]]:
+        """
+        Prepare parameters required to watch given WL path for changes
+        (including any container involved in path resolution).
+
+        This function returns a tuple of:
+         - list of mount parameters (for WildlandFSClient.mount_multiple_containers())
+         - set of patterns (relative to the FUSE mount point) to watch
+        Watching the patterns is legal only if all returned mount commands succeeded.
+
+        Usage:
+        >>> client = Client()
+        >>> fs_client = client.fs_client
+        >>> search = Search(...)
+        >>> mount_cmds, patterns = search.get_watch_params()
+        >>> try:
+        >>>     # mounting under unique paths only is enough, no need to pollute user's forest
+        >>>     fs_client.mount_multiple_containers(mount_cmds, unique_path_only=True)
+        >>>     for events in fs_client.watch(patterns):
+        >>>         ...
+        >>> except:
+        >>>     ...
+        """
+        if self.fs_client is None:
+            raise WildlandError('get_watch_params requires fs_client')
+
+        mount_cmds = {}
+        patterns_for_path = set()
+        for final_step in self._resolve_all():
+            if final_step.container is None:
+                continue
+            if self.wlpath.file_path is not None:
+                final_step.pattern = str(self.wlpath.file_path)
+            for step in final_step.steps_chain():
+                if step.pattern is None or step.container is None:
+                    continue
+                mount_path, mount_params = self._get_params_for_mount_step(step)
+                if mount_params:
+                    mount_cmds[mount_path] = mount_params
+                patterns_for_path.add(
+                    mount_path / step.pattern.lstrip('/'))
+
+        return list(mount_cmds.values()), patterns_for_path
 
     def _resolve_all(self) -> Iterable[Step]:
         """

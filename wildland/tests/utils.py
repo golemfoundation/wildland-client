@@ -43,3 +43,25 @@ class PartialDict:
             if self.dict[key] != other[key]:
                 return False
         return True
+
+
+class str_re:
+    """
+    Compare str to a regular expression.
+
+    Usage:
+        >>> s = str_re(r'abc.*x')
+        >>> 'abcdefx' == s
+        True
+        >>> 'xxx' == s
+        False
+    """
+
+    def __init__(self, pattern):
+        self._re = re.compile(pattern)
+
+    def __eq__(self, other):
+        return bool(self._re.match(str(other)))
+
+    def __repr__(self):
+        return f'str_re({self._re.pattern})'
