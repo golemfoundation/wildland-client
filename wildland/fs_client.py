@@ -219,7 +219,8 @@ class WildlandFSClient:
             self,
             params: Iterable[Tuple[Container, Iterable[Storage], Iterable[PurePosixPath],
                                    Optional[Container]]],
-            remount: bool = False):
+            remount: bool = False,
+            unique_path_only: bool = False):
         """
         Mount multiple containers using a single command.
         """
@@ -228,7 +229,7 @@ class WildlandFSClient:
         commands = [
             self.get_command_for_mount_container(
                 container, storage, user_paths,
-                remount=remount, subcontainer_of=subcontainer_of)
+                remount=remount, subcontainer_of=subcontainer_of, unique_path_only=unique_path_only)
             for container, storages, user_paths, subcontainer_of in params
             for storage in storages
         ]
@@ -486,6 +487,7 @@ class WildlandFSClient:
                                         storage: Storage,
                                         user_paths: Iterable[PurePosixPath],
                                         subcontainer_of: Optional[Container],
+                                        unique_path_only: bool = False,
                                         remount: bool = False):
         """
         Prepare parameters for the control client to mount a container
@@ -494,11 +496,15 @@ class WildlandFSClient:
             container (Container): the container to be mounted
             storages List(Storage): the storage selected for container
             user_paths: paths to the owner, should include '/' for default user
+            unique_path_only: mount only under internal unique path (/.uuid/.../.backends/...)
             remount: remount if mounted already (otherwise, will fail if
             mounted already)
         """
 
-        mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
+        if unique_path_only:
+            mount_paths = [self.get_primary_unique_mount_path(container, storage)]
+        else:
+            mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
 
         trusted_owner: Optional[str]
         if storage.params.get('trusted'):
@@ -529,7 +535,8 @@ class WildlandFSClient:
         want to mount it solely under `/.uuid/{container_uuid}/.backends/{storage_uuid}` directory,
         otherwise mount it under all directories.
 
-        Note that this function will return `/.uuid/{container_uuid}/.backends/{storage_id}`.
+        Note that this function will (also) return
+        `/.users/{owner}/.uuid/{container_uuid}/.backends/{storage_id}`.
         """
         paths = container.expanded_paths
 
@@ -549,6 +556,20 @@ class WildlandFSClient:
         ]
 
         return paths
+
+    def get_primary_unique_mount_path(self, container: Container, storage: Storage):
+        """
+        Return a primary unique mount path. This is the mount path that uniquely identify a
+        storage of a given container and also where the storage is always mounted -
+        regardless of user-provided paths.
+
+        Note that this function will return
+        `/.users/{owner}/.uuid/{container_uuid}/.backends/{storage_id}`.
+        """
+
+        unique_backend_path = storage.get_mount_path(container)
+        return self.get_user_path(container.owner, PurePosixPath('/')) \
+               / unique_backend_path.relative_to('/')
 
     @staticmethod
     def get_storage_tag(paths: List[PurePosixPath], params):
