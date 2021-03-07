@@ -74,6 +74,17 @@ class Container:
             local_str = f' ({self.local_path})'
         return f'{self.owner}:{[str(p) for p in self.paths]}' + local_str
 
+    def __repr__(self):
+        return (f'{type(self).__name__}('
+                f'owner={self.owner!r}, '
+                f'paths={self.paths!r}, '
+                f'backends={self.backends!r}, '
+                f'title={self.title!r}, '
+                f'categories={self.categories!r}, '
+                f'local_path={self.local_path!r}, '
+                f'manifest={self.manifest!r}, '
+                f'access={self.access!r})')
+
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
         """
