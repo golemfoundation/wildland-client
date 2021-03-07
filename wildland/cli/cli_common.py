@@ -81,6 +81,8 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
         manifest_copy = manifest.copy_to_unsigned()
         manifest_copy.skip_signing()
         for storage in manifest_copy.fields['backends']['storage']:
+            if isinstance(storage, str):
+                continue
             storage_obj = client.load_storage_from_dict(storage,
                                                         manifest_copy.fields['owner'],
                                                         manifest_copy.fields['paths'][0])
