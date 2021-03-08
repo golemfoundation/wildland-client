@@ -67,8 +67,8 @@ Delete a container from local filesystem.
 .. program:: wl-container-create
 .. _wl-container-create:
 
-:command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl container create [--owner <user>] [--path <path>] [--path <path2> ...] [--storage-set <storage-set>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create a |~| new container manifest.
 

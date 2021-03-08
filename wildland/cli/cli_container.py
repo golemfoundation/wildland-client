@@ -135,9 +135,6 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
             raise CliError('--category option requires --title or container name')
         title = name
 
-    if not category and not title and not path:
-        raise CliError('--path is required if --category and --title are not set')
-
     if set_name:
         try:
             storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
@@ -157,7 +154,7 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
 
     container = Container(
         owner=owner.owner,
-        paths=[PurePosixPath(p) for p in path],
+        paths=[PurePosixPath(p) for p in path] if path else [],
         backends=[],
         title=title,
         categories=category,
