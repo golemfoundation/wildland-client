@@ -52,17 +52,20 @@ from .. import __version__ as _version
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
+
 @aliased_group('wl')
 @click.option('--dummy/--no-dummy', default=False,
-    help='use dummy signatures')
+              help='use dummy signatures')
 @click.option('--base-dir', default=None,
-    help='base directory for configuration')
+              help='base directory for configuration')
+@click.option('--debug/--no-debug', default=False,
+              help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
 @click.version_option(_version)
 @click.pass_context
-def main(ctx, base_dir, dummy, verbose):
-    # pylint: disable=missing-docstring
+def main(ctx, base_dir, dummy, debug, verbose):
+    # pylint: disable=missing-docstring, unused-argument
 
     client = Client(dummy=dummy, base_dir=base_dir)
     ctx.obj = ContextObj(client)
@@ -208,7 +211,6 @@ def status(obj: ContextObj, with_subcontainers):
             click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
         click.echo()
 
-
 @main.command(short_help='renamed to "start"')
 def mount():
     """
@@ -249,4 +251,4 @@ def watch(obj: ContextObj, patterns, with_initial):
 
 
 if __name__ == '__main__':
-    main() # pylint: disable=no-value-for-parameter
+    main()  # pylint: disable=no-value-for-parameter

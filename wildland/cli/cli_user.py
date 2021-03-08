@@ -35,7 +35,7 @@ from .cli_common import sign, verify, edit, modify_manifest, add_field, del_fiel
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
-from ..manifest.manifest import ManifestError, Manifest
+from ..manifest.manifest import Manifest
 
 
 @aliased_group('user', short_help='user management')
@@ -66,10 +66,10 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         except SigError as ex:
             click.echo(f'Failed to use provided key: {ex}')
             return
-        print(f'Using key: {owner}')
+        click.echo(f'Using key: {owner}')
     else:
         owner, pubkey = obj.session.sig.generate()
-        print(f'Generated key: {owner}')
+        click.echo(f'Generated key: {owner}')
 
     if paths:
         paths = list(paths)
@@ -116,10 +116,10 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
     for alias in ['@default', '@default-owner']:
         if obj.client.config.get(alias) is None:
-            print(f'Using {owner} as {alias}')
+            click.echo(f'Using {owner} as {alias}')
             obj.client.config.update_and_save({alias: owner})
 
-    print(f'Adding {owner} to local owners')
+    click.echo(f'Adding {owner} to local owners')
     local_owners = obj.client.config.get('local-owners')
     obj.client.config.update_and_save({'local-owners': [*local_owners, owner]})
 
@@ -176,14 +176,10 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
 
     obj.client.recognize_users()
 
-    try:
-        user = obj.client.load_user_by_name(name)
-    except ManifestError:
-        click.echo(f'User not found: {name}')
-        return
+    user = obj.client.load_user_by_name(name)
 
     if not user.local_path:
-        raise CliError('Can only delete a local manifest')
+        raise WildlandError('Can only delete a local manifest')
 
     # Check if this is the only manifest with such owner
     other_count = 0
@@ -214,9 +210,8 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
                 used = True
 
     if used and other_count > 0:
-        click.echo(
-            'Found manifests for user, but this is not the only user '
-            'manifest. Proceeding.')
+        click.echo('Found manifests for user, but this is not the only user '
+                   'manifest. Proceeding.')
     elif used and other_count == 0 and not force:
         raise CliError('User still has manifests, not deleting '
                        '(use --force or --cascade)')
@@ -225,18 +220,18 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
         possible_owners = obj.session.sig.get_possible_owners(user.owner)
 
         if possible_owners != [user.owner] and not force:
-            print('Key used by other users as secondary key and will not be deleted. '
-                  'Key should be removed manually. In the future you can use --force to force '
-                  'key deletion.')
+            click.echo('Key used by other users as secondary key and will not be deleted. '
+                       'Key should be removed manually. In the future you can use --force to force '
+                       'key deletion.')
         else:
-            print("Removing key", user.owner)
+            click.echo('Removing key', user.owner)
             obj.session.sig.remove_key(user.owner)
 
     for alias in ['@default', '@default-owner']:
         fingerprint = obj.client.config.get(alias)
         if fingerprint is not None:
             if fingerprint == user.owner:
-                print(f'Removing {alias} from configuration file')
+                click.echo(f'Removing {alias} from configuration file')
                 obj.client.config.remove_key_and_save(alias)
 
     local_owners = obj.client.config.get('local-owners')
@@ -270,13 +265,10 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
         file_name = Path(path).stem
         file_url = obj.client.local_url(Path(path).absolute())
     else:
-        try:
-            file_data = obj.client.read_from_url(path, obj.client.config.get('@default'),
-                                                 use_aliases=True)
-            file_name = _remove_suffix(path.split('/')[-1], '.yaml')
-            file_url = path
-        except WildlandError as ex:
-            raise CliError(str(ex)) from ex
+        file_data = obj.client.read_from_url(path, obj.client.config.get('@default'),
+                                             use_aliases=True)
+        file_name = _remove_suffix(path.split('/')[-1], '.yaml')
+        file_url = path
 
     # load user pubkeys
     Manifest.load_pubkeys(file_data, obj.session.sig)
@@ -361,10 +353,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
-        try:
-            default_user = obj.client.load_user_by_name(bridge_owner).owner
-        except WildlandError as ex:
-            raise CliError(f'Cannot load bridge-owner {bridge_owner}') from ex
+        default_user = obj.client.load_user_by_name(bridge_owner).owner
     else:
         default_user = obj.client.config.get('@default-owner')
 
@@ -386,16 +375,13 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
             raise CliError(f'Failed to import: {str(ex)}') from ex
     else:
         # this didn't work out, perhaps we have an url to a bunch of bridges?
-        try:
-            bridges = list(obj.client.read_bridge_from_url(name, use_aliases=True))
-            if not bridges:
-                raise CliError('No bridges found.')
-            if only_first:
-                bridges = [bridges[0]]
-            if len(bridges) > 1 and paths:
-                raise CliError('Cannot import multiple bridges with --path override.')
-        except WildlandError as wl_ex:
-            raise CliError(f'Failed to import manifest: {str(wl_ex)}') from wl_ex
+        bridges = list(obj.client.read_bridge_from_url(name, use_aliases=True))
+        if not bridges:
+            raise CliError('No bridges found.')
+        if only_first:
+            bridges = [bridges[0]]
+        if len(bridges) > 1 and paths:
+            raise CliError('Cannot import multiple bridges with --path override.')
 
         copied_files = []
         try:

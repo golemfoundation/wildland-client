@@ -22,6 +22,8 @@ Wildland command-line interface - base module.
 """
 
 import collections
+import sys
+import traceback
 from pathlib import Path
 from typing import List, Tuple, Callable
 
@@ -35,7 +37,6 @@ class CliError(WildlandError, click.ClickException):
     """
     User error during CLI command execution
     """
-
 
 # pylint: disable=no-self-use
 
@@ -56,6 +57,21 @@ class AliasedGroup(click.Group):
     def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)
         self.aliases = {}
+        self.debug = False
+
+    def __call__(self, *args, **kwargs):
+        try:
+            return self.main(*args, **kwargs)
+        except Exception as exc:
+            click.echo(f'Error: {exc}')
+            if self.debug is True:
+                traceback.print_exception(*sys.exc_info())
+
+            if isinstance(exc, click.ClickException):
+                # pylint: disable=no-member
+                sys.exit(exc.exit_code)
+            else:
+                sys.exit(1)
 
     def command(self, *args, **kwargs):
         if 'alias' not in kwargs:
@@ -76,10 +92,14 @@ class AliasedGroup(click.Group):
 
         >>> cmd.add_alias(alias='original-command')
         """
-        assert all(alias not in (*self.aliases, *self.commands) for alias in kwds)
+        assert all(
+            alias not in (*self.aliases, *self.commands) for alias in kwds)
         self.aliases.update(kwds)
 
     def get_command(self, ctx, cmd_name):
+        if self.name == 'wl':
+            self.debug = ctx.params['debug']
+
         # 1) try exact command
         rv = super().get_command(ctx, cmd_name)
         if rv is not None:

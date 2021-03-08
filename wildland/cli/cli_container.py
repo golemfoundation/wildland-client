@@ -69,7 +69,6 @@ class OptionRequires(click.Option):
     """
     Helper class to provide conditional required for click.Option
     """
-
     def __init__(self, *args, **kwargs):
         try:
             self.required_opt = kwargs.pop('requires')
@@ -139,16 +138,13 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         try:
             storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
         except FileNotFoundError as fnf:
-            raise CliError(f'Storage set {set_name} not found.') from fnf
+            raise WildlandError(f'Storage set {set_name} not found.') from fnf
 
     if access and not encrypt_manifest:
         raise CliError('--no-encrypt and --access are mutually exclusive.')
 
     if access:
-        try:
-            access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
-        except WildlandError as ex:
-            raise CliError(f'Cannot create container: {ex}') from ex
+        access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
     elif not encrypt_manifest:
         access = [{'user': '*'}]
 
@@ -170,15 +166,15 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         except FileNotFoundError as fnf:
             click.echo(f'Removing container: {path}')
             path.unlink()
-            raise CliError('Failed to create storage from set: storage set not found') from fnf
+            raise WildlandError('Failed to create storage from set: storage set not found') from fnf
         except ValueError as e:
             click.echo(f'Removing container: {path}')
             path.unlink()
-            raise CliError(f'Failed to create storage from set: {e}') from e
+            raise WildlandError(f'Failed to create storage from set: {e}') from e
 
     if update_user:
         if not owner.local_path:
-            raise CliError('Cannot update user because the manifest path is unknown')
+            raise WildlandError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
         owner.containers.append(str(obj.client.local_url(path)))
@@ -198,18 +194,18 @@ def update(obj: ContextObj, storage, cont):
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
     if container.local_path is None:
-        raise ClickException('Can only update a local manifest')
+        raise WildlandError('Can only update a local manifest')
 
     if not storage:
-        print('No change')
+        click.echo('No change')
         return
 
     for storage_name in storage:
         storage = obj.client.load_storage_from(storage_name)
         assert storage.local_path
-        print(f'Adding storage: {storage.local_path}')
+        click.echo(f'Adding storage: {storage.local_path}')
         if str(storage.local_path) in container.backends:
-            raise click.ClickException('Storage already attached to container')
+            raise WildlandError('Storage already attached to container')
         container.backends.append(obj.client.local_url(storage.local_path))
 
     obj.client.save_container(container)
@@ -226,11 +222,7 @@ def publish(obj: ContextObj, cont):
 
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
-    try:
-        obj.client.publish_container(container)
-    except WildlandError as exc:
-        print(str(exc))
-        sys.exit(1)
+    obj.client.publish_container(container)
 
 
 def _container_info(client, container):
@@ -272,10 +264,7 @@ def info(obj: ContextObj, name):
     """
 
     obj.client.recognize_users()
-    try:
-        container = obj.client.load_container_from(name)
-    except ManifestError as ex:
-        raise CliError(f'Failed to load manifest: {ex}') from ex
+    container = obj.client.load_container_from(name)
 
     _container_info(obj.client, container)
 
@@ -316,7 +305,7 @@ def delete(obj: ContextObj, name, force, cascade):
         return
 
     if not container.local_path:
-        raise CliError('Can only delete a local manifest')
+        raise WildlandError('Can only delete a local manifest')
 
     # unmount if mounted
     try:
@@ -436,12 +425,9 @@ def add_access(ctx, input_file, access):
 
     processed_access = []
 
-    try:
-        for user in access:
-            user = ctx.obj.client.load_user_by_name(user)
-            processed_access.append({'user': user.owner})
-    except WildlandError as ex:
-        raise CliError(f'Cannot modify access: {ex}') from ex
+    for user in access:
+        user = ctx.obj.client.load_user_by_name(user)
+        processed_access.append({'user': user.owner})
 
     modify_manifest(ctx, input_file, add_field, 'access', processed_access)
 
@@ -459,12 +445,9 @@ def del_access(ctx, input_file, access):
 
     processed_access = []
 
-    try:
-        for user in access:
-            user = ctx.obj.client.load_user_by_name(user)
-            processed_access.append({'user': user.owner})
-    except WildlandError as ex:
-        raise CliError(f'Cannot modify access: {ex}') from ex
+    for user in access:
+        user = ctx.obj.client.load_user_by_name(user)
+        processed_access.append({'user': user.owner})
 
     modify_manifest(ctx, input_file, del_field, 'access', processed_access)
 
@@ -552,14 +535,14 @@ def prepare_mount(obj: ContextObj,
     if not subcontainers or not only_subcontainers:
         if obj.fs_client.find_primary_storage_id(container) is None:
             if not quiet:
-                print(f'new: {container_name}')
+                click.echo(f'new: {container_name}')
             yield (container, storages, user_paths, subcontainer_of)
         elif remount:
             storages_to_remount = []
 
             for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
                 storage_id = obj.fs_client.find_storage_id_by_path(path)
-                print(f'Removing orphaned storage {path} (id: {storage_id} )')
+                click.echo(f'Removing orphaned storage {path} (id: {storage_id} )')
                 obj.fs_client.unmount_storage(storage_id)
 
             for storage in storages:
@@ -567,14 +550,14 @@ def prepare_mount(obj: ContextObj,
                     storages_to_remount.append(storage)
 
                     if not quiet:
-                        print(f'changed: {storage.backend_id}')
+                        click.echo(f'changed: {storage.backend_id}')
                 else:
                     if not quiet:
-                        print(f'not changed: {storage.backend_id})')
+                        click.echo(f'not changed: {storage.backend_id})')
 
             yield (container, storages_to_remount, user_paths, subcontainer_of)
         else:
-            raise CliError(f'Already mounted: {container.local_path}')
+            raise WildlandError(f'Already mounted: {container.local_path}')
 
     if with_subcontainers:
         for subcontainer in subcontainers:
@@ -606,11 +589,8 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
 
     The Wildland system has to be mounted first, see ``wl start``.
     """
-    try:
-        obj.fs_client.ensure_mounted()
-        obj.client.recognize_users()
-    except WildlandError as ex:
-        raise ClickException(ex) from ex
+    obj.fs_client.ensure_mounted()
+    obj.client.recognize_users()
 
     if import_users:
         obj.client.auto_import_users = True
@@ -678,7 +658,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
                 {'default-containers': new_default_containers})
 
     if failed:
-        raise ClickException(exc_msg)
+        raise WildlandError(exc_msg)
 
 
 @container_.command(short_help='unmount container', alias=['umount'])
@@ -694,11 +674,8 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     identify the container by one of its path (using ``--path``).
     """
 
-    try:
-        obj.fs_client.ensure_mounted()
-        obj.client.recognize_users()
-    except WildlandError as ex:
-        raise ClickException(ex) from ex
+    obj.fs_client.ensure_mounted()
+    obj.client.recognize_users()
 
     if bool(container_names) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
@@ -730,7 +707,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     else:
         storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
         if storage_id is None:
-            raise ClickException('Container not mounted')
+            raise WildlandError('Container not mounted')
         storage_ids = [storage_id]
         if with_subcontainers:
             storage_ids.extend(
@@ -738,14 +715,14 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
                     obj.fs_client.get_container_from_storage_id(storage_id)))
 
     if not storage_ids:
-        raise ClickException('No containers mounted')
+        raise WildlandError('No containers mounted')
 
     click.echo(f'Unmounting {len(storage_ids)} containers')
     for storage_id in storage_ids:
         obj.fs_client.unmount_storage(storage_id)
 
     if failed:
-        raise ClickException(exc_msg)
+        raise WildlandError(exc_msg)
 
 
 class Remounter:
@@ -882,7 +859,7 @@ def terminate_daemon(pfile, error_message):
             except ProcessLookupError:
                 os.remove(pfile)
     else:
-        raise ClickException(error_message)
+        raise WildlandError(error_message)
 
 
 @container_.command('mount-watch', short_help='mount container')
@@ -975,7 +952,7 @@ def sync_container(obj: ContextObj, target_remote, cont):
         target_storages = [[storage for storage in storages
                             if obj.client.is_local_storage(storage)][0]]
     except IndexError:
-        raise CliError('No local storage backend found')  # pylint: disable=raise-missing-from
+        raise WildlandError('No local storage backend found')  # pylint: disable=raise-missing-from
 
     default_remotes = obj.client.config.get('default-remote-for-container')
 
@@ -1020,7 +997,7 @@ def sync_container(obj: ContextObj, target_remote, cont):
         try:
             syncer.start_syncing()
         except FileNotFoundError as e:
-            print(f"Storage root not found! Details: {e}")
+            click.echo(f"Storage root not found! Details: {e}")
             return
         try:
             threading.Event().wait()
@@ -1061,8 +1038,8 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
         hash_db = HashDb(obj.client.config.base_dir)
         conflicts = hash_db.get_conflicts(container.ensure_uuid())
         if conflicts is None:
-            print("No backends have been synced for this container; "
-                  "list-conflicts will not work without a preceding container sync")
+            click.echo("No backends have been synced for this container; "
+                       "list-conflicts will not work without a preceding container sync")
             return
     else:
         storages = [StorageBackend.from_params(storage.params) for storage in
@@ -1070,12 +1047,12 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
         conflicts = list_storage_conflicts(storages)
 
     if conflicts:
-        print("Conflicts detected on:")
+        click.echo("Conflicts detected on:")
         for (path, c1, c2) in conflicts:
             # TODO: check if file still exists?
-            print(f"Conflict detected in file {path} in containers {c1} and {c2}")
+            click.echo(f"Conflict detected in file {path} in containers {c1} and {c2}")
     else:
-        print("No conflicts were detected by container sync.")
+        click.echo("No conflicts were detected by container sync.")
 
 
 @container_.command(short_help='duplicate a container')

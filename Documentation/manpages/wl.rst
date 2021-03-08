@@ -7,7 +7,7 @@
 Synopsis
 --------
 
-| :command:`wl [--base-dir <path>] <subcommand> [...]`
+| :command:`wl [--base-dir <path>] [--debug] <subcommand> [...]`
 
 Description
 -----------
@@ -26,6 +26,14 @@ Global options
 .. option:: --base-dir <path>
 
    Base directory for configuration. By default :file:`$HOME/.wildland`.
+
+.. option:: --debug
+
+   Display full backtraces on errors.
+
+.. option:: --no-debug
+
+   Hide backtraces on errors.
 
 .. option:: --dummy
 

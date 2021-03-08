@@ -33,11 +33,11 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from click import ClickException
-from ..manifest.manifest import ManifestError, Manifest
 from ..cli.cli_base import CliError
-from ..utils import load_yaml, load_yaml_all
 from ..cli.cli_common import del_nested_field
+from ..exc import WildlandError
+from ..manifest.manifest import ManifestError, Manifest
+from ..utils import load_yaml, load_yaml_all
 
 
 def modify_file(path, pattern, replacement):
@@ -1710,13 +1710,13 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     # Should not mount if the storage is not trusted
 
     control_client.expect('info', make_info(None))
-    with pytest.raises(ClickException, match='Signature expected'):
+    with pytest.raises(WildlandError, match='Signature expected'):
         cli('container', 'mount', manifest_path)
 
     # Should not mount if the owner is different
 
     control_client.expect('info', make_info('0xbbb'))
-    with pytest.raises(ClickException, match='Wrong owner for manifest without signature'):
+    with pytest.raises(WildlandError, match='Wrong owner for manifest without signature'):
         cli('container', 'mount', manifest_path)
 
     # Should mount if the storage is trusted and with right owner
@@ -1821,7 +1821,7 @@ backends:
     ]
 
 
-def test_container_mount_errors(cli, cli_fail, base_dir, control_client, tmp_path):
+def test_container_mount_errors(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1863,9 +1863,10 @@ backends:
     control_client.expect('paths', {})
     control_client.expect('mount')
 
-    output = cli_fail('container', 'mount', tmp_path / 'container-*.yaml', capture=True)
-    assert 'Traceback' not in output
-    assert 'Failed to load some container manifests' in output
+    # TODO: cli_fail doesn't capture stderr now...
+    with pytest.raises(WildlandError, match='Failed to load some container manifests'):
+        output = cli('container', 'mount', tmp_path / 'container-*.yaml', capture=True)
+        assert 'Traceback' not in output
 
     # the other container should still be mounted
     command = control_client.calls['mount']['items']
@@ -1976,7 +1977,7 @@ def test_container_mount_container_without_storage(cli, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    with pytest.raises(ClickException, match='No valid storages found'):
+    with pytest.raises(WildlandError, match='No valid storages found'):
         cli('container', 'mount', 'Container')
 
 
@@ -2501,13 +2502,13 @@ def test_cli_set_modify(cli, base_dir):
                                  [{'file': 't1.template.jinja', 'type': 'file'},
                                   {'file': 't3.template.jinja', 'type': 'inline'}]}
 
-    with pytest.raises(CliError):
+    with pytest.raises(WildlandError):
         cli('storage-set', 'modify', 'add-template', '-t', 't2', 'set123')
-    with pytest.raises(CliError):
+    with pytest.raises(WildlandError):
         cli('storage-set', 'modify', 'del-template', '-t', 't2', 'set123')
-    with pytest.raises(CliError):
+    with pytest.raises(WildlandError):
         cli('storage-set', 'modify', 'add-template', '-t', 't2123', 'set1')
-    with pytest.raises(CliError):
+    with pytest.raises(WildlandError):
         cli('storage-set', 'modify', 'del-template', '-t', 't2', 'set123')
 
 
@@ -2614,7 +2615,7 @@ def test_cli_set_missing_param(cli, base_dir):
     cli('storage-set', 'add', '--inline', 'title', 'set1')
     cli('user', 'create', 'User')
 
-    with pytest.raises(CliError, match='\'title\' is undefined'):
+    with pytest.raises(WildlandError, match='\'title\' is undefined'):
         cli('container', 'create',
             'Container', '--path', '/PATH', '--storage-set', 'set1', capture=True)
 

@@ -32,7 +32,6 @@ from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
 from ..storage import Storage
 from ..manifest.template import TemplateManager
-from ..manifest.schema import SchemaError
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
@@ -112,7 +111,7 @@ def _do_create(
 
     container = obj.client.load_container_from(container)
     if not container.local_path:
-        raise click.ClickException('Need a local container')
+        raise WildlandError('Need a local container')
 
     container_mount_path = container.paths[0]
     click.echo(f'Using container: {container.local_path} ({container_mount_path})')
@@ -136,10 +135,7 @@ def _do_create(
         }
 
     if access:
-        try:
-            access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
-        except WildlandError as ex:
-            raise CliError(f'Failed to create storage: {ex}') from ex
+        access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
     else:
         if container.access:
             access = container.access
@@ -155,10 +151,7 @@ def _do_create(
         manifest_pattern=params.get('manifest_pattern', manifest_pattern_dict),
         access=access
     )
-    try:
-        storage.validate()
-    except SchemaError as se:
-        raise CliError(f'Invalid storage properties: {se}') from se
+    storage.validate()
 
     _do_save_new_storage(obj.client, container, storage, inline, name)
 
@@ -257,7 +250,7 @@ def delete(obj: ContextObj, name, force, cascade):
         return
 
     if not storage.local_path:
-        raise CliError('Can only delete a local manifest')
+        raise WildlandError('Can only delete a local manifest')
 
     used_by = []
     for container in obj.client.load_containers():
@@ -351,13 +344,13 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
         storage_set = obj.client.config.get('default-storage-set-for-user')\
             .get(container.owner, None)
         if not storage_set:
-            raise CliError(f'User {container.owner} has no default storage template set. '
-                           f'Specify template set explicitly.')
+            raise WildlandError(f'User {container.owner} has no default storage template set. '
+                                f'Specify template set explicitly.')
 
     try:
         storage_set = template_manager.get_storage_set(storage_set)
     except FileNotFoundError as fnf:
-        raise CliError(f'Storage set {storage_set} not found.') from fnf
+        raise WildlandError(f'Storage set {storage_set} not found.') from fnf
 
     try:
         do_create_storage_from_set(obj.client, container, storage_set, local_dir)

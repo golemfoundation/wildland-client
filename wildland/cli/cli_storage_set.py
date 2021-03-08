@@ -23,7 +23,8 @@ Storage set management
 import click
 import yaml
 
-from .cli_base import aliased_group, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj
+from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager, SET_SUFFIX
 
@@ -107,7 +108,7 @@ def set_del_(obj: ContextObj, name):
     try:
         removed_path = template_manager.remove_storage_set(name)
     except FileNotFoundError as fnf:
-        raise CliError(f'template set {name} not found.') from fnf
+        raise WildlandError(f'template set {name} not found.') from fnf
 
     click.echo(f'Deleted storage template set {removed_path}.')
 
@@ -126,13 +127,13 @@ def set_default_(obj: ContextObj, user, name):
     try:
         template_manager.get_storage_set(name)
     except FileNotFoundError as fnf:
-        raise CliError(f'Storage set {name} does not exist') from fnf
+        raise WildlandError(f'Storage set {name} does not exist') from fnf
 
     obj.client.recognize_users()
     try:
         user = obj.client.load_user_by_name(user_name)
     except ManifestError as ex:
-        raise CliError(f'User {user_name} load failed: {ex}') from ex
+        raise WildlandError(f'User {user_name} load failed: {ex}') from ex
 
     default_sets = obj.client.config.get('default-storage-set-for-user')
     default_sets[user.owner] = name
@@ -163,7 +164,7 @@ def add_template(obj: ContextObj, storage_set, template, inline):
     try:
         storage_set = template_manager.get_storage_set(storage_set)
     except FileNotFoundError as fnf:
-        raise CliError(f'Template set \'{storage_set}\' not found.') from fnf
+        raise WildlandError(f'Template set \'{storage_set}\' not found.') from fnf
 
     templates_to_add = [(t, 'file') for t in template] + [(t, 'inline') for t in inline]
 
@@ -171,7 +172,7 @@ def add_template(obj: ContextObj, storage_set, template, inline):
         try:
             storage_set.add_template(template_name, template_type)
         except FileNotFoundError as fnf:
-            raise CliError(f'Template file {template_name} not found.') from fnf
+            raise WildlandError(f'Template file {template_name} not found.') from fnf
 
     click.echo(f'Saving modified storage set {storage_set.name} to {storage_set.path}.')
     storage_set.path.write_text(yaml.dump(storage_set.to_dict()))
@@ -190,13 +191,13 @@ def del_template(obj: ContextObj, storage_set, template):
     try:
         storage_set = template_manager.get_storage_set(storage_set)
     except FileNotFoundError as fnf:
-        raise CliError(f'Template set \'{storage_set}\' not found.') from fnf
+        raise WildlandError(f'Template set \'{storage_set}\' not found.') from fnf
 
     for t in template:
         try:
             storage_set.remove_template(t)
         except FileNotFoundError as fnf:
-            raise CliError(f'Template file {t} not found.') from fnf
+            raise WildlandError(f'Template file {t} not found.') from fnf
 
     click.echo(f'Saving modified storage set {storage_set.name} to {storage_set.path}.')
     storage_set.path.write_text(yaml.dump(storage_set.to_dict()))
