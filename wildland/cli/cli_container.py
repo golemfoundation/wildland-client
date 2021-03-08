@@ -1022,8 +1022,8 @@ def sync_container(obj: ContextObj, target_remote, cont):
                         config_dir=obj.client.config.base_dir)
         try:
             syncer.start_syncing()
-        except FileNotFoundError:
-            print("Storage root not found!")
+        except FileNotFoundError as e:
+            print(f"Storage root not found! Details: {e}")
             return
         try:
             threading.Event().wait()

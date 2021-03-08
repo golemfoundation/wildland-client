@@ -48,7 +48,6 @@ class Syncer:
         self.container_name = container_name
         self.storages = storages
         self.lock = threading.Lock()
-        self.initial_syncing = True
         self.config_dir = config_dir
 
     def start_syncing(self):
