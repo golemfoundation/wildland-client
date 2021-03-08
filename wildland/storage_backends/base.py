@@ -625,6 +625,17 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return posixpath.join(self.params['base-url'],
             urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
 
+    def get_path_for_url(self, url):
+        """
+        Return a path relative to storage's root, under which a file given by
+        URL can be accessed.
+        """
+        # TODO unquote?
+        assert 'base-url' in self.params
+        assert url.startswith(self.params['base-url'])
+        return pathlib.PurePosixPath(
+            url[len(self.params['base-url']):].lstrip('/'))
+
 
 class StaticSubcontainerStorageMixin(StorageBackend):
     """

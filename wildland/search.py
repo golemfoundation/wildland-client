@@ -701,3 +701,15 @@ class StorageDriver:
             else:
                 if not attr.is_dir():
                     raise NotADirectoryError(errno.ENOTDIR, path)
+
+    def read_file(self, relpath) -> bytes:
+        '''
+        Read a file from StorageBackend, using FUSE commands.
+        '''
+
+        obj = self.storage_backend.open(relpath, os.O_RDONLY)
+        try:
+            st = self.storage_backend.fgetattr(relpath, obj)
+            return self.storage_backend.read(relpath, st.size, 0, obj)
+        finally:
+            self.storage_backend.release(relpath, 0, obj)
