@@ -163,4 +163,4 @@ class DelegateProxyStorageBackend(StorageBackend):
     def walk(self, directory=PurePosixPath('')) -> Iterable[Tuple[PurePosixPath, Attr]]:
         results_with_suffix = self.reference.walk(self._path(directory))
         subdir = self.subdirectory.relative_to('/')
-        yield from [(path.relative_to(subdir), attr) for (path, attr) in results_with_suffix]
+        yield from ((path.relative_to(subdir), attr) for (path, attr) in results_with_suffix)
