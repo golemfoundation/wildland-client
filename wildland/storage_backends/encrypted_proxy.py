@@ -184,7 +184,7 @@ class GoCryptFS(EncryptedFSRunner):
         '''
         gcfs = cls(tempdir, ciphertextdir, None)
         gcfs.password = generate_password(30)
-        out = gcfs._run_binary(['-init', '-passfile'], [gcfs.ciphertextdir])
+        out = gcfs._run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
         assert out.decode().find('filesystem has been created successfully') > -1
         with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.conf') as tf:
             gcfs.config = tf.read()
