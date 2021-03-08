@@ -28,10 +28,12 @@ import pytest
 from .fuse_env import FuseEnv
 from ..client import Client
 
-from wildland.storage_backends.encrypted_proxy import GoCryptFS, generate_password
+from wildland.storage_backends.encrypted_proxy import GoCryptFS, generate_password, gen_backend_id
+from wildland.storage_backends.local import LocalStorageBackend, LocalFile, to_attr
+from wildland.storage_backends.base import StorageBackend, Attr
 
 
-# def test_encrypted_proxy_with_url(cli, base_dir):
+# def test_encrypted_proxy_with_url(env, cli, base_dir):
 #     cli('user', 'create', 'User', '--key', '0xaaa')
 #     cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
 #     cli('storage', 'create', 'local', 'referenceStorage', '--location', '/tmp/local-path',
@@ -44,8 +46,7 @@ from wildland.storage_backends.encrypted_proxy import GoCryptFS, generate_passwo
 #     cli('container', 'create', 'Container', '--path', '/PATH')
 #     cli('storage', 'create', 'encrypted-proxy', 'ProxyStorage',
 #         '--reference-container-url', reference_url,
-#         '--container', 'Container', '--no-inline',
-#         '--symmetrickey', '1234567890deadbeef')
+#         '--container', 'Container', '--no-inline')
 
 #     client = Client(base_dir)
 #     client.recognize_users()
@@ -58,10 +59,11 @@ from wildland.storage_backends.encrypted_proxy import GoCryptFS, generate_passwo
 #     container = client.load_container_from('Container')
 #     storage = client.select_storage(container)
 #     assert storage.storage_type == 'encrypted-proxy'
+#     assert storage.params['symmetrickey']
+#     assert storage.params['engine'] in ['gocryptfs', 'cryfs', 'encfs']
 #     reference_storage = storage.params['storage']
 #     assert isinstance(reference_storage, dict)
 #     assert reference_storage['type'] == 'local'
-
 
 @pytest.fixture
 def env():
@@ -72,96 +74,71 @@ def env():
     finally:
         env.destroy()
 
+@pytest.fixture
+def storage_dir(base_dir):
+    storage_dir = Path(base_dir / 'storage_dir')
+    storage_dir.mkdir()
+    return storage_dir
 
 @pytest.fixture
-def data_dir(base_dir):
-    data_dir = Path(base_dir / 'data')
-    data_dir.mkdir()
-    return data_dir
-
-
-@pytest.fixture
-def storage(data_dir):
+def storage(storage_dir):
     return {
         'type': 'encrypted-proxy',
+        'symmetrickey': 'NqI1eJypujyJQbLeqN6vggvJpWTqn6;ewoJIkNyZWF0b3IiOiAiZ29jcnlwdGZzIDEuOC4wIiwKCSJFbmNyeXB0ZWRLZXkiOiAiczRtQmtta05sRGdzdDJUblZjeDBCaDQ1cVVnakUwb0ZzdXp5TkI1Q3dxWnU0MURJVTRNMi9VYmZqRERvNUhZcWhDZXMxNVFkcEhYRlFHWmhGWWtsWFE9PSIsCgkiU2NyeXB0T2JqZWN0IjogewoJCSJTYWx0IjogIi9OYW1qaWdrY3F4NHJjS0ZHdS9sdkdsU0ZnV0J4SGYwdm0vSmhydVluc2M9IiwKCQkiTiI6IDY1NTM2LAoJCSJSIjogOCwKCQkiUCI6IDEsCgkJIktleUxlbiI6IDMyCgl9LAoJIlZlcnNpb24iOiAyLAoJIkZlYXR1cmVGbGFncyI6IFsKCQkiR0NNSVYxMjgiLAoJCSJIS0RGIiwKCQkiRGlySVYiLAoJCSJFTUVOYW1lcyIsCgkJIkxvbmdOYW1lcyIsCgkJIlJhdzY0IgoJXQp9Cg==;6af6KVAmgVyBocDWP7ETJw==',
+        'engine': 'gocryptfs',
+        'backend-id': 'test-plain',
+        'owner': '0xaaa',
         'storage': {
             'type': 'local',
-            'location': str(data_dir),
-            'backend-id': 'test',
+            'location': str(storage_dir),
+            'backend-id': 'test-enc',
             'owner': '0xaaa',
             'is-local-owner': True,
-        },
-        'backend-id': 'test2'
+            'container-path': '/encrypted'
+        }
     }
 
+def test_delegate_fuse_empty(env, storage):
+    env.mount_storage(['/encrypted'], storage['storage'])
+    env.mount_storage(['/plaintext'], storage)
+    # assert os.listdir(env.mnt_dir / 'plaintext') == []
 
-@pytest.fixture
-def container(cli, base_dir, data_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    # this needs to be saved, so client.load_containers() will see it
-    (base_dir / 'containers').mkdir(parents=True)
-    with (base_dir / 'containers/macro.container.yaml').open('w') as f:
-        f.write(yaml.dump({
-            'object': 'container',
-            'owner': '0xaaa',
-            'paths': [
-                '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
-                '/PATH',
-            ],
-            'backends': {
-                'storage': [{
-                    'object': 'storage',
-                    'type': 'date-proxy',
-                    'owner': '0xaaa',
-                    'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
-                    'backend-id': str(uuid.uuid4()),
-                    'reference-container': {
-                        'object': 'container',
-                        'owner': '0xaaa',
-                        'paths': ['/.uuid/39f437f3-b071-439c-806b-6d14fa55e827'],
-                        'backends': {
-                            'storage': [{
-                                'object': 'storage',
-                                'owner': '0xaaa',
-                                'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
-                                'type': 'local',
-                                'location': str(data_dir),
-                                'backend-id': str(uuid.uuid4())
-                            }]
-                        }
-                    }
-                }]
-            }
-        }))
-    cli('container', 'sign', '-i', 'macro')
+def test_gocryptfs_runner(base_dir):
+    first = base_dir / 'a'
+    first_clear = first / 'clear'
+    first_enc = first / 'enc'
+    second = base_dir / 'b'
+    second_clear = second / 'clear'
+    second_enc = second / 'enc'
+    first.mkdir()
+    first_clear.mkdir()
+    first_enc.mkdir()
+    second.mkdir()
+    second_clear.mkdir()
+    second_enc.mkdir()
 
-    yield 'macro'
-
-
-def test_gcfs_runner(base_dir):
-    cleardir = base_dir / 'clear'
-    initdir = base_dir / 'init'
-    encdir = base_dir / 'enc'
-    os.mkdir(cleardir)
-    os.mkdir(initdir)
-    os.mkdir(encdir)
     # init, capture config
-    runner = GoCryptFS.init(base_dir, initdir)
+    runner = GoCryptFS.init(first, first_enc)
 
     # open for writing, working directory
-    runner2 = GoCryptFS(base_dir, encdir, runner.credentials())
-    runner2.run(cleardir)
-    with open(cleardir / 'test.file', 'w') as f:
+    runner2 = GoCryptFS(second, second_enc, runner.credentials())
+    params = {'location': second_enc,
+              'type': 'local'}
+    gen_backend_id(params)
+    runner2.run(second_clear, LocalStorageBackend(params=params))
+    with open(second_clear / 'test.file', 'w') as f:
         f.write("string")
     assert 0 == runner2.stop()
 
+    assert not (second_clear / 'test.file').exists()
+
     # open for reading, working directory
-    runner3 = GoCryptFS(base_dir, encdir, runner.credentials())
+    runner3 = GoCryptFS(second, second_enc, runner.credentials())
     assert runner3.password
     assert runner3.config
     assert runner3.topdiriv
-    runner3.run(cleardir)
-    with open(cleardir / 'test.file', 'r') as f:
+    runner3.run(second_clear, LocalStorageBackend(params=params))
+    with open(second_clear / 'test.file', 'r') as f:
         assert "string" == f.read()
     assert 0 == runner3.stop()
 
