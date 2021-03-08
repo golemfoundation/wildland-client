@@ -2,8 +2,10 @@
 
 import tempfile
 import shutil
-from pathlib import Path
+from contextlib import suppress
+from pathlib import Path, PurePosixPath
 import os
+from typing import List
 from unittest import mock
 
 import yaml
@@ -95,8 +97,12 @@ class TestControlClient:
 
     # pylint: disable=missing-docstring
     def __init__(self):
+        # the last call for each command
         self.calls = {}
+        # all calls for each command
+        self.all_calls = {}
         self.results = {}
+        self.events = []
 
     def connect(self, socket_path):
         pass
@@ -107,7 +113,17 @@ class TestControlClient:
     def run_command(self, name, **kwargs):
         assert name in self.results, f'unrecognized command: {name}'
         self.calls[name] = kwargs
+        self.all_calls.setdefault(name, []).append(kwargs)
+        if isinstance(self.results[name], Exception):
+            raise self.results[name]
         return self.results[name]
+
+    def iter_events(self):
+        while self.events:
+            event = self.events.pop(0)
+            if isinstance(event, BaseException):
+                raise event
+            yield event
 
     def expect(self, name, result=None):
         """
@@ -116,6 +132,46 @@ class TestControlClient:
         """
 
         self.results[name] = result
+
+    def add_storage_paths(self, storage_id: int, paths: List[PurePosixPath]):
+        """
+        Add storage to be returned by 'paths' command. AKA "mount storage"
+        """
+        self.results.setdefault('paths', {})
+        for path in paths:
+            storages = self.results['paths'].setdefault(path, [])
+            # don't duplicate on remount request
+            if storage_id not in storages:
+                storages.append(storage_id)
+
+        self.results.setdefault('info', {})
+        if storage_id not in self.results['info']:
+            self.results['info'][storage_id] = {
+                'type': 'local',
+                'paths': paths,
+                'extra': {},
+            }
+
+    def del_storage(self, storage_id):
+        """
+        Remove storage from 'paths' command result. AKA "unmount storage"
+        """
+        if 'paths' not in self.results:
+            return
+        for path in list(self.results['paths']):
+            with suppress(ValueError):
+                self.results['paths'][path].remove(storage_id)
+            if not self.results['paths'][path]:
+                del self.results['paths'][path]
+
+        with suppress(KeyError):
+            del self.results['info'][storage_id]
+
+    def queue_event(self, event):
+        """
+        Queue an event to be returned
+        """
+        self.events.append(event)
 
     def check(self):
         """
