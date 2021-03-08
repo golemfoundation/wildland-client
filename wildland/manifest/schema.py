@@ -56,7 +56,53 @@ class SchemaError(WildlandError):
             if error.absolute_path:
                 prefix = '.'.join(map(str, error.absolute_path)) + ': '
             messages.append('{}{}'.format(prefix, error.message))
+            messages.append('Expected {}'.format(readable_schema(error.schema)))
         return '\n'.join(messages)
+
+
+def readable_schema(schema: dict) -> str:
+    description = schema.get('description', '')
+    if description:
+        description = f" ({description})"
+    if 'type' in schema:
+        return schema.get('type') + description
+    if '$ref' in schema:
+        pattern = schema.get('$ref')
+        if pattern.endswith("#abs-path"):
+            return 'an absolute path: must start with /'
+        if pattern.endswith("#http-url"):
+            return 'a http or https address: must start with http:// or https://'
+        if pattern.endswith("#rel-path"):
+            return 'a relative path: must begin with "./" or "../")'
+        if pattern.endswith("#url") or pattern.endswith("#url-or-relpath"):
+            if pattern.endswith("#url-or-relpath"):
+                prefix = 'a relative path: must begin with "./" or "../") or '
+            else:
+                prefix = ''
+            return prefix + 'any url: either HTTP(S), starting with http:// or https://; or ' \
+                            'local file url, starting with file://; or Wildland URL, starting ' \
+                            'with "wildland:" and containing at least three parts separated ' \
+                            'by ":" (sample Wildland URLs: wildland::/data/books: or ' \
+                            'wildland:@default:/data/books:/file.txt '
+        if pattern.endswith("container.schema.json"):
+            return 'complete container schema'
+        if pattern.endswith("#version"):
+            return 'manifest version'
+        if pattern.endswith("#fingerprint"):
+            return "key fingerprint (starting with 0x; if editing manifest manually, " \
+                   "remember to quote the fingerprint)"
+        if pattern.endswith("#encrypted"):
+            return "encrypted data"
+        if pattern.endswith("/storage-inline"):
+            return "inline storage manifest, requiring at least 'type' field (and others, " \
+                   "depending on type)"
+        if pattern.endswith("#access"):
+            return "access data: either 'user: \"*\"' for no encryption, or a list of users to " \
+                   "be allowed access in the following format: 'user: \"0x...\"' "
+        return schema.get('description', pattern)
+    if 'oneOf' in schema:
+        return ", or ".join([readable_schema(s) for s in schema['oneOf']])
+    return description
 
 
 class Schema:
