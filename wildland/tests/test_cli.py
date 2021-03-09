@@ -20,6 +20,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
 from copy import deepcopy
+from pathlib import Path
 import itertools
 import os
 import re
@@ -2337,23 +2338,125 @@ def test_dump(tmpdir):
     assert 'encrypted' in dump_container
     assert yaml_container['object'] == 'container'
 
-# Storage sets
+# Storage sets/templates
 
 
-def setup_storage_sets(config_dir):
-    os.mkdir(config_dir / 'templates')
-    data_dict = {
-        'object': 'storage',
-        'location': f'{config_dir}' + '/{{ uuid }}',
-        'type': 'local'
-    }
-    yaml.dump(data_dict, open(config_dir / 'templates/t1.template.jinja', 'w'))
-    yaml.dump(data_dict, open(config_dir / 'templates/t2.template.jinja', 'w'))
-    yaml.dump(data_dict, open(config_dir / 'templates/t3.template.jinja', 'w'))
+def test_cli_storage_template_create(cli, base_dir):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+
+    with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
+        read_data = load_yaml(f)
+        assert read_data == {'type': 'local',
+                             'location': '/foo'}
+
+
+def test_cli_storage_template_create_custom_access(cli, base_dir):
+    cli('user', 'create', 'UserA', '--key', '0xaaa')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli('storage-template', 'create', 'local', '--location', '/foo',
+        '--access', 'UserA', '--access', 'UserB', 't1')
+
+    with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
+        read_data = load_yaml(f)
+        assert read_data == {'type': 'local',
+                             'location': '/foo',
+                             'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]}
+
+    cli('storage-template', 'create', 'local', '--location', '/foo',
+        '--access', '*', 't2')
+
+    with open(base_dir / 'templates/t2.template.jinja', 'r') as f:
+        read_data = load_yaml(f)
+        assert read_data == {'type': 'local',
+                             'location': '/foo',
+                             'access': [{'user': '*'}]}
+
+    with pytest.raises(CliError, match='Failed to create storage template: User not found: *'):
+        cli('storage-template', 'create', 'local', '--location', '/foo',
+            '--access', '*', '--access', 'UserA', 't3')
+
+
+def test_cli_storage_template_filename_exists(cli):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+
+    with pytest.raises(CliError, match='already exists'):
+        cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+
+
+def test_cli_remove_storage_template(cli, base_dir):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+
+    assert Path(base_dir / 'templates/t1.template.jinja').exists()
+
+    cli('storage-template', 'remove', 't1')
+
+    assert not Path(base_dir / 'templates/t1.template.jinja').exists()
+
+
+def test_cli_remove_nonexisting_storage_template(cli):
+    with pytest.raises(CliError, match='does not exist'):
+        cli('storage-template', 'remove', 't1')
+
+
+def test_cli_remove_assigned_storage_template(cli):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+    cli('storage-set', 'add', '--template', 't1', 'set1')
+
+    with pytest.raises(CliError, match=r'Template (.+?) is attached to following sets: (.+?)'):
+        cli('storage-template', 'remove', 't1')
+
+
+def test_cli_remove_assigned_storage_template_force(cli, base_dir):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+    cli('storage-set', 'add', '--template', 't1', 'set1')
+
+    cli('storage-template', 'remove', 't1', '--force')
+
+    assert not Path(base_dir / 'templates/t1.template.jinja').exists()
+    assert Path(base_dir / 'templates/set1.set.yaml').exists()
+
+
+def test_cli_remove_assigned_storage_template_cascade(cli, base_dir):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+    cli('storage-set', 'add', '--template', 't1', 'set1')
+
+    cli('storage-template', 'remove', 't1', '--cascade')
+
+    assert not Path(base_dir / 'templates/t1.template.jinja').exists()
+    assert not Path(base_dir / 'templates/set1.set.yaml').exists()
+
+
+def test_template_parsing(cli, base_dir):
+    cli('user', 'create', 'User')
+    cli('storage-template', 'create', 'webdav',
+        '--url', 'https://{{ paths|first }}/{{ title }}',
+        '--login', '{{ categories | first }}',
+        '--password', '{{ categories | last }}',
+        't1')
+    cli('storage-set', 'add', '--inline', 't1', 'set1')
+    cli('container', 'create', 'Container', '--path', '/PATH',
+        '--storage-set', 'set1', '--no-encrypt-manifest',
+        '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(load_yaml_all(f))
+        uuid_path = documents[1]['paths'][0]
+
+    data = (base_dir / 'containers/Container.container.yaml').read_text()
+
+    assert f'url: https://{uuid_path}/foobar' in data
+    assert 'login: /boo!foo:hoo' in data
+    assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
+
+
+def setup_storage_sets(cli, config_dir):
+    cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't1')
+    cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't2')
+    cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't3')
 
 
 def test_cli_set_add(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')
     cli('storage-set', 'add', '--inline', 't3', '--inline', 't2', 'set2')
 
@@ -2372,7 +2475,7 @@ def test_cli_set_add(cli, base_dir):
 
 
 def test_cli_set_modify(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('storage-set', 'add', '--template', 't1', 'set1')
 
     with open(base_dir / 'templates/set1.set.yaml', 'r') as f:
@@ -2409,7 +2512,7 @@ def test_cli_set_modify(cli, base_dir):
 
 
 def test_cli_set_list(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')
     cli('storage-set', 'add', '--inline', 't3', '--inline', 't2', 'set2')
 
@@ -2423,7 +2526,7 @@ def test_cli_set_list(cli, base_dir):
 
 
 def test_cli_set_del(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set1')
 
     expected_file = base_dir / 'templates/set1.set.yaml'
@@ -2542,7 +2645,7 @@ def test_cli_set_local_dir(cli, base_dir):
 
 
 def test_user_create_default_set(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('user', 'create', 'User')
     cli('storage-set', 'add', '--template', 't1', '--inline', 't2', 'set')
     cli('storage-set', 'set-default', '--user', 'User', 'set')
@@ -2556,7 +2659,7 @@ def test_user_create_default_set(cli, base_dir):
 
 
 def test_cli_set_use_default(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('user', 'create', 'User')
     cli('storage-set', 'add', '--template', 't1', 'set')
     cli('storage-set', 'set-default', '--user', 'User', 'set')
@@ -2569,7 +2672,7 @@ def test_cli_set_use_default(cli, base_dir):
 
 
 def test_cli_set_use_def_storage(cli, base_dir):
-    setup_storage_sets(base_dir)
+    setup_storage_sets(cli, base_dir)
     cli('user', 'create', 'User')
     cli('storage-set', 'add', '--template', 't1', 'set')
     cli('storage-set', 'set-default', '--user', 'User', 'set')
