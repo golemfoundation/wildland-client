@@ -99,7 +99,8 @@ class Storage:
 
     def get_mount_path(self, container: Container) -> PurePosixPath:
         """
-        Return unique mount path for this storage
+        Return unique mount path for this storage.
+        The path is rooted in the container's owner forest root.
         """
         return PurePosixPath(f'/.uuid/{container.ensure_uuid()}/.backends/{self.backend_id}')
 

@@ -272,7 +272,10 @@ class WildlandFSClient:
         removed from the manifest since the last mount.
         """
         mounted_paths = self.get_unique_storage_paths(container)
-        valid_paths = [storage.get_mount_path(container) for storage in storages_to_mount]
+        valid_paths = [
+            PurePosixPath(f'/.users/{container.owner}') /
+                storage.get_mount_path(container).relative_to('/')
+            for storage in storages_to_mount]
 
         return list(set(mounted_paths) - set(valid_paths))
 
@@ -442,16 +445,18 @@ class WildlandFSClient:
             ) -> Iterable[PurePosixPath]:
         """
         Returns list of unique mount paths (ie '/.uuid/{container_uuid}/.backends/{backend_uuid}')
-        for every storage in a given container. If no container is given, return unique mount paths
-        for all mounted storages in every container.
+        for every mounted storage in a given container. If no container is given,
+        return unique mount paths for all mounted storages in every container.
         """
 
         paths = self.get_paths()
 
         if container:
-            path_regex = re.compile(fr'^/.uuid/{container.ensure_uuid()}/.backends/[0-9a-z-]+$')
+            path_regex = re.compile(
+                fr'^/.users/{container.owner}'
+                fr'/.uuid/{container.ensure_uuid()}/.backends/[0-9a-z-]+$')
         else:
-            path_regex = re.compile(r'^/.uuid/[0-9a-z-]+/.backends/[0-9a-z-]+$')
+            path_regex = re.compile(r'^/.users/[0-9a-z-]+/.uuid/[0-9a-z-]+/.backends/[0-9a-z-]+$')
 
         for path, _storage_id in paths.items():
             if path_regex.match(str(path)):
@@ -551,8 +556,8 @@ class WildlandFSClient:
             user_path / path.relative_to('/')
             for path in storage_paths
             for user_path in itertools.chain(
-                user_paths,
-                [self.get_user_path(container.owner, PurePosixPath('/'))])
+                [self.get_user_path(container.owner, PurePosixPath('/'))],
+                user_paths)
         ]
 
         return paths

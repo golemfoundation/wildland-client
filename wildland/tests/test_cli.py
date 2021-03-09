@@ -2004,8 +2004,8 @@ def test_container_unmount(cli, base_dir, control_client):
     control_client.expect('unmount')
     cli('container', 'unmount', 'Container', '--without-subcontainers')
 
-    # /.uuid/{cont_uuid}/.backends/{backend_uuid} is always the primary path
-    assert control_client.calls['unmount']['storage_id'] == 104
+    # /.users/{owner}/.uuid/{cont_uuid}/.backends/{backend_uuid} is always the primary path
+    assert control_client.calls['unmount']['storage_id'] == 102
 
 
 def test_container_other_signer(cli, base_dir):
