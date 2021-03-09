@@ -107,7 +107,6 @@ class CategorizationProxyStorageBackend(StorageBackend):
         subcontainer_metainfo_set = self._get_categories_to_subcontainer_map(dir_path)
 
         logger.debug('Collected subcontainers: %s', repr(subcontainer_metainfo_set))
-
         for subcontainer_metainfo in subcontainer_metainfo_set:
             dirpath = str(subcontainer_metainfo.dir_path)
             title = subcontainer_metainfo.title
@@ -165,15 +164,17 @@ class CategorizationProxyStorageBackend(StorageBackend):
                 dir_contains_files = True
 
         if dir_contains_files:
-            prefix_category, _, subcontainer_title = open_category.rpartition('/')
-            if prefix_category:
-                closed_categories.add(prefix_category)
+            already_in_closed_categories = open_category in closed_categories
+            closed_categories.add(open_category)
+            _, _, subcontainer_title = open_category.rpartition('/')
             all_categories = frozenset(closed_categories) or frozenset({'/unclassified'})
             yield CategorizationSubcontainerMetaInfo(
                 dir_path=dir_path,
                 title=subcontainer_title or 'unclassified',
                 categories=all_categories
             )
+            if not already_in_closed_categories:
+                closed_categories.remove(open_category)
 
     def _get_category_info(self, dir_name: str) -> Tuple[str, str]:
         """
