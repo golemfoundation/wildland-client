@@ -264,7 +264,7 @@ class Remounter:
                 storage_id = self.fs_client.find_storage_id_by_path(path)
                 assert storage_id is not None
                 logger.info('  (removing orphan %s @ id: %d)', path, storage_id)
-                self.fs_client.unmount_storage(storage_id)
+                self.to_unmount.append(storage_id)
 
             for storage in storages:
                 if self.fs_client.should_remount(container, storage, user_paths):
@@ -273,7 +273,8 @@ class Remounter:
                 else:
                     logger.info('  (not changed: %s)', storage.backend_id)
 
-            self.to_mount.append((container, storages_to_remount, user_paths, None))
+            if storages_to_remount:
+                self.to_mount.append((container, storages_to_remount, user_paths, None))
 
     def unmount_pending(self):
         """
@@ -281,7 +282,10 @@ class Remounter:
         """
 
         for storage_id in self.to_unmount:
-            self.fs_client.unmount_storage(storage_id)
+            try:
+                self.fs_client.unmount_storage(storage_id)
+            except WildlandError as e:
+                logger.error('failed to unmount storage %d: %s', storage_id, e)
         self.to_unmount.clear()
 
     def mount_pending(self):
@@ -289,5 +293,8 @@ class Remounter:
         Mount queued containers.
         """
 
-        self.fs_client.mount_multiple_containers(self.to_mount, remount=True)
+        try:
+            self.fs_client.mount_multiple_containers(self.to_mount, remount=True)
+        except WildlandError as e:
+            logger.error('failed to mount some storages: %s', e)
         self.to_mount.clear()
