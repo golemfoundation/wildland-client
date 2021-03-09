@@ -36,6 +36,7 @@ from . import (
     cli_common,
     cli_user,
     cli_storage,
+    cli_storage_template,
     cli_storage_set,
     cli_container,
     cli_bridge,
@@ -71,6 +72,7 @@ def main(ctx, base_dir, dummy, verbose):
 
 main.add_command(cli_user.user_)
 main.add_command(cli_storage.storage_)
+main.add_command(cli_storage_template.storage_template)
 main.add_command(cli_storage_set.storage_set_)
 main.add_command(cli_container.container_)
 main.add_command(cli_bridge.bridge_)
