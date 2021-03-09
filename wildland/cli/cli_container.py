@@ -22,7 +22,8 @@ Manage containers
 """
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple, Optional, Iterable
+from typing import List, Tuple, Dict, Optional, Iterable
+from itertools import combinations
 import os
 import uuid
 import sys
@@ -37,20 +38,21 @@ from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
 
+from wildland.storage_sync.naive_sync import NaiveSyncer
+from wildland.storage_sync.base import SyncConflict
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, \
     set_field, del_nested_field, find_manifest_file, dump
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..exc import WildlandError
-from ..hashdb import HashDb
-from ..log import init_logging
 from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
-from ..sync import Syncer, list_storage_conflicts
+from ..hashdb import HashDb
+from ..log import init_logging
 from ..wlpath import WildlandPath
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
@@ -835,12 +837,12 @@ def sync_container(obj: ContextObj, target_remote, cont):
         raise ClickException("Sync process for this container is already running; use "
                              "stop-sync to stop it.")
 
-    storages = [StorageBackend.from_params(storage.params) for storage in
+    all_storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
 
     try:
-        target_storages = [[storage for storage in storages
-                            if obj.client.is_local_storage(storage)][0]]
+        local_storage = [storage for storage in all_storages
+                         if obj.client.is_local_storage(storage)][0]
     except IndexError:
         raise WildlandError('No local storage backend found')  # pylint: disable=raise-missing-from
 
@@ -848,7 +850,7 @@ def sync_container(obj: ContextObj, target_remote, cont):
 
     if target_remote:
         try:
-            target_remote = [storage for storage in storages
+            target_remote = [storage for storage in all_storages
                              if target_remote in (storage.backend_id, storage.TYPE)][0]
         except IndexError:
             # pylint: disable=raise-missing-from
@@ -861,7 +863,7 @@ def sync_container(obj: ContextObj, target_remote, cont):
         target_remote_id = default_remotes.get(container.ensure_uuid(), None)
         try:
             target_remote = [
-                storage for storage in storages
+                storage for storage in all_storages
                 if target_remote_id == storage.backend_id
                    or (not target_remote_id and not obj.client.is_local_storage(storage))][0]
         except IndexError:
@@ -869,11 +871,10 @@ def sync_container(obj: ContextObj, target_remote, cont):
             raise CliError('No remote storage backend found: specify --target-remote.')
 
     click.echo(f'Using remote backend {target_remote.backend_id} of type {target_remote.TYPE}')
-    target_storages.append(target_remote)
 
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
-    hash_db.update_storages_for_containers(container.ensure_uuid(), target_storages)
+    hash_db.update_storages_for_containers(container.ensure_uuid(), [local_storage, target_remote])
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
@@ -881,19 +882,21 @@ def sync_container(obj: ContextObj, target_remote, cont):
 
         assert container.local_path is not None
         container_path = PurePosixPath(container.local_path)
+        # TODO: infer container name better
         container_name = container_path.name.replace(''.join(container_path.suffixes), '')
-
-        syncer = Syncer(target_storages, container_name=container_name,
-                        config_dir=obj.client.config.base_dir)
+        local_storage.set_config_dir(obj.client.config.base_dir)
+        target_remote.set_config_dir(obj.client.config.base_dir)
+        syncer = NaiveSyncer(source_storage=local_storage, target_storage=target_remote,
+                             log_prefix=f'Container: {container_name}')
         try:
-            syncer.start_syncing()
+            syncer.start_sync()
         except FileNotFoundError as e:
             click.echo(f"Storage root not found! Details: {e}")
             return
         try:
             threading.Event().wait()
         except KeyboardInterrupt:
-            syncer.stop_syncing()
+            syncer.stop_sync()
 
 
 @container_.command('stop-sync', short_help='stop syncing a container')
@@ -925,23 +928,23 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
     obj.client.recognize_users()
     container = obj.client.load_container_from(cont)
 
+    storages = [StorageBackend.from_params(storage.params) for storage in
+                obj.client.all_storages(container)]
     if not force_scan:
-        hash_db = HashDb(obj.client.config.base_dir)
-        conflicts = hash_db.get_conflicts(container.ensure_uuid())
-        if conflicts is None:
-            click.echo("No backends have been synced for this container; "
-                       "list-conflicts will not work without a preceding container sync")
-            return
-    else:
-        storages = [StorageBackend.from_params(storage.params) for storage in
-                    obj.client.all_storages(container)]
-        conflicts = list_storage_conflicts(storages)
+        for storage in storages:
+            storage.set_config_dir(obj.client.config.base_dir)
+    storages = [StorageBackend.from_params(storage.params) for storage in
+                obj.client.all_storages(container)]
+    conflicts = []
+    for storage1, storage2 in combinations(storages, 2):
+        syncer = NaiveSyncer(storage1, storage2, f'Container {cont}: ')
+        conflicts.extend([error for error in syncer.iter_errors()
+                          if isinstance(error, SyncConflict)])
 
     if conflicts:
         click.echo("Conflicts detected on:")
-        for (path, c1, c2) in conflicts:
-            # TODO: check if file still exists?
-            click.echo(f"Conflict detected in file {path} in containers {c1} and {c2}")
+        for c in conflicts:
+            click.echo(str(c))
     else:
         click.echo("No conflicts were detected by container sync.")
 

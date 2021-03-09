@@ -44,3 +44,14 @@ The storage backend driver is responsible for:
 * returning the StorageWatcher through the watcher() method (it's preferable to first check if
   there's no watcher-interval parameter in the manifest - see local.py implementation)
 
+Draft idea for extended storage syncing:
+
+* Custom storage syncers should inherit the BaseSyncer class, implementing at least the start_sync,
+  stop_sync, is_running and iter_errors methods. Optionally one_shot_sync, is_synced can be
+  implemented
+* Information about a given syncer is given through class params: SOURCE_TYPES/TARGET_TYPES is a
+  list of strings accepted as source/target StorageBackend.TYPE (a list consisting of a single "*"
+  string means any storage syncer is accepted; priority is given to syncers without "*"), ONE_SHOT,
+  UNIDIRECTIONAL and REQUIRES_MOUNT specify whether the syncer can handle one_shot sync,
+  unidirectional syncing and if it requires storages to be mounted, respectively.
+* SYNCER_NAME can be used to enforce using a given syncer.
