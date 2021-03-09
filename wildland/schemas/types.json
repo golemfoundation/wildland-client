@@ -1,7 +1,7 @@
 {
     "abs-path": {
         "type": "string",
-        "description": "absolute path",
+        "description": "absolute path (must begin with '/')",
         "pattern": "^/.*$"
     },
     "rel-path": {
@@ -11,21 +11,21 @@
     },
     "http-url": {
         "type": "string",
-        "description": "HTTP(S) address",
+        "description": "HTTP(S) address (must begin with http:// or https://)",
         "pattern": "^https?://.*$"
     },
     "file-url": {
         "type": "string",
-        "description": "file:// URL",
+        "description": "local file URL (must begin with file://)",
         "pattern": "^file://[^/]*/.*$"
     },
     "wildland-url": {
         "type": "string",
-        "description": "wildland: URL",
+        "description": "Wildland URL (must begin with wildland: and containt at least three parts separated by ':'; example URLs: wildland::/data/books: ; wildland:@default:/data/books:/file.txt",
         "pattern": "^wildland:.*:.+:.*$"
     },
     "url": {
-        "description": "HTTP or file URL",
+        "description": "HTTP, file URL or wildland URL",
         "oneOf": [
             { "$ref": "#/http-url" },
             { "$ref": "#/file-url" },
@@ -33,7 +33,7 @@
         ]
     },
     "url-or-relpath": {
-        "description": "URL or relative path",
+        "description": "any URL or relative path",
         "oneOf": [
             { "$ref": "#/url" },
             { "$ref": "#/rel-path" }
@@ -41,7 +41,7 @@
     },
     "fingerprint": {
         "type": "string",
-        "description": "fingerprint",
+        "description": "key fingerprint (must begin with 0x)",
         "pattern": "^0x[0-9a-f]+$"
     },
     "access-full": {
