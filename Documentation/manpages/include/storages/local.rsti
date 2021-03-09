@@ -1,0 +1,7 @@
+.. option:: --location <filesystem_path>
+
+   Path to directory containing the backend. Required.
+
+.. option:: --subcontainer <filesystem_path>
+
+   Relative path to a subcontainer manifest (can be repeated). Optional.

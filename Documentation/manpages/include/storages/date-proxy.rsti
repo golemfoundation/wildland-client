@@ -1,0 +1,3 @@
+.. option:: --reference-container-url <url>
+
+   Inner container URL for this storage.
