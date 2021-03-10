@@ -69,17 +69,10 @@ with content like this:
    0x123456
 
 .. include:: include/wl-storage-create.rsti
+.. include:: include/storages/local.rsti
 
-.. option:: --location <filesystem_path>
-
-   Path to directory containing the backend. Required.
-
-.. option:: --subcontainer <filesystem_path>
-
-   Relative path to a subcontainer manifest (can be repeated). Optional.
-
-.. program:: wl_storage_create_local-cached
-.. _wl_storage_create_local-cached:
+.. program:: wl-storage-create-local-cached
+.. _wl-storage-create-local-cached:
 
 :command:`wl storage create local-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
 -----------------------------------------------------------------------------------------------------------------------------
@@ -88,8 +81,7 @@ Create cached local storage. See ``local`` storage description above for
 details.
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --location <filesystem_path>
+.. include:: include/storages/local-cached.rsti
 
 .. program:: wl-storage-create-local-dir-cached
 .. _wl-storage-create-local-dir-cached:
@@ -101,8 +93,7 @@ Create directory cached local storage. See ``local`` storage description above
 for details.
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --location <filesystem_path>
+.. include:: include/storages/local-dir-cached.rsti
 
 .. program:: wl-storage-create-date-proxy
 .. _wl-storage-create-date-proxy:
@@ -111,10 +102,7 @@ for details.
 ------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --reference-container-url <url>
-
-   Inner container URL for this storage.
+.. include:: include/storages/date-proxy.rsti
 
 .. program:: wl-storage-create-delegate
 .. _wl-storage-create-delegate:
@@ -123,15 +111,7 @@ for details.
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --reference-container-url <url>
-
-   Inner container URL for this storage.
-
-.. option:: --subdirectory <path>
-
-   Subdirectory within reference container. When set, content of this directory
-   will be considered content of the container.
+.. include:: include/storages/delegate.rsti
 
 .. program:: wl-storage-create-dummy
 .. _wl-storage-create-dummy:
@@ -150,10 +130,7 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 ----------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --location <filesystem_path>
-
-   Path to ZIP archive.
+.. include:: include/storages/zip-archive.rsti
 
 .. program:: wl-storage-create-http-index
 .. _wl-storage-create-http-index:
@@ -164,10 +141,7 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 This is a HTTP storage that relies on directory listings. Currently used for buckets published using S3.
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --url <url>
-
-   HTTP URL.
+.. include:: include/storages/http-index.rsti
 
 .. program:: wl-storage-create-imap
 .. _wl-storage-create-imap:
@@ -176,27 +150,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --host <host>
-
-   IMAP server hostname. Required.
-
-.. option:: --login <login>
-
-   IMAP account / login name. Required.
-
-.. option:: --password <password>
-
-   IMAP account password. Required.
-
-.. option:: --folder <folder>
-
-   IMAP folder to expose (defaults to INBOX).
-
-.. option:: --ssl, --no-ssl
-
-   Use SSL or unencrypted connection. Default is to use SSL.
-
+.. include:: include/storages/imap.rsti
 
 .. program:: wl-storage-create-dropbox
 .. _wl-storage-create-dropbox:
@@ -205,11 +159,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 --------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --token <access_token>
-
-   Dropbox app token. You can generate it with Dropbox App Console. Required.
-
+.. include:: include/storages/dropbox.rsti
 
 .. program:: wl-storage-create-categorization
 .. _wl-storage-create-categorization:
@@ -218,11 +168,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 ----------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --reference-container-url <url>
-
-   Inner container URL for this storage. Required.
-
+.. include:: include/storages/categorization.rsti
 
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
@@ -231,22 +177,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 --------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --s3-url <url>
-
-   S3 URL, of the form ``s3://bucket/`` or ``s3://bucket/path/``. Required.
-
-.. option:: --endpoint-url <URL>
-
-   Override default AWS S3 URL with the given URL.
-
-.. option:: --with-index
-
-   Generate index pages. When this option is enabled, Wildland will maintain an
-   `index.html` file with directory listing in every directory. These files
-   will be invisible in the mounted filesystem, but they can be used to browse
-   the S3 bucket when it's exposed using public HTTP.
-
+.. include:: include/storages/s3.rsti
 
 .. program:: wl-storage-create-ipfs
 .. _wl-storage-create-ipfs:
@@ -255,15 +186,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --ipfs-hash <URL>
-
-   IPFS CID or IPNS name to access the resource, of the form ``/ipfs/CID`` or ``/ipns/name``. Required.
-
-.. option:: --endpoint-addr <multiaddress>
-
-   Override default IPFS gateway address (/ip4/127.0.0.1/tcp/8080/http) with the given address.
-
+.. include:: include/storages/ipfs.rsti
 
 .. program:: wl-storage-create-webdav
 .. _wl-storage-create-webdav:
@@ -272,18 +195,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --url <url>
-
-   Base URL for WebDAV resource. Required.
-
-.. option:: --login <login>
-
-   Login. Required.
-
-.. option:: --password <password>
-
-   Password. Required.
+.. include:: include/storages/webdav.rsti
 
 .. program:: wl-storage-create-bear-db
 .. _wl-storage-create-bear-db:
@@ -292,10 +204,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 -----------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --path <path>
-
-   Path to Bear SQLite database. Required.
+.. include:: include/storages/bear.rsti
 
 .. _wl-storage-sign:
 .. _wl-storage-verify:

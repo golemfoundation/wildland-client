@@ -32,6 +32,7 @@ from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
 from wildland import container
 from .manifest import Manifest
 from ..utils import load_yaml
+from ..exc import WildlandError
 
 logger = logging.getLogger('wl-template')
 
@@ -137,6 +138,7 @@ class StorageSet:
     TemplateWithType which contains the StorageTemplate and a type: 'file' or 'inline'.
     'file' manifests are created as standalone files, and 'inline' as inline manifests.
     """
+
     def __init__(self, name: str, templates: List[TemplateWithType],
                  template_dir: Path, path: Path = None):
         self.name = name
@@ -145,9 +147,13 @@ class StorageSet:
         self.template_dir = template_dir
 
         for t in templates:
-            file = get_file_from_name(self.template_dir, t.template, TEMPLATE_SUFFIX)
-            template = StorageTemplate.from_file(file)
-            self.templates.append(TemplateWithType(template, t.type))
+            try:
+                file = get_file_from_name(self.template_dir, t.template, TEMPLATE_SUFFIX)
+                template = StorageTemplate.from_file(file)
+                self.templates.append(TemplateWithType(template, t.type))
+            except FileNotFoundError:
+                logger.warning("Template [%s] defined in storage set [%s], was not found.",
+                               t.template, name)
 
     @classmethod
     def from_file(cls, file: Path, template_dir: Path):
@@ -249,6 +255,21 @@ class TemplateManager:
                     continue
         return templates
 
+    def create_storage_template(self, name: str, params: dict):
+        """
+        Create storage template from given params
+        """
+        file_name = name + str(TEMPLATE_SUFFIX)
+        target_path = Path(self.template_dir / file_name)
+
+        if target_path.exists():
+            raise FileExistsError
+
+        with open(target_path, 'w') as f:
+            yaml.dump(params, f)
+
+        return target_path
+
     def create_storage_set(self, name: str, templates: List[TemplateWithType], target_path: Path):
         """
         Create and save a StorageSet.
@@ -280,6 +301,38 @@ class TemplateManager:
             yaml.dump(new_template.to_dict(), f)
 
         return target_path
+
+    def remove_storage_template(self, name: str, force: bool = False, cascade: bool = False):
+        """
+        Remove storage template by name.
+
+        :param force: bool if True, remove the template even if it's attached to a set
+        :param cascade: bool if True, remove the template together with attached sets
+        """
+        file_name = name + str(TEMPLATE_SUFFIX)
+        target_path = Path(self.template_dir / file_name)
+
+        if not target_path.exists():
+            raise FileNotFoundError
+
+        attached_sets = []
+
+        for s_set in self.storage_sets():
+            for template in s_set.templates:
+                if template[0].file_name == file_name:
+                    attached_sets.append(s_set)
+                    break
+
+        if attached_sets and not force and not cascade:
+            set_names = ','.join([str(s.name) for s in attached_sets])
+            raise WildlandError(f'Template [{name}] is attached to following sets: [{set_names}]')
+
+        if cascade:
+            for s in attached_sets:
+                logger.info('Conditionally removing [%s] storage set.', s.name)
+                self.remove_storage_set(s.name)
+
+        target_path.unlink()
 
     def remove_storage_set(self, name: str) -> Path:
         """

@@ -1,0 +1,3 @@
+.. option:: --location <filesystem_path>
+
+   Path to ZIP archive.

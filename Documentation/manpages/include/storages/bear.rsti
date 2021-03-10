@@ -1,0 +1,3 @@
+.. option:: --path <path>
+
+   Path to Bear SQLite database. Required.

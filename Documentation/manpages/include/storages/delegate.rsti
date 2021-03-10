@@ -1,0 +1,8 @@
+.. option:: --reference-container-url <url>
+
+   Inner container URL for this storage.
+
+.. option:: --subdirectory <path>
+
+   Subdirectory within reference container. When set, content of this directory
+   will be considered content of the container.

@@ -1,0 +1,3 @@
+.. option:: --token <access_token>
+
+   Dropbox app token. You can generate it with Dropbox App Console. Required.

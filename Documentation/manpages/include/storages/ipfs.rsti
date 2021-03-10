@@ -1,0 +1,7 @@
+.. option:: --ipfs-hash <URL>
+
+   IPFS CID or IPNS name to access the resource, of the form ``/ipfs/CID`` or ``/ipns/name``. Required.
+
+.. option:: --endpoint-addr <multiaddress>
+
+   Override default IPFS gateway address (/ip4/127.0.0.1/tcp/8080/http) with the given address.
