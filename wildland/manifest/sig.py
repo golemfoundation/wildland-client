@@ -226,14 +226,14 @@ class SigContext:
 
         return False
 
-    def encrypt(self, data: str, keys: List[str]) -> Tuple[str, List[str]]:
+    def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
         """
         Encrypt data to be readable by keys. Returns a tuple: encrypted message,
         list of encrypted keys.
         """
         raise NotImplementedError()
 
-    def decrypt(self, data: str, encrypted_keys: List[str]) -> str:
+    def decrypt(self, data: str, encrypted_keys: List[str]) -> bytes:
         """
         Attempt to decrypt data using all available keys.
         """
@@ -308,8 +308,7 @@ class DummySigContext(SigContext):
         Encrypt data to be readable by keys. Returns a tuple: encrypted message,
         list of encrypted keys.
         """
-        data = data.decode()
-        return 'enc.' + data, ['enc.' + key for key in keys]
+        return 'enc.' + data.decode(), ['enc.' + key for key in keys]
 
     def decrypt(self, data: str, encrypted_keys: List[str]) -> bytes:
         """
@@ -319,7 +318,7 @@ class DummySigContext(SigContext):
                 [key for key in encrypted_keys if not key.startswith('enc.')]:
             raise SigError('Cannot decrypt data')
 
-        return data[4:]
+        return data[4:].encode()
 
 
 class SodiumSigContext(SigContext):
@@ -340,7 +339,7 @@ class SodiumSigContext(SigContext):
         """
         public_bytes = base64.b64encode(self.KEY_PREFIX + sign_public_bytes + encr_public_bytes)
         if sign_private_bytes and encr_private_bytes:
-            private_bytes = base64.b64encode(
+            private_bytes: Optional[bytes] = base64.b64encode(
                 self.KEY_PREFIX + sign_public_bytes + encr_public_bytes +
                 sign_private_bytes + encr_private_bytes)
         else:

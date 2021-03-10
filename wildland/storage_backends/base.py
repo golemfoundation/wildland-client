@@ -30,7 +30,6 @@ import pathlib
 import posixpath
 import stat
 import urllib.parse
-from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
@@ -42,12 +41,10 @@ import yaml
 from ..manifest.sig import SigContext
 from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
-from ..hashdb import HashDb
+from ..hashdb import HashDb, HashCache
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
-
-HashCache = namedtuple('HashCache', ['hash', 'token'])
 
 
 class StorageError(BaseException):
@@ -204,7 +201,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         self.watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
-        self.hash_db = None
+        self.hash_db: Optional[HashDb] = None
         self.mounted = 0
 
         # Hash guarantees uniqueness per backend's params while backend-id does not
@@ -351,6 +348,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Set path to config dir. Used to store hashes in a local sqlite DB.
         """
         self.hash_db = HashDb(config_dir)
+
     # FUSE file operations. Return a File instance.
 
     @abc.abstractmethod
@@ -481,7 +479,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         # used to implement hash caching; should provide a token that changes when the file changes.
         raise OptionalError()
 
-    def get_hash(self, path: PurePosixPath) -> str:
+    def get_hash(self, path: PurePosixPath) -> Optional[str]:
         """
         Return (and, if get_file_token is implemented, cache) sha256 hash for object at path.
         """
@@ -520,7 +518,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             self.hash_db.store_hash(self.backend_id, path, hash_cache)
         self.hash_cache[path] = hash_cache
 
-    def retrieve_hash(self, path) -> HashCache:
+    def retrieve_hash(self, path) -> Optional[HashCache]:
         """
         Get cached hash, if possible; priority is given to local dict, then to permanent storage.
         """
@@ -628,7 +626,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
 
 
-class StaticSubcontainerStorageMixin:
+class StaticSubcontainerStorageMixin(StorageBackend):
     """
     A backend storage mixin that is used in all backends that support ``subcontainers`` key in their
     manifests.
@@ -647,6 +645,7 @@ class StaticSubcontainerStorageMixin:
         }
 
     """
+    # pylint: disable=abstract-method
 
     def list_subcontainers(
         self,

@@ -224,7 +224,7 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
     def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
         return os.rename(self._path(move_from), self._path(move_to))
 
-    def utimens(self, path: str, atime, mtime):
+    def utimens(self, path: PurePosixPath, atime, mtime):
         atime_ns = atime.tv_sec * 1e9 + atime.tv_nsec
         mtime_ns = mtime.tv_sec * 1e9 + mtime.tv_nsec
 

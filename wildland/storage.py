@@ -97,7 +97,7 @@ class Storage:
         """
         return self.primary
 
-    def get_mount_path(self, container: Container) -> str:
+    def get_mount_path(self, container: Container) -> PurePosixPath:
         """
         Return unique mount path for this storage
         """

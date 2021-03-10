@@ -204,7 +204,7 @@ class BaseCached(StorageBackend):
         os.rename(self._local(move_from), self._local(move_to))
         self.clear_cache()
 
-    def utimens(self, path: str, atime, mtime):
+    def utimens(self, path: PurePosixPath, atime, mtime):
         atime_ns = atime.tv_sec * 1e9 + atime.tv_nsec
         mtime_ns = mtime.tv_sec * 1e9 + mtime.tv_nsec
 

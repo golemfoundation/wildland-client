@@ -83,8 +83,7 @@ class OptionRequires(click.Option):
         if self.name in opts and self.required_opt not in opts:
             raise click.UsageError("option --{} requires --{}".format(
                 self.name, self.required_opt))
-        # noinspection Mypy
-        self.prompt = None
+        self.prompt = None # type: ignore
         return super().handle_parse_result(ctx, opts, args)
 
 
@@ -562,6 +561,7 @@ def prepare_mount(obj: ContextObj,
 
             for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
                 storage_id = obj.fs_client.find_storage_id_by_path(path)
+                assert storage_id is not None
                 print(f'Removing orphaned storage {path} (id: {storage_id} )')
                 obj.fs_client.unmount_storage(storage_id)
 
@@ -613,7 +613,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
         obj.fs_client.ensure_mounted()
         obj.client.recognize_users()
     except WildlandError as ex:
-        raise ClickException(ex) from ex
+        raise ClickException(str(ex)) from ex
 
     if import_users:
         obj.client.auto_import_users = True
@@ -701,7 +701,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
         obj.fs_client.ensure_mounted()
         obj.client.recognize_users()
     except WildlandError as ex:
-        raise ClickException(ex) from ex
+        raise ClickException(str(ex)) from ex
 
     if bool(container_names) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
@@ -771,7 +771,7 @@ class Remounter:
 
         # Queued operations
         self.to_mount: List[Tuple[Container,
-                                  Storage,
+                                  Iterable[Storage],
                                   Iterable[PurePosixPath],
                                   Optional[Container]]] = []
         self.to_unmount: List[int] = []
@@ -844,6 +844,7 @@ class Remounter:
                 for path in self.fs_client.get_orphaned_container_storage_paths(
                         container, storages):
                     storage_id = self.fs_client.find_storage_id_by_path(path)
+                    assert storage_id is not None
                     logger.info('  (removing orphan %s @ id: %d)', path, storage_id)
                     self.fs_client.unmount_storage(storage_id)
 
@@ -1015,6 +1016,7 @@ def sync_container(obj: ContextObj, target_remote, cont):
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         init_logging(False, f'/tmp/wl-sync-{container.ensure_uuid()}.log')
 
+        assert container.local_path is not None
         container_path = PurePosixPath(container.local_path)
         container_name = container_path.name.replace(''.join(container_path.suffixes), '')
 

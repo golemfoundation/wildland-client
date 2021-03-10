@@ -24,8 +24,8 @@ Wildland Filesystem
 import errno
 import logging
 import os
-from pathlib import PurePosixPath, Path
-from typing import List, Dict, Optional, Set
+from pathlib import PurePosixPath
+from typing import List, Dict, Optional, Set, Union
 import threading
 from dataclasses import dataclass
 
@@ -68,7 +68,7 @@ class WildlandFSBase:
     # pylint: disable=no-self-use,too-many-public-methods,unused-argument
 
     def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
+        super().__init__(*args, **kwds) # type: ignore
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_extra: Dict[int, Dict] = {}
@@ -267,7 +267,7 @@ class WildlandFSBase:
         return {'kwargs': kwargs}
 
     def _stat(self, attr: Attr) -> os.stat_result:
-        return os.stat_result((
+        return os.stat_result(( # type: ignore
             attr.mode,
             0, # st_ino
             None, # st_dev
@@ -397,8 +397,8 @@ class WildlandFSBase:
     #
 
 
-    def proxy(self, method_name, path: str, *args,
-              resolved_path: Optional[PurePosixPath]=None,
+    def proxy(self, method_name, path: Union[str, PurePosixPath], *args,
+              resolved_path: Optional[Resolved] = None,
               parent=False,
               modify=False,
               event_type=None,
@@ -543,17 +543,22 @@ class WildlandFSBase:
     def removexattr(self, *args):
         return -errno.ENOSYS
 
-    def rename(self, move_from: str, move_to: str):
-        resolved_from = self._resolve_path(Path(move_from), parent=False)
-        resolved_to = self._resolve_path(Path(move_to), parent=True)
+    def rename(self, move_from: Union[str, PurePosixPath],
+            move_to: Union[str, PurePosixPath]):
+        move_from = PurePosixPath(move_from)
+        move_to = PurePosixPath(move_to)
+        resolved_from = self._resolve_path( move_from, parent=False)
+        resolved_to = self._resolve_path( move_to, parent=True)
 
         if not self._is_same_storage(resolved_from, resolved_to):
             return -errno.EXDEV
 
-        dst_relative = self._get_storage_relative_path(Path(move_to).name, resolved_to, parent=True)
+        dst_relative = self._get_storage_relative_path(
+            move_to.name, resolved_to, parent=True)
 
-        return self.proxy('rename', Path(move_from), dst_relative, resolved_path=resolved_from,
-                          parent=False, modify=True, event_type='update')
+        return self.proxy('rename', move_from, dst_relative,
+            resolved_path=resolved_from, parent=False, modify=True,
+            event_type='update')
 
     def rmdir(self, path):
         return self.proxy('rmdir', path, parent=True, modify=True, event_type='delete')

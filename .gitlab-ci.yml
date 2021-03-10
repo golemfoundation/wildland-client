@@ -32,7 +32,6 @@ lint:
     - ./ci/ci-lint
 
 mypy:
-  allow_failure: true
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:

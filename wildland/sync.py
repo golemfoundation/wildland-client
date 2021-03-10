@@ -23,7 +23,7 @@ import threading
 import logging
 import hashlib
 import os
-from typing import List, Dict, Iterable
+from typing import List, Dict, Iterable, Optional
 from functools import partial
 from itertools import combinations, permutations
 from pathlib import PurePosixPath
@@ -44,7 +44,7 @@ class Syncer:
     def __init__(self, storages: Iterable[StorageBackend], container_name: str,
                  config_dir: str = None):
         self.storage_watchers: Dict[StorageBackend, StorageWatcher] = {}
-        self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, str]] = {}
+        self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, Optional[str]]] = {}
         self.container_name = container_name
         self.storages = storages
         self.lock = threading.Lock()
