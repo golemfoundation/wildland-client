@@ -3060,3 +3060,19 @@ def test_user_refresh(cli, base_dir, tmpdir):
 
     user_data = (base_dir / 'users/Alice.user.yaml').read_text()
     assert 'paths:\n- /MEH' in user_data
+
+
+## Global options (--help, --version etc.)
+
+
+def test_wl_help(cli):
+    result = cli('--help', capture=True)
+    assert 'Usage:' in result
+    assert 'Options:' in result
+    assert 'Commands:' in result
+    assert 'Aliases:' in result
+
+
+def test_wl_version(cli):
+    result = cli('--version', capture=True)
+    assert 'version' in result
