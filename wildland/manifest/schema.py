@@ -65,9 +65,9 @@ def readable_schema(schema: dict) -> str:
     if description:
         description = f" ({description})"
     if 'type' in schema:
-        return schema.get('type') + description
+        return schema['type'] + description
     if '$ref' in schema:
-        pattern = schema.get('$ref')
+        pattern = schema['$ref']
         if pattern.endswith("#abs-path"):
             return 'an absolute path: must start with /'
         if pattern.endswith("#http-url"):

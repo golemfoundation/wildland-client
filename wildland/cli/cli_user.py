@@ -224,7 +224,7 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
                        'Key should be removed manually. In the future you can use --force to force '
                        'key deletion.')
         else:
-            click.echo('Removing key', user.owner)
+            click.echo(f'Removing key {user.owner}')
             obj.session.sig.remove_key(user.owner)
 
     for alias in ['@default', '@default-owner']:
