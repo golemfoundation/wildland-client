@@ -229,25 +229,21 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
                          help='S3 url to access the resource in s3://<bucket_name>/path format'),
             click.Option(['--with-index'], is_flag=True,
                          help='Maintain index.html files with directory listings'),
+            click.Option(['--access-key'], required=True,
+                         help='S3 access key'),
+            click.Option(['--secret-key'], required=True,
+                         help='S3 secret key (omit for a prompt)',
+                         prompt=True, hide_input=True),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        click.echo('Resolving AWS credentials...')
-        session = botocore.session.Session()
-        resolver = botocore.credentials.create_credential_resolver(session)
-        credentials = resolver.load_credentials()
-        if not credentials:
-            raise click.ClickException(
-                "AWS not configured, run 'aws configure' first")
-        click.echo(f'Credentials found by method: {credentials.method}')
-
         return {
             's3_url': data['s3_url'],
             'endpoint_url': data['endpoint_url'],
             'credentials': {
-                'access-key': credentials.access_key,
-                'secret-key': credentials.secret_key,
+                'access-key': data['access_key'],
+                'secret-key': data['secret_key'],
             },
             'with-index': data['with_index'],
         }
