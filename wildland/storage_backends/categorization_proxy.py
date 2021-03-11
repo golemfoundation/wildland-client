@@ -25,7 +25,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List, Tuple, Optional, Iterable, Set
+from typing import List, Tuple, Optional, Iterable, Set, Iterator
 
 import click
 
@@ -137,7 +137,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
         self,
         dir_path: PurePosixPath,
         open_category: str,
-        closed_categories: Set[str]) -> Set[CategorizationSubcontainerMetaInfo]:
+        closed_categories: Set[str]) -> Iterator[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree, collect and return all of the metainformation needed to
         create subcontainers based on the tags embedded in directories' names.

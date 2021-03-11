@@ -23,7 +23,7 @@ The container
 from copy import deepcopy
 from pathlib import PurePosixPath, Path
 import uuid
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 import itertools
 
 from .manifest.manifest import Manifest
@@ -86,7 +86,8 @@ class Container:
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             backends=manifest.fields['backends']['storage'],
             title=manifest.fields.get('title', None),
-            categories=[Path(p) for p in manifest.fields.get('categories', [])],
+            categories=[PurePosixPath(p)
+                for p in manifest.fields.get('categories', [])],
             local_path=local_path,
             manifest=manifest,
             access=manifest.fields.get('access', None)
@@ -110,7 +111,7 @@ class Container:
             if 'object' in backend:
                 del backend['object']
 
-        fields = {
+        fields: dict[str, Any] = {
             "object": type(self).__name__.lower(),
             "owner": self.owner,
             "paths": [str(p) for p in self.paths],

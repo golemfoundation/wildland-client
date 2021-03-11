@@ -304,7 +304,7 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
 
 def _do_process_imported_manifest(
         obj: ContextObj, copied_manifest_path: Path, manifest_url: str,
-        paths: Iterable[str], default_user: str):
+        paths: Iterable[PurePosixPath], default_user: str):
     """
     Perform followup actions after importing a manifest: create a Bridge manifest for a user,
     import a Bridge manifest's target user
@@ -318,17 +318,11 @@ def _do_process_imported_manifest(
 
     if manifest.fields['object'] == 'user':
         user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
-
-        if not paths:
-            new_paths = user.paths
-        else:
-            new_paths = [PurePosixPath(p) for p in paths]
-
         bridge = Bridge(
             owner=default_user,
             user_location=manifest_url,
             user_pubkey=user.primary_pubkey,
-            paths=new_paths,
+            paths=(paths if paths else user.paths),
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
@@ -338,7 +332,7 @@ def _do_process_imported_manifest(
         bridge = Bridge.from_manifest(manifest)
         # adjust imported bridge
         if paths:
-            bridge.paths = paths
+            bridge.paths = list(paths)
         if default_user:
             bridge.owner = default_user
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
@@ -366,8 +360,9 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
         if not copied_manifest_path or not manifest_url:
             return
         try:
-            _do_process_imported_manifest(obj, copied_manifest_path, manifest_url,
-                                          paths, default_user)
+            _do_process_imported_manifest(
+                obj, copied_manifest_path, manifest_url,
+                [PurePosixPath(p) for p in paths], default_user)
         except Exception as ex:
             click.echo(
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')

@@ -26,7 +26,7 @@ import yaml
 from .cli_base import aliased_group, ContextObj
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
-from ..manifest.template import TemplateManager, SET_SUFFIX
+from ..manifest.template import TemplateManager, SET_SUFFIX, TemplateWithType
 
 
 @aliased_group('storage-set', short_help='storage setup sets management')
@@ -84,8 +84,10 @@ def set_add_(obj: ContextObj, template, inline, name):
     if target_path.exists():
         click.echo(f'Cannot create storage template set: set file {target_path} already exists.')
         return
-    templates = [(template_name, 'file') for template_name in template] +\
-                [(template_name, 'inline') for template_name in inline]
+    templates = [
+        *(TemplateWithType(template_name, 'file') for template_name in template),
+        *(TemplateWithType(template_name, 'inline') for template_name in inline),
+    ]
     if not templates:
         click.echo('Cannot create storage template set: no templates provided.')
         return

@@ -31,6 +31,25 @@ lint:
   script:
     - ./ci/ci-lint
 
+mypy:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-mypy wildland
+  artifacts:
+    reports:
+      junit: artifacts/wildland-mypy.xml
+
+mypy-plugins:
+  allow_failure: true
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-mypy plugins
+  artifacts:
+    reports:
+      junit: artifacts/wildland-mypy-plugins.xml
+
 pytest:
   stage: test
   image: $CONTAINER_TEST_IMAGE

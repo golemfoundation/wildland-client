@@ -216,7 +216,7 @@ class WildlandFSClient:
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, List[Storage], Iterable[PurePosixPath],
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[PurePosixPath],
                                    Optional[Container]]],
             remount: bool = False):
         """
@@ -436,8 +436,8 @@ class WildlandFSClient:
         }
         return self.info_cache
 
-    def get_unique_storage_paths(self, container: Optional[Container] = None) \
-            -> Iterable[Path]:
+    def get_unique_storage_paths(self, container: Optional[Container] = None
+            ) -> Iterable[PurePosixPath]:
         """
         Returns list of unique mount paths (ie '/.uuid/{container_uuid}/.backends/{backend_uuid}')
         for every storage in a given container. If no container is given, return unique mount paths

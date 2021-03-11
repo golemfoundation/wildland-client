@@ -22,12 +22,16 @@ Hash db.
 import logging
 import sqlite3
 from pathlib import PurePosixPath
-from collections import namedtuple
-from typing import List, Tuple
+from typing import List, Optional, Tuple, NamedTuple
 
-HashCache = namedtuple('HashCache', ['hash', 'token'])
 logger = logging.getLogger('hashdb')
 
+class HashCache(NamedTuple):
+    """
+    Hash cache
+    """
+    hash: str
+    token: str
 
 class HashDb:
     """
@@ -120,7 +124,7 @@ class HashDb:
             conn.execute('INSERT OR REPLACE INTO hashes VALUES (?, ?, ?, ?)',
                          (backend_id, str(path), hash_cache.hash, hash_cache.token))
 
-    def retrieve_hash(self, backend_id, path) -> HashCache:
+    def retrieve_hash(self, backend_id, path) -> Optional[HashCache]:
         """
         Retrieve hash (if available) for a given path.
         :param backend_id: uuid of the backend

@@ -74,7 +74,7 @@ class Step:
 
     def steps_chain(self):
         """Iterate over all steps leading to this resolved path"""
-        step = self
+        step: Optional[Step] = self
         while step is not None:
             yield step
             step = step.previous
@@ -210,6 +210,7 @@ class Search:
         Returns (storage, storage_backend).
         """
 
+        assert step.container is not None
         storage = self.client.select_storage(step.container)
         return storage, StorageBackend.from_params(storage.params)
 
@@ -407,7 +408,7 @@ class Search:
                 try:
                     container = client.session.load_container(manifest_content)
                     container_desc = container_spec
-                except WildlandError:
+                except WildlandError as ex:
                     logger.warning('failed to load user %s infrastructure: %s: Exception: %s',
                                    user.owner, container_spec, str(ex))
                     continue

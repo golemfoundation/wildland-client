@@ -29,7 +29,7 @@ import glob
 import logging
 import os
 from pathlib import Path, PurePosixPath
-from typing import Optional, Iterator, Tuple, Union, Dict, Iterable
+from typing import Dict, Iterable, Iterator, Optional, Tuple, Union, cast
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -298,9 +298,8 @@ class Client:
             path.read_bytes(), path,
             trusted_owner=trusted_owner)
 
-    def load_container_from_wlpath(self,
-                                   wlpath: WildlandPath,
-                                   aliases: Optional[dict] = None) -> Iterable[Container]:
+    def load_container_from_wlpath(self, wlpath: WildlandPath,
+            aliases: Optional[dict] = None) -> Iterator[Container]:
         """
         Load containers referring to a given WildlandPath.
         """
@@ -381,9 +380,9 @@ class Client:
 
         failed = False
         exc_msg = 'Failed to load some container manifests:\n'
-        for path in paths:
+        for p in paths:
             try:
-                yield self.load_container_from_path(Path(path))
+                yield self.load_container_from_path(Path(p))
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
@@ -447,7 +446,8 @@ class Client:
         return self.session.load_storage(self.read_from_url(url, owner),
                                          local_owners=self.config.get('local-owners'))
 
-    def load_storage_from_dict(self, dict_: dict, owner: str, container_path: str) -> Storage:
+    def load_storage_from_dict(self, dict_: dict, owner: str,
+            container_path: Union[str, PurePosixPath]) -> Storage:
         """
         Load storage from a dictionary. Used when a storage manifest is inlined
         in another manifest.
@@ -1093,8 +1093,8 @@ class Client:
             for i in range(len(container.backends)):
                 if isinstance(container.backends[i], collections.abc.Mapping):
                     continue
-                backend = self.load_storage_from_url(container.backends[i],
-                    container.owner)
+                backend = self.load_storage_from_url(
+                    cast(str, container.backends[i]), container.owner)
                 new_url = self._publish_storage_to_driver(driver, backend,
                     container_expanded_paths=container.expanded_paths)
                 assert new_url is not None
