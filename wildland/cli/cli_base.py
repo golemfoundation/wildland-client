@@ -97,7 +97,7 @@ class AliasedGroup(click.Group):
         self.aliases.update(kwds)
 
     def get_command(self, ctx, cmd_name):
-        if self.name == 'wl':
+        if self.name == 'wl' and 'debug' in ctx.params:
             self.debug = ctx.params['debug']
 
         # 1) try exact command
