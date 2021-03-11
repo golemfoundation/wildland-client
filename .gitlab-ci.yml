@@ -45,7 +45,7 @@ mypy-plugins:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-mypy plugins
+    - ./ci/ci-mypy --junit-xml artifacts/wildland-mypy-plugins.xml plugins
   artifacts:
     reports:
       junit: artifacts/wildland-mypy-plugins.xml
