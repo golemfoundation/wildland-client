@@ -100,14 +100,9 @@ class Manifest:
                 raise ManifestError('Owner not found')
 
         if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
-            backends_update = []
-            for backend in fields['backends']['storage']:
+            for idx, backend in enumerate(fields['backends']['storage']):
                 if isinstance(backend, dict) and 'access' in backend:
-                    backends_update.append((backend, cls.encrypt(backend, sig, owner)))
-
-            for old, new in backends_update:
-                fields['backends']['storage'].remove(old)
-                fields['backends']['storage'].append(new)
+                    fields['backends']['storage'][idx] = cls.encrypt(backend, sig, owner)
 
         keys_to_encrypt = sig.get_all_pubkeys(owner)
 
