@@ -155,7 +155,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
                     new_closed_categories = closed_categories | closed_category_set
                     new_open_category = postfix_category
                 else:
-                    new_closed_categories = closed_categories
+                    new_closed_categories = closed_categories.copy()
                     new_open_category = open_category + prefix_category
                 yield from self._get_categories_to_subcontainer_map_recursive(
                     path,
@@ -166,9 +166,10 @@ class CategorizationProxyStorageBackend(StorageBackend):
 
         if dir_contains_files:
             prefix_category, _, subcontainer_title = open_category.rpartition('/')
+            new_closed_categories = closed_categories
             if prefix_category:
-                closed_categories.add(prefix_category)
-            all_categories = frozenset(closed_categories) or frozenset({'/unclassified'})
+                new_closed_categories.add(prefix_category)
+            all_categories = frozenset(new_closed_categories) or frozenset({'/unclassified'})
             yield CategorizationSubcontainerMetaInfo(
                 dir_path=dir_path,
                 title=subcontainer_title or 'unclassified',
