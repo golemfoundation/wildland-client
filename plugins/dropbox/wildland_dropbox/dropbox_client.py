@@ -22,7 +22,7 @@ Dropbox client wrapping and exposing Dropbox API calls that are relevant for the
 
 import errno
 from pathlib import PurePosixPath
-from typing import List
+from typing import List, Optional
 
 from dropbox import Dropbox
 from dropbox.exceptions import AuthError, BadInputError
@@ -42,9 +42,9 @@ class DropboxClient:
     Dropbox client exposing relevant Dropbox API for Dropbox plugin.
     """
 
-    def __init__(self, access_token):
+    def __init__(self, access_token: str):
         self.access_token = access_token
-        self.connection: Dropbox = None
+        self.connection: Optional[Dropbox] = None
 
     def connect(self) -> None:
         """
@@ -64,6 +64,7 @@ class DropboxClient:
         """
         List content of the given directory.
         """
+        assert self.connection
         try:
             path_str = self._convert_to_dropbox_path(path)
             listing = self.connection.files_list_folder(path_str)
@@ -80,6 +81,7 @@ class DropboxClient:
         """
         Get content of the given file.
         """
+        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
             _, response = self.connection.files_download(path_str)
@@ -91,6 +93,7 @@ class DropboxClient:
         """
         Remove given file.
         """
+        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
             return self.connection.files_delete_v2(path_str)
@@ -103,6 +106,7 @@ class DropboxClient:
         """
         Create given directory. In case of a conflict don't allow Dropbox to autorename.
         """
+        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
             return self.connection.files_create_folder_v2(path_str, autorename=False)
@@ -120,6 +124,7 @@ class DropboxClient:
         """
         Get file/directory metadata. This is kind of a superset of getattr().
         """
+        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         return self.connection.files_get_metadata(path_str)
 
@@ -141,9 +146,11 @@ class DropboxClient:
             raise PermissionError(errno.EACCES, f'No permissions to write file [{path}]') from e
 
     def _upload_small_file(self, data: bytes, path: str) -> FileMetadata:
+        assert self.connection
         return self.connection.files_upload(data, path, mode=WriteMode.overwrite)
 
     def _upload_large_file(self, data: bytes, path: str) -> FileMetadata:
+        assert self.connection
         CHUNK_SIZE = 10 * 1024 * 1024  # 10 MiB
         offset = CHUNK_SIZE
         file_size = len(data)

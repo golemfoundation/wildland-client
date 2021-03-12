@@ -41,7 +41,7 @@ class DropboxFileAttr(Attr):
     Attributes of a Dropbox file/directory.
     """
 
-    def __init__(self, mode, size: int=0, timestamp: int=0, content_hash: str=None):
+    def __init__(self, mode, size: int=0, timestamp: int=0, content_hash: Optional[str]=None):
         super().__init__(
             mode=mode,
             size=size,
