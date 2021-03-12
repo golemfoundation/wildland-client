@@ -44,7 +44,7 @@ class DropboxClient:
 
     def __init__(self, access_token):
         self.access_token = access_token
-        self.connection = None
+        self.connection: Dropbox = None
 
     def connect(self) -> None:
         """
@@ -65,49 +65,50 @@ class DropboxClient:
         List content of the given directory.
         """
         try:
-            path = self._convert_to_dropbox_path(path)
-            listing = self.connection.files_list_folder(path)
+            path_str = self._convert_to_dropbox_path(path)
+            listing = self.connection.files_list_folder(path_str)
             entries: list[Metadata] = listing.entries
             while listing.has_more:
                 listing = self.connection.files_list_folder_continue(listing.cursor)
                 entries.extend(listing.entries)
             return entries
         except (AuthError, BadInputError) as e:
-            raise PermissionError(errno.EACCES, f'No permissions to list directory [{path}]') from e
+            raise PermissionError(errno.EACCES,
+                                  f'No permissions to list directory [{path_str}]') from e
 
     def get_file_content(self, path: PurePosixPath) -> bytes:
         """
         Get content of the given file.
         """
-        path = self._convert_to_dropbox_path(path)
+        path_str = self._convert_to_dropbox_path(path)
         try:
-            _, response = self.connection.files_download(path)
+            _, response = self.connection.files_download(path_str)
         except (AuthError, BadInputError) as e:
-            raise PermissionError(errno.EACCES, f'No permissions to read files [{path}]') from e
+            raise PermissionError(errno.EACCES, f'No permissions to read files [{path_str}]') from e
         return response.content
 
     def unlink(self, path: PurePosixPath) -> DeleteResult:
         """
         Remove given file.
         """
-        path = self._convert_to_dropbox_path(path)
+        path_str = self._convert_to_dropbox_path(path)
         try:
-            return self.connection.files_delete_v2(path)
+            return self.connection.files_delete_v2(path_str)
         except (AuthError, BadInputError) as e:
             raise PermissionError(
                 errno.EACCES,
-                f'No permissions to remove files and directories [{path}]') from e
+                f'No permissions to remove files and directories [{path_str}]') from e
 
     def mkdir(self, path: PurePosixPath) -> FolderMetadata:
         """
         Create given directory. In case of a conflict don't allow Dropbox to autorename.
         """
-        path = self._convert_to_dropbox_path(path)
+        path_str = self._convert_to_dropbox_path(path)
         try:
-            return self.connection.files_create_folder_v2(path, autorename=False)
+            return self.connection.files_create_folder_v2(path_str, autorename=False)
         except (AuthError, BadInputError) as e:
             raise PermissionError(errno.EACCES,
-                                  f'No permissions to create directories [{path}]') from e
+                                  f'No permissions to create directories [{path_str}]') from e
 
     def rmdir(self, path: PurePosixPath) -> DeleteResult:
         """
@@ -119,8 +120,8 @@ class DropboxClient:
         """
         Get file/directory metadata. This is kind of a superset of getattr().
         """
-        path = self._convert_to_dropbox_path(path)
-        return self.connection.files_get_metadata(path)
+        path_str = self._convert_to_dropbox_path(path)
+        return self.connection.files_get_metadata(path_str)
 
     def upload_file(self, data: bytes, path: PurePosixPath) -> FileMetadata:
         """

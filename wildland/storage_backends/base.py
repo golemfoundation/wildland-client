@@ -85,24 +85,24 @@ class Attr:
 
         return stat.S_ISDIR(self.mode)
 
-    @staticmethod
-    def file(size: int = 0, timestamp: int = 0) -> 'Attr':
+    @classmethod
+    def file(cls, size: int=0, timestamp: int=0) -> 'Attr':
         """
         Simple file with default access mode.
         """
 
-        return Attr(
+        return cls(
             mode=stat.S_IFREG | 0o644,
             size=size,
             timestamp=timestamp)
 
-    @staticmethod
-    def dir(size: int = 0, timestamp: int = 0) -> 'Attr':
+    @classmethod
+    def dir(cls, size: int=0, timestamp: int=0) -> 'Attr':
         """
         Simple directory with default access mode.
         """
 
-        return Attr(
+        return cls(
             mode=stat.S_IFDIR | 0o755,
             size=size,
             timestamp=timestamp)
