@@ -12,3 +12,11 @@
    `index.html` file with directory listing in every directory. These files
    will be invisible in the mounted filesystem, but they can be used to browse
    the S3 bucket when it's exposed using public HTTP.
+
+.. option:: --access-key STRING
+
+   S3 access key
+
+.. option:: --secret-key STRING
+
+   S3 secret key (omit for a prompt)
