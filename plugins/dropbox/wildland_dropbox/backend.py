@@ -28,7 +28,7 @@ from typing import Iterable, Tuple, Optional, Callable
 import click
 from dropbox.files import FileMetadata, FolderMetadata, Metadata
 from wildland.storage_backends.base import StorageBackend, Attr
-from wildland.storage_backends.buffered import File, FullBufferedFile
+from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 from .dropbox_client import DropboxClient
@@ -38,17 +38,18 @@ logger = logging.getLogger('storage-dropbox')
 
 class DropboxFileAttr(Attr):
     """
-    Attributes of a Dropbox file.
+    Attributes of a Dropbox file/directory.
     """
 
-    def __init__(self, size: int, timestamp: int, content_hash: str):
-        self.mode = stat.S_IFREG | 0o644
-        self.size = size
-        self.timestamp = timestamp
+    def __init__(self, mode, size: int=0, timestamp: int=0, content_hash: Optional[str]=None):
+        super().__init__(
+            mode=mode,
+            size=size,
+            timestamp=timestamp)
         self.content_hash = content_hash
 
     @classmethod
-    def from_file_metadata(cls, metadata: FileMetadata):
+    def from_file_metadata(cls, metadata: FileMetadata) -> 'DropboxFileAttr':
         """
         Convert given file's metadata to attribute object.
         """
@@ -56,7 +57,20 @@ class DropboxFileAttr(Attr):
             metadata.client_modified,
             metadata.server_modified)
         timestamp = int(latest_modification.timestamp())
-        return cls(metadata.size, timestamp, metadata.content_hash)
+        return cls(
+            stat.S_IFREG | 0o644,
+            metadata.size,
+            timestamp,
+            metadata.content_hash)
+
+    @classmethod
+    def from_folder_metadata(cls, _metadata: FolderMetadata) -> 'DropboxFileAttr':
+        """
+        Convert given file's metadata to attribute object.
+        """
+        # Currently there is no way to get last modified date for Dropbox directories.
+        # See: https://github.com/dropbox/dropbox-sdk-java/issues/130
+        return cls(stat.S_IFDIR | 0o755)
 
 
 class DropboxFile(FullBufferedFile):
@@ -64,8 +78,8 @@ class DropboxFile(FullBufferedFile):
     Representation of a Dropbox file.
     """
 
-    def __init__(self, client: DropboxClient, path: PurePosixPath, attr: Attr,
-                 clear_cache_callback: Optional[Callable] = None):
+    def __init__(self, client: DropboxClient, path: PurePosixPath, attr: DropboxFileAttr,
+                 clear_cache_callback: Optional[Callable]=None):
         super().__init__(attr, clear_cache_callback)
         self.client = client
         self.path = path
@@ -92,7 +106,7 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             "token": {
                 "type": ["string"],
                 "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
-                "Console.",
+                               "Console.",
             },
         }
     })
@@ -118,14 +132,12 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         }
 
     @staticmethod
-    def _get_attr_from_metadata(metadata: Metadata) -> Attr:
+    def _get_attr_from_metadata(metadata: Metadata) -> DropboxFileAttr:
         if isinstance(metadata, FileMetadata):
             attr = DropboxFileAttr.from_file_metadata(metadata)
         else:
             assert isinstance(metadata, FolderMetadata)
-            # There is no way to get last modified date for Dropbox directories.
-            # See: https://github.com/dropbox/dropbox-sdk-java/issues/130
-            attr = Attr.dir()
+            attr = DropboxFileAttr.from_folder_metadata(metadata)
         return attr
 
     def mount(self) -> None:
@@ -134,17 +146,17 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def unmount(self) -> None:
         self.client.disconnect()
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, DropboxFileAttr]]:
         for metadata in self.client.list_folder(path):
             attr = self._get_attr_from_metadata(metadata)
             yield metadata.name, attr
 
-    def open(self, path: PurePosixPath, _flags: int) -> File:
+    def open(self, path: PurePosixPath, _flags: int) -> DropboxFile:
         metadata = self.client.get_metadata(path)
         attr = self._get_attr_from_metadata(metadata)
         return DropboxFile(self.client, path, attr, self.clear_cache)
 
-    def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
+    def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> DropboxFile:
         metadata = self.client.upload_empty_file(path)
         attr = DropboxFileAttr.from_file_metadata(metadata)
         self.clear_cache()
@@ -163,6 +175,7 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.clear_cache()
 
     def utimens(self, path: PurePosixPath, _atime, _mtime) -> None:
+        # pylint: disable=no-self-use
         logger.debug("utimens dummy op %s", str(path))
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
@@ -182,5 +195,8 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.clear_cache()
 
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
-        attr: DropboxFileAttr = self.getattr(path)
+        if path == PurePosixPath('.'):
+            return None  # DirectoryCachedStorageMixin returns Attr.dir() for '.'
+        attr = self.getattr(path)
+        assert isinstance(attr, DropboxFileAttr)
         return attr.content_hash

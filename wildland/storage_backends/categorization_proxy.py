@@ -25,7 +25,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List, Tuple, Optional, Iterable, Set, Iterator
+from typing import Iterable, Iterator, List, Optional, Set, Tuple
 
 import click
 
