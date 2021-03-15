@@ -57,15 +57,20 @@ class Container:
 
     def ensure_uuid(self) -> str:
         """
+        Get the UUID of this container, create if necessary.
+        """
+        return self.get_uuid_path().name
+
+    def get_uuid_path(self) -> PurePosixPath:
+        """
         Find or create an UUID path for this container.
         """
-
         for path in self.paths:
             if path.parent == PurePosixPath('/.uuid/'):
-                return path.name
-        ident = str(uuid.uuid4())
-        self.paths.insert(0, PurePosixPath('/.uuid/') / ident)
-        return ident
+                return path
+        path = PurePosixPath('/.uuid/') / str(uuid.uuid4())
+        self.paths.insert(0, path)
+        return path
 
     def __str__(self):
         """Friendly text representation of the container"""

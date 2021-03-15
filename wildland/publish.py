@@ -35,16 +35,6 @@ from .storage import Storage
 
 logger = logging.getLogger('publish')
 
-def _get_uuid_path(container):
-    for path in container.paths:
-        try:
-            path.relative_to('/.uuid/')
-        except ValueError:
-            continue
-        else:
-            return path
-    assert False, 'did not find /.uuid/ path'
-
 
 class Publisher:
     # Between two publish operations, things might have changed:
@@ -73,7 +63,7 @@ class Publisher:
         self.infra_storage = next(self._get_storages_for_publish())
         assert self.infra_storage.manifest_pattern['type'] == 'glob'
         self.pattern = self.infra_storage.manifest_pattern['path']
-        self.container_uuid_path = _get_uuid_path(self.container)
+        self.container_uuid_path = self.container.get_uuid_path()
 
     def _get_relpath_for_storage_manifest(self, storage):
         # we publish only a single manifest for a storage, under `/.uuid/` path
