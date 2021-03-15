@@ -528,7 +528,7 @@ def test_zip_sync(tmpdir, storage_backend, cleanup):
 
 def test_zip_sync_change(tmpdir, storage_backend, cleanup):
     make_zip(tmpdir, [
-        ('foo.txt', 'foo data'),
+        ('foo.txt', 'foobar data'),
     ])
 
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
@@ -540,13 +540,13 @@ def test_zip_sync_change(tmpdir, storage_backend, cleanup):
     syncer.start_sync()
 
     assert Path(storage_dir1 / 'foo.txt').exists()
-    assert read_file(storage_dir1 / 'foo.txt') == 'foo data'
+    assert read_file(storage_dir1 / 'foo.txt') == 'foobar data'
 
     make_zip(tmpdir, [
-        ('bar.txt', 'bar data'),
+        ('bar.txt', 'data'),
     ])
 
-    assert wait_for_file(Path(storage_dir1 / 'bar.txt'), 'bar data')
+    assert wait_for_file(Path(storage_dir1 / 'bar.txt'), 'data')
     assert wait_for_deletion(Path(storage_dir1 / 'foo.txt'))
 
 

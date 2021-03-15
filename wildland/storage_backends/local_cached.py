@@ -230,7 +230,7 @@ class BaseCached(StorageBackend):
         except NotADirectoryError:
             # can occur due to extreme file conflicts across storages
             return None
-        if abs(time.time() - current_timestamp) < 0.001:
+        if abs(time.time() - current_timestamp) < 1:
             # due to filesystem lack of resolution, two changes less than 1 millisecond apart
             # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
             # but be warned: it can go as high as 2 seconds for FAT16/32
