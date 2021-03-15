@@ -211,6 +211,20 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
    Dropbox app token. You can generate it with Dropbox App Console.
 
 
+.. program:: wl-storage-create-googledrive
+.. _wl-storage-create-googledrive:
+
+:command:`wl storage create googledrive --container <container> [-u] [--user <user>] --credentials <credentials>`
+--------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+
+.. option:: --credentials <credentials>
+
+   Google Drive Client Congifuration Object. You can generate it in Google Developer Console. 
+   More info: https://developers.google.com/drive/api/v3/quickstart/python#step_1_turn_on_the
+
+
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
 
