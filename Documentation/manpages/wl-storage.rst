@@ -215,7 +215,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. _wl-storage-create-googledrive:
 
 :command:`wl storage create googledrive --container <container> [-u] [--user <user>] --credentials <credentials>`
---------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
