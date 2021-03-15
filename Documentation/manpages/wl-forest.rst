@@ -7,7 +7,7 @@
 Synopsis
 ========
 
-| :command:`wl forest create [--skip-bootstrap] <user> [<manifest-storage-set>] [<data-storage-set>]`
+| :command:`wl forest create <user> [<storage-set>] [<data-storage-set>]`
 
 Commands
 ========
@@ -15,15 +15,13 @@ Commands
 .. program:: wl-forest-create
 .. _wl-forest-create:
 
-:command:`wl forest create [--skip-bootstrap] <user> [<manifest-storage-set>] [<data-storage-set>]`
----------------------------------------------------------------------------------------------------
+:command:`wl forest create <user> [<storage-set>] [<data-storage-set>]`
+-----------------------------------------------------------------------
 
 Synopsis
 --------
 
-| Usage: wl forest create [OPTIONS] USER
-|        wl forest create [OPTIONS] USER MANIFEST_STORAGE_SET DATA_STORAGE_SET
-|        wl forest create [OPTIONS] USER STORAGE_SET
+| Usage: wl forest create [OPTIONS] USER  [STORAGE_SET] [DATA_STORAGE_SET]
 
 Description
 -----------
@@ -35,27 +33,19 @@ Manifest storage set *must* contain a template with RW storage as well as
 infrastructure location.
 
 Arguments:
-|   USER                  name of the user who owns the Forest (mandatory)
-|   MANIFEST_STORAGE_SET  storage set used for Forest manifests container
-|   DATA_STORAGE_SET      storage set used for Forest data container
-|   STORAGE_SET           if passed, the same storage set is used for both
-|                         manifests and data
+|   USER              name of the user who owns the Forest (mandatory)
+|   STORAGE_SET       storage set used to create Forest containers, if not given, user's
+|                     default storage-set is used instead
+|   DATA_STORAGE_SET  storage set used to create Forest data container, if not given, the
+|                     STORAGE_SET is used instead
 
 Options
 --------
 
 .. option:: --access USER
 
-   Allow an additional user access to this storage manifest. By default, storage manifests inherit
-   access settings from the container.
-
-.. option:: --manifest-container-owner USER
-
-   Override manifest container owner. By default this vaule is equal to the Forest user.
-
-.. option:: --data-container-owner USER
-
-   Override data container owner. By default this vaule is equal to the Forest user.
+   Allow an additional user access to containers created using this command. By default,
+   those the containers are unencrypted unless at least one USER is passed using this option.
 
 .. option:: --manifest-local-dir PATH
 
@@ -64,9 +54,3 @@ Options
 .. option:: --data-local-dir PATH
 
    Set data storage local directory. Must be an absolute path. Default: `/`
-
-.. option:: --skip-bootstrap
-
-   Creates Forest containers but does not bootstrap the storage backend nor adds infrastructure
-   to the Forest user. May be used by directory administrator who does not have Forest user'
-   signing key.

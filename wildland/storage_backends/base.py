@@ -163,21 +163,24 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     This abstract class exposes the following constants.
 
-    TYPE:           str    (required) - a unique name for backend's type (eg. dropbox, s3, local)
-    SCHEMA:         Schema (optional) - a jsonschema compatible Schema object used to validate
-                                        storage manifest syntax and accepted values
-    LOCATION_PARAM: str    (optional) - the key in storage params which holds a path or uri that
-                                        points to a location in storage backend.
+    .. code-block::
 
-                                        Some backends (eg. dateproxy) don't specify any locations
-                                        as they are merely proxying actual backends. In those cases
-                                        this costant should be omited.
+        TYPE:           str    (required) - a unique name for backend's type (eg. dropbox, s3,
+                                            local)
+        SCHEMA:         Schema (optional) - a jsonschema compatible Schema object used to validate
+                                            storage manifest syntax and accepted values
+        LOCATION_PARAM: str    (optional) - the key in storage params which holds a path or uri that
+                                            points to a location in storage backend.
 
-                                        Examples:
-                                        - `location` for `local` storage as it points to a directory
-                                          in `local` storage
-                                        - `s3_url` for `s3` storage as it's the s3's location
-                                          identifier
+                                            Some backends (eg. dateproxy) don't specify any
+                                            locationsas they are merely proxying actual backends.
+                                            In those cases this costant should be omited.
+
+                                            Examples:
+                                            - `location` for `local` storage as it points to a
+                                              directory in `local` storage
+                                            - `s3_url` for `s3` storage as it's the s3's location
+                                              identifier
 
     Currently the storage should implement an interface similar to FUSE.
     This implementation detail might change in the future.
