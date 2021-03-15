@@ -35,6 +35,7 @@ from .cli_base import (
 from . import (
     cli_common,
     cli_user,
+    cli_forest,
     cli_storage,
     cli_storage_template,
     cli_storage_set,
@@ -74,6 +75,7 @@ def main(ctx, base_dir, dummy, debug, verbose):
 
 
 main.add_command(cli_user.user_)
+main.add_command(cli_forest.forest_)
 main.add_command(cli_storage.storage_)
 main.add_command(cli_storage_template.storage_template)
 main.add_command(cli_storage_set.storage_set_)

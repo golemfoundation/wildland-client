@@ -161,7 +161,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     Any implementation should inherit from this class.
 
-    This abstract class exposes the following contants.
+    This abstract class exposes the following constants.
 
     TYPE:           str    (required) - a unique name for backend's type (eg. dropbox, s3, local)
     SCHEMA:         Schema (optional) - a jsonschema compatible Schema object used to validate
