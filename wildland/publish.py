@@ -171,6 +171,7 @@ class _StoragePublisher:
         self.container_uuid_path = publisher.container_uuid_path
 
         self.infra_storage = infra_storage
+        assert self.infra_storage.manifest_pattern is not None
         assert self.infra_storage.manifest_pattern['type'] == 'glob'
         self.pattern = self.infra_storage.manifest_pattern['path']
 
@@ -279,9 +280,9 @@ class _StoragePublisher:
                 for relpath, storage in storage_relpaths.items():
                     driver.makedirs(relpath.parent)
                     driver.write_file(relpath,
-                        self.client.session.dump_storage(storage))
+                        self.client.session.dump_object(storage))
 
                 for relpath in container_relpaths:
                     driver.makedirs(relpath.parent)
                     driver.write_file(relpath,
-                        self.client.session.dump_container(self.container))
+                        self.client.session.dump_object(self.container))
