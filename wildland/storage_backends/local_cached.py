@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 A cached version of local storage.
-'''
+"""
 
 from typing import Iterable, Tuple, Optional
 from pathlib import Path, PurePosixPath
@@ -37,9 +37,9 @@ from ..manifest.schema import Schema
 
 
 class LocalCachedFile(FullBufferedFile):
-    '''
+    """
     A fully buffered local file.
-    '''
+    """
     def __init__(self, attr, os_path, local_path, clear_cache_callback, ignore_callback=None):
         super().__init__(attr, clear_cache_callback)
         # we store separately os_path (path on disk, to use when accessing file) and wayland (local)
@@ -60,9 +60,9 @@ class LocalCachedFile(FullBufferedFile):
 
 
 class LocalCachedPagedFile(PagedFile):
-    '''
+    """
     A paged, read-only local file.
-    '''
+    """
 
     def __init__(self, local_path: Path, attr: Attr):
         super().__init__(attr)
@@ -75,14 +75,14 @@ class LocalCachedPagedFile(PagedFile):
 
 
 class BaseCached(StorageBackend):
-    '''
+    """
     A cached storage backed by local files. Used mostly to test the caching
     scheme.
 
     This backend should emulate "cloud" backends, therefore, we don't keep open
     file handles, but perform read()/write() operations opening the file each
     time.
-    '''
+    """
 
     SCHEMA = Schema({
         "type": "object",
@@ -113,9 +113,9 @@ class BaseCached(StorageBackend):
 
     @staticmethod
     def _stat(st: os.stat_result) -> Attr:
-        '''
+        """
         Convert os.stat_result to Attr.
-        '''
+        """
 
         return Attr(
             mode=st.st_mode,
@@ -204,7 +204,7 @@ class BaseCached(StorageBackend):
         os.rename(self._local(move_from), self._local(move_to))
         self.clear_cache()
 
-    def utimens(self, path: str, atime, mtime):
+    def utimens(self, path: PurePosixPath, atime, mtime):
         atime_ns = atime.tv_sec * 1e9 + atime.tv_nsec
         mtime_ns = mtime.tv_sec * 1e9 + mtime.tv_nsec
 
@@ -221,7 +221,7 @@ class BaseCached(StorageBackend):
             return LocalStorageWatcher(self)
         return default_watcher
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         try:
             current_timestamp = os.stat(self._local(path)).st_mtime
         except NotADirectoryError:
@@ -232,20 +232,20 @@ class BaseCached(StorageBackend):
             # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
             # but be warned: it can go as high as 2 seconds for FAT16/32
             return None
-        return int(current_timestamp * 1000)
+        return str(int(current_timestamp * 1000))
 
 
 class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
-    '''
+    """
     A cached storage that uses info_all().
-    '''
+    """
 
     TYPE = 'local-cached'
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        '''
+        """
         Load information about all files and directories.
-        '''
+        """
 
         try:
             st = os.stat(self.root)
@@ -273,16 +273,16 @@ class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
 
 
 class LocalDirectoryCachedStorageBackend(DirectoryCachedStorageMixin, BaseCached):
-    '''
+    """
     A cached storage that uses info_dir().
-    '''
+    """
 
     TYPE = 'local-dir-cached'
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
-        '''
+        """
         Load information about a single directory.
-        '''
+        """
 
         for name in os.listdir(self._local(path)):
             attr = self._stat(os.stat(self._local(path) / name))

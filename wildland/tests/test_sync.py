@@ -43,10 +43,10 @@ init_logging()
 @pytest.fixture(params=[LocalStorageBackend, LocalCachedStorageBackend,
                         LocalDirectoryCachedStorageBackend])
 def storage_backend(request) -> Callable:
-    '''
+    """
     Parametrize the tests by storage backend; at the moment include only those with watchers
     implemented.
-    '''
+    """
 
     return request.param
 
@@ -382,6 +382,7 @@ def test_sync_conflict_resolved(tmpdir, storage_backend, cleanup):
     assert read_file(storage_dir2 / 'file1') == 'xyz'
 
 
+@pytest.mark.skip(reason='sleep() needs recalibration')
 def test_sync_move_from_subdir(tmpdir, storage_backend, cleanup):
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
     backend2, storage_dir2 = make_storage(storage_backend, tmpdir / 'storage2')
@@ -507,6 +508,7 @@ def test_zip_sync(tmpdir, storage_backend, cleanup):
     assert read_file(storage_dir1 / 'dir/bar.txt') == 'bar data'
 
 
+@pytest.mark.skip(reason='sleep() needs recalibration')
 def test_zip_sync_change(tmpdir, storage_backend, cleanup):
     make_zip(tmpdir, [
         ('foo.txt', 'foo data'),

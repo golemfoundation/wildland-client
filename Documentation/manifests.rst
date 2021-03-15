@@ -288,6 +288,8 @@ Example:
           owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
           container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
 
+In every category directory, every other category will be mounted.
+
 Fields:
 
 .. schema:: container.schema.json

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Wildland path class
-'''
+"""
 
 
 from pathlib import PurePosixPath
@@ -33,13 +33,13 @@ WILDLAND_URL_PREFIX = 'wildland:'
 
 
 class PathError(WildlandError):
-    '''
+    """
     Error in parsing or resolving a Wildland path.
-    '''
+    """
 
 
 class WildlandPath:
-    '''
+    """
     A path in Wildland namespace.
 
     The path has the following form:
@@ -49,7 +49,7 @@ class WildlandPath:
     - owner (optional): owner determining the first container's namespace
     - parts: intermediate parts, identifying containers on the path
     - file_path (optional): path to file in the last container
-    '''
+    """
 
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
@@ -69,7 +69,7 @@ class WildlandPath:
 
     @classmethod
     def match(cls, s: str) -> bool:
-        '''
+        """
         Check if a string should be recognized as a Wildland path.
 
         To be used when distinguishing Wildland paths from other identifiers
@@ -77,7 +77,7 @@ class WildlandPath:
 
         Note that this doesn't guarantee that the WildlandPath.from_str() will
         succeed in parsing the path.
-        '''
+        """
 
         return cls.WLPATH_RE.match(s) is not None
 

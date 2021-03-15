@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Wildland command-line interface.
-'''
+"""
 
 import os
 from pathlib import Path
@@ -36,6 +36,7 @@ from . import (
     cli_common,
     cli_user,
     cli_storage,
+    cli_storage_template,
     cli_storage_set,
     cli_container,
     cli_bridge,
@@ -51,17 +52,20 @@ from .. import __version__ as _version
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
+
 @aliased_group('wl')
 @click.option('--dummy/--no-dummy', default=False,
-    help='use dummy signatures')
+              help='use dummy signatures')
 @click.option('--base-dir', default=None,
-    help='base directory for configuration')
+              help='base directory for configuration')
+@click.option('--debug/--no-debug', default=False,
+              help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
 @click.version_option(_version)
 @click.pass_context
-def main(ctx, base_dir, dummy, verbose):
-    # pylint: disable=missing-docstring
+def main(ctx, base_dir, dummy, debug, verbose):
+    # pylint: disable=missing-docstring, unused-argument
 
     client = Client(dummy=dummy, base_dir=base_dir)
     ctx.obj = ContextObj(client)
@@ -71,6 +75,7 @@ def main(ctx, base_dir, dummy, verbose):
 
 main.add_command(cli_user.user_)
 main.add_command(cli_storage.storage_)
+main.add_command(cli_storage_template.storage_template)
 main.add_command(cli_storage_set.storage_set_)
 main.add_command(cli_container.container_)
 main.add_command(cli_bridge.bridge_)
@@ -87,9 +92,9 @@ main.add_command(cli_transfer.put)
 
 
 def _do_mount_containers(obj: ContextObj, to_mount):
-    '''
+    """
     Issue a series of .control/mount commands.
-    '''
+    """
     if not to_mount:
         return
 
@@ -101,7 +106,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         for container in obj.client.load_containers_from(name):
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
             commands.extend(cli_container.prepare_mount(
-                obj, container, container.local_path, user_paths,
+                obj, container, str(container.local_path), user_paths,
                 remount=False, with_subcontainers=True, subcontainer_of=None, quiet=True,
                 only_subcontainers=False))
 
@@ -128,11 +133,11 @@ def _do_mount_containers(obj: ContextObj, to_mount):
 @click.pass_obj
 def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
           skip_default_containers, default_user):
-    '''
+    """
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
     (``~/.wildland/config.yaml``) as ``mount_dir``.
-    '''
+    """
 
     if not os.path.exists(obj.mount_dir):
         print(f'Creating: {obj.mount_dir}')
@@ -184,9 +189,9 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
               help='list subcontainers hidden by default')
 @click.pass_obj
 def status(obj: ContextObj, with_subcontainers):
-    '''
+    """
     Display all mounted containers.
-    '''
+    """
     obj.fs_client.ensure_mounted()
 
     click.echo('Mounted containers:')
@@ -208,24 +213,24 @@ def status(obj: ContextObj, with_subcontainers):
 
 @main.command(short_help='renamed to "start"')
 def mount():
-    '''
+    """
     Renamed to "start" command.
-    '''
+    """
     raise CliError('The "wl mount" command has been renamed to "wl start"')
 
 
 @main.command(short_help='unmount Wildland filesystem', alias=['umount', 'unmount'])
 @click.pass_obj
 def stop(obj: ContextObj):
-    '''
+    """
     Unmount the Wildland filesystem.
-    '''
+    """
 
     click.echo(f'Unmounting: {obj.mount_dir}')
     try:
         obj.fs_client.unmount()
     except WildlandError as ex:
-        raise CliError(ex) from ex
+        raise CliError(str(ex)) from ex
 
 
 @main.command(short_help='watch for changes')
@@ -234,9 +239,9 @@ def stop(obj: ContextObj):
                 nargs=-1, required=True)
 @click.pass_obj
 def watch(obj: ContextObj, patterns, with_initial):
-    '''
+    """
     Watch for changes in inside mounted Wildland filesystem.
-    '''
+    """
 
     obj.fs_client.ensure_mounted()
 
@@ -246,4 +251,4 @@ def watch(obj: ContextObj, patterns, with_initial):
 
 
 if __name__ == '__main__':
-    main() # pylint: disable=no-value-for-parameter
+    main()  # pylint: disable=no-value-for-parameter

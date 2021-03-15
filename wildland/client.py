@@ -19,9 +19,9 @@
 
 # pylint: disable=too-many-lines
 
-'''
+"""
 Client class
-'''
+"""
 
 import collections.abc
 import functools
@@ -29,7 +29,7 @@ import glob
 import logging
 import os
 from pathlib import Path, PurePosixPath
-from typing import Optional, Iterator, Tuple, Union, Dict, Iterable
+from typing import Dict, Iterable, Iterator, Optional, Tuple, Union, cast
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -56,9 +56,9 @@ HTTP_TIMEOUT_SECONDS = 5
 
 
 class Client:
-    '''
+    """
     A high-level interface for operating on Wildland objects.
-    '''
+    """
 
     def __init__(
             self,
@@ -113,10 +113,10 @@ class Client:
         self._select_reference_storage_cache = {}
 
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
-        '''
+        """
         Create a copy of the current Client, with a public key imported.
         Returns a tuple (client, owner).
-        '''
+        """
 
         sig = self.session.sig.copy()
         owner = sig.add_pubkey(pubkey)
@@ -136,9 +136,9 @@ class Client:
 
     @staticmethod
     def find_local_manifest(base_dir: Path, suffix: Optional[str], name: str) -> Optional[Path]:
-        '''
+        """
         Find local manifest based on a (potentially ambiguous) name.
-        '''
+        """
 
         # Short name
         if not name.endswith('.yaml'):
@@ -159,9 +159,9 @@ class Client:
         return None
 
     def load_users(self) -> Iterator[User]:
-        '''
+        """
         Load users from the users directory.
-        '''
+        """
 
         sig = self.session.sig.copy()
         sig.recognize_local_keys()
@@ -178,16 +178,16 @@ class Client:
                     yield user
 
     def load_user_from_path(self, path: Path) -> User:
-        '''
+        """
         Load user from a local file.
-        '''
+        """
 
         return self.session.load_user(path.read_bytes(), path)
 
     def load_user_from_url(self, url: str, owner: str, allow_self_signed=False) -> User:
-        '''
+        """
         Load user from an URL
-        '''
+        """
 
         data = self.read_from_url(url, owner)
 
@@ -197,9 +197,9 @@ class Client:
         return self.session.load_user(data)
 
     def find_user_manifest(self, name: str) -> Optional[Path]:
-        '''
+        """
         Find user's manifest based on a (potentially ambiguous) name.
-        '''
+        """
 
         # Aliases
         if name == '@default':
@@ -274,9 +274,9 @@ class Client:
              if ustep.user is not None])
 
     def load_containers(self) -> Iterator[Container]:
-        '''
+        """
         Load containers from the containers directory.
-        '''
+        """
 
         if self.container_dir.exists():
             for path in sorted(self.container_dir.glob('*.yaml')):
@@ -289,18 +289,17 @@ class Client:
                     yield container
 
     def load_container_from_path(self, path: Path) -> Container:
-        '''
+        """
         Load container from a local file.
-        '''
+        """
 
         trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_container(
             path.read_bytes(), path,
             trusted_owner=trusted_owner)
 
-    def load_container_from_wlpath(self,
-                                   wlpath: WildlandPath,
-                                   aliases: Optional[dict] = None) -> Iterable[Container]:
+    def load_container_from_wlpath(self, wlpath: WildlandPath,
+            aliases: Optional[dict] = None) -> Iterator[Container]:
         """
         Load containers referring to a given WildlandPath.
         """
@@ -315,9 +314,9 @@ class Client:
             yield final_step.container
 
     def load_container_from_url(self, url: str, owner: str) -> Container:
-        '''
+        """
         Load container from URL.
-        '''
+        """
 
         if WildlandPath.match(url):
             wlpath = WildlandPath.from_str(url)
@@ -330,10 +329,10 @@ class Client:
         return self.session.load_container(self.read_from_url(url, owner))
 
     def load_container_from_dict(self, dict_: dict, owner: str) -> Container:
-        '''
+        """
         Load container from a dictionary. Used when a container manifest is inlined
         in another manifest.
-        '''
+        """
 
         # fill in fields that are determined by the context
         if 'owner' not in dict_:
@@ -346,9 +345,9 @@ class Client:
     # pylint: disable=inconsistent-return-statements
     def load_container_from_url_or_dict(self,
             obj: Union[str, dict], owner: str):
-        '''
+        """
         Load container, suitable for loading directly from manifest.
-        '''
+        """
         if isinstance(obj, str):
             return self.load_container_from_url(obj, owner)
         if isinstance(obj, collections.abc.Mapping):
@@ -356,10 +355,10 @@ class Client:
         assert False
 
     def load_containers_from(self, name: str) -> Iterator[Container]:
-        '''
+        """
         Load a list of containers. Currently supports glob patterns (*) and
         tilde (~), but only in case of local files.
-        '''
+        """
 
         if WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
@@ -381,9 +380,9 @@ class Client:
 
         failed = False
         exc_msg = 'Failed to load some container manifests:\n'
-        for path in paths:
+        for p in paths:
             try:
-                yield self.load_container_from_path(Path(path))
+                yield self.load_container_from_path(Path(p))
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
@@ -393,9 +392,9 @@ class Client:
             raise ManifestError(exc_msg)
 
     def load_container_from(self, name: str) -> Container:
-        '''
+        """
         Load a container based on a (potentially ambiguous) name.
-        '''
+        """
 
         # Wildland path
         if WildlandPath.match(name):
@@ -414,9 +413,9 @@ class Client:
         raise ManifestError(f'Container not found: {name}')
 
     def load_storages(self) -> Iterator[Storage]:
-        '''
+        """
         Load storages from the storage directory.
-        '''
+        """
 
         if self.storage_dir.exists():
             for path in sorted(self.storage_dir.glob('*.yaml')):
@@ -429,9 +428,9 @@ class Client:
                     yield storage
 
     def load_storage_from_path(self, path: Path) -> Storage:
-        '''
+        """
         Load storage from a local file.
-        '''
+        """
 
         trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_storage(
@@ -440,18 +439,19 @@ class Client:
             local_owners=self.config.get('local-owners'))
 
     def load_storage_from_url(self, url: str, owner: str) -> Storage:
-        '''
+        """
         Load storage from URL.
-        '''
+        """
 
         return self.session.load_storage(self.read_from_url(url, owner),
                                          local_owners=self.config.get('local-owners'))
 
-    def load_storage_from_dict(self, dict_: dict, owner: str, container_path: str) -> Storage:
-        '''
+    def load_storage_from_dict(self, dict_: dict, owner: str,
+            container_path: Union[str, PurePosixPath]) -> Storage:
+        """
         Load storage from a dictionary. Used when a storage manifest is inlined
         in another manifest.
-        '''
+        """
 
         if list(dict_.keys()) == ['encrypted']:
             raise ManifestError('This inline storage cannot be decrypted')
@@ -471,9 +471,9 @@ class Client:
                                          local_owners=self.config.get('local-owners'))
 
     def load_storage_from(self, name: str) -> Storage:
-        '''
+        """
         Load a storage based on a (potentially ambiguous) name.
-        '''
+        """
         path = self.find_local_manifest(self.storage_dir, 'storage', name)
         if path:
             return self.load_storage_from_path(path)
@@ -481,9 +481,9 @@ class Client:
         raise ManifestError(f'Storage not found: {name}')
 
     def load_bridges(self) -> Iterator[Bridge]:
-        '''
+        """
         Load bridge manifests from the bridges directory.
-        '''
+        """
 
         if self.bridge_dir.exists():
             for path in sorted(self.bridge_dir.glob('*.yaml')):
@@ -496,9 +496,9 @@ class Client:
                     yield bridge
 
     def load_bridge_from_path(self, path: Path) -> Bridge:
-        '''
+        """
         Load a Bridge from a local file.
-        '''
+        """
 
         trusted_owner = self.fs_client.find_trusted_owner(path)
         return self.session.load_bridge(
@@ -540,10 +540,10 @@ class Client:
         return set(paths)
 
     def save_user(self, user: User, path: Optional[Path] = None) -> Path:
-        '''
+        """
         Save a user manifest. If path is None, the user has to have
         local_path set.
-        '''
+        """
 
         path = path or user.local_path
         assert path is not None
@@ -552,10 +552,10 @@ class Client:
         return path
 
     def save_new_user(self, user: User, name: Optional[str] = None) -> Path:
-        '''
+        """
         Save a new user in the user directory. Use the name as a hint for file
         name.
-        '''
+        """
 
         path = self.new_path('user', name or user.owner)
         path.write_bytes(self.session.dump_user(user))
@@ -563,10 +563,10 @@ class Client:
         return path
 
     def save_container(self, container: Container, path: Optional[Path] = None) -> Path:
-        '''
+        """
         Save a container manifest. If path is None, the container has to have
         local_path set.
-        '''
+        """
 
         path = path or container.local_path
         assert path is not None
@@ -574,10 +574,10 @@ class Client:
         return path
 
     def save_new_container(self, container: Container, name: Optional[str] = None) -> Path:
-        '''
+        """
         Save a new container in the container directory. Use the name as a hint for file
         name.
-        '''
+        """
 
         ident = container.ensure_uuid()
         path = self.new_path('container', name or ident)
@@ -586,10 +586,10 @@ class Client:
         return path
 
     def save_new_storage(self, storage: Storage, name: Optional[str] = None) -> Path:
-        '''
+        """
         Save a new storage in the storage directory. Use the name as a hint for file
         name.
-        '''
+        """
 
         path = self.new_path('storage', name or storage.container_path.name)
         path.write_bytes(self.session.dump_object(storage))
@@ -598,9 +598,9 @@ class Client:
 
     def save_new_bridge(self, bridge: Bridge,
                         name: Optional[str], path: Optional[Path]) -> Path:
-        '''
+        """
         Save a new bridge.
-        '''
+        """
 
         if not path:
             assert name is not None
@@ -667,6 +667,27 @@ class Client:
                 except WildlandError:
                     logging.exception('Error loading manifest: %s', url_or_dict)
                     continue
+
+                # Checking storage owner and path is neccessary only in external
+                # storage files but not in inline ones.
+
+                if storage.owner != container.owner:
+                    logger.error(
+                        '%s: owner field mismatch: storage %s, container %s',
+                        name,
+                        storage.owner,
+                        container.owner
+                    )
+                    continue
+
+                if storage.container_path not in container.expanded_paths:
+                    logger.error(
+                        '%s: unrecognized container path for storage: %s, %s',
+                        name,
+                        storage.container_path,
+                        container.expanded_paths
+                    )
+                    continue
             else:
                 name = '(inline)'
                 try:
@@ -675,24 +696,6 @@ class Client:
                 except WildlandError as e:
                     logging.info('Container %s: error loading inline manifest: %s', container, e)
                     continue
-
-            if storage.owner != container.owner:
-                logger.error(
-                    '%s: owner field mismatch: storage %s, container %s',
-                    name,
-                    storage.owner,
-                    container.owner
-                )
-                continue
-
-            if storage.container_path not in container.expanded_paths:
-                logger.error(
-                    '%s: unrecognized container path for storage: %s, %s',
-                    name,
-                    storage.container_path,
-                    container.expanded_paths
-                )
-                continue
 
             if not StorageBackend.is_type_supported(storage.storage_type):
                 logging.warning('Unsupported storage manifest: %s (type %s)',
@@ -715,12 +718,12 @@ class Client:
 
     def select_storage(self, container: Container, backends=None, *,
             predicate=None) -> Storage:
-        '''
+        """
         Select and load a storage to mount for a container.
 
         In case of proxy storage, this will also load an reference storage and
         inline the manifest.
-        '''
+        """
 
         try:
             return next(
@@ -728,15 +731,40 @@ class Client:
         except StopIteration as ex:
             raise ManifestError('no supported storage manifest') from ex
 
+    def get_storages_to_mount(self, container: Container) -> Iterable[Storage]:
+        """
+        Return valid, mountable storages for the given container
+        """
+        storages = list(self.all_storages(container, predicate=None))
+
+        if not storages:
+            raise WildlandError('No valid storages found')
+
+        primaries = list(filter(lambda s: s.is_primary, storages))
+
+        if len(primaries) > 1:
+            raise WildlandError('There cannot be more than 1 primary storage defined. '
+                                'Verify the container manifest.')
+
+        if len(primaries) == 0:
+            # If no primaries were defined in the manifest, mark the first storage from the list as
+            # primary. There must be at least one storage designated as the primary storage.
+            storages[0].promote_to_primary()
+        else:
+            # Make sure the primary storage is first
+            storages = sorted(storages, key=lambda s: s.is_primary)
+
+        return storages
+
     def _select_reference_storage(
             self,
             container_url_or_dict: Union[str, Dict],
             owner: str,
             trusted: bool) -> Optional[Dict]:
-        '''
-        Select an "reference" storage based on URL or dictionary. This resolves a
+        """
+        Select a "reference" storage based on URL or dictionary. This resolves a
         container specification and then selects storage for the container.
-        '''
+        """
 
         # use custom caching that dumps *container_url_or_dict* to yaml,
         # because dict is not hashable (and there is no frozendict in python)
@@ -818,9 +846,9 @@ class Client:
 
     @staticmethod
     def is_url(s: str):
-        '''
+        """
         Check if string can be recognized as URL.
-        '''
+        """
 
         return '://' in s or WildlandPath.match(s)
 
@@ -865,11 +893,11 @@ class Client:
         return True
 
     def read_from_url(self, url: str, owner: str, use_aliases: bool = False) -> bytes:
-        '''
+        """
         Retrieve data from a given URL. The local (file://) URLs
         are recognized based on the 'local_hostname' and 'local_owners'
         settings.
-        '''
+        """
 
         if WildlandPath.match(url):
             search = self._wl_url_to_search(url, use_aliases=use_aliases)
@@ -897,18 +925,18 @@ class Client:
         raise WildlandError(f'Unrecognized URL: {url}')
 
     def local_url(self, path: Path) -> str:
-        '''
+        """
         Convert an absolute path to a local URL.
-        '''
+        """
 
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
 
     def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
-        '''
+        """
         Retrieve path from a given file URL, if it's applicable.
         Checks the 'local_hostname' and 'local_owners' settings.
-        '''
+        """
         parse_result = urlparse(url)
         if parse_result.scheme != 'file':
             return None
@@ -947,9 +975,9 @@ class Client:
                 '{path}', str(path.relative_to('/')))).relative_to('/')
 
     def get_storage_for_publish(self, owner: str):
-        '''
+        """
         Retrieves suitable storage to publish container manifest.
-        '''
+        """
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import StorageDriver
 
@@ -1052,9 +1080,9 @@ class Client:
         return driver.storage_backend.get_url_for_path(relpath)
 
     def publish_container(self, container: Container) -> None:
-        '''
+        """
         Publish a container to a container owner by the same user.
-        '''
+        """
 
         # pylint: disable=import-outside-toplevel, cyclic-import
         from .search import StorageDriver
@@ -1065,8 +1093,8 @@ class Client:
             for i in range(len(container.backends)):
                 if isinstance(container.backends[i], collections.abc.Mapping):
                     continue
-                backend = self.load_storage_from_url(container.backends[i],
-                    container.owner)
+                backend = self.load_storage_from_url(
+                    cast(str, container.backends[i]), container.owner)
                 new_url = self._publish_storage_to_driver(driver, backend,
                     container_expanded_paths=container.expanded_paths)
                 assert new_url is not None

@@ -1,8 +1,8 @@
-'''
+"""
 ImapClient is a module delivering an IMAP mailbox representation
 for wildland imap backend. The representation is read-only,
 update-sensitive and includes primitive caching support.
-'''
+"""
 
 import logging
 import time
@@ -19,10 +19,10 @@ from imapclient import IMAPClient
 
 @dataclass(eq=True, frozen=True)
 class MessageEnvelopeData:
-    '''
+    """
     Compact representation of e-mail header, as we use it
     for processing internally.
-    '''
+    """
     msg_uid: int
     # Note, that here a simplified approach is used, compared to
     # RFC5322, which assigns slightly different semantics to From
@@ -36,19 +36,19 @@ class MessageEnvelopeData:
 
 @dataclass(eq=True, frozen=True)
 class MessagePart:
-    '''
+    """
     DTO for message attachement / mime part of the message.
-    '''
+    """
     attachment_name: str # can be None
     mime_type: str
     content: bytes
 
 class ImapClient:
-    '''
+    """
     IMAP protocol client implementation adding some additional
     level of abstraction over generic IMAPClient to expose
     the features needed by the wildland filesystem.
-    '''
+    """
 
     # Avoid querying the server more often than that:
     QUERY_INTERVAL = 60
@@ -87,9 +87,9 @@ class ImapClient:
 
 
     def connect(self):
-        '''
+        """
         Connect to IMAP server.
-        '''
+        """
         self.logger.debug('connecting to IMAP server')
         self.imap = IMAPClient(self.host, use_uid=True, ssl=self.ssl)
         self.imap.login(self.login, self.password)
@@ -104,9 +104,9 @@ class ImapClient:
         self.logger.debug('connected to IMAP server %s', self.host)
 
     def disconnect(self):
-        '''
+        """
         disconnect from IMAP server.
-        '''
+        """
         with self._local_lock:
             self.logger.debug('disconnecting from IMAP server')
             if self._connected:
@@ -122,10 +122,10 @@ class ImapClient:
                 self.logger.debug("ImapClient  disconnected")
 
     def all_messages_env(self) -> List[MessageEnvelopeData]:
-        '''
+        """
         Provides iterable over collection of all envelopes fetched
         from server.
-        '''
+        """
         self.refresh_if_needed()
 
         with self._local_lock:
@@ -134,11 +134,11 @@ class ImapClient:
         return rv
 
     def refresh_if_needed(self) -> int:
-        '''
+        """
         A naive mailbox refresh. Calling it pings the server with NOOP
         and returns a "version" of mailbox observed. Version is just a
         counter incremented each time when mailbox change is detected.
-        '''
+        """
         with self._local_lock:
             if (self._connected and time.time() > self._last_mailbox_query
                + ImapClient.QUERY_INTERVAL):
@@ -171,10 +171,10 @@ class ImapClient:
             return  self._mailbox_version
 
     def get_message(self, msg_id) -> List[MessagePart]:
-        '''
+        """
         Read and return single message (basic headers and
         main contents) as byte array.
-        '''
+        """
         self.logger.debug('get_message called for: %d', msg_id)
         with self._local_lock:
             if msg_id not in self._message_cache:
@@ -184,10 +184,10 @@ class ImapClient:
         return rv
 
     def _load_msg(self, mid) -> List[MessagePart]:
-        '''
+        """
         Load a message with given identifier from IMAP server and
         return it as a "pretty string".
-        '''
+        """
         self.logger.debug('fetching message %d', mid)
         rv = list()
         with self._imap_lock:
@@ -227,9 +227,9 @@ class ImapClient:
         return rv
 
     def _del_msg(self, msg_id):
-        '''
+        """
         remove message from local cache
-        '''
+        """
         if msg_id in self._envelope_cache:
             del self._envelope_cache[msg_id]
             self._all_ids.remove(msg_id)
@@ -239,20 +239,20 @@ class ImapClient:
 
 
     def _prefetch_msg(self, msg_id):
-        '''
+        """
         Fetch headers of given message and register them in
         cache.
-        '''
+        """
         data = self.imap.fetch([msg_id], 'ENVELOPE')
         env = data[msg_id][b'ENVELOPE']
         self._register_envelope(msg_id, env)
 
     def _parse_address(self, addr) -> Set[str]:
-        '''
+        """
         Parse address object tuple (as described in
         https://imapclient.readthedocs.io/en/2.1.0/api.html#imapclient.response_types.Address)
         and return a string suitable for usage as a path element.
-        '''
+        """
         # pylint: disable=no-self-use
 
         rv = set()
@@ -274,10 +274,10 @@ class ImapClient:
         return rv
 
     def _register_envelope(self, msgid, env):
-        '''
+        """
         Create sender and timeline cache entries, based on
         raw envelope of received message.
-        '''
+        """
 
         senders = set()
         for addr in [env.sender, env.from_]:
@@ -297,9 +297,9 @@ class ImapClient:
 
 
     def _invalidate_and_reread(self):
-        '''
+        """
         invalidate local message list. Reread and update index.
-        '''
+        """
         srv_msg_ids = self.imap.search('ALL')
         ids_to_remove = self._all_ids - set(srv_msg_ids)
         ids_to_add = set(srv_msg_ids) - self._all_ids

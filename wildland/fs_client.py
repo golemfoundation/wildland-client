@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Wildland FS client
-'''
+"""
 import itertools
 import time
 from pathlib import Path, PurePosixPath
@@ -31,6 +31,7 @@ import sys
 import hashlib
 import dataclasses
 import glob
+import re
 
 from .container import Container
 from .storage import Storage
@@ -42,9 +43,9 @@ logger = logging.getLogger('fs_client')
 
 @dataclasses.dataclass
 class PathTree:
-    '''
+    """
     A prefix tree for efficient determining of mounted storages.
-    '''
+    """
 
     storage_ids: List[int]
     children: Dict[str, 'PathTree']
@@ -52,22 +53,22 @@ class PathTree:
 
 @dataclasses.dataclass
 class WatchEvent:
-    '''
+    """
     A file change event.
-    '''
+    """
 
     event_type: str  # create, modify, delete
     path: PurePosixPath  # absolute path in Wildland namespace
 
 
 class WildlandFSError(WildlandError):
-    '''Error while trying to control Wildland FS.'''
+    """Error while trying to control Wildland FS."""
 
 
 class WildlandFSClient:
-    '''
+    """
     A class to communicate with Wildland filesystem over the .control API.
-    '''
+    """
 
     def __init__(self, mount_dir: Path, socket_path: Path):
         self.mount_dir = mount_dir
@@ -78,16 +79,16 @@ class WildlandFSClient:
         self.info_cache: Optional[Dict[int, Dict]] = None
 
     def clear_cache(self):
-        '''
+        """
         Clear cached information after changing mount state of the system.
-        '''
+        """
         self.path_cache = None
         self.path_tree = None
         self.info_cache = None
 
     def mount(self, foreground=False, debug=False, single_thread=False,
               default_user=None) -> subprocess.Popen:
-        '''
+        """
         Mount the Wildland filesystem and wait until it is mounted.
 
         Returns the called process (running in case of foreground=True).
@@ -97,7 +98,7 @@ class WildlandFSClient:
             debug: Enable debug logs (only in case of foreground)
             single_thread: Run single-threaded
             default_user: specify a different default user
-        '''
+        """
         self.clear_cache()
 
         cmd = [sys.executable, '-m', 'wildland.fs', str(self.mount_dir)]
@@ -141,9 +142,9 @@ class WildlandFSClient:
             raise
 
     def unmount(self):
-        '''
+        """
         Unmount the Wildland filesystem.
-        '''
+        """
         self.clear_cache()
         cmd = ['umount', str(self.mount_dir)]
         try:
@@ -152,9 +153,9 @@ class WildlandFSClient:
             raise WildlandFSError(f'Failed to unmount: {e}') from e
 
     def is_mounted(self) -> bool:
-        '''
+        """
         Check if Wildland is currently mounted.
-        '''
+        """
 
         client = ControlClient()
         try:
@@ -165,9 +166,9 @@ class WildlandFSClient:
         return True
 
     def run_control_command(self, name, **kwargs):
-        '''
+        """
         Run a command using the control socket.
-        '''
+        """
 
         # TODO: This creates a new connection for every command. Improve
         # performance by keeping an open connection.
@@ -179,18 +180,18 @@ class WildlandFSClient:
             client.disconnect()
 
     def ensure_mounted(self):
-        '''
+        """
         Check that Wildland is mounted, and raise an exception otherwise.
-        '''
+        """
 
         if not self.is_mounted():
             raise WildlandFSError(
                 f'Wildland not mounted at {self.mount_dir}')
 
     def wait_for_mount(self, timeout=2):
-        '''
+        """
         Wait until Wildland is mounted.
-        '''
+        """
 
         delay = 0.1
         n_tries = int(timeout / delay)
@@ -202,56 +203,58 @@ class WildlandFSClient:
 
     def mount_container(self,
                         container: Container,
-                        storage: Storage,
+                        storages: List[Storage],
                         user_paths: Iterable[PurePosixPath] = (PurePosixPath('/'),),
                         subcontainer_of: Optional[Container] = None,
                         remount: bool = False):
-        '''
+        """
         Mount a container, assuming a storage has been already selected.
-        '''
+        """
 
-        self.mount_multiple_containers([(container, storage, user_paths, subcontainer_of)],
+        self.mount_multiple_containers([(container, storages, user_paths, subcontainer_of)],
                                        remount=remount)
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, Storage, Iterable[PurePosixPath],
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[PurePosixPath],
                                    Optional[Container]]],
             remount: bool = False):
-        '''
+        """
         Mount multiple containers using a single command.
-        '''
-
+        """
         self.clear_cache()
+
         commands = [
             self.get_command_for_mount_container(
                 container, storage, user_paths,
                 remount=remount, subcontainer_of=subcontainer_of)
-            for container, storage, user_paths, subcontainer_of in params
+            for container, storages, user_paths, subcontainer_of in params
+            for storage in storages
         ]
         self.run_control_command('mount', items=commands)
 
-    def unmount_container(self, storage_id: int):
-        '''
-        Unmount a container with given storage ID.
-        '''
+    def unmount_storage(self, storage_id: int):
+        """
+        Unmount a storage with given storage id.
+        """
 
         self.clear_cache()
         self.run_control_command('unmount', storage_id=storage_id)
 
-    def find_storage_id(self, container: Container) -> Optional[int]:
-        '''
-        Find storage ID for a given container.
-        '''
+    def find_primary_storage_id(self, container: Container) -> Optional[int]:
+        """
+        Find primary storage ID for a given container.
+        A primary storage is the one that mounts under all container paths and not just
+        under /.uuid/.../.backends/...
+        """
 
         mount_path = self.get_user_path(container.owner, container.paths[0])
         return self.find_storage_id_by_path(mount_path)
 
     def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
-        '''
+        """
         Find storage ID for a given mount path.
-        '''
-
+        """
         paths = self.get_paths()
         storage_ids = paths.get(path)
         if storage_ids is None:
@@ -259,6 +262,17 @@ class WildlandFSClient:
         if len(storage_ids) > 1:
             logger.warning('multiple storages found for path: %s', path)
         return storage_ids[0]
+
+    def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
+        """
+        Returns list of mounted paths that are mounted but do not exist in the given container.
+        This situation may happen when you want to remount a container that has some storages
+        removed from the manifest since the last mount.
+        """
+        mounted_paths = self.get_unique_storage_paths(container)
+        valid_paths = [storage.get_mount_path(container) for storage in storages_to_mount]
+
+        return list(set(mounted_paths) - set(valid_paths))
 
     def get_container_from_storage_id(self, storage_id: int):
         """
@@ -294,9 +308,9 @@ class WildlandFSClient:
 
     def find_all_subcontainers_storage_ids(self, container: Container,
                                            recursive: bool = True) -> Iterable[int]:
-        '''
+        """
         Find storage ID for a given mount path.
-        '''
+        """
 
         container_id = f'{container.owner}:{container.paths[0]}'
         info = self.get_info()
@@ -309,14 +323,14 @@ class WildlandFSClient:
                         recursive=recursive)
 
     def find_all_storage_ids_for_path(self, path: PurePosixPath) \
-        -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
-        '''
+            -> Iterable[Tuple[int, PurePosixPath, PurePosixPath]]:
+        """
         Given a path, retrieve all mounted storages this path is inside.
 
         Note that this doesn't include synthetic directories leading up to
         mount path, e.g. if a storage is mounted under /a/b, then it will be
         included as a storage for /a/b and /a/b/c, but not for /a.
-        '''
+        """
 
         tree = self.get_path_tree()
         assert not tree.storage_ids  # root has no storages
@@ -324,19 +338,19 @@ class WildlandFSClient:
             if part not in tree.children:
                 break
             tree = tree.children[part]
-            storage_path = PurePosixPath(*path.parts[:i+1])
-            relpath = PurePosixPath(*path.parts[i+1:])
+            storage_path = PurePosixPath(*path.parts[:i + 1])
+            relpath = PurePosixPath(*path.parts[i + 1:])
             for storage_id in tree.storage_ids:
                 yield storage_id, storage_path, relpath
 
     def find_trusted_owner(self, local_path: Path) -> Optional[str]:
-        '''
+        """
         Given a path in the filesystem, check if this is a path from a trusted
         storage, and if so, return the trusted_owner value.
 
         If the path potentially belongs to multiple storages, this method will
         conservatively check if all of them would give the same answer.
-        '''
+        """
 
         if not self.is_mounted():
             return None
@@ -370,9 +384,9 @@ class WildlandFSClient:
         return list(trusted_owners)[0]
 
     def get_paths(self) -> Dict[PurePosixPath, List[int]]:
-        '''
+        """
         Read a path -> container ID mapping.
-        '''
+        """
         if self.path_cache is not None:
             return self.path_cache
 
@@ -384,9 +398,9 @@ class WildlandFSClient:
         return self.path_cache
 
     def get_path_tree(self) -> PathTree:
-        '''
+        """
         Return a path prefix tree, computing it if necessary.
-        '''
+        """
 
         if self.path_tree is not None:
             return self.path_tree
@@ -402,9 +416,9 @@ class WildlandFSClient:
         return self.path_tree
 
     def get_info(self) -> Dict[int, Dict]:
-        '''
+        """
         Read storage info served by FUSE driver.
-        '''
+        """
 
         if self.info_cache is not None:
             return self.info_cache
@@ -422,27 +436,49 @@ class WildlandFSClient:
         }
         return self.info_cache
 
+    def get_unique_storage_paths(self, container: Optional[Container] = None
+            ) -> Iterable[PurePosixPath]:
+        """
+        Returns list of unique mount paths (ie '/.uuid/{container_uuid}/.backends/{backend_uuid}')
+        for every storage in a given container. If no container is given, return unique mount paths
+        for all mounted storages in every container.
+        """
+
+        paths = self.get_paths()
+
+        if container:
+            path_regex = re.compile(fr'^/.uuid/{container.ensure_uuid()}/.backends/[0-9a-z-]+$')
+        else:
+            path_regex = re.compile(r'^/.uuid/[0-9a-z-]+/.backends/[0-9a-z-]+$')
+
+        for path, _storage_id in paths.items():
+            if path_regex.match(str(path)):
+                yield path
+
     def should_remount(self, container: Container, storage: Storage,
                        user_paths: Iterable[PurePosixPath]) -> bool:
-        '''
-        Check if a storage has to be remounted.
-        '''
-
-        storage_id = self.find_storage_id(container)
-        if storage_id is None:
-            return True
-
-        paths = [
-            str(user_path / path.relative_to('/'))
-            for path in container.expanded_paths
-            for user_path in itertools.chain(
-                user_paths,
-                [self.get_user_path(container.owner, PurePosixPath('/'))])
-        ]
+        """
+        Check if a storage needs to be remounted.
+        """
 
         info = self.get_info()
-        tag = self.get_storage_tag(paths, storage.params)
-        return info[storage_id]['tag'] != tag
+
+        mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
+        storage_id = self.find_storage_id_by_path(mount_paths[0])
+
+        if storage_id is None:
+            logger.debug('Storage %s is new. Remounting it inside %s container.',
+                         storage.backend_id, container.paths[0])
+            return True
+
+        tag = self.get_storage_tag(mount_paths, storage.params)
+
+        if info[storage_id]['tag'] != tag:
+            logger.debug('Storage %s has changed. Remounting it inside %s container.',
+                         storage.backend_id, container.paths[0])
+            return True
+
+        return False
 
     def get_command_for_mount_container(self,
                                         container: Container,
@@ -450,23 +486,18 @@ class WildlandFSClient:
                                         user_paths: Iterable[PurePosixPath],
                                         subcontainer_of: Optional[Container],
                                         remount: bool = False):
-        '''
+        """
         Prepare parameters for the control client to mount a container
 
         Args:
             container (Container): the container to be mounted
-            storage (Storage): the storage selected for container
+            storages List(Storage): the storage selected for container
             user_paths: paths to the owner, should include '/' for default user
             remount: remount if mounted already (otherwise, will fail if
             mounted already)
-        '''
-        paths = [
-            str(user_path / path.relative_to('/'))
-            for path in container.expanded_paths
-            for user_path in itertools.chain(
-                user_paths,
-                [self.get_user_path(container.owner, PurePosixPath('/'))])
-        ]
+        """
+
+        mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
 
         trusted_owner: Optional[str]
         if storage.params.get('trusted'):
@@ -475,10 +506,11 @@ class WildlandFSClient:
             trusted_owner = None
 
         return {
-            'paths': paths,
+            'paths': [str(p) for p in mount_paths],
             'storage': storage.params,
             'extra': {
-                'tag': self.get_storage_tag(paths, storage.params),
+                'tag': self.get_storage_tag(mount_paths, storage.params),
+                'primary': storage.is_primary,
                 'trusted_owner': trusted_owner,
                 'subcontainer_of': (f'{subcontainer_of.owner}:{subcontainer_of.paths[0]}'
                                     if subcontainer_of else None),
@@ -486,35 +518,66 @@ class WildlandFSClient:
             'remount': remount,
         }
 
+    def get_storage_mount_paths(self, container: Container, storage: Storage,
+                                user_paths: Iterable[PurePosixPath]) -> List[PurePosixPath]:
+        """
+        Return all mount paths (incl. synthetic ones) for given storage.
+
+        Container paths always start with `/.uuid/{container_uuid}` path which must always be
+        present (as defined in Container's constructor'). If a storage is a secondary storage, we
+        want to mount it solely under `/.uuid/{container_uuid}/.backends/{storage_uuid}` directory,
+        otherwise mount it under all directories.
+
+        Note that this function will return `/.uuid/{container_uuid}/.backends/{storage_id}`.
+        """
+        paths = container.expanded_paths
+
+        unique_backend_path = storage.get_mount_path(container)
+
+        if storage.is_primary:
+            storage_paths = [unique_backend_path, *paths]
+        else:
+            storage_paths = [unique_backend_path]
+
+        paths = [
+            user_path / path.relative_to('/')
+            for path in storage_paths
+            for user_path in itertools.chain(
+                user_paths,
+                [self.get_user_path(container.owner, PurePosixPath('/'))])
+        ]
+
+        return paths
+
     @staticmethod
-    def get_storage_tag(paths, params):
-        '''
+    def get_storage_tag(paths: List[PurePosixPath], params):
+        """
         Compute a hash of storage params, to decide if a storage needs to be
         remounted.
-        '''
+        """
 
         param_str = json.dumps({
             'params': params,
-            'paths': paths,
+            'paths': [str(path) for path in paths],
         }, sort_keys=True)
         return hashlib.sha1(param_str.encode()).hexdigest()
 
     @staticmethod
     def get_user_path(owner, path: PurePosixPath) -> PurePosixPath:
-        '''
+        """
         Prepend an absolute path with owner namespace.
-        '''
+        """
         return PurePosixPath('/.users/') / owner / path.relative_to('/')
 
-    def watch(self, patterns: Iterable[str], with_initial=False) -> \
-        Iterator[List[WatchEvent]]:
-        '''
+    def watch(self, patterns: Iterable[str], with_initial=False) \
+            -> Iterator[List[WatchEvent]]:
+        """
         Watch for changes under the provided list of patterns (as absolute paths).
         lists of WatchEvent objects (so that simultaneous events can be grouped).
 
         If ``with_initial`` is true, also include initial synthetic events for
         files already found.
-        '''
+        """
 
         client = ControlClient()
         client.connect(self.socket_path)

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 WebDAV storage backend
-'''
+"""
 
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
@@ -39,9 +39,9 @@ from wildland.manifest.schema import Schema
 
 
 class WebdavFile(FullBufferedFile):
-    '''
+    """
     A buffered WebDAV file.
-    '''
+    """
 
     def __init__(self, auth, url: str, attr: Attr, clear_cache_callback):
         super().__init__(attr, clear_cache_callback)
@@ -70,9 +70,9 @@ class WebdavFile(FullBufferedFile):
 
 
 class PagedWebdavFile(PagedFile):
-    '''
+    """
     A read-only paged WebDAV file.
-    '''
+    """
 
     def __init__(self, auth, url: str,
                  attr: Attr):
@@ -97,9 +97,9 @@ class PagedWebdavFile(PagedFile):
 
 
 class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
-    '''
+    """
     WebDAV storage.
-    '''
+    """
 
     SCHEMA = Schema({
         "type": "object",
@@ -196,9 +196,9 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
                 yield path, Attr.file(size, timestamp)
 
     def make_url(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert a Path to resource URL.
-        '''
+        """
 
         full_path = self.base_path / path
         return urljoin(self.base_url, quote(str(full_path)))

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Manage users
-'''
+"""
 
 from typing import Tuple, Iterable, Optional
 from pathlib import PurePosixPath, Path
@@ -35,14 +35,14 @@ from .cli_common import sign, verify, edit, modify_manifest, add_field, del_fiel
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
-from ..manifest.manifest import ManifestError, Manifest
+from ..manifest.manifest import Manifest
 
 
 @aliased_group('user', short_help='user management')
 def user_():
-    '''
+    """
     Manage users
-    '''
+    """
 
 
 @user_.command(short_help='create user')
@@ -56,9 +56,9 @@ def user_():
 @click.argument('name', metavar='NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj, key, paths, additional_pubkeys, name):
-    '''
+    """
     Create a new user manifest and save it.
-    '''
+    """
 
     if key:
         try:
@@ -66,10 +66,10 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         except SigError as ex:
             click.echo(f'Failed to use provided key: {ex}')
             return
-        print(f'Using key: {owner}')
+        click.echo(f'Using key: {owner}')
     else:
         owner, pubkey = obj.session.sig.generate()
-        print(f'Generated key: {owner}')
+        click.echo(f'Generated key: {owner}')
 
     if paths:
         paths = list(paths)
@@ -116,10 +116,10 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
     for alias in ['@default', '@default-owner']:
         if obj.client.config.get(alias) is None:
-            print(f'Using {owner} as {alias}')
+            click.echo(f'Using {owner} as {alias}')
             obj.client.config.update_and_save({alias: owner})
 
-    print(f'Adding {owner} to local owners')
+    click.echo(f'Adding {owner} to local owners')
     local_owners = obj.client.config.get('local-owners')
     obj.client.config.update_and_save({'local-owners': [*local_owners, owner]})
 
@@ -127,9 +127,9 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 @user_.command('list', short_help='list users', alias=['ls'])
 @click.pass_obj
 def list_(obj: ContextObj):
-    '''
+    """
     Display known users.
-    '''
+    """
 
     obj.client.recognize_users()
     users = obj.client.load_users()
@@ -170,20 +170,16 @@ def list_(obj: ContextObj):
               help='also remove user keys')
 @click.argument('name', metavar='NAME')
 def delete(obj: ContextObj, name, force, cascade, delete_keys):
-    '''
+    """
     Delete a user.
-    '''
+    """
 
     obj.client.recognize_users()
 
-    try:
-        user = obj.client.load_user_by_name(name)
-    except ManifestError:
-        click.echo(f'User not found: {name}')
-        return
+    user = obj.client.load_user_by_name(name)
 
     if not user.local_path:
-        raise CliError('Can only delete a local manifest')
+        raise WildlandError('Can only delete a local manifest')
 
     # Check if this is the only manifest with such owner
     other_count = 0
@@ -214,9 +210,8 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
                 used = True
 
     if used and other_count > 0:
-        click.echo(
-            'Found manifests for user, but this is not the only user '
-            'manifest. Proceeding.')
+        click.echo('Found manifests for user, but this is not the only user '
+                   'manifest. Proceeding.')
     elif used and other_count == 0 and not force:
         raise CliError('User still has manifests, not deleting '
                        '(use --force or --cascade)')
@@ -225,18 +220,18 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
         possible_owners = obj.session.sig.get_possible_owners(user.owner)
 
         if possible_owners != [user.owner] and not force:
-            print('Key used by other users as secondary key and will not be deleted. '
-                  'Key should be removed manually. In the future you can use --force to force '
-                  'key deletion.')
+            click.echo('Key used by other users as secondary key and will not be deleted. '
+                       'Key should be removed manually. In the future you can use --force to force '
+                       'key deletion.')
         else:
-            print("Removing key", user.owner)
+            click.echo(f'Removing key {user.owner}')
             obj.session.sig.remove_key(user.owner)
 
     for alias in ['@default', '@default-owner']:
         fingerprint = obj.client.config.get(alias)
         if fingerprint is not None:
             if fingerprint == user.owner:
-                print(f'Removing {alias} from configuration file')
+                click.echo(f'Removing {alias} from configuration file')
                 obj.client.config.remove_key_and_save(alias)
 
     local_owners = obj.client.config.get('local-owners')
@@ -270,13 +265,10 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
         file_name = Path(path).stem
         file_url = obj.client.local_url(Path(path).absolute())
     else:
-        try:
-            file_data = obj.client.read_from_url(path, obj.client.config.get('@default'),
-                                                 use_aliases=True)
-            file_name = _remove_suffix(path.split('/')[-1], '.yaml')
-            file_url = path
-        except WildlandError as ex:
-            raise CliError(str(ex)) from ex
+        file_data = obj.client.read_from_url(path, obj.client.config.get('@default'),
+                                             use_aliases=True)
+        file_name = _remove_suffix(path.split('/')[-1], '.yaml')
+        file_url = path
 
     # load user pubkeys
     Manifest.load_pubkeys(file_data, obj.session.sig)
@@ -312,7 +304,7 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
 
 def _do_process_imported_manifest(
         obj: ContextObj, copied_manifest_path: Path, manifest_url: str,
-        paths: Iterable[str], default_user: str):
+        paths: Iterable[PurePosixPath], default_user: str):
     """
     Perform followup actions after importing a manifest: create a Bridge manifest for a user,
     import a Bridge manifest's target user
@@ -326,17 +318,11 @@ def _do_process_imported_manifest(
 
     if manifest.fields['object'] == 'user':
         user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
-
-        if not paths:
-            new_paths = user.paths
-        else:
-            new_paths = [PurePosixPath(p) for p in paths]
-
         bridge = Bridge(
             owner=default_user,
             user_location=manifest_url,
             user_pubkey=user.primary_pubkey,
-            paths=new_paths,
+            paths=(paths if paths else user.paths),
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
@@ -346,7 +332,7 @@ def _do_process_imported_manifest(
         bridge = Bridge.from_manifest(manifest)
         # adjust imported bridge
         if paths:
-            bridge.paths = paths
+            bridge.paths = list(paths)
         if default_user:
             bridge.owner = default_user
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
@@ -361,10 +347,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
-        try:
-            default_user = obj.client.load_user_by_name(bridge_owner).owner
-        except WildlandError as ex:
-            raise CliError(f'Cannot load bridge-owner {bridge_owner}') from ex
+        default_user = obj.client.load_user_by_name(bridge_owner).owner
     else:
         default_user = obj.client.config.get('@default-owner')
 
@@ -377,8 +360,9 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
         if not copied_manifest_path or not manifest_url:
             return
         try:
-            _do_process_imported_manifest(obj, copied_manifest_path, manifest_url,
-                                          paths, default_user)
+            _do_process_imported_manifest(
+                obj, copied_manifest_path, manifest_url,
+                [PurePosixPath(p) for p in paths], default_user)
         except Exception as ex:
             click.echo(
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
@@ -386,16 +370,13 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
             raise CliError(f'Failed to import: {str(ex)}') from ex
     else:
         # this didn't work out, perhaps we have an url to a bunch of bridges?
-        try:
-            bridges = list(obj.client.read_bridge_from_url(name, use_aliases=True))
-            if not bridges:
-                raise CliError('No bridges found.')
-            if only_first:
-                bridges = [bridges[0]]
-            if len(bridges) > 1 and paths:
-                raise CliError('Cannot import multiple bridges with --path override.')
-        except WildlandError as wl_ex:
-            raise CliError(f'Failed to import manifest: {str(wl_ex)}') from wl_ex
+        bridges = list(obj.client.read_bridge_from_url(name, use_aliases=True))
+        if not bridges:
+            raise CliError('No bridges found.')
+        if only_first:
+            bridges = [bridges[0]]
+        if len(bridges) > 1 and paths:
+            raise CliError('Cannot import multiple bridges with --path override.')
 
         copied_files = []
         try:
@@ -451,9 +432,9 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
 @click.pass_obj
 @click.argument('name', metavar='USER', required=False)
 def user_refresh(obj: ContextObj, name):
-    '''
+    """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
-    '''
+    """
     obj.client.recognize_users()
     user = obj.client.load_user_by_name(name) if name else None
 
@@ -475,9 +456,9 @@ user_.add_command(dump)
 
 @user_.group(short_help='modify user manifest')
 def modify():
-    '''
+    """
     Commands for modifying user manifests.
-    '''
+    """
 
 
 @modify.command(short_help='add path to the manifest')
@@ -485,9 +466,9 @@ def modify():
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_path(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, add_field, 'paths', path)
 
 
@@ -496,9 +477,9 @@ def add_path(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_path(ctx, input_file, path):
-    '''
+    """
     Remove path from the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'paths', path)
 
 
@@ -508,9 +489,9 @@ def del_path(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_infrastructure(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, add_field, 'infrastructures', path)
 
 
@@ -520,9 +501,9 @@ def add_infrastructure(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_infrastructure(ctx, input_file, path):
-    '''
+    """
     Add path to the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'infrastructures', path)
 
 
@@ -531,9 +512,9 @@ def del_infrastructure(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def add_pubkey(ctx, input_file, pubkey):
-    '''
+    """
     Add public key to the manifest.
-    '''
+    """
     # TODO: validate values, schema is not enough
     modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkey)
 
@@ -544,7 +525,7 @@ def add_pubkey(ctx, input_file, pubkey):
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def del_pubkey(ctx, input_file, pubkey):
-    '''
+    """
     Remove public key from the manifest.
-    '''
+    """
     modify_manifest(ctx, input_file, del_field, 'pubkeys', pubkey)

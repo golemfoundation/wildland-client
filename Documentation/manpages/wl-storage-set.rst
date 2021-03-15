@@ -1,9 +1,9 @@
 .. program:: wl-storage-set
 .. _wl-storage-set:
 
-*******************************************************
-:command:`wl storage-set` - Storage template management
-*******************************************************
+***********************************************************
+:command:`wl storage-set` - Storage template set management
+***********************************************************
 
 Synopsis
 ========
@@ -19,51 +19,6 @@ Description
 
 Storage templates and their sets are a convenient tool to easily create storage manifests for
 containers.
-
-
-Storage Templates
-=================
-
-Templates are jinja2 template files for .yaml storage manifests  (:ref: manifests)
-located in `templates` directory in Wildland config directory (``~/.config/wildland/templates/``);
-template files must have filenames ending with `.template.jinja`.
-
-Templates can use the following parameters:
-- `uuid`: container uuid
-- `categories`: categories (you can use jinja syntax to extract only e.g.
-first category: {{ categories|first }}
-- `title`: container title
-- `paths`: container paths (a list of PurePosixPaths)
-- `local_path`: container local path (path to container file)
-
-Manifest template should not contain `owner` and `container-path` fields - they are automatically
-overwritten with correct values for a given container when the template is used.
-
-Warning: `title` and `categories` are optional and, if the container does not have them, will
-not be passed to the template. Use jinja's {% if variable is defined %} syntax to check if they are
-defined and provide reasonable defaults.
-
-Sample very simple template for local storage:
-
-.. code-block:: yaml
-
-    path: /home/user/storage{{ paths|last }}
-    type: local
-
-Sample template using is defined syntax:
-
-.. code-block:: yaml
-
-    path: /home/user/storage/{% if title is defined -%} {{ title }} {% else -%} {{ uuid }} {% endif %}
-    type: local
-
-More complex example:
-
-.. code-block:: yaml
-
-    path: /home/user/storage/{% if categories is defined -%} {{ categories|first }} {% else -%} {{ (paths|last).relative_to('/') }} {% endif %}
-    type: local
-
 
 
 Storage Sets

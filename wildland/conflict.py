@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Conflict resolution
-'''
+"""
 
 import abc
 import functools
@@ -35,9 +35,10 @@ from .storage_backends.base import Attr
 
 @dataclasses.dataclass
 class Resolved:
-    '''
+    """
     A path resolution result.
-    '''
+    """
+
     # Storage ID
     ident: int
 
@@ -47,25 +48,25 @@ class Resolved:
 
 
 class MountDir:
-    '''
+    """
     A prefix tree for storing information about mounted storages.
-    '''
+    """
 
     def __init__(self):
         self.storage_ids: Set[int] = set()
         self.children: Dict[str, 'MountDir'] = {}
 
     def is_empty(self):
-        '''
+        """
         Is this node ready for deletion (i.e. no storages left)?
-        '''
+        """
 
         return len(self.children) == 0 and len(self.storage_ids) == 0
 
     def mount(self, path: PurePosixPath, storage_id: int):
-        '''
+        """
         Add a storage under the given path.
-        '''
+        """
 
         if not path.parts:
             self.storage_ids.add(storage_id)
@@ -78,9 +79,9 @@ class MountDir:
         self.children[first].mount(rest, storage_id)
 
     def unmount(self, path: PurePosixPath, storage_id: int):
-        '''
+        """
         Remove a storage from a given path.
-        '''
+        """
 
         if not path.parts:
             self.storage_ids.remove(storage_id)
@@ -93,12 +94,12 @@ class MountDir:
             del self.children[first]
 
     def is_synthetic(self, path: PurePosixPath) -> bool:
-        '''
+        """
         Is this a synthetic directory?
 
         A synthetic directory is one where either more than one storage is
         mounted, or there are storages mounted on the path deeper.
-        '''
+        """
 
         if not path.parts:
             if len(self.children) == 0 and len(self.storage_ids) == 1:
@@ -112,9 +113,9 @@ class MountDir:
         return False
 
     def readdir(self, path: PurePosixPath) -> Optional[Iterable[str]]:
-        '''
+        """
         List synthetic sub-directories under path.
-        '''
+        """
 
         if not path.parts:
             return self.children.keys()
@@ -126,9 +127,9 @@ class MountDir:
         return None
 
     def resolve(self, path: PurePosixPath) -> Iterable[Resolved]:
-        '''
+        """
         Find all storages that could be responsible for a given path.
-        '''
+        """
 
         for storage_id in self.storage_ids:
             yield Resolved(storage_id, path)
@@ -141,7 +142,7 @@ class MountDir:
 
 
 class ConflictResolver(metaclass=abc.ABCMeta):
-    '''
+    """
     Helper class for object resolution. To use, subclass and override the
     abstract methods.
 
@@ -158,7 +159,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
       (with stem and suffix being PurePosixPath semantic).
 
     For examples, look at tests/test_conflict.py.
-    '''
+    """
 
     CONFLICT_FORMAT = r'{}.wl_{}{}'  # name.stem, id, name.suffix
     CONFLICT_RE = r'^(.*).wl_(\d+)(.*)$'
@@ -167,47 +168,47 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         self.root: MountDir = MountDir()
 
     def mount(self, path: PurePosixPath, storage_id: int):
-        '''
+        """
         Add information about a mounted storage.
-        '''
+        """
 
         self.root.mount(path, storage_id)
         self._resolve.cache_clear()
 
     def unmount(self, path: PurePosixPath, storage_id: int):
-        '''
+        """
         Remove information about a mounted storage.
-        '''
+        """
 
         self.root.unmount(path, storage_id)
         self._resolve.cache_clear()
 
     @abc.abstractmethod
     def storage_getattr(self, ident: int, relpath: PurePosixPath) -> Attr:
-        '''
+        """
         Execute getattr() on a path in storage.
         Raise an IOError if the file cannot be accessed.
 
         If the path is None, return the right
-        '''
+        """
 
         raise NotImplementedError()
 
     @abc.abstractmethod
     def storage_readdir(self, ident: int, relpath: PurePosixPath) -> List[str]:
-        '''
+        """
         Execute readdir() on a path in storage.
         Raise IOError if the path cannot be accessed.
-        '''
+        """
 
         raise NotImplementedError()
 
     def readdir(self, path: PurePosixPath) -> List[str]:
-        '''
+        """
         List directory.
 
         Raise IOError if the path cannot be accessed.
-        '''
+        """
 
         resolved = self._resolve(path)
         synthetic = self.root.readdir(path)
@@ -283,21 +284,21 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         return sorted(result)
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        '''
+        """
         Get file attributes. Raise FileNotFoundError if necessary.
-        '''
+        """
         st, _ = self.getattr_extended(path)
         return st
 
     def getattr_extended(self, path: PurePosixPath) -> Tuple[Attr, Optional[Resolved]]:
-        '''
+        """
         Resolve the path to the right storage and run getattr() on the right
         storage(s). Raises FileNotFoundError if file cannot be found.
 
         Returns a tuple (st, res):
           st (Attr): file attributes; possibly overriden to be read-only
           res (Resolved): resolution result (if there is exactly one)
-        '''
+        """
 
         if path == PurePosixPath('/'):
             return Attr(
@@ -387,9 +388,9 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
 
 def handle_io_error(func, *args):
-    '''
+    """
     Run a function, suppressing IOErrors and returning None instead.
-    '''
+    """
 
     try:
         return func(*args)

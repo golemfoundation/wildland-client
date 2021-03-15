@@ -17,13 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 S3 storage backend
-'''
+"""
 
 from pathlib import PurePosixPath
 from io import BytesIO
-from typing import Iterable, Tuple, Set, List
+from typing import Iterable, List, Optional, Set, Tuple
 import mimetypes
 import logging
 from urllib.parse import urlparse
@@ -60,10 +60,10 @@ class S3FileAttr(Attr):
 
     @classmethod
     def from_s3_object(cls, obj):
-        '''
+        """
         Convert S3's object summary, as returned by list_objects_v2 or
         head_object.
-        '''
+        """
         etag = obj['ETag'].strip('\"')
 
         timestamp = int(obj['LastModified'].timestamp())
@@ -76,9 +76,9 @@ class S3FileAttr(Attr):
 
 
 class S3File(FullBufferedFile):
-    '''
+    """
     A buffered S3 file.
-    '''
+    """
 
     def __init__(self, client, bucket, key, content_type, attr, clear_cache_callback):
         super().__init__(attr, clear_cache_callback)
@@ -106,9 +106,9 @@ class S3File(FullBufferedFile):
 
 
 class PagedS3File(PagedFile):
-    '''
+    """
     A read-only paged S3 file.
-    '''
+    """
 
     def __init__(self, client, bucket, key, attr):
         super().__init__(attr)
@@ -127,9 +127,9 @@ class PagedS3File(PagedFile):
 
 
 class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, StorageBackend):
-    '''
+    """
     Amazon S3 storage.
-    '''
+    """
 
     SCHEMA = Schema({
         "title": "Storage manifest (S3)",
@@ -229,33 +229,29 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
                          help='S3 url to access the resource in s3://<bucket_name>/path format'),
             click.Option(['--with-index'], is_flag=True,
                          help='Maintain index.html files with directory listings'),
+            click.Option(['--access-key'], required=True,
+                         help='S3 access key'),
+            click.Option(['--secret-key'], required=True,
+                         help='S3 secret key (omit for a prompt)',
+                         prompt=True, hide_input=True),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        click.echo('Resolving AWS credentials...')
-        session = botocore.session.Session()
-        resolver = botocore.credentials.create_credential_resolver(session)
-        credentials = resolver.load_credentials()
-        if not credentials:
-            raise click.ClickException(
-                "AWS not configured, run 'aws configure' first")
-        click.echo(f'Credentials found by method: {credentials.method}')
-
         return {
             's3_url': data['s3_url'],
             'endpoint_url': data['endpoint_url'],
             'credentials': {
-                'access-key': credentials.access_key,
-                'secret-key': credentials.secret_key,
+                'access-key': data['access_key'],
+                'secret-key': data['secret_key'],
             },
             'with-index': data['with_index'],
         }
 
     def mount(self):
-        '''
+        """
         Regenerate index files on mount.
-        '''
+        """
 
         try:
             if self.sts_client:
@@ -271,17 +267,17 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
                 self._update_index(path)
 
     def key(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert path to S3 object key.
-        '''
+        """
         path = (self.base_path / path)
 
         return str(path.relative_to('/'))
 
     def url(self, path: PurePosixPath) -> str:
-        '''
+        """
         Convert path to relative S3 URL.
-        '''
+        """
         return str(self.base_path / path)
 
     @staticmethod
@@ -335,9 +331,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:
-        '''
+        """
         Guess the right content type for given path.
-        '''
+        """
 
         content_type, _encoding = mimetypes.guess_type(path.name)
         return content_type or 'application/octet-stream'
@@ -415,10 +411,10 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         logger.debug("chown dummy op %s uid %d gid %d", str(path), uid, gid)
 
     def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
-        '''
+        """
         This method should be called if and only if the source and destination is
         within the same bucket.
-        '''
+        """
         self._rename(move_from, move_to)
 
         self.clear_cache()
@@ -426,9 +422,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         self._update_index(move_to.parent)
 
     def _rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
-        '''
+        """
         Internal recursive handler for rename()
-        '''
+        """
         if self.getattr(move_from).is_dir():
             for obj in self.readdir(move_from):
                 self._rename(move_from / obj, move_to / obj)
@@ -464,11 +460,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             ContentType=self.get_content_type(path))
         self.clear_cache()
 
-    def get_file_token(self, path: PurePosixPath) -> int:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         s3attr = self.getattr(path)
-
-        # TODO In the future the hash won't have to be an int (see #103)
-        return int(s3attr.etag[0:15], 16)
+        return s3attr.etag
 
     def _remove_index(self, path):
         if self.read_only or not self.with_index:

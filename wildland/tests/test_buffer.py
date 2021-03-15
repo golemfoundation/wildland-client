@@ -19,9 +19,9 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 
-'''
+"""
 Tests for Buffer class
-'''
+"""
 
 from ..storage_backends.buffered import Buffer
 

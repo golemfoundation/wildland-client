@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Bear storage backend
-'''
+"""
 
 import errno
 import logging
@@ -48,20 +48,20 @@ logger = logging.getLogger('storage-bear')
 
 
 def get_md(note) -> bytes:
-    '''
+    """
     Get the contents of note Markdown file.
-    '''
+    """
 
     return f'title: {note.title}\n---\n{note.text}\n'.encode('utf-8')
 
 
 def get_note_categories(tags: List[str]) -> List[str]:
-    '''
+    """
     Get the list of paths a note should be mounted under, based on tags.
 
     This includes only leaf tags, i.e. for tags 'tests', 'tests/cat',
     'tests/cat/subcat', only the last one will be used.
-    '''
+    """
 
     result: Set[PurePosixPath] = set()
     for tag in sorted(tags, key=len):
@@ -74,10 +74,10 @@ def get_note_categories(tags: List[str]) -> List[str]:
 
 
 class FileCachedDirEntry(CachedDirEntry):
-    '''
+    """
     A CachedDirEntry that refreshes only when the underlying file is modified
     (by checking file modification time).
-    '''
+    """
 
     def __init__(self, path, *args, **kwargs):
         self.path = path
@@ -93,9 +93,9 @@ class FileCachedDirEntry(CachedDirEntry):
 
 
 class BearDB:
-    '''
+    """
     An class for accessing the Bear SQLite database.
-    '''
+    """
 
     # Maintain a single SQLite connection per database.
     # Note that this prevents multi-threaded access to the database.
@@ -111,9 +111,9 @@ class BearDB:
         self.db_lock = None
 
     def connect(self):
-        '''
+        """
         Connect to database, reusing existing connection if necessary.
-        '''
+        """
 
         assert not self.db
 
@@ -131,9 +131,9 @@ class BearDB:
                 self.conn_refcount[self.path] = 1
 
     def disconnect(self):
-        '''
+        """
         Close database connection, if necessary.
-        '''
+        """
 
         assert self.db and self.db_lock
 
@@ -148,9 +148,9 @@ class BearDB:
             self.db_lock = None
 
     def get_note_idents(self) -> Iterable[str]:
-        '''
+        """
         Retrieve list of note IDs.
-        '''
+        """
 
         assert self.db and self.db_lock
 
@@ -160,9 +160,9 @@ class BearDB:
 
     def get_notes_with_metadata(self) -> \
             Iterable[Tuple[str, str, List[str], int]]:
-        '''
+        """
         Retrieve list of note IDs, along with tags.
-        '''
+        """
 
         assert self.db and self.db_lock
 
@@ -172,9 +172,9 @@ class BearDB:
                       int(note.modified.timestamp())
 
     def get_note(self, ident: str) -> Optional[bear.Note]:
-        '''
+        """
         Retrieve a single note.
-        '''
+        """
 
         assert self.db and self.db_lock
 
@@ -182,9 +182,9 @@ class BearDB:
             return self.db.get_note(ident)
 
 class BearDBWatcher(SimpleStorageWatcher):
-    '''
+    """
     A watcher for the Bear database.
-    '''
+    """
 
     def __init__(self, backend: 'BearDBStorageBackend'):
         super().__init__(backend)
@@ -199,11 +199,11 @@ class BearDBWatcher(SimpleStorageWatcher):
 
 
 class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
-    '''
+    """
     Main BearDB storage that serves individual manifests.
 
     Must be created with the 'trusted' option in order to work.
-    '''
+    """
 
     SCHEMA = Schema({
         "type": "object",
@@ -255,10 +255,10 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     @staticmethod
     def _make_note_container(ident: str, title: str, tags: List[str]) -> dict:
-        '''
+        """
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
-        '''
+        """
 
         paths = [f'/.uuid/{ident}']
         categories = get_note_categories(tags)

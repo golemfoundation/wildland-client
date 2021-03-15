@@ -1,0 +1,22 @@
+.. option:: --s3-url <url>
+
+   S3 URL, of the form ``s3://bucket/`` or ``s3://bucket/path/``. Required.
+
+.. option:: --endpoint-url <URL>
+
+   Override default AWS S3 URL with the given URL.
+
+.. option:: --with-index
+
+   Generate index pages. When this option is enabled, Wildland will maintain an
+   `index.html` file with directory listing in every directory. These files
+   will be invisible in the mounted filesystem, but they can be used to browse
+   the S3 bucket when it's exposed using public HTTP.
+
+.. option:: --access-key STRING
+
+   S3 access key
+
+.. option:: --secret-key STRING
+
+   S3 secret key (omit for a prompt)

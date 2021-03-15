@@ -31,6 +31,25 @@ lint:
   script:
     - ./ci/ci-lint
 
+mypy:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-mypy wildland
+  artifacts:
+    reports:
+      junit: artifacts/wildland-mypy.xml
+
+mypy-plugins:
+  allow_failure: true
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-mypy --junit-xml artifacts/wildland-mypy-plugins.xml plugins
+  artifacts:
+    reports:
+      junit: artifacts/wildland-mypy-plugins.xml
+
 pytest:
   stage: test
   image: $CONTAINER_TEST_IMAGE
@@ -79,9 +98,7 @@ smoke-test:
   services:
     - docker:dind
   script:
-    - cd docker
-    - docker-compose build
-    - docker-compose run wildland-client wl-smoke-test < /dev/null
+    - ./wildland-docker.sh wl-smoke-test < /dev/null
 
 pages-test:
   stage: test

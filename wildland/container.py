@@ -17,13 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 The container
-'''
+"""
 from copy import deepcopy
 from pathlib import PurePosixPath, Path
 import uuid
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 import itertools
 
 from .manifest.manifest import Manifest
@@ -31,7 +31,7 @@ from .manifest.schema import Schema
 
 
 class Container:
-    '''Wildland container'''
+    """Wildland container"""
     SCHEMA = Schema('container')
 
     def __init__(self, *,
@@ -56,9 +56,9 @@ class Container:
         self.access = access
 
     def ensure_uuid(self) -> str:
-        '''
+        """
         Find or create an UUID path for this container.
-        '''
+        """
 
         for path in self.paths:
             if path.parent == PurePosixPath('/.uuid/'):
@@ -76,9 +76,9 @@ class Container:
 
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
-        '''
+        """
         Construct a Container instance from a manifest.
-        '''
+        """
 
         manifest.apply_schema(cls.SCHEMA)
         return cls(
@@ -86,17 +86,18 @@ class Container:
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             backends=manifest.fields['backends']['storage'],
             title=manifest.fields.get('title', None),
-            categories=[Path(p) for p in manifest.fields.get('categories', [])],
+            categories=[PurePosixPath(p)
+                for p in manifest.fields.get('categories', [])],
             local_path=local_path,
             manifest=manifest,
             access=manifest.fields.get('access', None)
         )
 
     def to_unsigned_manifest(self) -> Manifest:
-        '''
+        """
         Create a manifest based on Container's data.
         Has to be signed separately.
-        '''
+        """
 
         # remove redundant fields from inline manifest
         cleaned_backends = deepcopy(self.backends)
@@ -110,7 +111,7 @@ class Container:
             if 'object' in backend:
                 del backend['object']
 
-        fields = {
+        fields: dict[str, Any] = {
             "object": type(self).__name__.lower(),
             "owner": self.owner,
             "paths": [str(p) for p in self.paths],
@@ -129,6 +130,9 @@ class Container:
     def expanded_paths(self):
         """
         Paths expanded by the set of paths generated from title and categories (if provided)
+
+        This method MUST NOT change the order of paths so that /.uuid/{container_uuid} path remains
+        first in the list.
         """
         if self._expanded_paths:
             return self._expanded_paths
@@ -137,7 +141,7 @@ class Container:
             for path in self.categories:
                 paths.append(path / self.title)
             for p1, p2 in itertools.permutations(self.categories, 2):
-                subpath = PurePosixPath ('@' + str(p2.relative_to(p2.anchor)))
+                subpath = PurePosixPath('@' + str(p2.relative_to(p2.anchor)))
                 paths.append(p1 / subpath / self.title)
         self._expanded_paths = paths
         return self._expanded_paths

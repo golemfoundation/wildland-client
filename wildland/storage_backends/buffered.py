@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 File buffering classes
-'''
+"""
 
 import logging
 import abc
@@ -34,9 +34,9 @@ logger = logging.getLogger('storage-buffered')
 
 
 class Buffer:
-    '''
+    """
     A buffer class for caching parts of a file.
-    '''
+    """
 
     def __init__(self, size: int, page_size: int, max_pages: int):
         self.pages: Dict[int, bytearray] = {}
@@ -52,9 +52,9 @@ class Buffer:
         return range(start_page, end_page)
 
     def _trim(self):
-        '''
+        """
         Remove least recently used pages to maintain at most max_pages pages.
-        '''
+        """
 
         too_many = len(self.pages) - self.max_pages
         if too_many <= 0:
@@ -70,10 +70,10 @@ class Buffer:
             del self.last_used[page_num]
 
     def set_read(self, data: bytes, length: int, start: int) -> None:
-        '''
+        """
         Set retrieved parts of a file (after calling get_needed_range() and
         retrieving the data.).
-        '''
+        """
 
         assert start % self.page_size == 0
 
@@ -96,10 +96,10 @@ class Buffer:
                          length: Optional[int] = None,
                          start: int = 0
         ) -> Optional[Tuple[int, int]]:
-        '''
+        """
         Returns a range (length, start) necessary to load before reading
         or writing to a file, or None if everything is loaded already.
-        '''
+        """
 
         if length is None or start + length > self.size:
             length = self.size - start
@@ -120,9 +120,9 @@ class Buffer:
         return end-start, start
 
     def read(self, length: Optional[int] = None, start: int = 0) -> bytes:
-        '''
+        """
         Read data from buffer. The necessary pages must be loaded first.
-        '''
+        """
 
         if length is None or start + length > self.size:
             length = self.size - start
@@ -156,14 +156,14 @@ class Buffer:
 
 
 class PagedFile(File, metaclass=abc.ABCMeta):
-    '''
+    """
     A read-only file class that stores parts of file in memory. Assumes that
     you are able to read a range of bytes from a file.
 
     TODO: This currently performs only 1 concurrent read. A better
     implementation would allow parallel reads, but would need to ensure that a
     given part is read only once.
-    '''
+    """
 
     page_size = 8 * 1024 * 1024
     max_pages = 8
@@ -175,10 +175,10 @@ class PagedFile(File, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def read_range(self, length: int, start: int) -> bytes:
-        '''
+        """
         Read a range from a file. This is essentially read(), but renamed here
         so that read() proper can use the buffer.
-        '''
+        """
 
         raise NotImplementedError()
 
@@ -203,12 +203,12 @@ class PagedFile(File, metaclass=abc.ABCMeta):
 
 
 class FullBufferedFile(File, metaclass=abc.ABCMeta):
-    '''
+    """
     A file class that buffers reads and writes. Stores the full file content
     in memory.
 
     Requires you to implement read_full() and write_full().
-    '''
+    """
 
     def __init__(self, attr: Attr, clear_cache_callback: Optional[Callable] = None):
         self.attr = attr
@@ -220,25 +220,25 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def read_full(self) -> bytes:
-        '''
+        """
         Read the full file.
-        '''
+        """
 
         raise NotImplementedError()
 
     @abc.abstractmethod
     def write_full(self, data: bytes) -> int:
-        '''
+        """
         Replace the current file content.
-        '''
+        """
 
         raise NotImplementedError()
 
     def release(self, _flags: int):
-        '''
+        """
         Save pending changes on release. If overriding, make sure to call
         super().release() first.
-        '''
+        """
 
         with self.buf_lock:
             if self.dirty:

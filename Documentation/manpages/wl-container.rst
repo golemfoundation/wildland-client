@@ -67,8 +67,8 @@ Delete a container from local filesystem.
 .. program:: wl-container-create
 .. _wl-container-create:
 
-:command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage-set>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl container create [--owner <user>] [--path <path>] [--path <path2> ...] [--storage-set <storage-set>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create a |~| new container manifest.
 
@@ -403,6 +403,18 @@ Remove category from a container |~| manifest given by *<file>*.
 .. option:: --category
 
    Category to remove. Can be repeated.
+
+.. _wl-container-modify-del-storage:
+
+:command:`wl container modify del-storage --storage PATH <file>`
+----------------------------------------------------------------
+
+Remove storage(s) from a container |~| manifest given by *<file>*.
+
+.. option:: --storage
+
+   Storages to remove. Can be either the backend_id of a storage or position in
+   storage list (starting from 0). Can be repeated.
 
 .. _wl-container-modify-set-title:
 

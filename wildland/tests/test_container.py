@@ -112,9 +112,12 @@ def test_expanded_paths(client, cli):
         'title', '--category', '/t1/t2', '--category', '/t3')
 
     container = client.load_container_from('ContainerExt')
+    uuid = container.ensure_uuid()
 
     assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/@t3/title', '/t3/@t1/t2/title'} \
            == {str(p) for p in container.expanded_paths if 'uuid' not in str(p)}
+
+    assert str(container.expanded_paths[0]) == f'/.uuid/{uuid}'
 
 
 def test_users_additional_pubkeys(cli, base_dir):

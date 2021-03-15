@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Transfer commands (get, put)
-'''
+"""
 
 import click
 
@@ -33,9 +33,9 @@ from ..search import Search
 @click.argument('wlpath')
 @click.pass_obj
 def put(obj: ContextObj, local_file, wlpath):
-    '''
+    """
     Put a file under Wildland path. Reads from stdout or from a file.
-    '''
+    """
 
     try:
         wlpath = WildlandPath.from_str(wlpath)
@@ -56,9 +56,9 @@ def put(obj: ContextObj, local_file, wlpath):
 @click.argument('local_file', type=click.File('wb'), default='-')
 @click.pass_obj
 def get(obj: ContextObj, wlpath, local_file):
-    '''
+    """
     Get a file, given its Wildland path. Saves to stdout or to a file.
-    '''
+    """
 
     try:
         wlpath = WildlandPath.from_str(wlpath)

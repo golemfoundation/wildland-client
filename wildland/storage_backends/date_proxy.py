@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Date proxy backend
-'''
+"""
 
 import uuid
 from typing import Tuple, Optional, Iterable
@@ -36,7 +36,7 @@ from ..manifest.sig import SigContext
 
 
 class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
-    '''
+    """
     A proxy storage that re-organizes the files into directories based on their
     modification date.
 
@@ -52,7 +52,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
     2. Then, the inner storage backend will be instantiated and passed as
     params['storage'] (see StorageBackend.from_params()).
-    '''
+    """
 
     SCHEMA = Schema({
         "type": "object",
@@ -98,7 +98,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
     @staticmethod
     def _split_path(path: PurePosixPath) -> Tuple[Optional[str], PurePosixPath]:
-        '''
+        """
         Extract the prefix part (first 3 parts) from path. For correct
         user requests, the prefix will be a date, but it needs to be verified
         (i.e. compared with the right date).
@@ -108,7 +108,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
             >>> _split_path(PurePosixPath('2020/10/foo.txt')
             (None, PurePosixPath('2020/10/foo.txt'))
-        '''
+        """
 
         if len(path.parts) <= 3:
             return None, path

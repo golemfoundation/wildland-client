@@ -73,7 +73,7 @@ def cli_fail(cli, capsys):
 
 
 class TestControlClient:
-    '''
+    """
     A test version of ControlClient.
 
     Usage:
@@ -91,7 +91,7 @@ class TestControlClient:
         client.calls['foo']   # {}
         client.calls['bar']   # {'baz': 2}
         client.check()
-    '''
+    """
 
     # pylint: disable=missing-docstring
     def __init__(self):
@@ -110,26 +110,26 @@ class TestControlClient:
         return self.results[name]
 
     def expect(self, name, result=None):
-        '''
+        """
         Add a command to a list of expected commands, with a result to be
         returned.
-        '''
+        """
 
         self.results[name] = result
 
     def check(self):
-        '''
+        """
         Check if all expected commands have been executed.
-        '''
+        """
         unseen = set(self.results) - set(self.calls)
         assert not unseen, f'some commands have not been called: {unseen}'
 
 
 @pytest.fixture
 def control_client():
-    '''
+    """
     Mock the ControlClient and return a mock run_command.
-    '''
+    """
 
     control_client = TestControlClient()
     with mock.patch('wildland.fs_client.ControlClient') as mock_class:

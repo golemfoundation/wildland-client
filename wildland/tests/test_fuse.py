@@ -43,9 +43,9 @@ def env():
 
 @pytest.fixture(params=['local', 'local-cached', 'local-dir-cached'])
 def storage_type(request):
-    '''
+    """
     Parametrize the tests by storage type
-    '''
+    """
 
     return request.param
 
@@ -273,7 +273,7 @@ def test_mount_no_directory(env, container, storage_type):
 
 
 def test_nested_mounts(env, storage_type):
-    '''
+    """
     This is an integration test for conflict resolution.
     See also test_conflict.py for detailed unit tests.
 
@@ -289,7 +289,7 @@ def test_nested_mounts(env, storage_type):
                            nested2/
                              file-conflict
                              file-c2-nested
-    '''
+    """
 
     env.create_dir('storage/storage1')
     env.create_file('storage/storage1/file-c1')

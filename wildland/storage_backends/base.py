@@ -30,22 +30,21 @@ import pathlib
 import posixpath
 import stat
 import urllib.parse
-from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
+from uuid import UUID
 
 import click
+import yaml
 
 from ..manifest.sig import SigContext
 from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
-from ..hashdb import HashDb
+from ..hashdb import HashDb, HashCache
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
-
-HashCache = namedtuple('HashCache', ['hash', 'token'])
 
 
 class StorageError(BaseException):
@@ -86,24 +85,24 @@ class Attr:
 
         return stat.S_ISDIR(self.mode)
 
-    @staticmethod
-    def file(size: int = 0, timestamp: int = 0) -> 'Attr':
+    @classmethod
+    def file(cls, size: int=0, timestamp: int=0) -> 'Attr':
         """
         Simple file with default access mode.
         """
 
-        return Attr(
+        return cls(
             mode=stat.S_IFREG | 0o644,
             size=size,
             timestamp=timestamp)
 
-    @staticmethod
-    def dir(size: int = 0, timestamp: int = 0) -> 'Attr':
+    @classmethod
+    def dir(cls, size: int=0, timestamp: int=0) -> 'Attr':
         """
         Simple directory with default access mode.
         """
 
-        return Attr(
+        return cls(
             mode=stat.S_IFDIR | 0o755,
             size=size,
             timestamp=timestamp)
@@ -202,10 +201,18 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
         self.watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
-        self.hash_db = None
+        self.hash_db: Optional[HashDb] = None
         self.mounted = 0
 
+        # Hash guarantees uniqueness per backend's params while backend-id does not
         self.backend_id = self.params['backend-id']
+        self.hash = self.generate_hash(self.params)
+
+    def __repr__(self):
+        return (f'{type(self).__name__}('
+                f'type={self.TYPE!r}, '
+                f'params={self.params!r})'
+        )
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -233,6 +240,18 @@ class StorageBackend(metaclass=abc.ABCMeta):
             StorageBackend._types = get_storage_backends()
 
         return StorageBackend._types
+
+    @staticmethod
+    def generate_hash(params: Dict[str, Any]) -> str:
+        """
+        Returns hash for the given params. May be used eg. for caching.
+        """
+
+        hasher = hashlib.md5()
+        params_for_hash = dict((k, v) for (k, v) in params.items() if k != 'storage')
+        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+
+        return str(UUID(hasher.hexdigest()))
 
     def request_mount(self) -> None:
         """
@@ -329,6 +348,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Set path to config dir. Used to store hashes in a local sqlite DB.
         """
         self.hash_db = HashDb(config_dir)
+
     # FUSE file operations. Return a File instance.
 
     @abc.abstractmethod
@@ -448,18 +468,18 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         https://github.com/libfuse/python-fuse/blob/6c3990f9e3dce927c693e66dc14138822b42564b/fuse.py#L474
 
-        :param atime: fuse.Timespec access time
-        :param mtime: fuse.Timespec modification time
+        :param atime: Timespec access time
+        :param mtime: Timespec modification time
         """
         raise OptionalError()
 
     # Other operations
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         # used to implement hash caching; should provide a token that changes when the file changes.
         raise OptionalError()
 
-    def get_hash(self, path: PurePosixPath):
+    def get_hash(self, path: PurePosixPath) -> Optional[str]:
         """
         Return (and, if get_file_token is implemented, cache) sha256 hash for object at path.
         """
@@ -490,7 +510,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             self.store_hash(path, HashCache(new_hash, current_token))
         return new_hash
 
-    def store_hash(self, path, hash_cache):
+    def store_hash(self, path, hash_cache) -> None:
         """
         Store provided hash in persistent (if available) storage and in local dict.
         """
@@ -498,7 +518,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             self.hash_db.store_hash(self.backend_id, path, hash_cache)
         self.hash_cache[path] = hash_cache
 
-    def retrieve_hash(self, path):
+    def retrieve_hash(self, path) -> Optional[HashCache]:
         """
         Get cached hash, if possible; priority is given to local dict, then to permanent storage.
         """
@@ -560,9 +580,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
 
         if deduplicate:
-            deduplicate = params['backend-id']
-            if deduplicate in StorageBackend._cache:
-                return StorageBackend._cache[deduplicate]
+            deduplicate_key = StorageBackend.generate_hash(params)
+            if deduplicate_key in StorageBackend._cache:
+                return StorageBackend._cache[deduplicate_key]
 
         # Recursively handle proxy storages
         if 'storage' in params:
@@ -575,7 +595,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
         if deduplicate:
-            StorageBackend._cache[deduplicate] = backend
+            StorageBackend._cache[deduplicate_key] = backend
         return backend
 
     @staticmethod
@@ -606,7 +626,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
             urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
 
 
-class StaticSubcontainerStorageMixin:
+class StaticSubcontainerStorageMixin(StorageBackend):
     """
     A backend storage mixin that is used in all backends that support ``subcontainers`` key in their
     manifests.
@@ -625,6 +645,7 @@ class StaticSubcontainerStorageMixin:
         }
 
     """
+    # pylint: disable=abstract-method
 
     def list_subcontainers(
         self,
