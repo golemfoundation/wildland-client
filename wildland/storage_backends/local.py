@@ -131,6 +131,7 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
         }
     })
     TYPE = 'local'
+    LOCATION_PARAM = 'location'
 
     def __init__(self, *, relative_to=None, **kwds):
         super().__init__(**kwds)

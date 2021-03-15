@@ -2390,7 +2390,8 @@ def test_cli_storage_template_create(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo'}
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'read-only': False}
 
 
 def test_cli_storage_template_create_custom_access(cli, base_dir):
@@ -2402,7 +2403,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'read-only': False,
                              'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]}
 
     cli('storage-template', 'create', 'local', '--location', '/foo',
@@ -2411,7 +2413,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t2.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'read-only': False,
                              'access': [{'user': '*'}]}
 
     with pytest.raises(CliError, match='Failed to create storage template: User not found: *'):

@@ -121,6 +121,7 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
         }
     })
     TYPE = 'webdav'
+    LOCATION_PARAM = 'url'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)

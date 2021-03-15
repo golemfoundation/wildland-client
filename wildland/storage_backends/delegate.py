@@ -65,6 +65,7 @@ class DelegateProxyStorageBackend(StorageBackend):
         }
     })
     TYPE = 'delegate'
+    LOCATION_PARAM = 'subdirectory'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
