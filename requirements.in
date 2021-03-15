@@ -20,6 +20,11 @@ python-daemon
 pyxdg
 pybear @ https://github.com/golemfoundation/pybear/archive/7af236fef1bce0466188b00f8e96b5a269e38959.zip
 dropbox
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+httplib2shim
+treelib
 
 # Development / testing
 pip-tools

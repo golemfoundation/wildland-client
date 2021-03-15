@@ -213,7 +213,7 @@ class DriveClient:
         # + if not one level above is the parent
         new_parents = (
             ",".join(dst_parents)
-            if dst_mimeType != FOLDER_MIMETYPE and src_mimeType != FOLDER_MIMETYPE
+            if FOLDER_MIMETYPE not in (dst_mimeType, src_mimeType)
             else dst_id
         )
 
