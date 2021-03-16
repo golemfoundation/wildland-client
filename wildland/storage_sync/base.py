@@ -20,10 +20,11 @@ Storage syncing.
 """
 # pylint: disable=no-self-use
 import abc
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Dict, Type, List
 from pathlib import Path
 from wildland.storage import StorageBackend
 from ..storage_backends.base import OptionalError
+from ..exc import WildlandError
 
 
 class SyncError:
@@ -74,13 +75,16 @@ class BaseSyncer(metaclass=abc.ABCMeta):
     Syncer assumes that syncing is performed between two storages.
     """
 
-    # TODO: any = ["*"]
+    # SOURCE_TYPES AND TARGET_TYPES are lists of StorageBacked.TYPEs accepted as source/target
+    # storage respectively. For "any storage type" use ["*"].
     SYNCER_NAME = ""
-    SOURCE_TYPES = [""]  # list of StorageBacked.TYPE s accepted as source storage
-    TARGET_TYPES = [""]  # list of StorageBacked.TYPE s accepted as target storage
+    SOURCE_TYPES: List[str] = []
+    TARGET_TYPES: List[str] = []
     ONE_SHOT = True  # is this syncer capable of performing a one-shot sync?
     UNIDIRECTIONAL = True  # is this syncer capable of performing unidirectional sync?
     REQUIRES_MOUNT = True  # does this syncer require mounting the storages?
+
+    _types: Dict[str, Type['BaseSyncer']] = {}
 
     @classmethod
     def find_syncer(cls, source_storage_type: str, target_storage_type: str,
@@ -138,3 +142,72 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         """
         Iterate over discovered syncer errors.
         """
+
+    @staticmethod
+    def types() -> Dict[str, Type['BaseSyncer']]:
+        """
+        Lazily initialized type -> storage class mapping.
+        """
+        # TODO: from params
+        if not BaseSyncer._types:
+            # pylint: disable=import-outside-toplevel,cyclic-import
+            from .dispatch import get_storage_syncers
+            BaseSyncer._types = get_storage_syncers()
+
+        return BaseSyncer._types
+
+    @staticmethod
+    def type_matches(syncer_class: Type['BaseSyncer'], source_storage_type: str,
+                     target_storage_type: str, one_shot: bool, unidirectonal: bool,
+                     mount_required: bool) -> bool:
+        """
+        Check if a given Syncer class fits given requirements.
+        """
+        if one_shot and not syncer_class.ONE_SHOT:
+            # if we require one-shot support, the class must support it
+            return False
+        if unidirectonal and not syncer_class.UNIDIRECTIONAL:
+            # if we require unidirectional sync, the class must support
+            return False
+        if not mount_required and syncer_class.REQUIRES_MOUNT:
+            # if we are unable to mount, the class must not require it
+            return False
+        if source_storage_type not in syncer_class.SOURCE_TYPES and \
+                syncer_class.SOURCE_TYPES != ["*"]:
+            return False
+        if target_storage_type not in syncer_class.TARGET_TYPES and \
+                syncer_class.TARGET_TYPES != ["*"]:
+            return False
+        return True
+
+    @staticmethod
+    def from_storages(source_storage: StorageBackend, target_storage: StorageBackend,
+                      log_prefix: str, unidirectional: bool, one_shot: bool, mount_required: bool,
+                      source_mnt_path: Optional[Path] = None,
+                      target_mnt_path: Optional[Path] = None) -> 'BaseSyncer':
+        """
+        Construct a Syncer object based on listed requirements and objects.
+        :param source_storage: source storage object
+        :param target_storage: target storage object
+        :param log_prefix: prefix for logging sync events
+        :param unidirectional: is unidirectional sync support required
+        :param one_shot: is one-shot sync support required
+        :param mount_required: can mounting storages be required
+        :param source_mnt_path: path to source storage mount
+        :param target_mnt_path: path to target storage mount
+        :return: instantiated syncer class
+        """
+        candidate_classes: List[Type[BaseSyncer]] = []
+
+        for syncer_class in BaseSyncer.types().values():
+            if BaseSyncer.type_matches(syncer_class, source_storage.TYPE, target_storage.TYPE,
+                                       one_shot, unidirectional, mount_required):
+                candidate_classes.append(syncer_class)
+
+        if not candidate_classes:
+            raise WildlandError('Failed to find a matching syncer.')
+
+        candidate_classes.sort(key=lambda x: (x.SOURCE_TYPES + x.TARGET_TYPES).count('*'))
+        return candidate_classes[0](source_storage=source_storage, target_storage=target_storage,
+                                    log_prefix=log_prefix, source_mnt_path=source_mnt_path,
+                                    target_mnt_path=target_mnt_path)

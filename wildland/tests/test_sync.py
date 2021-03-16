@@ -24,16 +24,17 @@ import time
 from unittest.mock import patch
 from typing import Callable
 from pathlib import PurePosixPath, Path
-from itertools import combinations
+from itertools import combinations, product
 
 import pytest
 
 from wildland.storage_sync.naive_sync import NaiveSyncer, BLOCK_SIZE
-from wildland.storage_sync.base import SyncConflict
+from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.zip_archive import ZipArchiveStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
+from ..storage_backends.base import StorageBackend
 from .test_zip import make_zip
 from ..log import init_logging
 
@@ -90,6 +91,10 @@ def make_storage(backend_class: Callable, target_dir: PurePosixPath):
     return backend, target_dir
 
 
+def make_syncer(storage1: StorageBackend, storage2: StorageBackend) -> BaseSyncer:
+    return BaseSyncer.from_storages(storage1, storage2, 'test: ', False, False, False)
+
+
 def wait_for_file(path: Path, contents=None, timeout=10) -> bool:
     counter = 0
     while counter < timeout:
@@ -140,8 +145,7 @@ def test_sync_subdirs(tmpdir, storage_backend, cleanup):
         os.mkdir(d / 'subdir')
         make_file(d / 'subdir/testfile2', 'efgh')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -166,8 +170,7 @@ def test_sync_large_file(tmpdir, storage_backend, cleanup):
 
     make_file(storage_dir1 / 'testfile', data)
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -178,8 +181,7 @@ def test_sync_move_dir(tmpdir, storage_backend, cleanup):
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
     backend2, storage_dir2 = make_storage(storage_backend, tmpdir / 'storage2')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -214,8 +216,7 @@ def test_sync_remove_file(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'abcd')
     make_file(storage_dir2 / 'file1', 'abcd')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -237,8 +238,7 @@ def test_sync_remove_dir(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'subdir/subsubdir/file2', 'efgh')
     make_file(storage_dir2 / 'subdir/subsubdir/file2', 'efgh')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -254,8 +254,7 @@ def test_sync_move_file(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'abcd')
     make_file(storage_dir2 / 'file1', 'abcd')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -277,8 +276,7 @@ def test_sync_simple_conflict(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'abcd')
     make_file(storage_dir2 / 'file1', 'abcdefghijkl')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -303,8 +301,7 @@ def test_sync_complex_conflict(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'a')
     make_file(storage_dir2 / 'file1', 'a')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -329,8 +326,7 @@ def test_sync_lost_event_delete(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'a')
     make_file(storage_dir2 / 'file1', 'a')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -361,8 +357,7 @@ def test_sync_delete_conflict(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'abcd')
     make_file(storage_dir2 / 'file1', '123456789')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -382,8 +377,7 @@ def test_sync_conflict_resolved(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'file1', 'abcd')
     make_file(storage_dir2 / 'file1', '1234')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -413,8 +407,7 @@ def test_sync_move_from_subdir(tmpdir, storage_backend, cleanup):
     make_file(storage_dir1 / 'subdir/file1', 'abcd')
     make_file(storage_dir2 / 'file1', 'abcdefghijkl')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -440,8 +433,7 @@ def test_sync_file_dir_conflict(tmpdir, storage_backend, cleanup):
     os.mkdir(storage_dir1 / 'test')
     make_file(storage_dir2 / 'test', 'abcd')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -466,8 +458,7 @@ def test_sync_file_dir_conf_res1(tmpdir, storage_backend, cleanup):
     os.mkdir(storage_dir1 / 'test')
     make_file(storage_dir2 / 'test', 'abcd')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -490,8 +481,7 @@ def test_sync_file_dir_conf_res2(tmpdir, storage_backend, cleanup):
     os.mkdir(storage_dir1 / 'test')
     make_file(storage_dir2 / 'test', 'abcd')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -517,8 +507,7 @@ def test_zip_sync(tmpdir, storage_backend, cleanup):
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
     backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -534,8 +523,7 @@ def test_zip_sync_change(tmpdir, storage_backend, cleanup):
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
     backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
 
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
+    syncer = make_syncer(backend1, backend2)
     cleanup(syncer.stop_sync)
     syncer.start_sync()
 
@@ -593,10 +581,8 @@ def test_sync_two_containers(tmpdir, storage_backend, cleanup, use_hash_db):
     make_file(storage_dir1 / 'file1', 'abcd')
     make_file(storage_dir3 / 'file2', 'efgh')
 
-    syncer1 = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                          log_prefix='Container test: ')
-    syncer2 = NaiveSyncer(source_storage=backend3, target_storage=backend4,
-                          log_prefix='Container test: ')
+    syncer1 = make_syncer(backend1, backend2)
+    syncer2 = make_syncer(backend3, backend4)
     cleanup(syncer1.stop_sync)
     cleanup(syncer2.stop_sync)
     syncer1.start_sync()
@@ -630,7 +616,7 @@ def test_get_conflicts_simple(tmpdir, storage_backend, cleanup, use_hash_db):
     conflicts = []
 
     for b1, b2 in combinations(backends, 2):
-        syncer = NaiveSyncer(b1, b2, '')
+        syncer = make_syncer(b1, b2)
         conflicts.extend([error for error in syncer.iter_errors()
                           if isinstance(error, SyncConflict)])
 
@@ -640,3 +626,50 @@ def test_get_conflicts_simple(tmpdir, storage_backend, cleanup, use_hash_db):
         expected_conflicts.append(SyncConflict(Path('file1'), b1.backend_id, b2.backend_id))
 
     assert conflicts == expected_conflicts
+
+
+def test_find_syncer(tmpdir):
+    backend1, _ = make_storage(LocalStorageBackend, tmpdir / 'storage1')
+    backend2, _ = make_storage(LocalStorageBackend, tmpdir / 'storage2')
+
+    backend1.TYPE = 'type1'
+    backend2.TYPE = 'type2'
+
+    for bool1, bool2, bool3 in product([True, False], repeat=3):
+        syncer = BaseSyncer.from_storages(backend1, backend2,
+                                          'test', unidirectional=bool1,
+                                          one_shot=bool2, mount_required=bool3)
+        # assert that a Syncer was found
+        assert syncer.SYNCER_NAME
+
+    class TestSyncer1:
+        SYNCER_NAME = "test1"
+        SOURCE_TYPES = ["type1"]
+        TARGET_TYPES = ["*"]
+        ONE_SHOT = True
+        UNIDIRECTIONAL = True
+        REQUIRES_MOUNT = False
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class TestSyncer2:
+        SYNCER_NAME = "test2"
+        SOURCE_TYPES = ["type1"]
+        TARGET_TYPES = ["type2"]
+        ONE_SHOT = True
+        UNIDIRECTIONAL = True
+        REQUIRES_MOUNT = False
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+    BaseSyncer._types['test1'] = TestSyncer1
+    BaseSyncer._types['test2'] = TestSyncer2
+
+    for bool1, bool2, bool3 in product([True, False], repeat=3):
+        syncer = BaseSyncer.from_storages(backend1, backend2,
+                                          'test', unidirectional=bool1,
+                                          one_shot=bool2, mount_required=bool3)
+        # assert that the correct Syncer was found
+        assert syncer.SYNCER_NAME == 'test2'

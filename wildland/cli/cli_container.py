@@ -38,8 +38,7 @@ from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
 
-from wildland.storage_sync.naive_sync import NaiveSyncer
-from wildland.storage_sync.base import SyncConflict
+from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, \
     set_field, del_nested_field, find_manifest_file, dump
@@ -886,8 +885,11 @@ def sync_container(obj: ContextObj, target_remote, cont):
         container_name = container_path.name.replace(''.join(container_path.suffixes), '')
         local_storage.set_config_dir(obj.client.config.base_dir)
         target_remote.set_config_dir(obj.client.config.base_dir)
-        syncer = NaiveSyncer(source_storage=local_storage, target_storage=target_remote,
-                             log_prefix=f'Container: {container_name}')
+        syncer = BaseSyncer.from_storages(source_storage=local_storage,
+                                          target_storage=target_remote,
+                                          log_prefix=f'Container: {container_name}',
+                                          one_shot=False, unidirectional=False,
+                                          mount_required=False)
         try:
             syncer.start_sync()
         except FileNotFoundError as e:
@@ -937,7 +939,12 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
                 obj.client.all_storages(container)]
     conflicts = []
     for storage1, storage2 in combinations(storages, 2):
-        syncer = NaiveSyncer(storage1, storage2, f'Container {cont}: ')
+        syncer = BaseSyncer.from_storages(source_storage=storage1,
+                                          target_storage=storage2,
+                                          log_prefix=f'Container: {cont}',
+                                          one_shot=False, unidirectional=False,
+                                          mount_required=False)
+
         conflicts.extend([error for error in syncer.iter_errors()
                           if isinstance(error, SyncConflict)])
 

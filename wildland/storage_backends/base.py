@@ -491,8 +491,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if current_token:
             hash_cache = self.retrieve_hash(path)
             if hash_cache and current_token == hash_cache.token:
-                logger.debug(f'Retrieving hash {hash_cache.hash} from cache '
-                             f'for file {path} with token {current_token}')
+                logger.debug('Retrieving hash %s from cache for file %s with token %s',
+                             hash_cache.hash, path, current_token)
                 return hash_cache.hash
 
         hasher = hashlib.sha256()

@@ -50,8 +50,13 @@ class NaiveSyncer(BaseSyncer):
     REQUIRES_MOUNT = False  # this syncer does not require mount
 
     def __init__(self,
-                 source_storage: StorageBackend, target_storage: StorageBackend, log_prefix: str):
-        super().__init__(source_storage, target_storage, log_prefix)
+                 source_storage: StorageBackend,
+                 target_storage: StorageBackend,
+                 log_prefix: str,
+                 source_mnt_path: Optional[Path] = None,
+                 target_mnt_path: Optional[Path] = None):
+        super().__init__(source_storage, target_storage, log_prefix,
+                         source_mnt_path, target_mnt_path)
         self.storage_watchers: Dict[StorageBackend, StorageWatcher] = {}
         self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, Optional[str]]] = {}
         self.lock = threading.Lock()
