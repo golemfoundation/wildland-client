@@ -1211,7 +1211,7 @@ def test_container_publish_rewrite(cli, tmp_path):
             for line in itertools.chain(file1, file2):
                 print(line)
                 if re.fullmatch(
-                        r'- https://example\.invalid/m-[A-Za-z0-9-]+.yaml',
+                        r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}yaml',
                         line.strip()):
                     break
             else:

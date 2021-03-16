@@ -177,10 +177,12 @@ class _StoragePublisher:
 
     def _get_relpath_for_storage_manifest(self, storage):
         # we publish only a single manifest for a storage, under `/.uuid/` path
-        return pathlib.PurePosixPath(self.pattern
-            .replace('*', storage.params['backend-id'])
-            .replace('{path}', str(self.container_uuid_path.relative_to('/')))
-        ).relative_to('/')
+        container_manifest = next(
+            self._get_relpaths_for_container_manifests(self.container))
+        return container_manifest.with_name(
+            container_manifest.name.removesuffix('.yaml')
+            + f'.{storage.params["backend-id"]}.yaml'
+        )
 
     def _get_relpaths_for_container_manifests(self, container):
         path_pattern = self.pattern.replace('*', container.ensure_uuid())
