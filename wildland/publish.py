@@ -269,8 +269,9 @@ class _StoragePublisher:
                 old_relpaths_to_remove.difference_update(container_relpaths)
                 old_relpaths_to_remove.difference_update(storage_relpaths)
 
-            # remove
-            for relpath in old_relpaths_to_remove:
+            # remove /.uuid path last, if present (bool sorts False < True)
+            for relpath in sorted(old_relpaths_to_remove,
+                    key=(lambda path: path.parts[:2] == ('/', '.uuid'))):
                 try:
                     driver.remove_file(relpath)
                 except FileNotFoundError:
