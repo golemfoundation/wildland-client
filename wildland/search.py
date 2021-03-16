@@ -44,7 +44,7 @@ from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
 if TYPE_CHECKING:
-    from .client import Client
+    from .client import Client # pylint: disable=cyclic-import
 
 logger = logging.getLogger('search')
 
