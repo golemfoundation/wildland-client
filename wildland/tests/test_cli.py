@@ -2446,7 +2446,7 @@ def test_cli_remove_nonexisting_storage_template(cli):
 
 def test_cli_remove_assigned_storage_template(cli):
     cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
-    cli('storage-set', 'add', '--template', 't1', 'set1')
+    cli('', 'add', '--template', 't1', 'set1')
 
     with pytest.raises(CliError, match=r'Template (.+?) is attached to following sets: (.+?)'):
         cli('storage-template', 'remove', 't1')
@@ -3106,9 +3106,25 @@ def test_user_refresh(cli, base_dir, tmpdir):
     user_data = (base_dir / 'users/Alice.user.yaml').read_text()
     assert 'paths:\n- /MEH' in user_data
 
+# Forest
+
+def test_forest_create(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--base-url', f'file:///{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--read-only', '--manifest-pattern', '/{path}.yaml', 'ro')
+    cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
+
+    cli('forest', 'create', '--manifest-local-dir', '/manifests', '--data-local-dir', '/storage',
+        'Alice', 'my-set')
+
+    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice.yaml').exists()
+    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice-index.yaml').exists()
+    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/.manifests.yaml').exists()
+    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/home/Alice.yaml').exists()
 
 ## Global options (--help, --version etc.)
-
 
 def test_wl_help(cli):
     result = cli('--help', capture=True)
