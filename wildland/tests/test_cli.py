@@ -2240,7 +2240,7 @@ def test_cli_container_sync(tmpdir, cleanup):
             '--container', 'AliceContainer', '--location', storage1_data)
     wl_call(base_config_dir, 'storage', 'create', 'local-cached',
             '--container', 'AliceContainer', '--location', storage2_data)
-    wl_call(base_config_dir, 'container', 'sync', '--target-remote', 'local-cached',
+    wl_call(base_config_dir, 'container', 'sync', '--target-storage', 'local-cached',
             'AliceContainer')
 
     time.sleep(1)
@@ -2253,6 +2253,45 @@ def test_cli_container_sync(tmpdir, cleanup):
     assert (storage2_data / 'testfile').exists()
     with open(storage2_data / 'testfile') as file:
         assert file.read() == 'test data'
+
+
+def test_cli_container_sync_oneshot(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_config_dir)
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+
+    wl_call(base_config_dir, 'user', 'create', 'Alice')
+    wl_call(base_config_dir, 'container', 'create',
+            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
+    wl_call(base_config_dir, 'storage', 'create', 'local',
+            '--container', 'AliceContainer', '--location', storage1_data)
+    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
+            '--container', 'AliceContainer', '--location', storage2_data)
+
+    with open(storage1_data / 'testfile', 'w') as f:
+        f.write("test data")
+
+    wl_call(base_config_dir, 'container', 'sync', '--target-storage', 'local-cached', '--one-shot',
+            'AliceContainer')
+
+    time.sleep(1)
+
+    assert (storage2_data / 'testfile').exists()
+    with open(storage2_data / 'testfile') as file:
+        assert file.read() == 'test data'
+
+    with open(storage1_data / 'testfile2', 'w') as f:
+        f.write("test data2")
+
+    time.sleep(1)
+
+    assert not (storage2_data / 'testfile2').exists()
 
 
 def test_cli_container_sync_tg_remote(tmpdir, cleanup):
@@ -2279,7 +2318,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
             '--container', 'AliceContainer', '--location', storage2_data)
     wl_call(base_config_dir, 'storage', 'create', 'local-dir-cached',
             '--container', 'AliceContainer', '--location', storage3_data)
-    wl_call(base_config_dir, 'container', 'sync', '--target-remote', 'local-dir-cached',
+    wl_call(base_config_dir, 'container', 'sync', '--target-storage', 'local-dir-cached',
             'AliceContainer')
 
     time.sleep(1)

@@ -29,7 +29,12 @@ Stop syncing for a given container::
 
 Start syncing for a specified remote:
 
-    wl container sync --target-remote <backend_id or storage_type>
+    wl container sync --target-storage <backend_id or storage_type> <container-name>
+
+Perform a one-time sync between two specified storages (useful e.g. when migrating data from one
+storage to another):
+
+    wl container sync --target-storage <backend_id or storage_type> --source-storage <backend_id or storage_type> --one-shot <container-name>
 
 Development
 -----------

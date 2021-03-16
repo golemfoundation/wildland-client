@@ -22,7 +22,7 @@ Manage containers
 """
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple, Dict, Optional, Iterable
+from typing import List, Tuple, Optional, Iterable
 from itertools import combinations
 import os
 import uuid
@@ -815,13 +815,30 @@ def syncer_pidfile_for_container(container: Container) -> Path:
     return Path(BaseDirectory.get_runtime_dir()) / f'wildland-sync-{container_id}.pid'
 
 
+def _get_storage_by_id_or_type(id_or_type: str, storages: List[StorageBackend]) -> StorageBackend:
+    """
+    Helper function to find a storage by listed id or type.
+    """
+    try:
+        return [storage for storage in storages
+                if id_or_type in (storage.backend_id, storage.TYPE)][0]
+    except IndexError:
+        # pylint: disable=raise-missing-from
+        raise WildlandError(f'Storage {id_or_type} not found.')
+
+
 @container_.command('sync', short_help='start syncing a container')
 @click.argument('cont', metavar='CONTAINER')
-@click.option('--target-remote', help='specify which remote storage should be kept in sync'
-                                      'with the local storage. Default: first listed in manifest. '
-                                      'Can be specified as backend_id or as storage type (e.g. s3')
+@click.option('--target-storage', help='specify target storage. Default: first non-local storage'
+                                       ' listed in manifest. Can be specified as backend_id or as '
+                                       'storage type (e.g. s3)')
+@click.option('--source-storage', help='specify source storage. Default: first local storage '
+                                       'listed in manifest. Can be specified as backend_id or as '
+                                       'storage type (e.g. s3)')
+@click.option('--one-shot', is_flag=True, default=False,
+              help='perform only one-time sync, do not start syncing daemon')
 @click.pass_obj
-def sync_container(obj: ContextObj, target_remote, cont):
+def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, cont):
     """
     Keep the given container in sync across the local storage and selected remote storage
     (by default the first listed in manifest).
@@ -839,57 +856,62 @@ def sync_container(obj: ContextObj, target_remote, cont):
     all_storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
 
-    try:
-        local_storage = [storage for storage in all_storages
-                         if obj.client.is_local_storage(storage)][0]
-    except IndexError:
-        raise WildlandError('No local storage backend found')  # pylint: disable=raise-missing-from
+    if source_storage:
+        source_storage_obj = _get_storage_by_id_or_type(source_storage, all_storages)
+    else:
+        try:
+            source_storage_obj = [storage for storage in all_storages
+                              if obj.client.is_local_storage(storage)][0]
+        except IndexError:
+            # pylint: disable=raise-missing-from
+            raise WildlandError('No local storage backend found')
 
     default_remotes = obj.client.config.get('default-remote-for-container')
 
-    if target_remote:
-        try:
-            target_remote = [storage for storage in all_storages
-                             if target_remote in (storage.backend_id, storage.TYPE)][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise CliError('No remote storage backend found: check if specified'
-                           ' --target-remote exists.')
-        default_remotes[container.ensure_uuid()] = target_remote.backend_id
+    if target_storage:
+        target_storage_obj = _get_storage_by_id_or_type(target_storage, all_storages)
+        default_remotes[container.ensure_uuid()] = target_storage_obj.backend_id
         obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
-
     else:
         target_remote_id = default_remotes.get(container.ensure_uuid(), None)
         try:
-            target_remote = [
+            target_storage_obj = [
                 storage for storage in all_storages
                 if target_remote_id == storage.backend_id
                    or (not target_remote_id and not obj.client.is_local_storage(storage))][0]
         except IndexError:
             # pylint: disable=raise-missing-from
-            raise CliError('No remote storage backend found: specify --target-remote.')
+            raise CliError('No remote storage backend found: specify --target-storage.')
 
-    click.echo(f'Using remote backend {target_remote.backend_id} of type {target_remote.TYPE}')
+    click.echo(f'Using remote backend {target_storage_obj.backend_id} '
+               f'of type {target_storage_obj.TYPE}')
 
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
-    hash_db.update_storages_for_containers(container.ensure_uuid(), [local_storage, target_remote])
+    hash_db.update_storages_for_containers(container.ensure_uuid(),
+                                           [source_storage_obj, target_storage_obj])
+
+    if container.local_path:
+        container_path = PurePosixPath(container.local_path)
+        container_name = container_path.name.replace(''.join(container_path.suffixes), '')
+    else:
+        container_name = cont
+
+    source_storage_obj.set_config_dir(obj.client.config.base_dir)
+    target_storage_obj.set_config_dir(obj.client.config.base_dir)
+    syncer = BaseSyncer.from_storages(source_storage=source_storage_obj,
+                                      target_storage=target_storage_obj,
+                                      log_prefix=f'Container: {container_name}',
+                                      one_shot=False, unidirectional=False,
+                                      mount_required=False)
+
+    if one_shot:
+        syncer.one_shot_sync()
+        return
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         init_logging(False, f'/tmp/wl-sync-{container.ensure_uuid()}.log')
-
-        assert container.local_path is not None
-        container_path = PurePosixPath(container.local_path)
-        # TODO: infer container name better
-        container_name = container_path.name.replace(''.join(container_path.suffixes), '')
-        local_storage.set_config_dir(obj.client.config.base_dir)
-        target_remote.set_config_dir(obj.client.config.base_dir)
-        syncer = BaseSyncer.from_storages(source_storage=local_storage,
-                                          target_storage=target_remote,
-                                          log_prefix=f'Container: {container_name}',
-                                          one_shot=False, unidirectional=False,
-                                          mount_required=False)
         try:
             syncer.start_sync()
         except FileNotFoundError as e:
