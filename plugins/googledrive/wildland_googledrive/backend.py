@@ -25,7 +25,7 @@ import stat
 
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import Iterable, Tuple, Optional, Callable
+from typing import cast, Callable, Iterable, Optional, Tuple
 
 import click
 
@@ -189,10 +189,10 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.clear_cache()
         return DriveFile(self.client, path, attr, self.clear_cache)
 
-    def chmod(self, path: str, mode: int):
+    def chmod(self, path: PurePosixPath, mode: int):
         self.logger.debug("chmod > mode: %d path: %s", mode, path)
 
-    def chown(self, path: str, uid: int, gid: int):
+    def chown(self, path: PurePosixPath, uid: int, gid: int):
         self.logger.debug("chown > uid: %d gid: %d path: %s", uid, gid, path)
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:
@@ -226,9 +226,9 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.client.upload_file(truncated_content, path)
         self.clear_cache()
 
-    def get_file_token(self, path: PurePosixPath) -> Optional[int]:
-        attr: DriveFileAttr = self.getattr(path)
-        return int(attr.head_revision_id, 16)
+    def get_file_token(self, path: PurePosixPath) -> Optional[str]:
+        attr: DriveFileAttr = cast(DriveFileAttr, self.getattr(path))
+        return str(int(attr.head_revision_id, 16))
 
     def add_into_tree(self, metadata):
         """

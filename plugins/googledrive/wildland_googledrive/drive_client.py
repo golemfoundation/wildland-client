@@ -50,7 +50,7 @@ class DriveClient:
     """
 
     def __init__(self, credentials, cache_tree):
-        self.drive_api = None
+        self.drive_api: Resource
         self.cache_tree = cache_tree
         self.credentials = Credentials(
             token=credentials["token"],
@@ -256,7 +256,7 @@ class DriveClient:
         return self._upload_file(bytes(), path, new_file=True)
 
     def _retrieve_entries(
-        self, query: str = None, fields: str = "nextPageToken, files"
+        self, query: str = "", fields: str = "nextPageToken, files"
     ) -> list:
         """
         Retrieve paginated entries with given query.
