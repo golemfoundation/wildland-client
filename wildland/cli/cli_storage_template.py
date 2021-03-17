@@ -126,11 +126,12 @@ def _do_create(
                 raise CliError(f'Failed to create storage template: {ex}') from ex
 
     if backend.LOCATION_PARAM:
-        params[backend.LOCATION_PARAM] = str(params[backend.LOCATION_PARAM]) + \
+        params[backend.LOCATION_PARAM] = str(params[backend.LOCATION_PARAM]).rstrip('/') + \
                                             "{{ local_dir if local_dir is defined else '/' }}"
 
     if base_url:
-        params['base-url'] = base_url + "{{ local_dir if local_dir is defined else '/' }}"
+        params['base-url'] = base_url.rstrip('/') + \
+                                "{{ local_dir if local_dir is defined else '/' }}"
 
     # remove default, non-required values
     for param, value in list(params.items()):
