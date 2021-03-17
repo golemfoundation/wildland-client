@@ -251,6 +251,7 @@ def edit(ctx, editor, input_file, remount):
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
 
+    data = b'# All YAML comments will be discarded when the manifest is saved\n' + data
     original_data = data
 
     new_manifest = None
