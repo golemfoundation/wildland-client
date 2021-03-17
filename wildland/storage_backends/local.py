@@ -21,6 +21,7 @@
 Local storage, similar to :command:`mount --bind`
 """
 
+import errno
 import os
 import time
 from pathlib import Path, PurePosixPath
@@ -77,7 +78,7 @@ class LocalFile(File):
             self.ignore_callback('modify', self.path)
         return self.file.close()
 
-    def fgetattr(self):
+    def fgetattr(self) -> Attr:
         """...
 
         Without this method, at least :meth:`read` does not work.
@@ -91,7 +92,7 @@ class LocalFile(File):
             st.size = self.file.seek(0, 2)
         return st
 
-    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
+    def read(self, length: Optional[int]=None, offset: int=0) -> bytes:
         with self.lock:
             self.file.seek(offset)
             return self.file.read(length)
@@ -169,7 +170,13 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
             pathlib.Path: path relative to :attr:`self.root`
         """
         ret = (self.root / path).resolve()
-        ret.relative_to(self.root) # this will throw ValueError if not relative
+        try:
+            ret.relative_to(self.root)
+        except ValueError as e:
+            raise FileNotFoundError(
+                errno.EXDEV,
+                f'Treating [{path}] as an invalid symlink. Symlink are not allowed to point '
+                 'outside of the container.') from e
         return ret
 
     # pylint: disable=missing-docstring
@@ -178,57 +185,57 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
         verify_local_access(self.root, self.params['owner'],
                             self.params.get('is-local-owner', False))
 
-    def open(self, path, flags):
+    def open(self, path: PurePosixPath, flags: int):
         if self.ignore_own_events and self.watcher_instance:
             return LocalFile(path, self._path(path), flags,
                              ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags)
 
-    def create(self, path, flags, mode=0o666):
+    def create(self, path: PurePosixPath, flags: int, mode: int=0o666):
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
             return LocalFile(path, self._path(path), flags, mode,
                              ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags, mode)
 
-    def getattr(self, path):
+    def getattr(self, path: PurePosixPath) -> Attr:
         return to_attr(os.lstat(self._path(path)))
 
-    def readdir(self, path):
+    def readdir(self, path: PurePosixPath) -> List[str]:
         return os.listdir(self._path(path))
 
-    def truncate(self, path, length):
-        return os.truncate(self._path(path), length)
+    def truncate(self, path: PurePosixPath, length: int) -> None:
+        os.truncate(self._path(path), length)
 
-    def unlink(self, path):
+    def unlink(self, path: PurePosixPath) -> None:
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('delete', path)
-        return os.unlink(self._path(path))
+        os.unlink(self._path(path))
 
-    def mkdir(self, path, mode=0o777):
+    def mkdir(self, path: PurePosixPath, mode: int=0o777) -> None:
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
-        return os.makedirs(self._path(path), mode, exist_ok=True)
+        os.makedirs(self._path(path), mode, exist_ok=True)
 
-    def rmdir(self, path):
+    def rmdir(self, path: PurePosixPath) -> None:
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('delete', path)
-        return os.rmdir(self._path(path))
+        os.rmdir(self._path(path))
 
-    def chmod(self, path: PurePosixPath, mode: int):
-        return os.chmod(self._path(path), mode)
+    def chmod(self, path: PurePosixPath, mode: int) -> None:
+        os.chmod(self._path(path), mode)
 
-    def chown(self, path: PurePosixPath, uid: int, gid: int):
-        return os.chown(self._path(path), uid, gid)
+    def chown(self, path: PurePosixPath, uid: int, gid: int) -> None:
+        os.chown(self._path(path), uid, gid)
 
-    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
-        return os.rename(self._path(move_from), self._path(move_to))
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath) -> None:
+        os.rename(self._path(move_from), self._path(move_to))
 
-    def utimens(self, path: PurePosixPath, atime, mtime):
+    def utimens(self, path: PurePosixPath, atime, mtime) -> None:
         atime_ns = atime.tv_sec * 1e9 + atime.tv_nsec
         mtime_ns = mtime.tv_sec * 1e9 + mtime.tv_nsec
 
-        return os.utime(self._path(path), ns=(atime_ns, mtime_ns))
+        os.utime(self._path(path), ns=(atime_ns, mtime_ns))
 
     def watcher(self):
         """

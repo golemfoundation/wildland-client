@@ -254,7 +254,7 @@ class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
 
         yield PurePosixPath('.'), self._stat(st)
 
-        for root_s, dirs, files in os.walk(self.root):
+        for root_s, dirs, files in os.walk(self.root, followlinks=True):
             root = Path(root_s)
             rel_root = PurePosixPath(root.relative_to(self.root))
             for dir_name in dirs:

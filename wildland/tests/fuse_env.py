@@ -60,22 +60,22 @@ class FuseEnv:
     def __init__(self):
         self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
         self.mnt_dir = self.test_dir / 'mnt'
+        self.storage_dir = self.test_dir / 'storage'
         self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False
         self.proc = None
         self.conn: Optional[socket.socket] = None
 
-        os.mkdir(self.test_dir / 'mnt')
-        os.mkdir(self.test_dir / 'storage')
+        os.mkdir(self.mnt_dir)
+        os.mkdir(self.storage_dir)
 
     def mount(self):
         assert not self.mounted, 'only one mount() at a time'
-        mnt_dir = self.test_dir / 'mnt'
 
         options = ['log=-', 'socket=' + str(self.socket_path)]
 
         self.proc = subprocess.Popen([
-            ENTRY_POINT, mnt_dir,
+            ENTRY_POINT, self.mnt_dir,
             '-f', '-d',
             '-o', ','.join(options),
         ], cwd=PROJECT_PATH)
@@ -131,6 +131,13 @@ class FuseEnv:
             path.write_text(content)
         if mode is not None:
             os.chmod(path, mode)
+
+    def create_symlink(self, src, dst, storage_subdir=''):
+        assert '..' not in dst
+        # Make symlink relative to the given subdirectory
+        dir_fd = os.open(self.test_dir / self.storage_dir / storage_subdir, flags=os.O_DIRECTORY)
+        os.symlink(src, dst, dir_fd=dir_fd)
+        os.close(dir_fd)
 
     def unmount(self):
         assert self.mounted

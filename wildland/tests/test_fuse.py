@@ -237,7 +237,7 @@ def test_cmd_unmount_error(env, container):
 
 
 def test_mount_no_directory(env, container, storage_type):
-    # Mount should still work if them backing directory does not exist
+    # Mount should still work if the backing directory does not exist
     storage = storage_manifest(env, 'storage/storage2', storage_type)
 
     # The container should mount, with the directory visible but empty
@@ -416,7 +416,9 @@ def test_read_buffered(env, storage_type):
         f.seek(0)
         assert f.read() == data
 
+
 # Watches
+
 
 def collect_all_events(environment):
     events = []
@@ -479,7 +481,9 @@ def test_watch(env, storage_type):
         'watch-id': watch_id,
     }]
 
+
 # Local storage watcher
+
 
 @pytest.fixture
 def local_env(env):
@@ -572,7 +576,7 @@ def test_watch_local_dir(local_env):
 
 def test_container_rename_file_in_same_directory(env, container):
     env.create_file('storage/storage1/foo', 'hello world')
-    os.rename(env.mnt_dir / 'container1/foo', env.mnt_dir / 'container1/bar')
+    os.rename(env.mnt_dir / container / 'foo', env.mnt_dir / container / 'bar')
 
     with open(env.mnt_dir / container / 'bar', 'r') as f:
         content = f.read()
@@ -583,7 +587,7 @@ def test_container_rename_file_in_same_directory(env, container):
 def test_container_rename_file_in_different_directory(env, container):
     env.create_dir('storage/storage1/subdir')
     env.create_file('storage/storage1/foo', 'hello world')
-    os.rename(env.mnt_dir / 'container1/foo', env.mnt_dir / 'container1/subdir/bar')
+    os.rename(env.mnt_dir / container / 'foo', env.mnt_dir / container / 'subdir/bar')
 
     with open(env.mnt_dir / container / 'subdir/bar', 'r') as f:
         content = f.read()
@@ -593,7 +597,7 @@ def test_container_rename_file_in_different_directory(env, container):
 
 def test_container_rename_empty_directory(env, container):
     env.create_dir('storage/storage1/foodir')
-    os.rename(env.mnt_dir / 'container1/foodir', env.mnt_dir / 'container1/bardir')
+    os.rename(env.mnt_dir / container / 'foodir', env.mnt_dir / container / 'bardir')
 
     assert not (env.mnt_dir / container / 'foodir').exists()
     assert (env.mnt_dir / container / 'bardir').exists()
@@ -602,7 +606,7 @@ def test_container_rename_empty_directory(env, container):
 def test_container_rename_directory_with_files(env, container):
     env.create_dir('storage/storage1/foodir')
     env.create_file('storage/storage1/foodir/foo', 'hello world')
-    os.rename(env.mnt_dir / 'container1/foodir', env.mnt_dir / 'container1/bardir')
+    os.rename(env.mnt_dir / container / 'foodir', env.mnt_dir / container / 'bardir')
 
     assert not (env.mnt_dir / container / 'foodir').exists()
     assert (env.mnt_dir / container / 'bardir').exists()
@@ -621,6 +625,169 @@ def test_container_rename_cross_storage_both_mounted(env, container):
     env.create_file('storage/storage1/file1')
 
     with pytest.raises(OSError) as err:
-        os.rename(env.mnt_dir / 'container1/file1', env.mnt_dir / 'container2/file1')
+        os.rename(env.mnt_dir / container / 'file1', env.mnt_dir / 'container2/file1')
 
+    assert err.value.errno == errno.EXDEV
+
+
+# Symlinks
+
+
+def test_container_file_symlink(env, container):
+    """
+    Test symbolic link pointing to a file.
+    """
+    file_content = 'File accessed via file symlink'
+    env.create_file('storage/storage1/file', file_content)
+    env.create_symlink('file', 'file_symlink', 'storage1')
+
+    assert (env.test_dir / 'storage/storage1/file').is_file()
+    assert (env.test_dir / 'storage/storage1/file_symlink').exists()
+    assert (env.test_dir / 'storage/storage1/file_symlink').is_symlink()
+
+    assert (env.mnt_dir / container / 'file').is_file()
+    assert (env.mnt_dir / container / 'file_symlink').exists()
+    assert not (env.mnt_dir / container / 'file_symlink').is_symlink()
+
+    with open(env.mnt_dir / container / 'file_symlink', 'r') as f:
+        read_content = f.read()
+
+    assert read_content == file_content
+
+
+def test_container_dir_symlink(env, container):
+    """
+    Test symbolic link pointing to a directory.
+    """
+    env.create_dir('storage/storage1/directory')
+    file_content = 'File accessed via directory symlink'
+    env.create_file('storage/storage1/directory/file', file_content)
+    env.create_symlink('directory', 'dir_symlink', 'storage1')
+
+    assert (env.test_dir / 'storage/storage1/directory').is_dir()
+    assert (env.test_dir / 'storage/storage1/directory/file').is_file()
+    assert (env.test_dir / 'storage/storage1/dir_symlink').exists()
+    assert (env.test_dir / 'storage/storage1/dir_symlink').is_dir()
+    assert (env.test_dir / 'storage/storage1/dir_symlink').is_symlink()
+    assert (env.test_dir / 'storage/storage1/dir_symlink/file').is_file()
+
+    assert (env.mnt_dir / container / 'directory').is_dir()
+    assert (env.mnt_dir / container / 'directory/file').is_file()
+    assert (env.mnt_dir / container / 'dir_symlink').exists()
+    assert (env.mnt_dir / container / 'dir_symlink').is_dir()
+    assert not (env.mnt_dir / container / 'dir_symlink').is_symlink()
+    assert (env.mnt_dir / container / 'dir_symlink/file').is_file()
+    assert (env.mnt_dir / container / 'dir_symlink/file').exists()
+
+    with open(env.mnt_dir / container / 'dir_symlink/file', 'r') as f:
+        read_content = f.read()
+
+    assert read_content == file_content
+
+
+def test_container_invalid_symlink(env, container):
+    """
+    Test symbolic links pointing to a nonexistent file.
+    """
+    env.create_symlink('nonexistent', 'file_symlink', 'storage1')
+
+    assert (env.test_dir / 'storage/storage1/file_symlink').is_symlink()
+    assert not (env.test_dir / 'storage/storage1/file_symlink').exists()
+    assert not (env.mnt_dir / container / 'file_symlink').is_symlink()
+
+    with pytest.raises(FileNotFoundError) as err:
+        with open(env.mnt_dir / container / 'file_symlink', 'r'):
+            pass
+
+    assert err.value.errno == errno.ENOENT
+
+
+def test_cross_storages_symlink(env, container):
+    """
+    Test symbolic links pointing to a file from a different storage (which is not allowed).
+
+    Test directory tree::
+
+        |-- mnt
+        |   |-- container1
+        |   |   `-- file
+        |   `-- container2
+        |       `-- file_symlink    # redirects to ../storage1/file
+        |-- storage
+        |   |-- storage1
+        |   |   `-- file
+        |   `-- storage2
+        |       `-- file_symlink -> ../storage1/file
+        `-- wlfuse.sock
+    """
+    storage = storage_manifest(env, 'storage/storage2', 'local')
+    env.create_dir('storage/storage2')
+    env.mount_storage(['/container2'], storage)
+
+    env.create_file('storage/storage1/file')
+    env.create_symlink('../storage1/file', 'file_symlink', 'storage2')
+
+    assert (env.test_dir / 'storage/storage1/file').is_file()
+    assert (env.test_dir / 'storage/storage2/file_symlink').exists()
+    assert (env.test_dir / 'storage/storage2/file_symlink').is_symlink()
+
+    assert (env.mnt_dir / container / 'file').is_file()
+
+    with pytest.raises(OSError) as err:
+        (env.mnt_dir / 'container2/file_symlink').exists()
+    assert err.value.errno == errno.EXDEV
+
+    with pytest.raises(OSError) as err:
+        (env.mnt_dir / 'container2/file_symlink').is_symlink()
+    assert err.value.errno == errno.EXDEV
+
+    with pytest.raises(OSError) as err:
+        with open(env.mnt_dir / 'container2/file_symlink', 'r'):
+            pass
+    assert err.value.errno == errno.EXDEV
+
+
+def test_cross_containers_symlink(env, container):
+    """
+    Test symbolic links pointing to a file from a different container (which is not allowed).
+
+    Test directory tree::
+
+        |-- mnt
+        |   |-- container1
+        |   |   `-- file
+        |   `-- container2
+        |       `-- file_symlink    # redirects to ../container1/file
+        |-- storage
+        |   |-- storage1
+        |   |   `-- file
+        |   `-- storage2
+        |       `-- file_symlink -> ../container1/file
+        `-- wlfuse.sock
+    """
+    storage = storage_manifest(env, 'storage/storage2', 'local')
+    env.create_dir('storage/storage2')
+    env.mount_storage(['/container2'], storage)
+
+    file_content = 'File accessed via file symlink from a different container'
+    env.create_file('storage/storage1/file', file_content)
+    env.create_symlink('../container1/file', 'file_symlink', 'storage2')
+
+    assert (env.test_dir / 'storage/storage1/file').is_file()
+    assert not (env.test_dir / 'storage/storage2/file_symlink').exists()
+    assert (env.test_dir / 'storage/storage2/file_symlink').is_symlink()
+
+    assert (env.mnt_dir / container / 'file').is_file()
+
+    with pytest.raises(OSError) as err:
+        (env.mnt_dir / 'container2/file_symlink').exists()
+    assert err.value.errno == errno.EXDEV
+
+    with pytest.raises(OSError) as err:
+        (env.mnt_dir / 'container2/file_symlink').is_symlink()
+    assert err.value.errno == errno.EXDEV
+
+    with pytest.raises(OSError) as err:
+        with open(env.mnt_dir / 'container2/file_symlink', 'r') as f:
+            f.read()
     assert err.value.errno == errno.EXDEV

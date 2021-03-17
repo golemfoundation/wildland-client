@@ -126,7 +126,7 @@ class File(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
+    def read(self, length: Optional[int]=None, offset: int=0) -> bytes:
         """
         Read data from an open file. This method is a proxy for
         :meth:`wildland.storage_backends.base.StorageBackend.read`.
@@ -362,7 +362,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
+    def create(self, path: PurePosixPath, flags: int, mode: int=0o666):
         """
         Create and open a file. If the file does not exist, first create it with the specified mode,
         and then open it. Flags are expressed in POSIX style (see os module flag constants). They
@@ -434,7 +434,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
+    def mkdir(self, path: PurePosixPath, mode: int=0o777) -> None:
         """
         Create a directory with the given name. The directory permissions are encoded in ``mode``.
         """
