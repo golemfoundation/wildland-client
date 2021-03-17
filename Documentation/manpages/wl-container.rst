@@ -151,9 +151,36 @@ Update a |~| container manifest.
 ----------------------------------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
-be mounted first, see :ref:`wl start <wl-start>`.
+be started first, see :ref:`wl start <wl-start>`.
 Wildland paths are supported too, including unambiguous (with wildcards or else) ones.
 For example: ``wildland:@default:/path/to/user:*:``
+
+The container(s) will be mounted under paths declared in the container
+manifest, nested into a owner-specific directory. If the container owner is the
+default user (see :ref:`wl start <wl-start>`), then the container will be
+mounted directly under the FUSE root directory. Otherwise, it will be mounted
+under paths defined by bridges between users. In addition, containers are
+always mounted nested under `/.users/<user-id>:`, also when the container is
+owned by the default user.
+Directories that transition to another user (like - bridges) are marked with
+colon (``:``) at the end, thus the path in the filesystem looks very similar to WL
+path. To avoid confusion, any other colon within container or bridge path is
+replaced with underscore (``_``).
+
+For example:
+
+- default owner is set to UserA (user id `0xaaa...`)
+- there is a bridge owned by UserA pointing at UserB (user id `0xbbb...`) under path `/people/UserB`
+- there is a bridge owned by UserB pointing at UserC (user id `0xccc...`) under path `/people/UserC`
+- user mounts a container of UserC with paths `/docs/projectX` and `/timeline/2021-01-02`
+
+The mounted container will be available under the following paths:
+- `/.users/0xccc...:/docs/projectX` and `/.users/0xccc...:/timeline/2021-01-02`
+- `/people/UserB:/people/UserC:/docs/projectX` and `/people/UserB:/people/UserC:/timeline/2021-01-02`
+
+The second point is built from bridges from UserA to UserC. If there are
+multiple possible bridges, all paths will be considered, but cycles will be
+avoided.
 
 .. option:: -r, --remount
 

@@ -86,7 +86,7 @@ class Remounter:
         # Queued operations
         self.to_mount: List[Tuple[Container,
                                   Iterable[Storage],
-                                  Iterable[PurePosixPath],
+                                  Iterable[Iterable[PurePosixPath]],
                                   Optional[Container]]] = []
         self.to_unmount: List[int] = []
 
@@ -187,7 +187,7 @@ class Remounter:
         new_main_paths = set()
         try:
             for container in search.read_container():
-                main_path = self.fs_client.get_user_path(
+                main_path = self.fs_client.get_user_container_path(
                     container.owner, container.paths[0])
                 self.handle_changed_container(container)
                 new_main_paths.add(main_path)
@@ -241,7 +241,7 @@ class Remounter:
                 WildlandObjectType.CONTAINER, local_path)
 
             # Start tracking the file
-            self.main_paths[event.path] = self.fs_client.get_user_path(
+            self.main_paths[event.path] = self.fs_client.get_user_container_path(
                 container.owner, container.paths[0])
             self.handle_changed_container(container)
 

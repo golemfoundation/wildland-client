@@ -517,7 +517,7 @@ def del_storage(ctx: click.Context, input_file, storage):
 def prepare_mount(obj: ContextObj,
                   container: Container,
                   container_name: str,
-                  user_paths: Iterable[PurePosixPath],
+                  user_paths: Iterable[Iterable[PurePosixPath]],
                   remount: bool,
                   with_subcontainers: bool,
                   subcontainer_of: Optional[Container],
@@ -615,7 +615,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     if import_users:
         obj.client.auto_import_users = True
 
-    params: List[Tuple[Container, List[Storage], List[PurePosixPath], Container]] = []
+    params: List[Tuple[Container, List[Storage], List[Iterable[PurePosixPath]], Container]] = []
 
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
