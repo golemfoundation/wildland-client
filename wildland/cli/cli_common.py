@@ -229,24 +229,23 @@ def edit(ctx, editor, input_file, remount):
     """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
-
-    If invoked with manifests type (``user edit``, etc.), the command will
-    also validate the manifest against schema.
     """
     obj: ContextObj = ctx.obj
 
-    manifest_type = ctx.parent.command.name
-    if manifest_type == 'main':
-        manifest_type = None
+    provided_manifest_type = ctx.parent.command.name
+    if provided_manifest_type == 'main':
+        provided_manifest_type = None
 
-    path = find_manifest_file(obj.client, input_file, manifest_type)
+    path = find_manifest_file(obj.client, input_file, provided_manifest_type)
 
     obj.client.recognize_users()
     try:
         manifest = Manifest.from_file(path, obj.client.session.sig)
+        manifest_type = manifest.fields['object']
         data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     except ManifestError:
         data = path.read_bytes()
+        manifest_type = provided_manifest_type
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
