@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any
+from typing import List, Tuple, Optional
 import click
 from click import Command
 
@@ -10,7 +10,10 @@ class AlternateArgListCmd(Command):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.alternate_arglist_handlers: List[Tuple[Command, Any]] = [(self, super())]
+        # parent = super().new()
+        # print('aaa')
+        # print(type(parent))
+        self.alternate_arglist_handlers: List[Tuple[Command, Optional[Command]]] = [(self, None)]
         self.alternate_self: Command = self
 
     def alternate_arglist(self, *args, **kwargs):

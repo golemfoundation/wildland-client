@@ -199,6 +199,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     """
     SCHEMA = Schema('storage')
     TYPE = ''
+    LOCATION_PARAM: Optional[str] = None
 
     _types: Dict[str, Type['StorageBackend']] = {}
     _cache: Dict[str, 'StorageBackend'] = {}

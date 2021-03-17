@@ -2446,7 +2446,7 @@ def test_cli_remove_nonexisting_storage_template(cli):
 
 def test_cli_remove_assigned_storage_template(cli):
     cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
-    cli('', 'add', '--template', 't1', 'set1')
+    cli('storage-set', 'add', '--template', 't1', 'set1')
 
     with pytest.raises(CliError, match=r'Template (.+?) is attached to following sets: (.+?)'):
         cli('storage-template', 'remove', 't1')
