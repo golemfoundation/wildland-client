@@ -112,7 +112,7 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
     @classmethod
     def cli_create(cls, data):
         return {
-            'path': data['path'],
+            'location': data['location'],
         }
 
     def watcher(self):
