@@ -99,23 +99,30 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         return
 
     fs_client = obj.fs_client
-
+    failed = []
+    commands = []
     for name in to_mount:
         click.echo(f'Resolving containers: {name}')
-        commands = []
         for container in obj.client.load_containers_from(name):
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            commands.extend(cli_container.prepare_mount(
-                obj, container, str(container.local_path), user_paths,
-                remount=False, with_subcontainers=True, subcontainer_of=None, quiet=True,
-                only_subcontainers=False))
+            try:
+                commands.extend(cli_container.prepare_mount(
+                    obj, container, str(container.local_path), user_paths,
+                    remount=False, with_subcontainers=True, subcontainer_of=None, quiet=True,
+                    only_subcontainers=False))
+            except WildlandError as we:
+                failed.append(f'Container {name} cannot be mounted: {we}')
+                continue
 
-        click.echo(f'Mounting {len(commands)}')
-        try:
-            fs_client.mount_multiple_containers(commands)
-        except IOError as e:
-            fs_client.unmount()
-            raise click.ClickException(f'Failed to mount containers: {e}')
+    click.echo(f'Mounting {len(commands)} containers.')
+
+    try:
+        fs_client.mount_multiple_containers(commands)
+    except WildlandError as e:
+        failed.append(f'Failed to mount: {e}')
+
+    if failed:
+        click.echo('Non-critical error(s) occurred:\n' + "\n".join(failed))
 
 
 @main.command(short_help='mount Wildland filesystem')
