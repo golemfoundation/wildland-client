@@ -18,6 +18,7 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -34,6 +35,12 @@ from ..remounter import Remounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
 DUMMY_BACKEND_UUID1 = '11111111-1111-1111-111111111111'
+
+
+def get_container_uuid_from_uuid_path(uuid_path: str):
+    match = re.search('/.uuid/(.+?)$', uuid_path)
+    return match.group(1) if match else ''
+
 
 @pytest.fixture
 def setup(base_dir, cli, control_client):
@@ -157,9 +164,10 @@ class RemounterWrapper(Remounter):
                 if actual_b.is_primary:
                     storage_id = expected_b[1]
                 # register as mounted - backend specific path
+                uuid = get_container_uuid_from_uuid_path(str(expected.paths[0]))
                 self.control_client.add_storage_paths(
                     expected_b[1],
-                    [f'/.users/{expected.owner}{expected.paths[0]}/.backends/{expected_b[0]}']
+                    [f'/.users/{expected.owner}/.backends/{uuid}/{expected_b[0]}']
                 )
 
                 # calculate storage tag, so params/paths change will be detected
@@ -822,20 +830,20 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
     ]
     assert control_client.all_calls['mount'] == [
         {'items': [{
-            'paths': [f'/.users/0xaaa/.uuid/{infra.ensure_uuid()}/.backends/{DUMMY_BACKEND_UUID0}'],
+            'paths': [f'/.users/0xaaa/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID0}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,
         }]},
         {'items': [{
-            'paths': [f'/.users/0xaaa/.uuid/{infra.ensure_uuid()}/.backends/{DUMMY_BACKEND_UUID1}'],
+            'paths': [f'/.users/0xaaa/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,
         }]},
         # should retry on the next event
         {'items': [{
-            'paths': [f'/.users/0xaaa/.uuid/{infra.ensure_uuid()}/.backends/{DUMMY_BACKEND_UUID1}'],
+            'paths': [f'/.users/0xaaa/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,

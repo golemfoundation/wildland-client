@@ -90,23 +90,24 @@ Mount categorization container, which is kind of a proxy view on the referenced 
 ``mylocal`` in our case)::
 
   $ wl c mount categorization_container
-  new: /home/user/.config/wildland/containers/categorization_container.container.yaml
-  new: /home/user/.config/wildland/containers/categorization_container.container.yaml:/.uuid/8e1976a4-4259-3475-afff-f9266f31eafe
-  new: /home/user/.config/wildland/containers/categorization_container.container.yaml:/.uuid/7c43d0b9-76f9-3f14-b465-89fcfaffd819
-  new: /home/user/.config/wildland/containers/categorization_container.container.yaml:/.uuid/4390ef41-9693-31e7-bbf3-456cd4800ad6
-  new: /home/user/.config/wildland/containers/categorization_container.container.yaml:/.uuid/0b03a71b-282f-3b64-80de-80ded6385f03
+  new: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:['/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105', '/categorization'] (/home/user/.config/wildland/containers/categorization_container.container.yaml)
+  new: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:['/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105', '/categorization'] (/home/user/.config/wildland/containers/categorization_container.container.yaml):/.uuid/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e
+  new: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:['/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105', '/categorization'] (/home/user/.config/wildland/containers/categorization_container.container.yaml):/.uuid/aa1e7997-13e6-3982-abb0-427d9704ff8a
+  new: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:['/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105', '/categorization'] (/home/user/.config/wildland/containers/categorization_container.container.yaml):/.uuid/cd008a7f-fc6f-31c8-8173-730f863cf8a7
+  new: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:['/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105', '/categorization'] (/home/user/.config/wildland/containers/categorization_container.container.yaml):/.uuid/a532884b-1783-38d4-a0b9-0adcfb6857f1
   Mounting 5 containers
 
 Now you can list the mountpoints::
 
   $ ls -la mnt
-  total 8
+  total 12
   dr-xr-xr-x 1 user user    0 Jan  1  1970 ./
-  drwxr-xr-x 1 user user 4096 Feb 26 14:52 ../
+  drwxr-xr-x 1 user user 4096 Mar 24 13:54 ../
+  dr-xr-xr-x 1 user user    0 Jan  1  1970 .backends/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .users/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .uuid/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 authors/
-  dr-xr-xr-x 1 user user    0 Jan  1  1970 categorization/
+  dr-xr-xr-x 1 user user 4096 Mar 24 13:48 categorization/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 titles/
 
 You can see that besides ``categorization`` directory, which is just a mirror of what you can find
@@ -180,73 +181,83 @@ To list all mounted containers, including 4 subcontainers, run::
   $ wl status --with-subcontainers
   Mounted containers:
 
-  /.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/6b4afcc0-07e2-48fc-b741-0c3204d2e105/e68c2ff4-bed1-4425-9fb1-c8e1164638a9
     storage: categorization
     paths:
-      /.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
-      /.users/0x28d1cd2e32d577856445/.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/6b4afcc0-07e2-48fc-b741-0c3204d2e105/e68c2ff4-bed1-4425-9fb1-c8e1164638a9
+      /.backends/6b4afcc0-07e2-48fc-b741-0c3204d2e105/e68c2ff4-bed1-4425-9fb1-c8e1164638a9
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
+      /.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/categorization
       /categorization
-      /.users/0x28d1cd2e32d577856445/categorization
 
-  /.uuid/1e8e5942-e4c6-3180-9cb9-9bd7303b48fa
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e
     storage: delegate
     paths:
-      /.uuid/1e8e5942-e4c6-3180-9cb9-9bd7303b48fa
-      /.users/0x28d1cd2e32d577856445/.uuid/1e8e5942-e4c6-3180-9cb9-9bd7303b48fa
-      /authors/author3/title4
-      /.users/0x28d1cd2e32d577856445/authors/author3/title4
-      /titles/title4
-      /.users/0x28d1cd2e32d577856445/titles/title4
-      /authors/author3/@titles/title4
-      /.users/0x28d1cd2e32d577856445/authors/author3/@titles/title4
-      /titles/@authors/author3/title4
-      /.users/0x28d1cd2e32d577856445/titles/@authors/author3/title4
-    subcontainer-of: 0x28d1cd2e32d577856445:/.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
-
-  /.uuid/211be870-8301-3c28-a4bd-0b237d505a14
-    storage: delegate
-    paths:
-      /.uuid/211be870-8301-3c28-a4bd-0b237d505a14
-      /.users/0x28d1cd2e32d577856445/.uuid/211be870-8301-3c28-a4bd-0b237d505a14
-      /authors/author1/title1
-      /.users/0x28d1cd2e32d577856445/authors/author1/title1
-      /titles/title1
-      /.users/0x28d1cd2e32d577856445/titles/title1
-      /authors/author1/@titles/title1
-      /.users/0x28d1cd2e32d577856445/authors/author1/@titles/title1
-      /titles/@authors/author1/title1
-      /.users/0x28d1cd2e32d577856445/titles/@authors/author1/title1
-    subcontainer-of: 0x28d1cd2e32d577856445:/.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
-
-  /.uuid/edfed29d-cfc4-3341-8917-fe0c77a9378c
-    storage: delegate
-    paths:
-      /.uuid/edfed29d-cfc4-3341-8917-fe0c77a9378c
-      /.users/0x28d1cd2e32d577856445/.uuid/edfed29d-cfc4-3341-8917-fe0c77a9378c
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e
+      /.backends/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e
+      /.uuid/3f3a2bb0-a6c9-3f51-bdbe-797856fb8c1e
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/title3
       /titles/title3
-      /.users/0x28d1cd2e32d577856445/titles/title3
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author2/title3
       /authors/author2/title3
-      /.users/0x28d1cd2e32d577856445/authors/author2/title3
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/@authors/author2/title3
       /titles/@authors/author2/title3
-      /.users/0x28d1cd2e32d577856445/titles/@authors/author2/title3
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author2/@titles/title3
       /authors/author2/@titles/title3
-      /.users/0x28d1cd2e32d577856445/authors/author2/@titles/title3
-    subcontainer-of: 0x28d1cd2e32d577856445:/.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
+    subcontainer-of: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
 
-  /.uuid/f98462b7-8636-3f38-8257-aff4935b05dd
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/aa1e7997-13e6-3982-abb0-427d9704ff8a/aa1e7997-13e6-3982-abb0-427d9704ff8a
     storage: delegate
     paths:
-      /.uuid/f98462b7-8636-3f38-8257-aff4935b05dd
-      /.users/0x28d1cd2e32d577856445/.uuid/f98462b7-8636-3f38-8257-aff4935b05dd
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/aa1e7997-13e6-3982-abb0-427d9704ff8a/aa1e7997-13e6-3982-abb0-427d9704ff8a
+      /.backends/aa1e7997-13e6-3982-abb0-427d9704ff8a/aa1e7997-13e6-3982-abb0-427d9704ff8a
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/aa1e7997-13e6-3982-abb0-427d9704ff8a
+      /.uuid/aa1e7997-13e6-3982-abb0-427d9704ff8a
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author1/title2
       /authors/author1/title2
-      /.users/0x28d1cd2e32d577856445/authors/author1/title2
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/title2
       /titles/title2
-      /.users/0x28d1cd2e32d577856445/titles/title2
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author1/@titles/title2
       /authors/author1/@titles/title2
-      /.users/0x28d1cd2e32d577856445/authors/author1/@titles/title2
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/@authors/author1/title2
       /titles/@authors/author1/title2
-      /.users/0x28d1cd2e32d577856445/titles/@authors/author1/title2
-    subcontainer-of: 0x28d1cd2e32d577856445:/.uuid/eaad7132-7a96-4bb1-bb75-aef6ee302afe
+    subcontainer-of: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
+
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/cd008a7f-fc6f-31c8-8173-730f863cf8a7/cd008a7f-fc6f-31c8-8173-730f863cf8a7
+    storage: delegate
+    paths:
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/cd008a7f-fc6f-31c8-8173-730f863cf8a7/cd008a7f-fc6f-31c8-8173-730f863cf8a7
+      /.backends/cd008a7f-fc6f-31c8-8173-730f863cf8a7/cd008a7f-fc6f-31c8-8173-730f863cf8a7
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/cd008a7f-fc6f-31c8-8173-730f863cf8a7
+      /.uuid/cd008a7f-fc6f-31c8-8173-730f863cf8a7
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author3/title4
+      /authors/author3/title4
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/title4
+      /titles/title4
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author3/@titles/title4
+      /authors/author3/@titles/title4
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/@authors/author3/title4
+      /titles/@authors/author3/title4
+    subcontainer-of: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
+
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/a532884b-1783-38d4-a0b9-0adcfb6857f1/a532884b-1783-38d4-a0b9-0adcfb6857f1
+    storage: delegate
+    paths:
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/a532884b-1783-38d4-a0b9-0adcfb6857f1/a532884b-1783-38d4-a0b9-0adcfb6857f1
+      /.backends/a532884b-1783-38d4-a0b9-0adcfb6857f1/a532884b-1783-38d4-a0b9-0adcfb6857f1
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/a532884b-1783-38d4-a0b9-0adcfb6857f1
+      /.uuid/a532884b-1783-38d4-a0b9-0adcfb6857f1
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author1/title1
+      /authors/author1/title1
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/title1
+      /titles/title1
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/authors/author1/@titles/title1
+      /authors/author1/@titles/title1
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/titles/@authors/author1/title1
+      /titles/@authors/author1/title1
+    subcontainer-of: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
 
 
 Example 2
@@ -397,15 +408,15 @@ directory tree instead::
 you will get the following mountpoints (mounted with ``--only-subcontainers`` flag)::
 
   $ ls -la mnt
-  total 12
+  total 8
   dr-xr-xr-x 1 user user    0 Jan  1  1970 ./
-  drwxr-xr-x 1 user user 4096 Mar 10 11:20 ../
+  drwxr-xr-x 1 user user 4096 Mar 24 13:11 ../
+  dr-xr-xr-x 1 user user    0 Jan  1  1970 .backends/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .users/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .uuid/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 art/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 authors/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 hotels/
-  dr-xr-xr-x 1 user user    0 Jan  1  1970 nature/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 papers/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 places/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 restaurants/
@@ -460,7 +471,6 @@ To list all of the places visited on business trips together with *ABC Company*,
 
 To list only those places that were visited privately, run::
 
-  $ tree -a -L 2 mnt/travels/private/@places/
   mnt/travels/private/@places/
   |-- Poland
   |   `-- Tricity
@@ -474,17 +484,19 @@ To list all of the places visited, both during private and business trips, run::
   $ tree -a -L 2 mnt/places/
   mnt/places/
   |-- Poland
+  |   |-- @travels
   |   |-- Krakow
   |   |-- Tricity
   |   `-- Warsaw
   `-- US
+      |-- @travels
       |-- California
       |-- Dallas
       |-- NYC
       |-- Texas
       `-- Zanzibar
 
-  10 directories, 0 files
+  12 directories, 0 files
 
 
 Example 3
@@ -509,6 +521,7 @@ After mounting with ``--only-subcontainers`` flag, you will get the following mo
   total 8
   dr-xr-xr-x 1 user user    0 Jan  1  1970 ./
   drwxr-xr-x 1 user user 4096 Mar 10 11:51 ../
+  dr-xr-xr-x 1 user user    0 Jan  1  1970 .backends/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .users/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .uuid/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 market/
@@ -531,24 +544,24 @@ To list all mounted containers, including 4 subcontainers, run::
   $ wl status --with-subcontainers
   Mounted containers:
 
-  /.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944/.backends/c7c98283-4124-3673-9edd-7b4a6b2be944
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/503a1ccc-0265-37a1-8bfa-a2da2b553047/503a1ccc-0265-37a1-8bfa-a2da2b553047
     storage: delegate
     paths:
-      /.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944/.backends/c7c98283-4124-3673-9edd-7b4a6b2be944
-      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944/.backends/c7c98283-4124-3673-9edd-7b4a6b2be944
-      /.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944
-      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944
-      /market/stock-exchange/Warsaw-Stock-Exchange/Warsaw-Stock-Exchange
-      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/market/stock-exchange/Warsaw-Stock-Exchange/Warsaw-Stock-Exchange
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/503a1ccc-0265-37a1-8bfa-a2da2b553047/503a1ccc-0265-37a1-8bfa-a2da2b553047
+      /.backends/503a1ccc-0265-37a1-8bfa-a2da2b553047/503a1ccc-0265-37a1-8bfa-a2da2b553047
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047
+      /.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/market/stock-exchange/Warsaw-Stock-Exchange
+      /market/stock-exchange/Warsaw-Stock-Exchange
     subcontainer-of: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105
 
-  /.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047/.backends/503a1ccc-0265-37a1-8bfa-a2da2b553047
+  /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/c7c98283-4124-3673-9edd-7b4a6b2be944/c7c98283-4124-3673-9edd-7b4a6b2be944
     storage: delegate
     paths:
-      /.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047/.backends/503a1ccc-0265-37a1-8bfa-a2da2b553047
-      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047/.backends/503a1ccc-0265-37a1-8bfa-a2da2b553047
-      /.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047
-      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/503a1ccc-0265-37a1-8bfa-a2da2b553047
-      /market/stock-exchange/Warsaw-Stock-Exchange/Warsaw-Stock-Exchange
-      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/market/stock-exchange/Warsaw-Stock-Exchange/Warsaw-Stock-Exchange
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.backends/c7c98283-4124-3673-9edd-7b4a6b2be944/c7c98283-4124-3673-9edd-7b4a6b2be944
+      /.backends/c7c98283-4124-3673-9edd-7b4a6b2be944/c7c98283-4124-3673-9edd-7b4a6b2be944
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944
+      /.uuid/c7c98283-4124-3673-9edd-7b4a6b2be944
+      /.users/0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963/market/stock-exchange/Warsaw-Stock-Exchange
+      /market/stock-exchange/Warsaw-Stock-Exchange
     subcontainer-of: 0xd7032b69d84acd834397bd336f225f46fabe6c22703380089c42987831acc963:/.uuid/6b4afcc0-07e2-48fc-b741-0c3204d2e105

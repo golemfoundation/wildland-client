@@ -246,13 +246,11 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
     cont_path = base_dir / 'containers/Container2.container.yaml'
     uuid = re.search(r'/.uuid/(.+?)\n', cont_path.read_text()).group(1)
 
-    path = f'/.uuid/{uuid}'
-
     control_client.expect('paths', {
-        f'/.users/0xaaa{path}': [101],
-        f'/.users/0xaaa{path}/.backends/0000-1111-2222-3333-4444': [102],
-        f'{path}': [103],
-        f'{path}/.backends/0000-1111-2222-3333-4444': [104],
+        f'/.users/0xaaa/{uuid}': [101],
+        f'/.users/0xaaa/.backends/{uuid}/0000-1111-2222-3333-4444': [102],
+        f'/.uuid/{uuid}': [103],
+        f'/.backends/{uuid}/0000-1111-2222-3333-4444': [104],
     })
     control_client.expect('unmount')
     control_client.expect('status', {})
@@ -747,7 +745,7 @@ def test_traverse_with_fs_client_mounted(base_dir, control_client, client2):
 
     # simulate mounted infrastructure
     user2_infra_mount_path = base_dir / 'mnt' / \
-        f'.users/0xbbb/.uuid/00000000-2222-0000-0000-000000000000/.backends/{DUMMY_BACKEND_UUID}'
+        f'.users/0xbbb/.backends/00000000-2222-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
     user2_infra_mount_path.parent.mkdir(parents=True)
     user2_infra_mount_path.symlink_to(base_dir / 'infra2')
 
@@ -775,12 +773,12 @@ def test_traverse_container_with_fs_client_mounted(
 
     # simulate mounted infrastructure
     user2_infra_mount_path = base_dir / 'mnt' / \
-        f'.users/0xbbb/.uuid/00000000-2222-0000-0000-000000000000/.backends/{DUMMY_BACKEND_UUID}'
+        f'.users/0xbbb/.backends/00000000-2222-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
     user2_infra_mount_path.parent.mkdir(parents=True)
     user2_infra_mount_path.symlink_to(base_dir / 'infra2')
 
     user1_infra_mount_path = base_dir / 'mnt' / \
-        f'.users/0xaaa/.uuid/00000000-1111-0000-0000-000000000000/.backends/{DUMMY_BACKEND_UUID}'
+        f'.users/0xaaa/.backends/00000000-1111-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
     user1_infra_mount_path.parent.mkdir(parents=True)
     user1_infra_mount_path.symlink_to(base_dir / 'infra-known')
 
@@ -824,9 +822,9 @@ def test_get_watch_params_not_mounted(control_client, client2):
     assert len(patterns) == 3
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User2.yaml'),
-        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-0000-.*/containers/c1.yaml'),
-        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-1111-.*/test1.txt'),
+        str_re(r'^/.users/0xaaa/.backends/00000000-1111-0000-.*/users/User2.yaml'),
+        str_re(r'^/.users/0xbbb/.backends/00000000-2222-0000-.*/containers/c1.yaml'),
+        str_re(r'^/.users/0xbbb/.backends/00000000-2222-1111-.*/test1.txt'),
     ]
     assert sorted(patterns) == expected_patterns_re
     expected_mounts = [
@@ -856,8 +854,7 @@ def test_get_watch_params_mounted1_pattern_path(control_client, client2):
         fs_client=client2.fs_client)
 
     control_client.expect('paths', {
-        f'/.users/0xaaa/.uuid/00000000-1111-0000-0000-000000000000/'
-        f'.backends/{DUMMY_BACKEND_UUID}': [0],
+        f'/.users/0xaaa/.backends/00000000-1111-0000-0000-000000000000/{DUMMY_BACKEND_UUID}': [0],
     })
 
     mount_cmds, patterns = search.get_watch_params()
@@ -865,8 +862,8 @@ def test_get_watch_params_mounted1_pattern_path(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User2.yaml'),
-        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-0000-.*/containers/c1.yaml'),
+        str_re(r'^/.users/0xaaa/.backends/00000000-1111-0000-.*/users/User2.yaml'),
+        str_re(r'^/.users/0xbbb/.backends/00000000-2222-0000-.*/containers/c1.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
     assert mount_cmds[0][0].owner == '0xbbb'
@@ -887,8 +884,8 @@ def test_get_watch_params_pattern_star(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User3.yaml'),
-        str_re(r'^/.users/0xccc/.uuid/00000000-3333-0000-.*/\*\.yaml'),
+        str_re(r'^/.users/0xaaa/.backends/00000000-1111-0000-.*/users/User3.yaml'),
+        str_re(r'^/.users/0xccc/.backends/00000000-3333-0000-.*/\*\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
 
@@ -907,8 +904,8 @@ def test_get_watch_params_wildcard_pattern_star(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User3.yaml'),
-        str_re(r'^/.users/0xccc/.uuid/00000000-3333-0000-.*/\*\.yaml'),
+        str_re(r'^/.users/0xaaa/.backends/00000000-1111-0000-.*/users/User3.yaml'),
+        str_re(r'^/.users/0xccc/.backends/00000000-3333-0000-.*/\*\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
 
@@ -927,7 +924,7 @@ def test_get_watch_params_wildcard_pattern_path(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa/.uuid/00000000-1111-0000-.*/users/User2.yaml'),
-        str_re(r'^/.users/0xbbb/.uuid/00000000-2222-0000-.*/.uuid/\*\.yaml'),
+        str_re(r'^/.users/0xaaa/.backends/00000000-1111-0000-.*/users/User2.yaml'),
+        str_re(r'^/.users/0xbbb/.backends/00000000-2222-0000-.*/.uuid/\*\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re

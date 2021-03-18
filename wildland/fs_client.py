@@ -248,7 +248,7 @@ class WildlandFSClient:
         """
         Find primary storage ID for a given container.
         A primary storage is the one that mounts under all container paths and not just
-        under /.uuid/.../.backends/...
+        under /.backends/...
         """
 
         mount_path = self.get_user_path(container.owner, container.paths[0])
@@ -333,9 +333,9 @@ class WildlandFSClient:
         """
         Given a path, retrieve all mounted storages this path is inside.
 
-        Note that this doesn't include synthetic directories leading up to
-        mount path, e.g. if a storage is mounted under /a/b, then it will be
-        included as a storage for /a/b and /a/b/c, but not for /a.
+        Note that this doesn't include synthetic directories leading up to mount path, e.g. if a
+        storage is mounted under ``/a/b``, then it will be included as a storage for ``/a/b`` and
+        ``/a/b/c``, but not for ``/a``.
         """
 
         tree = self.get_path_tree()
@@ -470,19 +470,19 @@ class WildlandFSClient:
     def get_unique_storage_paths(self, container: Optional[Container] = None
             ) -> Iterable[PurePosixPath]:
         """
-        Returns list of unique mount paths (ie '/.uuid/{container_uuid}/.backends/{backend_uuid}')
-        for every mounted storage in a given container. If no container is given,
-        return unique mount paths for all mounted storages in every container.
+        Returns list of unique mount paths (ie ``/.backends/{container_uuid}/{backend_uuid}``) for
+        every mounted storage in a given container. If no container is given, return unique mount
+        paths for all mounted storages in every container.
         """
 
         paths = self.get_paths()
 
         if container:
-            path_regex = re.compile(
-                fr'^/.users/{container.owner}'
-                fr'/.uuid/{container.ensure_uuid()}/.backends/[0-9a-z-]+$')
+            pattern = fr'^/.users/{container.owner}/.backends/{container.ensure_uuid()}/[0-9a-z-]+$'
         else:
-            path_regex = re.compile(r'^/.users/[0-9a-z-]+/.uuid/[0-9a-z-]+/.backends/[0-9a-z-]+$')
+            pattern = r'^/.users/[0-9a-z-]+/.backends/[0-9a-z-]+/[0-9a-z-]+$'
+
+        path_regex = re.compile(pattern)
 
         for path, _storage_id in paths.items():
             if path_regex.match(str(path)):
@@ -524,12 +524,11 @@ class WildlandFSClient:
         Prepare parameters for the control client to mount a container
 
         Args:
-            container (Container): the container to be mounted
-            storages List(Storage): the storage selected for container
-            user_paths: paths to the owner, should include '/' for default user
-            unique_path_only: mount only under internal unique path (/.uuid/.../.backends/...)
-            remount: remount if mounted already (otherwise, will fail if
-            mounted already)
+            container (Container): the container to be mounted storages List(Storage): the storage
+            selected for container user_paths: paths to the owner, should include ``/`` for default
+            user unique_path_only: mount only under internal unique path
+            (``/.backends/{container_uuid}/{backend_id}``) remount: remount if mounted already
+            (otherwise, will fail if mounted already)
         """
 
         if unique_path_only:
@@ -561,15 +560,14 @@ class WildlandFSClient:
         """
         Return all mount paths (incl. synthetic ones) for given storage.
 
-        Container paths always start with `/.uuid/{container_uuid}` path which must always be
+        Container paths always start with ``/.uuid/{container_uuid}`` path which must always be
         present (as defined in Container's constructor'). If a storage is a secondary storage, we
-        want to mount it solely under `/.uuid/{container_uuid}/.backends/{storage_uuid}` directory,
-        otherwise mount it under all directories.
-
-        Note that this function will (also) return
-        `/.users/{owner}/.uuid/{container_uuid}/.backends/{storage_id}`.
+        want to mount it solely under ``/.backends/{container_uuid}/{storage_uuid}`` and
+        ``/.users/{uid}/.backends/{container_uuid}/{storage_id}`` directory, otherwise mount it
+        additionally under ``/.users/{uid}/.uuid/{uuid}``, ``/.users/{uid}/{path}``,
+        ``/.uuid/{uuid}`` and ``/{path}``.
         """
-        paths = container.expanded_paths
+        paths = container.expanded_paths  # only primary storage is mounted in here
 
         unique_backend_path = storage.get_mount_path(container)
 
@@ -593,9 +591,6 @@ class WildlandFSClient:
         Return a primary unique mount path. This is the mount path that uniquely identify a
         storage of a given container and also where the storage is always mounted -
         regardless of user-provided paths.
-
-        Note that this function will return
-        `/.users/{owner}/.uuid/{container_uuid}/.backends/{storage_id}`.
         """
 
         unique_backend_path = storage.get_mount_path(container)

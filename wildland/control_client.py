@@ -94,7 +94,7 @@ class ControlClient:
         while response is None:
             message = self._recv_message()
             if message is None:
-                raise ControlClientError('No response from server')
+                raise ControlClientError('No response from the server')
             if 'event' in message:
                 logger.debug('event (pending): %s', message['event'])
                 self.pending_events.append(message['event'])
@@ -149,7 +149,7 @@ class ControlClient:
 
     def _recv_message(self) -> Optional[dict]:
         """
-        Receive a message from the server. Returns None on EOF
+        Receive a message from the server. Returns None on EOF.
         """
 
         assert self.conn_file

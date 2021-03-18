@@ -73,7 +73,7 @@ class Container:
         return path
 
     def __str__(self):
-        """Friendly text representation of the container"""
+        """Friendly text representation of the container."""
         local_str = ''
         if self.local_path:
             local_str = f' ({self.local_path})'
@@ -145,7 +145,7 @@ class Container:
     @property
     def expanded_paths(self):
         """
-        Paths expanded by the set of paths generated from title and categories (if provided)
+        Paths expanded by the set of paths generated from title and categories (if provided).
 
         This method MUST NOT change the order of paths so that /.uuid/{container_uuid} path remains
         first in the list.

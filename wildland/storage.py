@@ -79,30 +79,31 @@ class Storage:
     @property
     def backend_id(self):
         """
-        Returns backend_id param
+        Returns backend_id param.
         """
         return self.params['backend-id']
 
     @property
     def is_writeable(self) -> bool:
         """
-        Returns False if read-only param was set to True
+        Returns False if read-only param was set to True.
         """
         return not self.params.get('read-only', False)
 
     @property
     def is_primary(self) -> bool:
         """
-        Returns primary param
+        Returns primary param.
         """
         return self.primary
 
     def get_mount_path(self, container: Container) -> PurePosixPath:
+        # pylint: disable=unused-argument
         """
         Return unique mount path for this storage.
         The path is rooted in the container's owner forest root.
         """
-        return PurePosixPath(f'/.uuid/{container.ensure_uuid()}/.backends/{self.backend_id}')
+        return PurePosixPath(f'/.backends/{container.ensure_uuid()}/{self.backend_id}')
 
     def validate(self):
         """
@@ -119,7 +120,7 @@ class Storage:
 
     def promote_to_primary(self):
         """
-        Sets primary param to True
+        Sets primary param to True.
         """
         self.primary = True
 

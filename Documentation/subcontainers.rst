@@ -9,7 +9,7 @@ but the mechanism doesn't limit it to this case. Subcontainers always have the
 same owner as its parent container. If the desired content consists of
 subcontainers only (the content of the parent container isn't ought to be
 accessed directly), it is recommended to not add any extra paths to the parent
-container or use one in a hidden directory (the "uuid" path will be added
+container or use one in a hidden directory (the ``.uuid`` path will be added
 automatically anyway).
 
 A subcontainer usually has one storage backend of *delegate* type, pointing at

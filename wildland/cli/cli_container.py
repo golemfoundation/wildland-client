@@ -683,7 +683,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names):
     """
-    Unmount a container_ You can either specify the container manifest, or
+    Unmount a container. You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
     """
 

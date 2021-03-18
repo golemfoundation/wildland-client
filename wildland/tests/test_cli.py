@@ -77,6 +77,10 @@ def strip_yaml(line):
 
     return line.strip('\n -')
 
+def get_container_uuid_from_uuid_path(uuid_path):
+    match = re.search('/.uuid/(.+?)$', uuid_path)
+    return match.group(1) if match else ''
+
 @pytest.fixture
 def cleanup():
     cleanup_functions = []
@@ -580,7 +584,11 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
-    path = documents[1]['paths'][0]
+
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents[1]['paths'][1] == '/PATH'
+
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
@@ -593,17 +601,17 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     assert command[0]['storage']['owner'] == '0xaaa'
 
     paths_1 = [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id1}',
+        f'/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        f'{path}',
-        f'{path}/.backends/{backend_id1}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
     paths_2 = [
-        f'/.users/0xaaa{path}/.backends/{backend_id2}',
-        f'{path}/.backends/{backend_id2}',
+        f'/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
     ]
 
     assert sorted(command[0]['paths']) == paths_1
@@ -649,8 +657,8 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert len(command) == 1
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}/.backends/{backend_id3}',
-        f'{path}/.backends/{backend_id3}',
+        f'/.backends/{uuid}/{backend_id3}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id3}',
     ]
 
 
@@ -667,22 +675,25 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents[1]['paths'][1] == '/PATH'
+
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
     paths_1 = [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id1}',
+        f'/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        f'{path}',
-        f'{path}/.backends/{backend_id1}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
     paths_2 = [
-        f'/.users/0xaaa{path}/.backends/{backend_id2}',
-        f'{path}/.backends/{backend_id2}',
+        f'/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
     ]
 
     control_client.expect('paths', {})
@@ -695,15 +706,16 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     cli('container', 'modify', 'del-storage', 'Container', '--storage', backend_id1)
 
     control_client.expect('paths', {
-        f'/.users/0xaaa{path}': [1],
-        f'/.users/0xaaa{path}/.backends/{backend_id1}': [1],
+        f'/.backends/{uuid}/{backend_id1}': [1],
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}': [1],
+        f'/.users/0xaaa/.uuid/{uuid}': [1],
         '/.users/0xaaa/PATH': [1],
-        f'{path}': [1],
-        f'{path}/.backends/{backend_id1}': [1],
+        f'/.uuid/{uuid}': [1],
         '/PATH': [1],
-        f'/.users/0xaaa{path}/.backends/{backend_id2}': [2],
-        f'{path}/.backends/{backend_id2}': [2],
+        f'/.backends/{uuid}/{backend_id2}': [2],
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}': [2],
     })
+
     control_client.expect('info', {
         '1': {
             'paths': paths_1,
@@ -730,11 +742,11 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     command = control_client.calls['mount']['items']
     assert len(command) == 1
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id2}',
+        f'/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        f'{path}',
-        f'{path}/.backends/{backend_id2}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
@@ -751,22 +763,25 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(yaml.safe_load_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents[1]['paths'][1] == '/PATH'
+
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
     paths_1 = [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id1}',
+        f'/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        f'{path}',
-        f'{path}/.backends/{backend_id1}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
     paths_2 = [
-        f'/.users/0xaaa{path}/.backends/{backend_id2}',
-        f'{path}/.backends/{backend_id2}',
+        f'/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
     ]
 
     control_client.expect('paths', {})
@@ -779,15 +794,16 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
     cli('container', 'modify', 'del-storage', 'Container', '--storage', backend_id2)
 
     control_client.expect('paths', {
-        f'/.users/0xaaa{path}': [1],
-        f'/.users/0xaaa{path}/.backends/{backend_id1}': [1],
+        f'/.backends/{uuid}/{backend_id1}': [1],
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}': [1],
+        f'/.users/0xaaa/.uuid/{uuid}': [1],
         '/.users/0xaaa/PATH': [1],
-        f'{path}': [1],
-        f'{path}/.backends/{backend_id1}': [1],
+        f'/.uuid/{uuid}': [1],
         '/PATH': [1],
-        f'/.users/0xaaa{path}/.backends/{backend_id2}': [2],
-        f'{path}/.backends/{backend_id2}': [2],
+        f'/.backends/{uuid}/{backend_id2}': [2],
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}': [2],
     })
+
     control_client.expect('info', {
         '1': {
             'paths': paths_1,
@@ -813,6 +829,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
 
     command = control_client.calls['mount']['items']
     assert command == []
+
 
 ## Container
 
@@ -923,7 +940,10 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     with open(base_dir / 'containers/Duplicate.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents[1]['paths'][1] == '/PATH'
+
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {})
@@ -934,11 +954,11 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        f'{path}',
-        f'{path}/.backends/{backend_id}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
@@ -1317,22 +1337,22 @@ def test_container_delete_umount(cli, base_dir, control_client):
 
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         documents = list(yaml.safe_load_all(f))
-    backend_id = documents[1]['backend-id']
 
-    print(backend_id)
+    backend_id = documents[1]['backend-id']
 
     (base_dir / 'storage/Storage.storage.yaml').unlink()
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
 
     paths_obj = {
-        f'{path}/.backends/{backend_id}': [101],
-        path: [102],
-        f'/.users/0xaaa{path}': [103],
-        f'/.users/0xaaa{path}/.backends/{backend_id}': [104],
+        f'/.backends/{uuid}/{backend_id}': [101],
+        f'/.uuid/{uuid}': [102],
+        f'/.users/0xaaa/.uuid/{uuid}': [103],
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}': [104],
         '/PATH2': [105],
     }
 
@@ -1377,7 +1397,10 @@ def test_container_mount(cli, base_dir, control_client):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents[1]['paths'][1] == '/PATH'
+
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {})
@@ -1388,11 +1411,11 @@ def test_container_mount(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        f'{path}',
-        f'{path}/.backends/{backend_id}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
@@ -1404,8 +1427,8 @@ def test_container_mount(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
     ]
     assert command[0]['extra']['trusted_owner'] is None
@@ -1430,7 +1453,10 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents_container = list(load_yaml_all(f))
 
-    path = documents_container[1]['paths'][0]
+    uuid_path = documents_container[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents_container[1]['paths'][1] == '/PATH'
+
     backend_id = documents_container[1]['backends']['storage'][0]['backend-id']
 
     # add infrastructure container
@@ -1462,14 +1488,14 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xbbb{path}',
-        f'/.users/0xbbb{path}/.backends/{backend_id}',
+        f'/.users/0xbbb/.backends/{uuid}/{backend_id}',
+        f'/.users/0xbbb/.uuid/{uuid}',
         '/.users/0xbbb/PATH',
-        f'/people/other{path}',
-        f'/people/other{path}/.backends/{backend_id}',
+        f'/people/other/.backends/{uuid}/{backend_id}',
+        f'/people/other/.uuid/{uuid}',
         '/people/other/PATH',
-        f'/users/other{path}',
-        f'/users/other{path}/.backends/{backend_id}',
+        f'/users/other/.backends/{uuid}/{backend_id}',
+        f'/users/other/.uuid/{uuid}',
         '/users/other/PATH',
     ]
 
@@ -1643,8 +1669,8 @@ def test_container_mount_glob(cli, base_dir, control_client):
     control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container1', '--path', '/PATH1')
-    cli('container', 'create', 'Container2', '--path', '/PATH2')
+    cli('container', 'create', 'Container1', '--path', '/PATH1', '--no-encrypt-manifest')
+    cli('container', 'create', 'Container2', '--path', '/PATH2', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container1')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -1656,9 +1682,41 @@ def test_container_mount_glob(cli, base_dir, control_client):
     cli('container', 'mount', base_dir / 'containers' / '*.yaml')
 
     command = control_client.calls['mount']['items']
+
+    with open(base_dir / 'containers/Container1.container.yaml') as f:
+        documents_container1 = list(load_yaml_all(f))
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        documents_container2 = list(load_yaml_all(f))
+
+    uuid_path1 = documents_container1[1]['paths'][0]
+    uuid1 = get_container_uuid_from_uuid_path(uuid_path1)
+    assert documents_container1[1]['paths'][1] == '/PATH1'
+
+    uuid_path2 = documents_container2[1]['paths'][0]
+    uuid2 = get_container_uuid_from_uuid_path(uuid_path2)
+    assert documents_container2[1]['paths'][1] == '/PATH2'
+
+    backend_id1 = documents_container1[1]['backends']['storage'][0]['backend-id']
+    backend_id2 = documents_container2[1]['backends']['storage'][0]['backend-id']
+
     assert len(command) == 2
-    assert sorted(command[0]['paths'])[2] == '/.users/0xaaa/PATH1'
-    assert sorted(command[1]['paths'])[2] == '/.users/0xaaa/PATH2'
+    assert sorted(command[0]['paths']) == [
+        f'/.backends/{uuid1}/{backend_id1}',
+        f'/.users/0xaaa/.backends/{uuid1}/{backend_id1}',
+        f'/.users/0xaaa/.uuid/{uuid1}',
+        '/.users/0xaaa/PATH1',
+        f'/.uuid/{uuid1}',
+        '/PATH1'
+    ]
+    assert sorted(command[1]['paths']) == [
+        f'/.backends/{uuid2}/{backend_id2}',
+        f'/.users/0xaaa/.backends/{uuid2}/{backend_id2}',
+        f'/.users/0xaaa/.uuid/{uuid2}',
+        '/.users/0xaaa/PATH2',
+        f'/.uuid/{uuid2}',
+        '/PATH2'
+    ]
 
 
 def test_container_mount_save(cli, base_dir, control_client):
@@ -1697,7 +1755,8 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {})
@@ -1706,14 +1765,12 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     cli('container', 'mount', 'Container')
 
     command = control_client.calls['mount']['items']
-    assert command[0]['storage']['owner'] == '0xaaa'
-    assert command[0]['storage']['location'] == '/STORAGE'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        path,
-        f'{path}/.backends/{backend_id}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
@@ -1779,7 +1836,8 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {})
@@ -1790,11 +1848,11 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        path,
-        f'{path}/.backends/{backend_id}',
+        f'/.uuid/{uuid}',
         '/PATH',
     ]
 
@@ -1805,19 +1863,20 @@ def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
 
-    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    uuid2 = '0000-1111-2222-3333-4444'
+    backend_id = '5555-6666-7777-8888-9999'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
   dummy.0xaaa
 ---
 owner: '0xaaa'
 paths:
- - {path2}
+ - /.uuid/{uuid2}
  - /subcontainer
 backends:
   storage:
     - type: delegate
-      backend-id: 0000-1111-2222-3333-4444
+      backend-id: {backend_id}
       reference-container: 'wildland:@default:@parent-container:'
       subdirectory: '/subdir'
 """)
@@ -1827,8 +1886,9 @@ backends:
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
-    backend_id = documents[1]['backends']['storage'][0]['backend-id']
+    uuid_path1 = documents[1]['paths'][0]
+    uuid1 = get_container_uuid_from_uuid_path(uuid_path1)
+    backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1839,27 +1899,27 @@ backends:
     assert len(command) == 2
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.backends/{uuid1}/{backend_id1}',
+        f'/.users/0xaaa/.backends/{uuid1}/{backend_id1}',
+        f'/.users/0xaaa/.uuid/{uuid1}',
         '/.users/0xaaa/PATH',
-        path,
-        f'{path}/.backends/{backend_id}',
+        f'/.uuid/{uuid1}',
         '/PATH',
     ]
 
     assert command[1]['storage']['owner'] == '0xaaa'
     assert command[1]['storage']['type'] == 'delegate'
-    assert command[1]['storage']['container-path'] == path2
-    assert command[1]['storage']['reference-container'] == f'wildland:@default:{path}:'
+    assert command[1]['storage']['container-path'] == f'/.uuid/{uuid2}'
+    assert command[1]['storage']['reference-container'] == f'wildland:@default:/.uuid/{uuid1}:'
     assert command[1]['storage']['subdirectory'] == '/subdir'
     assert command[1]['storage']['storage'] == command[0]['storage']
 
     assert sorted(command[1]['paths']) == [
-        f'/.users/0xaaa{path2}',
-        f'/.users/0xaaa{path2}/.backends/0000-1111-2222-3333-4444',
+        f'/.backends/{uuid2}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid2}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid2}',
         '/.users/0xaaa/subcontainer',
-        path2,
-        f'{path2}/.backends/0000-1111-2222-3333-4444',
+        f'/.uuid/{uuid2}',
         '/subcontainer',
     ]
 
@@ -1924,19 +1984,20 @@ def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_p
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    uuid2 = '0000-1111-2222-3333-4444'
+    backend_id = '5555-6666-7777-8888-9999'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
   dummy.0xaaa
 ---
 owner: '0xaaa'
 paths:
- - {path2}
+ - /.uuid/{uuid2}
  - /subcontainer
 backends:
   storage:
     - type: delegate
-      backend-id: 0000-1111-2222-3333-4444
+      backend-id: {backend_id}
       reference-container: 'wildland:@default:@parent-container:'
       subdirectory: '/subdir'
 """)
@@ -1945,9 +2006,7 @@ backends:
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
         container_data = f.read().split('\n', 4)[-1]
-        uuid = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
-
-    path = f'/.uuid/{uuid}'
+        uuid1 = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -1958,17 +2017,17 @@ backends:
     assert len(command) == 1
     assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['storage']['type'] == 'delegate'
-    assert command[0]['storage']['container-path'] == path2
-    assert command[0]['storage']['reference-container'] == f'wildland:@default:{path}:'
+    assert command[0]['storage']['container-path'] == f'/.uuid/{uuid2}'
+    assert command[0]['storage']['reference-container'] == f'wildland:@default:/.uuid/{uuid1}:'
     assert command[0]['storage']['subdirectory'] == '/subdir'
     assert command[0]['storage']['storage']['type'] == 'local'
     assert command[0]['storage']['storage']['location'] == os.fspath(tmp_path)
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path2}',
-        f'/.users/0xaaa{path2}/.backends/0000-1111-2222-3333-4444',
+        f'/.backends/{uuid2}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid2}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid2}',
         '/.users/0xaaa/subcontainer',
-        path2,
-        f'{path2}/.backends/0000-1111-2222-3333-4444',
+        f'/.uuid/{uuid2}',
         '/subcontainer',
     ]
 
@@ -1979,17 +2038,18 @@ def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_pa
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    path2 = '/.uuid/0000-1111-2222-3333-4444'
+    uuid = '0000-1111-2222-3333-4444'
+    backend_id = '5555-6666-7777-8888-9999'
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""---
 owner: '0xaaa'
 paths:
- - {path2}
+ - /.uuid/{uuid}
  - /subcontainer
 backends:
   storage:
     - type: delegate
-      backend-id: 0000-1111-2222-3333-4444
+      backend-id: {backend_id}
       reference-container: 'wildland:@default:@parent-container:'
       subdirectory: '/subdir'
 """)
@@ -2006,11 +2066,11 @@ backends:
     assert command[0]['storage']['owner'] == '0xaaa'
     assert command[0]['storage']['type'] == 'delegate'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path2}',
-        f'/.users/0xaaa{path2}/.backends/0000-1111-2222-3333-4444',
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/subcontainer',
-        path2,
-        f'{path2}/.backends/0000-1111-2222-3333-4444',
+        f'/.uuid/{uuid}',
         '/subcontainer',
     ]
 
@@ -2034,20 +2094,21 @@ def test_container_unmount(cli, base_dir, control_client):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {
-        f'/.users/0xaaa{path}': [101],
-        f'/.users/0xaaa{path}/.backends/{backend_id}': [102],
-        path: [103],
-        f'{path}/.backends/{backend_id}': [104],
+        f'/.users/0xaaa/.uuid/{uuid}': [101],
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}': [102],
+        f'/.uuid/{uuid}': [103],
+        f'/.backends/{uuid}/{backend_id}': [104],
         '/PATH': [105],
     })
     control_client.expect('unmount')
     cli('container', 'unmount', 'Container', '--without-subcontainers')
 
-    # /.users/{owner}/.uuid/{cont_uuid}/.backends/{backend_uuid} is always the primary path
+    # /.users/{owner}/.backends/{cont_uuid}/{backend_uuid} is always the primary path
     assert control_client.calls['unmount']['storage_id'] == 102
 
 
@@ -2097,7 +2158,8 @@ def test_container_extended_paths(cli, control_client, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
-    path = documents[1]['paths'][0]
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {})
@@ -2109,20 +2171,20 @@ def test_container_extended_paths(cli, control_client, base_dir):
     assert command[0]['storage']['owner'] == '0xaaa'
 
     assert sorted(command[0]['paths']) == sorted([
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
-        '/.users/0xaaa/c1/c2/title',
-        '/.users/0xaaa/c3/title',
         '/.users/0xaaa/c1/c2/@c3/title',
+        '/.users/0xaaa/c1/c2/title',
         '/.users/0xaaa/c3/@c1/c2/title',
-        '/c1/c2/title',
-        '/c3/title',
-        '/c1/c2/@c3/title',
-        '/c3/@c1/c2/title',
-        f'{path}/.backends/{backend_id}',
-        path,
+        '/.users/0xaaa/c3/title',
+        f'/.uuid/{uuid}',
         '/PATH',
+        '/c1/c2/@c3/title',
+        '/c1/c2/title',
+        '/c3/@c1/c2/title',
+        '/c3/title'
     ])
 
     modify_file(base_dir / 'config.yaml', "'@default': '0xaaa'", '')
@@ -2133,8 +2195,8 @@ def test_container_extended_paths(cli, control_client, base_dir):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{path}',
-        f'/.users/0xaaa{path}/.backends/{backend_id}',
+        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa/.uuid/{uuid}',
         '/.users/0xaaa/PATH',
         '/.users/0xaaa/c1/c2/@c3/title',
         '/.users/0xaaa/c1/c2/title',
@@ -2965,8 +3027,8 @@ def test_only_subcontainers(cli, base_dir, control_client):
 
     parent_container_path = base_dir / 'containers/Parent.container.yaml'
     child_container_path = base_dir / 'containers/Child.container.yaml'
-    child_storage_dir = (base_dir / 'foo')
-    child_storage_file = (base_dir / 'foo/file')
+    child_storage_dir = base_dir / 'foo'
+    child_storage_file = base_dir / 'foo/file'
 
     child_storage_dir.mkdir()
     child_storage_file.write_text('hello')
@@ -3019,21 +3081,24 @@ def test_only_subcontainers(cli, base_dir, control_client):
     control_client.expect('mount')
     cli('container', 'mount', 'Parent')
 
+    uuid_parent = get_container_uuid_from_uuid_path(uuid_path_parent)
+    uuid_child = get_container_uuid_from_uuid_path(uuid_path_child)
+
     parent_paths = [
-        f'/.users/0xaaa{uuid_path_parent}',
-        f'/.users/0xaaa{uuid_path_parent}/.backends/{backend_id_parent}',
+        f'/.backends/{uuid_parent}/{backend_id_parent}',
+        f'/.users/0xaaa/.backends/{uuid_parent}/{backend_id_parent}',
+        f'/.users/0xaaa/.uuid/{uuid_parent}',
         '/.users/0xaaa/PATH_PARENT',
-        uuid_path_parent,
-        f'{uuid_path_parent}/.backends/{backend_id_parent}',
+        f'/.uuid/{uuid_parent}',
         '/PATH_PARENT',
     ]
 
     child_paths = [
-        f'/.users/0xaaa{uuid_path_child}',
-        f'/.users/0xaaa{uuid_path_child}/.backends/{backend_id_child}',
+        f'/.backends/{uuid_child}/{backend_id_child}',
+        f'/.users/0xaaa/.backends/{uuid_child}/{backend_id_child}',
+        f'/.users/0xaaa/.uuid/{uuid_child}',
         '/.users/0xaaa/PATH_CHILD',
-        uuid_path_child,
-        f'{uuid_path_child}/.backends/{backend_id_child}',
+        f'/.uuid/{uuid_child}',
         '/PATH_CHILD',
     ]
 
@@ -3066,14 +3131,7 @@ def test_only_subcontainers(cli, base_dir, control_client):
     # Verify the mounted paths
     command = control_client.calls['mount']['items']
     assert len(command) == 1
-    assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa{uuid_path_child}',
-        f'/.users/0xaaa{uuid_path_child}/.backends/{backend_id_child}',
-        '/.users/0xaaa/PATH_CHILD',
-        uuid_path_child,
-        f'{uuid_path_child}/.backends/{backend_id_child}',
-        '/PATH_CHILD',
-    ]
+    assert sorted(command[0]['paths']) == child_paths
 
 
 def test_user_refresh(cli, base_dir, tmpdir):
