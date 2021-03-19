@@ -292,7 +292,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _dir_root(self):
         try:
-            for ident, title, _tags, timestamp in \
+            for ident, _, _tags, timestamp in \
                     self.bear_db.get_notes_with_metadata():
                 yield FileCachedDirEntry(
                     self.bear_db.path,
