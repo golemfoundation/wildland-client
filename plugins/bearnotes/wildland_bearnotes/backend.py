@@ -24,7 +24,6 @@ Bear storage backend
 import errno
 import logging
 import os
-import re
 import sqlite3
 import threading
 from functools import partial
@@ -298,13 +297,13 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
                 yield FileCachedDirEntry(
                     self.bear_db.path,
                     ident,
-                    partial(self._dir_note, ident, title, timestamp),
+                    partial(self._dir_note, ident, timestamp),
                     timestamp=timestamp)
         except sqlite3.DatabaseError:
             logger.exception('error loading database')
             return
 
-    def _dir_note(self, ident: str, title: str, timestamp: int):
+    def _dir_note(self, ident: str, timestamp: int):
         yield StaticFileEntry('note.md', self._get_note(ident), timestamp=timestamp)
 
     def _get_note(self, ident):
