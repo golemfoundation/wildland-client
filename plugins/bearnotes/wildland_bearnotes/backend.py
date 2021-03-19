@@ -263,7 +263,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         paths = [f'/.uuid/{ident}']
         categories = get_note_categories(tags)
         if len (title) == 0:
-            title = f"{ident}" 
+            title = f"{ident}"
         return {
             'object': 'container',
             'title': '"' + title.replace ('/', '_') + '"',
@@ -305,8 +305,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             return
 
     def _dir_note(self, ident: str, title: str, timestamp: int):
-        name = re.sub(r'[\0\\/:*?"<>|]', '-', title)
-        yield StaticFileEntry(f'note.md', self._get_note(ident), timestamp=timestamp)
+        yield StaticFileEntry('note.md', self._get_note(ident), timestamp=timestamp)
 
     def _get_note(self, ident):
         note = self.bear_db.get_note(ident)
