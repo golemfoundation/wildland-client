@@ -199,7 +199,7 @@ class PagedFile(File, metaclass=abc.ABCMeta):
         return self.attr
 
     def release(self, flags):
-        pass
+        del self.buf
 
 
 class FullBufferedFile(File, metaclass=abc.ABCMeta):
@@ -245,6 +245,7 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
                 self.write_full(bytes(self.buf))
                 if self.clear_cache:
                     self.clear_cache()
+        del self.buf
 
     def _load(self) -> None:
         if not self.loaded:
