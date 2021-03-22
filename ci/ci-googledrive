@@ -18,8 +18,7 @@ MNT_PATH_2="$ROOT/$MNT_DIR_2"
 
 ./wl user create googledrive-user
 ./wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" googledrive-test-container
-./wl storage create googledrive --container googledrive-test-container --inline --credentials "$1"
-# TODO interaction required to go given link, concent with given permissions, and retrieve authorization key
+./wl storage create googledrive --container googledrive-test-container --inline --credentials "$1" --skip-interaction
 ./wl start --container googledrive-test-container
 
 # Create temporary timestamped test directory

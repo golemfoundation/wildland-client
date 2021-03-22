@@ -140,19 +140,30 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 metavar="CREDENTIALS",
                 required=True,
                 help="Google Drive Client Congifuration Object",
-            )
+            ),
+            click.Option(
+                ["--skip-interaction"],
+                default=False,
+                is_flag=True,
+                metavar="SKIP_INTERACTION",
+                required=False,
+                help="Pass pre-generated refresh token as credential"
+                "and pass this flag to skip interaction",
+            ),
         ]
 
     @classmethod
     def cli_create(cls, data):
         credentials = None
         client_config = json.loads(data["credentials"])
-        flow = InstalledAppFlow.from_client_config(client_config, DRIVE_SCOPES)
-        credentials = flow.run_console()
+        if data["skip_interaction"]:
+            credentials = client_config
+        else:
+            flow = InstalledAppFlow.from_client_config(client_config, DRIVE_SCOPES)
+            credentials = flow.run_console()
+            credentials = json.loads(credentials.to_json())
 
-        return {
-            "credentials": json.loads(credentials.to_json()),
-        }
+        return {"credentials": credentials}
 
     @staticmethod
     def _get_attr_from_metadata(metadata) -> Attr:
