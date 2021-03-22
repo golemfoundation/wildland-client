@@ -173,8 +173,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-googledrive
 .. _wl-storage-create-googledrive:
 
-:command:`wl storage create googledrive --container <container> [-u] [--user <user>] --credentials <credentials>`
------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create googledrive --container <container> [-u] [--user <user>] --credentials <credentials> --skip-interaction`
+------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 
@@ -183,6 +183,9 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
    Google Drive Client Congifuration Object. You can generate it in Google Developer Console. 
    More info: https://developers.google.com/drive/api/v3/quickstart/python#step_1_turn_on_the
 
+.. option:: --skip-interaction
+
+   Enable this optional flag if user passes authorization token as credentials
 
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
