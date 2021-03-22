@@ -96,7 +96,7 @@ googledrive-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-googledrive $GOOGLEDRIVE_TEST_ACCESS_TOKEN
+    - ./ci/ci-googledrive "$GOOGLEDRIVE_TEST_ACCESS_TOKEN"
 
 smoke-test:
   stage: test
