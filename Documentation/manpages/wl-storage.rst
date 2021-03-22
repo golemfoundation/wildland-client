@@ -185,7 +185,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. option:: --skip-interaction
 
-   Enable this optional flag if user passes authorization token as credentials
+   Enable this optional flag if user passes authorization token object as credentials
 
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
