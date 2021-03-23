@@ -2391,7 +2391,8 @@ def test_cli_storage_template_create(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo'}
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'read-only': False}
 
 
 def test_cli_storage_template_create_custom_access(cli, base_dir):
@@ -2403,7 +2404,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'read-only': False,
                              'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]}
 
     cli('storage-template', 'create', 'local', '--location', '/foo',
@@ -2412,7 +2414,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t2.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'read-only': False,
                              'access': [{'user': '*'}]}
 
     with pytest.raises(CliError, match='Failed to create storage template: User not found: *'):
@@ -3151,9 +3154,25 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
     with pytest.raises(CliError, match='File was not found in any storage'):
         cli('container', 'find', f'{base_dir}/mnt/PATH/not_existing.txt', capture=True)
 
+# Forest
+
+def test_forest_create(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--base-url', f'file:///{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--read-only', '--manifest-pattern', '/{path}.yaml', 'ro')
+    cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
+
+    cli('forest', 'create', '--manifest-local-dir', '/manifests', '--data-local-dir', '/storage',
+        'Alice', 'my-set')
+
+    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice.yaml').exists()
+    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice-index.yaml').exists()
+    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/.manifests.yaml').exists()
+    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/home/Alice.yaml').exists()
 
 ## Global options (--help, --version etc.)
-
 
 def test_wl_help(cli):
     result = cli('--help', capture=True)

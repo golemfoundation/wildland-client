@@ -170,6 +170,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         }
     })
     TYPE = 's3'
+    LOCATION_PARAM = 's3_url'
 
     INDEX_NAME = 'index.html'
 

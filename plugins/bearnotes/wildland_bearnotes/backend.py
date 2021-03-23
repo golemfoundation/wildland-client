@@ -219,6 +219,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         }
     })
     TYPE = 'bear-db'
+    LOCATION_PARAM = 'path'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)

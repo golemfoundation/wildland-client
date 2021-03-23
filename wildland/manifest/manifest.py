@@ -145,17 +145,13 @@ class Manifest:
             fields = yaml.safe_load(decrypted_raw)
 
         if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
-            backends_update = []
-            for backend in fields['backends']['storage']:
+            for idx, backend in enumerate(fields['backends']['storage']):
                 if isinstance(backend, dict) and 'encrypted' in backend:
                     try:
-                        backends_update.append((backend, cls.decrypt(backend, sig)))
+                        fields['backends']['storage'][idx] = cls.decrypt(backend, sig)
                     except ManifestError:
                         # we don't have the appropriate keys, and that's okay
                         pass
-            for old, new in backends_update:
-                fields['backends']['storage'].remove(old)
-                fields['backends']['storage'].append(new)
         return fields
 
     @classmethod

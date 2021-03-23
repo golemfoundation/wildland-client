@@ -91,6 +91,7 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         }
     })
     TYPE = 'zip-archive'
+    LOCATION_PARAM = 'location'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)

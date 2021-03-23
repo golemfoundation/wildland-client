@@ -50,6 +50,12 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help="limit access to this storage to the provided users. "
                           "By default the @default owner is used."),
+        click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
+                     help='Set the storage watcher-interval in seconds.'),
+        click.Option(['--base-url'], metavar='URL', required=False,
+                     help='Set public base URL'),
+        click.Option(['--read-only'], metavar='BOOL', is_flag=True,
+                     help='Mark storage as read-only'),
         click.Argument(['name'], metavar='NAME', required=True),
     ]
 
@@ -78,6 +84,9 @@ def _do_create(
         backend: Type[StorageBackend],
         name,
         manifest_pattern,
+        watcher_interval,
+        base_url,
+        read_only,
         access,
         **data):
 
@@ -88,6 +97,11 @@ def _do_create(
     params = backend.cli_create(data)
 
     params['type'] = backend.TYPE
+
+    params['read-only'] = read_only
+
+    if watcher_interval:
+        params['watcher-interval'] = int(watcher_interval)
 
     manifest_pattern_dict = None
     if manifest_pattern:
@@ -110,6 +124,14 @@ def _do_create(
                 ]
             except WildlandError as ex:
                 raise CliError(f'Failed to create storage template: {ex}') from ex
+
+    if backend.LOCATION_PARAM:
+        params[backend.LOCATION_PARAM] = str(params[backend.LOCATION_PARAM]).rstrip('/') + \
+                                            "{{ local_dir if local_dir is defined else '/' }}"
+
+    if base_url:
+        params['base-url'] = base_url.rstrip('/') + \
+                                "{{ local_dir if local_dir is defined else '/' }}"
 
     # remove default, non-required values
     for param, value in list(params.items()):

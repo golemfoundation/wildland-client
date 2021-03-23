@@ -26,6 +26,10 @@
    Files in this storage are available under this url, joined with relative
    path of the file in question.
 
+.. option:: --watcher-interval SECONDS
+
+   Sets naive storage watcher interval (in seconds).
+
 .. option:: --access USER
 
     Allow an additional user access to this storage manifest. By default, storage manifests inherit

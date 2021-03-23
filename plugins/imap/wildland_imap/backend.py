@@ -39,6 +39,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     """
 
     TYPE = 'imap'
+    LOCATION_PARAM = 'folder'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)

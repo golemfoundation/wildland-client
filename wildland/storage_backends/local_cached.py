@@ -244,6 +244,7 @@ class LocalCachedStorageBackend(CachedStorageMixin, BaseCached):
     """
 
     TYPE = 'local-cached'
+    LOCATION_PARAM = 'location'
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         """

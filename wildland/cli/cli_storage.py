@@ -65,6 +65,8 @@ def _make_create_command(backend: Type[StorageBackend]):
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--manifest-pattern'], metavar='GLOB',
                      help='Set the manifest pattern for storage'),
+        click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
+                     help='Set the storage watcher-interval in seconds.'),
         click.Option(['--base-url'], metavar='BASEURL',
                      help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
@@ -101,6 +103,7 @@ def _do_create(
         trusted,
         manifest_pattern,
         inline,
+        watcher_interval,
         base_url,
         access,
         **data):
@@ -122,6 +125,9 @@ def _do_create(
     for param, value in list(params.items()):
         if value is None or value == []:
             del params[param]
+
+    if watcher_interval:
+        params['watcher-interval'] = int(watcher_interval)
 
     params['backend-id'] = str(uuid.uuid4())
     if base_url is not None:
