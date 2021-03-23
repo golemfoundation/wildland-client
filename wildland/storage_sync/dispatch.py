@@ -36,14 +36,14 @@ def load_syncers() -> Dict[str, Type[BaseSyncer]]:
 
     result = {}
     for ep in entrypoints.get_group_all('wildland.storage_sync'):
-        logging.debug('storage: %s', ep)
+        logging.debug('sync: %s', ep)
         cls: Type[BaseSyncer] = ep.load()
         result[cls.SYNCER_NAME] = cls
 
     if not result:
         raise ImportError(
-            'No storage backends found. Please install the Python packages:\n'
-            '  pip install -e . plugins/*\n'
+            'No storage backends found. If you install Wildland from source, please install '
+            'the Python packages:\n  pip install -e . plugins/*\n'
         )
 
     return result

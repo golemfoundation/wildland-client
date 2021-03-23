@@ -80,15 +80,16 @@ class BaseSyncer(metaclass=abc.ABCMeta):
     SYNCER_NAME = ""
     SOURCE_TYPES: List[str] = []
     TARGET_TYPES: List[str] = []
-    ONE_SHOT = True  # is this syncer capable of performing a one-shot sync?
-    UNIDIRECTIONAL = True  # is this syncer capable of performing unidirectional sync?
-    REQUIRES_MOUNT = True  # does this syncer require mounting the storages?
+    CONTINUOUS = False  # is this syncer capable of performing continuous sync?
+    ONE_SHOT = False  # is this syncer capable of performing a one-shot sync?
+    UNIDIRECTIONAL = False  # is this syncer capable of performing unidirectional sync?
+    REQUIRES_MOUNT = False  # does this syncer require mounting the storages?
 
     _types: Dict[str, Type['BaseSyncer']] = {}
 
     @classmethod
     def find_syncer(cls, source_storage_type: str, target_storage_type: str,
-                    one_shot: bool, unidirectional: bool, requires_mount: bool):
+                    one_shot: bool, continuous: bool, unidirectional: bool, requires_mount: bool):
         """
         Return a Syncer class that fulfills listed requirements.
         """
@@ -108,27 +109,30 @@ class BaseSyncer(metaclass=abc.ABCMeta):
     def one_shot_sync(self, unidirectional: bool = False):
         """
         Perform a single (rsync-type) sync of given storages, optionally only in one direction.
-        Optional.
+        This has to be implemented if ONE_SHOT == True
         """
         raise OptionalError
 
-    @abc.abstractmethod
     def start_sync(self, unidirectional: bool = False):
         """
         Start syncing given storages (register appropriate watchers etc.)
+        This has to be implemented if CONTINUOUS == True
         """
+        raise OptionalError
 
-    @abc.abstractmethod
     def stop_sync(self):
         """
-        Stop syncing given storages, deregister watchers etc.
+        Stop syncing given storages, de-register watchers etc.
+        This has to be implemented if CONTINUOUS == True
         """
+        raise OptionalError
 
-    @abc.abstractmethod
     def is_running(self) -> bool:
         """
         Are the syncing watchers (or other processes required) running?
+        This has to be implemented if CONTINUOUS == True
         """
+        raise OptionalError
 
     def is_synced(self):
         """
@@ -143,47 +147,49 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         Iterate over discovered syncer errors.
         """
 
-    @staticmethod
-    def types() -> Dict[str, Type['BaseSyncer']]:
+    @classmethod
+    def types(cls) -> Dict[str, Type['BaseSyncer']]:
         """
         Lazily initialized type -> storage class mapping.
         """
-        # TODO: from params
-        if not BaseSyncer._types:
+        if not cls._types:
             # pylint: disable=import-outside-toplevel,cyclic-import
             from .dispatch import get_storage_syncers
-            BaseSyncer._types = get_storage_syncers()
+            cls._types = get_storage_syncers()
 
-        return BaseSyncer._types
+        return cls._types
 
-    @staticmethod
-    def type_matches(syncer_class: Type['BaseSyncer'], source_storage_type: str,
-                     target_storage_type: str, one_shot: bool, unidirectonal: bool,
-                     mount_required: bool) -> bool:
+    @classmethod
+    def type_matches(cls, source_storage_type: str, target_storage_type: str,
+                     one_shot: bool, continuous: bool, unidirectonal: bool,
+                     can_require_mount: bool) -> bool:
         """
         Check if a given Syncer class fits given requirements.
         """
-        if one_shot and not syncer_class.ONE_SHOT:
+        if one_shot and not cls.ONE_SHOT:
             # if we require one-shot support, the class must support it
             return False
-        if unidirectonal and not syncer_class.UNIDIRECTIONAL:
+        if unidirectonal and not cls.UNIDIRECTIONAL:
             # if we require unidirectional sync, the class must support
             return False
-        if not mount_required and syncer_class.REQUIRES_MOUNT:
+        if continuous and not cls.CONTINUOUS:
+            # if we require continuous sync, the class must support
+            return False
+        if not can_require_mount and cls.REQUIRES_MOUNT:
             # if we are unable to mount, the class must not require it
             return False
-        if source_storage_type not in syncer_class.SOURCE_TYPES and \
-                syncer_class.SOURCE_TYPES != ["*"]:
+        if source_storage_type not in cls.SOURCE_TYPES and \
+                cls.SOURCE_TYPES != ["*"]:
             return False
-        if target_storage_type not in syncer_class.TARGET_TYPES and \
-                syncer_class.TARGET_TYPES != ["*"]:
+        if target_storage_type not in cls.TARGET_TYPES and \
+                cls.TARGET_TYPES != ["*"]:
             return False
         return True
 
-    @staticmethod
-    def from_storages(source_storage: StorageBackend, target_storage: StorageBackend,
-                      log_prefix: str, unidirectional: bool, one_shot: bool, mount_required: bool,
-                      source_mnt_path: Optional[Path] = None,
+    @classmethod
+    def from_storages(cls, source_storage: StorageBackend, target_storage: StorageBackend,
+                      log_prefix: str, unidirectional: bool, one_shot: bool, continuous: bool,
+                      can_require_mount: bool, source_mnt_path: Optional[Path] = None,
                       target_mnt_path: Optional[Path] = None) -> 'BaseSyncer':
         """
         Construct a Syncer object based on listed requirements and objects.
@@ -192,21 +198,24 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         :param log_prefix: prefix for logging sync events
         :param unidirectional: is unidirectional sync support required
         :param one_shot: is one-shot sync support required
-        :param mount_required: can mounting storages be required
+        :param continuous: is continuous sync support required
+        :param can_require_mount: can mounting storages be required
         :param source_mnt_path: path to source storage mount
         :param target_mnt_path: path to target storage mount
         :return: instantiated syncer class
         """
         candidate_classes: List[Type[BaseSyncer]] = []
 
-        for syncer_class in BaseSyncer.types().values():
-            if BaseSyncer.type_matches(syncer_class, source_storage.TYPE, target_storage.TYPE,
-                                       one_shot, unidirectional, mount_required):
+        for syncer_class in cls.types().values():
+            if syncer_class.type_matches(source_storage.TYPE, target_storage.TYPE,
+                                         one_shot, continuous, unidirectional, can_require_mount):
                 candidate_classes.append(syncer_class)
 
         if not candidate_classes:
-            raise WildlandError('Failed to find a matching syncer.')
+            raise WildlandError('Failed to find a matching syncer. ')
 
+        # prioritize classes with exact SOURCE/TARGET type match above those with wildcard ('*')
+        # match
         candidate_classes.sort(key=lambda x: (x.SOURCE_TYPES + x.TARGET_TYPES).count('*'))
         return candidate_classes[0](source_storage=source_storage, target_storage=target_storage,
                                     log_prefix=log_prefix, source_mnt_path=source_mnt_path,

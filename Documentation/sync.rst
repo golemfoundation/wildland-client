@@ -66,11 +66,14 @@ entrypoint (see `setuptools` package) and inherit the `wildland.storage_sync.bas
   * SOURCE_TYPES/TARGET_TYPES are lists of strings accepted as source/target StorageBackend.TYPE
     (a list consisting of a single "*" string means any storage syncer is accepted; syncers that
     match exactly are prioritized)
+  * CONTINUOUS - can the syncer handle continous syncing
   * ONE_SHOT - can the syncer handle one-shot syncing
   * UNIDIRECTIONAL - can the syncer handle syncing only in one direction, from source to target;
     all syncers are assumed to be able to handle bidirectional syncing
   * REQUIRES_MOUNT - does the syncer require storages to be mounted.
   * SYNCER_NAME is the internal name of the syncer.
 
-* custom storage syncers must implement at least the start_sync, stop_sync, is_running and
-  iter_errors methods. Optionally one_shot_sync, is_synced can be implemented
+* custom storage syncers must implement at least the iter_errors method, and:
+
+  * if ONE_SHOT == True, they must support one_shot_sync
+  * if CONTINUOUS == True, they must support start_sync, stop_sync and is_running methods.

@@ -92,7 +92,7 @@ def make_storage(backend_class: Callable, target_dir: PurePosixPath):
 
 
 def make_syncer(storage1: StorageBackend, storage2: StorageBackend) -> BaseSyncer:
-    return BaseSyncer.from_storages(storage1, storage2, 'test: ', False, False, False)
+    return BaseSyncer.from_storages(storage1, storage2, 'test: ', False, False, True, False)
 
 
 def wait_for_file(path: Path, contents=None, timeout=10) -> bool:
@@ -635,41 +635,43 @@ def test_find_syncer(tmpdir):
     backend1.TYPE = 'type1'
     backend2.TYPE = 'type2'
 
-    for bool1, bool2, bool3 in product([True, False], repeat=3):
+    for bool1, bool2, bool3, bool4 in product([True, False], repeat=4):
         syncer = BaseSyncer.from_storages(backend1, backend2,
                                           'test', unidirectional=bool1,
-                                          one_shot=bool2, mount_required=bool3)
+                                          one_shot=bool2, continuous=bool3, can_require_mount=bool4)
         # assert that a Syncer was found
         assert syncer.SYNCER_NAME
 
-    class TestSyncer1:
+    class TestSyncer1(BaseSyncer):
         SYNCER_NAME = "test1"
         SOURCE_TYPES = ["type1"]
         TARGET_TYPES = ["*"]
         ONE_SHOT = True
+        CONTINUOUS = True
         UNIDIRECTIONAL = True
         REQUIRES_MOUNT = False
 
-        def __init__(self, *args, **kwargs):
+        def iter_errors(self):
             pass
 
-    class TestSyncer2:
+    class TestSyncer2(BaseSyncer):
         SYNCER_NAME = "test2"
         SOURCE_TYPES = ["type1"]
         TARGET_TYPES = ["type2"]
         ONE_SHOT = True
+        CONTINUOUS = True
         UNIDIRECTIONAL = True
         REQUIRES_MOUNT = False
 
-        def __init__(self, *args, **kwargs):
+        def iter_errors(self):
             pass
 
     BaseSyncer._types['test1'] = TestSyncer1
     BaseSyncer._types['test2'] = TestSyncer2
 
-    for bool1, bool2, bool3 in product([True, False], repeat=3):
+    for bool1, bool2, bool3, bool4 in product([True, False], repeat=4):
         syncer = BaseSyncer.from_storages(backend1, backend2,
                                           'test', unidirectional=bool1,
-                                          one_shot=bool2, mount_required=bool3)
+                                          one_shot=bool2, continuous=bool3, can_require_mount=bool4)
         # assert that the correct Syncer was found
         assert syncer.SYNCER_NAME == 'test2'

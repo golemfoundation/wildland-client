@@ -864,12 +864,18 @@ class Client:
         return '://' in s or WildlandPath.match(s)
 
     @staticmethod
-    def is_local_storage(storage: StorageBackend):
+    def is_local_storage(storage: Union[StorageBackend, Storage, str]):
         """
         Check if the given storage is local. Currently checks for TYPE matching local, local-cached
         or local-dir-cached.
         """
-        return storage.TYPE in ['local', 'local-cached', 'local-dir-cached']
+
+        if isinstance(storage, StorageBackend):
+            storage = storage.TYPE
+        elif isinstance(storage, Storage):
+            storage = storage.params['type']
+
+        return storage in ['local', 'local-cached', 'local-dir-cached']
 
     def _wl_url_to_search(self, url: str, use_aliases: bool = False):
         wlpath = WildlandPath.from_str(url)

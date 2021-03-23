@@ -815,13 +815,13 @@ def syncer_pidfile_for_container(container: Container) -> Path:
     return Path(BaseDirectory.get_runtime_dir()) / f'wildland-sync-{container_id}.pid'
 
 
-def _get_storage_by_id_or_type(id_or_type: str, storages: List[StorageBackend]) -> StorageBackend:
+def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
     """
     Helper function to find a storage by listed id or type.
     """
     try:
         return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.TYPE)][0]
+                if id_or_type in (storage.backend_id, storage.params['type'])][0]
     except IndexError:
         # pylint: disable=raise-missing-from
         raise WildlandError(f'Storage {id_or_type} not found.')
@@ -853,43 +853,44 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
         raise ClickException("Sync process for this container is already running; use "
                              "stop-sync to stop it.")
 
-    all_storages = [StorageBackend.from_params(storage.params) for storage in
-                obj.client.all_storages(container)]
+    all_storages = list(obj.client.all_storages(container))
 
     if source_storage:
-        source_storage_obj = _get_storage_by_id_or_type(source_storage, all_storages)
+        source_object = _get_storage_by_id_or_type(source_storage, all_storages)
     else:
         try:
-            source_storage_obj = [storage for storage in all_storages
-                              if obj.client.is_local_storage(storage)][0]
+            source_object = [storage for storage in all_storages
+                                  if obj.client.is_local_storage(storage.params['type'])][0]
         except IndexError:
             # pylint: disable=raise-missing-from
             raise WildlandError('No local storage backend found')
 
+    source_backend = StorageBackend.from_params(source_object.params)
     default_remotes = obj.client.config.get('default-remote-for-container')
 
     if target_storage:
-        target_storage_obj = _get_storage_by_id_or_type(target_storage, all_storages)
-        default_remotes[container.ensure_uuid()] = target_storage_obj.backend_id
+        target_object = _get_storage_by_id_or_type(target_storage, all_storages)
+        default_remotes[container.ensure_uuid()] = target_object.backend_id
         obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
     else:
         target_remote_id = default_remotes.get(container.ensure_uuid(), None)
         try:
-            target_storage_obj = [
-                storage for storage in all_storages
-                if target_remote_id == storage.backend_id
-                   or (not target_remote_id and not obj.client.is_local_storage(storage))][0]
+            target_object = [storage for storage in all_storages
+                             if target_remote_id == storage.backend_id
+                             or (not target_remote_id and
+                                 not obj.client.is_local_storage(storage.params['type']))][0]
         except IndexError:
             # pylint: disable=raise-missing-from
             raise CliError('No remote storage backend found: specify --target-storage.')
 
-    click.echo(f'Using remote backend {target_storage_obj.backend_id} '
-               f'of type {target_storage_obj.TYPE}')
+    target_backend = StorageBackend.from_params(target_object.params)
+    click.echo(f'Using remote backend {target_backend.backend_id} '
+               f'of type {target_backend.TYPE}')
 
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
     hash_db.update_storages_for_containers(container.ensure_uuid(),
-                                           [source_storage_obj, target_storage_obj])
+                                           [source_backend, target_backend])
 
     if container.local_path:
         container_path = PurePosixPath(container.local_path)
@@ -897,13 +898,13 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
     else:
         container_name = cont
 
-    source_storage_obj.set_config_dir(obj.client.config.base_dir)
-    target_storage_obj.set_config_dir(obj.client.config.base_dir)
-    syncer = BaseSyncer.from_storages(source_storage=source_storage_obj,
-                                      target_storage=target_storage_obj,
+    source_backend.set_config_dir(obj.client.config.base_dir)
+    target_backend.set_config_dir(obj.client.config.base_dir)
+    syncer = BaseSyncer.from_storages(source_storage=source_backend,
+                                      target_storage=target_backend,
                                       log_prefix=f'Container: {container_name}',
-                                      one_shot=False, unidirectional=False,
-                                      mount_required=False)
+                                      one_shot=one_shot, continuous=not one_shot,
+                                      unidirectional=False, can_require_mount=False)
 
     if one_shot:
         syncer.one_shot_sync()
@@ -936,7 +937,7 @@ def stop_syncing_container(obj: ContextObj, cont):
 
     sync_pidfile = syncer_pidfile_for_container(container)
 
-    terminate_daemon(sync_pidfile, "Sync container for this container is not running.")
+    terminate_daemon(sync_pidfile, "Sync for this container is not running.")
 
 
 @container_.command('list-conflicts', short_help='list detected file conflicts across storages')
@@ -954,18 +955,18 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
 
     storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
+
     if not force_scan:
         for storage in storages:
             storage.set_config_dir(obj.client.config.base_dir)
-    storages = [StorageBackend.from_params(storage.params) for storage in
-                obj.client.all_storages(container)]
+
     conflicts = []
     for storage1, storage2 in combinations(storages, 2):
         syncer = BaseSyncer.from_storages(source_storage=storage1,
                                           target_storage=storage2,
                                           log_prefix=f'Container: {cont}',
-                                          one_shot=False, unidirectional=False,
-                                          mount_required=False)
+                                          one_shot=False, continuous=False, unidirectional=False,
+                                          can_require_mount=False)
 
         conflicts.extend([error for error in syncer.iter_errors()
                           if isinstance(error, SyncConflict)])

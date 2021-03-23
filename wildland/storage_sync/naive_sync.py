@@ -45,6 +45,7 @@ class NaiveSyncer(BaseSyncer):
     SYNCER_NAME = "NaiveSyncer"
     SOURCE_TYPES = ["*"]
     TARGET_TYPES = ["*"]
+    CONTINUOUS = True
     ONE_SHOT = True  # this syncer is capable of performing a one-shot sync
     UNIDIRECTIONAL = True  # this syncer is capable of performing unidirectional sync
     REQUIRES_MOUNT = False  # this syncer does not require mount
