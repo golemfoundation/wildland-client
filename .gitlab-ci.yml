@@ -92,6 +92,12 @@ dropbox-test:
   script:
     - ./ci/ci-dropbox $DROPBOX_TEST_ACCESS_TOKEN
 
+googledrive-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-googledrive "$GOOGLEDRIVE_TEST_ACCESS_TOKEN"
+
 smoke-test:
   stage: test
   image: docker/compose:latest

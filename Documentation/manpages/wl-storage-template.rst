@@ -195,6 +195,15 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/dropbox.rsti
 
+.. program:: wl-storage-template-create-dropbox
+.. _wl-storage-template-create-googledrive:
+
+:command:`wl storage-template create googledrive --container <container> [-u] [--user <user>] --credentials <credentials> --skip-interaction`
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/googledrive.rsti
+
 .. program:: wl-storage-template-create-categorization
 .. _wl-storage-template-create-categorization:
 

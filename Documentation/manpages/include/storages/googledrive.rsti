@@ -1,0 +1,8 @@
+.. option:: --credentials <credentials>
+
+   Google Drive Client Congifuration Object. You can generate it in Google Developer Console. Required.
+   More info: https://developers.google.com/drive/api/v3/quickstart/python#step_1_turn_on_the
+
+.. option:: --skip-interaction
+
+   Enable this optional flag if user passes authorization token object as credentials
