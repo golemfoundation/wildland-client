@@ -246,6 +246,26 @@ class WildlandFSBase:
             result['default-user'] = self.default_user
         return result
 
+    @control_command('fileinfo')
+    def control_fileinfo(self, _handler, path: str):
+        _, resolved = self.resolver.getattr_extended(PurePosixPath(path))
+
+        if not resolved:
+            return {}
+
+        storage = self.storages[resolved.ident]
+
+        return {
+            'storage': {
+                'container-path': storage.params['container-path'],
+                'backend-id': storage.backend_id,
+                'owner': storage.params['owner'],
+                'read-only': storage.read_only,
+                'id': storage.hash,
+            },
+            'token': storage.get_file_token(resolved.relpath)
+        }
+
     @control_command('add-watch')
     def control_add_watch(self, handler: ControlHandler, storage_id, pattern, ignore_own=False):
         if pattern.startswith('/'):

@@ -89,6 +89,7 @@ def cleanup():
     for f in cleanup_functions:
         f()
 
+
 # Users
 
 def test_user_create(cli, base_dir):
@@ -3102,6 +3103,53 @@ def test_user_refresh(cli, base_dir, tmpdir):
 
     user_data = (base_dir / 'users/Alice.user.yaml').read_text()
     assert 'paths:\n- /MEH' in user_data
+
+
+def test_file_find(cli, base_dir, control_client, tmpdir):
+    control_client.expect('status', {})
+    storage_dir = tmpdir / 'storage'
+    os.mkdir(storage_dir)
+    (storage_dir / 'file.txt').write('foo')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', storage_dir,
+        '--container', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    uuid_path  = documents[1]['paths'][0]
+    backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Container')
+
+    control_client.expect('fileinfo', {
+        'storage': {
+            'container-path': uuid_path,
+            'backend-id': backend_id,
+            'owner': '0xaaa',
+            'read-only': False,
+            'id': 'aaa',
+        },
+        'token': 'bbb'
+    })
+
+    result = cli('container', 'find', f'{base_dir}/mnt/PATH/file.txt', capture=True)
+
+    assert result.splitlines() == [
+        f'Container: wildland:0xaaa:{uuid_path}:',
+        f'Backend id: {backend_id}',
+        'Local containers:',
+        f'  {base_dir}/containers/Container.container.yaml',
+    ]
+
+    control_client.expect('fileinfo', {})
+
+    with pytest.raises(CliError, match='File was not found in any storage'):
+        cli('container', 'find', f'{base_dir}/mnt/PATH/not_existing.txt', capture=True)
 
 
 ## Global options (--help, --version etc.)

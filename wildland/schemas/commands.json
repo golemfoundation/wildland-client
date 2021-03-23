@@ -84,6 +84,16 @@
             }
         },
 
+        "fileinfo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "path to a mounted file"
+                }
+            }
+        },
 
         "paths": { "type": "object", "additionalProperties": false },
         "info": { "type": "object", "additionalProperties": false },

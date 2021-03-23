@@ -455,3 +455,9 @@ Encrypt manifest given by *<file>* so that it's only readable by its owner.
 
 Stop encrypting manifest given by *<file>*.
 
+.. _wl-container-find:
+
+:command:`wl container find <file>`
+-----------------------------------
+
+Show which container exposes the mounted file.

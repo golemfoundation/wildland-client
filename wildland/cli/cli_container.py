@@ -994,3 +994,30 @@ def duplicate(obj: ContextObj, new_name, cont):
 
     path = obj.client.save_new_container(new_container, new_name)
     click.echo(f'Created: {path}')
+
+
+@container_.command(short_help='find container by mounted file path')
+@click.argument('path', metavar='PATH')
+@click.pass_obj
+def find(obj: ContextObj, path):
+    """
+    Find container by mounted file path.
+    """
+    obj.client.recognize_users()
+
+    fileinfo = obj.fs_client.get_fileinfo(Path(path))
+
+    if not fileinfo:
+        raise CliError('File was not found in any storage')
+
+    wlpath = f'wildland:{fileinfo.storage_owner}:{fileinfo.container_path}:'
+    containers = list(obj.client.load_container_from_wlpath(WildlandPath.from_str(wlpath)))
+
+    click.echo(f'Container: {wlpath}\n'
+               f'Backend id: {fileinfo.backend_id}\n'
+               'Local containers:')
+
+    local_containers = [str(c.local_path) for c in containers if c.local_path is not None]
+
+    for local in list(set(local_containers)):
+        click.echo(f'  {local}')
