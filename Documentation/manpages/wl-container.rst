@@ -302,18 +302,26 @@ and :ref:`wl edit <wl-edit>` documentation.
 .. program:: wl-container-sync
 .. _wl-container-sync:
 
-:command:`wl container sync [--target-remote <id_or_type>] <container>`
------------------------------------------------------------------------
+:command:`wl container sync [--target-storage <id_or_type>] [--source-storage <id_or_type>] [--one-shot] <container>`
+---------------------------------------------------------------------------------------------------------------------
 
-Start synchronizing container's local storage with a remote storage (by default, first non-local
-storage in the manifest).
+Start synchronizing two of a container's storages, by default the first local storage with the
+first non-local storage in the manifest).
 
-.. option:: --target-remote <id_or_type>
+.. option:: --source-storage <id_or_type>
 
-   Specify which remote storage should be synced; can be specified as a backend-id or as storage
-   type (e.g. 's3'). The choice will be saved in config and used as default in future container
-   syncs.
+   Specify which should be the source storage for syncing; can be specified as a backend-id
+   or as storage type (e.g. 's3'). If not --one-shot, source and target storages are symmetric.
 
+.. option:: --target-storage <id_or_type>
+
+   Specify which should be the target storage for syncing; can be specified as a backend-id
+   or as storage type (e.g. 's3'). The choice will be saved in config and used as default in future container
+   syncs. If not --one-shot, source and target storages are symmetric.
+
+.. option:: --one-shot
+
+    Perform one-time sync, do not maintain sync.
 
 .. program:: wl-container-stop-sync
 .. _wl-container-stop-sync:

@@ -254,9 +254,9 @@ class LocalStorageBackend(StaticSubcontainerStorageMixin, StorageBackend):
         except NotADirectoryError:
             # can occur due to extreme file conflicts across storages
             return None
-        if abs(time.time() - current_timestamp) < 0.001:
-            # due to filesystem lack of resolution, two changes less than 1 millisecond apart
-            # can have the same mtime. We assume 1 millisecond, as it's correct for EXT4,
+        if abs(time.time() - current_timestamp) < 1:
+            # due to filesystem lack of resolution, two changes less than 1 second apart
+            # can have the same mtime. We assume 1 second, as it's correct for EXT3,
             # but be warned: it can go as low as 2 seconds for FAT16/32
             return None
         return str(int(current_timestamp * 1000))
