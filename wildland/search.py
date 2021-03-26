@@ -305,6 +305,11 @@ class Search:
         return storage, StorageBackend.from_params(storage.params)
 
     def _resolve_first(self):
+        if self.wlpath.hint:
+            hint_user = self._resolve_hint()
+            for step in self._user_step(hint_user, self.initial_owner, self.client, None, None):
+                yield from self._resolve_next(step, 0)
+
         # Try local containers
         yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner, None)
 
@@ -313,6 +318,12 @@ class Search:
             if user.owner == self.initial_owner:
                 for step in self._user_step(user, self.initial_owner, self.client, None, None):
                     yield from self._resolve_next(step, 0)
+
+    def _resolve_hint(self) -> User:
+        user = self.client.load_user_from_url(self.wlpath.hint, self.initial_owner, True)
+        self._verify_owner(user, self.initial_owner)
+
+        return user
 
     def _resolve_local(self, part: PurePosixPath,
                        owner: str,
