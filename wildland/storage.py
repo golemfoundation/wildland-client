@@ -35,7 +35,7 @@ class Storage:
 
     BASE_SCHEMA = Schema('storage')
 
-    DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/{path}.yaml'}
+    DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/*.yaml'}
 
     def __init__(self,
                  owner: str,

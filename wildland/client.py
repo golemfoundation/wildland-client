@@ -491,6 +491,26 @@ class Client:
             return self.load_storage_from_dict(obj, owner, container_path)
         assert False
 
+    def add_storage_to_container(self, container: Container, storage: Storage):
+        """
+        Append or update inline Storage in a Container determined by backend_id.
+        If the passed Storage exists in a container but is referenced by an url, skip adding it and
+        issue a warning.
+        """
+        for idx, backend in enumerate(container.backends):
+            container_storage = self.load_storage_from_url_or_dict(
+                backend, container.owner, str(container.paths[0]))
+
+            if container_storage.backend_id == storage.backend_id:
+                if isinstance(backend, dict):
+                    container.backends[idx] = storage.to_unsigned_manifest()._fields
+                else:
+                    logger.warning('Attempt to update url storage with inline storage (backend id: '
+                                   '%s). Skipping', storage.backend_id)
+                break
+        else:
+            container.backends.append(storage.to_unsigned_manifest()._fields)
+
     def load_bridges(self) -> Iterator[Bridge]:
         """
         Load bridge manifests from the bridges directory.

@@ -28,7 +28,7 @@ import click
 
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
-from ..storage import StorageBackend
+from ..storage import StorageBackend, Storage
 from ..user import User
 from ..publish import Publisher
 from ..manifest.template import TemplateManager, StorageSet
@@ -172,6 +172,16 @@ def _boostrap_forest(ctx,
     manifests_storage = obj.client.select_storage(container=manifests_container,
                                                   predicate=lambda x: x.is_writeable)
     manifests_backend = StorageBackend.from_params(manifests_storage.params)
+
+    # If a writeable manifests storage doesn't have manifest_pattern defined,
+    # forcibly set manifest pattern for all storages in this container.
+    if not manifests_storage.manifest_pattern:
+        for storage in list(obj.client.all_storages(manifests_container)):
+            storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
+            obj.client.add_storage_to_container(manifests_container, storage)
+
+        obj.client.save_container(manifests_container)
+
 
     if not manifests_storage.base_url:
         manifests_container.local_path.unlink()

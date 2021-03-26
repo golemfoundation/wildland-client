@@ -124,6 +124,7 @@ def setup(base_dir, cli):
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
+        '--manifest-pattern', '/{path}.yaml',
         '--trusted', '--no-inline')
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest',
