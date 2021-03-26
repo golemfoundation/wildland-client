@@ -7,13 +7,19 @@ paths.
 
 It has the following form::
 
-    wildland:0xabcd:/path/one:/path/two:/path/to/file.txt
+    wildland:0xabcd@https{wildland.url/manifest.yaml}:/path/one:/path/two:/path/to/file.txt
 
-* The first part (before ``:``) is the owner. It can be omitted, in which case
+* The ``wildland:`` prefix denotes that it's a Wildland path
+
+* The second part (before ``:``) is the owner. It can be omitted, in which case
   the ``@default`` (from configuration) will be used.
 
   The ``@default`` and ``@default-owner`` values are also supported, and
   resolved according to configuration.
+
+  The owner can be followed by hint: ``@https{address.of.manifest}``, which specifies the location
+  of the user manifest. Using the hint requires explicitly specified owner (not a @default or
+  @default-owner, and not omitted).
 
 * The next parts are container or user (bridge) paths. This part may be set as
   a ``*`` wildcard. See "Path resolution" below.

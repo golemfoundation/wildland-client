@@ -184,17 +184,25 @@ class Client:
 
         return self.session.load_user(path.read_bytes(), path)
 
-    def load_user_from_url(self, url: str, owner: str, allow_self_signed=False) -> User:
+    def load_user_from_url(self, url: str, url_owner: str,
+                           expected_user: Optional[str] = None) -> User:
         """
         Load user from an URL
+        :param: url_owner: used to resolve url context, e.g. owner of the bridge leading to owner
+        :param: expected_user: what user we expect to receive
         """
 
-        data = self.read_from_url(url, owner)
+        data = self.read_from_url(url, url_owner)
 
-        if allow_self_signed:
-            Manifest.load_pubkeys(data, self.session.sig)
+        Manifest.load_pubkeys(data, self.session.sig)
 
-        return self.session.load_user(data)
+        user = self.session.load_user(data)
+
+        if expected_user and user.owner != expected_user:
+            raise WildlandError(f'Unexpected owner: expected {expected_user}, '
+                                f'received {user.owner}')
+
+        return user
 
     def find_user_manifest(self, name: str) -> Optional[Path]:
         """

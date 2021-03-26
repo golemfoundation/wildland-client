@@ -49,7 +49,7 @@ class WildlandPath:
     - owner (optional): owner determining the first container's namespace, if omitted @default
     will be used
     - hint (optional, requires owner): hint to the location of first container's namespace;
-    takes the form of protocol[address], for example https[demo.wildland.io/demo.user.yaml]
+    takes the form of protocol[address], for example https{demo.wildland.io/demo.user.yaml}
     - parts: intermediate parts, identifying bridges or containers on the path
     - file_path (optional): path to file in the last container
     """
@@ -57,9 +57,9 @@ class WildlandPath:
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
     ALIAS_RE = re.compile(r'^@[a-z-]+$')
-    HINT_RE = re.compile(r'^0x[0-9a-f]+(@https\[.*])')
+    HINT_RE = re.compile(r'^0x[0-9a-f]+(@https{.*})')
     # if adding more protocols to hint, refactor to a separate WildlandHint class
-    WLPATH_RE = re.compile(r'^(wildland:)?(0x[0-9a-f]+(@https\[.*])?|@[a-z-]+)?:')
+    WLPATH_RE = re.compile(r'^(wildland:)?(0x[0-9a-f]+(@https{.*})?|@[a-z-]+)?:')
 
     def __init__(
         self,
@@ -110,7 +110,7 @@ class WildlandPath:
             hint = None
         elif cls.HINT_RE.match(split[0]):
             owner, hint = split[0].split('@', 1)
-            hint = 'https://' + hint[6:-1]  # change the https[ ... ] syntax to resolvable URL
+            hint = 'https://' + hint[6:-1]  # change the https{ ... } syntax to resolvable URL
         else:
             if '@https' in split[0] and '0x' not in split[0]:
                 raise PathError('Hint field requires explicit owner: {!r}'.format(split[0]))
@@ -139,7 +139,7 @@ class WildlandPath:
         if self.owner is not None:
             s += self.owner
         if self.hint is not None:
-            s += '@' + self.hint
+            s += '@' + 'https{' + self.hint[8:] + '}'
         s += ':' + ':'.join(str(p) for p in self.parts) + ':'
         if self.file_path is not None:
             s += str(self.file_path)

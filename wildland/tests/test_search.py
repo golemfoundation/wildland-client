@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
 from pathlib import PurePosixPath
 import os
@@ -40,7 +40,7 @@ from ..manifest.manifest import ManifestError
 from ..search import Search, storage_glob
 from ..config import Config
 from ..utils import load_yaml_all
-
+from ..exc import WildlandError
 
 ## Path
 
@@ -76,7 +76,7 @@ def test_path_from_str():
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path == PurePosixPath('/some/file.txt')
 
-    wlpath = WildlandPath.from_str('0xabcd@https[my.address]:/foo/bar:/baz/quux:/some/file.txt')
+    wlpath = WildlandPath.from_str('0xabcd@https{my.address}:/foo/bar:/baz/quux:/some/file.txt')
     assert wlpath.owner == '0xabcd'
     assert wlpath.hint == 'https://my.address'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
@@ -91,7 +91,10 @@ def test_path_from_str_fail():
         WildlandPath.from_str('foo:/foo/bar:')
 
     with pytest.raises(PathError, match='Hint field requires explicit owner'):
-        WildlandPath.from_str('@https[my.address]:foo/bar:baz.txt')
+        WildlandPath.from_str('@https{my.address}:foo/bar:baz.txt')
+
+    with pytest.raises(PathError, match='Hint field requires explicit owner'):
+        WildlandPath.from_str('@default@https{my.address}:foo/bar:baz.txt')
 
     with pytest.raises(PathError, match='Unrecognized absolute path'):
         WildlandPath.from_str('0xabcd:foo/bar:')
@@ -110,8 +113,8 @@ def test_path_to_str():
     wlpath = WildlandPath('0xabcd', None, [PurePosixPath('/foo/bar')], None)
     assert str(wlpath) == '0xabcd:/foo/bar:'
 
-    wlpath = WildlandPath('0xabcd', 'https[my.address]', [PurePosixPath('/foo/bar')], None)
-    assert str(wlpath) == '0xabcd@https[my.address]:/foo/bar:'
+    wlpath = WildlandPath('0xabcd', 'https://my.address', [PurePosixPath('/foo/bar')], None)
+    assert str(wlpath) == '0xabcd@https{my.address}:/foo/bar:'
 
     wlpath = WildlandPath(
         None, None, [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')], None)
@@ -946,8 +949,9 @@ def test_get_watch_params_wildcard_pattern_path(control_client, client2):
     ]
     assert sorted(patterns) == expected_patterns_re
 
+
 @pytest.mark.parametrize('owner', ['0xfff', '0xddd'])
-def test_search_hint(cli, base_dir, client, owner):
+def test_search_hint(base_dir, client, owner):
     storage_path_infra = base_dir / 'storage_infra'
     storage_path_infra.mkdir()
 
@@ -1011,7 +1015,7 @@ backends:
     (storage_path_cont / '.wildland-owners').write_bytes(b'0xddd\n')
 
     search = Search(client,
-                    WildlandPath.from_str(f'{owner}@https[mock.url]:/path:/file.txt'),
+                    WildlandPath.from_str(f'{owner}@https{{mock.url}}:/path:/file.txt'),
                     aliases={'default': '0xaaa'})
 
     with mock.patch('wildland.client.Client.read_from_url') as mock_read:
@@ -1023,5 +1027,5 @@ backends:
             mock_read.assert_called_with('https://mock.url', owner)
 
         else:
-            with pytest.raises(PathError):
+            with pytest.raises(WildlandError):
                 search.read_file()
