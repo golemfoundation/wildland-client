@@ -26,7 +26,7 @@ import zlib
 
 import pytest
 
-from wildland.storage_backends.encrypted_proxy import GoCryptFS, generate_password
+from wildland.storage_backends.encrypted import GoCryptFS, generate_password
 from wildland.storage_backends.local import LocalStorageBackend
 
 from .fuse_env import FuseEnv
@@ -35,7 +35,7 @@ from ..client import Client
 from ..cli.cli_base import ContextObj
 from ..cli.cli_main import _do_mount_containers
 
-def test_encrypted_proxy_with_url(cli, base_dir):
+def test_encrypted_with_url(cli, base_dir):
     local_dir = base_dir / 'local'
     Path(local_dir).mkdir()
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -49,7 +49,7 @@ def test_encrypted_proxy_with_url(cli, base_dir):
     reference_url = 'wildland::/reference_PATH:'
 
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'encrypted-proxy', 'ProxyStorage',
+    cli('storage', 'create', 'encrypted', 'ProxyStorage',
         '--reference-container-url', reference_url,
         '--container', 'Container', '--inline')
 
@@ -61,7 +61,7 @@ def test_encrypted_proxy_with_url(cli, base_dir):
     # But select_storage loads also the reference manifest
     container = client.load_container_from('Container')
     storage = client.select_storage(container)
-    assert storage.storage_type == 'encrypted-proxy'
+    assert storage.storage_type == 'encrypted'
     assert storage.params['symmetrickey']
     assert storage.params['engine'] in ['gocryptfs', 'cryfs', 'encfs']
     reference_storage = storage.params['storage']

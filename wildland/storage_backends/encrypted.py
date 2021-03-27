@@ -209,7 +209,7 @@ class GoCryptFS(EncryptedFSRunner):
 
 # pylint: disable=no-member
 
-class EncryptedProxyStorageBackend(StorageBackend):
+class EncryptedStorageBackend(StorageBackend):
     '''
     The 'reference-container' parameter specifies inner container, either as URL,
     or as an inline manifest. When creating the object instance:
@@ -245,7 +245,7 @@ class EncryptedProxyStorageBackend(StorageBackend):
     engine_obj: Optional[EncryptedFSRunner]
     engine: str
 
-    TYPE = 'encrypted-proxy'
+    TYPE = 'encrypted'
     MOUNT_REFERENCE_CONTAINER = True
 
     def __init__(self, **kwds):
