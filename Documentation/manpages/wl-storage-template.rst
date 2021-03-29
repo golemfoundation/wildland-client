@@ -28,9 +28,9 @@ located in `templates` directory in Wildland config directory (``~/.config/wildl
 template files must have filenames ending with `.template.jinja`.
 
 Template files can use the following variables in their jinja templates:
+
 - `uuid`: container uuid
-- `categories`: categories (you can use jinja syntax to extract only e.g.
-first category: {{ categories|first }}
+- `categories`: categories (you can use jinja syntax to extract only e.g. first category: {{ categories|first }}
 - `title`: container title
 - `paths`: container paths (a list of PurePosixPaths)
 - `local_path`: container local path (path to container file)
