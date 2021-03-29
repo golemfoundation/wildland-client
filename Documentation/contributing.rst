@@ -23,7 +23,7 @@ team. You can expect that you will need to iteratively address all of the code r
 will get. When there will be no more review comments, your branch will be merged into the
 ``master``. In this very moment you will officially become Wildland's contributor.
 
-.. _Wildland GitLab: https://gitlab.com/wild-land/
+.. _Wildland GitLab: https://gitlab.com/wildland/
 .. _create: https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html
 
 

@@ -52,6 +52,6 @@ wl c mount MYCONTAINER
 
 [1]: https://www.dropbox.com/lp/developers/reference/oauth-guide
 [2]: https://www.dropbox.com/developers/apps
-[3]: https://gitlab.com/wild-land/wildland-client/-/issues/199
-[4]: https://gitlab.com/wild-land/wildland-client/-/issues/174
-[5]: https://gitlab.com/wild-land/wildland-client/-/issues/179
+[3]: https://gitlab.com/wildland/wildland-client/-/issues/199
+[4]: https://gitlab.com/wildland/wildland-client/-/issues/174
+[5]: https://gitlab.com/wildland/wildland-client/-/issues/179

@@ -3,10 +3,10 @@ wildland in FUSE
 
 |Coverage|
 
-.. |Coverage| image:: https://gitlab.com/wild-land/wildland-client/badges/master/coverage.svg?job=pytest
-   :target: https://wild-land.gitlab.io/wildland-client/coverage/
+.. |Coverage| image:: https://gitlab.com/wildland/wildland-client/badges/master/coverage.svg?job=pytest
+   :target: https://wildland.gitlab.io/wildland-client/coverage/
 
-`Documentation <https://wild-land.gitlab.io/wildland-client/>`_
+`Documentation <https://wildland.gitlab.io/wildland-client/>`_
 
 Quick start
 -----------
@@ -19,7 +19,7 @@ Quick start
 
 This container serves FUSE content as WebDAV too.
 
-See `Setup <https://wild-land.gitlab.io/wildland-client/setup.html>`_ for more.
+See `Setup <https://wildland.gitlab.io/wildland-client/setup.html>`_ for more.
 
 
 Repository structure
