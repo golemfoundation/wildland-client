@@ -154,6 +154,7 @@ class GoCryptFS(EncryptedFSRunner):
                 flags = flags | os.O_CREAT
                 bf = storage.create(path, flags)
                 bf.write(data, 0)
+                bf.flush()
             bf.release(flags)
 
         _write_file(PurePosixPath('gocryptfs.conf'), self.config.encode())
