@@ -574,10 +574,16 @@ def prepare_mount(obj: ContextObj,
             raise WildlandError(f'Already mounted: {container.local_path}')
 
     if with_subcontainers:
-        for subcontainer in subcontainers:
-            yield from prepare_mount(obj, subcontainer, f'{container_name}:{subcontainer.paths[0]}',
-                                     user_paths, remount, with_subcontainers, container, quiet,
-                                     only_subcontainers)
+        # keep the parent container mounted, when touching its subcontainers -
+        # if they all point to the parent, this will avoid mounting and
+        # unmounting it each time
+        storage = obj.client.select_storage(container)
+        with StorageBackend.from_params(storage.params, deduplicate=True):
+            for subcontainer in subcontainers:
+                yield from prepare_mount(obj, subcontainer,
+                                         f'{container_name}:{subcontainer.paths[0]}',
+                                         user_paths, remount, with_subcontainers, container, quiet,
+                                         only_subcontainers)
 
 
 @container_.command(short_help='mount container')
