@@ -46,16 +46,16 @@ def create():
 def _make_create_command(backend: Type[StorageBackend]):
     params = [
         click.Option(['--manifest-pattern'], metavar='GLOB',
-                     help='Set the manifest pattern for storage'),
+                     help='Set the manifest pattern for storage.'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="limit access to this storage to the provided users. "
+                     help="Limit access to this storage to the provided users. "
                           "By default the @default owner is used."),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--base-url'], metavar='URL', required=False,
-                     help='Set public base URL'),
+                     help='Set public base URL.'),
         click.Option(['--read-only'], metavar='BOOL', is_flag=True,
-                     help='Mark storage as read-only'),
+                     help='Mark storage as read-only.'),
         click.Argument(['name'], metavar='NAME', required=True),
     ]
 

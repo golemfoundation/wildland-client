@@ -39,8 +39,8 @@ logger = logging.getLogger('categorization-proxy')
 @dataclass(eq=True, frozen=True)
 class CategorizationSubcontainerMetaInfo:
     """
-    Categorization subcontainer metainformation. Every unique instance of this class corresponds to
-    a single subcontainer's manifest.
+    Categorization subcontainer metadata. Every unique instance of this class corresponds to a
+    single subcontainer's manifest.
     """
     dir_path: PurePosixPath
     title: str
@@ -49,13 +49,18 @@ class CategorizationSubcontainerMetaInfo:
 
 class CategorizationProxyStorageBackend(StorageBackend):
     """
-    Storage backend exposing subcontainers based on category tags embedded in directories' names.
-    For full description of the logic behind multicategorization tags, refer documentation.
+    Storage backend exposing subcontainers based on category tags embedded in directory names. For
+    full description of the logic behind multicategorization tags, refer documentation.
     """
 
     SCHEMA = Schema({
+        "title": "Categorization proxy manifest",
         "type": "object",
-        "required": ["reference-container"],
+        "required": [
+            "reference-container",
+            "with-unclassified-category",
+            "unclassified-category-path",
+        ],
         "properties": {
             "reference-container": {
                 "oneOf": [
@@ -64,6 +69,17 @@ class CategorizationProxyStorageBackend(StorageBackend):
                 ],
                 "description": ("Container to be used, either as URL or as an inlined manifest"),
             },
+            "with-unclassified-category": {
+                "type": "boolean",
+                "description": "Create unclassified directory holding all of the untagged "
+                               "directories (default: False).",
+            },
+            "unclassified-category-path": {
+                "$ref": "/schemas/types.json#abs-path",
+                "description": "Path to directory where unclassified directories are mounted "
+                               "(`/unclassified` by default). This option is ignored unless "
+                               "`with-unclassified-category` is set.",
+            },
         }
     })
     TYPE = 'categorization'
@@ -71,6 +87,9 @@ class CategorizationProxyStorageBackend(StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.inner = self.params['storage']
+        self.with_unclassified_category = self.params.get('with-unclassified-category', False)
+        self.unclassified_category_path = self.params.get('unclassified-category-path',
+                                                          '/unclassified')
         self.read_only = True
 
     @classmethod
@@ -78,13 +97,30 @@ class CategorizationProxyStorageBackend(StorageBackend):
         return [
             click.Option(['--reference-container-url'],
                          metavar='URL',
-                         help='URL for inner container manifest',
+                         help='URL for inner container manifest.',
                          required=True),
+            click.Option(['--with-unclassified-category'],
+                         is_flag=True,
+                         default=False,
+                         required=False,
+                         help='Create unclassified directory holding all of the untagged '
+                              'directories.'),
+            click.Option(['--unclassified-category-path'],
+                         metavar='PATH',
+                         default='/unclassified',
+                         required=False,
+                         help='Path to directory where unclassified directories are mounted '
+                              '(`/unclassified` by default). This option is ignored unless '
+                              '`--with-unclassified-category` is set.'),
         ]
 
     @classmethod
     def cli_create(cls, data):
-        return {'reference-container': data['reference_container_url']}
+        return {
+            'reference-container': data['reference_container_url'],
+            'with-unclassified-category': data['with_unclassified_category'],
+            'unclassified-category-path': data['unclassified_category_path'],
+        }
 
     def mount(self) -> None:
         self.inner.request_mount()
@@ -106,7 +142,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
         dir_path = PurePosixPath('')
         subcontainer_metainfo_set = self._get_categories_to_subcontainer_map(dir_path)
 
-        logger.debug('Collected subcontainers: %s', repr(subcontainer_metainfo_set))
+        logger.debug('Collected subcontainers: %r', subcontainer_metainfo_set)
 
         for subcontainer_metainfo in subcontainer_metainfo_set:
             dirpath = str(subcontainer_metainfo.dir_path)
@@ -129,18 +165,19 @@ class CategorizationProxyStorageBackend(StorageBackend):
             Set[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree and generate subcontainers' metainformation based on the
-        directories' names: ``@`` starts new category path, ``_`` joins two categories.
+        directory names: ``@`` starts new category path, ``_`` joins two categories.
         """
-        return set(self._get_categories_to_subcontainer_map_recursive(dir_path, '', set()))
+        return set(self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), False))
 
     def _get_categories_to_subcontainer_map_recursive(
         self,
         dir_path: PurePosixPath,
         open_category: str,
-        closed_categories: Set[str]) -> Iterator[CategorizationSubcontainerMetaInfo]:
+        closed_categories: Set[str],
+        category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree, collect and return all of the metainformation needed to
-        create subcontainers based on the tags embedded in directories' names.
+        create subcontainers based on the tags embedded in directory names.
         """
         dir_contains_files = False
 
@@ -150,38 +187,48 @@ class CategorizationProxyStorageBackend(StorageBackend):
             if attr.is_dir():
                 prefix_category, postfix_category = self._get_category_info(name)
                 if postfix_category:
+                    new_category_tag_found = True
                     closed_category = open_category + prefix_category
                     closed_category_set = {closed_category} if closed_category else set()
                     new_closed_categories = closed_categories | closed_category_set
                     new_open_category = postfix_category
                 else:
+                    new_category_tag_found = category_tag_found
                     new_closed_categories = closed_categories.copy()
                     new_open_category = open_category + prefix_category
                 yield from self._get_categories_to_subcontainer_map_recursive(
                     path,
                     new_open_category,
-                    new_closed_categories)
+                    new_closed_categories,
+                    new_category_tag_found)
             else:
                 dir_contains_files = True
 
         if dir_contains_files:
             prefix_category, _, subcontainer_title = open_category.rpartition('/')
-            new_closed_categories = closed_categories
-            if prefix_category:
-                new_closed_categories.add(prefix_category)
-            all_categories = frozenset(new_closed_categories) or frozenset({'/unclassified'})
+
+            if not category_tag_found and self.with_unclassified_category:
+                assert not closed_categories
+                all_categories = frozenset({self.unclassified_category_path})
+            else:
+                if not prefix_category:
+                    assert subcontainer_title
+                    prefix_category = '/' + subcontainer_title
+                    subcontainer_title = '.'
+                all_categories = frozenset(closed_categories | {prefix_category})
+
             yield CategorizationSubcontainerMetaInfo(
                 dir_path=dir_path,
-                title=subcontainer_title or 'unclassified',
+                title=subcontainer_title or '.',
                 categories=all_categories
             )
 
     def _get_category_info(self, dir_name: str) -> Tuple[str, str]:
         """
-        Extract category tag from directory name together with text preceding it (prefix) and text
+        Extract category @tag from directory name together with text preceding it (prefix) and text
         following it (postfix). Both prefix and postfix are treated as category paths joined with an
         underscore that is replaced with a slash. At most one category tag is allowed in a directory
-        name. If a directory name does not have any tags, then ``(dir_name, '', '')`` is returned.
+        name. If a directory name ``XYZ`` does not have any tags, then ``('/XYZ', '')`` is returned.
 
         For convenience returned tuple can consits of empty string instead of ``None``
 

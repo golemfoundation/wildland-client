@@ -164,8 +164,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-categorization
 .. _wl-storage-create-categorization:
 
-:command:`wl storage create categorization --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
-----------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create categorization --container <container> [-u] [--user <user>] --reference-container-url <url> [--with-unclassified-category] [--unclassified-category-path <path>] <storage>`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/categorization.rsti
@@ -180,7 +180,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. option:: --credentials <credentials>
 
-   Google Drive Client Congifuration Object. You can generate it in Google Developer Console. 
+   Google Drive Client Congifuration Object. You can generate it in Google Developer Console.
    More info: https://developers.google.com/drive/api/v3/quickstart/python#step_1_turn_on_the
 
 .. option:: --skip-interaction

@@ -1,3 +1,12 @@
 .. option:: --reference-container-url <url>
 
    Inner container URL for this storage. Required.
+
+.. option:: --with-unclassified-category
+
+   Create unclassified directory holding all of the untagged directories. Not set by default.
+
+.. option:: --unclassified-category-path <path>
+
+   Path to directory where unclassified directories are mounted (`/unclassified` by default). This
+   option is ignored unless `--with-unclassified-category` is set.

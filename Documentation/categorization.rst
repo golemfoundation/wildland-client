@@ -417,6 +417,7 @@ you will get the following mountpoints (mounted with ``--only-subcontainers`` fl
   dr-xr-xr-x 1 user user    0 Jan  1  1970 art/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 authors/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 hotels/
+  dr-xr-xr-x 1 user user    0 Jan  1  1970 nature/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 papers/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 places/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 restaurants/
@@ -426,16 +427,26 @@ you will get the following mountpoints (mounted with ``--only-subcontainers`` fl
 
 To get all of the book titles available, run::
 
-  $ tree -a -L 1 mnt/art/books/@titles/
+  $ tree -a -L 2 mnt/art/books/@titles/
   mnt/art/books/@titles/
   |-- Death\ on\ the\ Nile
+  |   `-- nile.pdf
   |-- Harry\ Potter
+  |   |-- Harry\ Potter\ and\ the\ Chamber\ of\ Secrets
+  |   |-- Harry\ Potter\ and\ the\ Philosopher's\ Stone
+  |   `-- Harry\ Potter\ and\ the\ Prisoner\ of\ Azkaban
   |-- Murder\ in\ Mesopotamia
+  |   |-- book\ cover
+  |   `-- mesopotamia.pdf
   |-- The\ Big\ Four
+  |   `-- big4.pdf
   |-- The\ Ickabog
+  |   |-- ickabog.dvi
+  |   `-- ickabog.pdf
   `-- The\ Secret\ Adversary
+      `-- secret-adversary.epub
 
-  6 directories, 0 files
+  10 directories, 6 files
 
 You can achieve the same by listing ``mnt/titles``.
 
@@ -471,13 +482,22 @@ To list all of the places visited on business trips together with *ABC Company*,
 
 To list only those places that were visited privately, run::
 
+  $ tree -a -L 3 mnt/travels/private/@places/
   mnt/travels/private/@places/
   |-- Poland
   |   `-- Tricity
+  |       |-- Gdansk
+  |       |-- Gdynia
+  |       `-- Sopot
   `-- US
       `-- California
+          |-- California-1.jpg
+          |-- California-2.jpg
+          |-- California-3.jpg
+          |-- California-4.jpg
+          `-- California-5.jpg
 
-  4 directories, 0 files
+  7 directories, 5 files
 
 To list all of the places visited, both during private and business trips, run::
 

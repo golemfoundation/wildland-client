@@ -145,7 +145,6 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 ["--skip-interaction"],
                 default=False,
                 is_flag=True,
-                metavar="SKIP_INTERACTION",
                 required=False,
                 help="Pass pre-generated refresh token as credential"
                 "and pass this flag to skip interaction",

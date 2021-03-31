@@ -57,20 +57,20 @@ def _make_create_command(backend: Type[StorageBackend]):
     params = [
         click.Option(['--container'], metavar='CONTAINER',
                      required=True,
-                     help='Container this storage is for'),
+                     help='Container this storage is for.'),
         click.Option(['--trusted'], is_flag=True,
                      help='Make the storage trusted. Default: false'),
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--manifest-pattern'], metavar='GLOB',
-                     help='Set the manifest pattern for storage'),
+                     help='Set the manifest pattern for storage.'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--base-url'], metavar='BASEURL',
-                     help='Set public base URL'),
+                     help='Set public base URL.'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="limit access to this storage to the provided users. "
+                     help="Limit access to this storage to the provided users. "
                           "Default: same as the container."),
         click.Argument(['name'], metavar='NAME', required=False),
     ]

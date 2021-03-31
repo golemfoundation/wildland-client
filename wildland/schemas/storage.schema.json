@@ -15,23 +15,23 @@
                 },
                 "type": {
                     "type": "string",
-                    "description": "Storage backend. The manifest should contain backend-specific parameters"
+                    "description": "Storage backend. The manifest should contain backend-specific parameters."
                 },
                 "container-path": {
                     "$ref": "/schemas/types.json#abs-path",
-                    "description": "Path identifying the container this storage is for (by convention, /.uuid/...)"
+                    "description": "Path identifying the container this storage is for (by convention, /.uuid/...)."
                 },
                 "backend-id":{
                     "type": "string",
-                    "description": "storage UUID; optional, but if it is missing it will be generated automatically"
+                    "description": "Storage UUID. Optional, but if it is missing it will be generated automatically."
                 },
                 "read-only": {
                     "type": "boolean",
-                    "description": "Mount as read-only"
+                    "description": "Mount as read-only."
                 },
                 "trusted": {
                     "type": "boolean",
-                    "description": "Allow loading unsigned manifests (for the same owner) from this storage"
+                    "description": "Allow loading unsigned manifests (for the same owner) from this storage."
                 },
                 "manifest-pattern": {
                     "oneOf": [
@@ -49,7 +49,7 @@
                 },
                 "access": {
                     "$ref": "/schemas/types.json#access",
-                    "description": "access control; by default manifests are encrypted to their owner"
+                    "description": "Access control; by default manifests are encrypted to their owner."
                 },
                 "primary": {
                     "type": "boolean",

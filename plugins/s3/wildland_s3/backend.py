@@ -159,7 +159,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             },
             "with-index": {
                 "type": "boolean",
-                "description": "Maintain index.html files with directory listings",
+                "description": "Maintain index.html files with directory listings (default: False)",
             },
             "subcontainers" : {
                 "type": "array",
