@@ -249,6 +249,13 @@ Example:
     owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
     infrastructures:
       - file:///path/to/container.yaml
+      - object: link
+        storage:
+          type: local
+          location: '/path/to/storage'
+          owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff123'
+          backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a8933'
+        file: '/container.yaml'
     pubkeys:
       - RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
       - ...
@@ -256,6 +263,7 @@ Example:
 Fields:
 
 .. schema:: user.schema.json
+
 
 Container manifest
 ------------------
@@ -350,3 +358,10 @@ Example:
 Fields:
 
 .. schema:: bridge.schema.json
+
+Links
+-----
+
+In places in which you want to refer to a certain manifest (currently, in user infrastructures and
+bridges), you can also use a 'link' object. A link contains an inline storage manifest (in 'storage'
+field) and an absolute path to the manifest file contained within in the 'file' field.

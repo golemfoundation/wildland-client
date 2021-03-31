@@ -22,7 +22,7 @@ Bridge manifest object
 """
 
 from pathlib import PurePosixPath, Path
-from typing import Optional, List, Iterable
+from typing import Optional, List, Iterable, Union
 
 from .manifest.manifest import Manifest
 from .manifest.schema import Schema
@@ -37,7 +37,7 @@ class Bridge:
 
     def __init__(self, *,
                  owner: str,
-                 user_location: str,
+                 user_location: Union[str, dict],
                  user_pubkey: str,
                  paths: Iterable[PurePosixPath],
                  local_path: Optional[Path] = None,

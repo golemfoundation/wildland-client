@@ -24,6 +24,24 @@
         "description": "Wildland URL (must begin with wildland: and containt at least three parts separated by ':'; example URLs: wildland::/data/books: ; wildland:@default:/data/books:/file.txt",
         "pattern": "^wildland:.*:.+:.*$"
     },
+    "linked-file": {
+        "type": "object",
+        "description": "file from a storage",
+        "properties": {
+            "object": {
+                "const": "link"
+            },
+            "storage": {
+                "description": "inline storage containing linked file",
+                "$ref": "/schemas/storage.schema.json#definitions/storage-inline"
+            },
+            "file": {
+                "description": "absolute path to manifest file in storage, e.g. /manifest.yaml or /subdir/manifest.yaml; must begin with /",
+                "$ref": "#/abs-path"
+            }
+        }
+
+    },
     "url": {
         "description": "HTTP, file URL or wildland URL",
         "oneOf": [
@@ -32,11 +50,11 @@
             { "$ref": "#/wildland-url" }
         ]
     },
-    "url-or-relpath": {
-        "description": "any URL or relative path",
+    "manifest-url": {
+        "description": "URL to a manifest file or a link to manifest file",
         "oneOf": [
             { "$ref": "#/url" },
-            { "$ref": "#/rel-path" }
+            { "$ref": "#/linked-file" }
         ]
     },
     "fingerprint": {

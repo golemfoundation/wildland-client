@@ -207,7 +207,7 @@ class Manifest:
                     cls.update_to_version_1(storage, add_version=False)
         if 'infrastructures' in fields:
             for container in fields['infrastructures']:
-                if isinstance(container, dict):
+                if isinstance(container, dict) and container.get('object', None) == 'container':
                     if container.get('version', None):
                         raise ManifestError('Manifest version mismatch: expected no manifest'
                                             'version in infrastructure container.')

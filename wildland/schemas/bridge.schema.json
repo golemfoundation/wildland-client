@@ -7,7 +7,10 @@
         "version": { "$ref": "/schemas/types.json#version"},
         "owner": { "$ref": "/schemas/types.json#fingerprint" },
         "user": {
-            "$ref": "/schemas/types.json#url-or-relpath",
+            "oneOf": [
+                { "$ref": "/schemas/types.json#manifest-url" },
+                { "$ref": "/schemas/types.json#rel-path" }
+            ],
             "description": "path to user manifest"
         },
         "pubkey": {
