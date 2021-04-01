@@ -349,7 +349,7 @@ class WildlandFSClient:
             for storage_id in tree.storage_ids:
                 yield storage_id, storage_path, relpath
 
-    def get_fileinfo(self, local_path: Path) -> Optional[FileInfo]:
+    def pathinfo(self, local_path: Path) -> Iterable[FileInfo]:
         """
         Give a path to a mounted file, return diag information about the
         file such as file's unique hash and storage that is exposing this
@@ -358,21 +358,24 @@ class WildlandFSClient:
         try:
             relpath = local_path.resolve().relative_to(self.mount_dir)
         except ValueError:
-            return None
+            logger.warning('Given path [%s] is not relative to mountpoint', local_path)
+            return
 
-        result = self.run_control_command('fileinfo', path=('/' + str(relpath)))
+        if local_path.is_dir():
+            results = self.run_control_command('dirinfo', path=('/' + str(relpath)))
+        else:
+            results = [self.run_control_command('fileinfo', path=('/' + str(relpath)))]
 
-        if not result:
-            return None
-
-        return FileInfo(
-            container_path=result['storage']['container-path'],
-            backend_id=result['storage']['backend-id'],
-            storage_owner=result['storage']['owner'],
-            storage_read_only=result['storage']['read-only'],
-            storage_id=result['storage']['id'],
-            file_token=result['token'],
-        )
+        for result in results:
+            if result:
+                yield FileInfo(
+                    container_path=result['storage']['container-path'],
+                    backend_id=result['storage']['backend-id'],
+                    storage_owner=result['storage']['owner'],
+                    storage_read_only=result['storage']['read-only'],
+                    storage_id=result['storage']['id'],
+                    file_token=result.get('token', ''),
+                )
 
     def find_trusted_owner(self, local_path: Path) -> Optional[str]:
         """

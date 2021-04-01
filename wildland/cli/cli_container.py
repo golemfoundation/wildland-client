@@ -1035,7 +1035,7 @@ def duplicate(obj: ContextObj, new_name, cont):
     click.echo(f'Created: {path}')
 
 
-@container_.command(short_help='find container by mounted file path')
+@container_.command(short_help='find container by mounted file or directory path')
 @click.argument('path', metavar='PATH')
 @click.pass_obj
 def find(obj: ContextObj, path):
@@ -1044,19 +1044,16 @@ def find(obj: ContextObj, path):
     """
     obj.client.recognize_users()
 
-    fileinfo = obj.fs_client.get_fileinfo(Path(path))
+    results = set(sorted([
+        (fileinfo.backend_id, f'wildland:{fileinfo.storage_owner}:{fileinfo.container_path}:')
+        for fileinfo in obj.fs_client.pathinfo(Path(path))
+    ]))
 
-    if not fileinfo:
-        raise CliError('File was not found in any storage')
+    if not results:
+        raise CliError('Given path was not found in any storage')
 
-    wlpath = f'wildland:{fileinfo.storage_owner}:{fileinfo.container_path}:'
-    containers = list(obj.client.load_container_from_wlpath(WildlandPath.from_str(wlpath)))
+    for result in results:
+        (backend_id, wlpath) = result
 
-    click.echo(f'Container: {wlpath}\n'
-               f'Backend id: {fileinfo.backend_id}\n'
-               'Local containers:')
-
-    local_containers = [str(c.local_path) for c in containers if c.local_path is not None]
-
-    for local in list(set(local_containers)):
-        click.echo(f'  {local}')
+        click.echo(f'Container: {wlpath}\n'
+                   f'  Backend id: {backend_id}')

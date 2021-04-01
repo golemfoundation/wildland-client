@@ -24,6 +24,7 @@ Wildland Filesystem
 import errno
 import logging
 import os
+import stat
 from pathlib import PurePosixPath
 from typing import List, Dict, Optional, Set, Union
 import threading
@@ -246,14 +247,45 @@ class WildlandFSBase:
             result['default-user'] = self.default_user
         return result
 
+    @control_command('dirinfo')
+    def control_dirinfo(self, _handler, path: str):
+        result = []
+
+        for storage_id in self.resolver.find_storage_ids(PurePosixPath(path)):
+            storage = self.storages[storage_id]
+
+            result.append({
+                'storage': {
+                    'container-path': storage.params['container-path'],
+                    'backend-id': storage.backend_id,
+                    'owner': storage.params['owner'],
+                    'read-only': storage.read_only,
+                    'hash': storage.hash,
+                    'id': storage_id
+                }
+            })
+
+        return result
+
     @control_command('fileinfo')
     def control_fileinfo(self, _handler, path: str):
-        _, resolved = self.resolver.getattr_extended(PurePosixPath(path))
+        try:
+            st, resolved = self.resolver.getattr_extended(PurePosixPath(path))
+        except FileNotFoundError:
+            return {}
 
         if not resolved:
             return {}
 
+        if stat.S_ISDIR(st.mode):
+            return {}
+
         storage = self.storages[resolved.ident]
+
+        try:
+            file_token = storage.get_file_token(resolved.relpath)
+        except Exception:
+            file_token = None
 
         return {
             'storage': {
@@ -261,9 +293,10 @@ class WildlandFSBase:
                 'backend-id': storage.backend_id,
                 'owner': storage.params['owner'],
                 'read-only': storage.read_only,
-                'id': storage.hash,
+                'hash': storage.hash,
+                'id': resolved.ident
             },
-            'token': storage.get_file_token(resolved.relpath)
+            'token': file_token
         }
 
     @control_command('add-watch')

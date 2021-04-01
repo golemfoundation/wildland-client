@@ -25,7 +25,7 @@ class FileInfo():
                  storage_owner: str,
                  storage_read_only: bool,
                  storage_id: str,
-                 file_token: str):
+                 file_token: str = ''):
         self._params = {
             'container_path': container_path,
             'backend_id': backend_id,

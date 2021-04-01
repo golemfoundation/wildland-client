@@ -3286,14 +3286,12 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
 
     assert result.splitlines() == [
         f'Container: wildland:0xaaa:{uuid_path}:',
-        f'Backend id: {backend_id}',
-        'Local containers:',
-        f'  {base_dir}/containers/Container.container.yaml',
+        f'  Backend id: {backend_id}',
     ]
 
     control_client.expect('fileinfo', {})
 
-    with pytest.raises(CliError, match='File was not found in any storage'):
+    with pytest.raises(CliError, match='Given path was not found in any storage'):
         cli('container', 'find', f'{base_dir}/mnt/PATH/not_existing.txt', capture=True)
 
 # Forest

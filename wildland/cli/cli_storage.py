@@ -311,9 +311,9 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
 
         storage = Storage.from_manifest(manifest,
                                         local_owners=client.config.get('local-owners'))
-        backend = StorageBackend.from_params(storage.params)
 
         try:
+            backend = StorageBackend.from_params(storage.params)
             backend.mount()
 
             try:

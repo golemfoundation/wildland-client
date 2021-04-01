@@ -90,7 +90,18 @@
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "path to a mounted file"
+                    "description": "mounted path in the filesystem to a file"
+                }
+            }
+        },
+
+        "dirinfo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "mounted path in the filesystem to a directory"
                 }
             }
         },

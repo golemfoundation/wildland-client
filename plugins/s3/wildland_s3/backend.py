@@ -463,6 +463,10 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
 
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         s3attr = self.getattr(path)
+
+        if s3attr.is_dir():
+            return None
+
         return s3attr.etag
 
     def _remove_index(self, path):
