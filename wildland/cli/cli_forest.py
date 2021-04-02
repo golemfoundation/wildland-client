@@ -91,8 +91,7 @@ def create(ctx: click.Context,
     The first two containers are created using STORAGE_SET, the latter using
     DATA_STORAGE_SET, storage templates.
 
-    Manifest storage set *must* contain a template with RW storage as well as `base-url`
-    parameter defined, which is used to determine the Forest's infrastructure location.
+    Manifest storage set *must* contain a template with RW storage.
 
     After the containers are created, the following steps take place:
 

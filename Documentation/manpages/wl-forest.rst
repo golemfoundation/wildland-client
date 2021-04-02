@@ -28,9 +28,7 @@ Description
 
 Bootstrap a new Forest
 
-Manifest storage set *must* contain a template with RW storage as well as
-`base-url` parameter defined, which is used to determine the Forest's
-infrastructure location.
+Manifest storage set *must* contain a template with RW storage.
 
 Arguments:
 |   USER              name of the user who owns the Forest (mandatory)
