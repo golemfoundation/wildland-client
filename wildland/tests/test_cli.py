@@ -3438,7 +3438,7 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
 def test_forest_create(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
-        '--base-url', f'file:///{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+        '--manifest-pattern', '/{path}.yaml', 'rw')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', '--manifest-pattern', '/{path}.yaml', 'ro')
     cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')

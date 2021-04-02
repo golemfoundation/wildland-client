@@ -21,16 +21,17 @@ Manage bridges
 
 from pathlib import Path, PurePosixPath
 from typing import List, Optional
-from urllib.parse import urljoin
 
 import os
+import uuid
 import click
 
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
-from ..storage import StorageBackend, Storage
+from ..storage import StorageBackend
 from ..user import User
 from ..publish import Publisher
+from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageSet
 from ..manifest.manifest import WildlandObjectType
 from .cli_base import aliased_group, ContextObj, CliError
@@ -136,7 +137,7 @@ def _boostrap_forest(ctx: click.Context,
     if access:
         try:
             access_list = [{'user': obj.client.load_object_from_name(
-                WildlandObjectType.USER, user_name).owner}
+                            WildlandObjectType.USER, user_name).owner}
                            for user_name in access]
         except WildlandError as we:
             raise CliError(f'User could not be loaded. {we}') from we
@@ -150,63 +151,74 @@ def _boostrap_forest(ctx: click.Context,
     manifest_storage_set = _resolve_storage_set(obj, forest_owner, manifest_storage_set_name)
     data_storage_set     = _resolve_storage_set(obj, forest_owner, data_storage_set_name)
 
-    # Create containers
+    manifests_container = None
+    infra_container     = None
+    data_container      = None
 
-    manifests_container = _create_container(obj, forest_owner, [],
-                                            f'{user}-forest-manifests', access_list,
-                                            manifest_storage_set, manifest_local_dir)
+    try:
+        # Create containers
+        manifests_container = _create_container(obj, forest_owner, [],
+                                                f'{user}-forest-manifests', access_list,
+                                                manifest_storage_set, manifest_local_dir)
 
-    infra_container     = _create_container(obj, forest_owner, [Path('/.manifests')],
-                                            f'{user}-forest-infra', access_list,
-                                            manifest_storage_set,
-                                            str(Path(manifest_local_dir) / '.manifests/'))
+        infra_container     = _create_container(obj, forest_owner, [Path('/.manifests')],
+                                                f'{user}-forest-infra', access_list,
+                                                manifest_storage_set,
+                                                str(Path(manifest_local_dir) / '.manifests/'))
 
-    data_container      = _create_container(obj, forest_owner, [Path(f'/home/{user}')],
-                                            f'{user}-forest-data', access_list,
-                                            data_storage_set, data_local_dir)
+        data_container      = _create_container(obj, forest_owner, [Path(f'/home/{user}')],
+                                                f'{user}-forest-data', access_list,
+                                                data_storage_set, data_local_dir)
 
+        assert manifests_container.local_path is not None
+        assert infra_container.local_path is not None
+        assert data_container.local_path is not None
+        assert forest_owner.local_path is not None
 
-    assert manifests_container.local_path is not None
-    assert infra_container.local_path is not None
-    assert data_container.local_path is not None
-    assert forest_owner.local_path is not None
+        manifests_storage = obj.client.select_storage(container=manifests_container,
+                                                      predicate=lambda x: x.is_writeable)
+        manifests_backend = StorageBackend.from_params(manifests_storage.params)
 
-    infra_storage = obj.client.select_storage(container=infra_container,
-                                              predicate=lambda x: x.is_writeable)
+        # Provision manifest storage with infrastructure container
+        _boostrap_manifest(manifests_backend, infra_container.local_path,
+                           Path(f"{user}-index.yaml"))
 
-    # If a writeable infra storage doesn't have manifest_pattern defined,
-    # forcibly set manifest pattern for all storages in this container.
-    if not infra_storage.manifest_pattern:
-        for storage in list(obj.client.all_storages(manifests_container)):
-            storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
-            obj.client.add_storage_to_container(infra_container, storage)
+        for storage in  obj.client.all_storages(container=manifests_container):
+            link_obj = {'object': 'link', 'file': f"/{user}-index.yaml"}
 
-        obj.client.save_object(WildlandObjectType.CONTAINER, manifests_container)
+            if not storage.base_url:
+                manifest = storage.to_unsigned_manifest()
+            else:
+                http_backend = StorageBackend.from_params({
+                    'object': 'storage', 'type': 'http-index', 'version': Manifest.CURRENT_VERSION,
+                    'backend-id': str(uuid.uuid4()), 'owner': manifests_container.owner,
+                    'url': storage.base_url,
+                })
+                manifest = Manifest.from_fields(http_backend.params)
 
-    manifests_storage = obj.client.select_storage(container=manifests_container,
-                                                  predicate=lambda x: x.is_writeable)
-    manifests_backend = StorageBackend.from_params(manifests_storage.params)
+            manifest.encrypt_and_sign(obj.client.session.sig, encrypt=False)
+            link_obj['storage'] = manifest.fields
 
-    if not manifests_storage.base_url:
-        manifests_container.local_path.unlink()
-        infra_container.local_path.unlink()
-        data_container.local_path.unlink()
-        raise CliError("Given manifest storage does not have base-url defined.")
+            modify_manifest(ctx, str(forest_owner.local_path), add_field,
+                            'infrastructures', [link_obj])
 
-    # Provision manifest storage with infrastructure container
-    _boostrap_manifest(manifests_backend, infra_container.local_path,
-                       Path(f"{user}-index.yaml"))
+        _boostrap_manifest(manifests_backend, forest_owner.local_path, Path(f'{user}.yaml'))
 
-    manifest_url = urljoin(manifests_storage.base_url + "/", f"{user}-index.yaml")
-    modify_manifest(ctx, str(forest_owner.local_path), add_field,
-                    'infrastructures', [str(manifest_url)])
+        # Publish infrastructure manifests and home containers
+        obj.client.recognize_users()
+        Publisher(obj.client, infra_container).publish_container()
+        Publisher(obj.client, data_container).publish_container()
+    except Exception as ex:
+        if manifests_container and manifests_container.local_path:
+            manifests_container.local_path.unlink()
 
-    _boostrap_manifest(manifests_backend, forest_owner.local_path, Path(f'{user}.yaml'))
+        if infra_container and infra_container.local_path:
+            infra_container.local_path.unlink()
 
-    # Publish infrastructure manifests and home containers
-    obj.client.recognize_users()
-    Publisher(obj.client, infra_container).publish_container()
-    Publisher(obj.client, data_container).publish_container()
+        if data_container and data_container.local_path:
+            data_container.local_path.unlink()
+
+        raise CliError(f'Could not create a Forest. {ex}') from ex
 
 
 def _resolve_storage_set(obj, user: User, storage_set: Optional[str]) -> StorageSet:
