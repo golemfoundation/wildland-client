@@ -83,7 +83,6 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
         # size in getattr(), for example for auto-generated files.
         # See 'man 8 mount.fuse' for details.
         self.fuse_args.add('direct_io')
-        # allow samba server to access it too
         self.fuse_args.add('allow_other')
         # allow nonempty mount_dir (due to some operating systems insisting on putting random files
         # in every directory); this is not destructive and, worst case scenario, leads to confusion
