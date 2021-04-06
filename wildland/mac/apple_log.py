@@ -20,6 +20,7 @@
 A simple configuration for Python logging system to divert all messages to
 Apple's Unified Logging.
 '''
+
 # pylint: disable=import-error
 import logging
 from PBRLogBridge import log_message
