@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name,unused-argument
+# pylint: disable=missing-docstring,redefined-outer-name,unused-argument,too-many-lines
 
 import errno
 import os
@@ -26,11 +26,12 @@ import subprocess
 import time
 import socket
 import uuid
+from functools import reduce
 
 import pytest
 
 from .fuse_env import FuseError
-
+from ..storage_backends.base import StorageBackend
 
 @pytest.fixture(params=['local', 'local-cached', 'local-dir-cached'])
 def storage_type(request):
@@ -53,6 +54,286 @@ def container(env, storage_type):
         'backend-id': str(uuid.uuid4()),
     })
     return 'container1'
+
+
+def test_find_container_by_file(env):
+    env.create_dir('storage/storage1/')
+    env.create_file('storage/storage1/conflict.jpg')
+    env.create_dir('storage/storage1/subdir_a')
+    env.create_dir('storage/storage1/subdir_b')
+    env.create_dir('storage/storage1/dir_that_exists_in_other_storage')
+    env.create_file('storage/storage1/dir_that_exists_in_other_storage/file1')
+    env.create_file('storage/storage1/file1')
+    env.create_file('storage/storage1/subdir_a/file1')
+    env.create_file('storage/storage1/subdir_b/file1')
+
+    env.create_dir('storage/storage2/')
+    env.create_file('storage/storage2/conflict.jpg')
+    env.create_dir('storage/storage2/subdir_a')
+    env.create_dir('storage/storage2/subdir_a/sub_a_sub')
+    env.create_file('storage/storage2/file2')
+    env.create_file('storage/storage2/subdir_a/file2')
+
+    storage1 = storage_manifest(env, 'storage/storage1', 'local')
+    storage2 = storage_manifest(env, 'storage/storage2', 'local')
+
+    storage1_path = storage1['container-path']
+    storage2_path = storage2['container-path']
+
+    # Storage 1 claims:
+    # /.uuid/storage-1-uuid                       -- obvious
+    # /storage_1_dir                              -- directory that is used only by storage-1
+    # /regular_shared-dir                         -- a directory that is also going to be claimed by
+    #                                                storage-2
+    # /shared_dir                                 -- an intermediate, synthetic directory
+    # /shared_dir/nested_shared_dir               -- directory that is going to be intermediate
+    #                                                directory in storage-2
+    #
+    # Storage 2 claims:
+    # /.uuid/storage-2-uuid                       -- obvious
+    # /regular_shared-dir                         -- a directory that is also claimed by storage-1
+    # /dir_that_exists_in_other_storage           -- a synthetic directory which exists in storage-1
+    #                                                root, thus it will be a mix of container
+    #                                                claimed directory and physical storage dir.
+    # /shared_dir                                 -- an intermediate, synthetic directory, shared
+    #                                                with storage-1
+    # /shared_dir/nested_shared_dir               -- an intermediate directory which is an end
+    #                                                directory claimed by storage-1
+    # /shared_dir/nested_shared_dir/storage_2_dir -- directory reserved for storage-2 only
+
+    env.mount_storage([storage1_path,
+                       '/storage_1_dir',
+                       '/regular_shared_dir',
+                       '/shared_dir/nested_shared_dir'],
+                      storage1, True)
+    env.mount_storage([storage2_path,
+                       '/regular_shared_dir',
+                       '/regular_shared_dir/dir_that_exists_in_other_storage',
+                       '/shared_dir/nested_shared_dir/triple_nested_storage_2_dir'],
+                      storage2, True)
+
+    storage_1_result = {
+        'storage': {
+            'backend-id': storage1['backend-id'],
+            'owner': storage1['owner'],
+            'container-path': storage1['container-path'],
+            'read-only': storage1['read-only'],
+            'id': 1,
+            'hash': StorageBackend.generate_hash(storage1)
+        }
+    }
+
+    storage_2_result = {
+        'storage': {
+            'backend-id': storage2['backend-id'],
+            'owner': storage2['owner'],
+            'container-path': storage2['container-path'],
+            'read-only': storage2['read-only'],
+            'id': 2,
+            'hash': StorageBackend.generate_hash(storage2)
+        }
+    }
+
+    def _sort_key(o):
+        return o.get('storage').get('id')
+
+    def _unique(o):
+        # seriously python.....
+        return reduce(lambda new, el: new + [el] if el not in new else new, o, [])
+
+    # Some non-existing files on existing paths
+    results = env.run_control_command('fileinfo', {'path': '/nope.jpg'})
+    assert results == {}
+
+    results = env.run_control_command('fileinfo', {'path': '/storage_1_dir/nope.jpg'})
+    assert results == {}
+
+    # Existing files on wrong paths
+    results = env.run_control_command('fileinfo', {'path': '/subdir_b/files2'})
+    assert results == {}
+
+    results = env.run_control_command('fileinfo', {'path': '/shared_dir/file1'})
+    assert results == {}
+
+    results = env.run_control_command('fileinfo', {'path': '/shared_dir/file2'})
+    assert results == {}
+
+    # Fileinfo on existing *directories*
+    results = env.run_control_command('fileinfo', {'path': '/'})
+    assert results == {}
+
+    results = env.run_control_command('fileinfo', {'path': '/storage_1_dir'})
+    assert results == {}
+
+    results = env.run_control_command('fileinfo', {'path': '/storage_1_dir/subdir_a'})
+    assert results == {}
+
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir'})
+    assert results == {}
+
+    # Non-existing directories
+    results = env.run_control_command('dirinfo', {'path': '/foo'})
+    assert results == []
+
+    results = env.run_control_command('dirinfo', {'path': f'{storage2_path}/subdir_b'})
+    assert results == []
+
+    # Dirinfo on existing *files*
+    results = env.run_control_command('dirinfo', {'path': '/storage_1_dir/file1'})
+    assert results == []
+
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/file1'})
+    assert results == []
+
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/file2'})
+    assert results == []
+
+    # Existing files, not in shared directories
+    results = env.run_control_command('fileinfo', {'path': '/storage_1_dir/file1'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/storage_1_dir/subdir_a/file1'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': f'{storage2_path}/file2'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Conflicting files in non-shared directories
+    results = env.run_control_command('fileinfo', {'path': '/storage_1_dir/conflict.jpg'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': f'{storage2_path}/conflict.jpg'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Existing files in shared directories (container claimed)
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/file1'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/file2'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Existing files in shared directories (storage claimed)
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/subdir_a/file1'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/subdir_a/file2'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Existing files in shared directories (nested container claimed mix)
+    results = env.run_control_command('fileinfo', {'path': '/shared_dir/nested_shared_dir/file1'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/shared_dir/nested_shared_dir/'
+                                                           'triple_nested_storage_2_dir/file2'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Existing files in shared directories (nested container and storage claims mix)
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/'
+                                                           'dir_that_exists_in_other_storage/'
+                                                           'file1'
+                                                   })
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/'
+                                                           'dir_that_exists_in_other_storage/'
+                                                           'file2'
+                                                   })
+    del results['token']
+    assert results == storage_2_result
+
+    # Conflicting files in shared directories
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/conflict.wl_1.jpg'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/regular_shared_dir/conflict.wl_2.jpg'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Conflicting files in directories that only claim nested directories but not the endpoints
+    results = env.run_control_command('fileinfo', {'path': '/shared_dir/nested_shared_dir/'
+                                                           'conflict.jpg'})
+    del results['token']
+    assert results == storage_1_result
+
+    results = env.run_control_command('fileinfo', {'path': '/shared_dir/nested_shared_dir/'
+                                                           'triple_nested_storage_2_dir/'
+                                                           'conflict.jpg'})
+    del results['token']
+    assert results == storage_2_result
+
+    # Non-shared directories
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/subdir_b'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/storage_1_dir/'
+                                                          'dir_that_exists_in_other_storage'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/storage_1_dir/subdir_a'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result]
+
+    results = env.run_control_command('dirinfo', {'path': f'{storage1_path}/subdir_a'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/subdir_a/sub_a_sub'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_2_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/shared_dir/nested_shared_dir/'
+                                                          'triple_nested_storage_2_dir'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_2_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/shared_dir/nested_shared_dir/'
+                                                          'triple_nested_storage_2_dir/'
+                                                          'subdir_a'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_2_result]
+
+    # Shared directories, container claimed (not container nested)
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result, storage_2_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/subdir_a'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result, storage_2_result]
+
+    # Shared directories, container claimed (nested)
+    results = env.run_control_command('dirinfo', {'path': '/'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result, storage_2_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/shared_dir'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result, storage_2_result]
+
+    results = env.run_control_command('dirinfo', {'path': '/shared_dir/nested_shared_dir'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result, storage_2_result]
+
+    # Shared directories, container and storage claimed
+    results = env.run_control_command('dirinfo', {'path': '/regular_shared_dir/'
+                                                          'dir_that_exists_in_other_storage'})
+    results.sort(key=_sort_key)
+    assert _unique(results) == [storage_1_result, storage_2_result]
 
 
 def test_list(env, container):
@@ -158,6 +439,7 @@ def storage_manifest(env, path, storage_type, read_only=False, is_local_owner=Tr
         'type': storage_type,
         'location': str(env.test_dir / path),
         'read-only': read_only,
+        'container-path': '/.uuid/' + str(uuid.uuid4()),
         'backend-id': str(uuid.uuid4())
     }
 

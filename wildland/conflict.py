@@ -399,32 +399,32 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         """
         start_from = self.root
 
+        real_storages = []
+
+        # Try to resolve a physical (real) storages that claim this path
+        resolved = self._resolve(PurePosixPath(path))
+        for res in resolved:
+            st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
+            if st and stat.S_ISDIR(st.mode):
+                real_storages.append(res.ident)
+
         for part in path.parts:
-            # There are still path parts which are not mounted hence they might
-            # reside inside the storage itself
-            if part not in start_from.children:
-                resolved = self._resolve(PurePosixPath(path))
+            if part in start_from.children:
+                if not isinstance(start_from.children[part], MountDir):
+                    # we've hit an actual, physical directory but we haven't traversed through
+                    # all parts
+                    return real_storages
 
-                results = []
-
-                for res in resolved:
-                    st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
-                    if st and stat.S_ISDIR(st.mode):
-                        results.append(res.ident)
-
-                return results
-
-            if not isinstance(start_from.children[part], MountDir):
-                # we've hit an actual, physical directory
-                break
-
-            # Move one level down in the mounted directories tree
-            start_from = start_from.children[part]
+                # Move one level down in the mounted directories tree
+                start_from = start_from.children[part]
+            else:
+                # We couldn't reach end of path, returning possible physical storages only
+                return real_storages
 
         # We've reached end of path and didn't hit the actual storage
         # That means we were resolving a mounted path (container path)
-        return list(start_from.relative_storage_ids())
-
+        # and return possible real storages discovered earlier
+        return real_storages + list(start_from.relative_storage_ids())
 
     @functools.lru_cache(500)
     def _resolve(self, real_path):

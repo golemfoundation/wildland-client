@@ -172,7 +172,7 @@ class FuseEnv:
 
         self.conn.sendall(json.dumps(request).encode() + b'\n\n')
 
-        response_bytes = self.conn.recv(1024)
+        response_bytes = self.conn.recv(4096)
         response = json.loads(response_bytes)
         if 'error' in response:
             error_class = response['error']['class']
@@ -189,7 +189,7 @@ class FuseEnv:
 
         # force timeout, in case something goes very wrong with tests
         self.conn.settimeout(5)
-        response_bytes = self.conn.recv(1024)
+        response_bytes = self.conn.recv(4096)
         response_list = response_bytes.split(b'\n\n')
 
         events: List[Dict[str, str]] = []
