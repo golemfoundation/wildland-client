@@ -4,5 +4,6 @@
 pip install . plugins/*
 pytest -v \
     --cov wildland --cov-report term --cov-report html:artifacts/htmlcov \
+    --cov-report xml:artifacts/coverage.xml \
     --junitxml=artifacts/wildland.xml \
     "$@"

@@ -60,6 +60,7 @@ pytest:
       - artifacts/htmlcov/
     reports:
       junit: artifacts/wildland.xml
+      cobertura: artifacts/coverage.xml
   coverage: '/TOTAL.*\s(\d+)%/'
 
 bear-test:
