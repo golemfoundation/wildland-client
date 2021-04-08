@@ -31,14 +31,24 @@ RUN apt-get -qy update && apt-get install -y \
       jq
 
 # add IPFS client
-
-RUN curl -sL \
-  https://github.com/ipfs/go-ipfs/releases/download/v0.7.0/go-ipfs_v0.7.0_linux-amd64.tar.gz \
-  -o go-ipfs_v0.7.0_linux-amd64.tar.gz \
-  && echo "1d5910f27e8d7ea333145f15c6edcbacc1e8db3a99365f0847467bdfa7c73f4d7a05562e46be8e932056c8324ed0769ca1b6758dfb0ac4c2e1b6066b57c4a086  go-ipfs_v0.7.0_linux-amd64.tar.gz" | sha512sum --check --status \
-  && tar -xf go-ipfs_v0.7.0_linux-amd64.tar.gz \
-  && install go-ipfs/ipfs /bin/ \
-  && rm -rf go-ipfs go-ipfs_v0.7.0_linux-amd64.tar.gz
+RUN ARCH=$(arch) && CHECKSUM="" \
+  && if [ "aarch64" = ${ARCH} ] || [ "arm64" = ${ARCH} ]  ; then \
+    ARCH="arm64"; \
+    CHECKSUM="57455853cef842233fb6408dc599c9be5950e61adaac9b7682324987cbb9ca339382563b145d94b6d177e0a507a72916a207c4c6ec8c1015eaace730884f3f36"; \
+  elif [ "amd64" = ${ARCH} ] || [ "x86_64" = ${ARCH} ] ; then \
+    ARCH="amd64"; \
+    CHECKSUM="1d5910f27e8d7ea333145f15c6edcbacc1e8db3a99365f0847467bdfa7c73f4d7a05562e46be8e932056c8324ed0769ca1b6758dfb0ac4c2e1b6066b57c4a086"; \
+  else \
+    echo "Unsupported architecture $ARCH"; \
+    exit 126 ; \
+  fi \
+  && curl -sL \
+      https://github.com/ipfs/go-ipfs/releases/download/v0.7.0/go-ipfs_v0.7.0_linux-${ARCH}.tar.gz \
+      -o go-ipfs_v0.7.0_linux-${ARCH}.tar.gz \
+      && echo "$CHECKSUM  go-ipfs_v0.7.0_linux-$ARCH.tar.gz" | sha512sum --check --status \
+      && tar -xf go-ipfs_v0.7.0_linux-${ARCH}.tar.gz \
+      && install go-ipfs/ipfs /bin/ \
+      && rm -rf go-ipfs go-ipfs_v0.7.0_linux-${ARCH}.tar.gz
 
 RUN useradd --create-home user
 RUN echo user_allow_other >> /etc/fuse.conf
