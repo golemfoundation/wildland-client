@@ -13,6 +13,7 @@ primarily used within the specialized NFS server.
 
 import logging
 import os
+from pathlib import Path
 from .apple_log import apple_log
 from ..fs_base import WildlandFSBase
 
@@ -26,7 +27,7 @@ class WildlandMacFS(WildlandFSBase):
 
     def __init__(self, socket_path):
         super().__init__()
-        self.socket_path = socket_path
+        self.socket_path = Path(socket_path)
 
     def start(self):
         '''
