@@ -1,6 +1,10 @@
 """
 Unit tests for the categorization proxy
 """
+
+import os
+
+from .helpers import treewalk
 from ..storage_backends.categorization_proxy import CategorizationProxyStorageBackend
 
 
@@ -100,3 +104,135 @@ def test_filename_to_category_path_conversion():
     for filename, expected_category_path in dirname_to_category_tests.items():
         category_path = CategorizationProxyStorageBackend._filename_to_category_path(filename)
         assert category_path == expected_category_path
+
+
+def test_books_titles_dir_tree(cli, base_dir):
+    """
+    Tested directory tree::
+
+        ./books
+        └── @authors
+            ├── author1
+            │   ├── @titles_title1
+            │   │   ├── book.epub
+            │   │   └── book.pdf
+            │   └── @titles_title2
+            │       └── skan.pdf
+            ├── author2_@titles_title3
+            │   └── ocr.epub
+            ├── author3_@titles_title4
+            │   └── title.epub
+            └── author4_title5
+                └── unclassified.txt
+    """
+    local_storage_path = base_dir / 'books'
+    local_storage_path.mkdir()
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
+    cli('storage', 'create', 'local', 'referenceStorage', '--location', local_storage_path,
+        '--container', 'referenceContainer', '--no-inline')
+
+    reference_path = base_dir / 'containers/referenceContainer.container.yaml'
+    assert reference_path.exists()
+    reference_url = f'file://{reference_path}'
+
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'categorization', 'CategorizationStorage',
+        '--container', 'Container', '--no-inline',
+        '--reference-container-url', reference_url,
+        '--with-unclassified-category')
+
+    given_dirtree = {
+        '@authors/author1/@titles_title1': None,
+        '@authors/author1/@titles_title1/book.epub': 'one',
+        '@authors/author1/@titles_title1/book.pdf': 'two',
+        '@authors/author1/@titles_title2': None,
+        '@authors/author1/@titles_title2/skan.pdf': 'three',
+        '@authors/author2_@titles_title3': None,
+        '@authors/author2_@titles_title3/ocr.epub': 'four',
+        '@authors/author3_@titles_title4': None,
+        '@authors/author3_@titles_title4/title.epub': 'five',
+        'author4_title5': None,
+        'author4_title5/unclassified.txt': 'six'
+    }
+
+    for path, file_content in given_dirtree.items():
+        full_path = local_storage_path / path
+
+        if file_content:
+            full_path.write_text(file_content)
+        else:
+            full_path.mkdir(parents=True)
+
+    cli('start', '--default-user', 'User')
+    cli('container', 'mount', 'Container')
+
+    mnt_dir = base_dir / 'mnt'
+
+    assert sorted(os.listdir(mnt_dir)) == [
+        '.backends',
+        '.users',
+        '.uuid',
+        'PATH',
+        'authors',
+        'titles',
+        'unclassified'
+    ]
+
+    assert treewalk.walk_all(mnt_dir / 'authors') == [
+        'author1/',
+        'author1/@titles/',
+        'author1/@titles/title1/',
+        'author1/@titles/title1/book.epub',
+        'author1/@titles/title1/book.pdf',
+        'author1/@titles/title2/',
+        'author1/@titles/title2/skan.pdf',
+        'author1/title1/',
+        'author1/title1/book.epub',
+        'author1/title1/book.pdf',
+        'author1/title2/',
+        'author1/title2/skan.pdf',
+        'author2/',
+        'author2/@titles/',
+        'author2/@titles/title3/',
+        'author2/@titles/title3/ocr.epub',
+        'author2/title3/',
+        'author2/title3/ocr.epub',
+        'author3/',
+        'author3/@titles/',
+        'author3/@titles/title4/',
+        'author3/@titles/title4/title.epub',
+        'author3/title4/',
+        'author3/title4/title.epub'
+    ]
+
+    assert treewalk.walk_all(mnt_dir / 'titles') == [
+        '@authors/',
+        '@authors/author1/',
+        '@authors/author1/title1/',
+        '@authors/author1/title1/book.epub',
+        '@authors/author1/title1/book.pdf',
+        '@authors/author1/title2/',
+        '@authors/author1/title2/skan.pdf',
+        '@authors/author2/',
+        '@authors/author2/title3/',
+        '@authors/author2/title3/ocr.epub',
+        '@authors/author3/',
+        '@authors/author3/title4/',
+        '@authors/author3/title4/title.epub',
+        'title1/',
+        'title1/book.epub',
+        'title1/book.pdf',
+        'title2/',
+        'title2/skan.pdf',
+        'title3/',
+        'title3/ocr.epub',
+        'title4/',
+        'title4/title.epub'
+    ]
+
+    assert treewalk.walk_all(mnt_dir / 'unclassified') == [
+        'title5/',
+        'title5/unclassified.txt'
+    ]

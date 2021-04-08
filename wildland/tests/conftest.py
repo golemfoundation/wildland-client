@@ -11,6 +11,7 @@ from unittest import mock
 import yaml
 import pytest
 
+from .fuse_env import FuseEnv
 from ..cli import cli_main
 
 ## CLI
@@ -56,6 +57,7 @@ def cli(base_dir, capsys):
         cli('stop')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink()
 
+
 # TODO examine exception
 @pytest.fixture
 def cli_fail(cli, capsys):
@@ -72,6 +74,16 @@ def cli_fail(cli, capsys):
         return None
 
     return cli_fail
+
+
+@pytest.fixture
+def env():
+    env = FuseEnv()
+    try:
+        env.mount()
+        yield env
+    finally:
+        env.destroy()
 
 
 class TestControlClient:

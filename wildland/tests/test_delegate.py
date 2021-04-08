@@ -27,7 +27,7 @@ from datetime import datetime
 
 import pytest
 
-from .fuse_env import FuseEnv
+from .helpers import treewalk
 from ..client import Client
 
 
@@ -60,16 +60,6 @@ def test_delegate_with_url(cli, base_dir):
     reference_storage = storage.params['storage']
     assert isinstance(reference_storage, dict)
     assert reference_storage['type'] == 'local'
-
-
-@pytest.fixture
-def env():
-    env = FuseEnv()
-    try:
-        env.mount()
-        yield env
-    finally:
-        env.destroy()
 
 
 @pytest.fixture
@@ -110,18 +100,6 @@ def storage_subdir(data_dir):
     }
 
 
-def walk_all(path: Path):
-    return list(_walk_all(path, path))
-
-def _walk_all(root, path):
-    for sub_path in sorted(path.iterdir()):
-        if sub_path.is_dir():
-            yield str(sub_path.relative_to(root)) + '/'
-            yield from _walk_all(root, sub_path)
-        else:
-            yield str(sub_path.relative_to(root))
-
-
 def test_delegate_fuse_empty(env, storage):
     env.mount_storage(['/proxy'], storage)
     assert os.listdir(env.mnt_dir / 'proxy') == []
@@ -138,7 +116,7 @@ def test_delegate_fuse_files(env, storage, data_dir):
     (data_dir / 'dir2').mkdir()
 
     env.mount_storage(['/proxy'], storage)
-    assert walk_all(env.mnt_dir / 'proxy') == [
+    assert treewalk.walk_all(env.mnt_dir / 'proxy') == [
         'dir1/',
         'dir1/file1',
         'dir2/',
@@ -168,7 +146,7 @@ def test_delegate_fuse_subdir(env, storage_subdir, data_dir):
     (data_dir / 'dir1/dir2').mkdir()
 
     env.mount_storage(['/proxy'], storage_subdir)
-    assert walk_all(env.mnt_dir / 'proxy') == [
+    assert treewalk.walk_all(env.mnt_dir / 'proxy') == [
         'dir2/',
         'file1',
     ]

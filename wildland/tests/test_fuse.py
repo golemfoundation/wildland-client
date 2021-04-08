@@ -29,16 +29,7 @@ import uuid
 
 import pytest
 
-from .fuse_env import FuseEnv, FuseError
-
-@pytest.fixture
-def env():
-    env = FuseEnv()
-    try:
-        env.mount()
-        yield env
-    finally:
-        env.destroy()
+from .fuse_env import FuseError
 
 
 @pytest.fixture(params=['local', 'local-cached', 'local-dir-cached'])

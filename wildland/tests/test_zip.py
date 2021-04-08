@@ -27,18 +27,6 @@ import zipfile
 
 import pytest
 
-from .fuse_env import FuseEnv
-
-
-@pytest.fixture
-def env():
-    env = FuseEnv()
-    try:
-        env.mount()
-        yield env
-    finally:
-        env.destroy()
-
 
 @pytest.fixture
 def storage(base_dir):

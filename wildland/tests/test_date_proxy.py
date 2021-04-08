@@ -26,7 +26,7 @@ import yaml
 
 import pytest
 
-from .fuse_env import FuseEnv
+from .helpers import treewalk
 from ..client import Client
 from ..manifest.manifest import Manifest
 
@@ -63,16 +63,6 @@ def test_date_proxy_with_url(cli, base_dir):
 
 
 @pytest.fixture
-def env():
-    env = FuseEnv()
-    try:
-        env.mount()
-        yield env
-    finally:
-        env.destroy()
-
-
-@pytest.fixture
 def data_dir(base_dir):
     data_dir = Path(base_dir / 'data')
     data_dir.mkdir()
@@ -92,18 +82,6 @@ def storage(data_dir):
         },
         'backend-id': 'test2'
     }
-
-
-def walk_all(path: Path):
-    return list(_walk_all(path, path))
-
-def _walk_all(root, path):
-    for sub_path in sorted(path.iterdir()):
-        if sub_path.is_dir():
-            yield str(sub_path.relative_to(root)) + '/'
-            yield from _walk_all(root, sub_path)
-        else:
-            yield str(sub_path.relative_to(root))
 
 
 def test_date_proxy_fuse_empty(env, storage):
@@ -128,7 +106,7 @@ def test_date_proxy_fuse_files(env, storage, data_dir):
     (data_dir / 'dir4').mkdir()
 
     env.mount_storage(['/proxy'], storage)
-    assert walk_all(env.mnt_dir / 'proxy') == [
+    assert treewalk.walk_all(env.mnt_dir / 'proxy') == [
         '2008/',
         '2008/02/',
         '2008/02/03/',
@@ -242,7 +220,7 @@ def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
     for subcontainer in client.all_subcontainers(container):
         env.mount_storage(subcontainer.paths[1:], client.select_storage(subcontainer).params)
 
-    assert walk_all(env.mnt_dir) == [
+    assert treewalk.walk_all(env.mnt_dir) == [
         'timeline/',
         'timeline/2008/',
         'timeline/2008/02/',
