@@ -77,8 +77,7 @@ def create(obj: ContextObj,
     if ref_user_name:
         ref_user = obj.client.load_user_by_name(ref_user_name)
     else:
-        ref_user = obj.client.load_user_from_url(ref_user_location, owner_user.owner,
-                                                 allow_self_signed=True)
+        ref_user = obj.client.load_user_from_url(ref_user_location, owner_user.owner)
 
     if ref_user_paths:
         paths = [PurePosixPath(p) for p in ref_user_paths]

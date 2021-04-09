@@ -305,6 +305,13 @@ class Search:
         return storage, StorageBackend.from_params(storage.params)
 
     def _resolve_first(self):
+        if self.wlpath.hint:
+            hint_user = self.client.load_user_from_url(self.wlpath.hint,
+                                                       self.initial_owner, self.initial_owner)
+
+            for step in self._user_step(hint_user, self.initial_owner, self.client, None, None):
+                yield from self._resolve_next(step, 0)
+
         # Try local containers
         yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner, None)
 

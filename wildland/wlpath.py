@@ -44,26 +44,33 @@ class WildlandPath:
 
     The path has the following form:
 
-        [wildland:][owner]:(part:)+:[file_path]
+        [wildland:][owner][@hint]:(part:)+:[file_path]
 
-    - owner (optional): owner determining the first container's namespace
-    - parts: intermediate parts, identifying containers on the path
+    - owner (optional): owner determining the first container's namespace, if omitted @default
+    will be used
+    - hint (optional, requires owner): hint to the location of first container's namespace;
+    takes the form of protocol[address], for example https{demo.wildland.io/demo.user.yaml}
+    - parts: intermediate parts, identifying bridges or containers on the path
     - file_path (optional): path to file in the last container
     """
 
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
     ALIAS_RE = re.compile(r'^@[a-z-]+$')
-    WLPATH_RE = re.compile(r'^(wildland:)?(0x[0-9a-f]+|@[a-z-]+)?:')
+    HINT_RE = re.compile(r'^0x[0-9a-f]+(@https{.*})')
+    # if adding more protocols to hint, refactor to a separate WildlandHint class
+    WLPATH_RE = re.compile(r'^(wildland:)?(0x[0-9a-f]+(@https{.*})?|@[a-z-]+)?:')
 
     def __init__(
         self,
         owner: Optional[str],
+        hint: Optional[str],
         parts: List[PurePosixPath],
         file_path: Optional[PurePosixPath]
     ):
         assert len(parts) > 0
         self.owner = owner
+        self.hint = hint
         self.parts = parts
         self.file_path = file_path
 
@@ -97,9 +104,16 @@ class WildlandPath:
         split = s.split(':')
         if split[0] == '':
             owner = None
+            hint = None
         elif cls.FINGERPRINT_RE.match(split[0]) or cls.ALIAS_RE.match(split[0]):
             owner = split[0]
+            hint = None
+        elif cls.HINT_RE.match(split[0]):
+            owner, hint = split[0].split('@', 1)
+            hint = 'https://' + hint[6:-1]  # change the https{ ... } syntax to resolvable URL
         else:
+            if '@https' in split[0] and '0x' not in split[0]:
+                raise PathError('Hint field requires explicit owner: {!r}'.format(split[0]))
             raise PathError('Unrecognized owner field: {!r}'.format(split[0]))
 
         parts = []
@@ -118,12 +132,14 @@ class WildlandPath:
         if not parts:
             raise PathError(f'Path has no containers: {s!r}. Did you forget a ":" at the end?')
 
-        return cls(owner, parts, file_path)
+        return cls(owner, hint, parts, file_path)
 
     def __str__(self):
         s = ''
         if self.owner is not None:
             s += self.owner
+        if self.hint is not None:
+            s += '@' + 'https{' + self.hint[8:] + '}'
         s += ':' + ':'.join(str(p) for p in self.parts) + ':'
         if self.file_path is not None:
             s += str(self.file_path)

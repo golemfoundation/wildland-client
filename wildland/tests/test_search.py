@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
 from pathlib import PurePosixPath
 import os
@@ -40,7 +40,7 @@ from ..manifest.manifest import ManifestError
 from ..search import Search, storage_glob
 from ..config import Config
 from ..utils import load_yaml_all
-
+from ..exc import WildlandError
 
 ## Path
 
@@ -48,26 +48,37 @@ from ..utils import load_yaml_all
 def test_path_from_str():
     wlpath = WildlandPath.from_str(':/foo/bar:')
     assert wlpath.owner is None
+    assert wlpath.hint is None
     assert wlpath.parts == [PurePosixPath('/foo/bar')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:')
     assert wlpath.owner == '0xabcd'
+    assert wlpath.hint is None
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('@default:/foo/bar:/baz/quux:')
     assert wlpath.owner == '@default'
+    assert wlpath.hint is None
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('@default-owner:/foo/bar:/baz/quux:')
     assert wlpath.owner == '@default-owner'
+    assert wlpath.hint is None
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path is None
 
     wlpath = WildlandPath.from_str('0xabcd:/foo/bar:/baz/quux:/some/file.txt')
     assert wlpath.owner == '0xabcd'
+    assert wlpath.hint is None
+    assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
+    assert wlpath.file_path == PurePosixPath('/some/file.txt')
+
+    wlpath = WildlandPath.from_str('0xabcd@https{my.address}:/foo/bar:/baz/quux:/some/file.txt')
+    assert wlpath.owner == '0xabcd'
+    assert wlpath.hint == 'https://my.address'
     assert wlpath.parts == [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')]
     assert wlpath.file_path == PurePosixPath('/some/file.txt')
 
@@ -78,6 +89,12 @@ def test_path_from_str_fail():
 
     with pytest.raises(PathError, match='Unrecognized owner field'):
         WildlandPath.from_str('foo:/foo/bar:')
+
+    with pytest.raises(PathError, match='Hint field requires explicit owner'):
+        WildlandPath.from_str('@https{my.address}:foo/bar:baz.txt')
+
+    with pytest.raises(PathError, match='Hint field requires explicit owner'):
+        WildlandPath.from_str('@default@https{my.address}:foo/bar:baz.txt')
 
     with pytest.raises(PathError, match='Unrecognized absolute path'):
         WildlandPath.from_str('0xabcd:foo/bar:')
@@ -93,15 +110,18 @@ def test_path_from_str_fail():
 
 
 def test_path_to_str():
-    wlpath = WildlandPath('0xabcd', [PurePosixPath('/foo/bar')], None)
+    wlpath = WildlandPath('0xabcd', None, [PurePosixPath('/foo/bar')], None)
     assert str(wlpath) == '0xabcd:/foo/bar:'
 
+    wlpath = WildlandPath('0xabcd', 'https://my.address', [PurePosixPath('/foo/bar')], None)
+    assert str(wlpath) == '0xabcd@https{my.address}:/foo/bar:'
+
     wlpath = WildlandPath(
-        None, [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')], None)
+        None, None, [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')], None)
     assert str(wlpath) == ':/foo/bar:/baz/quux:'
 
     wlpath = WildlandPath(
-        None,
+        None, None,
         [PurePosixPath('/foo/bar'), PurePosixPath('/baz/quux')],
         PurePosixPath('/some/file.txt'))
     assert str(wlpath) == ':/foo/bar:/baz/quux:/some/file.txt'
@@ -929,3 +949,84 @@ def test_get_watch_params_wildcard_pattern_path(control_client, client2):
         str_re(r'^/.users/0xbbb/.backends/00000000-2222-0000-.*/.uuid/\*\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
+
+
+@pytest.mark.parametrize('owner', ['0xfff', '0xddd'])
+def test_search_hint(base_dir, client, owner):
+    storage_path_infra = base_dir / 'storage_infra'
+    storage_path_infra.mkdir()
+
+    user_data = f'''\
+signature: |
+  dummy.0xddd
+---
+object: user
+owner: '0xddd'
+pubkeys:
+- key.0xddd
+paths:
+- /users/Remote
+infrastructures:
+ - object: container
+   owner: '0xddd'
+   paths:
+    - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+   backends:
+    storage:
+     - object: storage
+       type: local
+       location: {storage_path_infra}
+       owner: '0xddd'
+       container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+       backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
+       manifest-pattern:
+        type: glob
+        path: '/{{path}}.yaml'
+'''.encode()
+
+    storage_path_cont = base_dir / 'storage_container'
+    storage_path_cont.mkdir()
+
+    container_data = f'''\
+signature: |
+  dummy.0xddd
+---
+object: container
+owner: '0xddd'
+paths:
+- /.uuid/11e69833-0152-4563-92fc-b1540fc54a70
+- /path
+backends:
+ storage:
+  - object: storage
+    type: local
+    location: {storage_path_cont}
+    owner: '0xddd'
+    container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a70
+    backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e3'
+'''
+
+    with open(storage_path_infra / 'path.yaml', 'w') as f:
+        f.write(container_data)
+
+    with open(storage_path_cont / 'file.txt', 'w') as f:
+        f.write('Hello world')
+
+    (storage_path_infra / '.wildland-owners').write_bytes(b'0xddd\n')
+    (storage_path_cont / '.wildland-owners').write_bytes(b'0xddd\n')
+
+    search = Search(client,
+                    WildlandPath.from_str(f'{owner}@https{{mock.url}}:/path:/file.txt'),
+                    aliases={'default': '0xaaa'})
+
+    with mock.patch('wildland.client.Client.read_from_url') as mock_read:
+        mock_read.return_value = user_data
+
+        if owner == '0xddd':
+            data = search.read_file()
+            assert data == b'Hello world'
+            mock_read.assert_called_with('https://mock.url', owner)
+
+        else:
+            with pytest.raises(WildlandError):
+                search.read_file()
