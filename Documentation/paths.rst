@@ -18,7 +18,9 @@ It has the following form::
   resolved according to configuration.
 
   The owner can be followed by hint: ``@https{address.of.manifest}``, which specifies the location
-  of the user manifest. Using the hint requires explicitly specified owner (not a @default or
+  of the user manifest (the ``address.of.manifest`` is accessed using https
+  protocol, other protocols might be supported in the future).
+  Using the hint requires explicitly specified owner (not a @default or
   @default-owner, and not omitted).
 
 * The next parts are container or user (bridge) paths. This part may be set as
