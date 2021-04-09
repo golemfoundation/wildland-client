@@ -54,6 +54,7 @@ class Container:
         self._expanded_paths: Optional[List[PurePosixPath]] = None
         self.manifest = manifest
         self.access = access
+        self.ensure_uuid()
 
     def ensure_uuid(self) -> str:
         """

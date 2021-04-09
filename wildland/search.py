@@ -23,9 +23,7 @@ Utilities for URL resolving and traversing the path
 
 from __future__ import annotations
 
-import errno
 import logging
-import os
 import re
 import types
 from dataclasses import dataclass
@@ -34,17 +32,18 @@ from typing import Optional, Tuple, Iterable, Mapping, List, Set
 from typing import TYPE_CHECKING
 
 from .fs_client import WildlandFSClient
+from .storage_driver import StorageDriver
 from .user import User
 from .container import Container
 from .bridge import Bridge
 from .storage import Storage
 from .storage_backends.base import StorageBackend
-from .manifest.manifest import ManifestError
+from .manifest.manifest import ManifestError, WildlandObjectType
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
 if TYPE_CHECKING:
-    from .client import Client # pylint: disable=cyclic-import
+    from .client import Client  # pylint: disable=cyclic-import
 
 logger = logging.getLogger('search')
 
@@ -107,9 +106,9 @@ class Search:
         self.initial_owner = self._subst_alias(wlpath.owner or '@default')
         self.fs_client = fs_client
 
-        self.local_containers = list(self.client.load_containers())
-        self.local_users = list(self.client.load_users())
-        self.local_bridges = list(self.client.load_bridges())
+        self.local_containers = list(self.client.get_all(WildlandObjectType.CONTAINER))
+        self.local_users = list(self.client.get_all(WildlandObjectType.USER))
+        self.local_bridges = list(self.client.get_all(WildlandObjectType.BRIDGE))
 
     def resolve_raw(self) -> Iterable[Step]:
         """
@@ -160,10 +159,9 @@ class Search:
                 _, storage_backend = self._find_storage(step)
             except ManifestError:
                 continue
-            with storage_backend:
+            with StorageDriver(storage_backend) as driver:
                 try:
-                    return self.client.storage_read_file(storage_backend,
-                                             self.wlpath.file_path.relative_to('/'))
+                    return driver.read_file(self.wlpath.file_path.relative_to('/'))
                 except FileNotFoundError:
                     continue
 
@@ -368,26 +366,26 @@ class Search:
         manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
         pattern = get_file_pattern(manifest_pattern, part)
         step.pattern = pattern
-        with storage_backend:
+        with StorageDriver(storage_backend) as driver:
             for manifest_path in storage_glob(storage_backend, pattern):
                 trusted_owner = None
                 if storage.trusted:
                     trusted_owner = storage.owner
 
                 try:
-                    manifest_content = self.client.storage_read_file(storage_backend, manifest_path)
+                    manifest_content = driver.read_file(manifest_path)
                 except IOError as e:
                     logger.warning('Could not read %s: %s', manifest_path, e)
                     continue
 
-                container_or_bridge = step.client.session.load_container_or_bridge(
+                container_or_bridge = step.client.session.load_object(
                     manifest_content, trusted_owner=trusted_owner)
 
                 if isinstance(container_or_bridge, Container):
                     logger.info('%s: container manifest: %s', part, manifest_path)
                     yield from self._container_step(
                         step, part, container_or_bridge)
-                else:
+                elif isinstance(container_or_bridge, Bridge):
                     logger.info('%s: bridge manifest: %s', part, manifest_path)
                     yield from self._bridge_step(
                         step.client, step.owner,
@@ -449,8 +447,8 @@ class Search:
                 # Treat location as relative path
                 user_manifest_path = manifest_path.parent / location
                 try:
-                    user_manifest_content = self.client.storage_read_file(
-                        storage_backend, user_manifest_path)
+                    with StorageDriver(storage_backend) as driver:
+                        user_manifest_content = driver.read_file(user_manifest_path)
                 except IOError as e:
                     logger.warning('Could not read local user manifest %s: %s',
                                    user_manifest_path, e)
@@ -468,7 +466,8 @@ class Search:
                 logger.debug('%s: remote user manifest: %s',
                              part, location)
             try:
-                user = next_client.session.load_user(user_manifest_content)
+                user = next_client.session.load_object(user_manifest_content,
+                                                       WildlandObjectType.USER)
             except WildlandError as e:
                 logger.warning('Could not load user manifest %s: %s',
                                location, e)
@@ -476,12 +475,13 @@ class Search:
 
         else:
             try:
-                user = self.client.load_user_from_dict(location, owner)
+                user = self.client.load_object_from_dict(location, WildlandObjectType.USER,
+                                                         owner=owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load linked user manifest: %s. Exception: %s',
                                location, str(ex))
                 return
-
+        assert isinstance(user, User)
         yield from self._user_step(
             user, next_owner, next_client, bridge, step)
 
@@ -509,7 +509,8 @@ class Search:
                 else:
                     container_desc = '(linked)'
                 try:
-                    container = self.client.load_container_from_dict(container_spec, user.owner)
+                    container = self.client.load_object_from_dict(
+                        container_spec, WildlandObjectType.CONTAINER, owner=user.owner)
                 except (WildlandError, FileNotFoundError) as ex:
                     logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
                                    user.owner, container_spec, str(ex))
@@ -523,7 +524,8 @@ class Search:
                     continue
 
                 try:
-                    container = client.session.load_container(manifest_content)
+                    container = client.session.load_object(manifest_content,
+                                                           WildlandObjectType.CONTAINER)
                     container_desc = container_spec
                 except WildlandError as ex:
                     logger.warning('failed to load user %s infrastructure: %s: Exception: %s',
@@ -637,86 +639,3 @@ def _find(storage: StorageBackend, prefix: PurePosixPath, path: PurePosixPath) \
         except IOError:
             return
         yield full_path
-
-
-class StorageDriver:
-    """
-    A contraption to directly manipulate
-    :py:type:`wildland.storage_backends.base.StorageBackend`
-    """
-
-    def __init__(self, storage_backend: StorageBackend, storage=None):
-        self.storage_backend = storage_backend
-        self.storage = storage
-
-    @classmethod
-    def from_storage(cls, storage: Storage) -> 'StorageDriver':
-        """
-        Create :py:type:`StorageDriver` from
-        :py:class:`wildland.storage.Storage`
-        """
-        return cls(StorageBackend.from_params(storage.params), storage=storage)
-
-    def __enter__(self):
-        self.storage_backend.mount()
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        self.storage_backend.unmount()
-
-    def write_file(self, relpath, data):
-        """
-        Write a file to StorageBackend, using FUSE commands. Returns ``(StorageBackend, relpath)``.
-        """
-
-        try:
-            self.storage_backend.getattr(relpath)
-        except FileNotFoundError:
-            exists = False
-        else:
-            exists = True
-
-        if exists:
-            obj = self.storage_backend.open(relpath, os.O_WRONLY)
-            self.storage_backend.ftruncate(relpath, 0, obj)
-        else:
-            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY,
-                0o644)
-
-        try:
-            self.storage_backend.write(relpath, data, 0, obj)
-            return relpath
-        finally:
-            self.storage_backend.release(relpath, 0, obj)
-
-    def remove_file(self, relpath):
-        """
-        Remove a file.
-        """
-        self.storage_backend.unlink(relpath)
-
-    def makedirs(self, relpath, mode=0o755):
-        """
-        Make directory, and it's parents if needed. Does not work across
-        containers.
-        """
-        for path in reversed((relpath, *relpath.parents)):
-            try:
-                attr = self.storage_backend.getattr(path)
-            except FileNotFoundError:
-                self.storage_backend.mkdir(path, mode)
-            else:
-                if not attr.is_dir():
-                    raise NotADirectoryError(errno.ENOTDIR, path)
-
-    def read_file(self, relpath) -> bytes:
-        '''
-        Read a file from StorageBackend, using FUSE commands.
-        '''
-
-        obj = self.storage_backend.open(relpath, os.O_RDONLY)
-        try:
-            st = self.storage_backend.fgetattr(relpath, obj)
-            return self.storage_backend.read(relpath, st.size, 0, obj)
-        finally:
-            self.storage_backend.release(relpath, 0, obj)

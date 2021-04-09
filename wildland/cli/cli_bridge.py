@@ -26,7 +26,7 @@ from typing import List, Optional
 
 import click
 
-from ..manifest.manifest import ManifestError
+from ..manifest.manifest import ManifestError, WildlandObjectType
 from ..bridge import Bridge
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, dump
@@ -66,7 +66,8 @@ def create(obj: ContextObj,
 
     obj.client.recognize_users()
 
-    owner_user = obj.client.load_user_by_name(owner or '@default-owner')
+    owner_user = obj.client.load_object_from_name(owner or '@default-owner',
+                                                  WildlandObjectType.USER)
 
     if name is None and file_path is None:
         raise CliError('Either name or file path needs to be provided')
@@ -75,9 +76,10 @@ def create(obj: ContextObj,
         raise CliError('Ref user location must be an URL')
 
     if ref_user_name:
-        ref_user = obj.client.load_user_by_name(ref_user_name)
+        ref_user = obj.client.load_object_from_name(ref_user_name, WildlandObjectType.USER)
     else:
-        ref_user = obj.client.load_user_from_url(ref_user_location, owner_user.owner)
+        ref_user = obj.client.load_object_from_url(ref_user_location,
+                                                   WildlandObjectType.USER, owner_user.owner)
 
     if ref_user_paths:
         paths = [PurePosixPath(p) for p in ref_user_paths]
@@ -92,8 +94,8 @@ def create(obj: ContextObj,
         user_pubkey=ref_user.primary_pubkey,
         paths=paths,
     )
-    path = obj.client.save_new_bridge(
-        bridge, name, Path(file_path) if file_path else None)
+    path = obj.client.save_new_object(WildlandObjectType.BRIDGE,
+                                      bridge, name, Path(file_path) if file_path else None)
     click.echo(f'Created: {path}')
 
 
@@ -105,11 +107,11 @@ def list_(obj: ContextObj):
     """
 
     obj.client.recognize_users()
-    for bridge in obj.client.load_bridges():
+    for bridge in obj.client.get_all(WildlandObjectType.BRIDGE):
         click.echo(bridge.local_path)
 
         try:
-            user = obj.client.load_user_by_name(bridge.owner)
+            user = obj.client.load_object_from_name(bridge.owner, WildlandObjectType.USER)
             if user.paths:
                 user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
             else:

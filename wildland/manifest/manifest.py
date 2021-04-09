@@ -23,6 +23,7 @@ Classes for handling signed Wildland manifests
 
 from typing import Tuple, Optional, Dict
 import re
+import enum
 import logging
 
 import yaml
@@ -37,6 +38,18 @@ logger = logging.getLogger('manifest')
 
 HEADER_SEPARATOR = b'\n---\n'
 HEADER_SEPARATOR_EMPTY = b'---\n'
+
+
+class WildlandObjectType(enum.Enum):
+    """
+    Possible Wildland object types.
+    """
+    USER = 'user'
+    BRIDGE = 'bridge'
+    STORAGE = 'storage'
+    CONTAINER = 'container'
+    SET = 'set'
+    LINK = 'link'
 
 
 class ManifestError(WildlandError):
@@ -260,13 +273,13 @@ class Manifest:
     def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
                          encrypt=True):
         """
-        Sign a previously unsigned manifest.
+        Sign a manifest. If signed, will replace signature.
         If attach_pubkey is true, attach the public key to the signature.
         Can force not encrypting, if needed.
         """
 
         if self.header is not None:
-            raise ManifestError('Manifest already signed')
+            self.header = None
 
         fields = self._fields
         data = self.original_data
@@ -283,7 +296,7 @@ class Manifest:
         self._fields = fields
         self.header = Header(signature)
 
-    def skip_signing(self):
+    def skip_verification(self):
         """
         Explicitly mark the manifest as unsigned, and allow using it.
         """

@@ -32,6 +32,7 @@ from ..storage import StorageBackend, Storage
 from ..user import User
 from ..publish import Publisher
 from ..manifest.template import TemplateManager, StorageSet
+from ..manifest.manifest import WildlandObjectType
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_field
 from ..exc import WildlandError
@@ -58,7 +59,7 @@ def forest_():
               show_default=True, default='/',
               help='Set data local directory. Must be an absolute path.')
 @click.pass_context
-def create(ctx,
+def create(ctx: click.Context,
            user: str,
            storage_set: str = None,
            data_storage_set: str = None,
@@ -112,7 +113,7 @@ def create(ctx,
                      data_storage_set_name=data_storage_set)
 
 
-def _boostrap_forest(ctx,
+def _boostrap_forest(ctx: click.Context,
                      user: str,
                      manifest_local_dir: str = '/',
                      data_local_dir: str = '/',
@@ -125,7 +126,7 @@ def _boostrap_forest(ctx,
 
     # Load users manifests
     try:
-        forest_owner = obj.client.load_user_by_name(user)
+        forest_owner = obj.client.load_object_from_name(user, WildlandObjectType.USER)
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
@@ -134,7 +135,8 @@ def _boostrap_forest(ctx,
 
     if access:
         try:
-            access_list = [{'user': obj.client.load_user_by_name(user_name).owner}
+            access_list = [{'user': obj.client.load_object_from_name(
+                user_name, WildlandObjectType.USER).owner}
                            for user_name in access]
         except WildlandError as we:
             raise CliError(f'User could not be loaded. {we}') from we
@@ -170,7 +172,7 @@ def _boostrap_forest(ctx,
     assert forest_owner.local_path is not None
 
     infra_storage = obj.client.select_storage(container=infra_container,
-                                                  predicate=lambda x: x.is_writeable)
+                                              predicate=lambda x: x.is_writeable)
 
     # If a writeable infra storage doesn't have manifest_pattern defined,
     # forcibly set manifest pattern for all storages in this container.
@@ -179,8 +181,7 @@ def _boostrap_forest(ctx,
             storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
             obj.client.add_storage_to_container(infra_container, storage)
 
-        obj.client.save_container(infra_container)
-
+        obj.client.save_object(manifests_container, WildlandObjectType.CONTAINER)
 
     manifests_storage = obj.client.select_storage(container=manifests_container,
                                                   predicate=lambda x: x.is_writeable)
@@ -219,12 +220,12 @@ def _resolve_storage_set(obj, user: User, storage_set: Optional[str]) -> Storage
         storage_set = default_set
 
     try:
-        return TemplateManager(obj.client.template_dir).get_storage_set(storage_set)
+        return TemplateManager(obj.client.dirs[WildlandObjectType.SET]).get_storage_set(storage_set)
     except FileNotFoundError as fnf:
         raise CliError(f'Storage set [{storage_set}] not found. {fnf}') from fnf
 
 
-def _create_container(obj,
+def _create_container(obj: ContextObj,
                       user: User,
                       container_paths: List[Path],
                       container_name: str,
@@ -235,7 +236,7 @@ def _create_container(obj,
     container = Container(owner=user.owner, paths=[PurePosixPath(p) for p in container_paths],
                           backends=[], access=access)
 
-    obj.client.save_new_container(container, container_name)
+    obj.client.save_new_object(WildlandObjectType.CONTAINER, container, container_name)
     do_create_storage_from_set(obj.client, container, storage_set, storage_local_dir)
 
     return container

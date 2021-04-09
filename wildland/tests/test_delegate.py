@@ -29,6 +29,7 @@ import pytest
 
 from .helpers import treewalk
 from ..client import Client
+from ..manifest.manifest import WildlandObjectType
 
 
 def test_delegate_with_url(cli, base_dir):
@@ -50,11 +51,11 @@ def test_delegate_with_url(cli, base_dir):
     client.recognize_users()
 
     # When loaded directly, the storage manifest contains container URL...
-    storage = client.load_storage_from('ProxyStorage')
+    storage = client.load_object_from_name('ProxyStorage', WildlandObjectType.STORAGE)
     assert storage.params['reference-container'] == reference_url
 
     # But select_storage loads also the reference manifest
-    container = client.load_container_from('Container')
+    container = client.load_object_from_name('Container', WildlandObjectType.CONTAINER)
     storage = client.select_storage(container)
     assert storage.storage_type == 'delegate'
     reference_storage = storage.params['storage']

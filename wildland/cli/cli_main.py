@@ -45,6 +45,7 @@ from . import (
 )
 
 from ..log import init_logging
+from ..manifest.manifest import ManifestError, WildlandObjectType
 from ..client import Client
 from .. import __version__ as _version
 
@@ -64,7 +65,7 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
               help='output logs (repeat for more verbosity)')
 @click.version_option(_version)
 @click.pass_context
-def main(ctx, base_dir, dummy, debug, verbose):
+def main(ctx: click.Context, base_dir, dummy, debug, verbose):
     # pylint: disable=missing-docstring, unused-argument
 
     client = Client(dummy=dummy, base_dir=base_dir)
@@ -159,13 +160,13 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
     obj.client.recognize_users()
     if default_user:
-        user = obj.client.load_user_by_name(default_user)
+        try:
+            user = obj.client.load_object_from_name(default_user, WildlandObjectType.USER)
+        except (FileNotFoundError, ManifestError) as e:
+            raise CliError(f'User {default_user} not found') from e
     else:
-        default_user_name = obj.client.config.get('@default')
-        if not default_user_name:
-            raise WildlandError('@default user not set')
-        user = obj.client.load_user_by_name(default_user_name)
-
+        user = obj.client.load_object_from_name(obj.client.config.get('@default'),
+                                                WildlandObjectType.USER)
     to_mount = []
     if mount_containers:
         to_mount += mount_containers

@@ -30,7 +30,7 @@ import pytest
 from ..client import Client
 from ..container import Container
 from ..control_client import ControlClientError
-from ..manifest.manifest import ManifestError
+from ..manifest.manifest import ManifestError, WildlandObjectType
 from ..remounter import Remounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
@@ -503,11 +503,11 @@ def search_mock():
 def test_wlpath_single(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_container_from('Container1')
+    c1 = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
 
     cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
 
-    c1_changed = client.load_container_from('Container1')
+    c1_changed = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
 
     search_mock.containers_results = [
         [c1],
@@ -558,8 +558,8 @@ def test_wlpath_single(cli, client, search_mock, control_client):
 def test_wlpath_delete_container(client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_container_from('Container1')
-    c2 = client.load_container_from('Container2')
+    c1 = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
+    c2 = client.load_object_from_name('Container2', WildlandObjectType.CONTAINER)
 
     search_mock.containers_results = [
         [c1, c2],
@@ -613,14 +613,14 @@ def test_wlpath_delete_container(client, search_mock, control_client):
 def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml', '/.manifests/Container2.yaml'})
 
-    c1 = client.load_container_from('Container1')
-    c2 = client.load_container_from('Container2')
+    c1 = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
+    c2 = client.load_object_from_name('Container2', WildlandObjectType.CONTAINER)
 
     cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
     cli('container', 'modify', 'add-path', '--path', '/yet/another/path', 'Container2')
 
-    c1_changed = client.load_container_from('Container1')
-    c2_changed = client.load_container_from('Container2')
+    c1_changed = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
+    c2_changed = client.load_object_from_name('Container2', WildlandObjectType.CONTAINER)
 
     search_mock.containers_results = [
         [c1, c2],
@@ -693,7 +693,7 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
 def test_wlpath_iterate_error(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_container_from('Container1')
+    c1 = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
 
     search_mock.containers_results = [
         [c1, ManifestError('container load failed')],
@@ -754,11 +754,13 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             '--location', base_dir / 'manifests',
             '--container', 'Infra')
 
-    c1 = client.load_container_from('Container1')
-    c2 = client.load_container_from('Container2')
-    infra = client.load_container_from('Infra')
-    infra_s0 = client.load_storage_from_dict(infra.backends[0], infra.owner, infra.paths[0])
-    infra_s1 = client.load_storage_from_dict(infra.backends[1], infra.owner, infra.paths[0])
+    c1 = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
+    c2 = client.load_object_from_name('Container2', WildlandObjectType.CONTAINER)
+    infra = client.load_object_from_name('Infra', WildlandObjectType.CONTAINER)
+    infra_s0 = client.load_object_from_dict(infra.backends[0],
+                                            WildlandObjectType.STORAGE, infra.owner, infra.paths[0])
+    infra_s1 = client.load_object_from_dict(infra.backends[1],
+                                            WildlandObjectType.STORAGE,infra.owner, infra.paths[0])
     search_mock.containers_results = [
         [c1],
         [c1, c2],

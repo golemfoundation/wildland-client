@@ -45,14 +45,13 @@ from .cli_common import sign, verify, edit, modify_manifest, add_field, del_fiel
 from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..exc import WildlandError
-from ..manifest.manifest import ManifestError
+from ..manifest.manifest import ManifestError, WildlandObjectType
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
 from ..hashdb import HashDb
 from ..log import init_logging
-from ..wlpath import WildlandPath
 
 MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
@@ -79,7 +78,7 @@ class OptionRequires(click.Option):
             ' NOTE: this argument requires {}'.format(self.required_opt)
         super().__init__(*args, **kwargs)
 
-    def handle_parse_result(self, ctx, opts, args):
+    def handle_parse_result(self, ctx: click.Context, opts, args):
         if self.name in opts and self.required_opt not in opts:
             raise click.UsageError("option --{} requires --{}".format(
                 self.name, self.required_opt))
@@ -118,7 +117,7 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
     """
 
     obj.client.recognize_users()
-    owner = obj.client.load_user_by_name(owner or '@default-owner')
+    owner = obj.client.load_object_from_name(owner or '@default-owner', WildlandObjectType.USER)
 
     if default_storage_set and not storage_set:
         set_name = obj.client.config.get('default-storage-set-for-user')\
@@ -136,7 +135,8 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
 
     if set_name:
         try:
-            storage_set = TemplateManager(obj.client.template_dir).get_storage_set(set_name)
+            storage_set = TemplateManager(
+                obj.client.dirs[WildlandObjectType.SET]).get_storage_set(set_name)
         except FileNotFoundError as fnf:
             raise WildlandError(f'Storage set {set_name} not found.') from fnf
 
@@ -144,7 +144,8 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         raise CliError('--no-encrypt and --access are mutually exclusive.')
 
     if access:
-        access = [{'user': obj.client.load_user_by_name(user).owner} for user in access]
+        access = [{'user': obj.client.load_object_from_name(
+            user, WildlandObjectType.USER).owner} for user in access]
     elif not encrypt_manifest:
         access = [{'user': '*'}]
 
@@ -157,7 +158,7 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         access=access
     )
 
-    path = obj.client.save_new_container(container, name)
+    path = obj.client.save_new_object(WildlandObjectType.CONTAINER, container, name)
     click.echo(f'Created: {path}')
 
     if storage_set:
@@ -178,7 +179,7 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
         click.echo('Attaching container to user')
 
         owner.containers.append(str(obj.client.local_url(path)))
-        obj.client.save_user(owner)
+        obj.client.save_object(owner, WildlandObjectType.USER)
 
 
 @container_.command(short_help='update container')
@@ -192,7 +193,7 @@ def update(obj: ContextObj, storage, cont):
     """
 
     obj.client.recognize_users()
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
     if container.local_path is None:
         raise WildlandError('Can only update a local manifest')
 
@@ -201,14 +202,14 @@ def update(obj: ContextObj, storage, cont):
         return
 
     for storage_name in storage:
-        storage = obj.client.load_storage_from(storage_name)
+        storage = obj.client.load_object_from_name(storage_name, WildlandObjectType.STORAGE)
         assert storage.local_path
         click.echo(f'Adding storage: {storage.local_path}')
         if str(storage.local_path) in container.backends:
             raise WildlandError('Storage already attached to container')
         container.backends.append(obj.client.local_url(storage.local_path))
 
-    obj.client.save_container(container)
+    obj.client.save_object(container, WildlandObjectType.CONTAINER)
 
 
 @container_.command(short_help='publish container manifest')
@@ -220,7 +221,7 @@ def publish(obj: ContextObj, cont):
     """
 
     obj.client.recognize_users()
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
     Publisher(obj.client, container).publish_container()
 
 
@@ -234,14 +235,14 @@ def unpublish(obj: ContextObj, cont):
     '''
 
     obj.client.recognize_users()
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
     Publisher(obj.client, container).unpublish_container()
 
 
 def _container_info(client, container):
     click.echo(container.local_path)
     try:
-        user = client.load_user_by_name(container.owner)
+        user = client.load_object_from_name(container.owner, WildlandObjectType.USER)
         if user.paths:
             user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
         else:
@@ -264,7 +265,7 @@ def list_(obj: ContextObj):
     """
 
     obj.client.recognize_users()
-    for container in obj.client.load_containers():
+    for container in obj.client.get_all(WildlandObjectType.CONTAINER):
         _container_info(obj.client, container)
 
 
@@ -277,7 +278,7 @@ def info(obj: ContextObj, name):
     """
 
     obj.client.recognize_users()
-    container = obj.client.load_container_from(name)
+    container = obj.client.load_object_from_name(name, WildlandObjectType.CONTAINER)
 
     _container_info(obj.client, container)
 
@@ -293,17 +294,16 @@ def delete(obj: ContextObj, name, force, cascade):
     """
     Delete a container.
     """
-    # TODO: also consider detecting user-container link (i.e. user's main
-    # container).
+    # TODO: also consider detecting user-container link (i.e. user's main container).
     obj.client.recognize_users()
 
     try:
-        container = obj.client.load_container_from(name)
+        container = obj.client.load_object_from_name(name, WildlandObjectType.CONTAINER)
     except ManifestError as ex:
         if force:
             click.echo(f'Failed to load manifest: {ex}')
             try:
-                path = obj.client.find_local_manifest(obj.client.container_dir, 'container', name)
+                path = obj.client.find_local_manifest(name, WildlandObjectType.CONTAINER)
                 if path:
                     click.echo(f'Deleting file {path}')
                     path.unlink()
@@ -372,7 +372,7 @@ def modify():
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_path(ctx, input_file, path):
+def add_path(ctx: click.Context, input_file, path):
     """
     Add path to the manifest.
     """
@@ -383,7 +383,7 @@ def add_path(ctx, input_file, path):
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_path(ctx, input_file, path):
+def del_path(ctx: click.Context, input_file, path):
     """
     Remove path from the manifest.
     """
@@ -394,7 +394,7 @@ def del_path(ctx, input_file, path):
 @click.argument('input_file', metavar='FILE')
 @click.option('--title', metavar='TEXT', required=True, help='Title to set')
 @click.pass_context
-def set_title(ctx, input_file, title):
+def set_title(ctx: click.Context, input_file, title):
     """
     Set title in the manifest.
     """
@@ -406,7 +406,7 @@ def set_title(ctx, input_file, title):
               help='Category to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_category(ctx, input_file, category):
+def add_category(ctx: click.Context, input_file, category):
     """
     Add category to the manifest.
     """
@@ -418,7 +418,7 @@ def add_category(ctx, input_file, category):
               help='Category to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_category(ctx, input_file, category):
+def del_category(ctx: click.Context, input_file, category):
     """
     Remove category from the manifest.
     """
@@ -430,7 +430,7 @@ def del_category(ctx, input_file, category):
               help='Users to add access for')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_access(ctx, input_file, access):
+def add_access(ctx: click.Context, input_file, access):
     """
     Allow an additional user access to this manifest.
     """
@@ -439,7 +439,7 @@ def add_access(ctx, input_file, access):
     processed_access = []
 
     for user in access:
-        user = ctx.obj.client.load_user_by_name(user)
+        user = ctx.obj.client.load_object_from_name(user, WildlandObjectType.USER)
         processed_access.append({'user': user.owner})
 
     modify_manifest(ctx, input_file, add_field, 'access', processed_access)
@@ -450,7 +450,7 @@ def add_access(ctx, input_file, access):
               help='Users whose access should be revoked')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_access(ctx, input_file, access):
+def del_access(ctx: click.Context, input_file, access):
     """
     Remove category from the manifest.
     """
@@ -459,7 +459,7 @@ def del_access(ctx, input_file, access):
     processed_access = []
 
     for user in access:
-        user = ctx.obj.client.load_user_by_name(user)
+        user = ctx.obj.client.load_object_from_name(user, WildlandObjectType.USER)
         processed_access.append({'user': user.owner})
 
     modify_manifest(ctx, input_file, del_field, 'access', processed_access)
@@ -468,7 +468,7 @@ def del_access(ctx, input_file, access):
 @modify.command(short_help='do not encrypt this manifest at all')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def set_no_encrypt_manifest(ctx, input_file):
+def set_no_encrypt_manifest(ctx: click.Context, input_file):
     """
     Set title in the manifest.
     """
@@ -478,7 +478,7 @@ def set_no_encrypt_manifest(ctx, input_file):
 @modify.command(short_help='encrypt this manifest so that it is accessible only to its owner')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def set_encrypt_manifest(ctx, input_file):
+def set_encrypt_manifest(ctx: click.Context, input_file):
     """
     Set title in the manifest.
     """
@@ -491,7 +491,7 @@ def set_encrypt_manifest(ctx, input_file):
                    'storage list (starting from 0)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_storage(ctx, input_file, storage):
+def del_storage(ctx: click.Context, input_file, storage):
     """
     Remove category from the manifest.
     """
@@ -623,13 +623,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     for container_name in container_names:
         found = False
         try:
-            # wildland paths are special, because may require importing intermediate users
-            if WildlandPath.match(container_name):
-                containers = obj.client.load_container_from_wlpath(
-                    WildlandPath.from_str(container_name),
-                )
-            else:
-                containers = obj.client.load_containers_from(container_name)
+            containers = obj.client.load_containers_from(container_name)
         except WildlandError as ex:
             failed = True
             exc_msg += str(ex) + '\n'
@@ -851,7 +845,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
     """
 
     obj.client.recognize_users()
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
 
     sync_pidfile = syncer_pidfile_for_container(container)
 
@@ -939,7 +933,7 @@ def stop_syncing_container(obj: ContextObj, cont):
     """
 
     obj.client.recognize_users()
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
 
     sync_pidfile = syncer_pidfile_for_container(container)
 
@@ -957,7 +951,7 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
     List conflicts detected by the syncing tool.
     """
     obj.client.recognize_users()
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
 
     storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
@@ -996,7 +990,7 @@ def duplicate(obj: ContextObj, new_name, cont):
 
     obj.client.recognize_users()
 
-    container = obj.client.load_container_from(cont)
+    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
     old_uuid = container.ensure_uuid()
 
     new_container = Container(
@@ -1014,7 +1008,8 @@ def duplicate(obj: ContextObj, new_name, cont):
         if isinstance(backend, dict):
             backend['backend-id'] = str(uuid.uuid4())
         else:
-            storage = obj.client.load_storage_from_url(backend, container.owner)
+            storage = obj.client.load_object_from_url(backend, WildlandObjectType.STORAGE,
+                                                      container.owner)
             storage.params['backend-id'] = str(uuid.uuid4())
             new_storage = Storage(
                 container_path=PurePosixPath(str(storage.container_path).replace(
@@ -1023,7 +1018,7 @@ def duplicate(obj: ContextObj, new_name, cont):
                 owner=storage.owner,
                 params=storage.params,
                 trusted=storage.trusted)
-            new_path = obj.client.save_new_storage(new_storage, new_name)
+            new_path = obj.client.save_new_object(WildlandObjectType.STORAGE, new_storage, new_name)
             click.echo(f'Created storage: {new_path}')
             replace_backends.append((backend, obj.client.local_url(new_path)))
 
@@ -1031,7 +1026,7 @@ def duplicate(obj: ContextObj, new_name, cont):
         new_container.backends.remove(old)
         new_container.backends.append(new)
 
-    path = obj.client.save_new_container(new_container, new_name)
+    path = obj.client.save_new_object(WildlandObjectType.CONTAINER, new_container, new_name)
     click.echo(f'Created: {path}')
 
 

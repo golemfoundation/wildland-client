@@ -35,7 +35,7 @@ from .cli_common import sign, verify, edit, modify_manifest, add_field, del_fiel
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
-from ..manifest.manifest import Manifest
+from ..manifest.manifest import Manifest, WildlandObjectType
 
 
 @aliased_group('user', short_help='user management')
@@ -93,7 +93,7 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     )
     try:
         error_on_save = False
-        path = obj.client.save_new_user(user, name)
+        path = obj.client.save_new_object(WildlandObjectType.USER, user, name)
     except binascii.Error as ex:
         # Separate error to provide some sort of readable feedback
         # raised by SigContext.fingerprint through base64.b64decode
@@ -132,13 +132,12 @@ def list_(obj: ContextObj):
     """
 
     obj.client.recognize_users()
-    users = obj.client.load_users()
 
     default_user = obj.client.config.get('@default')
     default_owner = obj.client.config.get('@default-owner')
     default_override = (default_user != obj.client.config.get('@default', use_override=False))
 
-    for user in users:
+    for user in obj.client.get_all(WildlandObjectType.USER):
         path_string = str(user.local_path)
         if user.owner == default_user:
             path_string += ' (@default)'
@@ -176,20 +175,20 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
 
     obj.client.recognize_users()
 
-    user = obj.client.load_user_by_name(name)
+    user = obj.client.load_object_from_name(name, WildlandObjectType.USER)
 
     if not user.local_path:
         raise WildlandError('Can only delete a local manifest')
 
     # Check if this is the only manifest with such owner
     other_count = 0
-    for other_user in obj.client.load_users():
+    for other_user in obj.client.get_all(WildlandObjectType.USER):
         if other_user.local_path != user.local_path and other_user.owner == user.owner:
             other_count += 1
 
     used = False
 
-    for container in obj.client.load_containers():
+    for container in obj.client.get_all(WildlandObjectType.CONTAINER):
         assert container.local_path is not None
         if container.owner == user.owner:
             if cascade:
@@ -199,7 +198,7 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
                 click.echo('Found container: {}'.format(container.local_path))
                 used = True
 
-    for storage in obj.client.load_storages():
+    for storage in obj.client.get_all(WildlandObjectType.STORAGE):
         assert storage.local_path is not None
         if storage.owner == user.owner:
             if cascade:
@@ -275,17 +274,17 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
 
     # determine type
     manifest = Manifest.from_bytes(file_data, obj.session.sig)
-    import_type = manifest.fields['object']
+    import_type = WildlandObjectType(manifest.fields['object'])
 
-    if import_type not in ['user', 'bridge']:
+    if import_type not in [WildlandObjectType.USER, WildlandObjectType.BRIDGE]:
         raise CliError('Can import only user or bridge manifests')
 
-    file_name = _remove_suffix(file_name, '.' + import_type)
+    file_name = _remove_suffix(file_name, '.' + import_type.value)
 
     # do not import existing users, unless forced
-    if import_type == 'user':
+    if import_type == WildlandObjectType.USER:
         imported_user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
-        for user in obj.client.load_users():
+        for user in obj.client.get_all(WildlandObjectType.USER):
             if user.owner == imported_user.owner:
                 if not force:
                     click.echo(f'User {user.owner} already exists. Skipping import.')
@@ -326,7 +325,7 @@ def _do_process_imported_manifest(
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
-        bridge_path = obj.client.save_new_bridge(bridge, name, None)
+        bridge_path = obj.client.save_new_object(WildlandObjectType.BRIDGE, bridge, name, None)
         click.echo(f'Created: {bridge_path}')
     else:
         bridge = Bridge.from_manifest(manifest)
@@ -347,7 +346,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
-        default_user = obj.client.load_user_by_name(bridge_owner).owner
+        default_user = obj.client.load_object_from_name(bridge_owner, WildlandObjectType.USER).owner
     else:
         default_user = obj.client.config.get('@default-owner')
 
@@ -389,7 +388,8 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                 )
                 bridge_name = name.replace(WILDLAND_URL_PREFIX, '')
                 bridge_name = bridge_name.replace(':', '_').replace('/', '_')
-                bridge_path = obj.client.save_new_bridge(new_bridge, bridge_name, None)
+                bridge_path = obj.client.save_new_object(
+                    WildlandObjectType.BRIDGE, new_bridge, bridge_name, None)
                 click.echo(f'Created: {bridge_path}')
                 copied_files.append(bridge_path)
                 _do_import_manifest(obj, bridge.user_location)
@@ -436,9 +436,9 @@ def user_refresh(obj: ContextObj, name):
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
     obj.client.recognize_users()
-    user = obj.client.load_user_by_name(name) if name else None
+    user = obj.client.load_object_from_name(name, WildlandObjectType.USER) if name else None
 
-    for bridge in obj.client.load_bridges():
+    for bridge in obj.client.get_all(WildlandObjectType.BRIDGE):
         if user and user.owner != obj.client.session.sig.fingerprint(bridge.user_pubkey):
             continue
 
@@ -465,7 +465,7 @@ def modify():
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_path(ctx, input_file, path):
+def add_path(ctx: click.Context, input_file, path):
     """
     Add path to the manifest.
     """
@@ -476,7 +476,7 @@ def add_path(ctx, input_file, path):
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_path(ctx, input_file, path):
+def del_path(ctx: click.Context, input_file, path):
     """
     Remove path from the manifest.
     """
@@ -488,7 +488,7 @@ def del_path(ctx, input_file, path):
               help='Infrastructure path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_infrastructure(ctx, input_file, path):
+def add_infrastructure(ctx: click.Context, input_file, path):
     """
     Add path to the manifest.
     """
@@ -500,7 +500,7 @@ def add_infrastructure(ctx, input_file, path):
               help='Infrastructure path to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_infrastructure(ctx, input_file, path):
+def del_infrastructure(ctx: click.Context, input_file, path):
     """
     Add path to the manifest.
     """
@@ -511,7 +511,7 @@ def del_infrastructure(ctx, input_file, path):
 @click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True, help='Public key to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_pubkey(ctx, input_file, pubkey):
+def add_pubkey(ctx: click.Context, input_file, pubkey):
     """
     Add public key to the manifest.
     """
@@ -524,7 +524,7 @@ def add_pubkey(ctx, input_file, pubkey):
               help='Public key to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_pubkey(ctx, input_file, pubkey):
+def del_pubkey(ctx: click.Context, input_file, pubkey):
     """
     Remove public key from the manifest.
     """

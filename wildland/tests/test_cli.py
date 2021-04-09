@@ -2564,7 +2564,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
                              'read-only': False,
                              'access': [{'user': '*'}]}
 
-    with pytest.raises(CliError, match='Failed to create storage template: User not found: *'):
+    with pytest.raises(CliError, match='Failed to create storage template: user not found: *'):
         cli('storage-template', 'create', 'local', '--location', '/foo',
             '--access', '*', '--access', 'UserA', 't3')
 

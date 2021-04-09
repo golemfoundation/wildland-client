@@ -28,7 +28,7 @@ import pytest
 
 from .helpers import treewalk
 from ..client import Client
-from ..manifest.manifest import Manifest
+from ..manifest.manifest import Manifest, WildlandObjectType
 
 
 def test_date_proxy_with_url(cli, base_dir):
@@ -50,11 +50,11 @@ def test_date_proxy_with_url(cli, base_dir):
     client.recognize_users()
 
     # When loaded directly, the storage manifest contains container URL...
-    storage = client.load_storage_from('ProxyStorage')
+    storage = client.load_object_from_name('ProxyStorage', WildlandObjectType.STORAGE)
     assert storage.params['reference-container'] == reference_url
 
     # But select_storage loads also the reference manifest
-    container = client.load_container_from('Container')
+    container = client.load_object_from_name('Container', WildlandObjectType.CONTAINER)
     storage = client.select_storage(container)
     assert storage.storage_type == 'date-proxy'
     reference_storage = storage.params['storage']
@@ -128,7 +128,7 @@ def test_date_proxy_fuse_files(env, storage, data_dir):
 @pytest.fixture
 def container(cli, base_dir, data_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    # this needs to be saved, so client.load_containers() will see it
+    # this needs to be saved, so client.get_all() will see it
     with (base_dir / 'containers/macro.container.yaml').open('w') as f:
         f.write(yaml.dump({
             'object': 'container',
@@ -184,7 +184,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
     client = Client(base_dir)
     client.recognize_users()
 
-    container = client.load_container_from(container)
+    container = client.load_object_from_name(container, WildlandObjectType.CONTAINER)
     subcontainers = list(client.all_subcontainers(container))
     assert len(subcontainers) == 2
     assert subcontainers[0].paths[1:] == [PurePosixPath('/timeline/2008/02/03')]
@@ -216,7 +216,7 @@ def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
     client = Client(base_dir)
     client.recognize_users()
 
-    container = client.load_container_from(container)
+    container = client.load_object_from_name(container, WildlandObjectType.CONTAINER)
     for subcontainer in client.all_subcontainers(container):
         env.mount_storage(subcontainer.paths[1:], client.select_storage(subcontainer).params)
 

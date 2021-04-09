@@ -25,7 +25,7 @@ import yaml
 
 from .cli_base import aliased_group, ContextObj
 from ..exc import WildlandError
-from ..manifest.manifest import ManifestError
+from ..manifest.manifest import ManifestError, WildlandObjectType
 from ..manifest.template import TemplateManager, SET_SUFFIX, TemplateWithType
 
 
@@ -43,7 +43,7 @@ def set_list_(obj: ContextObj, show_filenames):
     Display known storage setup sets and available storage templates.
     """
 
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
     click.echo("Existing storage template sets:")
     sets = template_manager.storage_sets()
@@ -80,7 +80,7 @@ def set_add_(obj: ContextObj, template, inline, name):
     """
     Add a storage setup set.
     """
-    target_path = obj.client.template_dir / (name + SET_SUFFIX)
+    target_path = obj.client.dirs[WildlandObjectType.SET] / (name + SET_SUFFIX)
     if target_path.exists():
         click.echo(f'Cannot create storage template set: set file {target_path} already exists.')
         return
@@ -91,7 +91,7 @@ def set_add_(obj: ContextObj, template, inline, name):
     if not templates:
         click.echo('Cannot create storage template set: no templates provided.')
         return
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
     return_path = template_manager.create_storage_set(name, templates, target_path)
     if return_path:
@@ -106,7 +106,7 @@ def set_del_(obj: ContextObj, name):
     Remove a storage template set.
     """
 
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
     try:
         removed_path = template_manager.remove_storage_set(name)
     except FileNotFoundError as fnf:
@@ -125,7 +125,7 @@ def set_default_(obj: ContextObj, user, name):
     """
 
     user_name = user
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
     try:
         template_manager.get_storage_set(name)
     except FileNotFoundError as fnf:
@@ -133,7 +133,7 @@ def set_default_(obj: ContextObj, user, name):
 
     obj.client.recognize_users()
     try:
-        user = obj.client.load_user_by_name(user_name)
+        user = obj.client.load_object_from_name(user_name, WildlandObjectType.USER)
     except ManifestError as ex:
         raise WildlandError(f'User {user_name} load failed: {ex}') from ex
 
@@ -162,7 +162,7 @@ def add_template(obj: ContextObj, storage_set, template, inline):
     """
     Add path to the manifest.
     """
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
     try:
         storage_set = template_manager.get_storage_set(storage_set)
     except FileNotFoundError as fnf:
@@ -189,7 +189,7 @@ def del_template(obj: ContextObj, storage_set, template):
     """
     Remove path from the manifest.
     """
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
     try:
         storage_set = template_manager.get_storage_set(storage_set)
     except FileNotFoundError as fnf:

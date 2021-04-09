@@ -25,6 +25,7 @@ import click
 
 from .cli_base import aliased_group, ContextObj, CliError
 from ..manifest.template import TemplateManager
+from ..manifest.manifest import WildlandObjectType
 from ..exc import WildlandError
 
 from ..storage_backends.base import StorageBackend
@@ -119,7 +120,7 @@ def _do_create(
         else:
             try:
                 params['access'] = [
-                    {'user': obj.client.load_user_by_name(user).owner}
+                    {'user': obj.client.load_object_from_name(user, WildlandObjectType.USER).owner}
                     for user in access
                 ]
             except WildlandError as ex:
@@ -138,7 +139,7 @@ def _do_create(
         if value is None or value == []:
             del params[param]
 
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
     try:
         path = template_manager.create_storage_template(name, params)
@@ -156,7 +157,7 @@ def template_list(obj: ContextObj, show_filenames):
     Display known storage templates
     """
 
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
     click.echo("Available templates:")
     templates = template_manager.available_templates()
@@ -186,7 +187,7 @@ def template_del(obj: ContextObj, name: str, force: bool, cascade: bool):
     if force and cascade:
         raise CliError("Remove command accepts either force or cascade option, but not both.")
 
-    template_manager = TemplateManager(obj.client.template_dir)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
     try:
         template_manager.remove_storage_template(name, force, cascade)
     except FileNotFoundError as fnf:

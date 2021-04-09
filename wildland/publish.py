@@ -29,8 +29,8 @@ from typing import Optional, Generator, cast
 from .client import Client
 from .container import Container
 from .exc import WildlandError
-from .manifest.manifest import ManifestError
-from .search import StorageDriver
+from .manifest.manifest import ManifestError, WildlandObjectType
+from .storage_driver import StorageDriver
 from .storage import Storage
 
 logger = logging.getLogger('publish')
@@ -80,7 +80,7 @@ class Publisher:
         '''
         Iterate over all suitable storages to publish container manifest.
         '''
-        owner = self.client.load_user_by_name(self.container.owner)
+        owner = self.client.load_object_from_name(self.container.owner, WildlandObjectType.USER)
 
         ok = False
         rejected = []
@@ -90,8 +90,8 @@ class Publisher:
         for c in owner.containers:
             try:
                 container_candidate = (
-                    self.client.load_container_from_url_or_dict(
-                        c, self.container.owner))
+                    self.client.load_object_from_url_or_dict(
+                        c, WildlandObjectType.CONTAINER, self.container.owner))
 
                 all_storages = list(
                     self.client.all_storages(container=container_candidate))
@@ -230,8 +230,9 @@ class _StoragePublisher:
                 if isinstance(self.container.backends[i],
                         collections.abc.Mapping):
                     continue
-                backend = self.client.load_storage_from_url(
-                    cast(str, self.container.backends[i]), self.container.owner)
+                backend = self.client.load_object_from_url(
+                    cast(str, self.container.backends[i]), WildlandObjectType.STORAGE,
+                    self.container.owner)
                 relpath = self._get_relpath_for_storage_manifest(backend)
                 assert relpath not in storage_relpaths
                 storage_relpaths[relpath] = backend
@@ -245,8 +246,9 @@ class _StoragePublisher:
             except FileNotFoundError:
                 pass
             else:
-                old_container = self.client.session.load_container(
-                    old_container_manifest_data)
+                old_container = self.client.session.load_object(
+                    old_container_manifest_data, WildlandObjectType.CONTAINER)
+                assert isinstance(old_container, Container)
 
                 if not old_container.ensure_uuid() == self.container.ensure_uuid():
                     # we just downloaded this file from container_relpaths[0], so

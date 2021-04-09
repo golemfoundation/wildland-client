@@ -23,7 +23,7 @@ Common commands (sign, edit, ...) for multiple object types
 
 import sys
 from pathlib import Path
-from typing import Callable, List, Any
+from typing import Callable, List, Any, Optional
 
 import click
 import yaml
@@ -40,6 +40,7 @@ from ..manifest.manifest import (
     Manifest,
     ManifestError,
     split_header,
+    WildlandObjectType
 )
 from ..manifest.schema import SchemaError
 
@@ -48,21 +49,14 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     """
     CLI helper: load a manifest by name.
     """
+    try:
+        object_type: Optional[WildlandObjectType] = WildlandObjectType(manifest_type)
+    except ValueError:
+        object_type = None
 
-    if manifest_type in ['user', 'container', 'storage', 'bridge']:
-        search_func = {
-            'user': lambda: client.find_user_manifest(name),
-            'container': lambda: client.find_local_manifest(client.container_dir, 'container',
-                                                            name),
-            'storage': lambda: client.find_local_manifest(client.storage_dir, 'storage', name),
-            'bridge': lambda: client.find_local_manifest(client.bridge_dir, 'bridge', name),
-        }[manifest_type]
-        path = search_func()
-        if path:
-            return path
-
-    if Path(name).exists():
-        return Path(name)
+    path = client.find_local_manifest(name, object_type)
+    if path:
+        return path
 
     raise click.ClickException(f'Not found: {name}')
 
@@ -76,16 +70,13 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
         manifest.apply_schema(User.SCHEMA)
     if manifest_type == 'container':
         manifest.apply_schema(Container.SCHEMA)
-
-        # copied to avoid problems with accessing / modifying existing manifest
-        manifest_copy = manifest.copy_to_unsigned()
-        manifest_copy.skip_signing()
-        for storage in manifest_copy.fields['backends']['storage']:
+        manifest.skip_verification()
+        for storage in manifest.fields['backends']['storage']:
             if isinstance(storage, str):
                 continue
-            storage_obj = client.load_storage_from_dict(storage,
-                                                        manifest_copy.fields['owner'],
-                                                        manifest_copy.fields['paths'][0])
+            storage_obj = client.load_object_from_dict(storage, WildlandObjectType.STORAGE,
+                                                       manifest.fields['owner'],
+                                                       manifest.fields['paths'][0])
             storage_obj.validate()
 
     if manifest_type == 'storage':
@@ -101,7 +92,7 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     help='modify the file in place')
 @click.argument('input_file', metavar='FILE', required=False)
 @click.pass_context
-def sign(ctx, input_file, output_file, in_place):
+def sign(ctx: click.Context, input_file, output_file, in_place):
     """
     Sign a manifest given by FILE, or stdin if not given. The input file can be
     a manifest with or without header. The existing header will be ignored.
@@ -113,7 +104,7 @@ def sign(ctx, input_file, output_file, in_place):
 
     obj.client.recognize_users()
 
-    manifest_type = ctx.parent.command.name
+    manifest_type = ctx.parent.command.name if ctx.parent else None
     if manifest_type == 'main':
         manifest_type = None
 
@@ -158,7 +149,7 @@ def sign(ctx, input_file, output_file, in_place):
 @click.command(short_help='verify manifest signature')
 @click.argument('input_file', metavar='FILE', required=False)
 @click.pass_context
-def verify(ctx, input_file):
+def verify(ctx: click.Context, input_file):
     """
     Verify a manifest signature given by FILE, or stdin if not given.
 
@@ -167,7 +158,7 @@ def verify(ctx, input_file):
     """
     obj: ContextObj = ctx.obj
 
-    manifest_type = ctx.parent.command.name
+    manifest_type = ctx.parent.command.name if ctx.parent else None
     if manifest_type == 'main':
         manifest_type = None
 
@@ -193,14 +184,14 @@ def verify(ctx, input_file):
     help='decrypt manifest (if applicable)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def dump(ctx, input_file, decrypt):
+def dump(ctx: click.Context, input_file, decrypt):
     """
     Dump the input manifest in a machine-readable format (currently just json). By default decrypts
     the manifest, if possible.
     """
     obj: ContextObj = ctx.obj
 
-    manifest_type = ctx.parent.command.name
+    manifest_type = ctx.parent.command.name if ctx.parent else None
     if manifest_type == 'main':
         manifest_type = None
 
@@ -225,14 +216,14 @@ def dump(ctx, input_file, decrypt):
     help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def edit(ctx, editor, input_file, remount):
+def edit(ctx: click.Context, editor, input_file, remount):
     """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
     """
     obj: ContextObj = ctx.obj
 
-    provided_manifest_type = ctx.parent.command.name
+    provided_manifest_type = ctx.parent.command.name if ctx.parent else None
     if provided_manifest_type == 'main':
         provided_manifest_type = None
 
@@ -296,7 +287,7 @@ def edit(ctx, editor, input_file, remount):
     click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_mounted():
-        container = obj.client.load_container_from_path(path)
+        container = obj.client.load_object_from_file_path(path, WildlandObjectType.CONTAINER)
         if obj.fs_client.find_primary_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')
 
@@ -307,14 +298,14 @@ def edit(ctx, editor, input_file, remount):
                 container, storages, user_paths, remount=remount)
 
 
-def modify_manifest(ctx, name: str, edit_func: Callable[..., dict], *args, **kwargs):
+def modify_manifest(ctx: click.Context, name: str, edit_func: Callable[..., dict], *args, **kwargs):
     """
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
     """
     obj: ContextObj = ctx.obj
 
-    manifest_type = ctx.parent.parent.command.name
+    manifest_type = ctx.parent.parent.command.name if ctx.parent and ctx.parent.parent else None
     if manifest_type == 'main':
         manifest_type = None
 

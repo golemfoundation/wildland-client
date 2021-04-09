@@ -29,7 +29,7 @@ import glob
 import logging
 import os
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, Iterator, Optional, Tuple, Union
+from typing import Dict, Iterable, Iterator, Optional, Tuple, Union, List
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -41,13 +41,14 @@ from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath, PathError
 from .manifest.sig import DummySigContext, SodiumSigContext
-from .manifest.manifest import ManifestError, Manifest
+from .manifest.manifest import ManifestError, Manifest, WildlandObjectType
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
 from .fs_client import WildlandFSClient
 from .config import Config
 from .exc import WildlandError
 from .search import Search
+from .storage_driver import StorageDriver
 
 logger = logging.getLogger('client')
 
@@ -72,15 +73,15 @@ class Client:
             config.override(**config_kwargs)
         self.config = config
 
-        self.user_dir = Path(self.config.get('user-dir'))
-        self.container_dir = Path(self.config.get('container-dir'))
-        self.storage_dir = Path(self.config.get('storage-dir'))
-        self.bridge_dir = Path(self.config.get('bridge-dir'))
-        self.template_dir = Path(self.config.get('template-dir'))
+        self.dirs = {
+            WildlandObjectType.USER: Path(self.config.get('user-dir')),
+            WildlandObjectType.CONTAINER: Path(self.config.get('container-dir')),
+            WildlandObjectType.STORAGE: Path(self.config.get('storage-dir')),
+            WildlandObjectType.BRIDGE: Path(self.config.get('bridge-dir')),
+            WildlandObjectType.SET: Path(self.config.get('template-dir'))
+        }
 
-        dirs = [self.user_dir, self.container_dir, self.storage_dir,
-                self.bridge_dir, self.template_dir]
-        for d in dirs:
+        for d in self.dirs.values():
             d.mkdir(exist_ok=True, parents=True)
 
         mount_dir = Path(self.config.get('mount-dir'))
@@ -124,132 +125,252 @@ class Client:
 
     def recognize_users(self, users: Optional[Iterable[User]] = None):
         """
-        Load and recognize users from the users directory or a given iterable.
+        Load users and recognize their keys from the users directory or a given iterable.
         """
-
-        if users is None:
-            users = self.load_users()
-
-        for user in users:
+        for user in users or self.get_all(WildlandObjectType.USER):
             self.users[user.owner] = user
-            self.session.recognize_user(user)
+            user.add_user_keys(self.session.sig)
 
-    @staticmethod
-    def find_local_manifest(base_dir: Path, suffix: Optional[str], name: str) -> Optional[Path]:
+    def find_local_manifest(self, name :str,
+                            object_type: Optional[WildlandObjectType] = None) -> Optional[Path]:
         """
-        Find local manifest based on a (potentially ambiguous) name.
+        Find local manifest based on a (potentially ambiguous) name. Names can be aliases, user
+        fingerprints (for users), name of the file, part of the file name, or complete file path.
         """
 
-        # Short name
-        if not name.endswith('.yaml'):
-            path = base_dir / f'{name}.yaml'
-            if path.exists():
-                return path
+        if object_type == WildlandObjectType.USER:
+            # aliases
+            if name == '@default':
+                try:
+                    fuse_status = self.fs_client.run_control_command('status')
+                except (ConnectionRefusedError, FileNotFoundError):
+                    fuse_status = {}
+                name = fuse_status.get('default-user', None)
+                if not name:
+                    name = self.config.get('@default')
+                if not name:
+                    raise WildlandError('user not specified and @default not set')
 
-            if suffix is not None:
-                path = base_dir / f'{name}.{suffix}.yaml'
-                if path.exists():
-                    return path
+            if name == '@default-owner':
+                name = self.config.get('@default-owner')
+                if name is None:
+                    raise WildlandError('user not specified and @default-owner not set')
 
-        # Local path
-        path = Path(name)
-        if path.exists():
-            return path
+            if name in self.users:
+                return self.users[name].local_path
+
+            if name.startswith('0x'):
+                for user in self.get_all(WildlandObjectType.USER):
+                    if user.owner == name:
+                        return user.local_path
+
+
+        if object_type:
+            directory = self.dirs[object_type]
+            path_candidates = [
+                directory / f'{name}.yaml',
+                directory / f'{name}.{object_type.value}.yaml',
+                directory / name]
+        else:
+            path_candidates = []
+
+        path_candidates.append(Path(name))
+
+        for path_candidate in path_candidates:
+            if path_candidate.exists():
+                return path_candidate
 
         return None
 
-    def load_users(self) -> Iterator[User]:
+    def load_object_from_bytes(self,
+                               data: bytes,
+                               object_type: Optional[WildlandObjectType] = None,
+                               allow_only_primary_key: Optional[bool] = None,
+                               file_path: Optional[Path] = None,
+                               trusted_owner: Optional[str] = None,
+                               local_owners: Optional[List[str]] = None,
+                               owner: Optional[str] = None):
         """
-        Load users from the users directory.
+        Load and return a Wildland object from raw bytes.
+        :param data: object bytes
+        :param object_type: expected object type; if not provided, will be guessed based on 'object'
+        field. If provided, must match data, or a WildlandError will be raised.
+        :param allow_only_primary_key: can the object be signed by any of its owner's keys, or just
+        by the primary key. If omitted, assumed to be True for USER objects and False for all other.
+        :param file_path: path to local manifest file, if exists
+        :param trusted_owner: accept signature-less manifests from this owner
+        :param local_owners: owners allowed to access local storages
+        :param owner: expected owner; on mismatch will raise Wildland Error
         """
 
-        sig = self.session.sig.copy()
-        sig.recognize_local_keys()
-        sub_client = Client(config=self.config, sig=sig)
+        if allow_only_primary_key is None:
+            allow_only_primary_key = object_type == WildlandObjectType.USER
 
-        if self.user_dir.exists():
-            for path in sorted(self.user_dir.glob('*.yaml')):
+        if not object_type:
+            manifest = Manifest.from_bytes(data, self.session.sig,
+                                           allow_only_primary_key=allow_only_primary_key)
+
+            object_type = WildlandObjectType(manifest.fields['object'])
+
+        if object_type in [WildlandObjectType.USER, WildlandObjectType.BRIDGE,
+                           WildlandObjectType.STORAGE, WildlandObjectType.CONTAINER]:
+            obj_ = self.session.load_object(data, object_type, local_path=file_path,
+                                            trusted_owner=trusted_owner, local_owners=local_owners)
+            if owner and obj_.owner != owner:
+                raise WildlandError(f'Unexpected owner: {obj_.owner}, expected {owner}')
+            return obj_
+        raise WildlandError(f'Unknown manifest type: {object_type.value}')
+
+    def load_object_from_dict(self,
+                              dictionary: dict,
+                              object_type: Optional[WildlandObjectType] = None,
+                              owner: Optional[str] = None,
+                              container_path: Optional[Union[str, PurePosixPath]] = None):
+        """
+        Load Wildland object from a dict.
+        :param dictionary: dict containing object data
+        :param object_type: expected type of object; if not provided, will use dict 'object' field.
+        On mismatch of expected and actual type, a WildlandError will be raised.
+        :param owner: expected owner. On mismatch of expected and actual owner, a WildlandError
+        will be raised.
+        :param container_path: if object is STORAGE, will be passed to it as container_path. Ignored
+        otherwise.
+        """
+        if dictionary.get('object', None) == 'link':
+            storage = self.load_object_from_dict(dictionary['storage'], WildlandObjectType.STORAGE,
+                                                 owner=owner, container_path='/')
+            storage_backend = StorageBackend.from_params(storage.params)
+            driver = StorageDriver(storage_backend)
+            with driver:
+                content = driver.read_file(Path(dictionary['file']).relative_to('/'))
+            return self.load_object_from_bytes(content)
+
+        if object_type:
+            if 'object' not in dictionary:
+                dictionary['object'] = object_type.value
+            else:
+                if object_type.value != dictionary['object']:
+                    raise WildlandError('Object type mismatch: expected {}, got {}'.format(
+                        object_type.value, dictionary['object']))
+        else:
+            object_type = WildlandObjectType(dictionary['object'])
+
+        local_owners = None
+
+        if owner:
+            if 'owner' not in dictionary:
+                dictionary['owner'] = owner
+            elif owner != dictionary['owner']:
+                raise WildlandError('Owner mismatch: expected {}, got {}'.format(
+                    owner, dictionary['owner']))
+
+        if object_type == WildlandObjectType.STORAGE:
+            if list(dictionary.keys()) == ['encrypted']:
+                raise ManifestError('This inline storage cannot be decrypted')
+            if 'container-path' not in dictionary and container_path:
+                dictionary['container-path'] = str(container_path)
+
+            local_owners = self.config.get('local-owners')
+
+        content = ('---\n' + yaml.dump(dictionary)).encode()
+
+        return self.session.load_object(content, object_type, local_owners=local_owners,
+                                        trusted_owner=owner)
+
+    def load_object_from_url(self, url: str, object_type: WildlandObjectType,
+                             owner: Optional[str] = None):
+        """
+        Load and return a Wildland object from any URL, including Wildland URLs.
+        :param url: URL. must start with protocol (e.g. wildland: or https:
+        :param object_type: expected object type. If not provided, will try to guess it based
+        on data (although this will not be successful for WL URLs to containers.). If provided
+        will raise an exception if expected type is different than received type.
+        :param owner: expected owner. Will raise a WildlandError if receives a different owner.
+        """
+
+        if object_type == WildlandObjectType.CONTAINER and WildlandPath.match(url):
+            # special treatment for WL paths: they can refer to a file or to a container
+            wlpath = WildlandPath.from_str(url)
+            if wlpath.file_path is None:
                 try:
-                    user = sub_client.load_user_from_path(path)
-                except WildlandError as e:
-                    logger.warning('error loading user manifest: %s: %s',
-                                   path, e)
-                else:
-                    yield user
+                    return next(self.load_containers_from(wlpath, {'default': owner}))
+                except StopIteration as ex:
+                    raise PathError(f'Container not found for path: {wlpath}') from ex
 
-    def load_user_from_path(self, path: Path) -> User:
+        content = self.read_from_url(url, owner)
+
+        if object_type == WildlandObjectType.USER:
+            Manifest.load_pubkeys(content, self.session.sig)
+
+        local_owners = self.config.get('local-owners') \
+            if object_type == WildlandObjectType.STORAGE else None
+
+        return self.load_object_from_bytes(content, local_owners=local_owners, owner=owner)
+
+    def load_object_from_file_path(self, path: Path, object_type: WildlandObjectType):
         """
-        Load user from a local file.
+        Load and return a Wildland object from local file path (not in URL form).
+        :param path: local file path
+        :param object_type: expected type of object
+        """
+        trusted_owner = self.fs_client.find_trusted_owner(path)
+        local_owners = self.config.get('local-owners')\
+            if object_type == WildlandObjectType.STORAGE else None
+
+        return self.load_object_from_bytes(
+            path.read_bytes(), object_type, file_path=path,
+            trusted_owner=trusted_owner, local_owners=local_owners)
+
+    def load_object_from_url_or_dict(self, obj: Union[str, dict],
+                                     object_type: WildlandObjectType,
+                                     owner: str, container_path: Optional[str] = None):
+        """
+        A convenience wrapper for loading objects from either URL or dict. Returns a Wildland
+        object.
+        :param obj: URL or dict to be turned into WL object
+        :param object_type: expected object type
+        :param owner: expected owner
+        :param container_path: if loading a STORAGE object of dict type, this container path
+        will be filled in if the dict does not contain it already.
         """
 
-        return self.session.load_user(path.read_bytes(), path)
+        if isinstance(obj, str):
+            return self.load_object_from_url(obj, object_type, owner)
 
-    def load_user_from_url(self, url: str, url_owner: str,
-                           expected_user: Optional[str] = None) -> User:
+        if isinstance(obj, collections.abc.Mapping):
+            return self.load_object_from_dict(obj, object_type, owner=owner,
+                                              container_path=container_path)
+        raise ValueError(f'{obj} is neither url nor dict')
+
+    def load_object_from_name(self, name: str, object_type: WildlandObjectType):
         """
-        Load user from an URL
-        :param: url_owner: used to resolve url context, e.g. owner of the bridge leading to owner
-        :param: expected_user: what user we expect to receive
+        Load a Wildland object from ambiguous name. The name can be a local filename, part of local
+        filename (will attempt to look for the object in appropriate local directory), a WL URL,
+        another kind of URL etc.
+        :param name: ambiguous name
+        :param object_type: expected object type
         """
+        if object_type == WildlandObjectType.USER:
+            if name in self.users:
+                return self.users[name]
 
-        data = self.read_from_url(url, url_owner)
+        # Wildland path
+        if object_type == WildlandObjectType.CONTAINER and WildlandPath.match(name):
+            wlpath = WildlandPath.from_str(name)
+            if wlpath.file_path is None:
+                try:
+                    return next(self.load_containers_from(wlpath))
+                except StopIteration as ex:
+                    raise PathError(f'Container not found for path: {wlpath}') from ex
 
-        Manifest.load_pubkeys(data, self.session.sig)
+        if self.is_url(name):
+            return self.load_object_from_url(name, object_type)
 
-        user = self.session.load_user(data)
-
-        if expected_user and user.owner != expected_user:
-            raise WildlandError(f'Unexpected owner: expected {expected_user}, '
-                                f'received {user.owner}')
-
-        return user
-
-    def find_user_manifest(self, name: str) -> Optional[Path]:
-        """
-        Find user's manifest based on a (potentially ambiguous) name.
-        """
-
-        # Aliases
-        if name == '@default':
-            try:
-                fuse_status = self.fs_client.run_control_command('status')
-            except (ConnectionRefusedError, FileNotFoundError):
-                fuse_status = {}
-            name = fuse_status.get('default-user', None)
-            if not name:
-                name = self.config.get('@default')
-            if not name:
-                raise WildlandError('user not specified and @default not set')
-
-        if name == '@default-owner':
-            name = self.config.get('@default-owner')
-            if name is None:
-                raise WildlandError('user not specified and @default-owner not set')
-
-        # Already loaded
-        if name in self.users:
-            return self.users[name].local_path
-
-        # Key
-        if name.startswith('0x'):
-            for user in self.load_users():
-                if user.owner == name:
-                    return user.local_path
-
-        # Local path
-        return self.find_local_manifest(self.user_dir, 'user', name)
-
-    def load_user_by_name(self, name: str) -> User:
-        """
-        Load a user based on a (potentially ambiguous) name.
-        """
-        if name in self.users:
-            return self.users[name]
-        path = self.find_user_manifest(name)
+        path = self.find_local_manifest(name, object_type)
         if path:
-            return self.load_user_from_path(path)
+            return self.load_object_from_file_path(path, object_type)
 
-        raise WildlandError(f'User not found: {name}')
+        raise WildlandError(f'{object_type.value} not found: {name}')
 
     def recognize_users_from_search(self, final_step):
         """
@@ -271,9 +392,9 @@ class Client:
                 user = step.user
                 logger.info('importing user %s', user.owner)
                 # save the original manifest, don't risk the need to re-sign
-                path = self.new_path('user', user.owner)
+                path = self.new_path(WildlandObjectType.USER, user.owner)
                 path.write_bytes(user.manifest.to_bytes())
-                path = self.new_path('bridge', user.owner)
+                path = self.new_path(WildlandObjectType.BRIDGE, user.owner)
                 path.write_bytes(step.bridge.manifest.to_bytes())
 
         # load encountered users to the current context - may be needed for subcontainers
@@ -281,127 +402,37 @@ class Client:
             [ustep.user for ustep in final_step.steps_chain()
              if ustep.user is not None])
 
-    def load_containers(self) -> Iterator[Container]:
+    def load_containers_from(self, name: Union[str, WildlandPath],
+                             aliases: Optional[dict] = None) -> Iterator[Container]:
         """
-        Load containers from the containers directory.
-        """
-
-        if self.container_dir.exists():
-            for path in sorted(self.container_dir.glob('*.yaml')):
-                try:
-                    container = self.load_container_from_path(path)
-                except WildlandError as e:
-                    logger.warning('error loading container manifest: %s: %s',
-                                   path, e)
-                else:
-                    yield container
-
-    def load_container_from_path(self, path: Path) -> Container:
-        """
-        Load container from a local file.
-        """
-
-        trusted_owner = self.fs_client.find_trusted_owner(path)
-        return self.session.load_container(
-            path.read_bytes(), path,
-            trusted_owner=trusted_owner)
-
-    def load_container_from_wlpath(self, wlpath: WildlandPath,
-            aliases: Optional[dict] = None) -> Iterator[Container]:
-        """
-        Load containers referring to a given WildlandPath.
-        """
-        if aliases is None:
-            aliases = self.config.aliases
-        search = Search(self, wlpath, aliases)
-        for final_step in search.resolve_raw():
-            if final_step.container is None:
-                continue
-            self.recognize_users_from_search(final_step)
-
-            yield final_step.container
-
-    def load_container_from_url(self, url: str, owner: str) -> Container:
-        """
-        Load container from URL.
-        """
-
-        if WildlandPath.match(url):
-            wlpath = WildlandPath.from_str(url)
-            if wlpath.file_path is None:
-                try:
-                    return next(self.load_container_from_wlpath(wlpath, {'default': owner}))
-                except StopIteration as ex:
-                    raise PathError(f'Container not found for path: {wlpath}') from ex
-
-        return self.session.load_container(self.read_from_url(url, owner))
-
-    def load_user_from_dict(self, dict_: dict, owner: str) -> User:
-        """
-        Load user from a dict. Used mostly for linked user manifests in bridges.
-        """
-        if dict_['object'] == 'link':
-            storage = self.load_storage_from_dict(dict_['storage'], owner, '/')
-            storage_backend = StorageBackend.from_params(storage.params)
-
-            with storage_backend:
-                content = self.storage_read_file(
-                    storage_backend, Path(dict_['file']).relative_to('/'))
-        else:
-            content = ('---\n' + yaml.dump(dict_)).encode()
-        return self.session.load_user(content)
-
-    def load_container_from_dict(self, dict_: dict, owner: str) -> Container:
-        """
-        Load container from a dictionary. Used when a container manifest is inlined
-        in another manifest.
-        """
-
-        # fill in fields that are determined by the context
-        if 'owner' not in dict_:
-            dict_['owner'] = owner
-
-        if dict_['object'] == 'link':
-            storage = self.load_storage_from_dict(dict_['storage'], owner, '/')
-            storage_backend = StorageBackend.from_params(storage.params)
-
-            with storage_backend:
-                content = self.storage_read_file(
-                    storage_backend, Path(dict_['file']).relative_to('/'))
-        else:
-            content = ('---\n' + yaml.dump(dict_)).encode()
-        trusted_owner = owner
-        return self.session.load_container(content, trusted_owner=trusted_owner)
-
-    # pylint: disable=inconsistent-return-statements
-    def load_container_from_url_or_dict(self,
-            obj: Union[str, dict], owner: str):
-        """
-        Load container, suitable for loading directly from manifest.
-        """
-        if isinstance(obj, str):
-            return self.load_container_from_url(obj, owner)
-        if isinstance(obj, collections.abc.Mapping):
-            return self.load_container_from_dict(obj, owner)
-        assert False
-
-    def load_containers_from(self, name: str) -> Iterator[Container]:
-        """
-        Load a list of containers. Currently supports glob patterns (*) and
+        Load a list of containers. Currently supports WL paths, glob patterns (*) and
         tilde (~), but only in case of local files.
         """
-
-        if WildlandPath.match(name):
+        wlpath = None
+        if isinstance(name, WildlandPath):
+            wlpath = name
+            name = str(wlpath)
+        elif WildlandPath.match(name):
             wlpath = WildlandPath.from_str(name)
+
+        if wlpath:
             try:
-                yield from self.load_container_from_wlpath(wlpath)
+                if aliases is None:
+                    aliases = self.config.aliases
+                search = Search(self, wlpath, aliases)
+                for final_step in search.resolve_raw():
+                    if final_step.container is None:
+                        continue
+                    self.recognize_users_from_search(final_step)
+
+                    yield final_step.container
             except WildlandError as ex:
                 raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return
 
-        path = self.find_local_manifest(self.container_dir, 'container', name)
+        path = self.find_local_manifest(name, WildlandObjectType.CONTAINER)
         if path:
-            yield self.load_container_from_path(path)
+            yield self.load_object_from_file_path(path, WildlandObjectType.CONTAINER)
             return
 
         paths = sorted(glob.glob(os.path.expanduser(name)))
@@ -413,7 +444,7 @@ class Client:
         exc_msg = 'Failed to load some container manifests:\n'
         for p in paths:
             try:
-                yield self.load_container_from_path(Path(p))
+                yield self.load_object_from_file_path(Path(p), WildlandObjectType.CONTAINER)
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
@@ -422,150 +453,49 @@ class Client:
         if failed:
             raise ManifestError(exc_msg)
 
-    def load_container_from(self, name: str) -> Container:
-        """
-        Load a container based on a (potentially ambiguous) name.
-        """
-
-        # Wildland path
-        if WildlandPath.match(name):
-            wlpath = WildlandPath.from_str(name)
-
-            # TODO: what to do if there are more containers that match the path?
-            try:
-                return next(self.load_container_from_wlpath(wlpath))
-            except StopIteration as ex:
-                raise PathError(f'Container not found for path: {wlpath}') from ex
-
-        path = self.find_local_manifest(self.container_dir, 'container', name)
-        if path:
-            return self.load_container_from_path(path)
-
-        raise ManifestError(f'Container not found: {name}')
-
-    def load_storages(self) -> Iterator[Storage]:
-        """
-        Load storages from the storage directory.
-        """
-
-        if self.storage_dir.exists():
-            for path in sorted(self.storage_dir.glob('*.yaml')):
-                try:
-                    storage = self.load_storage_from_path(path)
-                except WildlandError as e:
-                    logger.warning('error loading storage manifest: %s: %s',
-                                   path, e)
-                else:
-                    yield storage
-
-    def load_storage_from_path(self, path: Path) -> Storage:
-        """
-        Load storage from a local file.
-        """
-
-        trusted_owner = self.fs_client.find_trusted_owner(path)
-        return self.session.load_storage(
-            path.read_bytes(), path,
-            trusted_owner=trusted_owner,
-            local_owners=self.config.get('local-owners'))
-
-    def load_storage_from_url(self, url: str, owner: str) -> Storage:
-        """
-        Load storage from URL.
-        """
-
-        return self.session.load_storage(self.read_from_url(url, owner),
-                                         local_owners=self.config.get('local-owners'))
-
-    def load_storage_from_dict(self, dict_: dict, owner: str,
-            container_path: Union[str, PurePosixPath]) -> Storage:
-        """
-        Load storage from a dictionary. Used when a storage manifest is inlined
-        in another manifest.
-        """
-
-        if list(dict_.keys()) == ['encrypted']:
-            raise ManifestError('This inline storage cannot be decrypted')
-
-        # fill in fields that are determined by the context
-        if 'owner' not in dict_:
-            dict_['owner'] = str(owner)
-        if 'container-path' not in dict_:
-            dict_['container-path'] = str(container_path)
-        if 'object' not in dict_:
-            dict_['object'] = 'storage'
-
-        content = ('---\n' + yaml.dump(dict_)).encode()
-        trusted_owner = owner
-        return self.session.load_storage(content,
-                                         trusted_owner=trusted_owner,
-                                         local_owners=self.config.get('local-owners'))
-
-    def load_storage_from(self, name: str) -> Storage:
-        """
-        Load a storage based on a (potentially ambiguous) name.
-        """
-        path = self.find_local_manifest(self.storage_dir, 'storage', name)
-        if path:
-            return self.load_storage_from_path(path)
-
-        raise ManifestError(f'Storage not found: {name}')
-
-    def load_storage_from_url_or_dict(self,
-            obj: Union[str, dict], owner: str, container_path: str) -> Storage:
-        '''
-        Load storage, suitable for loading directly from manifest.
-        '''
-        if isinstance(obj, str):
-            return self.load_storage_from_url(obj, owner)
-        if isinstance(obj, collections.abc.Mapping):
-            return self.load_storage_from_dict(obj, owner, container_path)
-        assert False
-
     def add_storage_to_container(self, container: Container, storage: Storage):
         """
         Append or update inline Storage in a Container determined by backend_id.
         If the passed Storage exists in a container but is referenced by an url, skip adding it and
         issue a warning.
         """
+        storage_manifest = storage.to_unsigned_manifest()
+        storage_manifest.skip_verification()
+
         for idx, backend in enumerate(container.backends):
-            container_storage = self.load_storage_from_url_or_dict(
-                backend, container.owner, str(container.paths[0]))
+            container_storage = self.load_object_from_url_or_dict(
+                backend, WildlandObjectType.STORAGE, container.owner, str(container.paths[0]))
 
             if container_storage.backend_id == storage.backend_id:
                 if isinstance(backend, dict):
-                    container.backends[idx] = storage.to_unsigned_manifest()._fields
+                    container.backends[idx] = storage_manifest.fields
                 else:
                     logger.warning('Attempt to update url storage with inline storage (backend id: '
                                    '%s). Skipping', storage.backend_id)
                 break
         else:
-            container.backends.append(storage.to_unsigned_manifest()._fields)
+            container.backends.append(storage_manifest.fields)
 
-    def load_bridges(self) -> Iterator[Bridge]:
+    def get_all(self, object_type: WildlandObjectType):
         """
-        Load bridge manifests from the bridges directory.
+        Load object manifests from the appropriate directory.
         """
+        if object_type == WildlandObjectType.USER:
+            sig = self.session.sig.copy()
+            sig.recognize_local_keys()
+            client = Client(config=self.config, sig=sig)
+        else:
+            client = self
 
-        if self.bridge_dir.exists():
-            for path in sorted(self.bridge_dir.glob('*.yaml')):
+        if self.dirs[object_type].exists():
+            for path in sorted(self.dirs[object_type].glob('*.yaml')):
                 try:
-                    bridge = self.load_bridge_from_path(path)
+                    obj_ = client.load_object_from_file_path(path, object_type)
                 except WildlandError as e:
-                    logger.warning('error loading bridge manifest: %s: %s',
-                                   path, e)
+                    logger.warning('error loading %s manifest: %s: %s',
+                                   object_type.value, path, e)
                 else:
-                    yield bridge
-
-    def load_bridge_from_path(self, path: Path) -> Bridge:
-        """
-        Load a Bridge from a local file.
-        """
-
-        trusted_owner = self.fs_client.find_trusted_owner(path)
-        return self.session.load_bridge(
-            path.read_bytes(), path,
-            trusted_owner=trusted_owner)
+                    yield obj_
 
     @functools.lru_cache
     def get_bridge_paths_for_user(self, user: Union[User, str], owner: Optional[User] = None) \
@@ -580,19 +510,20 @@ class Client:
         """
         if owner is None:
             try:
-                owner = self.load_user_by_name('@default')
+                owner = self.load_object_from_name('@default', WildlandObjectType.USER)
             except WildlandError:
                 # if default cannot be loaded, just behave as no bridges were found
                 return []
 
         if isinstance(user, str):
-            user = self.load_user_by_name(user)
+            user = self.load_object_from_name(user, WildlandObjectType.USER)
+            assert isinstance(user, User)
 
         if owner.primary_pubkey == user.primary_pubkey:
             return [PurePosixPath('/')]
 
         paths = []
-        for bridge in self.load_bridges():
+        for bridge in self.get_all(WildlandObjectType.BRIDGE):
             if bridge.owner != owner.owner:
                 continue
             if bridge.user_pubkey != user.primary_pubkey:
@@ -601,100 +532,63 @@ class Client:
 
         return set(paths)
 
-    def save_user(self, user: User, path: Optional[Path] = None) -> Path:
+    def save_object(self, obj, object_type: WildlandObjectType,
+                    path: Optional[Path] = None) -> Path:
         """
-        Save a user manifest. If path is None, the user has to have
-        local_path set.
+        Save an existing Wildland object and return the path it was saved to.
+        :param obj: Object to be saved
+        :param object_type: type of object to be saved
+        :param path: (optional), path to save the object to; if omitted, object's local_path will be
+        used.
         """
-
-        path = path or user.local_path
+        path = path or obj.local_path
         assert path is not None
-        path.write_bytes(self.session.dump_user(user))
-        user.local_path = path
+
+        if object_type == WildlandObjectType.USER:
+            path.write_bytes(self.session.dump_user(obj))
+        else:
+            path.write_bytes(self.session.dump_object(obj))
+
+        obj.local_path = path
+
+        if object_type == WildlandObjectType.BRIDGE:
+            # cache_clear is added by a decorator, which pylint doesn't see
+            # pylint: disable=no-member
+            self.get_bridge_paths_for_user.cache_clear()
+
         return path
 
-    def save_new_user(self, user: User, name: Optional[str] = None) -> Path:
+    def save_new_object(self, object_type: WildlandObjectType, object_, name: Optional[str] = None,
+                        path: Optional[Path] = None):
         """
-        Save a new user in the user directory. Use the name as a hint for file
+        Save a new object in appropriate directory. Use the name as a hint for file
         name.
         """
-
-        path = self.new_path('user', name or user.owner)
-        path.write_bytes(self.session.dump_user(user))
-        user.local_path = path
-        return path
-
-    def save_container(self, container: Container, path: Optional[Path] = None) -> Path:
-        """
-        Save a container manifest. If path is None, the container has to have
-        local_path set.
-        """
-
-        path = path or container.local_path
-        assert path is not None
-        path.write_bytes(self.session.dump_object(container))
-        return path
-
-    def save_new_container(self, container: Container, name: Optional[str] = None) -> Path:
-        """
-        Save a new container in the container directory. Use the name as a hint for file
-        name.
-        """
-
-        ident = container.ensure_uuid()
-        path = self.new_path('container', name or ident)
-        path.write_bytes(self.session.dump_object(container))
-        container.local_path = path
-        return path
-
-    def save_new_storage(self, storage: Storage, name: Optional[str] = None) -> Path:
-        """
-        Save a new storage in the storage directory. Use the name as a hint for file
-        name.
-        """
-
-        path = self.new_path('storage', name or storage.container_path.name)
-        path.write_bytes(self.session.dump_object(storage))
-        storage.local_path = path
-        return path
-
-    def save_new_bridge(self, bridge: Bridge,
-                        name: Optional[str], path: Optional[Path]) -> Path:
-        """
-        Save a new bridge.
-        """
-
         if not path:
-            assert name is not None
-            path = self.new_path('bridge', name)
+            if not name:
+                if object_type == WildlandObjectType.CONTAINER:
+                    name = object_.ensure_uuid()
+                elif object_type == WildlandObjectType.STORAGE:
+                    name = object_.container_path.name
+                else:
+                    name = object_.owner
 
-        path.write_bytes(self.session.dump_object(bridge))
-        bridge.local_path = path
-        # cache_clear is added by a decorator, which pylint doesn't see
-        # pylint: disable=no-member
-        self.get_bridge_paths_for_user.cache_clear()
-        return path
+            path = self.new_path(object_type, name or object_type.value)
 
-    def new_path(self, manifest_type, name: str, skip_numeric_suffix: bool = False) -> Path:
+        return self.save_object(object_, object_type, path=path)
+
+    def new_path(self, manifest_type: WildlandObjectType, name: str,
+                 skip_numeric_suffix: bool = False) -> Path:
         """
         Create a path in Wildland base_dir to save a new object of type manifest_type and name
         name. It follows Wildland conventions.
         :param manifest_type: 'user', 'container', 'storage', 'bridge' or 'set'
         :param name: name of the object
+        :param skip_numeric_suffix: should the path be extended with .1 etc. numeric suffix if
+        first inferred path already exists
         :return: Path
         """
-        if manifest_type == 'user':
-            base_dir = self.user_dir
-        elif manifest_type == 'container':
-            base_dir = self.container_dir
-        elif manifest_type == 'storage':
-            base_dir = self.storage_dir
-        elif manifest_type == 'bridge':
-            base_dir = self.bridge_dir
-        elif manifest_type == 'set':
-            base_dir = self.template_dir
-        else:
-            assert False, manifest_type
+        base_dir = self.dirs[manifest_type]
 
         if not base_dir.exists():
             base_dir.mkdir(parents=True)
@@ -702,13 +596,13 @@ class Client:
         i = 0
         while True:
             suffix = '' if i == 0 else f'.{i}'
-            path = base_dir / f'{name}{suffix}.{manifest_type}.yaml'
+            path = base_dir / f'{name}{suffix}.{manifest_type.value}.yaml'
             if skip_numeric_suffix or not path.exists():
                 return path
             i += 1
 
     def all_storages(self, container: Container, backends=None, *,
-            predicate=None) -> Iterator[Storage]:
+                     predicate=None) -> Iterator[Storage]:
         """
         Return (and load on returning) all storages for a given container.
 
@@ -722,7 +616,8 @@ class Client:
             if isinstance(url_or_dict, str):
                 name = url_or_dict
                 try:
-                    storage = self.load_storage_from_url(url_or_dict, container.owner)
+                    storage = self.load_object_from_url(url_or_dict, WildlandObjectType.STORAGE,
+                                                        owner=container.owner)
                 except FileNotFoundError as e:
                     logging.warning('Error loading manifest: %s', e)
                     continue
@@ -730,7 +625,7 @@ class Client:
                     logging.exception('Error loading manifest: %s', url_or_dict)
                     continue
 
-                # Checking storage owner and path is neccessary only in external
+                # Checking storage owner and path is necessary only in external
                 # storage files but not in inline ones.
 
                 if storage.owner != container.owner:
@@ -753,8 +648,9 @@ class Client:
             else:
                 name = '(inline)'
                 try:
-                    storage = self.load_storage_from_dict(
-                        url_or_dict, container.owner, container.paths[0])
+                    storage = self.load_object_from_dict(
+                        url_or_dict, WildlandObjectType.STORAGE, owner=container.owner,
+                        container_path=container.paths[0])
                 except WildlandError as e:
                     logging.info('Container %s: error loading inline manifest: %s', container, e)
                     continue
@@ -834,15 +730,9 @@ class Client:
         if cache_key in self._select_reference_storage_cache:
             return self._select_reference_storage_cache[cache_key]
 
-        if isinstance(container_url_or_dict, str):
-            container = self.load_container_from_url(
-                container_url_or_dict, owner
-            )
-
-        else:
-            container = self.load_container_from_dict(
-                container_url_or_dict, owner
-            )
+        container = self.load_object_from_url_or_dict(container_url_or_dict,
+                                                      WildlandObjectType.CONTAINER,
+                                                      owner=owner)
 
         if trusted and container.owner != owner:
             logger.error(
@@ -881,21 +771,8 @@ class Client:
                     sub_storage['reference-container'].replace(
                         ':@parent-container:', f':{container.paths[0]}:')
         manifest = Manifest.from_fields(subcontainer_params)
-        manifest.skip_signing()
+        manifest.skip_verification()
         return Container.from_manifest(manifest)
-
-    @staticmethod
-    def storage_read_file(storage, relpath) -> bytes:
-        """
-        Read a file from StorageBackend, using FUSE commands.
-        """
-
-        obj = storage.open(relpath, os.O_RDONLY)
-        try:
-            st = storage.fgetattr(relpath, obj)
-            return storage.read(relpath, st.size, 0, obj)
-        finally:
-            storage.release(relpath, 0, obj)
 
     def all_subcontainers(self, container: Container) -> Iterator[Container]:
         """
@@ -973,7 +850,8 @@ class Client:
             return bool(wlpath.file_path)
         return True
 
-    def read_from_url(self, url: str, owner: str, use_aliases: bool = False) -> bytes:
+    def read_from_url(self, url: str, owner: Optional[str] = None,
+                      use_aliases: bool = False) -> bytes:
         """
         Retrieve data from a given URL. The local (file://) URLs
         are recognized based on the 'local_hostname' and 'local_owners'
@@ -1013,7 +891,7 @@ class Client:
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
 
-    def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
+    def parse_file_url(self, url: str, owner: Optional[str] = None) -> Optional[Path]:
         """
         Retrieve path from a given file URL, if it's applicable.
         Checks the 'local_hostname' and 'local_owners' settings.
@@ -1034,10 +912,11 @@ class Client:
 
         path = Path(parse_result.path)
 
-        try:
-            verify_local_access(path, owner, owner in local_owners)
-        except PermissionError as e:
-            logger.warning('Cannot load %s: %s', url, e)
-            return None
+        if owner:
+            try:
+                verify_local_access(path, owner, owner in local_owners)
+            except PermissionError as e:
+                logger.warning('Cannot load %s: %s', url, e)
+                return None
 
         return path

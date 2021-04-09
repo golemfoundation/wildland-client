@@ -20,7 +20,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name
 
 import pytest
-from ..manifest.manifest import Manifest
+from ..manifest.manifest import Manifest, WildlandObjectType
 from ..client import Client
 from ..storage import StorageBackend
 
@@ -50,14 +50,14 @@ def client(setup, base_dir):
 
 
 def test_select_storage(client, base_dir):
-    container = client.load_container_from('Container1')
+    container = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
 
     storage = client.select_storage(container)
     assert storage.params['location'] == str(base_dir / 'storage1')
 
 
 def test_select_storage_unsupported(client, base_dir):
-    container = client.load_container_from('Container1')
+    container = client.load_object_from_name('Container1', WildlandObjectType.CONTAINER)
 
     storage_manifest = Manifest.from_fields({
         'owner': '0xaaa',
@@ -93,9 +93,12 @@ def test_storage_without_backend_id(client, base_dir):
     with open(base_dir / 'storage' / 'Storage3.storage.yaml', 'wb') as f:
         f.write(storage_manifest_modified.to_bytes())
 
-    storage = client.load_storage_from_path(base_dir / 'storage' / 'Storage1.storage.yaml')
-    storage2 = client.load_storage_from_path(base_dir / 'storage' / 'Storage2.storage.yaml')
-    storage3 = client.load_storage_from_path(base_dir / 'storage' / 'Storage3.storage.yaml')
+    storage = client.load_object_from_file_path(
+        base_dir / 'storage' / 'Storage1.storage.yaml', WildlandObjectType.STORAGE)
+    storage2 = client.load_object_from_file_path(
+        base_dir / 'storage' / 'Storage2.storage.yaml', WildlandObjectType.STORAGE)
+    storage3 = client.load_object_from_file_path(
+        base_dir / 'storage' / 'Storage3.storage.yaml', WildlandObjectType.STORAGE)
 
     backend = StorageBackend.from_params(storage.params)
     backend2 = StorageBackend.from_params(storage2.params)
@@ -111,7 +114,7 @@ def test_expanded_paths(client, cli):
     cli('container', 'create', 'ContainerExt', '--path', '/path', '--title',
         'title', '--category', '/t1/t2', '--category', '/t3')
 
-    container = client.load_container_from('ContainerExt')
+    container = client.load_object_from_name('ContainerExt', WildlandObjectType.CONTAINER)
     uuid = container.ensure_uuid()
 
     assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/@t3/title', '/t3/@t1/t2/title'} \

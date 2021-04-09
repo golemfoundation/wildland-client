@@ -104,11 +104,12 @@ class User:
         manifest.apply_schema(self.SCHEMA)
         return manifest
 
-    def add_user_keys(self, sig_context):
+    def add_user_keys(self, sig_context, add_primary=True):
         """
-        Add all user keys (primary key and any keys listed in "pubkeys" field) to the given
-        sig_context.
+        Add user keys (primary key only if add_primary is True and any keys listed in "pubkeys"
+        field) to the given sig_context.
         """
-        sig_context.add_pubkey(self.pubkeys[0])
+        if add_primary:
+            sig_context.add_pubkey(self.pubkeys[0])
         for additional_pubkey in self.pubkeys[1:]:
             sig_context.add_pubkey(additional_pubkey, self.owner)
