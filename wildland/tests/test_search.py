@@ -565,6 +565,185 @@ paths:
         assert "Manifest owner does not have access to signing key" in logs
 
 
+@pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
+def test_traverse_bridge_link(cli, base_dir, client, owner, caplog):
+    cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
+
+    client.recognize_users()
+    client.config = Config.load(base_dir)
+
+    storage_path = base_dir / 'storage3'
+    (base_dir / 'storage3/.wildland-owners').write_bytes(b'0xfff\n')
+    os.mkdir(base_dir / 'storage1/users/')
+
+    remote_user_dir = base_dir / 'storage1/'
+    (remote_user_dir / 'users/').mkdir(parents=True, exist_ok=True)
+    remote_user_file = remote_user_dir / 'users/DummyUser.user.yaml'
+
+    user_data = f'''\
+signature: |
+  dummy.{owner}
+---
+object: user
+owner: '0xfff'
+paths:
+- /users/User2
+pubkeys:
+- key.0xbbb
+infrastructures:
+ - object: container
+   owner: '0xfff'
+   paths:
+    - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+   backends:
+    storage:
+     - object: storage
+       type: local
+       location: {storage_path}
+       owner: '0xfff'
+       container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+       backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
+       manifest-pattern:
+        type: glob
+        path: /manifests/{{path}}/*.yaml
+'''.encode()
+
+    remote_user_file.write_bytes(user_data)
+
+    bridge_file = base_dir / 'bridges/TestBridge1.bridge.yaml'
+    bridge_file.write_bytes(f"""\
+signature: |
+  dummy.0xddd
+---
+object: 'bridge'
+owner: '0xddd'
+user:
+  object: link
+  storage:
+    object: storage
+    type: local
+    location: {remote_user_dir}
+    backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a8999'
+  file: '/users/DummyUser.user.yaml'
+pubkey: 'key.0xfff'
+paths:
+- /path
+""".encode())
+
+    (remote_user_dir / '.wildland-owners').write_bytes(b'0xfff\n')
+
+    with open(base_dir / 'storage3/file.txt', 'w') as f:
+        f.write('Hello world')
+
+    search = Search(client,
+        WildlandPath.from_str(':/path:/file.txt'),
+        aliases={'default': '0xddd'})
+
+    if owner == '0xfff':
+        data = search.read_file()
+        assert data == b'Hello world'
+
+    elif owner == '0xbbb':
+        with pytest.raises(FileNotFoundError):
+            data = search.read_file()
+        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        assert "Manifest owner does not have access to signing key" in logs
+
+
+@pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
+def test_traverse_linked_infra(cli, base_dir, client, owner, caplog):
+    cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
+
+    client.recognize_users()
+    client.config = Config.load(base_dir)
+
+    storage_path = base_dir / 'storage3'
+    (base_dir / 'storage3/.wildland-owners').write_bytes(b'0xfff\n')
+    os.mkdir(base_dir / 'storage1/users/')
+
+    container_data = f'''\
+signature: |
+  dummy.{owner}
+---
+object: container
+owner: '0xfff'
+paths:
+- /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+backends:
+  storage:
+   - object: storage
+     type: local
+     location: {storage_path}
+     owner: '0xfff'
+     container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
+     manifest-pattern:
+      type: glob
+      path: /manifests/{{path}}/*.yaml
+'''.encode()
+
+    infra_storage_path = base_dir / 'storage_infra'
+    infra_storage_path.mkdir()
+    (infra_storage_path / 'cont.yaml').write_bytes(container_data)
+
+    remote_user_file = base_dir / 'storage1/users/DummyUser.user.yaml'
+
+    user_data = f'''\
+signature: |
+  dummy.{owner}
+---
+object: user
+owner: '0xfff'
+paths:
+- /users/User2
+pubkeys:
+- key.0xbbb
+infrastructures:
+ - object: link
+   file: '/cont.yaml'
+   storage:
+     object: storage
+     type: local
+     location: {infra_storage_path}
+     backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a8933'
+'''.encode()
+
+    remote_user_file.write_bytes(user_data)
+
+    bridge_file = base_dir / 'bridges/TestBridge1.bridge.yaml'
+    bridge_file.write_bytes(f"""\
+signature: |
+  dummy.0xddd
+---
+object: 'bridge'
+owner: '0xddd'
+user: file://localhost{remote_user_file}
+pubkey: 'key.0xfff'
+paths:
+- /path
+""".encode())
+
+    with open(base_dir / 'storage3/file.txt', 'w') as f:
+        f.write('Hello world')
+
+    search = Search(client,
+        WildlandPath.from_str(':/path:/file.txt'),
+        aliases={'default': '0xddd'})
+
+    if owner == '0xfff':
+        with pytest.raises(PermissionError):
+            data = search.read_file()
+        (infra_storage_path / '.wildland-owners').write_bytes(b'0xfff\n')
+        data = search.read_file()
+        assert data == b'Hello world'
+
+    elif owner == '0xbbb':
+        with pytest.raises(FileNotFoundError):
+            data = search.read_file()
+        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        assert "Manifest owner does not have access to signing key" in logs
+
+
 def test_search_two_containers(base_dir, cli):
     os.mkdir(base_dir / 'storage1')
 

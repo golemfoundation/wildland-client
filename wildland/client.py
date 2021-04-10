@@ -336,6 +336,21 @@ class Client:
 
         return self.session.load_container(self.read_from_url(url, owner))
 
+    def load_user_from_dict(self, dict_: dict, owner: str) -> User:
+        """
+        Load user from a dict. Used mostly for linked user manifests in bridges.
+        """
+        if dict_['object'] == 'link':
+            storage = self.load_storage_from_dict(dict_['storage'], owner, '/')
+            storage_backend = StorageBackend.from_params(storage.params)
+
+            with storage_backend:
+                content = self.storage_read_file(
+                    storage_backend, Path(dict_['file']).relative_to('/'))
+        else:
+            content = ('---\n' + yaml.dump(dict_)).encode()
+        return self.session.load_user(content)
+
     def load_container_from_dict(self, dict_: dict, owner: str) -> Container:
         """
         Load container from a dictionary. Used when a container manifest is inlined
@@ -346,7 +361,15 @@ class Client:
         if 'owner' not in dict_:
             dict_['owner'] = owner
 
-        content = ('---\n' + yaml.dump(dict_)).encode()
+        if dict_['object'] == 'link':
+            storage = self.load_storage_from_dict(dict_['storage'], owner, '/')
+            storage_backend = StorageBackend.from_params(storage.params)
+
+            with storage_backend:
+                content = self.storage_read_file(
+                    storage_backend, Path(dict_['file']).relative_to('/'))
+        else:
+            content = ('---\n' + yaml.dump(dict_)).encode()
         trusted_owner = owner
         return self.session.load_container(content, trusted_owner=trusted_owner)
 
@@ -860,6 +883,19 @@ class Client:
         manifest = Manifest.from_fields(subcontainer_params)
         manifest.skip_signing()
         return Container.from_manifest(manifest)
+
+    @staticmethod
+    def storage_read_file(storage, relpath) -> bytes:
+        """
+        Read a file from StorageBackend, using FUSE commands.
+        """
+
+        obj = storage.open(relpath, os.O_RDONLY)
+        try:
+            st = storage.fgetattr(relpath, obj)
+            return storage.read(relpath, st.size, 0, obj)
+        finally:
+            storage.release(relpath, 0, obj)
 
     def all_subcontainers(self, container: Container) -> Iterator[Container]:
         """

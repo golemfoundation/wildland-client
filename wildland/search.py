@@ -162,7 +162,7 @@ class Search:
                 continue
             with storage_backend:
                 try:
-                    return storage_read_file(storage_backend,
+                    return self.client.storage_read_file(storage_backend,
                                              self.wlpath.file_path.relative_to('/'))
                 except FileNotFoundError:
                     continue
@@ -375,7 +375,7 @@ class Search:
                     trusted_owner = storage.owner
 
                 try:
-                    manifest_content = storage_read_file(storage_backend, manifest_path)
+                    manifest_content = self.client.storage_read_file(storage_backend, manifest_path)
                 except IOError as e:
                     logger.warning('Could not read %s: %s', manifest_path, e)
                     continue
@@ -438,40 +438,49 @@ class Search:
         next_client, next_owner = client.sub_client_with_key(bridge.user_pubkey)
 
         location = bridge.user_location
-        if (location.startswith('./') or location.startswith('../')):
+        if isinstance(location, str):
+            if location.startswith('./') or location.startswith('../'):
 
-            if not (manifest_path and storage_backend):
-                logger.warning(
-                    'local bridge manifest with relative location, skipping')
-                return
+                if not (manifest_path and storage_backend):
+                    logger.warning(
+                        'local bridge manifest with relative location, skipping')
+                    return
 
-            # Treat location as relative path
-            user_manifest_path = manifest_path.parent / location
+                # Treat location as relative path
+                user_manifest_path = manifest_path.parent / location
+                try:
+                    user_manifest_content = self.client.storage_read_file(
+                        storage_backend, user_manifest_path)
+                except IOError as e:
+                    logger.warning('Could not read local user manifest %s: %s',
+                                   user_manifest_path, e)
+                    return
+                logger.debug('%s: local user manifest: %s',
+                             part, user_manifest_path)
+            else:
+                # Treat location as URL
+                try:
+                    user_manifest_content = client.read_from_url(location, owner)
+                except WildlandError as e:
+                    logger.warning('Could not read user manifest %s: %s',
+                                   location, e)
+                    return
+                logger.debug('%s: remote user manifest: %s',
+                             part, location)
             try:
-                user_manifest_content = storage_read_file(
-                    storage_backend, user_manifest_path)
-            except IOError as e:
-                logger.warning('Could not read local user manifest %s: %s',
-                               user_manifest_path, e)
-                return
-            logger.debug('%s: local user manifest: %s',
-                         part, user_manifest_path)
-        else:
-            # Treat location as URL
-            try:
-                user_manifest_content = client.read_from_url(location, owner)
+                user = next_client.session.load_user(user_manifest_content)
             except WildlandError as e:
-                logger.warning('Could not read user manifest %s: %s',
+                logger.warning('Could not load user manifest %s: %s',
                                location, e)
                 return
-            logger.debug('%s: remote user manifest: %s',
-                         part, location)
-        try:
-            user = next_client.session.load_user(user_manifest_content)
-        except WildlandError as e:
-            logger.warning('Could not load user manifest %s: %s',
-                           location, e)
-            return
+
+        else:
+            try:
+                user = self.client.load_user_from_dict(location, owner)
+            except (WildlandError, FileNotFoundError) as ex:
+                logger.warning('cannot load linked user manifest: %s. Exception: %s',
+                               location, str(ex))
+                return
 
         yield from self._user_step(
             user, next_owner, next_client, bridge, step)
@@ -494,8 +503,18 @@ class Search:
         )
 
         for container_spec in user.containers:
-            if isinstance(container_spec, str):
-                # Container URL
+            if isinstance(container_spec, dict):
+                if container_spec['object'] == 'container':
+                    container_desc = '(inline)'
+                else:
+                    container_desc = '(linked)'
+                try:
+                    container = self.client.load_container_from_dict(container_spec, user.owner)
+                except (WildlandError, FileNotFoundError) as ex:
+                    logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
+                                   user.owner, container_spec, str(ex))
+                    continue
+            else:
                 try:
                     manifest_content = client.read_from_url(container_spec, user.owner)
                 except (WildlandError, FileNotFoundError) as ex:
@@ -510,12 +529,6 @@ class Search:
                     logger.warning('failed to load user %s infrastructure: %s: Exception: %s',
                                    user.owner, container_spec, str(ex))
                     continue
-
-            else:
-                # Inline container
-                logger.debug('loading inline container for user')
-                container = client.load_container_from_dict(container_spec, user.owner)
-                container_desc = '(inline)'
 
             if container.owner != user.owner:
                 logger.warning('Unexpected owner for %s: %s (expected %s)',
@@ -548,19 +561,6 @@ class Search:
             return self.aliases[alias[1:]]
         except KeyError as ex:
             raise PathError(f'Unknown alias: {alias}') from ex
-
-
-def storage_read_file(storage, relpath) -> bytes:
-    """
-    Read a file from StorageBackend, using FUSE commands.
-    """
-
-    obj = storage.open(relpath, os.O_RDONLY)
-    try:
-        st = storage.fgetattr(relpath, obj)
-        return storage.read(relpath, st.size, 0, obj)
-    finally:
-        storage.release(relpath, 0, obj)
 
 
 def get_file_pattern(
