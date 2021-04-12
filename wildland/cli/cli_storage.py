@@ -21,12 +21,14 @@
 Storage object
 """
 
-from typing import Type
-from pathlib import PurePosixPath
+from typing import Type, List
+from pathlib import Path, PurePosixPath
 import functools
 import uuid
+import copy
 
 import click
+import uritools
 
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
@@ -57,20 +59,20 @@ def _make_create_command(backend: Type[StorageBackend]):
     params = [
         click.Option(['--container'], metavar='CONTAINER',
                      required=True,
-                     help='Container this storage is for.'),
+                     help='Container this storage is for'),
         click.Option(['--trusted'], is_flag=True,
                      help='Make the storage trusted. Default: false'),
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--manifest-pattern'], metavar='GLOB',
-                     help='Set the manifest pattern for storage.'),
+                     help='Set the manifest pattern for storage'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--base-url'], metavar='BASEURL',
-                     help='Set public base URL.'),
+                     help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="Limit access to this storage to the provided users. "
+                     help="limit access to this storage to the provided users. "
                           "Default: same as the container."),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
@@ -288,19 +290,51 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
 
         storage = Storage.from_manifest(manifest,
                                         local_owners=client.config.get('local-owners'))
+        backend = StorageBackend.from_params(storage.params)
 
-        try:
-            backend = StorageBackend.from_params(storage.params)
-            backend.mount()
+        if storage.is_writeable and backend.LOCATION_PARAM:
+            path = storage.params[backend.LOCATION_PARAM]
 
-            try:
-                backend.mkdir(PurePosixPath(''))
-            except Exception:
-                click.echo('WARNING: Cannot create storage root. Proceeding conditionally.')
-            finally:
-                backend.unmount()
-        except Exception:
-            click.echo('WARNING: Cannot mount storage. Proceeding conditionally.')
+            is_uri = uritools.isuri(path)
+
+            if is_uri:
+                uri      = uritools.urisplit(path)
+                rel_path = uri.path
+            else:
+                rel_path = path
+
+            path_chunks          = list(PurePosixPath(rel_path).parts)
+            to_create: List[str] = []
+
+            while path_chunks:
+                path_chunks_str = str(Path.joinpath(*[Path(p) for p in path_chunks]))
+
+                if is_uri:
+                    uri_path = path_chunks_str
+                    rel_path = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
+                                                   query=uri.query, fragment=uri.fragment,
+                                                   path=uri_path)
+                else:
+                    rel_path = path_chunks_str
+
+                try_storage = copy.deepcopy(storage)
+                try_storage.params[backend.LOCATION_PARAM] = rel_path
+
+                try_backend = StorageBackend.from_params(try_storage.params)
+
+                try:
+                    try_backend.mount()
+                    try_backend.getattr(PurePosixPath(''))
+
+                    for idx, _ in enumerate(to_create):
+                        next_dir = Path.joinpath(*[Path(p) for p in to_create[:idx+1]])
+                        try_backend.mkdir(PurePosixPath(next_dir))
+
+                    try_backend.unmount()
+                    break
+                except Exception as ex:
+                    try_backend.unmount()
+                    to_create.insert(0, path_chunks.pop())
 
         click.echo(f'Adding storage {storage.backend_id} to container.')
         client.add_storage_to_container(container=container, storage=storage,
