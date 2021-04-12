@@ -45,7 +45,6 @@ from . import (
 )
 
 from ..log import init_logging
-from ..manifest.manifest import ManifestError
 from ..client import Client
 from .. import __version__ as _version
 
@@ -160,12 +159,13 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
     obj.client.recognize_users()
     if default_user:
-        try:
-            user = obj.client.load_user_by_name(default_user)
-        except (FileNotFoundError, ManifestError) as e:
-            raise CliError(f'User {default_user} not found') from e
+        user = obj.client.load_user_by_name(default_user)
     else:
-        user = obj.client.load_user_by_name(obj.client.config.get('@default'))
+        default_user_name = obj.client.config.get('@default')
+        if not default_user_name:
+            raise WildlandError('@default user not set')
+        user = obj.client.load_user_by_name(default_user_name)
+
     to_mount = []
     if mount_containers:
         to_mount += mount_containers
