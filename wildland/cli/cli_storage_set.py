@@ -133,7 +133,7 @@ def set_default_(obj: ContextObj, user, name):
 
     obj.client.recognize_users()
     try:
-        user = obj.client.load_object_from_name(user_name, WildlandObjectType.USER)
+        user = obj.client.load_object_from_name(WildlandObjectType.USER, user_name)
     except ManifestError as ex:
         raise WildlandError(f'User {user_name} load failed: {ex}') from ex
 

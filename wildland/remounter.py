@@ -237,8 +237,8 @@ class Remounter:
         # Handle create/modify:
         if event.event_type in ['create', 'modify']:
             local_path = self.fs_client.mount_dir / event.path.relative_to('/')
-            container = self.client.load_object_from_file_path(local_path,
-                                                               WildlandObjectType.CONTAINER)
+            container = self.client.load_object_from_file_path(
+                WildlandObjectType.CONTAINER, local_path)
 
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_path(

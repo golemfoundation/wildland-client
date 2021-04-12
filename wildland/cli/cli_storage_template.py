@@ -120,7 +120,7 @@ def _do_create(
         else:
             try:
                 params['access'] = [
-                    {'user': obj.client.load_object_from_name(user, WildlandObjectType.USER).owner}
+                    {'user': obj.client.load_object_from_name(WildlandObjectType.USER, user).owner}
                     for user in access
                 ]
             except WildlandError as ex:

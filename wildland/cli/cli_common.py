@@ -54,7 +54,7 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     except ValueError:
         object_type = None
 
-    path = client.find_local_manifest(name, object_type)
+    path = client.find_local_manifest(object_type, name)
     if path:
         return path
 
@@ -74,7 +74,7 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
         for storage in manifest.fields['backends']['storage']:
             if isinstance(storage, str):
                 continue
-            storage_obj = client.load_object_from_dict(storage, WildlandObjectType.STORAGE,
+            storage_obj = client.load_object_from_dict(WildlandObjectType.STORAGE, storage,
                                                        manifest.fields['owner'],
                                                        manifest.fields['paths'][0])
             storage_obj.validate()
@@ -287,7 +287,7 @@ def edit(ctx: click.Context, editor, input_file, remount):
     click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_mounted():
-        container = obj.client.load_object_from_file_path(path, WildlandObjectType.CONTAINER)
+        container = obj.client.load_object_from_file_path(WildlandObjectType.CONTAINER, path)
         if obj.fs_client.find_primary_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')
 

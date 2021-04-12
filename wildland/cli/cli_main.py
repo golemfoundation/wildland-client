@@ -161,12 +161,12 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
     obj.client.recognize_users()
     if default_user:
         try:
-            user = obj.client.load_object_from_name(default_user, WildlandObjectType.USER)
+            user = obj.client.load_object_from_name(WildlandObjectType.USER, default_user)
         except (FileNotFoundError, ManifestError) as e:
             raise CliError(f'User {default_user} not found') from e
     else:
-        user = obj.client.load_object_from_name(obj.client.config.get('@default'),
-                                                WildlandObjectType.USER)
+        user = obj.client.load_object_from_name(WildlandObjectType.USER,
+                                                obj.client.config.get('@default'))
     to_mount = []
     if mount_containers:
         to_mount += mount_containers

@@ -24,7 +24,7 @@ from pathlib import PurePosixPath, Path
 from typing import Dict, Any, Optional, List
 
 from .storage_backends.base import StorageBackend
-from .manifest.manifest import Manifest, ManifestError
+from .manifest.manifest import Manifest, ManifestError, WildlandObjectType
 from .manifest.schema import Schema
 from .container import Container
 
@@ -36,6 +36,8 @@ class Storage:
     BASE_SCHEMA = Schema('storage')
 
     DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/*.yaml'}
+
+    OBJECT_TYPE = WildlandObjectType.STORAGE
 
     def __init__(self,
                  owner: str,
@@ -65,7 +67,7 @@ class Storage:
 
 
     def __repr__(self):
-        return (f'{type(self).__name__}('
+        return (f'{self.OBJECT_TYPE.value}('
                 f'owner={self.owner!r}, '
                 f'storage_type={self.storage_type!r}, '
                 f'container_path={self.container_path!r}, '
@@ -152,7 +154,7 @@ class Storage:
     def _get_manifest_fields(self) -> Dict[str, Any]:
         fields: Dict[str, Any] = {
             **self.params,
-            'object': type(self).__name__.lower(),
+            'object': self.OBJECT_TYPE.value,
             'owner': self.owner,
             'type': self.storage_type,
             'container-path': str(self.container_path),

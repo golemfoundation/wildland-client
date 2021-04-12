@@ -25,7 +25,7 @@ from pathlib import Path, PurePosixPath
 from typing import List, Optional, Union
 import logging
 
-from .manifest.manifest import Manifest
+from .manifest.manifest import Manifest, WildlandObjectType
 from .manifest.schema import Schema
 
 
@@ -39,6 +39,7 @@ class User:
     """
 
     SCHEMA = Schema('user')
+    OBJECT_TYPE = WildlandObjectType.USER
 
     def __init__(self, *,
                  owner: str,
@@ -94,7 +95,7 @@ class User:
         """
 
         manifest = Manifest.from_fields({
-            'object': type(self).__name__.lower(),
+            'object': self.OBJECT_TYPE.value,
             'owner': self.owner,
             'paths': [str(p) for p in self.paths],
             'infrastructures': self.containers,

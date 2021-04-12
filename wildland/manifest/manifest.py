@@ -387,9 +387,9 @@ class Manifest:
         schema.validate(self._fields)
 
     @classmethod
-    def load_pubkeys(cls,
-                     data: bytes,
-                     sig_context: SigContext) -> None:
+    def verify_and_load_pubkeys(cls,
+                                data: bytes,
+                                sig_context: SigContext) -> None:
         """
         Load pubkeys directly from manifest's message (body) into signature context
         without relying on locally stored users/keys. This might be used in a

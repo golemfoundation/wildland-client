@@ -50,11 +50,11 @@ def test_date_proxy_with_url(cli, base_dir):
     client.recognize_users()
 
     # When loaded directly, the storage manifest contains container URL...
-    storage = client.load_object_from_name('ProxyStorage', WildlandObjectType.STORAGE)
+    storage = client.load_object_from_name(WildlandObjectType.STORAGE, 'ProxyStorage')
     assert storage.params['reference-container'] == reference_url
 
     # But select_storage loads also the reference manifest
-    container = client.load_object_from_name('Container', WildlandObjectType.CONTAINER)
+    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container')
     storage = client.select_storage(container)
     assert storage.storage_type == 'date-proxy'
     reference_storage = storage.params['storage']
@@ -184,7 +184,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
     client = Client(base_dir)
     client.recognize_users()
 
-    container = client.load_object_from_name(container, WildlandObjectType.CONTAINER)
+    container = client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     subcontainers = list(client.all_subcontainers(container))
     assert len(subcontainers) == 2
     assert subcontainers[0].paths[1:] == [PurePosixPath('/timeline/2008/02/03')]
@@ -216,7 +216,7 @@ def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
     client = Client(base_dir)
     client.recognize_users()
 
-    container = client.load_object_from_name(container, WildlandObjectType.CONTAINER)
+    container = client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     for subcontainer in client.all_subcontainers(container):
         env.mount_storage(subcontainer.paths[1:], client.select_storage(subcontainer).params)
 

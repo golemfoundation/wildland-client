@@ -106,9 +106,9 @@ class Search:
         self.initial_owner = self._subst_alias(wlpath.owner or '@default')
         self.fs_client = fs_client
 
-        self.local_containers = list(self.client.get_all(WildlandObjectType.CONTAINER))
-        self.local_users = list(self.client.get_all(WildlandObjectType.USER))
-        self.local_bridges = list(self.client.get_all(WildlandObjectType.BRIDGE))
+        self.local_containers = list(self.client.load_all(WildlandObjectType.CONTAINER))
+        self.local_users = list(self.client.load_all(WildlandObjectType.USER))
+        self.local_bridges = list(self.client.load_all(WildlandObjectType.BRIDGE))
 
     def resolve_raw(self) -> Iterable[Step]:
         """
@@ -304,8 +304,8 @@ class Search:
 
     def _resolve_first(self):
         if self.wlpath.hint:
-            hint_user = self.client.load_user_from_url(self.wlpath.hint,
-                                                       self.initial_owner, self.initial_owner)
+            hint_user = self.client.load_object_from_url(WildlandObjectType.USER, self.wlpath.hint,
+                                                         self.initial_owner, self.initial_owner)
 
             for step in self._user_step(hint_user, self.initial_owner, self.client, None, None):
                 yield from self._resolve_next(step, 0)
@@ -475,8 +475,8 @@ class Search:
 
         else:
             try:
-                user = self.client.load_object_from_dict(location, WildlandObjectType.USER,
-                                                         owner=owner)
+                user = self.client.load_object_from_dict(WildlandObjectType.USER, location,
+                                                         expected_owner=owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load linked user manifest: %s. Exception: %s',
                                location, str(ex))
@@ -510,7 +510,7 @@ class Search:
                     container_desc = '(linked)'
                 try:
                     container = self.client.load_object_from_dict(
-                        container_spec, WildlandObjectType.CONTAINER, owner=user.owner)
+                        WildlandObjectType.CONTAINER, container_spec, expected_owner=user.owner)
                 except (WildlandError, FileNotFoundError) as ex:
                     logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
                                    user.owner, container_spec, str(ex))

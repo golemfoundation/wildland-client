@@ -137,7 +137,7 @@ def list_(obj: ContextObj):
     default_owner = obj.client.config.get('@default-owner')
     default_override = (default_user != obj.client.config.get('@default', use_override=False))
 
-    for user in obj.client.get_all(WildlandObjectType.USER):
+    for user in obj.client.load_all(WildlandObjectType.USER):
         path_string = str(user.local_path)
         if user.owner == default_user:
             path_string += ' (@default)'
@@ -175,20 +175,20 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
 
     obj.client.recognize_users()
 
-    user = obj.client.load_object_from_name(name, WildlandObjectType.USER)
+    user = obj.client.load_object_from_name(WildlandObjectType.USER, name)
 
     if not user.local_path:
         raise WildlandError('Can only delete a local manifest')
 
     # Check if this is the only manifest with such owner
     other_count = 0
-    for other_user in obj.client.get_all(WildlandObjectType.USER):
+    for other_user in obj.client.load_all(WildlandObjectType.USER):
         if other_user.local_path != user.local_path and other_user.owner == user.owner:
             other_count += 1
 
     used = False
 
-    for container in obj.client.get_all(WildlandObjectType.CONTAINER):
+    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
         assert container.local_path is not None
         if container.owner == user.owner:
             if cascade:
@@ -198,7 +198,7 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
                 click.echo('Found container: {}'.format(container.local_path))
                 used = True
 
-    for storage in obj.client.get_all(WildlandObjectType.STORAGE):
+    for storage in obj.client.load_all(WildlandObjectType.STORAGE):
         assert storage.local_path is not None
         if storage.owner == user.owner:
             if cascade:
@@ -270,7 +270,7 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
         file_url = path
 
     # load user pubkeys
-    Manifest.load_pubkeys(file_data, obj.session.sig)
+    Manifest.verify_and_load_pubkeys(file_data, obj.session.sig)
 
     # determine type
     manifest = Manifest.from_bytes(file_data, obj.session.sig)
@@ -284,7 +284,7 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
     # do not import existing users, unless forced
     if import_type == WildlandObjectType.USER:
         imported_user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
-        for user in obj.client.get_all(WildlandObjectType.USER):
+        for user in obj.client.load_all(WildlandObjectType.USER):
             if user.owner == imported_user.owner:
                 if not force:
                     click.echo(f'User {user.owner} already exists. Skipping import.')
@@ -346,7 +346,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
-        default_user = obj.client.load_object_from_name(bridge_owner, WildlandObjectType.USER).owner
+        default_user = obj.client.load_object_from_name(WildlandObjectType.USER, bridge_owner).owner
     else:
         default_user = obj.client.config.get('@default-owner')
 
@@ -436,9 +436,9 @@ def user_refresh(obj: ContextObj, name):
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
     obj.client.recognize_users()
-    user = obj.client.load_object_from_name(name, WildlandObjectType.USER) if name else None
+    user = obj.client.load_object_from_name(WildlandObjectType.USER, name) if name else None
 
-    for bridge in obj.client.get_all(WildlandObjectType.BRIDGE):
+    for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):
         if user and user.owner != obj.client.session.sig.fingerprint(bridge.user_pubkey):
             continue
 

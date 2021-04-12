@@ -126,7 +126,7 @@ def _boostrap_forest(ctx: click.Context,
 
     # Load users manifests
     try:
-        forest_owner = obj.client.load_object_from_name(user, WildlandObjectType.USER)
+        forest_owner = obj.client.load_object_from_name(WildlandObjectType.USER, user)
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
@@ -136,7 +136,7 @@ def _boostrap_forest(ctx: click.Context,
     if access:
         try:
             access_list = [{'user': obj.client.load_object_from_name(
-                user_name, WildlandObjectType.USER).owner}
+                WildlandObjectType.USER, user_name).owner}
                            for user_name in access]
         except WildlandError as we:
             raise CliError(f'User could not be loaded. {we}') from we
@@ -181,7 +181,7 @@ def _boostrap_forest(ctx: click.Context,
             storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
             obj.client.add_storage_to_container(infra_container, storage)
 
-        obj.client.save_object(manifests_container, WildlandObjectType.CONTAINER)
+        obj.client.save_object(WildlandObjectType.CONTAINER, manifests_container)
 
     manifests_storage = obj.client.select_storage(container=manifests_container,
                                                   predicate=lambda x: x.is_writeable)

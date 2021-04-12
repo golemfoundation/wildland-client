@@ -127,12 +127,12 @@ class Client:
         """
         Load users and recognize their keys from the users directory or a given iterable.
         """
-        for user in users or self.get_all(WildlandObjectType.USER):
+        for user in users or self.load_all(WildlandObjectType.USER):
             self.users[user.owner] = user
             user.add_user_keys(self.session.sig)
 
-    def find_local_manifest(self, name :str,
-                            object_type: Optional[WildlandObjectType] = None) -> Optional[Path]:
+    def find_local_manifest(self, object_type: Union[WildlandObjectType, None],
+                            name: str) -> Optional[Path]:
         """
         Find local manifest based on a (potentially ambiguous) name. Names can be aliases, user
         fingerprints (for users), name of the file, part of the file name, or complete file path.
@@ -156,14 +156,16 @@ class Client:
                 if name is None:
                     raise WildlandError('user not specified and @default-owner not set')
 
+            if name in self.config.aliases:
+                name = self.config.aliases[name]
+
             if name in self.users:
                 return self.users[name].local_path
 
             if name.startswith('0x'):
-                for user in self.get_all(WildlandObjectType.USER):
+                for user in self.load_all(WildlandObjectType.USER):
                     if user.owner == name:
                         return user.local_path
-
 
         if object_type:
             directory = self.dirs[object_type]
@@ -183,13 +185,12 @@ class Client:
         return None
 
     def load_object_from_bytes(self,
+                               object_type: Union[WildlandObjectType, None],
                                data: bytes,
-                               object_type: Optional[WildlandObjectType] = None,
                                allow_only_primary_key: Optional[bool] = None,
                                file_path: Optional[Path] = None,
                                trusted_owner: Optional[str] = None,
-                               local_owners: Optional[List[str]] = None,
-                               owner: Optional[str] = None):
+                               local_owners: Optional[List[str]] = None):
         """
         Load and return a Wildland object from raw bytes.
         :param data: object bytes
@@ -200,7 +201,6 @@ class Client:
         :param file_path: path to local manifest file, if exists
         :param trusted_owner: accept signature-less manifests from this owner
         :param local_owners: owners allowed to access local storages
-        :param owner: expected owner; on mismatch will raise Wildland Error
         """
 
         if allow_only_primary_key is None:
@@ -214,36 +214,36 @@ class Client:
 
         if object_type in [WildlandObjectType.USER, WildlandObjectType.BRIDGE,
                            WildlandObjectType.STORAGE, WildlandObjectType.CONTAINER]:
-            obj_ = self.session.load_object(data, object_type, local_path=file_path,
+            return self.session.load_object(data, object_type, local_path=file_path,
                                             trusted_owner=trusted_owner, local_owners=local_owners)
-            if owner and obj_.owner != owner:
-                raise WildlandError(f'Unexpected owner: {obj_.owner}, expected {owner}')
-            return obj_
         raise WildlandError(f'Unknown manifest type: {object_type.value}')
 
     def load_object_from_dict(self,
+                              object_type: Union[WildlandObjectType, None],
                               dictionary: dict,
-                              object_type: Optional[WildlandObjectType] = None,
-                              owner: Optional[str] = None,
+                              expected_owner: Optional[str] = None,
                               container_path: Optional[Union[str, PurePosixPath]] = None):
         """
         Load Wildland object from a dict.
         :param dictionary: dict containing object data
-        :param object_type: expected type of object; if not provided, will use dict 'object' field.
+        :param object_type: expected type of object; if None, will use dict 'object' field.
         On mismatch of expected and actual type, a WildlandError will be raised.
-        :param owner: expected owner. On mismatch of expected and actual owner, a WildlandError
-        will be raised.
+        :param expected_owner: expected owner. On mismatch of expected and actual owner,
+        a WildlandError will be raised.
         :param container_path: if object is STORAGE, will be passed to it as container_path. Ignored
         otherwise.
         """
         if dictionary.get('object', None) == 'link':
-            storage = self.load_object_from_dict(dictionary['storage'], WildlandObjectType.STORAGE,
-                                                 owner=owner, container_path='/')
+            storage = self.load_object_from_dict(WildlandObjectType.STORAGE, dictionary['storage'],
+                                                 expected_owner=expected_owner, container_path='/')
             storage_backend = StorageBackend.from_params(storage.params)
-            driver = StorageDriver(storage_backend)
+            driver = StorageDriver(storage_backend, storage)
             with driver:
                 content = driver.read_file(Path(dictionary['file']).relative_to('/'))
-            return self.load_object_from_bytes(content)
+            return self.load_object_from_bytes(object_type, content)
+
+        if list(dictionary.keys()) == ['encrypted']:
+            raise ManifestError('This inline storage cannot be decrypted')
 
         if object_type:
             if 'object' not in dictionary:
@@ -257,16 +257,14 @@ class Client:
 
         local_owners = None
 
-        if owner:
+        if expected_owner:
             if 'owner' not in dictionary:
-                dictionary['owner'] = owner
-            elif owner != dictionary['owner']:
+                dictionary['owner'] = expected_owner
+            elif expected_owner != dictionary['owner']:
                 raise WildlandError('Owner mismatch: expected {}, got {}'.format(
-                    owner, dictionary['owner']))
+                    expected_owner, dictionary['owner']))
 
         if object_type == WildlandObjectType.STORAGE:
-            if list(dictionary.keys()) == ['encrypted']:
-                raise ManifestError('This inline storage cannot be decrypted')
             if 'container-path' not in dictionary and container_path:
                 dictionary['container-path'] = str(container_path)
 
@@ -275,74 +273,86 @@ class Client:
         content = ('---\n' + yaml.dump(dictionary)).encode()
 
         return self.session.load_object(content, object_type, local_owners=local_owners,
-                                        trusted_owner=owner)
+                                        trusted_owner=expected_owner)
 
-    def load_object_from_url(self, url: str, object_type: WildlandObjectType,
-                             owner: Optional[str] = None):
+    def load_object_from_url(self, object_type: WildlandObjectType, url: str,
+                             owner: str, expected_owner: Optional[str] = None):
         """
         Load and return a Wildland object from any URL, including Wildland URLs.
         :param url: URL. must start with protocol (e.g. wildland: or https:
         :param object_type: expected object type. If not provided, will try to guess it based
         on data (although this will not be successful for WL URLs to containers.). If provided
         will raise an exception if expected type is different than received type.
-        :param owner: expected owner. Will raise a WildlandError if receives a different owner.
+        :param owner: owner in whose context we should resolve the URL
+        :param expected_owner: expected owner. Will raise a WildlandError if receives a
+        different owner.
         """
 
         if object_type == WildlandObjectType.CONTAINER and WildlandPath.match(url):
             # special treatment for WL paths: they can refer to a file or to a container
             wlpath = WildlandPath.from_str(url)
             if wlpath.file_path is None:
-                try:
-                    return next(self.load_containers_from(wlpath, {'default': owner}))
-                except StopIteration as ex:
-                    raise PathError(f'Container not found for path: {wlpath}') from ex
+                containers = self.load_containers_from(wlpath, {'default': owner})
+                result = None
+                for c in containers:
+                    if not result:
+                        result = c
+                    else:
+                        if c.owner != result.owner or c.ensure_uuid() != result.ensure_uuid():
+                            raise PathError(f'Expected single container, found multiple: {wlpath}')
+                if not result:
+                    raise PathError(f'Container not found for path: {wlpath}')
+                return result
 
         content = self.read_from_url(url, owner)
 
         if object_type == WildlandObjectType.USER:
-            Manifest.load_pubkeys(content, self.session.sig)
+            Manifest.verify_and_load_pubkeys(content, self.session.sig)
 
-        local_owners = self.config.get('local-owners') \
-            if object_type == WildlandObjectType.STORAGE else None
+        local_owners = self.config.get('local-owners')
 
-        return self.load_object_from_bytes(content, local_owners=local_owners, owner=owner)
+        obj_ = self.load_object_from_bytes(None, content, local_owners=local_owners)
+        if expected_owner and obj_.owner != expected_owner:
+            raise WildlandError(f'Unexpected owner: expected {expected_owner}, got {obj_.owner}')
 
-    def load_object_from_file_path(self, path: Path, object_type: WildlandObjectType):
+        return obj_
+
+    def load_object_from_file_path(self, object_type: WildlandObjectType, path: Path):
         """
         Load and return a Wildland object from local file path (not in URL form).
         :param path: local file path
         :param object_type: expected type of object
         """
         trusted_owner = self.fs_client.find_trusted_owner(path)
-        local_owners = self.config.get('local-owners')\
-            if object_type == WildlandObjectType.STORAGE else None
+        local_owners = self.config.get('local-owners')
 
-        return self.load_object_from_bytes(
-            path.read_bytes(), object_type, file_path=path,
-            trusted_owner=trusted_owner, local_owners=local_owners)
+        return self.load_object_from_bytes(object_type, path.read_bytes(), file_path=path,
+                                           trusted_owner=trusted_owner, local_owners=local_owners)
 
-    def load_object_from_url_or_dict(self, obj: Union[str, dict],
-                                     object_type: WildlandObjectType,
-                                     owner: str, container_path: Optional[str] = None):
+    def load_object_from_url_or_dict(self, object_type: WildlandObjectType,
+                                     obj: Union[str, dict],
+                                     owner: str, expected_owner: Optional[str] = None,
+                                     container_path: Optional[str] = None):
         """
         A convenience wrapper for loading objects from either URL or dict. Returns a Wildland
         object.
         :param obj: URL or dict to be turned into WL object
         :param object_type: expected object type
-        :param owner: expected owner
+        :param owner: owner in whose context we should resolve URLs
+        :param expected_owner: expected owner
         :param container_path: if loading a STORAGE object of dict type, this container path
         will be filled in if the dict does not contain it already.
         """
 
         if isinstance(obj, str):
-            return self.load_object_from_url(obj, object_type, owner)
+            return self.load_object_from_url(object_type, obj, owner, expected_owner)
 
         if isinstance(obj, collections.abc.Mapping):
-            return self.load_object_from_dict(obj, object_type, owner=owner,
+            return self.load_object_from_dict(object_type, obj, expected_owner=owner,
                                               container_path=container_path)
         raise ValueError(f'{obj} is neither url nor dict')
 
-    def load_object_from_name(self, name: str, object_type: WildlandObjectType):
+    def load_object_from_name(self, object_type: WildlandObjectType, name: str):
         """
         Load a Wildland object from ambiguous name. The name can be a local filename, part of local
         filename (will attempt to look for the object in appropriate local directory), a WL URL,
@@ -354,21 +364,12 @@ class Client:
             if name in self.users:
                 return self.users[name]
 
-        # Wildland path
-        if object_type == WildlandObjectType.CONTAINER and WildlandPath.match(name):
-            wlpath = WildlandPath.from_str(name)
-            if wlpath.file_path is None:
-                try:
-                    return next(self.load_containers_from(wlpath))
-                except StopIteration as ex:
-                    raise PathError(f'Container not found for path: {wlpath}') from ex
-
         if self.is_url(name):
-            return self.load_object_from_url(name, object_type)
+            return self.load_object_from_url(object_type, name, self.config.get('@default'))
 
-        path = self.find_local_manifest(name, object_type)
+        path = self.find_local_manifest(object_type, name)
         if path:
-            return self.load_object_from_file_path(path, object_type)
+            return self.load_object_from_file_path(object_type, path)
 
         raise WildlandError(f'{object_type.value} not found: {name}')
 
@@ -430,9 +431,9 @@ class Client:
                 raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return
 
-        path = self.find_local_manifest(name, WildlandObjectType.CONTAINER)
+        path = self.find_local_manifest(WildlandObjectType.CONTAINER, name)
         if path:
-            yield self.load_object_from_file_path(path, WildlandObjectType.CONTAINER)
+            yield self.load_object_from_file_path(WildlandObjectType.CONTAINER, path)
             return
 
         paths = sorted(glob.glob(os.path.expanduser(name)))
@@ -444,7 +445,7 @@ class Client:
         exc_msg = 'Failed to load some container manifests:\n'
         for p in paths:
             try:
-                yield self.load_object_from_file_path(Path(p), WildlandObjectType.CONTAINER)
+                yield self.load_object_from_file_path(WildlandObjectType.CONTAINER, Path(p))
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
@@ -464,7 +465,7 @@ class Client:
 
         for idx, backend in enumerate(container.backends):
             container_storage = self.load_object_from_url_or_dict(
-                backend, WildlandObjectType.STORAGE, container.owner, str(container.paths[0]))
+                WildlandObjectType.STORAGE, backend, container.owner, str(container.paths[0]))
 
             if container_storage.backend_id == storage.backend_id:
                 if isinstance(backend, dict):
@@ -476,11 +477,13 @@ class Client:
         else:
             container.backends.append(storage_manifest.fields)
 
-    def get_all(self, object_type: WildlandObjectType):
+    def load_all(self, object_type: WildlandObjectType):
         """
         Load object manifests from the appropriate directory.
         """
         if object_type == WildlandObjectType.USER:
+            # Copy sig context and make a new client to avoid propagating recognize_local_keys
+            # where it could be dangerous
             sig = self.session.sig.copy()
             sig.recognize_local_keys()
             client = Client(config=self.config, sig=sig)
@@ -490,7 +493,7 @@ class Client:
         if self.dirs[object_type].exists():
             for path in sorted(self.dirs[object_type].glob('*.yaml')):
                 try:
-                    obj_ = client.load_object_from_file_path(path, object_type)
+                    obj_ = client.load_object_from_file_path(object_type, path)
                 except WildlandError as e:
                     logger.warning('error loading %s manifest: %s: %s',
                                    object_type.value, path, e)
@@ -510,20 +513,20 @@ class Client:
         """
         if owner is None:
             try:
-                owner = self.load_object_from_name('@default', WildlandObjectType.USER)
+                owner = self.load_object_from_name(WildlandObjectType.USER, '@default')
             except WildlandError:
                 # if default cannot be loaded, just behave as no bridges were found
                 return []
 
         if isinstance(user, str):
-            user = self.load_object_from_name(user, WildlandObjectType.USER)
+            user = self.load_object_from_name(WildlandObjectType.USER, user)
             assert isinstance(user, User)
 
         if owner.primary_pubkey == user.primary_pubkey:
             return [PurePosixPath('/')]
 
         paths = []
-        for bridge in self.get_all(WildlandObjectType.BRIDGE):
+        for bridge in self.load_all(WildlandObjectType.BRIDGE):
             if bridge.owner != owner.owner:
                 continue
             if bridge.user_pubkey != user.primary_pubkey:
@@ -532,8 +535,8 @@ class Client:
 
         return set(paths)
 
-    def save_object(self, obj, object_type: WildlandObjectType,
-                    path: Optional[Path] = None) -> Path:
+    def save_object(self, object_type: WildlandObjectType,
+                    obj, path: Optional[Path] = None) -> Path:
         """
         Save an existing Wildland object and return the path it was saved to.
         :param obj: Object to be saved
@@ -543,6 +546,8 @@ class Client:
         """
         path = path or obj.local_path
         assert path is not None
+        # check if object matches expected object type
+        assert obj.OBJECT_TYPE == object_type
 
         if object_type == WildlandObjectType.USER:
             path.write_bytes(self.session.dump_user(obj))
@@ -575,7 +580,7 @@ class Client:
 
             path = self.new_path(object_type, name or object_type.value)
 
-        return self.save_object(object_, object_type, path=path)
+        return self.save_object(object_type, object_, path=path)
 
     def new_path(self, manifest_type: WildlandObjectType, name: str,
                  skip_numeric_suffix: bool = False) -> Path:
@@ -616,7 +621,7 @@ class Client:
             if isinstance(url_or_dict, str):
                 name = url_or_dict
                 try:
-                    storage = self.load_object_from_url(url_or_dict, WildlandObjectType.STORAGE,
+                    storage = self.load_object_from_url(WildlandObjectType.STORAGE, url_or_dict,
                                                         owner=container.owner)
                 except FileNotFoundError as e:
                     logging.warning('Error loading manifest: %s', e)
@@ -649,7 +654,7 @@ class Client:
                 name = '(inline)'
                 try:
                     storage = self.load_object_from_dict(
-                        url_or_dict, WildlandObjectType.STORAGE, owner=container.owner,
+                        WildlandObjectType.STORAGE, url_or_dict, expected_owner=container.owner,
                         container_path=container.paths[0])
                 except WildlandError as e:
                     logging.info('Container %s: error loading inline manifest: %s', container, e)
@@ -730,9 +735,8 @@ class Client:
         if cache_key in self._select_reference_storage_cache:
             return self._select_reference_storage_cache[cache_key]
 
-        container = self.load_object_from_url_or_dict(container_url_or_dict,
-                                                      WildlandObjectType.CONTAINER,
-                                                      owner=owner)
+        container = self.load_object_from_url_or_dict(WildlandObjectType.CONTAINER,
+                                                      container_url_or_dict, owner=owner)
 
         if trusted and container.owner != owner:
             logger.error(
@@ -863,7 +867,7 @@ class Client:
             return search.read_file()
 
         if url.startswith('file:'):
-            local_path = self.parse_file_url(url, owner)
+            local_path = self.parse_file_url(url, owner or self.config.get('@default'))
             if local_path:
                 try:
                     return local_path.read_bytes()
@@ -891,7 +895,7 @@ class Client:
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
 
-    def parse_file_url(self, url: str, owner: Optional[str] = None) -> Optional[Path]:
+    def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
         """
         Retrieve path from a given file URL, if it's applicable.
         Checks the 'local_hostname' and 'local_owners' settings.
@@ -912,11 +916,10 @@ class Client:
 
         path = Path(parse_result.path)
 
-        if owner:
-            try:
-                verify_local_access(path, owner, owner in local_owners)
-            except PermissionError as e:
-                logger.warning('Cannot load %s: %s', url, e)
-                return None
+        try:
+            verify_local_access(path, owner, owner in local_owners)
+        except PermissionError as e:
+            logger.warning('Cannot load %s: %s', url, e)
+            return None
 
         return path

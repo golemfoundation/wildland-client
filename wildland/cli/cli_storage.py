@@ -113,7 +113,7 @@ def _do_create(
 
     obj.client.recognize_users()
 
-    container = obj.client.load_object_from_name(container, WildlandObjectType.CONTAINER)
+    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     if not container.local_path:
         raise WildlandError('Need a local container')
 
@@ -143,7 +143,7 @@ def _do_create(
 
     if access:
         access = [{'user': obj.client.load_object_from_name(
-            user, WildlandObjectType.USER).owner} for user in access]
+            WildlandObjectType.USER, user).owner} for user in access]
     else:
         if container.access:
             access = container.access
@@ -180,7 +180,7 @@ def _do_save_new_storage(client: Client, container, storage, inline, name):
         storage_manifest.skip_verification()
         container.backends.append(storage_manifest.fields)
         click.echo(f'Saving: {container.local_path}')
-        client.save_object(container, WildlandObjectType.CONTAINER)
+        client.save_object(WildlandObjectType.CONTAINER, container)
     else:
         storage_path = client.save_new_object(WildlandObjectType.STORAGE, storage, name)
         click.echo('Created: {}'.format(storage_path))
@@ -188,7 +188,7 @@ def _do_save_new_storage(client: Client, container, storage, inline, name):
         click.echo(f'Adding storage {storage.backend_id} to the container')
         container.backends.append(client.local_url(storage_path))
         click.echo(f'Saving: {container.local_path}')
-        client.save_object(container, WildlandObjectType.CONTAINER)
+        client.save_object(WildlandObjectType.CONTAINER, container)
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
@@ -200,7 +200,7 @@ def list_(obj: ContextObj):
 
     obj.client.recognize_users()
 
-    for storage in obj.client.get_all(WildlandObjectType.STORAGE):
+    for storage in obj.client.load_all(WildlandObjectType.STORAGE):
         click.echo(storage.local_path)
         click.echo(f'  type: {storage.storage_type}')
         if 'backend_id' in storage.params:
@@ -208,7 +208,7 @@ def list_(obj: ContextObj):
         if storage.storage_type in ['local', 'local-cached', 'local-dir-cached']:
             click.echo(f'  location: {storage.params["location"]}')
 
-    for container in obj.client.get_all(WildlandObjectType.CONTAINER):
+    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
         backends = []
         for backend in container.backends:
             if not isinstance(backend, str):
@@ -240,12 +240,12 @@ def delete(obj: ContextObj, name, force, cascade):
     obj.client.recognize_users()
 
     try:
-        storage = obj.client.load_object_from_name(name, WildlandObjectType.STORAGE)
+        storage = obj.client.load_object_from_name(WildlandObjectType.STORAGE, name)
     except ManifestError as ex:
         if force:
             click.echo(f'Failed to load manifest: {ex}')
             try:
-                path = obj.client.find_local_manifest(name, WildlandObjectType.STORAGE)
+                path = obj.client.find_local_manifest(WildlandObjectType.STORAGE, name)
                 if path:
                     click.echo(f'Deleting file {path}')
                     path.unlink()
@@ -263,7 +263,7 @@ def delete(obj: ContextObj, name, force, cascade):
         raise WildlandError('Can only delete a local manifest')
 
     used_by = []
-    for container in obj.client.get_all(WildlandObjectType.CONTAINER):
+    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
         assert container.local_path
         modified = False
         for url_or_dict in list(container.backends):
@@ -281,7 +281,7 @@ def delete(obj: ContextObj, name, force, cascade):
                     used_by.append(container)
         if modified:
             click.echo(f'Saving: {container.local_path}')
-            obj.client.save_object(container, WildlandObjectType.CONTAINER)
+            obj.client.save_object(WildlandObjectType.CONTAINER, container)
 
     if used_by and not force:
         raise CliError('Storage is still used, not deleting '
@@ -347,7 +347,7 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
     """
 
     obj.client.recognize_users()
-    container = obj.client.load_object_from_name(cont, WildlandObjectType.CONTAINER)
+    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
     if not storage_set:
@@ -409,7 +409,7 @@ def add_access(ctx: click.Context, input_file, access):
 
     try:
         for user in access:
-            user = ctx.obj.client.load_object_from_name(user, WildlandObjectType.USER)
+            user = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, user)
             processed_access.append({'user': user.owner})
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex
@@ -432,7 +432,7 @@ def del_access(ctx: click.Context, input_file, access):
 
     try:
         for user in access:
-            user = ctx.obj.client.load_object_from_name(user, WildlandObjectType.USER)
+            user = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, user)
             processed_access.append({'user': user.owner})
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex

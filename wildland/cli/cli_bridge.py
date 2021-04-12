@@ -66,8 +66,8 @@ def create(obj: ContextObj,
 
     obj.client.recognize_users()
 
-    owner_user = obj.client.load_object_from_name(owner or '@default-owner',
-                                                  WildlandObjectType.USER)
+    owner_user = obj.client.load_object_from_name(WildlandObjectType.USER,
+                                                  owner or '@default-owner')
 
     if name is None and file_path is None:
         raise CliError('Either name or file path needs to be provided')
@@ -76,10 +76,10 @@ def create(obj: ContextObj,
         raise CliError('Ref user location must be an URL')
 
     if ref_user_name:
-        ref_user = obj.client.load_object_from_name(ref_user_name, WildlandObjectType.USER)
+        ref_user = obj.client.load_object_from_name(WildlandObjectType.USER, ref_user_name)
     else:
-        ref_user = obj.client.load_object_from_url(ref_user_location,
-                                                   WildlandObjectType.USER, owner_user.owner)
+        ref_user = obj.client.load_object_from_url(WildlandObjectType.USER, ref_user_location,
+                                                   owner=owner_user.owner)
 
     if ref_user_paths:
         paths = [PurePosixPath(p) for p in ref_user_paths]
@@ -107,11 +107,11 @@ def list_(obj: ContextObj):
     """
 
     obj.client.recognize_users()
-    for bridge in obj.client.get_all(WildlandObjectType.BRIDGE):
+    for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):
         click.echo(bridge.local_path)
 
         try:
-            user = obj.client.load_object_from_name(bridge.owner, WildlandObjectType.USER)
+            user = obj.client.load_object_from_name(WildlandObjectType.USER, bridge.owner)
             if user.paths:
                 user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
             else:

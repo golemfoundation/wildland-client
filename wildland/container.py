@@ -26,13 +26,14 @@ import uuid
 from typing import Optional, List, Union, Any
 import itertools
 
-from .manifest.manifest import Manifest
+from .manifest.manifest import Manifest, WildlandObjectType
 from .manifest.schema import Schema
 
 
 class Container:
     """Wildland container"""
     SCHEMA = Schema('container')
+    OBJECT_TYPE = WildlandObjectType.CONTAINER
 
     def __init__(self, *,
                  owner: str,
@@ -81,7 +82,7 @@ class Container:
         return f'{self.owner}:{[str(p) for p in self.paths]}' + local_str
 
     def __repr__(self):
-        return (f'{type(self).__name__}('
+        return (f'{self.OBJECT_TYPE.value}('
                 f'owner={self.owner!r}, '
                 f'paths={self.paths!r}, '
                 f'backends={self.backends!r}, '
@@ -129,7 +130,7 @@ class Container:
                 del backend['object']
 
         fields: dict[str, Any] = {
-            "object": type(self).__name__.lower(),
+            "object": self.OBJECT_TYPE.value,
             "owner": self.owner,
             "paths": [str(p) for p in self.paths],
             "backends": {'storage': cleaned_backends},

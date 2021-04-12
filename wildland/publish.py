@@ -80,7 +80,7 @@ class Publisher:
         '''
         Iterate over all suitable storages to publish container manifest.
         '''
-        owner = self.client.load_object_from_name(self.container.owner, WildlandObjectType.USER)
+        owner = self.client.load_object_from_name(WildlandObjectType.USER, self.container.owner)
 
         ok = False
         rejected = []
@@ -91,7 +91,7 @@ class Publisher:
             try:
                 container_candidate = (
                     self.client.load_object_from_url_or_dict(
-                        c, WildlandObjectType.CONTAINER, self.container.owner))
+                        WildlandObjectType.CONTAINER, c, self.container.owner))
 
                 all_storages = list(
                     self.client.all_storages(container=container_candidate))
@@ -230,9 +230,8 @@ class _StoragePublisher:
                 if isinstance(self.container.backends[i],
                         collections.abc.Mapping):
                     continue
-                backend = self.client.load_object_from_url(
-                    cast(str, self.container.backends[i]), WildlandObjectType.STORAGE,
-                    self.container.owner)
+                backend = self.client.load_object_from_url(WildlandObjectType.STORAGE,
+                    cast(str, self.container.backends[i]), self.container.owner)
                 relpath = self._get_relpath_for_storage_manifest(backend)
                 assert relpath not in storage_relpaths
                 storage_relpaths[relpath] = backend

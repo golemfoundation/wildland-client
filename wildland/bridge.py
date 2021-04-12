@@ -24,7 +24,7 @@ Bridge manifest object
 from pathlib import PurePosixPath, Path
 from typing import Optional, List, Iterable, Union
 
-from .manifest.manifest import Manifest
+from .manifest.manifest import Manifest, WildlandObjectType
 from .manifest.schema import Schema
 
 
@@ -34,6 +34,7 @@ class Bridge:
     """
 
     SCHEMA = Schema("bridge")
+    OBJECT_TYPE = WildlandObjectType.BRIDGE
 
     def __init__(self, *,
                  owner: str,
@@ -72,7 +73,7 @@ class Bridge:
         """
 
         manifest = Manifest.from_fields({
-            "object": type(self).__name__.lower(),
+            "object": self.OBJECT_TYPE.value,
             "owner": self.owner,
             "user": self.user_location,
             "pubkey": self.user_pubkey,
