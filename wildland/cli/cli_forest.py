@@ -169,19 +169,22 @@ def _boostrap_forest(ctx,
     assert data_container.local_path is not None
     assert forest_owner.local_path is not None
 
+    infra_storage = obj.client.select_storage(container=infra_container,
+                                                  predicate=lambda x: x.is_writeable)
+
+    # If a writeable infra storage doesn't have manifest_pattern defined,
+    # forcibly set manifest pattern for all storages in this container.
+    if not infra_storage.manifest_pattern:
+        for storage in list(obj.client.all_storages(manifests_container)):
+            storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
+            obj.client.add_storage_to_container(infra_container, storage)
+
+        obj.client.save_container(infra_container)
+
+
     manifests_storage = obj.client.select_storage(container=manifests_container,
                                                   predicate=lambda x: x.is_writeable)
     manifests_backend = StorageBackend.from_params(manifests_storage.params)
-
-    # If a writeable manifests storage doesn't have manifest_pattern defined,
-    # forcibly set manifest pattern for all storages in this container.
-    if not manifests_storage.manifest_pattern:
-        for storage in list(obj.client.all_storages(manifests_container)):
-            storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
-            obj.client.add_storage_to_container(manifests_container, storage)
-
-        obj.client.save_container(manifests_container)
-
 
     if not manifests_storage.base_url:
         manifests_container.local_path.unlink()
