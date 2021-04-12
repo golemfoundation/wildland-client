@@ -2676,7 +2676,8 @@ def test_cli_storage_template_create(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}' +\
+                                '/{{ uuid }}',
                              'read-only': False}
 
 
@@ -2689,7 +2690,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}' +\
+                                '/{{ uuid }}',
                              'read-only': False,
                              'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]}
 
@@ -2699,7 +2701,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t2.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}' +\
+                                '/{{ uuid }}',
                              'read-only': False,
                              'access': [{'user': '*'}]}
 
@@ -2761,25 +2764,27 @@ def test_cli_remove_assigned_storage_template_cascade(cli, base_dir):
 def test_template_parsing(cli, base_dir):
     cli('user', 'create', 'User')
     cli('storage-template', 'create', 'webdav',
-        '--url', 'https://{{ paths|first }}/{{ title }}',
+        '--url', 'https://acme.com{{ paths|first }}/{{ title }}',
         '--login', '{{ categories | first }}',
         '--password', '{{ categories | last }}',
         't1')
     cli('storage-set', 'add', '--inline', 't1', 'set1')
     cli('container', 'create', 'Container', '--path', '/PATH',
         '--storage-set', 'set1', '--no-encrypt-manifest',
-        '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć')
+        '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć',
+        '--local-dir', '/a_local_dir')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
         uuid_path = documents[1]['paths'][0]
 
+    just_uuid = uuid_path.replace('/.uuid/', '')
+
     data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-    assert f'url: https://{uuid_path}/foobar' in data
+    assert f'url: https://acme.com{uuid_path}/foobar/a_local_dir/{just_uuid}' in data
     assert 'login: /boo!foo:hoo' in data
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
-
 
 def setup_storage_sets(cli, config_dir):
     cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't1')
