@@ -42,6 +42,7 @@ from ..manifest.manifest import (
     split_header,
 )
 from ..manifest.schema import SchemaError
+from ..exc import WildlandError
 
 
 def find_manifest_file(client: Client, name, manifest_type) -> Path:
@@ -265,8 +266,8 @@ def edit(ctx, editor, input_file, remount):
 
         try:
             manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
-        except ManifestError as me:
-            click.echo(f'Manifest parse error: {me}')
+        except (ManifestError, WildlandError) as e:
+            click.echo(f'Manifest parse error: {e}')
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
                 continue
             click.echo('Changes not saved.')
@@ -275,8 +276,8 @@ def edit(ctx, editor, input_file, remount):
         if manifest_type is not None:
             try:
                 validate_manifest(manifest, manifest_type, obj.client)
-            except SchemaError as se:
-                click.echo(f'Manifest validation error: {se}')
+            except (SchemaError, ManifestError, WildlandError) as e:
+                click.echo(f'Manifest validation error: {e}')
                 if click.confirm('Do you want to edit the manifest again to fix the error?'):
                     continue
                 click.echo('Changes not saved.')
