@@ -53,7 +53,7 @@ def control_command(name):
     """
 
     def _wrapper(func):
-        func._control_name = name
+        func._control_name = name  # pylint: disable=protected-access
         return func
 
     return _wrapper
@@ -255,7 +255,7 @@ class ControlServer:
             self.server_thread.join()
 
         # Close connection for all threads and wait for them
-        for thread in self.socket_server._threads:
+        for thread in self.socket_server._threads:  # pylint: disable=protected-access
             if thread.ident is None:
                 # Not started yet
                 continue

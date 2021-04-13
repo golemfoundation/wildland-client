@@ -59,7 +59,7 @@ def start_coverage():
         return
 
     logger.debug('starting coverage')
-    cov._collector._start_tracer()
+    cov._collector._start_tracer()  # pylint: disable=protected-access
 
     fuse_thread_local.coverage_started = True
 
@@ -178,7 +178,7 @@ class Tracer:
 
     @classmethod
     def breakpointhook(cls):
-        sys.settrace(cls(sys._getframe(1)))
+        sys.settrace(cls(sys._getframe(1)))  #pylint: disable=protected-access
 
     def __call__(self, frame, event, arg):
         if event == 'call' and frame.f_code.co_filename.startswith('/usr/lib/python3.7/logging'):

@@ -498,12 +498,12 @@ class WildlandFSBase:
     def open(self, path, flags):
         modify = bool(flags & (os.O_RDWR | os.O_WRONLY))
         obj = self.proxy('open', path, flags, modify=modify)
-        obj._created = False
+        obj.created = False
         return obj
 
     def create(self, path, flags, mode):
         obj = self.proxy('create', path, flags, mode, parent=True, modify=True)
-        obj._created = True
+        obj.created = True
         return obj
 
     def getattr(self, path):
@@ -534,7 +534,7 @@ class WildlandFSBase:
     def release(self, path, flags, obj):
         # Notify if the file was created, or open for writing.
         event_type: Optional[str] = None
-        if obj._created:
+        if obj.created:
             event_type = 'create'
         elif flags & (os.O_RDWR | os.O_WRONLY):
             event_type = 'modify'
