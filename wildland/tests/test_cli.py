@@ -3448,13 +3448,20 @@ def test_forest_create(cli, tmp_path):
         '--read-only', '--manifest-pattern', '/{path}.yaml', 'ro')
     cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
 
-    cli('forest', 'create', '--manifest-local-dir', '/manifests', '--data-local-dir', '/storage',
-        'Alice', 'my-set')
+    cli('forest', 'create', 'Alice', 'my-set')
 
-    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice.yaml').exists()
-    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice-index.yaml').exists()
-    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/.manifests.yaml').exists()
-    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/home/Alice.yaml').exists()
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert infra_path.exists()
+
+    infra_dirs = list(infra_path.glob('*'))
+
+    assert len(infra_dirs) == 1
+
+    uuid_dir = str(infra_dirs[0])
+
+    assert Path(f'{uuid_dir}/users/Alice.yaml').exists()
+    assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+
 
 ## Global options (--help, --version etc.)
 
