@@ -112,18 +112,24 @@ class Manifest:
             if not owner:
                 raise ManifestError('Owner not found')
 
-        if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
-            for idx, backend in enumerate(fields['backends']['storage']):
-                if isinstance(backend, dict) and 'access' in backend:
-                    fields['backends']['storage'][idx] = cls.encrypt(backend, sig, owner)
+        for key, value in fields.items():
+            fields[key] = cls._encrypt_submanifests(value, sig, owner)
 
+        if fields.get('object', None) in ['user', 'bridge']:
+            return fields
+
+        return cls._encrypt_dict(fields, sig, owner)
+
+    @classmethod
+    def _encrypt_dict(cls, fields: dict, sig: SigContext, owner: str) -> dict:
         keys_to_encrypt = sig.get_all_pubkeys(owner)
-
         if 'access' in fields.keys():
             for data_dict in fields['access']:
                 user = data_dict['user']
                 if user == '*':
                     return fields
+                if user == owner:
+                    continue
                 pubkeys = sig.get_all_pubkeys(user)
                 if not pubkeys:
                     raise ManifestError(f'Cannot encrypt to {user}.')
@@ -136,12 +142,41 @@ class Manifest:
         return {'encrypted': {'encrypted-data': encrypted_data, 'encrypted-keys': encrypted_keys}}
 
     @classmethod
+    def _encrypt_submanifests(cls, object_, sig, owner):
+        """
+        Encrypt all encountered submanifests.
+        """
+        if isinstance(object_, dict):
+            for key, value in object_.items():
+                object_[key] = cls._encrypt_submanifests(value, sig, owner)
+            if 'access' in object_:
+                return cls._encrypt_dict(object_, sig, owner)
+            return object_
+
+        if isinstance(object_, list):
+            for idx, obj_ in enumerate(object_):
+                object_[idx] = cls._encrypt_submanifests(obj_, sig, owner)
+
+        return object_
+
+    @classmethod
     def decrypt(cls, fields: dict, sig: SigContext) -> dict:
         """
         Decrypt provided dict within provided SigContext.
         Assumes encrypted (sub) dict contains an 'encrypted' fields that contains a dict
         with two fields: 'encrypted-data' and 'encrypted-keys'.
         Returns decrypted dict.
+        """
+
+        decrypted_fields = cls._decrypt_dict(fields, sig)
+        for key, value in decrypted_fields.items():
+            decrypted_fields[key] = cls._decrypt_submanifests(value, sig)
+        return decrypted_fields
+
+    @classmethod
+    def _decrypt_dict(cls, fields: dict, sig: SigContext) -> dict:
+        """
+        Decrypt a dict.
         """
         if list(fields.keys()) == ['encrypted']:
             encrypted_dict = fields['encrypted']
@@ -157,15 +192,32 @@ class Manifest:
 
             fields = yaml.safe_load(decrypted_raw)
 
-        if 'backends' in fields.keys() and 'storage' in fields['backends'].keys():
-            for idx, backend in enumerate(fields['backends']['storage']):
-                if isinstance(backend, dict) and 'encrypted' in backend:
-                    try:
-                        fields['backends']['storage'][idx] = cls.decrypt(backend, sig)
-                    except ManifestError:
-                        # we don't have the appropriate keys, and that's okay
-                        pass
         return fields
+
+    @classmethod
+    def _decrypt_submanifests(cls, object_, sig):
+        """
+        Decrypt and replace as needed all submanifests inside the given dict.
+        """
+        if isinstance(object_, dict):
+            try:
+                object_ = cls._decrypt_dict(object_, sig)
+            except ManifestError:
+                return object_
+            for key, value in object_.items():
+                try:
+                    object_[key] = cls._decrypt_submanifests(value, sig)
+                except ManifestError:
+                    continue
+
+        if isinstance(object_, list):
+            for idx, obj_ in enumerate(object_):
+                try:
+                    object_[idx] = cls._decrypt_submanifests(obj_, sig)
+                except ManifestError:
+                    continue
+
+        return object_
 
     @classmethod
     def update_manifest_version(cls, fields: dict) -> dict:
@@ -305,7 +357,7 @@ class Manifest:
         fields = self._fields
         data = self.original_data
 
-        if fields['object'] in ['container', 'storage'] and encrypt:
+        if encrypt:
             fields = Manifest.encrypt(fields, sig_context)
             data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
 
