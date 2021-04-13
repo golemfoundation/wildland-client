@@ -525,14 +525,15 @@ class WildlandFSClient:
                                         unique_path_only: bool = False,
                                         remount: bool = False):
         """
-        Prepare parameters for the control client to mount a container
+        Prepare parameters for the control client to mount a container.
 
         Args:
-            container (Container): the container to be mounted storages List(Storage): the storage
-            selected for container user_paths: paths to the owner, should include ``/`` for default
-            user unique_path_only: mount only under internal unique path
-            (``/.backends/{container_uuid}/{backend_id}``) remount: remount if mounted already
-            (otherwise, will fail if mounted already)
+            container (Container): the container to be mounted storages
+            storage: the storage selected for container
+            user_paths: paths to the owner, should include ``/`` for default user
+            unique_path_only: mount only under internal unique path
+            (``/.backends/{container_uuid}/{backend_id}``)
+            remount: remount if mounted already (otherwise, will fail if mounted already)
         """
 
         if unique_path_only:
@@ -583,7 +584,7 @@ class WildlandFSClient:
                                 user_paths: Iterable[Iterable[PurePosixPath]])\
             -> List[PurePosixPath]:
         """
-        Return all mount paths (incl. synthetic ones) for given storage.
+        Return all mount paths (incl. synthetic ones) for the given storage.
 
         Container paths always start with ``/.uuid/{container_uuid}`` path which must always be
         present (as defined in Container's constructor'). If a storage is a secondary storage, we

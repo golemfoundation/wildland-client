@@ -111,8 +111,8 @@ Commands
 
 Here is a list of supported commands, with their arguments.
 
-The commands are currently implemented in ``wildland/fs.py``. The arguments are
-validated, see ``wildland/schemas/commands.json``.
+The commands are currently implemented in ``wildland/fs_base.py``. The
+arguments are validated, see ``wildland/schemas/commands.json``.
 
 * ``paths`` - return paths and corresponding storages, by number::
 
