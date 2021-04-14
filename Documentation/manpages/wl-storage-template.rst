@@ -34,6 +34,7 @@ Template files can use the following variables in their jinja templates:
 - `title`: container title
 - `paths`: container paths (a list of PurePosixPaths)
 - `local_path`: container local path (path to container file)
+- `owner`: container owner. Warning: you must encapsulate {{ owner }} variable in quotes, eg. '{{ owner }}'
 
 Warning: `title` and `categories` are optional and, if the container does not have them, will
 not be passed to the template. Use jinja's {% if variable is defined %} syntax to check if they are
