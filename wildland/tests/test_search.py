@@ -36,7 +36,6 @@ from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.generated import GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
 from ..wlpath import WildlandPath, PathError
-from ..manifest.manifest import ManifestError
 from ..search import Search, storage_glob
 from ..config import Config
 from ..utils import load_yaml_all
@@ -250,8 +249,13 @@ def test_read_container_unsigned(base_dir, client):
     search = Search(client,
         WildlandPath.from_str(':/path:/other/path:/unsigned:'),
         aliases={'default': '0xaaa'})
-    with pytest.raises(ManifestError, match='Signature expected'):
-        next(search.read_container())
+
+    with mock.patch('wildland.search.logger.warning') as mock_logger:
+        with pytest.raises(StopIteration):
+            next(search.read_container())
+        assert mock_logger.call_count == 1
+        mock_logger.assert_called_with('%s: cannot load manifest file %s: %s',
+                                       PurePosixPath('/unsigned'), mock.ANY, mock.ANY)
 
 
 def test_mount_traverse(cli, client, base_dir, control_client):

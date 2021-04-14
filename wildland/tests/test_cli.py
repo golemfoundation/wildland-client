@@ -1500,6 +1500,50 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
     ]
 
 
+def test_container_mount_infra_err(cli, base_dir, control_client):
+    infra_dir = base_dir / 'infra'
+    infra_dir.mkdir()
+
+    storage_dir = base_dir / 'storage_dir'
+    storage_dir.mkdir()
+
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Infra', '--owner', 'User', '--path', '/INFRA',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', str(infra_dir),
+        '--container', 'Infra', '--manifest-pattern', '/*.yaml')
+
+    cli('container', 'create', 'Mock1', '--owner', 'User', '--path', '/C',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', str(storage_dir),
+        '--container', 'Mock1')
+    cli('container', 'create', 'Mock2', '--owner', 'User', '--path', '/C',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', str(storage_dir),
+        '--container', 'Mock2')
+
+    os.rename(base_dir / 'containers/Mock1.container.yaml', infra_dir / 'Mock1.yaml')
+    os.rename(base_dir / 'containers/Mock2.container.yaml', infra_dir / 'Mock2.yaml')
+
+    container_file = base_dir / 'containers/Infra.container.yaml'
+    cli('user', 'modify', 'add-infrastructure', '--path', f'file://{str(container_file)}', 'User')
+
+    # if first container is somehow broken, others should be mounted
+    for file in os.listdir(infra_dir):
+        (infra_dir / file).write_text('testdata')
+        break
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', ':*:')
+
+    command = control_client.calls['mount']['items']
+    assert len(command) == 1
+
+
 def test_container_mount_with_import(cli, base_dir, control_client):
     control_client.expect('status', {})
 

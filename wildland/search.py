@@ -378,8 +378,12 @@ class Search:
                     logger.warning('Could not read %s: %s', manifest_path, e)
                     continue
 
-                container_or_bridge = step.client.session.load_object(
-                    manifest_content, trusted_owner=trusted_owner)
+                try:
+                    container_or_bridge = step.client.session.load_object(
+                        manifest_content, trusted_owner=trusted_owner)
+                except ManifestError as me:
+                    logger.warning('%s: cannot load manifest file %s: %s', part, manifest_path, me)
+                    continue
 
                 if isinstance(container_or_bridge, Container):
                     logger.info('%s: container manifest: %s', part, manifest_path)
