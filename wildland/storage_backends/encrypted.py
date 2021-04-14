@@ -30,7 +30,7 @@ from pathlib import PurePosixPath, Path
 import logging
 import secrets
 import string
-from typing import Optional
+from typing import Optional, List
 
 import click
 
@@ -97,6 +97,109 @@ def generate_password(length: int) -> str:
     alphabet = string.ascii_letters + string.digits
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
+
+class EncFS(EncryptedFSRunner):
+    '''
+    Runs encfs via subprocess.
+
+    Relevant issues of encfs:
+    * it is not very secure - it may leak last 4k of a file when file is rewritten
+    * it uses FUSE (potential problem on OSX later)
+    * it leaks metadata about tree structure
+    '''
+    password: str
+    config: str
+    ciphertextdir: PurePosixPath
+    cleartextdir: Optional[PurePosixPath]
+    opts: List[str]
+
+    def __init__(self, _,
+                 ciphertextdir: PurePosixPath,
+                 credentials: Optional[str]):
+        self.binary = 'encfs'
+        self.opts = ['--standard', '--require-macs', '-o', 'direct_io']
+        self.ciphertextdir = ciphertextdir
+        if credentials is not None:
+            print("credentials are: %s", credentials)
+            (self.password, self.config) = self._decode_credentials(credentials)
+            assert len(self.password) == 30
+
+    def credentials(self) -> str:
+        return self._encode_credentials(self.password, self.config)
+
+    def _encode_credentials(self, password, config):
+        assert password
+        assert config
+        return password+";"+ \
+            base64.standard_b64encode(config.encode()).decode()
+
+    def _decode_credentials(self, encoded_credentials):
+        parts = encoded_credentials.split(';')
+        password = parts[0]
+        config = base64.standard_b64decode(parts[1]).decode()
+        return (password, config)
+
+    def _write_config(self, storage: StorageBackend):
+
+        def _write_file(path: PurePosixPath, data: bytes):
+            '''
+            Write file, if it does not exist already
+            '''
+            flags = os.O_WRONLY | os.O_APPEND
+            try:
+                bf = storage.open(path, flags)
+            except FileNotFoundError:
+                flags = flags | os.O_CREAT
+                bf = storage.create(path, flags)
+                bf.write(data, 0)
+                bf.flush()
+            bf.release(flags)
+
+        _write_file(PurePosixPath('.encfs6.xml'), self.config.encode())
+
+    def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
+        self.cleartextdir = cleartextdir
+        self._write_config(inner_storage)
+        sp, err = self._run_binary(self.opts + ['--stdinpass', self.ciphertextdir, self.cleartextdir])
+        if sp.returncode != 0:
+            logger.error("FAILED TO MOUNT THE ENCRYPTED FILESYSTEM")
+            logger.error(err.decode())
+            raise WildlandFSError("Can't mount encfs")
+
+    def stop(self):
+        if self.cleartextdir is None:
+            raise WildlandFSError('Unmounting failed: mount point unknown')
+        cmd = ['fusermount', '-u', str(self.cleartextdir)]
+        return subprocess.run(cmd, check=True).returncode
+
+    @classmethod
+    def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, cleartextdir: PurePosixPath) -> 'EncFS':
+        '''
+        Create a new, empty encfs storage.
+
+        Loads contents of config created by gocryptfs, so we can store it in the storage manifest.
+        '''
+        encfs = cls(tempdir, ciphertextdir, None)
+        encfs.password = generate_password(30)
+        options = encfs.opts + ['--stdinpass', encfs.ciphertextdir, cleartextdir]
+        print("options are: %s", options)
+        sp, err = encfs._run_binary(options)
+        if sp.returncode != 0:
+            logger.error("FAILED TO INITIALIZE THE ENCRYPTED FILESYSTEM")
+            logger.error(err.decode())
+            raise WildlandFSError("Can't initialize encfs volume")
+        with open(PurePosixPath(encfs.ciphertextdir) / '.encfs6.xml') as tf:
+            encfs.config = tf.read()
+        encfs.cleartextdir = cleartextdir
+        encfs.stop() # required, since encfs has the same command for initialization and mounting
+        return encfs
+
+    def _run_binary(self, cmd):
+        cmd = [self.binary] + cmd
+        sp = Popen(cmd, stdin=PIPE, stderr=PIPE)
+        (_, err) = sp.communicate(input=self.password.encode())
+        return (sp, err)
+
 
 class GoCryptFS(EncryptedFSRunner):
     '''

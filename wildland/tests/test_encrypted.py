@@ -26,7 +26,7 @@ import zlib
 
 import pytest
 
-from wildland.storage_backends.encrypted import GoCryptFS, generate_password
+from wildland.storage_backends.encrypted import EncFS, GoCryptFS, generate_password
 from wildland.storage_backends.local import LocalStorageBackend
 
 from .fuse_env import FuseEnv
@@ -144,6 +144,45 @@ def test_gocryptfs_runner(base_dir):
     assert runner3.password
     assert runner3.config
     assert runner3.topdiriv
+    runner3.run(second_clear, LocalStorageBackend(params=params))
+    with open(second_clear / 'test.file', 'r') as f:
+        assert f.read() == "string"
+    assert runner3.stop() == 0
+
+def test_encfs_runner(base_dir):
+    first = base_dir / 'a'
+    first_clear = first / 'clear'
+    first_enc = first / 'enc'
+    second = base_dir / 'b'
+    second_clear = second / 'clear'
+    second_enc = second / 'enc'
+    first.mkdir()
+    first_clear.mkdir()
+    first_enc.mkdir()
+    second.mkdir()
+    second_clear.mkdir()
+    second_enc.mkdir()
+
+    # init, capture config
+    runner = EncFS.init(first, first_enc, first_clear)
+
+    # open for writing, working directory
+    runner2 = EncFS(second, second_enc, runner.credentials())
+    params = {'location': second_enc,
+              'type': 'local',
+              'backend-id': str(uuid.uuid4())
+              }
+    runner2.run(second_clear, LocalStorageBackend(params=params))
+    with open(second_clear / 'test.file', 'w') as f:
+        f.write("string")
+    assert runner2.stop() == 0
+
+    assert not (second_clear / 'test.file').exists()
+
+    # open for reading, working directory
+    runner3 = EncFS(second, second_enc, runner.credentials())
+    assert runner3.password
+    assert runner3.config
     runner3.run(second_clear, LocalStorageBackend(params=params))
     with open(second_clear / 'test.file', 'r') as f:
         assert f.read() == "string"
