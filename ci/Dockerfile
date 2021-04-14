@@ -29,7 +29,8 @@ RUN apt-get -qy update && apt-get install -y \
       tmux \
       screen \
       jq \
-      gocryptfs
+      gocryptfs \
+      encfs
 
 # add IPFS client
 RUN ARCH=$(arch) && CHECKSUM="" \
