@@ -332,7 +332,7 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
 
                     try_backend.unmount()
                     break
-                except Exception as ex:
+                except Exception:
                     try_backend.unmount()
                     to_create.insert(0, path_chunks.pop())
 

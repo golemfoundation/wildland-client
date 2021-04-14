@@ -965,7 +965,7 @@ def test_traverse_with_fs_client_mounted(base_dir, control_client, client2):
         assert data == b'test1'
         mock_storage_backend.assert_any_call(PartialDict({
             'type': 'local',
-            'location': user2_infra_mount_path
+            'location': str(user2_infra_mount_path)
         }))
         # check if infra container was _not_ accessed directly
         direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
@@ -1002,11 +1002,11 @@ def test_traverse_container_with_fs_client_mounted(
         assert len(mock_storage_backend.mock_calls) == 2
         mock_storage_backend.assert_any_call(PartialDict({
             'type': 'local',
-            'location': user2_infra_mount_path
+            'location': str(user2_infra_mount_path)
         }))
         mock_storage_backend.assert_any_call(PartialDict({
             'type': 'local',
-            'location': user1_infra_mount_path
+            'location': str(user1_infra_mount_path)
         }))
         # check if infra container was _not_ accessed directly
         direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))

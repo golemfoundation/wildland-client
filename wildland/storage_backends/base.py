@@ -36,6 +36,7 @@ from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
 from uuid import UUID
 
 import click
+import uritools
 import yaml
 
 from ..manifest.sig import SigContext
@@ -618,6 +619,23 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
+
+        if (backend.LOCATION_PARAM and
+            backend.LOCATION_PARAM in backend.params and
+            backend.params[backend.LOCATION_PARAM]):
+
+            orig_path = str(backend.params[backend.LOCATION_PARAM])
+
+            if uritools.isuri(orig_path):
+                uri  = uritools.urisplit(orig_path)
+                path = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
+                                           query=uri.query, fragment=uri.fragment,
+                                           path=str(Path(uri.path).resolve()))
+            else:
+                path = Path(orig_path)
+
+            backend.params[backend.LOCATION_PARAM] = str(path)
+
         if deduplicate:
             StorageBackend._cache[deduplicate_key] = backend
         return backend
