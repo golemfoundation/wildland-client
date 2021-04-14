@@ -51,7 +51,9 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
     binary: str
 
     @classmethod
-    def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, cleartextdir: PurePosixPath) -> 'EncryptedFSRunner':
+    def init(cls, tempdir: PurePosixPath,
+             ciphertextdir: PurePosixPath,
+             cleartextdir: PurePosixPath) -> 'EncryptedFSRunner':
         '''
         Initialize and configure a cryptographic filesystem storage.
         ``credentials()`` should be available after that.
@@ -59,7 +61,9 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def __init__(self, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, credentials: Optional[str]):
+    def __init__(self, tempdir: PurePosixPath,
+                 ciphertextdir: PurePosixPath,
+                 credentials: Optional[str]):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -102,6 +106,7 @@ def generate_password(length: int) -> str:
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
 
+# pylint: disable=super-init-not-called
 class EncFS(EncryptedFSRunner):
     '''
     Runs encfs via subprocess.
@@ -124,23 +129,22 @@ class EncFS(EncryptedFSRunner):
         self.opts = ['--standard', '--require-macs', '-o', 'direct_io']
         self.ciphertextdir = ciphertextdir
         if credentials is not None:
-            (self.password, self.config) = self._decode_credentials(credentials)
+            self._decode_credentials(credentials)
             assert len(self.password) == 30
 
     def credentials(self) -> str:
-        return self._encode_credentials(self.password, self.config)
+        return self._encode_credentials()
 
-    def _encode_credentials(self, password, config):
-        assert password
-        assert config
-        return password+";"+ \
-            base64.standard_b64encode(config.encode()).decode()
+    def _encode_credentials(self):
+        assert self.password
+        assert self.config
+        return self.password+";"+ \
+            base64.standard_b64encode(self.config.encode()).decode()
 
     def _decode_credentials(self, encoded_credentials):
         parts = encoded_credentials.split(';')
-        password = parts[0]
-        config = base64.standard_b64decode(parts[1]).decode()
-        return (password, config)
+        self.password = parts[0]
+        self.config = base64.standard_b64decode(parts[1]).decode()
 
     def _write_config(self, storage: StorageBackend):
 
@@ -163,7 +167,8 @@ class EncFS(EncryptedFSRunner):
     def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
         self.cleartextdir = cleartextdir
         self._write_config(inner_storage)
-        sp, err = self._run_binary(self.opts + ['--stdinpass', str(self.ciphertextdir), str(self.cleartextdir)])
+        args = ['--stdinpass', str(self.ciphertextdir), str(self.cleartextdir)]
+        sp, err = self._run_binary(self.opts + args)
         if sp.returncode != 0:
             logger.error("FAILED TO MOUNT THE ENCRYPTED FILESYSTEM")
             logger.error(err.decode())
@@ -176,7 +181,9 @@ class EncFS(EncryptedFSRunner):
         return subprocess.run(cmd, check=True).returncode
 
     @classmethod
-    def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, cleartextdir: PurePosixPath) -> 'EncFS':
+    def init(cls, tempdir: PurePosixPath,
+             ciphertextdir: PurePosixPath,
+             cleartextdir: PurePosixPath) -> 'EncFS':
         '''
         Create a new, empty encfs storage.
 
@@ -211,7 +218,8 @@ class GoCryptFS(EncryptedFSRunner):
     * it uses FUSE (potential problem on OSX later)
     * it leaks metadata about tree structure
     * it allows attacker to modify file permission - they are not encrypted
-    * it does not mix well with Wildland - it does not do direct_io. You may observe data loss in some scenarios.
+    * it does not mix well with Wildland - it does not do direct_io.
+      You may observe data loss in some scenarios.
     '''
     password: str
     config: str
@@ -226,26 +234,25 @@ class GoCryptFS(EncryptedFSRunner):
         self.tmpdir = tmpdir
         self.ciphertextdir = ciphertextdir
         if credentials is not None:
-            (self.password, self.config, self.topdiriv) = self._decode_credentials(credentials)
+            self._decode_credentials(credentials)
             assert len(self.password) == 30
 
     def credentials(self) -> str:
-        return self._encode_credentials(self.password, self.config, self.topdiriv)
+        return self._encode_credentials()
 
-    def _encode_credentials(self, password, config, topdiriv):
-        assert password
-        assert config
-        assert topdiriv
-        return password+";"+ \
-            base64.standard_b64encode(config.encode()).decode()+";"+ \
-            base64.standard_b64encode(topdiriv).decode()
+    def _encode_credentials(self):
+        assert self.password
+        assert self.config
+        assert self.topdiriv
+        return self.password+";"+ \
+            base64.standard_b64encode(self.config.encode()).decode()+";"+ \
+            base64.standard_b64encode(self.topdiriv).decode()
 
     def _decode_credentials(self, encoded_credentials):
         parts = encoded_credentials.split(';')
-        password = parts[0]
-        config = base64.standard_b64decode(parts[1]).decode()
-        topdiriv = base64.standard_b64decode(parts[2])
-        return (password, config, topdiriv)
+        self.password = parts[0]
+        self.config = base64.standard_b64decode(parts[1]).decode()
+        self.topdiriv = base64.standard_b64decode(parts[2])
 
     def _write_config(self, storage: StorageBackend):
 
@@ -467,7 +474,9 @@ class EncryptedStorageBackend(StorageBackend):
     def mount(self) -> None:
         # If ciphertext_path is not available, ask user to mount it!
         if Path(self.ciphertext_path).exists():
-            self.engine_obj = self.engine_cls(self.tmpdir_path, self.ciphertext_path, self.credentials)
+            self.engine_obj = self.engine_cls(self.tmpdir_path,
+                                              self.ciphertext_path,
+                                              self.credentials)
             self.engine_obj.run(self.cleartext_path, self.ciphertext_storage)
             self.local.request_mount()
         else:
