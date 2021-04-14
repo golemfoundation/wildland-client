@@ -98,21 +98,6 @@ def generate_password(length: int) -> str:
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
 
-def _encode_credentials(password, config, topdiriv):
-    assert password
-    assert config
-    assert topdiriv
-    return password+";"+ \
-        base64.standard_b64encode(config.encode()).decode()+";"+ \
-        base64.standard_b64encode(topdiriv).decode()
-
-def _decode_credentials(encoded_credentials):
-    parts = encoded_credentials.split(';')
-    password = parts[0]
-    config = base64.standard_b64decode(parts[1]).decode()
-    topdiriv = base64.standard_b64decode(parts[2])
-    return (password, config, topdiriv)
-
 class GoCryptFS(EncryptedFSRunner):
     '''
     Runs gocryptfs via subprocess.
@@ -135,11 +120,26 @@ class GoCryptFS(EncryptedFSRunner):
         self.tmpdir = tmpdir
         self.ciphertextdir = ciphertextdir
         if credentials is not None:
-            (self.password, self.config, self.topdiriv) = _decode_credentials(credentials)
+            (self.password, self.config, self.topdiriv) = self._decode_credentials(credentials)
             assert len(self.password) == 30
 
     def credentials(self) -> str:
-        return _encode_credentials(self.password, self.config, self.topdiriv)
+        return self._encode_credentials(self.password, self.config, self.topdiriv)
+
+    def _encode_credentials(self, password, config, topdiriv):
+        assert password
+        assert config
+        assert topdiriv
+        return password+";"+ \
+            base64.standard_b64encode(config.encode()).decode()+";"+ \
+            base64.standard_b64encode(topdiriv).decode()
+
+    def _decode_credentials(self, encoded_credentials):
+        parts = encoded_credentials.split(';')
+        password = parts[0]
+        config = base64.standard_b64decode(parts[1]).decode()
+        topdiriv = base64.standard_b64decode(parts[2])
+        return (password, config, topdiriv)
 
     def _write_config(self, storage: StorageBackend):
 
