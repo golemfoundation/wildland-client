@@ -629,6 +629,7 @@ def test_get_conflicts_simple(tmpdir, storage_backend, cleanup, use_hash_db):
 
 
 def test_find_syncer(tmpdir):
+    # pylint: disable=protected-access
     backend1, _ = make_storage(LocalStorageBackend, tmpdir / 'storage1')
     backend2, _ = make_storage(LocalStorageBackend, tmpdir / 'storage2')
 

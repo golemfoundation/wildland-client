@@ -63,7 +63,7 @@ def test_filename_to_prefix_postfix_category_path():
             'storage': None
         }
         cp = CategorizationProxyStorageBackend(params=params)
-        prefix, postfix = cp._get_category_info(filename)
+        prefix, postfix = cp._get_category_info(filename)  # pylint: disable=protected-access
         assert prefix == expected_prefix
         assert postfix == expected_postfix
 
@@ -102,6 +102,7 @@ def test_filename_to_category_path_conversion():
         'aaa @@ bbb': '/aaa @@ bbb',
     }
     for filename, expected_category_path in dirname_to_category_tests.items():
+        # pylint: disable=protected-access
         category_path = CategorizationProxyStorageBackend._filename_to_category_path(filename)
         assert category_path == expected_category_path
 

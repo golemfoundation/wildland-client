@@ -186,8 +186,9 @@ def client(setup, base_dir):
 
 
 def test_resolve_first(base_dir, client):
+    # pylint: disable=protected-access
     search = Search(client, WildlandPath.from_str(':/path:'),
-        aliases={'default': '0xaaa'})
+                    aliases={'default': '0xaaa'})
     step = list(search._resolve_first())[0]
     assert step.container.paths[1] == PurePosixPath('/path')
 
@@ -196,7 +197,7 @@ def test_resolve_first(base_dir, client):
     assert backend.root == base_dir / 'storage1'
 
     search = Search(client, WildlandPath.from_str(':/path/subpath:'),
-        aliases={'default': '0xaaa'})
+                    aliases={'default': '0xaaa'})
     step = list(search._resolve_first())[0]
     assert step.container.paths[1] == PurePosixPath('/path/subpath')
 
@@ -209,14 +210,14 @@ def test_read_file(base_dir, client):
     with open(base_dir / 'storage1/file.txt', 'w') as f:
         f.write('Hello world')
     search = Search(client, WildlandPath.from_str(':/path:/file.txt'),
-        aliases={'default': '0xaaa'})
+                    aliases={'default': '0xaaa'})
     data = search.read_file()
     assert data == b'Hello world'
 
 
 def test_write_file(base_dir, client):
     search = Search(client, WildlandPath.from_str(':/path:/file.txt'),
-        aliases={'default': '0xaaa'})
+                    aliases={'default': '0xaaa'})
     search.write_file(b'Hello world')
     with open(base_dir / 'storage1/file.txt') as f:
         assert f.read() == 'Hello world'
@@ -226,15 +227,15 @@ def test_read_file_traverse(base_dir, client):
     with open(base_dir / 'storage2/file.txt', 'w') as f:
         f.write('Hello world')
     search = Search(client,
-        WildlandPath.from_str(':/path:/other/path:/file.txt'),
-        aliases={'default': '0xaaa'})
+                    WildlandPath.from_str(':/path:/other/path:/file.txt'),
+                    aliases={'default': '0xaaa'})
     data = search.read_file()
     assert data == b'Hello world'
 
 
 def test_read_container_traverse(client):
     search = Search(client, WildlandPath.from_str(':/path:/other/path:'),
-        aliases={'default': '0xaaa'})
+                    aliases={'default': '0xaaa'})
     container = next(search.read_container())
     assert PurePosixPath('/other/path') in container.paths
 
