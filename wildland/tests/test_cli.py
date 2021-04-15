@@ -3463,6 +3463,35 @@ def test_forest_create(cli, tmp_path):
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
 
 
+def test_forest_create_check_for_published_infra(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        'rw')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--read-only', 'ro')
+    cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
+
+    cli('forest', 'create', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    infra_dirs = list(infra_path.glob('*'))
+
+    uuid_dir = infra_dirs[0]
+    assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    published_path = uuid_dir / (Path(data["paths"][0]).name + '.yaml')
+
+    assert published_path.exists()
+
+    with open(str(published_path)) as f:
+        data2 = list(yaml.safe_load_all(f))[1]
+
+    assert data == data2
+
+
 def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
@@ -3499,7 +3528,7 @@ def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
     assert infra[1]['storage']['type'] == 'http-index'
     assert infra[1]['storage']['url'] == f'file://{uuid_dir}'
 
-def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path, base_dir):
+def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
     # Both storages are writable, first one will take default manifest pattern
@@ -3522,7 +3551,7 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path, base_dir):
     assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
 
 
-def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path, base_dir):
+def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
     # First storage is not read-only, the second storage takes precedence with its custom template
@@ -3545,7 +3574,7 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path, base_dir):
     assert storage[1]['manifest-pattern'] == {'type': 'glob', 'path': '/foo.yaml'}
 
 
-def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path, base_dir):
+def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
     # First storage is not read-only and it has manifest pattern,

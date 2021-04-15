@@ -30,6 +30,7 @@ from .cli_storage import do_create_storage_from_set
 from ..container import Container
 from ..storage import StorageBackend, Storage
 from ..user import User
+from ..publish import Publisher
 from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageSet
 from ..manifest.manifest import WildlandObjectType
@@ -176,7 +177,7 @@ def _boostrap_forest(ctx: click.Context,
             manifests_backend.mkdir(PurePosixPath('users'))
 
         _boostrap_manifest(manifests_backend, forest_owner.local_path, Path(f'users/{user}.yaml'))
-
+        Publisher(obj.client, infra_container).publish_container()
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:
