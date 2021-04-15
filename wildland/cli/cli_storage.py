@@ -292,6 +292,24 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
                                         local_owners=client.config.get('local-owners'))
         backend = StorageBackend.from_params(storage.params)
 
+        # Template-generated paths/uris sanity check
+        if (backend.LOCATION_PARAM and
+            backend.LOCATION_PARAM in backend.params and
+            backend.params[backend.LOCATION_PARAM]):
+
+            orig_path = str(backend.params[backend.LOCATION_PARAM])
+
+            if uritools.isuri(orig_path):
+                uri  = uritools.urisplit(orig_path)
+                path = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
+                                           query=uri.query, fragment=uri.fragment,
+                                           path=str(Path(uri.path).resolve()))
+            else:
+                path = Path(orig_path)
+
+            backend.params[backend.LOCATION_PARAM] = str(path)
+
+        # Create directories recursively
         if storage.is_writeable and backend.LOCATION_PARAM:
             path = storage.params[backend.LOCATION_PARAM]
 
