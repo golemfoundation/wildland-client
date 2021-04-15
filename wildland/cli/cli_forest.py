@@ -136,13 +136,14 @@ def _boostrap_forest(ctx: click.Context,
                                                   predicate=lambda x: x.is_writeable)
 
         # If a writeable infra storage doesn't have manifest_pattern defined,
-        # forcibly set manifest pattern for all storages in this container.
         if not infra_storage.manifest_pattern:
-            for storage in list(obj.client.all_storages(infra_container)):
-                storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
-                obj.client.add_storage_to_container(infra_container, storage)
+            infra_storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
 
-            obj.client.save_object(WildlandObjectType.CONTAINER, infra_container)
+        # forcibly set manifest pattern for all storages in this container.
+        for storage in list(obj.client.all_storages(infra_container)):
+            storage.manifest_pattern = infra_storage.manifest_pattern
+            obj.client.add_storage_to_container(infra_container, storage)
+        obj.client.save_object(WildlandObjectType.CONTAINER, infra_container)
 
         manifests_storage = obj.client.select_storage(container=infra_container,
                                                       predicate=lambda x: x.is_writeable)
