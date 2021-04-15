@@ -132,16 +132,16 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/zip-archive.rsti
 
-.. program:: wl-storage-create-http-index
-.. _wl-storage-create-http-index:
+.. program:: wl-storage-create-http
+.. _wl-storage-create-http:
 
-:command:`wl storage create http-index --container <container> [-u] [--user <user>] --url <url> <storage>`
-----------------------------------------------------------------------------------------------------------
+:command:`wl storage create http --container <container> [-u] [--user <user>] --url <url> <storage>`
+----------------------------------------------------------------------------------------------------
 
 This is a HTTP storage that relies on directory listings. Currently used for buckets published using S3.
 
 .. include:: include/wl-storage-create.rsti
-.. include:: include/storages/http-index.rsti
+.. include:: include/storages/http.rsti
 
 .. program:: wl-storage-create-imap
 .. _wl-storage-create-imap:

@@ -179,7 +179,28 @@ class Manifest:
         if "version" not in fields:
             # Un-versioned manifest
             fields = cls.update_to_version_1(fields, True)
-            return fields
+
+        # Obsolete names from v1
+        fields = cls.update_obsolete(fields)
+
+        return fields
+
+    @classmethod
+    def update_obsolete(cls, fields: dict):
+        """
+        Update fields obsolete in V1.
+        """
+        if fields.get('type', None) == 'http-index':
+            fields['type'] = 'http'
+
+        if 'backends' in fields and 'storage' in fields['backends']:
+            for storage in fields['backends']['storage']:
+                if isinstance(storage, dict):
+                    cls.update_obsolete(storage)
+        if 'infrastructures' in fields:
+            for container in fields['infrastructures']:
+                if isinstance(container, dict):
+                    cls.update_obsolete(container)
 
         return fields
 

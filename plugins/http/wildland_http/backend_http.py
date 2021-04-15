@@ -38,7 +38,7 @@ from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 
 
-logger = logging.getLogger('storage-s3')
+logger = logging.getLogger('storage-http')
 
 
 class PagedHttpFile(PagedFile):
@@ -67,7 +67,7 @@ class PagedHttpFile(PagedFile):
         return resp.content
 
 
-class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
+class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     """
     A read-only HTTP storage that gets its information from directory listings.
     """
@@ -83,7 +83,7 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             },
         }
     })
-    TYPE = 'http-index'
+    TYPE = 'http'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
@@ -201,8 +201,8 @@ class HttpIndexStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         resp.raise_for_status()
 
         size = int(resp.headers['Content-Length'])
-        timestamp = datetime.strptime(
+        timestamp = int(datetime.strptime(
             resp.headers['Last-Modified'], "%a, %d %b %Y %X %Z"
-        ).strftime("%s")
+        ).timestamp())
 
         return Attr.file(size, timestamp)
