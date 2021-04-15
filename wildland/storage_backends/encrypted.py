@@ -112,9 +112,9 @@ class EncFS(EncryptedFSRunner):
     Runs encfs via subprocess.
 
     Relevant issues of encfs:
-    * it is not very secure - it may leak last 4k of a file when file is rewritten
-    * it uses FUSE (potential problem on OSX later)
-    * it leaks metadata about tree structure
+    * it is not very secure - it may leak last 4k of a file when file is rewritten.
+    * it uses FUSE (potential problem on OSX later).
+    * it leaks metadata about tree structure.
     '''
     password: str
     config: str
@@ -215,11 +215,12 @@ class GoCryptFS(EncryptedFSRunner):
     Runs gocryptfs via subprocess.
 
     Relevant issues of gocryptfs:
-    * it uses FUSE (potential problem on OSX later)
-    * it leaks metadata about tree structure
-    * it allows attacker to modify file permission - they are not encrypted
-    * it does not mix well with Wildland - it does not do direct_io.
-      You may observe data loss in some scenarios.
+    * it does not mix well with Wildland since it does not do direct_io.
+      You may observe data loss in some scenarios. More information is in
+      this thread: https://gitlab.com/wildland/wildland-client/-/issues/205
+    * it uses FUSE (potential problem on OSX later).
+    * it leaks metadata about tree structure.
+    * it allows attacker to modify file permission - they are not encrypted.
     '''
     password: str
     config: str
@@ -312,7 +313,7 @@ class GoCryptFS(EncryptedFSRunner):
             os.mkfifo(passwordpipe)
         except FileExistsError:
             pass
-        cmd = [self.binary] + cmd1  + [passwordpipe] + cmd2
+        cmd = [self.binary, '-o', 'direct_io', '-fusedebug'] + cmd1  + [passwordpipe] + cmd2
         sp = Popen(cmd, stdout=PIPE)
         with open(passwordpipe, 'w') as f:
             f.write(self.password)
