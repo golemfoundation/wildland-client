@@ -30,6 +30,7 @@ __all__ = ['DummyStorageBackend']
 
 logger = logging.getLogger('dummy-storage')
 
+
 class DummyStorageBackend(StorageBackend):
     """Dummy storage"""
     SCHEMA = Schema({
@@ -50,7 +51,7 @@ class DummyStorageBackend(StorageBackend):
     @classmethod
     def cli_create(cls, data):
         return {
-            'subcontainers': list(data['subcontainer']),
+            'subcontainers': list(data.get('subcontainer', [])),
         }
 
     def open(self, path, flags):
