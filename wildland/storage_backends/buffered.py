@@ -270,6 +270,7 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
 
     def fgetattr(self) -> Attr:
         with self.buf_lock:
+            self._load()
             self.attr.size = len(self.buf)
         return self.attr
 
