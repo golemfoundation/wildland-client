@@ -22,7 +22,7 @@ Module for handling signatures. Provides two backends: libsodium/pynacl (SodiumS
 "dummy" one.
 """
 
-from typing import Optional, TypeVar, Dict, Tuple, List
+from typing import Optional, TypeVar, Dict, Tuple, List, Iterable
 from pathlib import Path
 import os
 import base64
@@ -226,7 +226,7 @@ class SigContext:
 
         return False
 
-    def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
+    def encrypt(self, data: bytes, keys: Iterable[str]) -> Tuple[str, List[str]]:
         """
         Encrypt data to be readable by keys. Returns a tuple: encrypted message,
         list of encrypted keys.
@@ -303,7 +303,7 @@ class DummySigContext(SigContext):
     def is_private_key_available(self, key_id):
         return key_id in self.private_keys
 
-    def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
+    def encrypt(self, data: bytes, keys: Iterable[str]) -> Tuple[str, List[str]]:
         """
         Encrypt data to be readable by keys. Returns a tuple: encrypted message,
         list of encrypted keys.
@@ -509,7 +509,7 @@ class SodiumSigContext(SigContext):
         except BadSignatureError as bse:
             raise SigError(f'Could not verify signature for {signer}') from bse
 
-    def encrypt(self, data: bytes, keys: List[str]) -> Tuple[str, List[str]]:
+    def encrypt(self, data: bytes, keys: Iterable[str]) -> Tuple[str, List[str]]:
         private_key = nacl.utils.random(SecretBox.KEY_SIZE)
         secret_box = SecretBox(private_key)
 

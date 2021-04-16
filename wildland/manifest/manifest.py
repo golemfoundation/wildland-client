@@ -134,6 +134,8 @@ class Manifest:
                 if not pubkeys:
                     raise ManifestError(f'Cannot encrypt to {user}.')
                 keys_to_encrypt.extend(pubkeys)
+
+        keys_to_encrypt = set(keys_to_encrypt)
         data_to_encrypt = yaml.dump(fields, sort_keys=False).encode()
         try:
             encrypted_data, encrypted_keys = sig.encrypt(data_to_encrypt, keys_to_encrypt)
