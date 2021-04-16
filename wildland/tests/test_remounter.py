@@ -167,7 +167,7 @@ class RemounterWrapper(Remounter):
                 uuid = get_container_uuid_from_uuid_path(str(expected.paths[0]))
                 self.control_client.add_storage_paths(
                     expected_b[1],
-                    [f'/.users/{expected.owner}/.backends/{uuid}/{expected_b[0]}']
+                    [f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}']
                 )
 
                 # calculate storage tag, so params/paths change will be detected
@@ -179,7 +179,7 @@ class RemounterWrapper(Remounter):
             if storage_id is not None:
                 self.control_client.add_storage_paths(
                     storage_id,
-                    [f'/.users/{expected.owner}{path}' for path in expected.paths]
+                    [f'/.users/{expected.owner}:{path}' for path in expected.paths]
                 )
         self.to_mount.clear()
 
@@ -832,20 +832,20 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
     ]
     assert control_client.all_calls['mount'] == [
         {'items': [{
-            'paths': [f'/.users/0xaaa/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID0}'],
+            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID0}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,
         }]},
         {'items': [{
-            'paths': [f'/.users/0xaaa/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
+            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,
         }]},
         # should retry on the next event
         {'items': [{
-            'paths': [f'/.users/0xaaa/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
+            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,

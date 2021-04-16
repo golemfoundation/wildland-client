@@ -602,16 +602,16 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
 
     paths_1 = [
         f'/.backends/{uuid}/{backend_id1}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
 
     paths_2 = [
         f'/.backends/{uuid}/{backend_id2}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
 
     assert sorted(command[0]['paths']) == paths_1
@@ -658,7 +658,7 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     assert len(command) == 1
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id3}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id3}',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id3}',
     ]
 
 
@@ -684,16 +684,16 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
     paths_1 = [
         f'/.backends/{uuid}/{backend_id1}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
 
     paths_2 = [
         f'/.backends/{uuid}/{backend_id2}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
 
     control_client.expect('paths', {})
@@ -707,13 +707,13 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
     control_client.expect('paths', {
         f'/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa/.uuid/{uuid}': [1],
-        '/.users/0xaaa/PATH': [1],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}': [1],
+        f'/.users/0xaaa:/.uuid/{uuid}': [1],
+        '/.users/0xaaa:/PATH': [1],
         f'/.uuid/{uuid}': [1],
         '/PATH': [1],
         f'/.backends/{uuid}/{backend_id2}': [2],
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}': [2],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}': [2],
     })
 
     control_client.expect('info', {
@@ -743,9 +743,9 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     assert len(command) == 1
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id2}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
@@ -772,16 +772,16 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
 
     paths_1 = [
         f'/.backends/{uuid}/{backend_id1}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
 
     paths_2 = [
         f'/.backends/{uuid}/{backend_id2}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
 
     control_client.expect('paths', {})
@@ -795,13 +795,13 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
 
     control_client.expect('paths', {
         f'/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa/.uuid/{uuid}': [1],
-        '/.users/0xaaa/PATH': [1],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}': [1],
+        f'/.users/0xaaa:/.uuid/{uuid}': [1],
+        '/.users/0xaaa:/PATH': [1],
         f'/.uuid/{uuid}': [1],
         '/PATH': [1],
         f'/.backends/{uuid}/{backend_id2}': [2],
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id2}': [2],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}': [2],
     })
 
     control_client.expect('info', {
@@ -955,9 +955,9 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
@@ -1351,8 +1351,8 @@ def test_container_delete_umount(cli, base_dir, control_client):
     paths_obj = {
         f'/.backends/{uuid}/{backend_id}': [101],
         f'/.uuid/{uuid}': [102],
-        f'/.users/0xaaa/.uuid/{uuid}': [103],
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}': [104],
+        f'/.users/0xaaa:/.uuid/{uuid}': [103],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}': [104],
         '/PATH2': [105],
     }
 
@@ -1412,9 +1412,9 @@ def test_container_mount(cli, base_dir, control_client):
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
@@ -1427,9 +1427,9 @@ def test_container_mount(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
     ]
     assert command[0]['extra']['trusted_owner'] is None
 
@@ -1441,11 +1441,12 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
     cli('user', 'create', 'Other', '--key', '0xbbb')
     cli('bridge', 'create', '--ref-user', 'Other',
                             '--ref-user-path', '/users/other',
-                            '--ref-user-path', '/people/other',
+                            '--ref-user-path', '/people:/other',
                             '--ref-user-location',
                             'file://%s' % (base_dir / 'users/Other.user.yaml'),
                             'br-other')
     cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH',
+        '--path', '/other:/path',
         '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
@@ -1488,15 +1489,85 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xbbb/.backends/{uuid}/{backend_id}',
-        f'/.users/0xbbb/.uuid/{uuid}',
-        '/.users/0xbbb/PATH',
-        f'/people/other/.backends/{uuid}/{backend_id}',
-        f'/people/other/.uuid/{uuid}',
-        '/people/other/PATH',
-        f'/users/other/.backends/{uuid}/{backend_id}',
-        f'/users/other/.uuid/{uuid}',
-        '/users/other/PATH',
+        f'/.users/0xbbb:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xbbb:/.uuid/{uuid}',
+        '/.users/0xbbb:/PATH',
+        '/.users/0xbbb:/other_/path',
+        f'/people_/other:/.backends/{uuid}/{backend_id}',
+        f'/people_/other:/.uuid/{uuid}',
+        '/people_/other:/PATH',
+        '/people_/other:/other_/path',
+        f'/users/other:/.backends/{uuid}/{backend_id}',
+        f'/users/other:/.uuid/{uuid}',
+        '/users/other:/PATH',
+        '/users/other:/other_/path',
+    ]
+
+
+def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('user', 'create', 'Charlie', '--key', '0xccc')
+    cli('bridge', 'create', '--owner', 'Alice',
+                            '--ref-user', 'Bob',
+                            '--ref-user-path', '/users/bob',
+                            '--ref-user-path', '/people/bob',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/Bob.user.yaml'),
+                            'br-bob')
+    cli('bridge', 'create', '--owner', 'Alice',
+                            '--ref-user', 'Charlie',
+                            '--ref-user-path', '/users/charlie',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/Charlie.user.yaml'),
+                            'br-charlie')
+    cli('bridge', 'create', '--owner', 'Charlie',
+                            '--ref-user', 'Bob',
+                            '--ref-user-path', '/users/bob',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/Bob.user.yaml'),
+                            'br-charlie-bob')
+    # this should not be used, as it introduces a loop
+    cli('bridge', 'create', '--owner', 'Bob',
+                            '--ref-user', 'Alice',
+                            '--ref-user-path', '/users/alice',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/Alice.user.yaml'),
+                            'br-alice-bob')
+    cli('container', 'create', 'Container', '--owner', 'Bob', '--path', '/PATH',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents_container = list(load_yaml_all(f))
+
+    uuid_path = documents_container[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    backend_id = documents_container[1]['backends']['storage'][0]['backend-id']
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xbbb:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xbbb:/.uuid/{uuid}',
+        '/.users/0xbbb:/PATH',
+        f'/people/bob:/.backends/{uuid}/{backend_id}',
+        f'/people/bob:/.uuid/{uuid}',
+        '/people/bob:/PATH',
+        f'/users/bob:/.backends/{uuid}/{backend_id}',
+        f'/users/bob:/.uuid/{uuid}',
+        '/users/bob:/PATH',
+        f'/users/charlie:/users/bob:/.backends/{uuid}/{backend_id}',
+        f'/users/charlie:/users/bob:/.uuid/{uuid}',
+        '/users/charlie:/users/bob:/PATH',
     ]
 
 
@@ -1593,7 +1664,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
-    assert '/.users/0xbbb/PATH' in command[0]['paths']
+    assert '/.users/0xbbb:/PATH' in command[0]['paths']
 
     users = cli('user', 'list', capture=True)
     assert users.count('0xbbb') == 0
@@ -1604,7 +1675,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
-    assert '/.users/0xbbb/PATH' in command[0]['paths']
+    assert '/.users/0xbbb:/PATH' in command[0]['paths']
 
     control_client.calls = {}
 
@@ -1613,7 +1684,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
-    assert '/.users/0xbbb/PATH' in command[0]['paths']
+    assert '/.users/0xbbb:/PATH' in command[0]['paths']
 
     users = cli('user', 'list', capture=True)
     assert users.count('0xbbb') > 0
@@ -1675,7 +1746,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['storage']['owner'] == '0xbbb'
-    assert '/.users/0xaaa/PROXY-PATH' in command[0]['paths']
+    assert '/.users/0xaaa:/PROXY-PATH' in command[0]['paths']
 
     control_client.calls = {}
 
@@ -1684,7 +1755,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
 
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xbbb'
-    assert '/.users/0xbbb/PATH' in command[0]['paths']
+    assert '/.users/0xbbb:/PATH' in command[0]['paths']
 
     bridges = cli('bridge', 'list', capture=True)
     assert bridges.count('/people/other') == 2
@@ -1747,17 +1818,17 @@ def test_container_mount_glob(cli, base_dir, control_client):
     assert len(command) == 2
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid1}/{backend_id1}',
-        f'/.users/0xaaa/.backends/{uuid1}/{backend_id1}',
-        f'/.users/0xaaa/.uuid/{uuid1}',
-        '/.users/0xaaa/PATH1',
+        f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}',
+        f'/.users/0xaaa:/.uuid/{uuid1}',
+        '/.users/0xaaa:/PATH1',
         f'/.uuid/{uuid1}',
         '/PATH1'
     ]
     assert sorted(command[1]['paths']) == [
         f'/.backends/{uuid2}/{backend_id2}',
-        f'/.users/0xaaa/.backends/{uuid2}/{backend_id2}',
-        f'/.users/0xaaa/.uuid/{uuid2}',
-        '/.users/0xaaa/PATH2',
+        f'/.users/0xaaa:/.backends/{uuid2}/{backend_id2}',
+        f'/.users/0xaaa:/.uuid/{uuid2}',
+        '/.users/0xaaa:/PATH2',
         f'/.uuid/{uuid2}',
         '/PATH2'
     ]
@@ -1811,9 +1882,9 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
@@ -1893,9 +1964,9 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid}',
         '/PATH',
     ]
@@ -1944,9 +2015,9 @@ backends:
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid1}/{backend_id1}',
-        f'/.users/0xaaa/.backends/{uuid1}/{backend_id1}',
-        f'/.users/0xaaa/.uuid/{uuid1}',
-        '/.users/0xaaa/PATH',
+        f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}',
+        f'/.users/0xaaa:/.uuid/{uuid1}',
+        '/.users/0xaaa:/PATH',
         f'/.uuid/{uuid1}',
         '/PATH',
     ]
@@ -1960,9 +2031,9 @@ backends:
 
     assert sorted(command[1]['paths']) == [
         f'/.backends/{uuid2}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid2}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid2}',
-        '/.users/0xaaa/subcontainer',
+        f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid2}',
+        '/.users/0xaaa:/subcontainer',
         f'/.uuid/{uuid2}',
         '/subcontainer',
     ]
@@ -2068,9 +2139,9 @@ backends:
     assert command[0]['storage']['storage']['location'] == os.fspath(tmp_path)
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid2}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid2}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid2}',
-        '/.users/0xaaa/subcontainer',
+        f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid2}',
+        '/.users/0xaaa:/subcontainer',
         f'/.uuid/{uuid2}',
         '/subcontainer',
     ]
@@ -2111,9 +2182,9 @@ backends:
     assert command[0]['storage']['type'] == 'delegate'
     assert sorted(command[0]['paths']) == [
         f'/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/subcontainer',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/subcontainer',
         f'/.uuid/{uuid}',
         '/subcontainer',
     ]
@@ -2143,8 +2214,8 @@ def test_container_unmount(cli, base_dir, control_client):
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     control_client.expect('paths', {
-        f'/.users/0xaaa/.uuid/{uuid}': [101],
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}': [102],
+        f'/.users/0xaaa:/.uuid/{uuid}': [101],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}': [102],
         f'/.uuid/{uuid}': [103],
         f'/.backends/{uuid}/{backend_id}': [104],
         '/PATH': [105],
@@ -2152,7 +2223,7 @@ def test_container_unmount(cli, base_dir, control_client):
     control_client.expect('unmount')
     cli('container', 'unmount', 'Container', '--without-subcontainers')
 
-    # /.users/{owner}/.backends/{cont_uuid}/{backend_uuid} is always the primary path
+    # /.users/{owner}:/.backends/{cont_uuid}/{backend_uuid} is always the primary path
     assert control_client.calls['unmount']['storage_id'] == 102
 
 
@@ -2216,13 +2287,13 @@ def test_container_extended_paths(cli, control_client, base_dir):
 
     assert sorted(command[0]['paths']) == sorted([
         f'/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
-        '/.users/0xaaa/c1/c2/@c3/title',
-        '/.users/0xaaa/c1/c2/title',
-        '/.users/0xaaa/c3/@c1/c2/title',
-        '/.users/0xaaa/c3/title',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
+        '/.users/0xaaa:/c1/c2/@c3/title',
+        '/.users/0xaaa:/c1/c2/title',
+        '/.users/0xaaa:/c3/@c1/c2/title',
+        '/.users/0xaaa:/c3/title',
         f'/.uuid/{uuid}',
         '/PATH',
         '/c1/c2/@c3/title',
@@ -2239,13 +2310,13 @@ def test_container_extended_paths(cli, control_client, base_dir):
     command = control_client.calls['mount']['items']
     assert command[0]['storage']['owner'] == '0xaaa'
     assert sorted(command[0]['paths']) == [
-        f'/.users/0xaaa/.backends/{uuid}/{backend_id}',
-        f'/.users/0xaaa/.uuid/{uuid}',
-        '/.users/0xaaa/PATH',
-        '/.users/0xaaa/c1/c2/@c3/title',
-        '/.users/0xaaa/c1/c2/title',
-        '/.users/0xaaa/c3/@c1/c2/title',
-        '/.users/0xaaa/c3/title',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        '/.users/0xaaa:/PATH',
+        '/.users/0xaaa:/c1/c2/@c3/title',
+        '/.users/0xaaa:/c1/c2/title',
+        '/.users/0xaaa:/c3/@c1/c2/title',
+        '/.users/0xaaa:/c3/title',
     ]
     assert command[0]['extra']['trusted_owner'] is None
 
@@ -3214,18 +3285,18 @@ def test_only_subcontainers(cli, base_dir, control_client):
 
     parent_paths = [
         f'/.backends/{uuid_parent}/{backend_id_parent}',
-        f'/.users/0xaaa/.backends/{uuid_parent}/{backend_id_parent}',
-        f'/.users/0xaaa/.uuid/{uuid_parent}',
-        '/.users/0xaaa/PATH_PARENT',
+        f'/.users/0xaaa:/.backends/{uuid_parent}/{backend_id_parent}',
+        f'/.users/0xaaa:/.uuid/{uuid_parent}',
+        '/.users/0xaaa:/PATH_PARENT',
         f'/.uuid/{uuid_parent}',
         '/PATH_PARENT',
     ]
 
     child_paths = [
         f'/.backends/{uuid_child}/{backend_id_child}',
-        f'/.users/0xaaa/.backends/{uuid_child}/{backend_id_child}',
-        f'/.users/0xaaa/.uuid/{uuid_child}',
-        '/.users/0xaaa/PATH_CHILD',
+        f'/.users/0xaaa:/.backends/{uuid_child}/{backend_id_child}',
+        f'/.users/0xaaa:/.uuid/{uuid_child}',
+        '/.users/0xaaa:/PATH_CHILD',
         f'/.uuid/{uuid_child}',
         '/PATH_CHILD',
     ]

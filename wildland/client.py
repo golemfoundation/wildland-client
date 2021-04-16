@@ -29,7 +29,7 @@ import glob
 import logging
 import os
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, Iterator, Optional, Tuple, Union, List
+from typing import Dict, Iterable, Iterator, Optional, Tuple, Union, List, Set
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -500,16 +500,49 @@ class Client:
                 else:
                     yield obj_
 
+    def _generare_bridge_paths_recursive(self, path_prefix: List[PurePosixPath],
+                                         last_user: str,
+                                         target_user: str,
+                                         users_seen: Set[str],
+                                         bridges_map: Dict[str, List[Bridge]]):
+        """
+        A helper function for get_bridge_paths_for_user. It takes *path_prefix* and appends every
+        matching bridge path (based on *last_user*) from *bridges_map*,
+        until *target_user* is reached.
+        It uses recursive call for that.
+        The *users_seen* parameter is used to avoid loops.
+        :return:
+        """
+
+        for bridge in bridges_map[last_user]:
+            bridge_user = self.session.sig.fingerprint(bridge.user_pubkey)
+            if bridge_user in users_seen:
+                # avoid loops
+                continue
+            if bridge_user == target_user:
+                for path in bridge.paths:
+                    yield tuple(path_prefix + [path])
+            if bridge_user in bridges_map:
+                for path in bridge.paths:
+                    yield from self._generare_bridge_paths_recursive(
+                        path_prefix + [path],
+                        bridge_user,
+                        target_user,
+                        users_seen | {bridge_user},
+                        bridges_map
+                    )
+
     @functools.lru_cache
     def get_bridge_paths_for_user(self, user: Union[User, str], owner: Optional[User] = None) \
-            -> Iterable[PurePosixPath]:
+            -> Iterable[Iterable[PurePosixPath]]:
         """
-        Get bridge paths to the *user* using bridges owned by *owner*. If owner is not specified,
-        use default user (``@default``).
+        Get bridge paths to the *user* using bridges owned by *owner*, including multiple hops.
+        If owner is not specified, use default user (``@default``).
 
         :param user: user to look paths for (user id is accepted too)
         :param owner: owner of bridges to consider
-        :return: list of paths collected from bridges
+        :return: list of paths collected from bridges - each result is a list of bridge paths,
+            to be concatenated
         """
         if owner is None:
             try:
@@ -523,17 +556,23 @@ class Client:
             assert isinstance(user, User)
 
         if owner.primary_pubkey == user.primary_pubkey:
-            return [PurePosixPath('/')]
+            # a single empty list of paths, meaning 0-length bridge path
+            return [[]]
 
-        paths = []
+        bridges_map: Dict[str, List[Bridge]] = {}
         for bridge in self.load_all(WildlandObjectType.BRIDGE):
-            if bridge.owner != owner.owner:
-                continue
-            if bridge.user_pubkey != user.primary_pubkey:
-                continue
-            paths.extend(bridge.paths)
+            bridges_map.setdefault(bridge.owner, []).append(bridge)
 
-        return set(paths)
+        if owner.owner in bridges_map:
+            return set(self._generare_bridge_paths_recursive(
+                [],
+                owner.owner,
+                user.owner,
+                {owner.owner},
+                bridges_map
+            ))
+
+        return set()
 
     def save_object(self, object_type: WildlandObjectType,
                     obj, path: Optional[Path] = None) -> Path:

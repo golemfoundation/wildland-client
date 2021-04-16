@@ -206,7 +206,7 @@ class WildlandFSClient:
     def mount_container(self,
                         container: Container,
                         storages: List[Storage],
-                        user_paths: Iterable[PurePosixPath] = (PurePosixPath('/'),),
+                        user_paths: Iterable[Iterable[PurePosixPath]] = ((),),
                         subcontainer_of: Optional[Container] = None,
                         remount: bool = False):
         """
@@ -218,7 +218,7 @@ class WildlandFSClient:
 
     def mount_multiple_containers(
             self,
-            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[PurePosixPath],
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
                                    Optional[Container]]],
             remount: bool = False,
             unique_path_only: bool = False):
@@ -251,7 +251,7 @@ class WildlandFSClient:
         under /.backends/...
         """
 
-        mount_path = self.get_user_path(container.owner, container.paths[0])
+        mount_path = self.get_user_container_path(container.owner, container.paths[0])
         return self.find_storage_id_by_path(mount_path)
 
     def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
@@ -274,8 +274,7 @@ class WildlandFSClient:
         """
         mounted_paths = self.get_unique_storage_paths(container)
         valid_paths = [
-            PurePosixPath(f'/.users/{container.owner}') /
-                storage.get_mount_path(container).relative_to('/')
+            self.get_primary_unique_mount_path(container, storage)
             for storage in storages_to_mount]
 
         return list(set(mounted_paths) - set(valid_paths))
@@ -481,9 +480,10 @@ class WildlandFSClient:
         paths = self.get_paths()
 
         if container:
-            pattern = fr'^/.users/{container.owner}/.backends/{container.ensure_uuid()}/[0-9a-z-]+$'
+            pattern = fr'^/.users/{container.owner}:' \
+                fr'/.backends/{container.ensure_uuid()}/[0-9a-z-]+$'
         else:
-            pattern = r'^/.users/[0-9a-z-]+/.backends/[0-9a-z-]+/[0-9a-z-]+$'
+            pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+$'
 
         path_regex = re.compile(pattern)
 
@@ -492,7 +492,7 @@ class WildlandFSClient:
                 yield path
 
     def should_remount(self, container: Container, storage: Storage,
-                       user_paths: Iterable[PurePosixPath]) -> bool:
+                       user_paths: Iterable[Iterable[PurePosixPath]]) -> bool:
         """
         Check if a storage needs to be remounted.
         """
@@ -519,7 +519,7 @@ class WildlandFSClient:
     def get_command_for_mount_container(self,
                                         container: Container,
                                         storage: Storage,
-                                        user_paths: Iterable[PurePosixPath],
+                                        user_paths: Iterable[Iterable[PurePosixPath]],
                                         subcontainer_of: Optional[Container],
                                         unique_path_only: bool = False,
                                         remount: bool = False):
@@ -558,8 +558,29 @@ class WildlandFSClient:
             'remount': remount,
         }
 
+    @staticmethod
+    def join_bridge_paths_for_mount(bridges: Iterable[PurePosixPath], path: PurePosixPath)\
+            -> PurePosixPath:
+        """
+        Construct a full mount paths given bridge paths and a container path. This function joins
+        the paths using appropriate separator (':'), but also ensures no unwanted characters
+        are present in the individual paths.
+
+        :param bridges: list of bridge paths to join
+        :param path: container path
+        :return:
+        """
+
+        return PurePosixPath(
+            ':'.join(
+                str(p).replace(':', '_')
+                for p in itertools.chain(bridges, [path])
+            )
+        )
+
     def get_storage_mount_paths(self, container: Container, storage: Storage,
-                                user_paths: Iterable[PurePosixPath]) -> List[PurePosixPath]:
+                                user_paths: Iterable[Iterable[PurePosixPath]])\
+            -> List[PurePosixPath]:
         """
         Return all mount paths (incl. synthetic ones) for given storage.
 
@@ -580,10 +601,10 @@ class WildlandFSClient:
             storage_paths = [unique_backend_path]
 
         paths = [
-            user_path / path.relative_to('/')
+            self.join_bridge_paths_for_mount(user_path, path)
             for path in storage_paths
             for user_path in itertools.chain(
-                [self.get_user_path(container.owner, PurePosixPath('/'))],
+                [[self.get_user_path(container.owner)]],
                 user_paths)
         ]
 
@@ -597,8 +618,7 @@ class WildlandFSClient:
         """
 
         unique_backend_path = storage.get_mount_path(container)
-        return self.get_user_path(container.owner, PurePosixPath('/')) \
-               / unique_backend_path.relative_to('/')
+        return self.get_user_container_path(container.owner, unique_backend_path)
 
     @staticmethod
     def get_storage_tag(paths: List[PurePosixPath], params):
@@ -614,11 +634,17 @@ class WildlandFSClient:
         return hashlib.sha1(param_str.encode()).hexdigest()
 
     @staticmethod
-    def get_user_path(owner, path: PurePosixPath) -> PurePosixPath:
+    def get_user_path(owner: str) -> PurePosixPath:
+        """
+        Get an FS path for owner namespace.
+        """
+        return PurePosixPath('/.users/') / owner
+
+    def get_user_container_path(self, owner: str, path: PurePosixPath) -> PurePosixPath:
         """
         Prepend an absolute path with owner namespace.
         """
-        return PurePosixPath('/.users/') / owner / path.relative_to('/')
+        return self.get_user_path(owner + ":") / path.relative_to('/')
 
     def watch(self, patterns: Iterable[str], with_initial=False) \
             -> Iterator[List[WatchEvent]]:
