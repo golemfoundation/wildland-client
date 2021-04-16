@@ -161,7 +161,7 @@ def _boostrap_forest(ctx: click.Context,
                 manifest = storage.to_unsigned_manifest()
             else:
                 http_backend = StorageBackend.from_params({
-                    'object': 'storage', 'type': 'http-index', 'version': Manifest.CURRENT_VERSION,
+                    'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
                     'backend-id': str(uuid.uuid4()), 'owner': infra_container.owner,
                     'url': storage.base_url,
                 })

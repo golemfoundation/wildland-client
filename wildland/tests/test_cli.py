@@ -3525,7 +3525,7 @@ def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
     assert infra[0]['storage']['location'] == f'{uuid_dir}'
 
     assert infra[1]['object'] == 'link'
-    assert infra[1]['storage']['type'] == 'http-index'
+    assert infra[1]['storage']['type'] == 'http'
     assert infra[1]['storage']['url'] == f'file://{uuid_dir}'
 
 def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
