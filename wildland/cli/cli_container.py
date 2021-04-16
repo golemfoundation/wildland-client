@@ -521,7 +521,7 @@ def prepare_mount(obj: ContextObj,
                   remount: bool,
                   with_subcontainers: bool,
                   subcontainer_of: Optional[Container],
-                  quiet: bool,
+                  verbose: bool,
                   only_subcontainers: bool):
     """
     Prepare 'params' argument for WildlandFSClient.mount_multiple_containers() to mount selected
@@ -529,12 +529,12 @@ def prepare_mount(obj: ContextObj,
 
     :param obj: command context from click
     :param container: container object to mount
-    :param container_name: container name - used for diagnostic messages (unless quiet=True)
+    :param container_name: container name - used for diagnostic messages (if verbose=True)
     :param user_paths: paths of the container owner - ['/'] for default user
     :param remount: should remount?
     :param with_subcontainers: should include subcontainers?
     :param subcontainer_of: it is a subcontainer
-    :param quiet: don't print messages
+    :param verbose: print all messages
     :param only_subcontainers: only mount subcontainers
     :return: combined 'params' argument
     """
@@ -547,7 +547,7 @@ def prepare_mount(obj: ContextObj,
 
     if not subcontainers or not only_subcontainers:
         if obj.fs_client.find_primary_storage_id(container) is None:
-            if not quiet:
+            if verbose:
                 click.echo(f'new: {container_name}')
             yield (container, storages, user_paths, subcontainer_of)
         elif remount:
@@ -563,11 +563,11 @@ def prepare_mount(obj: ContextObj,
                 if obj.fs_client.should_remount(container, storage, user_paths):
                     storages_to_remount.append(storage)
 
-                    if not quiet:
+                    if verbose:
                         click.echo(f'changed: {storage.backend_id}')
                 else:
-                    if not quiet:
-                        click.echo(f'not changed: {storage.backend_id})')
+                    if verbose:
+                        click.echo(f'not changed: {storage.backend_id}')
 
             yield (container, storages_to_remount, user_paths, subcontainer_of)
         else:
@@ -582,8 +582,8 @@ def prepare_mount(obj: ContextObj,
             for subcontainer in subcontainers:
                 yield from prepare_mount(obj, subcontainer,
                                          f'{container_name}:{subcontainer.paths[0]}',
-                                         user_paths, remount, with_subcontainers, container, quiet,
-                                         only_subcontainers)
+                                         user_paths, remount, with_subcontainers, container,
+                                         verbose, only_subcontainers)
 
 
 @container_.command(short_help='mount container')
@@ -597,12 +597,13 @@ def prepare_mount(obj: ContextObj,
               help='Do not mount subcontainers of this container.')
 @click.option('--only-subcontainers', '-b', is_flag=True, default=False,
               help='If a container has subcontainers, mount only the subcontainers')
-@click.option('--quiet', '-q', is_flag=True,
-              help='Do not list what is mounted')
+@click.option('--list-all', '-l', is_flag=True,
+              help='During mount, list all containers, including those who '
+                   'did not need to be changed')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
 def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
-          with_subcontainers: bool, only_subcontainers: bool, quiet):
+          with_subcontainers: bool, only_subcontainers: bool, list_all: bool):
     """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -620,33 +621,40 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
 
+    counter = 0
+
     for container_name in container_names:
         found = False
         try:
             containers = obj.client.load_containers_from(container_name)
         except WildlandError as ex:
             failed = True
-            exc_msg += str(ex) + '\n'
+            exc_msg += container_name + ':' + str(ex) + '\n'
             continue
 
         try:
             for container in containers:
+                counter += 1
+                if not list_all:
+                    print(f"Loading containers. Loaded {counter}...", end='\r')
                 try:
                     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
                     params.extend(prepare_mount(
                         obj, container, str(container), user_paths,
-                        remount, with_subcontainers, None, quiet, only_subcontainers))
+                        remount, with_subcontainers, None, list_all, only_subcontainers))
                     found = True
                 except WildlandError as ex:
                     failed = True
-                    exc_msg += str(ex) + '\n'
+                    exc_msg += 'Container' + str(container) + ':' + str(ex) + '\n'
         except WildlandError as ex:
             failed = True
-            exc_msg += str(ex) + '\n'
+            exc_msg += container_name + ':' + str(ex) + '\n'
         if not found:
             failed = True
             exc_msg += 'No container found for \'{}\'\n'.format(container_name)
 
+    if not list_all:
+        print('\n')
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
