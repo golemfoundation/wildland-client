@@ -49,6 +49,7 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
     To be returned from ``init()``.
     '''
     binary: str
+    cleartextdir: Optional[PurePosixPath]
 
     @classmethod
     def init(cls, tempdir: PurePosixPath,
@@ -73,12 +74,21 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
         '''
         raise NotImplementedError()
 
-    @abc.abstractmethod
+    # pylint: disable=subprocess-run-check
     def stop(self):
         '''
         Unmount.
         '''
-        raise NotImplementedError()
+        if self.cleartextdir is None:
+            raise WildlandFSError('Unmounting failed: mount point unknown')
+        cmd = ['fusermount', '-u', str(self.cleartextdir)]
+        cproc = subprocess.run(cmd, capture_output=True)
+        if cproc.returncode == 0:
+            return cproc.returncode
+        unmounted_msg = 'fusermount: entry for ' + str(self.cleartextdir) + ' not found in '
+        if cproc.stderr.decode().find(unmounted_msg) > -1:
+            return 0
+        raise WildlandFSError('Unmounting failed: mount point is busy')
 
     # pylint: disable=no-self-use
     def reencrypt(self, credentials: str):
@@ -173,12 +183,6 @@ class EncFS(EncryptedFSRunner):
             logger.error("FAILED TO MOUNT THE ENCRYPTED FILESYSTEM")
             logger.error(err.decode())
             raise WildlandFSError("Can't mount encfs")
-
-    def stop(self):
-        if self.cleartextdir is None:
-            raise WildlandFSError('Unmounting failed: mount point unknown')
-        cmd = ['fusermount', '-u', str(self.cleartextdir)]
-        return subprocess.run(cmd, check=True).returncode
 
     @classmethod
     def init(cls, tempdir: PurePosixPath,
@@ -282,12 +286,6 @@ class GoCryptFS(EncryptedFSRunner):
             logger.error("FAILED TO MOUNT THE ENCRYPTED FILESYSTEM")
             logger.error(out.decode())
             raise WildlandFSError("Can't mount gocryptfs")
-
-    def stop(self):
-        if self.cleartextdir is None:
-            raise WildlandFSError('Unmounting failed: mount point unknown')
-        res = subprocess.run(['fusermount', '-u', self.cleartextdir], check=True)
-        return res.returncode
 
     @classmethod
     def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, _) -> 'GoCryptFS':
@@ -521,4 +519,3 @@ class EncryptedStorageBackend(StorageBackend):
             self.local.request_unmount()
             self.engine_obj.stop()
             self.engine_obj = None
-
