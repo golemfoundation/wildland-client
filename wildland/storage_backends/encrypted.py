@@ -36,7 +36,7 @@ import click
 
 from wildland.storage_backends.base import StorageBackend, File, OptionalError
 from wildland.manifest.schema import Schema
-from wildland.storage_backends.local import LocalStorageBackend
+from wildland.storage_backends.local import LocalStorageBackend, LocalFile
 from wildland.fs_client import WildlandFSError
 
 
@@ -322,6 +322,27 @@ class GoCryptFS(EncryptedFSRunner):
         os.unlink(passwordpipe)
         return out
 
+class FileOnAMount(LocalFile):
+    '''
+    When writing / reading, adds a check if mount is still a mount.
+
+    Example scenario - engine (EncFS or GoCryptFS) process is killed by OOM,
+    user attempts to write to a file, file ends up on unencrypted partition.
+    '''
+    def __init__(self, *args, **kwargs):
+        self.mount_path = Path(kwargs.pop('mount_path'))
+        super().__init__(*args, **kwargs)
+
+    def write(self, *args, **kwarg):
+        if not self.mount_path.is_mount():
+            raise WildlandFSError('Encrypted filesystem is no longer mounted, can\'t write data')
+        return super().write(*args, **kwarg)
+
+    def flush(self):
+        if not self.mount_path.is_mount():
+            raise WildlandFSError('Encrypted filesystem is no longer mounted, can\'t write data')
+        return super().flush()
+
 
 engines: Dict[str, Type['EncryptedFSRunner']] = {
     'encfs': EncFS,
@@ -364,6 +385,7 @@ class EncryptedStorageBackend(StorageBackend):
     })
 
     engine_obj: Optional[EncryptedFSRunner]
+    engine_cls: Type[EncryptedFSRunner]
     engine: str
 
     TYPE = 'encrypted'
@@ -437,16 +459,27 @@ class EncryptedStorageBackend(StorageBackend):
                 }
 
     def open(self, path: PurePosixPath, flags: int) -> File:
-        return self.local.open(path, flags)
+        if self.local.ignore_own_events and self.local.watcher_instance:
+            return FileOnAMount(path, self.local._path(path), flags,
+                                mount_path=self.cleartext_path,
+                                ignore_callback=self.local.watcher_instance.ignore_event)
+        return FileOnAMount(path, self.local._path(path), flags,
+                            mount_path=self.cleartext_path)
+
+    def create(self, path: PurePosixPath, flags: int, mode: int=0o666) -> File:
+        if self.local.ignore_own_events and self.local.watcher_instance:
+            self.local.watcher_instance.ignore_event('create', path)
+            return FileOnAMount(path, self.local._path(path), flags, mode,
+                                mount_path=self.cleartext_path,
+                                ignore_callback=self.local.watcher_instance.ignore_event)
+        return FileOnAMount(path, self.local._path(path), flags, mode,
+                            mount_path=self.cleartext_path)
 
     def getattr(self, path: PurePosixPath):
         return self.local.getattr(path)
 
     def readdir(self, path: PurePosixPath):
         return self.local.readdir(path)
-
-    def create(self, path: PurePosixPath, flags, mode=0o666):
-        return self.local.create(path, flags, mode)
 
     def truncate(self, path: PurePosixPath, length: int) -> None:
         return self.local.truncate(path, length)
@@ -488,3 +521,4 @@ class EncryptedStorageBackend(StorageBackend):
             self.local.request_unmount()
             self.engine_obj.stop()
             self.engine_obj = None
+
