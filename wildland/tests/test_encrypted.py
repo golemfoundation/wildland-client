@@ -165,6 +165,21 @@ def test_encrypted_with_url_and_encfs(cli, base_dir):
     packed_bytes = zlib.compress(enc_bytes)
     assert len(packed_bytes) * 1.05 > len(enc_bytes), "encrypted bytes are of low entropy!"
 
+    # kill engine and check if attempt to write will leak the plaintext
+    ft2 = open(mounted_plaintext / 'leak.test', 'w')
+
+    if engine == 'gocryptfs':
+        subprocess.run(['killall', engine], check=True)
+        time.sleep(1)
+        with pytest.raises(FileNotFoundError):
+            ft2.write("2" * 10000)
+
+    if engine == 'encfs':
+        subprocess.run(['killall', '-9', engine], check=True)
+        time.sleep(1)
+        with pytest.raises(OSError):
+            ft2.write("2" * 10000)
+
     time.sleep(1) # otherwise "unmount: /tmp/.../mnt: target is busy"
 
 @pytest.fixture
