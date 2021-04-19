@@ -225,7 +225,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         super().__init__(**kwds)
 
         self.bear_db = BearDB(self.params['path'])
-
+        self.read_only = True
         self.root = FileCachedDirEntry(self.bear_db.path, '.', self._dir_root)
 
     def mount(self):
