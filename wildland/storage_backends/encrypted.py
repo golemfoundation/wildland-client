@@ -180,8 +180,10 @@ class EncFS(EncryptedFSRunner):
         args = ['--stdinpass', str(self.ciphertextdir), str(self.cleartextdir)]
         sp, err = self._run_binary(self.opts + args)
         if sp.returncode != 0:
-            logger.error("FAILED TO MOUNT THE ENCRYPTED FILESYSTEM")
-            logger.error(err.decode())
+            errmsg = "Failed to mount encrypted filesystem. %s exit code: %s."
+            logger.error(errmsg, self.binary, sp.errorcode)
+            if len(err.decode()) > 0:
+                logger.error(err.decode())
             raise WildlandFSError("Can't mount encfs")
 
     @classmethod
@@ -198,8 +200,9 @@ class EncFS(EncryptedFSRunner):
         options = encfs.opts + ['--stdinpass', str(encfs.ciphertextdir), str(cleartextdir)]
         sp, err = encfs._run_binary(options)
         if sp.returncode != 0:
-            logger.error("FAILED TO INITIALIZE THE ENCRYPTED FILESYSTEM")
-            logger.error(err.decode())
+            logger.error("Failed to initialize encfs encrypted filesystem.")
+            if len(err.decode()) > 0:
+                logger.error(err.decode())
             raise WildlandFSError("Can't initialize encfs volume")
         with open(PurePosixPath(encfs.ciphertextdir) / '.encfs6.xml') as tf:
             encfs.config = tf.read()
@@ -283,8 +286,10 @@ class GoCryptFS(EncryptedFSRunner):
         self._write_config(inner_storage)
         out = self._run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
         if out.decode().find('Filesystem mounted and ready.') == -1:
-            logger.error("FAILED TO MOUNT THE ENCRYPTED FILESYSTEM")
-            logger.error(out.decode())
+            errmsg = "Failed to mount %s encrypted filesystem"
+            logger.error(errmsg, self.binary)
+            if len(out.decode()) > 0:
+                logger.error(out.decode())
             raise WildlandFSError("Can't mount gocryptfs")
 
     @classmethod
