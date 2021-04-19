@@ -173,6 +173,9 @@ def _boostrap_forest(ctx: click.Context,
             modify_manifest(ctx, str(forest_owner.local_path), add_field,
                             'infrastructures', [link_obj])
 
+        # Refresh users infrastructures
+        obj.client.recognize_users()
+
         with manifests_backend:
             manifests_backend.mkdir(PurePosixPath('users'))
 
