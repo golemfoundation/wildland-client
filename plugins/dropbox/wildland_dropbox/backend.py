@@ -27,12 +27,12 @@ from typing import Iterable, Tuple, Optional, Callable
 
 import click
 from dropbox.files import FileMetadata, FolderMetadata, Metadata
+from dropbox.exceptions import ApiError
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 from .dropbox_client import DropboxClient
-from dropbox.exceptions import ApiError
 
 logger = logging.getLogger('storage-dropbox')
 

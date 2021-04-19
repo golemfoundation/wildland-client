@@ -21,11 +21,10 @@
 Storage object
 """
 
-from typing import Type, List
+from typing import Type
 from pathlib import Path, PurePosixPath
 import functools
 import uuid
-import copy
 
 import click
 import uritools
@@ -292,67 +291,34 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
                                         local_owners=client.config.get('local-owners'))
         backend = StorageBackend.from_params(storage.params)
 
-        # Template-generated paths/uris sanity check
         if (backend.LOCATION_PARAM and
             backend.LOCATION_PARAM in backend.params and
             backend.params[backend.LOCATION_PARAM]):
 
-            orig_path = str(backend.params[backend.LOCATION_PARAM])
+            # Template-generated paths/uris sanity check
+            orig_location = str(backend.params[backend.LOCATION_PARAM])
 
-            if uritools.isuri(orig_path):
-                uri  = uritools.urisplit(orig_path)
-                path = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
-                                           query=uri.query, fragment=uri.fragment,
-                                           path=str(Path(uri.path).resolve()))
+            if uritools.isuri(orig_location):
+                uri      = uritools.urisplit(orig_location)
+                path     = Path(uri.path).resolve()
+                location = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
+                                               query=uri.query, fragment=uri.fragment,
+                                               path=str(path))
             else:
-                path = Path(orig_path)
+                path     = Path(orig_location)
+                location = Path(orig_location)
 
-            backend.params[backend.LOCATION_PARAM] = str(path)
+            backend.params[backend.LOCATION_PARAM] = str(location)
+            storage.params[backend.LOCATION_PARAM] = str(location)
 
-        # Create directories recursively
-        if storage.is_writeable and backend.LOCATION_PARAM:
-            path = storage.params[backend.LOCATION_PARAM]
-
-            is_uri = uritools.isuri(path)
-
-            if is_uri:
-                uri      = uritools.urisplit(path)
-                rel_path = uri.path
-            else:
-                rel_path = path
-
-            path_chunks          = list(PurePosixPath(rel_path).parts)
-            to_create: List[str] = []
-
-            while path_chunks:
-                path_chunks_str = str(Path.joinpath(*[Path(p) for p in path_chunks]))
-
-                if is_uri:
-                    uri_path = path_chunks_str
-                    rel_path = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
-                                                   query=uri.query, fragment=uri.fragment,
-                                                   path=uri_path)
-                else:
-                    rel_path = path_chunks_str
-
-                try_storage = copy.deepcopy(storage)
-                try_storage.params[backend.LOCATION_PARAM] = rel_path
-
-                try_backend = StorageBackend.from_params(try_storage.params)
-
+            # Ensure that base path actually exists
+            if storage.is_writeable:
                 try:
-                    try_backend.mount()
-                    try_backend.getattr(PurePosixPath(''))
-
-                    for idx, _ in enumerate(to_create):
-                        next_dir = Path.joinpath(*[Path(p) for p in to_create[:idx+1]])
-                        try_backend.mkdir(PurePosixPath(next_dir))
-
-                    try_backend.unmount()
-                    break
-                except Exception:
-                    try_backend.unmount()
-                    to_create.insert(0, path_chunks.pop())
+                    with backend:
+                        backend.mkdir(PurePosixPath(path))
+                        click.echo(f"Created base path: {path}")
+                except Exception as ex:
+                    print(f"FAIL: {ex}")
 
         click.echo(f'Adding storage {storage.backend_id} to container.')
         client.add_storage_to_container(container=container, storage=storage,

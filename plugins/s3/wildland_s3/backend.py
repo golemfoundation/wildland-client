@@ -282,7 +282,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         """
         Convert path to relative S3 URL.
         """
-        return str(kebase_path / path)
+        return str(self.base_path / path)
 
     @staticmethod
     def _stat(obj) -> Attr:
