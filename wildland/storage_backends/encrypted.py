@@ -437,8 +437,8 @@ class EncryptedStorageBackend(StorageBackend):
                          help='URL for inner container manifest',
                          required=True),
             click.Option(['--engine'], metavar='ENGINE',
-                         help='Cryptographic filesystem to use: encfs (recommended!) or gocryptfs',
-                         default="encfs",
+                         help='Cryptographic filesystem to use: gocryptfs or encfs.',
+                         default="gocryptfs",
                          required=False),
         ]
 
