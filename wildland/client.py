@@ -454,28 +454,49 @@ class Client:
         if failed:
             raise ManifestError(exc_msg)
 
-    def add_storage_to_container(self, container: Container, storage: Storage):
+    def add_storage_to_container(self, container: Container, storage: Storage, inline: bool = True,
+                                 storage_name: Optional[str] = None):
         """
-        Append or update inline Storage in a Container determined by backend_id.
-        If the passed Storage exists in a container but is referenced by an url, skip adding it and
-        issue a warning.
+        Add storage to container, save any changes. If the given storage exists in the container
+        (as determined by backend_id), it gets updated (if possible).
+        If not, it is added. If the passed Storage exists in a container but is referenced by an
+        url, it can only be saved for file URLS, for other URLs a WildlandError will be raised.
+        :param container: Container to add to
+        :param storage: Storage to be added
+        :param inline: add as inline or standalone storage (ignored if storage exists)
+        :param storage_name: optional name to save storage under if inline == False
         """
         storage_manifest = storage.to_unsigned_manifest()
         storage_manifest.skip_verification()
 
         for idx, backend in enumerate(container.backends):
             container_storage = self.load_object_from_url_or_dict(
-                WildlandObjectType.STORAGE, backend, container.owner, str(container.paths[0]))
+                WildlandObjectType.STORAGE, backend, container.owner,
+                expected_owner=container.owner, container_path=str(container.paths[0]))
 
             if container_storage.backend_id == storage.backend_id:
+                if container_storage.params == storage.params:
+                    logger.info('No changes in storage %s found. Not saving.', storage.backend_id)
+                    return
+
                 if isinstance(backend, dict):
                     container.backends[idx] = storage_manifest.fields
                 else:
-                    logger.warning('Attempt to update url storage with inline storage (backend id: '
-                                   '%s). Skipping', storage.backend_id)
+                    if backend.startswith('file://'):
+                        self.save_object(WildlandObjectType.STORAGE, storage,
+                                         self.parse_file_url(backend, container.owner))
+                    else:
+                        raise WildlandError(f'Cannot updated a standalone storage: {backend}')
                 break
         else:
-            container.backends.append(storage_manifest.fields)
+            if inline:
+                container.backends.append(storage_manifest.fields)
+            else:
+                storage_path = self.save_new_object(WildlandObjectType.STORAGE, storage,
+                                                    storage_name)
+                container.backends.append(self.local_url(storage_path))
+
+        self.save_object(WildlandObjectType.CONTAINER, container)
 
     def load_all(self, object_type: WildlandObjectType):
         """

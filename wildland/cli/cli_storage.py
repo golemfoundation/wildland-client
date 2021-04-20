@@ -29,7 +29,6 @@ import uuid
 import click
 
 from .cli_base import aliased_group, ContextObj, CliError
-from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
 from ..storage import Storage
 from ..manifest.template import TemplateManager
@@ -160,35 +159,9 @@ def _do_create(
         access=access
     )
     storage.validate()
-
-    _do_save_new_storage(obj.client, container, storage, inline, name)
-
-
-def _do_save_new_storage(client: Client, container, storage, inline, name):
-    """
-    Save a new storage manifest.
-    :param client: Wildland client
-    :param container: Wildland container for this storage
-    :param storage: Wildland storage to be saved
-    :param inline: boolean, if the storage should be inline in the container manifest (True) or
-        a separate file (False)
-    :param name: storage name
-    """
-    if inline:
-        click.echo(f'Adding storage {storage.backend_id} directly to the container')
-        storage_manifest = storage.to_unsigned_manifest()
-        storage_manifest.skip_verification()
-        container.backends.append(storage_manifest.fields)
-        click.echo(f'Saving: {container.local_path}')
-        client.save_object(WildlandObjectType.CONTAINER, container)
-    else:
-        storage_path = client.save_new_object(WildlandObjectType.STORAGE, storage, name)
-        click.echo('Created: {}'.format(storage_path))
-
-        click.echo(f'Adding storage {storage.backend_id} to the container')
-        container.backends.append(client.local_url(storage_path))
-        click.echo(f'Saving: {container.local_path}')
-        client.save_object(WildlandObjectType.CONTAINER, container)
+    click.echo(f'Adding storage {storage.backend_id} to container.')
+    obj.client.add_storage_to_container(container, storage, inline, name)
+    click.echo(f'Saved container {container.local_path}')
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
@@ -329,8 +302,10 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
         except Exception:
             click.echo('WARNING: Cannot mount storage. Proceeding conditionally.')
 
-        _do_save_new_storage(client=client, container=container, storage=storage,
-                             inline=(t == 'inline'), name=storage_set.name)
+        click.echo(f'Adding storage {storage.backend_id} to container.')
+        client.add_storage_to_container(container=container, storage=storage,
+                                        inline=(t == 'inline'), storage_name=storage_set.name)
+        click.echo(f'Saved container {container.local_path}')
 
 
 @storage_.command('create-from-set', short_help='create a storage from a set of templates',
