@@ -27,6 +27,7 @@
     "linked-file": {
         "type": "object",
         "description": "file from a storage",
+        "required": ["object", "storage", "file"],
         "properties": {
             "object": {
                 "const": "link"

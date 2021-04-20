@@ -480,6 +480,15 @@ class Client:
                     return
 
                 if isinstance(backend, dict):
+                    if backend.get('object', None) == 'link':
+                        tg_storage = self.load_object_from_dict(
+                            WildlandObjectType.STORAGE, backend['storage'],
+                            expected_owner=container.owner, container_path='/')
+                        storage_driver = StorageDriver(
+                            StorageBackend.from_params(tg_storage.params), tg_storage)
+                        self.save_object(WildlandObjectType.STORAGE, storage,
+                                         Path(backend['file']).relative_to('/'), storage_driver)
+                        return
                     container.backends[idx] = storage_manifest.fields
                 else:
                     if backend.startswith('file://'):
@@ -596,13 +605,15 @@ class Client:
         return set()
 
     def save_object(self, object_type: WildlandObjectType,
-                    obj, path: Optional[Path] = None) -> Path:
+                    obj, path: Optional[Path] = None,
+                    storage_driver: Optional[StorageDriver] = None) -> Path:
         """
         Save an existing Wildland object and return the path it was saved to.
         :param obj: Object to be saved
         :param object_type: type of object to be saved
         :param path: (optional), path to save the object to; if omitted, object's local_path will be
         used.
+        :param storage_driver: if the object should be written to a given StorageDriver
         """
         path = path or obj.local_path
         assert path is not None
@@ -610,11 +621,18 @@ class Client:
         assert obj.OBJECT_TYPE == object_type
 
         if object_type == WildlandObjectType.USER:
-            path.write_bytes(self.session.dump_user(obj))
+            data = self.session.dump_user(obj)
         else:
-            path.write_bytes(self.session.dump_object(obj))
+            data = self.session.dump_object(obj)
 
-        obj.local_path = path
+        if storage_driver:
+            with storage_driver:
+                storage_driver.write_file(path, data)
+        else:
+            path.write_bytes(data)
+
+        if not storage_driver:
+            obj.local_path = path
 
         if object_type == WildlandObjectType.BRIDGE:
             # cache_clear is added by a decorator, which pylint doesn't see
