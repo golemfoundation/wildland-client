@@ -289,14 +289,16 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
 
         storage = Storage.from_manifest(manifest,
                                         local_owners=client.config.get('local-owners'))
-        backend = StorageBackend.from_params(storage.params)
 
-        if (backend.LOCATION_PARAM and
-            backend.LOCATION_PARAM in backend.params and
-            backend.params[backend.LOCATION_PARAM]):
+        storage_type = storage.params['type']
+        storage_cls = StorageBackend.types()[storage_type]
+
+        if (storage_cls.LOCATION_PARAM and
+            storage_cls.LOCATION_PARAM in storage.params and
+            storage.params[storage_cls.LOCATION_PARAM]):
 
             # Template-generated paths/uris sanity check
-            orig_location = str(backend.params[backend.LOCATION_PARAM])
+            orig_location = str(storage.params[storage_cls.LOCATION_PARAM])
 
             if uritools.isuri(orig_location):
                 uri      = uritools.urisplit(orig_location)
@@ -308,8 +310,9 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
                 path     = Path(orig_location)
                 location = Path(orig_location)
 
-            backend.params[backend.LOCATION_PARAM] = str(location)
-            storage.params[backend.LOCATION_PARAM] = str(location)
+            storage.params[storage_cls.LOCATION_PARAM] = str(location)
+
+            backend = StorageBackend.from_params(storage.params)
 
             # Ensure that base path actually exists
             if storage.is_writeable:
