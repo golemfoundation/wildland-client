@@ -246,6 +246,12 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
                 url=url,
                 auth=self.auth,
             )
+
+        # The endpoint (URL) doesn't map to any dav resource. We most likely went to "deep" and
+        # passed the webdav root path.
+        if resp.status_code == 405:
+            return
+
         resp.raise_for_status()
 
     def mkdir(self, path: PurePosixPath, _mode: int = 0o777) -> None:
