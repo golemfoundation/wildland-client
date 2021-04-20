@@ -23,11 +23,11 @@ Storage object
 
 from typing import Type
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse, urlunparse
 import functools
 import uuid
 
 import click
-import uritools
 
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
@@ -300,15 +300,14 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
             # Template-generated paths/uris sanity check
             orig_location = str(storage.params[storage_cls.LOCATION_PARAM])
 
-            if uritools.isuri(orig_location):
-                uri      = uritools.urisplit(orig_location)
+            if client.is_url(orig_location):
+                uri      = urlparse(orig_location)
                 path     = Path(uri.path).resolve()
-                location = uritools.uricompose(scheme=uri.scheme, host=uri.host, port=uri.port,
-                                               query=uri.query, fragment=uri.fragment,
-                                               path=str(path))
+                location = urlunparse((uri.scheme, uri.netloc, str(path),
+                                       uri.params, uri.query, uri.fragment))
             else:
                 path     = Path(orig_location)
-                location = Path(orig_location)
+                location = orig_location
 
             storage.params[storage_cls.LOCATION_PARAM] = str(location)
 
