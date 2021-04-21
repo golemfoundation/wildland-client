@@ -3375,7 +3375,7 @@ def test_import_bridge_wl_path(cli, base_dir, tmpdir):
     modify_file(base_dir / 'config.yaml', "local-owners:\n- '0xddd'",
                 "local-owners:\n- '0xddd'\n- '0xaaa'")
 
-    cli('-vvvvv', 'user', 'import', 'wildland:0xddd:/ALICE:/IMPORT:')
+    cli('-vvvvv', 'bridge', 'import', 'wildland:0xddd:/ALICE:/IMPORT:')
 
     bridge_data = (base_dir / 'bridges/0xddd__ALICE__IMPORT_.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
@@ -3628,7 +3628,7 @@ def test_forest_create(cli, tmp_path):
 
     uuid_dir = str(infra_dirs[0])
 
-    assert Path(f'{uuid_dir}/users/Alice.yaml').exists()
+    assert Path(f'{uuid_dir}/forest-owner.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
 
 

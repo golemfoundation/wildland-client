@@ -140,7 +140,7 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
 
-    import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
+    import_manifest(obj, path_or_url, paths, WildlandObjectType.BRIDGE, bridge_owner, only_first)
 
 
 bridge_.add_command(sign)
