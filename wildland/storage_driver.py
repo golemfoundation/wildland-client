@@ -30,7 +30,7 @@ from wildland.storage_backends.base import StorageBackend
 class StorageDriver:
     """
     A contraption to directly manipulate
-    :py:type:`wildland.storage_backends.base.StorageBackend`
+    :class:`wildland.storage_backends.base.StorageBackend`
     """
 
     def __init__(self, storage_backend: StorageBackend, storage=None):
@@ -40,8 +40,8 @@ class StorageDriver:
     @classmethod
     def from_storage(cls, storage: Storage) -> 'StorageDriver':
         """
-        Create :py:type:`StorageDriver` from
-        :py:class:`wildland.storage.Storage`
+        Create :class:`StorageDriver` from
+        :class:`wildland.storage.Storage`
         """
         return cls(StorageBackend.from_params(storage.params, deduplicate=True), storage=storage)
 
