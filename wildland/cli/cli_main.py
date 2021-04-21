@@ -164,7 +164,8 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
         default_user = obj.client.config.get('@default')
 
     if not default_user:
-        raise CliError(f'Cannot determine default user to be used')
+        raise CliError('No default user available: use --default-user or set '
+                       'default user in Wildland config.yaml.')
 
     try:
         user = obj.client.load_object_from_name(WildlandObjectType.USER, default_user)
