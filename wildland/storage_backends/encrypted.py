@@ -184,7 +184,7 @@ class EncFS(EncryptedFSRunner):
             logger.error(errmsg, self.binary, sp.returncode)
             if len(err.decode()) > 0:
                 logger.error(err.decode())
-            raise WildlandFSError("Can't mount encfs")
+            raise WildlandFSError("Failed to mount EncFS. EncFS exit code: %s" % sp.returncode)
 
     @classmethod
     def init(cls, tempdir: PurePosixPath,
@@ -287,8 +287,8 @@ class GoCryptFS(EncryptedFSRunner):
     def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
         self.cleartextdir = cleartextdir
         self._write_config(inner_storage)
-        out = self.run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
-        if out.decode().find('Filesystem mounted and ready.') == -1:
+        out, sp = self.run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
+        if sp.returncode != 0:
             errmsg = "Failed to mount %s encrypted filesystem"
             logger.error(errmsg, self.binary)
             if len(out.decode()) > 0:
@@ -305,8 +305,10 @@ class GoCryptFS(EncryptedFSRunner):
         '''
         gcfs = cls(tempdir, ciphertextdir, None)
         gcfs.password = generate_password(30)
-        out = gcfs.run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
-        assert out.decode().find('filesystem has been created successfully') > -1
+        out, sp = gcfs.run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
+        if sp.returncode != 0:
+            msg = "Failed to initialize encrypted filesystem. Reason: %s"
+            raise WildlandFSError(msg % out.decode())
         with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.conf') as tf:
             gcfs.config = tf.read()
         with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.diriv', 'rb') as bf:
@@ -329,7 +331,7 @@ class GoCryptFS(EncryptedFSRunner):
             f.flush()
         out, _ = sp.communicate()
         os.unlink(passwordpipe)
-        return out
+        return (out, sp)
 
 class FileOnAMount(LocalFile):
     '''
