@@ -454,28 +454,58 @@ class Client:
         if failed:
             raise ManifestError(exc_msg)
 
-    def add_storage_to_container(self, container: Container, storage: Storage):
+    def add_storage_to_container(self, container: Container, storage: Storage, inline: bool = True,
+                                 storage_name: Optional[str] = None):
         """
-        Append or update inline Storage in a Container determined by backend_id.
-        If the passed Storage exists in a container but is referenced by an url, skip adding it and
-        issue a warning.
+        Add storage to container, save any changes. If the given storage exists in the container
+        (as determined by backend_id), it gets updated (if possible).
+        If not, it is added. If the passed Storage exists in a container but is referenced by an
+        url, it can only be saved for file URLS, for other URLs a WildlandError will be raised.
+        :param container: Container to add to
+        :param storage: Storage to be added
+        :param inline: add as inline or standalone storage (ignored if storage exists)
+        :param storage_name: optional name to save storage under if inline == False
         """
         storage_manifest = storage.to_unsigned_manifest()
         storage_manifest.skip_verification()
 
         for idx, backend in enumerate(container.backends):
             container_storage = self.load_object_from_url_or_dict(
-                WildlandObjectType.STORAGE, backend, container.owner, str(container.paths[0]))
+                WildlandObjectType.STORAGE, backend, container.owner,
+                expected_owner=container.owner, container_path=str(container.paths[0]))
 
             if container_storage.backend_id == storage.backend_id:
+                if container_storage.params == storage.params:
+                    logger.info('No changes in storage %s found. Not saving.', storage.backend_id)
+                    return
+
                 if isinstance(backend, dict):
+                    if backend.get('object', None) == 'link':
+                        tg_storage = self.load_object_from_dict(
+                            WildlandObjectType.STORAGE, backend['storage'],
+                            expected_owner=container.owner, container_path='/')
+                        storage_driver = StorageDriver(
+                            StorageBackend.from_params(tg_storage.params), tg_storage)
+                        self.save_object(WildlandObjectType.STORAGE, storage,
+                                         Path(backend['file']).relative_to('/'), storage_driver)
+                        return
                     container.backends[idx] = storage_manifest.fields
                 else:
-                    logger.warning('Attempt to update url storage with inline storage (backend id: '
-                                   '%s). Skipping', storage.backend_id)
+                    if backend.startswith('file://'):
+                        self.save_object(WildlandObjectType.STORAGE, storage,
+                                         self.parse_file_url(backend, container.owner))
+                    else:
+                        raise WildlandError(f'Cannot updated a standalone storage: {backend}')
                 break
         else:
-            container.backends.append(storage_manifest.fields)
+            if inline:
+                container.backends.append(storage_manifest.fields)
+            else:
+                storage_path = self.save_new_object(WildlandObjectType.STORAGE, storage,
+                                                    storage_name)
+                container.backends.append(self.local_url(storage_path))
+
+        self.save_object(WildlandObjectType.CONTAINER, container)
 
     def load_all(self, object_type: WildlandObjectType):
         """
@@ -575,13 +605,15 @@ class Client:
         return set()
 
     def save_object(self, object_type: WildlandObjectType,
-                    obj, path: Optional[Path] = None) -> Path:
+                    obj, path: Optional[Path] = None,
+                    storage_driver: Optional[StorageDriver] = None) -> Path:
         """
         Save an existing Wildland object and return the path it was saved to.
         :param obj: Object to be saved
         :param object_type: type of object to be saved
         :param path: (optional), path to save the object to; if omitted, object's local_path will be
         used.
+        :param storage_driver: if the object should be written to a given StorageDriver
         """
         path = path or obj.local_path
         assert path is not None
@@ -589,11 +621,18 @@ class Client:
         assert obj.OBJECT_TYPE == object_type
 
         if object_type == WildlandObjectType.USER:
-            path.write_bytes(self.session.dump_user(obj))
+            data = self.session.dump_user(obj)
         else:
-            path.write_bytes(self.session.dump_object(obj))
+            data = self.session.dump_object(obj)
 
-        obj.local_path = path
+        if storage_driver:
+            with storage_driver:
+                storage_driver.write_file(path, data)
+        else:
+            path.write_bytes(data)
+
+        if not storage_driver:
+            obj.local_path = path
 
         if object_type == WildlandObjectType.BRIDGE:
             # cache_clear is added by a decorator, which pylint doesn't see

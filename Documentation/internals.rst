@@ -42,6 +42,16 @@ Storage backends
    :members:
 
 
+Syncing
+-------
+
+.. autoclass:: wildland.hashdb.HashCache
+   :members:
+
+.. autoclass:: wildland.storage_backends.watch.FileEvent
+   :members:
+
+
 File/dir entries
 ----------------
 
@@ -150,6 +160,9 @@ Manifests
 .. autoclass:: wildland.manifest.schema.Schema
    :members:
 
+.. autoclass:: wildland.manifest.manifest.WildlandObjectType
+   :members:
+
 
 Signing
 -------
@@ -162,4 +175,10 @@ FUSE driver
 -----------
 
 .. autoclass:: wildland.fs.WildlandFS
+   :members:
+
+
+Storage Driver
+--------------
+.. autoclass:: wildland.storage_driver.StorageDriver
    :members:

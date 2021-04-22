@@ -126,7 +126,7 @@ class Container:
                 del backend['owner']
             if 'container-path' in backend:
                 del backend['container-path']
-            if 'object' in backend:
+            if 'object' in backend and backend['object'] != 'link':
                 del backend['object']
 
         fields: dict[str, Any] = {
