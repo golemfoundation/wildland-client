@@ -618,42 +618,31 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
 
     params: List[Tuple[Container, List[Storage], List[Iterable[PurePosixPath]], Container]] = []
 
-    failed = False
-    exc_msg = 'Failed to load some container manifests:\n'
+    fails: List[str] = []
 
     counter = 0
 
     for container_name in container_names:
-        found = False
+        current_params: List[Tuple[Container, List[Storage],
+                                   List[Iterable[PurePosixPath]], Container]] = []
         try:
-            containers = obj.client.load_containers_from(container_name)
-        except WildlandError as ex:
-            failed = True
-            exc_msg += container_name + ':' + str(ex) + '\n'
-            continue
-
-        try:
-            for container in containers:
+            for container in obj.client.load_containers_from(container_name):
                 counter += 1
                 if not list_all:
                     print(f"Loading containers. Loaded {counter}...", end='\r')
                 try:
                     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-                    params.extend(prepare_mount(
+                    current_params.extend(prepare_mount(
                         obj, container, str(container), user_paths,
                         remount, with_subcontainers, None, list_all, only_subcontainers))
-                    found = True
                 except WildlandError as ex:
-                    failed = True
-                    exc_msg += 'Container' + str(container) + ':' + str(ex) + '\n'
+                    fails.append(f'Cannot mount container {container.ensure_uuid()}: {str(ex)}')
         except WildlandError as ex:
-            failed = True
-            exc_msg += container_name + ':' + str(ex) + '\n'
-        if not found:
-            failed = True
-            exc_msg += 'No container found for \'{}\'\n'.format(container_name)
+            fails.append(f'Failed to load all containers from {container_name}:{str(ex)}')
 
-    if not list_all:
+        params.extend(current_params)
+
+    if not list_all and params:
         print('\n')
     if len(params) > 1:
         click.echo(f'Mounting {len(params)} containers')
@@ -679,8 +668,8 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
             obj.client.config.update_and_save(
                 {'default-containers': new_default_containers})
 
-    if failed:
-        raise WildlandError(exc_msg)
+    if fails:
+        raise WildlandError('\n'.join(fails))
 
 
 @container_.command(short_help='unmount container', alias=['umount'])
