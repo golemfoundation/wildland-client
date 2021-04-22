@@ -3597,6 +3597,31 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
     assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
 
+
+def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+
+    # First storage is not read-only and it has manifest pattern,
+    # the second storage takes precedence with the default manifest pattern
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--manifest-pattern', '/foo.yaml', '--read-only', 'default-pattern')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'custom-pattern')
+    cli('storage-set', 'add', '--template', 'default-pattern',
+        '--template', 'custom-pattern', 'my-set')
+
+    cli('forest', 'create', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    storage = data['backends']['storage']
+    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+
 ## Global options (--help, --version etc.)
 
 def test_wl_help(cli):

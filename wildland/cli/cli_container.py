@@ -107,7 +107,7 @@ class OptionRequires(click.Option):
               help="allow additional users access to this container manifest")
 @click.option('--encrypt-manifest/--no-encrypt-manifest', default=True, required=False,
               help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
-                   "and --access cannot be used." )
+                   "and --access cannot be used.")
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
 def create(obj: ContextObj, owner, path, name, update_user, default_storage_set, access,

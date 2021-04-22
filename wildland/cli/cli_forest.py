@@ -129,7 +129,6 @@ def _boostrap_forest(ctx: click.Context,
                                             f'{user}-forest-infra', access_list,
                                             manifest_storage_set, manifest_local_dir)
 
-        # assert manifests_container.local_path is not None
         assert infra_container.local_path is not None
         assert forest_owner.local_path is not None
 
@@ -141,9 +140,14 @@ def _boostrap_forest(ctx: click.Context,
             infra_storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
 
         # forcibly set manifest pattern for all storages in this container.
-        for storage in list(obj.client.all_storages(infra_container)):
+        # Additionally ensure that they are going to be stored inline and override old storages
+        # completely
+        old_storages = list(obj.client.all_storages(infra_container))
+        infra_container.backends = []
+
+        for storage in old_storages:
             storage.manifest_pattern = infra_storage.manifest_pattern
-            obj.client.add_storage_to_container(infra_container, storage)
+            obj.client.add_storage_to_container(infra_container, storage, inline=True)
         obj.client.save_object(WildlandObjectType.CONTAINER, infra_container)
 
         manifests_storage = obj.client.select_storage(container=infra_container,
@@ -199,7 +203,15 @@ def _resolve_storage_set(obj, user: User, storage_set: Optional[str]) -> Storage
         storage_set = default_set
 
     try:
-        return TemplateManager(obj.client.dirs[WildlandObjectType.SET]).get_storage_set(storage_set)
+        storage_set_obj = TemplateManager(
+            obj.client.dirs[WildlandObjectType.SET]
+        ).get_storage_set(storage_set)
+
+        for template, template_type in storage_set_obj.templates:
+            if template_type != 'inline':
+                click.echo(f"Warning: {template} will be saved as inline template")
+
+        return storage_set_obj
     except FileNotFoundError as fnf:
         raise CliError(f'Storage set [{storage_set}] not found. {fnf}') from fnf
 
