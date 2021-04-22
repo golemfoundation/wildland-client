@@ -322,7 +322,7 @@ class GoCryptFS(EncryptedFSRunner):
             os.mkfifo(passwordpipe)
         except FileExistsError:
             pass
-        cmd = [self.binary, '-o', 'direct_io', '-fusedebug'] + cmd1  + [passwordpipe] + cmd2
+        cmd = [self.binary] + cmd1  + [passwordpipe] + cmd2
         sp = Popen(cmd, stdout=PIPE)
         with open(passwordpipe, 'w') as f:
             f.write(self.password)
