@@ -34,7 +34,10 @@
             },
             "storage": {
                 "description": "inline storage containing linked file",
-                "$ref": "/schemas/storage.schema.json#definitions/storage-inline"
+                "oneOf": [
+                    {"$ref": "/schemas/storage.schema.json#definitions/storage-inline"},
+                    {"$ref": "/schemas/types.json#encrypted" }
+                ]
             },
             "file": {
                 "description": "absolute path to manifest file in storage, e.g. /manifest.yaml or /subdir/manifest.yaml; must begin with /",

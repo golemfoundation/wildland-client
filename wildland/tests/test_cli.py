@@ -141,6 +141,30 @@ def test_user_list(cli, base_dir):
     assert result.splitlines() == ok
 
 
+def test_user_list_encrypted_infra(base_dir):
+    wl_call(base_dir, 'user', 'create', '--path', '/USER', 'User')
+    user_file = (base_dir / 'users/User.user.yaml')
+    data = user_file.read_text()
+    owner_key = re.search('owner: (.+?)\n', data).group(1)
+    data = data.replace("infrastructures: []\n",
+                        f'''
+infrastructures:
+- object: link
+  storage:
+    type: dummy
+    access:
+    - user: {owner_key}
+  file: '/path'
+''')
+    user_file.write_text(data)
+
+    wl_call(base_dir, 'user', 'sign', 'User')
+
+    output = wl_call_output(base_dir, 'user', 'list').decode()
+    assert 'enc' not in output
+    assert 'dummy' in output
+
+
 def test_user_delete(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
