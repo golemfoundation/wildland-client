@@ -125,7 +125,10 @@ class EncFS(EncryptedFSRunner):
     Relevant issues of encfs:
     * it is not very secure - it may leak last 4k of a file when file is rewritten.
     * it uses FUSE (potential problem on OSX later).
-    * it leaks metadata about tree structure.
+    * it leaks metadata about tree structure, including file sizes, access times,
+      number of files and directories inside a directory. It encrypts but does not
+      randomize file names - leaking information about file duplicates in a single
+      filesystem.
     '''
     password: str
     config: str
@@ -234,7 +237,8 @@ class GoCryptFS(EncryptedFSRunner):
       You may observe data loss in some scenarios. More information is in
       this thread: https://gitlab.com/wildland/wildland-client/-/issues/205
     * it uses FUSE (potential problem on OSX later).
-    * it leaks metadata about tree structure.
+    * it leaks metadata about tree structure, including file sizes, access times,
+      number of files and directories inside a directory.
     * it allows attacker to modify file permission - they are not encrypted.
     '''
     password: str
