@@ -47,7 +47,6 @@ from wildland.exc import WildlandError
 
 logger = logging.getLogger('storage-s3')
 
-
 class S3FileAttr(Attr):
     """
     File attributes, include S3 E-Tag
@@ -414,10 +413,10 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         self._remove_index(path)
         self._update_index(path.parent)
 
-    def chmod(self, path: str, mode: int):
+    def chmod(self, path: PurePosixPath, mode: int):
         logger.debug("chmod dummy op %s mode %d", str(path), mode)
 
-    def chown(self, path: str, uid: int, gid: int):
+    def chown(self, path: PurePosixPath, uid: int, gid: int):
         logger.debug("chown dummy op %s uid %d gid %d", str(path), uid, gid)
 
     def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
@@ -471,12 +470,15 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         self.clear_cache()
 
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
-        s3attr = self.getattr(path)
+        attr = self.getattr(path)
 
-        if s3attr.is_dir():
+        if attr.is_dir():
             return None
 
-        return s3attr.etag
+        if isinstance(attr, S3FileAttr):
+            return attr.etag
+
+        return None
 
     def _remove_index(self, path):
         if self.read_only or not self.with_index:
@@ -503,7 +505,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
         # (name, url, is_dir)
         entries: List[Tuple[str, str, bool]] = []
         if path != PurePosixPath('.'):
-            entries.append(('..', self.url(path.parent), Attr.dir()))
+            entries.append(('..', self.url(path.parent), True))
 
         try:
             names = list(self.readdir(path))
@@ -515,7 +517,7 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
                 attr = self.getattr(path / name)
             except IOError:
                 continue
-            entry = (name, self.url(path / name), attr)
+            entry = (name, self.url(path / name), attr.is_dir())
             entries.append(entry)
 
         # Sort directories first

@@ -52,7 +52,8 @@ class IPFSFile(FullBufferedFile):
         self.cid = cid
 
     def read_full(self) -> bytes:
-        return Data.FromString(self.client.object.data(self.cid)).Data
+        # Disable mypy due to `FromString` static method is being added in runtime
+        return Data.FromString(self.client.object.data(self.cid)).Data  # type: ignore
 
     def write_full(self, data: bytes) -> int:
         raise IOError(errno.EROFS, str(self.cid))
