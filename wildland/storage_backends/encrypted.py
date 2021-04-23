@@ -81,6 +81,7 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
         '''
         if self.cleartextdir is None:
             raise WildlandFSError('Unmounting failed: mount point unknown')
+        assert self.cleartextdir.is_absolute()
         cmd = ['fusermount', '-u', str(self.cleartextdir)]
         cproc = subprocess.run(cmd, capture_output=True)
         if cproc.returncode == 0:
@@ -177,6 +178,8 @@ class EncFS(EncryptedFSRunner):
     def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
         self.cleartextdir = cleartextdir
         self._write_config(inner_storage)
+        assert self.ciphertextdir.is_absolute()
+        assert self.cleartextdir.is_absolute()
         args = ['--stdinpass', str(self.ciphertextdir), str(self.cleartextdir)]
         sp, err = self.run_binary(self.opts + args)
         if sp.returncode != 0:
@@ -197,6 +200,8 @@ class EncFS(EncryptedFSRunner):
         '''
         encfs = cls(tempdir, ciphertextdir, None)
         encfs.password = generate_password(30)
+        assert encfs.ciphertextdir.is_absolute()
+        assert cleartextdir.is_absolute()
         options = encfs.opts + ['--stdinpass', str(encfs.ciphertextdir), str(cleartextdir)]
         sp, err = encfs.run_binary(options)
         if sp.returncode != 0:
@@ -435,7 +440,7 @@ class EncryptedStorageBackend(StorageBackend):
         self.ciphertext_storage = self.params['storage']
 
         # The path where it got mounted
-        self.ciphertext_path = self.params['storage-path']
+        self.ciphertext_path = PurePosixPath(self.params['storage-path'])
 
 
     @classmethod
