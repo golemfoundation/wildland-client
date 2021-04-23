@@ -1,3 +1,7 @@
+.. option:: --location <absolute_path>
+
+   Absolute path to root directory in your Dropbox account.
+
 .. option:: --token <access_token>
 
    Dropbox app token. You can generate it with Dropbox App Console. Required.

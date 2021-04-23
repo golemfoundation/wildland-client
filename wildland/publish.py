@@ -85,7 +85,7 @@ class Publisher:
         ok = False
         rejected = []
         if not owner.containers:
-            rejected.append(f'user {owner} has no infrastructure containers')
+            rejected.append(f'user {owner.owner} has no infrastructure containers')
 
         for c in owner.containers:
             try:
@@ -141,12 +141,9 @@ class Publisher:
 
             except (ManifestError, WildlandError) as ex:
                 rejected.append(
-                    f'container {container_candidate.ensure_uuid()} has '
-                    'serious problems: {ex!s}')
+                    f'container {repr(c)} has serious problems: {ex!s}')
                 logger.debug(
-                    'Failed to load container when publishing with '
-                    'exception: %s',
-                    ex)
+                    'Failed to load container when publishing with exception: %s', ex)
                 continue
 
         if not ok:

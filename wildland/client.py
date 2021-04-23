@@ -127,9 +127,12 @@ class Client:
         """
         Load users and recognize their keys from the users directory or a given iterable.
         """
+        for user in users or self.load_all(WildlandObjectType.USER, decrypt=False):
+            user.add_user_keys(self.session.sig)
+
+        # duplicated to decrypt infrastructures correctly
         for user in users or self.load_all(WildlandObjectType.USER):
             self.users[user.owner] = user
-            user.add_user_keys(self.session.sig)
 
     def find_local_manifest(self, object_type: Union[WildlandObjectType, None],
                             name: str) -> Optional[Path]:
@@ -190,7 +193,8 @@ class Client:
                                allow_only_primary_key: Optional[bool] = None,
                                file_path: Optional[Path] = None,
                                trusted_owner: Optional[str] = None,
-                               local_owners: Optional[List[str]] = None):
+                               local_owners: Optional[List[str]] = None,
+                               decrypt: bool = True):
         """
         Load and return a Wildland object from raw bytes.
         :param data: object bytes
@@ -201,6 +205,7 @@ class Client:
         :param file_path: path to local manifest file, if exists
         :param trusted_owner: accept signature-less manifests from this owner
         :param local_owners: owners allowed to access local storages
+        :param decrypt: should we attempt to decrypt the bytes
         """
 
         if allow_only_primary_key is None:
@@ -208,14 +213,16 @@ class Client:
 
         if not object_type:
             manifest = Manifest.from_bytes(data, self.session.sig,
-                                           allow_only_primary_key=allow_only_primary_key)
+                                           allow_only_primary_key=allow_only_primary_key,
+                                           decrypt=decrypt)
 
             object_type = WildlandObjectType(manifest.fields['object'])
 
         if object_type in [WildlandObjectType.USER, WildlandObjectType.BRIDGE,
                            WildlandObjectType.STORAGE, WildlandObjectType.CONTAINER]:
             return self.session.load_object(data, object_type, local_path=file_path,
-                                            trusted_owner=trusted_owner, local_owners=local_owners)
+                                            trusted_owner=trusted_owner, local_owners=local_owners,
+                                            decrypt=decrypt)
         raise WildlandError(f'Unknown manifest type: {object_type.value}')
 
     def load_object_from_dict(self,
@@ -233,6 +240,13 @@ class Client:
         :param container_path: if object is STORAGE, will be passed to it as container_path. Ignored
         otherwise.
         """
+        # handle optional encrypted data - this should not happen normally
+        encryption_warning = False
+        if 'encrypted' in dictionary:
+            dictionary = Manifest.decrypt(dictionary, self.session.sig)
+            encryption_warning = True
+            if 'encrypted' in dictionary:
+                raise ManifestError('This inline storage cannot be decrypted')
         if dictionary.get('object', None) == 'link':
             storage = self.load_object_from_dict(WildlandObjectType.STORAGE, dictionary['storage'],
                                                  expected_owner=expected_owner, container_path='/')
@@ -241,9 +255,6 @@ class Client:
             with driver:
                 content = driver.read_file(Path(dictionary['file']).relative_to('/'))
             return self.load_object_from_bytes(object_type, content)
-
-        if list(dictionary.keys()) == ['encrypted']:
-            raise ManifestError('This inline storage cannot be decrypted')
 
         if object_type:
             if 'object' not in dictionary:
@@ -272,8 +283,12 @@ class Client:
 
         content = ('---\n' + yaml.dump(dictionary)).encode()
 
-        return self.session.load_object(content, object_type, local_owners=local_owners,
+        obj = self.session.load_object(content, object_type, local_owners=local_owners,
                                         trusted_owner=expected_owner)
+        if encryption_warning:
+            logger.warning('Unexpected encrypted data encountered in %s', repr(obj))
+
+        return obj
 
     def load_object_from_url(self, object_type: WildlandObjectType, url: str,
                              owner: str, expected_owner: Optional[str] = None):
@@ -317,17 +332,20 @@ class Client:
 
         return obj_
 
-    def load_object_from_file_path(self, object_type: WildlandObjectType, path: Path):
+    def load_object_from_file_path(self, object_type: WildlandObjectType, path: Path,
+                                   decrypt: bool = True):
         """
         Load and return a Wildland object from local file path (not in URL form).
         :param path: local file path
         :param object_type: expected type of object
+        :param decrypt: should we attempt to decrypt the object (default: True)
         """
         trusted_owner = self.fs_client.find_trusted_owner(path)
         local_owners = self.config.get('local-owners')
 
         return self.load_object_from_bytes(object_type, path.read_bytes(), file_path=path,
-                                           trusted_owner=trusted_owner, local_owners=local_owners)
+                                           trusted_owner=trusted_owner, local_owners=local_owners,
+                                           decrypt=decrypt)
 
     def load_object_from_url_or_dict(self, object_type: WildlandObjectType,
                                      obj: Union[str, dict],
@@ -360,9 +378,8 @@ class Client:
         :param name: ambiguous name
         :param object_type: expected object type
         """
-        if object_type == WildlandObjectType.USER:
-            if name in self.users:
-                return self.users[name]
+        if object_type == WildlandObjectType.USER and name in self.users:
+            return self.users[name]
 
         if self.is_url(name):
             return self.load_object_from_url(object_type, name, self.config.get('@default'))
@@ -454,30 +471,60 @@ class Client:
         if failed:
             raise ManifestError(exc_msg)
 
-    def add_storage_to_container(self, container: Container, storage: Storage):
+    def add_storage_to_container(self, container: Container, storage: Storage, inline: bool = True,
+                                 storage_name: Optional[str] = None):
         """
-        Append or update inline Storage in a Container determined by backend_id.
-        If the passed Storage exists in a container but is referenced by an url, skip adding it and
-        issue a warning.
+        Add storage to container, save any changes. If the given storage exists in the container
+        (as determined by backend_id), it gets updated (if possible).
+        If not, it is added. If the passed Storage exists in a container but is referenced by an
+        url, it can only be saved for file URLS, for other URLs a WildlandError will be raised.
+        :param container: Container to add to
+        :param storage: Storage to be added
+        :param inline: add as inline or standalone storage (ignored if storage exists)
+        :param storage_name: optional name to save storage under if inline == False
         """
         storage_manifest = storage.to_unsigned_manifest()
         storage_manifest.skip_verification()
 
         for idx, backend in enumerate(container.backends):
             container_storage = self.load_object_from_url_or_dict(
-                WildlandObjectType.STORAGE, backend, container.owner, str(container.paths[0]))
+                WildlandObjectType.STORAGE, backend, container.owner,
+                expected_owner=container.owner, container_path=str(container.paths[0]))
 
             if container_storage.backend_id == storage.backend_id:
+                if container_storage.params == storage.params:
+                    logger.info('No changes in storage %s found. Not saving.', storage.backend_id)
+                    return
+
                 if isinstance(backend, dict):
+                    if backend.get('object', None) == 'link':
+                        tg_storage = self.load_object_from_dict(
+                            WildlandObjectType.STORAGE, backend['storage'],
+                            expected_owner=container.owner, container_path='/')
+                        storage_driver = StorageDriver(
+                            StorageBackend.from_params(tg_storage.params), tg_storage)
+                        self.save_object(WildlandObjectType.STORAGE, storage,
+                                         Path(backend['file']).relative_to('/'), storage_driver)
+                        return
                     container.backends[idx] = storage_manifest.fields
                 else:
-                    logger.warning('Attempt to update url storage with inline storage (backend id: '
-                                   '%s). Skipping', storage.backend_id)
+                    if backend.startswith('file://'):
+                        self.save_object(WildlandObjectType.STORAGE, storage,
+                                         self.parse_file_url(backend, container.owner))
+                    else:
+                        raise WildlandError(f'Cannot updated a standalone storage: {backend}')
                 break
         else:
-            container.backends.append(storage_manifest.fields)
+            if inline:
+                container.backends.append(storage_manifest.fields)
+            else:
+                storage_path = self.save_new_object(WildlandObjectType.STORAGE, storage,
+                                                    storage_name)
+                container.backends.append(self.local_url(storage_path))
 
-    def load_all(self, object_type: WildlandObjectType):
+        self.save_object(WildlandObjectType.CONTAINER, container)
+
+    def load_all(self, object_type: WildlandObjectType, decrypt: bool = True):
         """
         Load object manifests from the appropriate directory.
         """
@@ -493,7 +540,7 @@ class Client:
         if self.dirs[object_type].exists():
             for path in sorted(self.dirs[object_type].glob('*.yaml')):
                 try:
-                    obj_ = client.load_object_from_file_path(object_type, path)
+                    obj_ = client.load_object_from_file_path(object_type, path, decrypt=decrypt)
                 except WildlandError as e:
                     logger.warning('error loading %s manifest: %s: %s',
                                    object_type.value, path, e)
@@ -575,13 +622,15 @@ class Client:
         return set()
 
     def save_object(self, object_type: WildlandObjectType,
-                    obj, path: Optional[Path] = None) -> Path:
+                    obj, path: Optional[Path] = None,
+                    storage_driver: Optional[StorageDriver] = None) -> Path:
         """
         Save an existing Wildland object and return the path it was saved to.
         :param obj: Object to be saved
         :param object_type: type of object to be saved
         :param path: (optional), path to save the object to; if omitted, object's local_path will be
         used.
+        :param storage_driver: if the object should be written to a given StorageDriver
         """
         path = path or obj.local_path
         assert path is not None
@@ -589,11 +638,18 @@ class Client:
         assert obj.OBJECT_TYPE == object_type
 
         if object_type == WildlandObjectType.USER:
-            path.write_bytes(self.session.dump_user(obj))
+            data = self.session.dump_user(obj)
         else:
-            path.write_bytes(self.session.dump_object(obj))
+            data = self.session.dump_object(obj)
 
-        obj.local_path = path
+        if storage_driver:
+            with storage_driver:
+                storage_driver.write_file(path, data)
+        else:
+            path.write_bytes(data)
+
+        if not storage_driver:
+            obj.local_path = path
 
         if object_type == WildlandObjectType.BRIDGE:
             # cache_clear is added by a decorator, which pylint doesn't see

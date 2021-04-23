@@ -401,7 +401,8 @@ class Manifest:
     def from_bytes(cls, data: bytes, sig_context: SigContext,
                    schema: Optional[Schema] = None,
                    trusted_owner: Optional[str] = None,
-                   allow_only_primary_key: bool = False) -> 'Manifest':
+                   allow_only_primary_key: bool = False,
+                   decrypt: bool = True) -> 'Manifest':
         """
         Load a manifest from YAML content, verifying it.
 
@@ -412,6 +413,7 @@ class Manifest:
             trusted_owner: accept signature-less manifest from this owner
             allow_only_primary_key: can this manifest be signed by any auxiliary keys
                 associated with the given user?
+            decrypt: should we attempt to decrypt the manifest
         """
 
         header_data, rest_data = split_header(data)
@@ -422,7 +424,7 @@ class Manifest:
         except SigError as e:
             raise ManifestError(
                 'Signature verification failed: {}'.format(e)) from e
-        fields = cls._parse_yaml(rest_data, sig_context)
+        fields = cls._parse_yaml(rest_data, sig_context, decrypt=decrypt)
 
         if header.signature is None:
             if fields.get('owner') != trusted_owner:
@@ -497,10 +499,11 @@ class Manifest:
             sig_context.add_pubkey(pubkey, owner)
 
     @classmethod
-    def _parse_yaml(cls, data: bytes, sig: SigContext):
+    def _parse_yaml(cls, data: bytes, sig: SigContext, decrypt: bool = True):
         try:
             fields = load_yaml(data.decode('utf-8'))
-            fields = cls.decrypt(fields, sig)
+            if decrypt:
+                fields = cls.decrypt(fields, sig)
             fields = cls.update_manifest_version(fields)
             return fields
         except (ValueError, yaml.YAMLError) as e:

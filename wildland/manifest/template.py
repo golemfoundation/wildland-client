@@ -112,7 +112,8 @@ type: local
         params = {'uuid': cont.ensure_uuid(), 'paths': cont.paths,
                   'title': cont.title if cont.title else '',
                   'categories': cont.categories, 'local_path': cont.local_path,
-                  'local_dir': local_dir, 'version': Manifest.CURRENT_VERSION}
+                  'local_dir': local_dir, 'version': Manifest.CURRENT_VERSION,
+                  'owner': cont.owner}
 
         # Filter out all null parameters
         params = {k: v for k, v in params.items() if v}

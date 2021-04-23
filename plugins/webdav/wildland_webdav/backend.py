@@ -229,13 +229,33 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
             auth=self.auth)
         resp.raise_for_status()
 
-    def mkdir(self, path: PurePosixPath, _mode: int = 0o777) -> None:
+    def _mkdir_with_parent(self, path: PurePosixPath):
+        url = self.make_url(path)
         resp = requests.request(
             method='MKCOL',
-            url=self.make_url(path),
+            url=url,
             auth=self.auth,
         )
+
+        # WebDAV spec (RFC 4918) chapter 9.3 says code 409 "Conflict" is non-existing parent,
+        # try to create it (even if above base_url) and retry
+        if resp.status_code == 409 and urlparse(url).path != '/':
+            self._mkdir_with_parent(path / '..')
+            resp = requests.request(
+                method='MKCOL',
+                url=url,
+                auth=self.auth,
+            )
+
+        # The endpoint (URL) doesn't map to any dav resource. We most likely went to "deep" and
+        # passed the webdav root path.
+        if resp.status_code == 405:
+            return
+
         resp.raise_for_status()
+
+    def mkdir(self, path: PurePosixPath, _mode: int = 0o777) -> None:
+        self._mkdir_with_parent(path)
         self.clear_cache()
 
     def unlink(self, path: PurePosixPath):

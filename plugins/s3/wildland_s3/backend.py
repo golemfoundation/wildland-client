@@ -267,11 +267,14 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             for path in s3_dirs:
                 self._update_index(path)
 
-    def key(self, path: PurePosixPath) -> str:
+    def key(self, path: PurePosixPath, is_dir: bool = False) -> str:
         """
         Convert path to S3 object key.
         """
         path = (self.base_path / path)
+
+        if is_dir:
+            return str(path.relative_to('/')) + '/'
 
         return str(path.relative_to('/'))
 
@@ -392,6 +395,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             raise IOError(errno.EPERM, str(path))
 
         self.s3_dirs.add(path)
+        self.client.put_object(
+            Bucket=self.bucket,
+            Key=self.key(path, is_dir=True))
         self.clear_cache()
         self._update_index(path)
         self._update_index(path.parent)
@@ -401,6 +407,9 @@ class S3StorageBackend(StaticSubcontainerStorageMixin, CachedStorageMixin, Stora
             raise IOError(errno.EPERM, str(path))
 
         self.s3_dirs.remove(path)
+        self.client.delete_object(
+            Bucket=self.bucket,
+            Key=self.key(path, is_dir=True))
         self.clear_cache()
         self._remove_index(path)
         self._update_index(path.parent)

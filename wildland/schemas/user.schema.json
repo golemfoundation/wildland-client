@@ -27,7 +27,8 @@
             "items": {
                 "oneOf": [
                     { "$ref": "/schemas/types.json#manifest-url" },
-                    { "$ref": "/schemas/container.schema.json" }
+                    { "$ref": "/schemas/container.schema.json" },
+                    { "$ref": "/schemas/types.json#encrypted" }
                 ]
             },
             "description": "list of container URLs (for finding this user's manifests); can also contain inline containers"

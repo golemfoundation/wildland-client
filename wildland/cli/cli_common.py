@@ -335,7 +335,7 @@ def modify_manifest(ctx: click.Context, name: str, edit_func: Callable[..., dict
     click.echo(f'Saved: {manifest_path}')
 
 
-def add_field(fields: dict, field: str, values: List[str]) -> dict:
+def add_field(fields: dict, field: str, values: List[Any]) -> dict:
     """
     Callback function for `modify_manifest`. Adds values to the specified field.
     Duplicates are ignored.

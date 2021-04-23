@@ -19,14 +19,15 @@
 """
 Dropbox storage backend
 """
-
+import errno
 import logging
 import stat
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PosixPath
 from typing import Iterable, Tuple, Optional, Callable
 
 import click
 from dropbox.files import FileMetadata, FolderMetadata, Metadata
+from dropbox.exceptions import ApiError
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
@@ -103,6 +104,10 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         "type": "object",
         "required": ["token"],
         "properties": {
+            "location": {
+                "$ref": "/schemas/types.json#abs-path",
+                "description": "Absolute POSIX path acting as a root directory in user's dropbox"
+            },
             "token": {
                 "type": ["string"],
                 "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
@@ -111,15 +116,20 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         }
     })
     TYPE = 'dropbox'
+    LOCATION_PARAM = 'location'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
         dropbox_access_token = self.params['token']
         self.client = DropboxClient(dropbox_access_token)
+        self.root = PosixPath(self.params.get('location', '/')).resolve()
 
     @classmethod
     def cli_options(cls):
         return [
+            click.Option(
+                ['--location'], metavar='PATH', required=False, default='/',
+                help='Absolute path to root directory in your Dropbox account.'),
             click.Option(
                 ['--token'], metavar='ACCESS_TOKEN', required=True,
                 help='Dropbox OAuth 2.0 access token. You can generate it in Dropbox App Console.')
@@ -128,6 +138,7 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     @classmethod
     def cli_create(cls, data):
         return {
+            'location': data['location'],
             'token': data['token'],
         }
 
@@ -140,6 +151,18 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             attr = DropboxFileAttr.from_folder_metadata(metadata)
         return attr
 
+    def _path(self, path: PurePosixPath) -> PosixPath:
+        """Given path, return a path with :attr:`self.root` prefix, relative to /
+        Note that :attr:`self.root` is always an absolute path
+
+        Args:
+            path (pathlib.PurePosixPath): the path
+        Returns:
+            pathlib.PosixPath: path relative to /
+        """
+        path = (self.root / path).resolve().relative_to('/')
+        return path
+
     def mount(self) -> None:
         self.client.connect()
 
@@ -147,31 +170,36 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.client.disconnect()
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, DropboxFileAttr]]:
-        for metadata in self.client.list_folder(path):
+        for metadata in self.client.list_folder(self._path(path)):
             attr = self._get_attr_from_metadata(metadata)
             yield metadata.name, attr
 
     def open(self, path: PurePosixPath, _flags: int) -> DropboxFile:
-        metadata = self.client.get_metadata(path)
-        attr = self._get_attr_from_metadata(metadata)
-        return DropboxFile(self.client, path, attr, self.clear_cache)
+        try:
+            metadata = self.client.get_metadata(self._path(path))
+            attr = self._get_attr_from_metadata(metadata)
+            return DropboxFile(self.client, self._path(path), attr, self.clear_cache)
+        except ApiError as e:
+            if e.error.is_path() and e.error.get_path().is_not_found():
+                raise FileNotFoundError(errno.ENOENT, str(self._path(path))) from e
+            raise e
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> DropboxFile:
-        metadata = self.client.upload_empty_file(path)
+        metadata = self.client.upload_empty_file(self._path(path))
         attr = DropboxFileAttr.from_file_metadata(metadata)
         self.clear_cache()
-        return DropboxFile(self.client, path, attr, self.clear_cache)
+        return DropboxFile(self.client, self._path(path), attr, self.clear_cache)
 
     def unlink(self, path: PurePosixPath) -> None:
-        self.client.unlink(path)
+        self.client.unlink(self._path(path))
         self.clear_cache()
 
     def mkdir(self, path: PurePosixPath, _mode: int = 0o777) -> None:
-        self.client.mkdir(path)
+        self.client.mkdir(self._path(path))
         self.clear_cache()
 
     def rmdir(self, path: PurePosixPath) -> None:
-        self.client.rmdir(path)
+        self.client.rmdir(self._path(path))
         self.clear_cache()
 
     def utimens(self, path: PurePosixPath, _atime, _mtime) -> None:
@@ -189,7 +217,7 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         if length == 0:
             truncated_content = bytes()
         else:
-            full_file_content = self.client.get_file_content(path)
+            full_file_content = self.client.get_file_content(self._path(path))
             truncated_content = full_file_content[:length]
         self.client.upload_file(truncated_content, path)
         self.clear_cache()
@@ -197,6 +225,6 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         if path == PurePosixPath('.'):
             return None  # DirectoryCachedStorageMixin returns Attr.dir() for '.'
-        attr = self.getattr(path)
+        attr = self.getattr(self._path(path))
         assert isinstance(attr, DropboxFileAttr)
         return attr.content_hash

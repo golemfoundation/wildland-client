@@ -23,6 +23,7 @@ Storage object
 
 from typing import Type, Union
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse, urlunparse
 import functools
 import uuid
 
@@ -58,20 +59,20 @@ def _make_create_command(backend: Type[StorageBackend]):
     params = [
         click.Option(['--container'], metavar='CONTAINER',
                      required=True,
-                     help='Container this storage is for.'),
+                     help='Container this storage is for'),
         click.Option(['--trusted'], is_flag=True,
                      help='Make the storage trusted. Default: false'),
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--manifest-pattern'], metavar='GLOB',
-                     help='Set the manifest pattern for storage.'),
+                     help='Set the manifest pattern for storage'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--base-url'], metavar='BASEURL',
-                     help='Set public base URL.'),
+                     help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="Limit access to this storage to the provided users. "
+                     help="limit access to this storage to the provided users. "
                           "Default: same as the container."),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
@@ -160,35 +161,9 @@ def _do_create(
         access=access
     )
     storage.validate()
-
-    _do_save_new_storage(obj.client, container, storage, inline, name)
-
-
-def _do_save_new_storage(client: Client, container, storage, inline, name):
-    """
-    Save a new storage manifest.
-    :param client: Wildland client
-    :param container: Wildland container for this storage
-    :param storage: Wildland storage to be saved
-    :param inline: boolean, if the storage should be inline in the container manifest (True) or
-        a separate file (False)
-    :param name: storage name
-    """
-    if inline:
-        click.echo(f'Adding storage {storage.backend_id} directly to the container')
-        storage_manifest = storage.to_unsigned_manifest()
-        storage_manifest.skip_verification()
-        container.backends.append(storage_manifest.fields)
-        click.echo(f'Saving: {container.local_path}')
-        client.save_object(WildlandObjectType.CONTAINER, container)
-    else:
-        storage_path = client.save_new_object(WildlandObjectType.STORAGE, storage, name)
-        click.echo('Created: {}'.format(storage_path))
-
-        click.echo(f'Adding storage {storage.backend_id} to the container')
-        container.backends.append(client.local_url(storage_path))
-        click.echo(f'Saving: {container.local_path}')
-        client.save_object(WildlandObjectType.CONTAINER, container)
+    click.echo(f'Adding storage {storage.backend_id} to container.')
+    obj.client.add_storage_to_container(container, storage, inline, name)
+    click.echo(f'Saved container {container.local_path}')
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
@@ -332,21 +307,42 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
         storage = Storage.from_manifest(manifest,
                                         local_owners=client.config.get('local-owners'))
 
-        try:
+        storage_type = storage.params['type']
+        storage_cls = StorageBackend.types()[storage_type]
+
+        if (storage_cls.LOCATION_PARAM and
+            storage_cls.LOCATION_PARAM in storage.params and
+            storage.params[storage_cls.LOCATION_PARAM]):
+
+            # Template-generated paths/uris sanity check
+            orig_location = str(storage.params[storage_cls.LOCATION_PARAM])
+
+            if client.is_url(orig_location):
+                uri      = urlparse(orig_location)
+                path     = Path(uri.path).resolve()
+                location = urlunparse((uri.scheme, uri.netloc, str(path),
+                                       uri.params, uri.query, uri.fragment))
+            else:
+                path     = Path(orig_location)
+                location = orig_location
+
+            storage.params[storage_cls.LOCATION_PARAM] = str(location)
+
             backend = StorageBackend.from_params(storage.params)
-            backend.mount()
 
-            try:
-                backend.mkdir(PurePosixPath(''))
-            except Exception:
-                click.echo('WARNING: Cannot create storage root. Proceeding conditionally.')
-            finally:
-                backend.unmount()
-        except Exception:
-            click.echo('WARNING: Cannot mount storage. Proceeding conditionally.')
+            # Ensure that base path actually exists
+            if storage.is_writeable:
+                try:
+                    with backend:
+                        backend.mkdir(PurePosixPath(path))
+                        click.echo(f"Created base path: {path}")
+                except Exception as ex:
+                    print(f"FAIL: {ex}")
 
-        _do_save_new_storage(client=client, container=container, storage=storage,
-                             inline=(t == 'inline'), name=storage_set.name)
+        click.echo(f'Adding storage {storage.backend_id} to container.')
+        client.add_storage_to_container(container=container, storage=storage,
+                                        inline=(t == 'inline'), storage_name=storage_set.name)
+        click.echo(f'Saved container {container.local_path}')
 
 
 @storage_.command('create-from-set', short_help='create a storage from a set of templates',

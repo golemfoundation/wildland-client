@@ -45,7 +45,8 @@ class Session:
                     local_path: Optional[Path] = None,
                     trusted_owner: Optional[str] = None,
                     local_owners: Optional[List[str]] = None,
-                    allow_only_primary_key: Optional[bool] = None) -> \
+                    allow_only_primary_key: Optional[bool] = None,
+                    decrypt: bool = True) -> \
             Union[User, Bridge, Storage, Container]:
         """
         Load a WL object from raw bytes and return it.
@@ -57,13 +58,14 @@ class Session:
         :param local_owners: list of owners allows to access local files (optional)
         :param allow_only_primary_key: must the data be signed by owner's primary key or are
         other keys also allowed?
+        :param decrypt: should we attempt to decrypt the object manifest?
         """
         if allow_only_primary_key is None:
             allow_only_primary_key = (object_type == WildlandObjectType.USER)
 
         manifest = Manifest.from_bytes(data, self.sig,
                                        allow_only_primary_key=allow_only_primary_key,
-                                       trusted_owner=trusted_owner)
+                                       trusted_owner=trusted_owner, decrypt=decrypt)
 
         assert not object_type or manifest.fields['object'] == object_type.value
         if not object_type:

@@ -37,6 +37,7 @@ from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, Manifest
+from ..storage import Storage
 from ..utils import load_yaml, load_yaml_all
 
 
@@ -93,7 +94,6 @@ def cleanup():
     for f in cleanup_functions:
         f()
 
-
 # Users
 
 def test_user_create(cli, base_dir):
@@ -139,6 +139,30 @@ def test_user_list(cli, base_dir):
     assert result.splitlines() == ok
     result = cli('users', 'list', capture=True)
     assert result.splitlines() == ok
+
+
+def test_user_list_encrypted_infra(base_dir):
+    wl_call(base_dir, 'user', 'create', '--path', '/USER', 'User')
+    user_file = (base_dir / 'users/User.user.yaml')
+    data = user_file.read_text()
+    owner_key = re.search('owner: (.+?)\n', data).group(1)
+    data = data.replace("infrastructures: []\n",
+                        f'''
+infrastructures:
+- object: link
+  storage:
+    type: dummy
+    access:
+    - user: {owner_key}
+  file: '/path'
+''')
+    user_file.write_text(data)
+
+    wl_call(base_dir, 'user', 'sign', 'User')
+
+    output = wl_call_output(base_dir, 'user', 'list').decode()
+    assert 'enc' not in output
+    assert 'dummy' in output
 
 
 def test_user_delete(cli, base_dir):
@@ -2674,7 +2698,8 @@ def test_cli_storage_template_create(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}' +\
+                                '/{{ uuid }}',
                              'read-only': False}
 
 
@@ -2687,7 +2712,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}' +\
+                                '/{{ uuid }}',
                              'read-only': False,
                              'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]}
 
@@ -2697,7 +2723,8 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
     with open(base_dir / 'templates/t2.template.jinja', 'r') as f:
         read_data = load_yaml(f)
         assert read_data == {'type': 'local',
-                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}',
+                             'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}' +\
+                                '/{{ uuid }}',
                              'read-only': False,
                              'access': [{'user': '*'}]}
 
@@ -2759,25 +2786,27 @@ def test_cli_remove_assigned_storage_template_cascade(cli, base_dir):
 def test_template_parsing(cli, base_dir):
     cli('user', 'create', 'User')
     cli('storage-template', 'create', 'webdav',
-        '--url', 'https://{{ paths|first }}/{{ title }}',
+        '--url', 'https://acme.com{{ paths|first }}/{{ title }}',
         '--login', '{{ categories | first }}',
         '--password', '{{ categories | last }}',
         't1')
     cli('storage-set', 'add', '--inline', 't1', 'set1')
     cli('container', 'create', 'Container', '--path', '/PATH',
         '--storage-set', 'set1', '--no-encrypt-manifest',
-        '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć')
+        '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć',
+        '--local-dir', '/a_local_dir')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
         uuid_path = documents[1]['paths'][0]
 
+    just_uuid = uuid_path.replace('/.uuid/', '')
+
     data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-    assert f'url: https://{uuid_path}/foobar' in data
+    assert f'url: https://acme.com{uuid_path}/foobar/a_local_dir/{just_uuid}' in data
     assert 'login: /boo!foo:hoo' in data
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
-
 
 def setup_storage_sets(cli, config_dir):
     cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't1')
@@ -3436,18 +3465,222 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
 def test_forest_create(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
-        '--base-url', f'file:///{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+        '--manifest-pattern', '/{path}.yaml', 'rw')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', '--manifest-pattern', '/{path}.yaml', 'ro')
     cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
 
-    cli('forest', 'create', '--manifest-local-dir', '/manifests', '--data-local-dir', '/storage',
-        'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
-    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice.yaml').exists()
-    assert Path(f'/{tmp_path}/wl-forest/manifests/Alice-index.yaml').exists()
-    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/.manifests.yaml').exists()
-    assert Path(f'/{tmp_path}/wl-forest/manifests/.manifests/home/Alice.yaml').exists()
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert infra_path.exists()
+
+    infra_dirs = list(infra_path.glob('*'))
+
+    assert len(infra_dirs) == 1
+
+    uuid_dir = str(infra_dirs[0])
+
+    assert Path(f'{uuid_dir}/users/Alice.yaml').exists()
+    assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+
+
+def test_forest_create_check_for_published_infra(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        'rw')
+    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--read-only', 'ro')
+    cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    infra_dirs = list(infra_path.glob('*'))
+
+    uuid_dir = infra_dirs[0]
+    assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    published_path = uuid_dir / (Path(data["paths"][0]).name + '.yaml')
+
+    assert published_path.exists()
+
+    with open(str(published_path)) as f:
+        data2 = list(yaml.safe_load_all(f))[1]
+
+    assert data == data2
+
+
+def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'path-test')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--base-url', f'file://{tmp_path}/wl-forest', 'url-test')
+
+    cli('storage-set', 'add', '--inline', 'path-test', '--inline', 'url-test', 'my-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert infra_path.exists()
+
+    infra_dirs = list(infra_path.glob('*'))
+
+    assert len(infra_dirs) == 1
+
+    uuid_dir = str(infra_dirs[0].resolve())
+
+    with open(base_dir / 'users/Alice.user.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    infra = data['infrastructures']
+
+    assert len(infra) == 2
+
+    # Without base-url thus storage template type (local)
+    assert infra[0]['object'] == 'link'
+    assert infra[0]['storage']['type'] == 'local'
+    assert infra[0]['storage']['location'] == f'{uuid_dir}'
+
+    assert infra[1]['object'] == 'link'
+    assert infra[1]['storage']['type'] == 'http'
+    assert infra[1]['storage']['url'] == f'file://{uuid_dir}'
+
+def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'path-test')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--base-url', f'file://{tmp_path}/wl-forest', 'url-test')
+
+    cli('storage-set', 'add', '--inline', 'path-test', '--inline', 'url-test', 'my-set')
+
+    cli('forest', 'create', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert infra_path.exists()
+
+    infra_dirs = list(infra_path.glob('*'))
+
+    assert len(infra_dirs) == 1
+
+    uuid_dir = str(infra_dirs[0].resolve())
+
+    with open(base_dir / 'users/Alice.user.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    infra = data['infrastructures']
+
+    print(infra)
+
+    assert len(infra) == 2
+
+    # Without base-url thus storage template type (local)
+    assert infra[0]['object'] == 'link'
+    assert 'type: local' in infra[0]['storage']['encrypted']['encrypted-data']
+    assert f'location: {uuid_dir}' in infra[0]['storage']['encrypted']['encrypted-data']
+
+    assert 'type: http' in infra[1]['storage']['encrypted']['encrypted-data']
+    assert f'url: file://{uuid_dir}' in infra[1]['storage']['encrypted']['encrypted-data']
+
+
+def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+
+    # Both storages are writable, first one will take default manifest pattern
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'default-pattern')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--manifest-pattern', '/foo.yaml', 'custom-pattern')
+    cli('storage-set', 'add', '--inline', 'default-pattern', '--inline', 'custom-pattern', 'my-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    storage = data['backends']['storage']
+    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+
+
+def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+
+    # First storage is not read-only, the second storage takes precedence with its custom template
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--read-only', 'default-pattern')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--manifest-pattern', '/foo.yaml', 'custom-pattern')
+    cli('storage-set', 'add', '--inline', 'default-pattern', '--inline', 'custom-pattern', 'my-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    storage = data['backends']['storage']
+    assert storage[0]['manifest-pattern'] == {'type': 'glob', 'path': '/foo.yaml'}
+    assert storage[1]['manifest-pattern'] == {'type': 'glob', 'path': '/foo.yaml'}
+
+
+def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+
+    # First storage is not read-only and it has manifest pattern,
+    # the second storage takes precedence with the default manifest pattern
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--manifest-pattern', '/foo.yaml', '--read-only', 'default-pattern')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'custom-pattern')
+    cli('storage-set', 'add', '--inline', 'default-pattern', '--inline', 'custom-pattern', 'my-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    storage = data['backends']['storage']
+    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+
+
+def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+
+    # First storage is not read-only and it has manifest pattern,
+    # the second storage takes precedence with the default manifest pattern
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--manifest-pattern', '/foo.yaml', '--read-only', 'default-pattern')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'custom-pattern')
+    cli('storage-set', 'add', '--template', 'default-pattern',
+        '--template', 'custom-pattern', 'my-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+
+    with open(uuid_dir / '.manifests.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    storage = data['backends']['storage']
+    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
 
 ## Global options (--help, --version etc.)
 

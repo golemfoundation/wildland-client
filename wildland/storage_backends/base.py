@@ -618,6 +618,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
+
         if deduplicate:
             StorageBackend._cache[deduplicate_key] = backend
         return backend

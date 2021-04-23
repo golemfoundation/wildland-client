@@ -33,7 +33,7 @@
                     "type": "array",
                     "items": {
                         "oneOf": [
-                            { "$ref": "/schemas/types.json#url" },
+                            { "$ref": "/schemas/types.json#manifest-url" },
                             { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" },
                             { "$ref": "/schemas/types.json#encrypted" }
                         ]

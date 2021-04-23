@@ -159,14 +159,19 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
             raise CliError('Already mounted')
 
     obj.client.recognize_users()
-    if default_user:
-        try:
-            user = obj.client.load_object_from_name(WildlandObjectType.USER, default_user)
-        except (FileNotFoundError, ManifestError) as e:
-            raise CliError(f'User {default_user} not found') from e
-    else:
-        user = obj.client.load_object_from_name(WildlandObjectType.USER,
-                                                obj.client.config.get('@default'))
+    if not default_user:
+        # Attempt to get '@default' user
+        default_user = obj.client.config.get('@default')
+
+    if not default_user:
+        raise CliError('No default user available: use --default-user or set '
+                       'default user in Wildland config.yaml.')
+
+    try:
+        user = obj.client.load_object_from_name(WildlandObjectType.USER, default_user)
+    except (FileNotFoundError, ManifestError) as e:
+        raise CliError(f'User {default_user} not found') from e
+
     to_mount = []
     if mount_containers:
         to_mount += mount_containers

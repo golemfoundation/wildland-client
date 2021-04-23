@@ -317,6 +317,9 @@ class DummySigContext(SigContext):
         if not data.startswith('enc.') or \
                 [key for key in encrypted_keys if not key.startswith('enc.')]:
             raise SigError('Cannot decrypt data')
+        if not [key for key in encrypted_keys if key[4:] in self.keys.values()
+                or self.use_local_keys]:
+            raise SigError('Cannot decrypt data')
 
         return data[4:].encode()
 
