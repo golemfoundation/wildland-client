@@ -3448,7 +3448,7 @@ def test_forest_create(cli, tmp_path):
         '--read-only', '--manifest-pattern', '/{path}.yaml', 'ro')
     cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert infra_path.exists()
@@ -3471,7 +3471,7 @@ def test_forest_create_check_for_published_infra(cli, tmp_path):
         '--read-only', 'ro')
     cli('storage-set', 'add', '--inline', 'rw', '--inline', 'ro', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     infra_dirs = list(infra_path.glob('*'))
@@ -3501,7 +3501,7 @@ def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
 
     cli('storage-set', 'add', '--inline', 'path-test', '--inline', 'url-test', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert infra_path.exists()
@@ -3537,7 +3537,7 @@ def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
 
     cli('storage-set', 'add', '--inline', 'path-test', '--inline', 'url-test', 'my-set')
 
-    cli('forest', 'create', '--access', 'Alice', 'Alice', 'my-set')
+    cli('forest', 'create', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert infra_path.exists()
@@ -3576,7 +3576,7 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
         '--manifest-pattern', '/foo.yaml', 'custom-pattern')
     cli('storage-set', 'add', '--inline', 'default-pattern', '--inline', 'custom-pattern', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(infra_path.glob('*'))[0].resolve()
@@ -3599,7 +3599,7 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
         '--manifest-pattern', '/foo.yaml', 'custom-pattern')
     cli('storage-set', 'add', '--inline', 'default-pattern', '--inline', 'custom-pattern', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(infra_path.glob('*'))[0].resolve()
@@ -3623,7 +3623,7 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
         'custom-pattern')
     cli('storage-set', 'add', '--inline', 'default-pattern', '--inline', 'custom-pattern', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(infra_path.glob('*'))[0].resolve()
@@ -3648,7 +3648,7 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
     cli('storage-set', 'add', '--template', 'default-pattern',
         '--template', 'custom-pattern', 'my-set')
 
-    cli('forest', 'create', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
 
     infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(infra_path.glob('*'))[0].resolve()

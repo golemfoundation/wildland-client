@@ -111,14 +111,17 @@ def _boostrap_forest(ctx: click.Context,
         raise CliError(f'Forest owner\'s [{user}] private key not found.')
 
     if access:
-        try:
-            access_list = [{'user': obj.client.load_object_from_name(
-                            WildlandObjectType.USER, user_name).owner}
-                           for user_name in access]
-        except WildlandError as we:
-            raise CliError(f'User could not be loaded. {we}') from we
+        if len(access) == 1 and access[0] == '*':
+            access_list = [{'user': '*'}]
+        else:
+            try:
+                access_list = [{'user': obj.client.load_object_from_name(
+                                WildlandObjectType.USER, user_name).owner}
+                               for user_name in access]
+            except WildlandError as we:
+                raise CliError(f'User could not be loaded. {we}') from we
     else:
-        access_list = [{'user': '*'}]
+        access_list = [{'user': forest_owner.owner}]
 
     manifest_storage_set = _resolve_storage_set(obj, forest_owner, manifest_storage_set_name)
 
