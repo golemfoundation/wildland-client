@@ -492,6 +492,28 @@ def test_storage_delete(cli, base_dir):
     assert not storage_path.exists()
 
 
+def test_storage_delete_inline(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+
+    container_path = base_dir / 'containers/Container.container.yaml'
+    with open(container_path) as f:
+        documents = list(load_yaml_all(f))
+    backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    with pytest.raises(CliError, match='Storage is inlined, not deleting'):
+        cli('storage', 'delete', str(backend_id))
+
+    with pytest.raises(CliError, match='Storage is inlined, not deleting'):
+        cli('storage', 'delete', '--force', str(backend_id))
+
+    cli('storage', 'delete', '--cascade', str(backend_id))
+
+    assert backend_id not in container_path.read_text()
+
+
 def test_storage_delete_cascade(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')

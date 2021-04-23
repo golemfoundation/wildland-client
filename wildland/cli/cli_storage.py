@@ -22,7 +22,7 @@ Storage object
 """
 
 from typing import Type
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import functools
 import uuid
 
@@ -258,18 +258,41 @@ def delete(obj: ContextObj, name, force, cascade):
         click.echo(f'Failed to load manifest, cannot delete: {ex}')
         click.echo('Use --force to force deletion.')
         return
+    except WildlandError as ex:
+        found = _find_and_try_delete(obj.client, cascade, name)
+        if not found:
+            raise ex
+        elif not cascade:
+            raise CliError('Storage is inlined, not deleting '
+                           '(use --cascade)')
+        return
 
     if not storage.local_path:
         raise WildlandError('Can only delete a local manifest')
 
-    used_by = []
-    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
+    found = _find_and_try_delete(obj.client, cascade, storage.local_path)
+
+    used = found and not cascade
+    if used and not force:
+        raise CliError('Storage is still used, not deleting '
+                       '(use --force or --cascade)')
+
+    click.echo(f'Deleting: {storage.local_path}')
+    storage.local_path.unlink()
+
+
+def _find_and_try_delete(client: Client, cascade, storage_id: (Path, str)) -> bool:
+    found = False
+    for container in client.load_all(WildlandObjectType.CONTAINER):
         assert container.local_path
         modified = False
         for url_or_dict in list(container.backends):
-            if (isinstance(url_or_dict, str) and
-                obj.client.parse_file_url(url_or_dict, container.owner) == storage.local_path):
-
+            if isinstance(url_or_dict, str):
+                identifier = client.parse_file_url(url_or_dict, container.owner)
+            else:
+                identifier = url_or_dict["backend-id"]
+            if storage_id == identifier:
+                found = True
                 if cascade:
                     click.echo('Removing {} from {}'.format(
                         url_or_dict, container.local_path))
@@ -278,17 +301,10 @@ def delete(obj: ContextObj, name, force, cascade):
                 else:
                     click.echo('Storage used in container: {}'.format(
                         container.local_path))
-                    used_by.append(container)
         if modified:
             click.echo(f'Saving: {container.local_path}')
-            obj.client.save_object(WildlandObjectType.CONTAINER, container)
-
-    if used_by and not force:
-        raise CliError('Storage is still used, not deleting '
-                       '(use --force or --cascade)')
-
-    click.echo(f'Deleting: {storage.local_path}')
-    storage.local_path.unlink()
+            client.save_object(WildlandObjectType.CONTAINER, container)
+    return found
 
 
 def do_create_storage_from_set(client, container, storage_set, local_dir):
