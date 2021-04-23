@@ -161,17 +161,20 @@ def _boostrap_forest(ctx: click.Context,
         for storage in obj.client.all_storages(container=infra_container):
             link_obj = {'object': 'link', 'file': '/.manifests.yaml'}
 
+            if not storage.access:
+                storage.access = access_list
+
             if not storage.base_url:
                 manifest = storage.to_unsigned_manifest()
             else:
                 http_backend = StorageBackend.from_params({
                     'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
                     'backend-id': str(uuid.uuid4()), 'owner': infra_container.owner,
-                    'url': storage.base_url,
+                    'url': storage.base_url, 'access': storage.access
                 })
                 manifest = Manifest.from_fields(http_backend.params)
 
-            manifest.encrypt_and_sign(obj.client.session.sig, encrypt=False)
+            manifest.encrypt_and_sign(obj.client.session.sig, encrypt=True)
             link_obj['storage'] = manifest.fields
 
             modify_manifest(ctx, str(forest_owner.local_path), add_field,

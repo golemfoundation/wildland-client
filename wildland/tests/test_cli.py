@@ -3528,6 +3528,44 @@ def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
     assert infra[1]['storage']['type'] == 'http'
     assert infra[1]['storage']['url'] == f'file://{uuid_dir}'
 
+def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'path-test')
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        '--base-url', f'file://{tmp_path}/wl-forest', 'url-test')
+
+    cli('storage-set', 'add', '--inline', 'path-test', '--inline', 'url-test', 'my-set')
+
+    cli('forest', 'create', '--access', 'Alice', 'Alice', 'my-set')
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert infra_path.exists()
+
+    infra_dirs = list(infra_path.glob('*'))
+
+    assert len(infra_dirs) == 1
+
+    uuid_dir = str(infra_dirs[0].resolve())
+
+    with open(base_dir / 'users/Alice.user.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    infra = data['infrastructures']
+
+    print(infra)
+
+    assert len(infra) == 2
+
+    # Without base-url thus storage template type (local)
+    assert infra[0]['object'] == 'link'
+    assert 'type: local' in infra[0]['storage']['encrypted']['encrypted-data']
+    assert f'location: {uuid_dir}' in infra[0]['storage']['encrypted']['encrypted-data']
+
+    assert 'type: http' in infra[1]['storage']['encrypted']['encrypted-data']
+    assert f'url: file://{uuid_dir}' in infra[1]['storage']['encrypted']['encrypted-data']
+
+
 def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
