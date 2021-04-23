@@ -202,9 +202,9 @@ following classes, working with inner storage in very different ways.
 
 When working with inner backend, consider what could the worst case look like. One example -
 `encrypted` backend attempts to write down a configuration file for `gocryptfs` and does not
-not take into account that inner storage might be `CachedStorageMixin` - does not call `flush`
-to make sure that data is written to permanent storage. Few moments later `gocryptfs` fails
-to read its configuration. A data race.
+call `flush` to make sure that data is written to permanent storage. Since the inner storage is
+`CachedStorageMixin`, few moments later `gocryptfs` attempts to read its configuration and fails.
+A data race.
 
 
 Installation
