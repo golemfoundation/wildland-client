@@ -21,7 +21,7 @@
 Storage object
 """
 
-from typing import Type
+from typing import Type, Union
 from pathlib import Path, PurePosixPath
 import functools
 import uuid
@@ -261,8 +261,8 @@ def delete(obj: ContextObj, name, force, cascade):
     except WildlandError as ex:
         found = _find_and_try_delete(obj.client, cascade, name)
         if not found:
-            raise ex
-        elif not cascade:
+            raise
+        if not cascade:
             raise CliError('Storage is inlined, not deleting '
                            '(use --cascade)')
         return
@@ -281,7 +281,7 @@ def delete(obj: ContextObj, name, force, cascade):
     storage.local_path.unlink()
 
 
-def _find_and_try_delete(client: Client, cascade, storage_id: (Path, str)) -> bool:
+def _find_and_try_delete(client: Client, cascade: bool, storage_id: Union[Path, str]) -> bool:
     found = False
     for container in client.load_all(WildlandObjectType.CONTAINER):
         assert container.local_path
