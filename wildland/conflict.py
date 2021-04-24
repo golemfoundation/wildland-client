@@ -163,8 +163,9 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
     The conflict resolution rules are as follows:
     - If there are multiple directories with the same name, create a synthetic
-      directory with this name. The directory is read only (i.e. the list of
-      files cannot be modified, but the files themselves can).
+      directory with this name. If more that one backing storage is writable, the directory
+      is forced to be read only (i.e. the list of files cannot be modified,
+      but the files themselves can).
     - If there are multiple files with the same name, or a single file with the
       same name as directory, the file name is changed to '{name.stem}.wl_{storage}.{name.suffix}'
       (with stem and suffix being PurePosixPath semantic).
@@ -325,12 +326,30 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             real_path = path
             ident = None
 
+        resolved = self._resolve(real_path)
+        file_results: List[Tuple[Attr, Resolved]] = []
+        dir_results: List[Tuple[Attr, Resolved]] = []
+
+        for res in resolved:
+            st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
+            if st is None:
+                continue
+            if stat.S_ISDIR(st.mode):
+                dir_results.append((st, res))
+            else:
+                file_results.append((st, res))
+
         if self.root.is_synthetic(real_path):
+            writable_dirs = [res for res in dir_results
+                             if res[0].mode & 0o200]
+            if len(writable_dirs) == 1:
+                # there is exactly one writable storage,
+                # so we know where to put new files - return that
+                return writable_dirs[0]
             return Attr(
                 mode=stat.S_IFDIR | 0o555,
             ), None
 
-        resolved = self._resolve(real_path)
         if len(resolved) == 0:
             raise FileNotFoundError(errno.ENOENT, '')
 
@@ -345,17 +364,6 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             st = self.storage_getattr(res.ident, res.relpath)
             return (st, res)
 
-        file_results: List[Tuple[Attr, Resolved]] = []
-        dir_results: List[Tuple[Attr, Resolved]] = []
-        for res in resolved:
-            st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
-            if st is None:
-                continue
-            if stat.S_ISDIR(st.mode):
-                dir_results.append((st, res))
-            else:
-                file_results.append((st, res))
-
         if len(dir_results) == 1:
             # This is a directory in a single storage.
             if ident is not None:
@@ -364,14 +372,19 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             return dir_results[0]
 
         if len(dir_results) > 1:
-            # Multiple directories, return a synthetic read-only directory.
+            # Multiple directories, return a synthetic read-only directory if writable storage
+            # cannot be unambiguously found.
             if ident is not None:
                 raise FileNotFoundError(errno.ENOENT, '')
 
-            st = Attr(
-                mode=stat.S_IFDIR | 0o555,
-            )
-            return (st, None)
+            writable_dirs = [res for res in dir_results
+                             if res[0].mode & 0o200]
+            if len(writable_dirs) != 1:
+                st = Attr(
+                    mode=stat.S_IFDIR | 0o555,
+                )
+                return (st, None)
+            return writable_dirs[0]
 
         if len(file_results) == 1:
             # This is a single file, not conflicting with anything.

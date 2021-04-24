@@ -648,7 +648,13 @@ class WildlandFSConflictResolver(ConflictResolver):
     def storage_getattr(self, ident: int, relpath: PurePosixPath) -> Attr:
         with self.fs.mount_lock:
             storage = self.fs.storages[ident]
-        return storage.getattr(relpath)
+        attr = storage.getattr(relpath)
+        if storage.read_only:
+            return Attr(
+                mode=attr.mode & ~0o222,
+                size=attr.size,
+                timestamp=attr.timestamp)
+        return attr
 
     def storage_readdir(self, ident: int, relpath: PurePosixPath) -> List[str]:
         with self.fs.mount_lock:

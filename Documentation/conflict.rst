@@ -25,8 +25,9 @@ will be merged. That means:
    The name change is local; the file is still kept under the original name in
    the backing storage, and visible under the original name under other paths.
 
-3. It is not possible to modify a merged directory, i.e. add or remove files or
-   directories.
+3. It is not possible to modify a merged directory, if there are multiple
+   writable containers covering it. If there are multiple containers but only
+   one is writable, it is possible to modify it.
 
 Note that despite the above restriction, conflicts might still be introduced by
 modifying one of the containers. That will cause the files to change their
