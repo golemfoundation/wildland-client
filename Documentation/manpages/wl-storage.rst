@@ -36,7 +36,7 @@ Display known storages.
 .. program:: wl-storage-delete
 .. _wl-storage-delete:
 
-:command:`wl storage delete [--force] [--cascade] NAME`
+:command:`wl storage delete [--force] [--no-cascade] [--container] NAME`
 -------------------------------------------------------
 
 Delete a storage from local filesystem.
@@ -46,9 +46,13 @@ Delete a storage from local filesystem.
    Delete even if the storage is used by containers. The containers in Widland
    directory (``~/.config/wildland/containers/``) will be examined.
 
-.. option:: --cascade
+.. option:: --no-cascade
 
-   Delete the reference to storage from containers.
+   Do not delete the reference to storage from containers.
+
+.. option:: --container
+
+   Chose container from which the storage will be removed. (Required if NAME is ambiguous.)
 
 .. program:: wl-storage-create-local
 .. _wl-storage-create-local:

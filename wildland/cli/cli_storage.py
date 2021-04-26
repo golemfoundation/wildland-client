@@ -21,7 +21,7 @@
 Storage object
 """
 
-from typing import Type, Union
+from typing import Type, Union, Tuple, List, Optional
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse, urlunparse
 import functools
@@ -32,6 +32,7 @@ import click
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
+from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager
 
@@ -204,10 +205,12 @@ def list_(obj: ContextObj):
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
               help='delete even if used by containers or if manifest cannot be loaded')
-@click.option('--cascade', is_flag=True,
+@click.option('--no-cascade', is_flag=True,
               help='remove reference from containers')
+@click.option('--container', metavar='CONTAINER',
+              help='remove reference from specific containers')
 @click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, cascade):
+def delete(obj: ContextObj, name, force, no_cascade, container):
     """
     Delete a storage.
     """
@@ -215,71 +218,96 @@ def delete(obj: ContextObj, name, force, cascade):
     obj.client.recognize_users()
 
     try:
-        storage = obj.client.load_object_from_name(WildlandObjectType.STORAGE, name)
+        local_path, used_by = _get_local_path_and_find_usage(obj.client, name)
     except ManifestError as ex:
         if force:
             click.echo(f'Failed to load manifest: {ex}')
-            try:
-                path = obj.client.find_local_manifest(WildlandObjectType.STORAGE, name)
-                if path:
-                    click.echo(f'Deleting file {path}')
-                    path.unlink()
-            except ManifestError:
-                # already removed
-                pass
-            if cascade:
-                click.echo('Unable to cascade remove: manifest failed to load.')
-            return
-        click.echo(f'Failed to load manifest, cannot delete: {ex}')
-        click.echo('Use --force to force deletion.')
-        return
-    except WildlandError as ex:
-        found = _find_and_try_delete(obj.client, cascade, name)
-        if not found:
+            _delete_force(obj.client, name, no_cascade)
+        else:
+            click.echo(f'Failed to load manifest, cannot delete: {ex}')
+            click.echo('Use --force to force deletion.')
             raise
-        if not cascade:
-            raise CliError('Storage is inlined, not deleting '
-                           '(use --cascade)')
         return
+
+    if local_path:
+        if no_cascade:
+            for container_obj, _ in used_by:
+                click.echo(f'Storage used in container: {container_obj.local_path}')
+        else:
+            _delete_cascade(obj.client, used_by)
+
+        if used_by and not force and no_cascade:
+            raise CliError('Storage is still used, not deleting '
+                           '(use --force or remove --no-cascade)')
+
+        click.echo(f'Deleting: {local_path}')
+        local_path.unlink()
+    else:
+        if not used_by:
+            return
+        if no_cascade:
+            raise CliError('Inline storage cannot be deleted in --no-cascade mode')
+
+        if len(used_by) > 1:
+            if container is None:
+                raise CliError(f'Storage {name} is used '
+                               f'in multiple containers: {[str(cont) for cont, _ in used_by]} '
+                               '(please specify container name with --container)')
+
+            container_obj = obj.client.load_object_from_name(
+                WildlandObjectType.CONTAINER, container)
+            used_by = [(cont, backend) for cont, backend in used_by
+                       if cont.local_path == container_obj.local_path]
+
+        if len(used_by) > 1:
+            if not click.confirm('Several matching results have been found: \n'
+                                 f'{used_by} \n'
+                                 f'Do you want remove all listed storages?'):
+                return
+
+        _delete_cascade(obj.client, used_by)
+
+
+def _get_local_path_and_find_usage(client: Client, name: str) \
+        -> Tuple[Optional[Path], List[Tuple[Container, Union[str, dict]]]]:
+    try:
+        storage = client.load_object_from_name(WildlandObjectType.STORAGE, name)
+    except ManifestError:
+        raise
+    except WildlandError:
+        used_by = client.find_storage_usage(name)
+        if not used_by:
+            raise
+        return None, used_by
 
     if not storage.local_path:
         raise WildlandError('Can only delete a local manifest')
-
-    found = _find_and_try_delete(obj.client, cascade, storage.local_path)
-
-    used = found and not cascade
-    if used and not force:
-        raise CliError('Storage is still used, not deleting '
-                       '(use --force or --cascade)')
-
-    click.echo(f'Deleting: {storage.local_path}')
-    storage.local_path.unlink()
+    used_by = client.find_storage_usage(storage.local_path)
+    return storage.local_path, used_by
 
 
-def _find_and_try_delete(client: Client, cascade: bool, storage_id: Union[Path, str]) -> bool:
-    found = False
-    for container in client.load_all(WildlandObjectType.CONTAINER):
-        assert container.local_path
-        modified = False
-        for url_or_dict in list(container.backends):
-            if isinstance(url_or_dict, str):
-                identifier = client.parse_file_url(url_or_dict, container.owner)
-            else:
-                identifier = url_or_dict["backend-id"]
-            if storage_id == identifier:
-                found = True
-                if cascade:
-                    click.echo('Removing {} from {}'.format(
-                        url_or_dict, container.local_path))
-                    container.backends.remove(url_or_dict)
-                    modified = True
-                else:
-                    click.echo('Storage used in container: {}'.format(
-                        container.local_path))
-        if modified:
+def _delete_force(client: Client, name: str, no_cascade: bool):
+    try:
+        path = client.find_local_manifest(WildlandObjectType.STORAGE, name)
+        if path:
+            click.echo(f'Deleting file {path}')
+            path.unlink()
+    except ManifestError:
+        # already removed
+        pass
+    if not no_cascade:
+        click.echo('Unable to cascade remove: manifest failed to load.')
+
+
+def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[str, dict]]]):
+    for container, backend in containers:
+        click.echo(f'Removing {backend} from {container.local_path}')
+        container.backends.remove(backend)
+        try:
             click.echo(f'Saving: {container.local_path}')
             client.save_object(WildlandObjectType.CONTAINER, container)
-    return found
+        except ManifestError as ex:
+            click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
 
 
 def do_create_storage_from_set(client, container, storage_set, local_dir):

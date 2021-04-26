@@ -375,8 +375,8 @@ class Client:
         Load a Wildland object from ambiguous name. The name can be a local filename, part of local
         filename (will attempt to look for the object in appropriate local directory), a WL URL,
         another kind of URL etc.
-        :param name: ambiguous name
         :param object_type: expected object type
+        :param name: ambiguous name
         """
         if object_type == WildlandObjectType.USER and name in self.users:
             return self.users[name]
@@ -389,6 +389,27 @@ class Client:
             return self.load_object_from_file_path(object_type, path)
 
         raise WildlandError(f'{object_type.value} not found: {name}')
+
+    def find_storage_usage(self, storage_id: Union[Path, str]) \
+            -> List[Tuple[Container, Union[str, dict]]]:
+        """Find containers which can use storage given by path or backend-id.
+
+        :param storage_id: storage path or backend_id
+        :return: list of tuples (container, storage_url_or_dict)
+        """
+        used_by = []
+        for container in self.load_all(WildlandObjectType.CONTAINER):
+            assert container.local_path
+            for url_or_dict in container.backends:
+                if isinstance(url_or_dict, str):
+                    identifier = self.parse_file_url(url_or_dict, container.owner)
+                elif "backend-id" in url_or_dict:
+                    identifier = url_or_dict["backend-id"]
+                else:
+                    continue
+                if storage_id == identifier:
+                    used_by.append((container, url_or_dict))
+        return used_by
 
     def recognize_users_from_search(self, final_step):
         """
