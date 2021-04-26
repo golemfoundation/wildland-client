@@ -186,11 +186,11 @@ class EncFS(EncryptedFSRunner):
         args = ['--stdinpass', str(self.ciphertextdir), str(self.cleartextdir)]
         sp, err = self.run_binary(self.opts + args)
         if sp.returncode != 0:
-            errmsg = "Failed to mount encrypted filesystem. %s exit code: %s."
+            errmsg = "Failed to mount encrypted filesystem. %s exit code: %d."
             logger.error(errmsg, self.binary, sp.returncode)
             if len(err.decode()) > 0:
                 logger.error(err.decode())
-            raise WildlandFSError("Failed to mount EncFS. EncFS exit code: %s" % sp.returncode)
+            raise WildlandFSError(f'Failed to mount EncFS. EncFS exit code: {sp.returncode}')
 
     @classmethod
     def init(cls, tempdir: PurePosixPath,
