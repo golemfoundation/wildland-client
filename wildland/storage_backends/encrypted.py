@@ -428,7 +428,7 @@ class EncryptedStorageBackend(StorageBackend):
         self.cleartext_path = tmpdir / 'cleartext'
         Path(self.tmpdir_path).mkdir(parents=True)
         Path(self.cleartext_path).mkdir(parents=True)
-        mountid = ''.join(secrets.choice(alphabet) for i in range(5))
+        mountid = ''.join(secrets.choice(alphabet) for i in range(15))
         local_params = {'location': self.cleartext_path,
                         'type': 'local',
                         'owner': kwds['params']['owner'],
