@@ -124,7 +124,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
             try:
                 commands.extend(cli_container.prepare_mount(
-                    obj, container, str(container.local_path), user_paths,
+                    obj, container, str(container.local_path), None, user_paths,
                     remount=False, with_subcontainers=True, subcontainer_of=None, verbose=False,
                     only_subcontainers=False))
             except WildlandError as we:

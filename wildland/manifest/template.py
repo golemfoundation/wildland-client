@@ -241,6 +241,14 @@ class TemplateManager:
                     continue
         return templates
 
+    def get_storage_template(self, name: str) -> StorageTemplate:
+        """
+        Get StorageTemplate; can be specified as filename without suffix, complete filename or
+        StorageTemplate's internal name.
+        If there is more than one StorageTemplate with a given name, returns first one found.
+        """
+        return self.get_template_file_by_name(name).templates[0]
+
     def get_template_file_by_name(self, template_name: str) -> TemplateFile:
         """
         Return :class:`TemplateFile` object for a given template name.

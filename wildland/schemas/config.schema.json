@@ -10,6 +10,10 @@
             "$ref": "/schemas/types.json#abs-path",
             "description": "path to storage manifests (default: $HOME/.config/wildland/storage)"
         },
+        "cache-dir": {
+            "$ref": "/schemas/types.json#abs-path",
+            "description": "path to cache storage manifests (default: $HOME/.config/wildland/cache)"
+        },
         "container-dir": {
             "$ref": "/schemas/types.json#abs-path",
             "description": "path to container manifests (default: $HOME/.config/wildland/users)"

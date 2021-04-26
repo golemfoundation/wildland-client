@@ -64,7 +64,8 @@ class Session:
         return manifest.to_bytes()
 
     def dump_object(self, obj: Union[Bridge, Storage, Container],
-                    path: Optional[Path] = None) -> bytes:
+                    path: Optional[Path] = None,
+                    encrypt: bool = True) -> bytes:
         """
         Create a signed manifest out of a Bridge/Container/Storage object; if the object was created
         from a signed manifest and did not change, returns that object, otherwise creates and
@@ -78,6 +79,6 @@ class Session:
         except ManifestError:
             pass
 
-        manifest.encrypt_and_sign(self.sig)
+        manifest.encrypt_and_sign(self.sig, encrypt=encrypt)
         obj.manifest = manifest
         return manifest.to_bytes()

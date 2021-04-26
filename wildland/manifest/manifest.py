@@ -384,7 +384,7 @@ class Manifest:
         return cls(None, fields, data, local_path=local_path)
 
     def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
-                         encrypt=True):
+                         encrypt: bool = True):
         """
         Sign a manifest. If signed, will replace signature.
         If attach_pubkey is true, attach the public key to the signature.

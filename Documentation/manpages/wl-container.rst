@@ -12,6 +12,8 @@ Synopsis
 | :command:`wl container info NAME`
 | :command:`wl container delete [--force] [--cascade] NAME`
 | :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-template <storage_template>]`
+| :command:`wl container create-cache --template <template_name> <container>`
+| :command:`wl container delete-cache <container>`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
@@ -131,6 +133,31 @@ Create a |~| new container manifest.
    infrastructure defined in the user manifest, the container is published.
 
 
+.. program:: wl-container-create-cache
+.. _wl-container-create-cache:
+
+:command:`wl container create-cache [--template <template_name>] <container>`
+-----------------------------------------------------------------------------
+
+Create a local cache storage for the container from a template.
+
+The cache storage becomes container's primary storage when mounted. Old primary storage is kept
+in sync with the cache.
+
+.. option:: -t, --template <template_name>
+
+   Name of the storage template to use.
+
+
+.. program:: wl-container-delete-cache
+.. _wl-container-delete-cache:
+
+:command:`wl container delete-cache <container>`
+------------------------------------------------
+
+Deletes cache storage associated with the container.
+
+
 .. program:: wl-container-update
 .. _wl-container-update:
 
@@ -224,6 +251,13 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
 
    If container contains any subcontainers then mount just the subcontainers and skip mounting
    the container's storage itself.
+
+.. option:: -c, --with-cache <template_name>
+
+   Create a local cache storage for the container from a template.
+
+   The cache storage becomes container's primary storage when mounted. Old primary storage is kept
+   in sync with the cache.
 
 .. option:: -l, --list-all
 

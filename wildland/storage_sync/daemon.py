@@ -183,6 +183,9 @@ class SyncDaemon:
         container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
 
         all_storages = list(client.all_storages(container))
+        cache = client.cache_storage(container)
+        if cache:
+            all_storages.append(cache)
 
         if source:
             source_storage = _get_storage_by_id_or_type(source, all_storages)

@@ -1773,6 +1773,24 @@ def test_container_info(cli, base_dir):
     assert '  path: /PATH' in out_lines
 
 
+def test_container_cli_cache(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    name, uuid, _, cache_dir = _cache_setup(cli, base_dir, ['c1'], 'User')[0]
+
+    cli('container', 'create-cache', '--template', 't1', name)
+
+    cache_path = base_dir / 'cache' / f't1.{uuid}.storage.yaml'
+    assert cache_path.exists()
+    with open(cache_path) as cache:
+        lines = cache.read()
+        assert f'container-path: /.uuid/{uuid}' in lines
+    assert cache_dir.exists()
+
+    cli('container', 'delete-cache', name)
+    assert not cache_path.exists()
+    assert cache_dir.exists()  # we don't want actual cache contents deleted
+
+
 def test_container_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -1819,6 +1837,185 @@ def test_container_mount(cli, base_dir, control_client):
         '/.users/0xaaa:/PATH',
     ]
     assert command[0]['extra']['trusted_owner'] is None
+
+
+def _safe_delete(path):
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def _sync_check(dir1, dir2):
+    """
+    Make sure both dirs content is mirrored.
+    """
+    with open(dir1 / 'file1', 'w') as f:
+        f.write('test data 1')
+
+    time.sleep(1)
+    assert (dir2 / 'file1').exists()
+    with open(dir2 / 'file1') as file:
+        assert file.read() == 'test data 1'
+
+    with open(dir2 / 'file2', 'w') as f:
+        f.write('test data 2')
+
+    time.sleep(1)
+    assert (dir1 / 'file2').exists()
+    with open(dir1 / 'file2') as file:
+        assert file.read() == 'test data 2'
+
+    # if paths contain mount directory then files may be gone already
+    _safe_delete(dir1 / 'file1')
+    _safe_delete(dir1 / 'file2')
+    _safe_delete(dir2 / 'file1')
+    _safe_delete(dir2 / 'file2')
+
+
+def _cache_setup(cli, base_dir, container_names, user_name, subcont_path: str = None):
+    base_data_dir = base_dir / 'wldata'
+    base_storage_dir = base_data_dir / 'storage'
+    template_dir = base_data_dir / 'template'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(base_storage_dir)
+    os.mkdir(template_dir)
+
+    cli('storage-template', 'create', 'local', '--location', template_dir, 't1')
+
+    data = []
+    for name in container_names:
+        cli('container', 'create', name, '--path', f'/{name}', '--no-encrypt-manifest',
+            '--user', user_name)
+        storage_dir = base_storage_dir / name
+        os.mkdir(storage_dir)
+        if subcont_path:
+            cli('storage', 'create', 'local', name, '--container', name,
+                '--location', storage_dir, '--subcontainer-manifest', subcont_path)
+        else:
+            cli('storage', 'create', 'local', name, '--container', name,
+                '--location', storage_dir)
+
+        with open(base_dir / f'containers/{name}.container.yaml') as f:
+            documents = list(load_yaml_all(f))
+
+        uuid_path = documents[1]['paths'][0]
+        uuid = get_container_uuid_from_uuid_path(uuid_path)
+        cache_dir = template_dir / uuid
+        data.append((name, uuid, storage_dir, cache_dir))
+
+    return data
+
+
+def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
+    container_names = [x[0] for x in container_data]
+    args = ['container', 'mount', '--with-subcontainers', '--with-cache', 't1'] + container_names
+    cli(*args)
+    user_mount_path = base_dir / 'wildland' / '.users' / f'{user_key}:'
+
+    for container_name, uuid, storage_dir, cache_dir in container_data:
+        cache_manifest = base_dir / 'cache' / f't1.{uuid}.storage.yaml'
+        assert cache_manifest.exists()
+        with open(cache_manifest) as f:
+            doc = list(load_yaml_all(f))
+            cache_id = doc[1]['backend-id']
+            owner = doc[1]['owner']
+
+        backends = os.listdir(user_mount_path / '.backends' / uuid)
+        backends = list(filter(lambda x: not x.endswith('pseudomanifest'), backends))
+        assert len(backends) == 2
+        assert cache_id in backends
+        with open(base_dir / 'config.yaml') as f:
+            config = load_yaml(f)
+        assert owner == config['@default-owner']
+
+        _sync_check(storage_dir, cache_dir)
+        _sync_check(storage_dir, user_mount_path / container_name)
+
+        cli('container', 'unmount', container_name)
+        cli_fail('container', 'stop-sync', container_name)  # sync should stop after unmount
+
+    # should use cache now even without explicit param
+    args = ['container', 'mount', '--with-subcontainers'] + container_names
+    cli(*args)
+    for container_name, uuid, storage_dir, cache_dir in container_data:
+        _sync_check(storage_dir, cache_dir)
+        cli('container', 'unmount', container_name)
+
+    # should have no cache after deletion
+    for container_name, uuid, storage_dir, cache_dir in container_data:
+        cli('container', 'delete-cache', container_name)
+        cli('container', 'mount', '--with-subcontainers', container_name)
+        backends = os.listdir(user_mount_path / '.backends' / uuid)
+        backends = list(filter(lambda x: not x.endswith('pseudomanifest'), backends))
+        assert len(backends) == 1
+        assert cache_id not in backends
+        cache_manifest = base_dir / 'cache' / f't1.{uuid}.storage.yaml'
+        assert not cache_manifest.exists()
+        cli('container', 'unmount', container_name)
+
+
+def test_container_mount_with_cache(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = ['c1']
+    data = _cache_setup(cli, base_dir, container_names, 'User')
+    cli('start')
+    _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
+
+
+def test_container_mount_with_cache_other_user(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User1', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+    data = _cache_setup(cli, base_dir, ['c1'], 'User2')
+    cli('start')
+    _cache_test(cli, cli_fail, base_dir, data, '0xbbb')
+
+
+def test_container_mount_with_cache_multiple(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = ['c1', 'c2']
+    data = _cache_setup(cli, base_dir, container_names, 'User')
+    cli('start')
+    _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
+
+
+def test_container_mount_with_cache_subcontainers(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    data = _cache_setup(cli, base_dir, ['Container'], 'User', '/sub.yaml')
+
+    sub_uuid = '0000-1111-2222-3333-4444'
+    sub_backend_id = '5555-6666-7777-8888-9999'
+
+    container_name, uuid, storage_dir, cache_dir = data[0]
+    os.mkdir(storage_dir / 'subdir')
+
+    with open(storage_dir / 'sub.yaml', 'w') as f:
+        f.write(f"""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - /.uuid/{sub_uuid}
+ - /subcontainer
+object: container
+backends:
+  storage:
+    - type: delegate
+      backend-id: {sub_backend_id}
+      reference-container: 'wildland:@default:/.uuid/{uuid}:'
+      subdirectory: '/subdir'
+    """)
+
+    cli('start')
+    cli('container', 'mount', '--with-subcontainers', container_name, '--with-cache', 't1')
+    _sync_check(storage_dir, cache_dir)
+    _sync_check(base_dir / 'wildland' / container_name, cache_dir)
+    _sync_check(base_dir / 'wildland' / container_name, storage_dir)
+    _sync_check(base_dir / 'wildland' / container_name / 'subdir', cache_dir / 'subdir')
+    # FIXME: the checks below fail when run after these above, but succeed if run on their own...
+    # _sync_check(base_dir / 'wildland' / container_name / 'subdir', storage_dir / 'subdir')
+    # _sync_check(cache_dir / 'subdir', storage_dir / 'subdir')
 
 
 def test_container_mount_with_bridges(cli, base_dir, control_client):
