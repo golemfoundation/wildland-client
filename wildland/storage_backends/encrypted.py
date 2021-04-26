@@ -34,7 +34,7 @@ from typing import Dict, List, Optional, Type
 
 import click
 
-from wildland.storage_backends.base import StorageBackend, File, OptionalError
+from wildland.storage_backends.base import StorageBackend, File
 from wildland.manifest.schema import Schema
 from wildland.storage_backends.local import LocalStorageBackend, LocalFile
 from wildland.fs_client import WildlandFSError
@@ -90,15 +90,6 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
         if cproc.stderr.decode().find(unmounted_msg) > -1:
             return 0
         raise WildlandFSError('Unmounting failed: mount point is busy')
-
-    # pylint: disable=no-self-use
-    def reencrypt(self, credentials: str):
-        """
-        Implements in-place re-encryption to a new key material / password.
-
-        If not implemented, 'copy-to-a-new-encrypted-container' approach will be used.
-        """
-        raise OptionalError()
 
     @abc.abstractmethod
     def credentials(self) -> str:

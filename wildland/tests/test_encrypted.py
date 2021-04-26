@@ -29,7 +29,6 @@ import pytest
 from wildland.storage_backends.encrypted import EncFS, GoCryptFS, generate_password
 from wildland.storage_backends.local import LocalStorageBackend
 
-from .fuse_env import FuseEnv
 from ..client import Client
 
 from ..cli.cli_base import ContextObj
@@ -115,15 +114,6 @@ def test_encrypted_with_url(cli, base_dir, engine):
             ft2.write("2" * 10000)
 
     time.sleep(1) # otherwise "unmount: /tmp/.../mnt: target is busy"
-
-@pytest.fixture
-def env():
-    env = FuseEnv()
-    try:
-        env.mount()
-        yield env
-    finally:
-        env.destroy()
 
 def test_gocryptfs_runner(base_dir):
     first = base_dir / 'a'
