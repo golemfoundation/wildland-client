@@ -30,7 +30,7 @@ from pathlib import PurePosixPath, Path
 import logging
 import secrets
 import string
-from typing import Optional, Iterable
+from typing import Optional
 
 import click
 
@@ -51,7 +51,7 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
     binary: str
 
     @classmethod
-    def init(cls, basedir: PurePosixPath, ciphertextdir: PurePosixPath) -> 'EncryptedFSRunner':
+    def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath) -> 'EncryptedFSRunner':
         '''
         Initialize and configure a cryptographic filesystem storage.
         ``credentials()`` should be available after that.
@@ -285,14 +285,7 @@ class EncryptedProxyStorageBackend(StorageBackend):
         self.ciphertext_storage = self.params['storage']
 
         # the path where it got mounted (this is new)
-        # self.ciphertext_path = self.params['storage-path']
-
-        # Following is a local hack
-        s = PurePosixPath('/home/pepesza/wildland')
-        s = s / self.ciphertext_storage.params['container-path'][1:]
-        self.ciphertext_path = PurePosixPath(s)
-
-
+        self.ciphertext_path = self.params['storage-path']
 
 
     @classmethod
