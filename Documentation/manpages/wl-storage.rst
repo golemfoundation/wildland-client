@@ -37,7 +37,7 @@ Display known storages.
 .. _wl-storage-delete:
 
 :command:`wl storage delete [--force] [--no-cascade] [--container] NAME`
--------------------------------------------------------
+------------------------------------------------------------------------
 
 Delete a storage from local filesystem.
 
