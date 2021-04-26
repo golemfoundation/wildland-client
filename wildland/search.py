@@ -479,8 +479,8 @@ class Search:
 
         else:
             try:
-                user = self.client.load_object_from_dict(WildlandObjectType.USER, location,
-                                                         expected_owner=owner)
+                user = next_client.load_object_from_dict(WildlandObjectType.USER, location,
+                                                         expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load linked user manifest: %s. Exception: %s',
                                location, str(ex))
@@ -508,6 +508,8 @@ class Search:
 
         for container_spec in user.containers:
             if isinstance(container_spec, dict):
+                if 'encrypted' in container_spec:
+                    continue
                 if container_spec['object'] == 'container':
                     container_desc = '(inline)'
                 else:
