@@ -233,13 +233,22 @@ class GoCryptFS(EncryptedFSRunner):
     Runs gocryptfs via subprocess.
 
     Relevant issues of gocryptfs:
-    * it does not mix well with Wildland since it does not do direct_io.
+    * It does not mix well with Wildland since it does not do direct_io.
       You may observe data loss in some scenarios. More information is in
       this thread: https://gitlab.com/wildland/wildland-client/-/issues/205
-    * it uses FUSE (potential problem on OSX later).
-    * it leaks metadata about tree structure, including file sizes, access times,
+    * It uses FUSE (potential problem on OSX later).
+    * It leaks metadata about tree structure, including file sizes, access times,
       number of files and directories inside a directory.
-    * it allows attacker to modify file permission - they are not encrypted.
+    * It allows attacker to modify file permission - they are not encrypted.
+    * If remote storage operator is malicious, it can do a lot of damage while staying
+      undetected. From audit:
+      > Files can be fully or partially restored from earlier versions, duplicated,
+      > made to have the same contents as another file, deleted, truncated, and moved.
+      > These integrity problems could turn into confidentiality problems depending on
+      > the applications that use the filesystem.
+
+    For more information, please read audit report:
+    https://defuse.ca/downloads/audits/gocryptfs-cryptography-design-audit.pdf
     '''
     password: str
     config: str
