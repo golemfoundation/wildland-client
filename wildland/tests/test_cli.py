@@ -3829,6 +3829,33 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
     assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
     assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
 
+
+def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+
+    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+        'forest-template')
+    cli('storage-set', 'add', '--template', 'forest-template', 'forest-set')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'forest-set')
+
+    shutil.copy(Path(f'{base_dir}/users/Alice.user.yaml'), Path(f'{tmp_path}/Alice.yaml'))
+
+    cli('user', 'del', 'Alice', '--cascade')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+
+    modify_file(base_dir / 'config.yaml', "local-owners:\n- '0xbbb'",
+                "local-owners:\n- '0xbbb'\n- '0xaaa'")
+
+    cli('user', 'import', f'{tmp_path}/Alice.yaml')
+
+    with open(base_dir / 'bridges/Alice.bridge.yaml') as f:
+        data = list(yaml.safe_load_all(f))[1]
+
+    assert data['user']['object'] == 'link'
+    assert data['user']['file'] == '/forest-owner.yaml'
+    assert data['user']['storage']['type'] == 'local'
+
 ## Global options (--help, --version etc.)
 
 def test_wl_help(cli):

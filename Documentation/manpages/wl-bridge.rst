@@ -83,11 +83,11 @@ List all known bridges.
 :command:`wl bridge import [--path path] [--bridge-owner user] [--only-first] url_or_path`
 ------------------------------------------------------------------------------------------
 
-Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
+Import a bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
 to manifests and Wildland urls to Wildland objects.
 
-For users, will import the user and create an appropriate bridge manifest referencing the user.
-For bridge manifests, will import the bridge manifest and import the referenced user.
+Note that the imported bridge owner will be the default-owner unless a different owner was passed
+as the command option.
 
 For Wildland object path, will import all referenced bridges and their reference users.
 
