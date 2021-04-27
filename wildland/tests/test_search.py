@@ -572,7 +572,7 @@ paths:
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
 def test_traverse_bridge_link(cli, base_dir, client, owner, caplog):
-    cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
+    cli('user', 'create', 'KnownUser', '--key', '0xddd')
 
     client.recognize_users()
     client.config = Config.load(base_dir)
