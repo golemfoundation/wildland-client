@@ -23,6 +23,7 @@ Wildland Filesystem
 
 import logging
 import os
+import re
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -83,10 +84,18 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
         # size in getattr(), for example for auto-generated files.
         # See 'man 8 mount.fuse' for details.
         self.fuse_args.add('direct_io')
-        self.fuse_args.add('allow_other')
+
         # allow nonempty mount_dir (due to some operating systems insisting on putting random files
         # in every directory); this is not destructive and, worst case scenario, leads to confusion
         self.fuse_args.add('nonempty')
+
+        with open("/etc/fuse.conf", "r") as fd:
+            parsed_config = [c for c in fd.read().splitlines()
+                             if c and not c.startswith('#')]
+
+        re_can_mount = re.compile("[ \t]*user_allow_other")
+        if list(filter(re_can_mount.match, parsed_config)):
+            self.fuse_args.add('allow_other')
 
     def getattr(self, path):
         return self._mapattr(super().getattr(path))
