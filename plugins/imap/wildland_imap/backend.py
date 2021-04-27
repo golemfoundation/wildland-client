@@ -91,7 +91,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         for part in self.client.get_message(e.msg_uid):
             yield StaticFileEntry(part.attachment_name,
                                   part.content,
-                                  e.recv_t.replace(tzinfo=timezone.utc).timestamp())
+                                  int(e.recv_t.replace(tzinfo=timezone.utc).timestamp()))
 
     def _read_part(self, msg_part: MessagePart) -> bytes:
         # pylint: disable=no-self-use
