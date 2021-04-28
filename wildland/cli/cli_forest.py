@@ -183,7 +183,7 @@ def _boostrap_forest(ctx: click.Context,
                             'infrastructures', [link_obj])
 
         # Refresh users infrastructures
-        obj.client.recognize_users()
+        obj.client.recognize_users_and_bridges()
 
         with manifests_backend:
             manifests_backend.mkdir(PurePosixPath('users'))

@@ -497,7 +497,7 @@ def modify_file(path, pattern, replacement):
 def test_traverse_other_key(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
-    client.recognize_users()
+    client.recognize_users_and_bridges()
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'
@@ -571,7 +571,7 @@ paths:
 def test_traverse_bridge_link(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd')
 
-    client.recognize_users()
+    client.recognize_users_and_bridges()
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'
@@ -656,7 +656,7 @@ paths:
 def test_traverse_linked_infra(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
-    client.recognize_users()
+    client.recognize_users_and_bridges()
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'

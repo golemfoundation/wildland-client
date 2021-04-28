@@ -120,11 +120,14 @@ class Client:
         self.session: Session = Session(sig)
 
         self.users: Dict[str, User] = {}
+        # FIXME: this doesn't really deduplicate bridges, only avoids the same
+        # _instance_ being added multiple times
+        self.bridges: Set[Bridge] = set()
 
         self._select_reference_storage_cache = {}
 
         if load:
-            self.recognize_users()
+            self.recognize_users_and_bridges()
 
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         """
@@ -136,9 +139,11 @@ class Client:
         owner = sig.add_pubkey(pubkey)
         return Client(config=self.config, sig=sig, load=False), owner
 
-    def recognize_users(self, users: Optional[Iterable[User]] = None):
+    def recognize_users_and_bridges(self, users: Optional[Iterable[User]] = None,
+                                    bridges: Optional[Iterable[Bridge]] = None):
         """
         Load users and recognize their keys from the users directory or a given iterable.
+        This function loads also all (local) bridges, so it's possible to find paths for the users.
         """
         for user in users or self.load_all(WildlandObjectType.USER, decrypt=False):
             user.add_user_keys(self.session.sig)
@@ -146,6 +151,9 @@ class Client:
         # duplicated to decrypt infrastructures correctly
         for user in users or self.load_all(WildlandObjectType.USER):
             self.users[user.owner] = user
+
+        for bridge in bridges or self.load_all(WildlandObjectType.BRIDGE):
+            self.bridges.add(bridge)
 
     def find_local_manifest(self, object_type: Union[WildlandObjectType, None],
                             name: str) -> Optional[Path]:
@@ -429,9 +437,11 @@ class Client:
                 path.write_bytes(step.bridge.manifest.to_bytes())
 
         # load encountered users to the current context - may be needed for subcontainers
-        self.recognize_users(
+        self.recognize_users_and_bridges(
             [ustep.user for ustep in final_step.steps_chain()
-             if ustep.user is not None])
+             if ustep.user is not None],
+            [ustep.bridge for ustep in final_step.steps_chain()
+             if ustep.bridge is not None])
 
     def load_containers_from(self, name: Union[str, WildlandPath],
                              aliases: Optional[dict] = None) -> Iterator[Container]:
@@ -620,7 +630,7 @@ class Client:
             return [[]]
 
         bridges_map: Dict[str, List[Bridge]] = {}
-        for bridge in self.load_all(WildlandObjectType.BRIDGE):
+        for bridge in self.bridges:
             bridges_map.setdefault(bridge.owner, []).append(bridge)
 
         if owner.owner in bridges_map:
