@@ -123,6 +123,28 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 
 .. include:: include/wl-storage-create.rsti
 
+.. program:: wl-storage-create-static
+.. _wl-storage-create-static:
+
+:command:`wl storage create static --container <container> [-u] [--user <user>] [--file <path>=<content> ...]`
+--------------------------------------------------------------------------------------------------------------
+
+Creates static storage, presenting files included directly in the storage manifest.
+
+Example call::
+
+    wl storage create static --container C1 --file 'foo.txt=content of foo.txt' --file 'foo/bar.txt=content of bar.txt inside foo directory'
+
+This will result in storage manifest with the following field::
+
+    content:
+      foo.txt: content of foo.txt
+      foo:
+        bar.txt: content of bar.txt inside foo directory
+
+.. include:: include/storages/static.rsti
+.. include:: include/wl-storage-create.rsti
+
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
 

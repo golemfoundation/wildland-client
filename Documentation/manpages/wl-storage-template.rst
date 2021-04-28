@@ -158,6 +158,18 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 
 .. include:: include/wl-storage-template-create.rsti
 
+.. program:: wl-storage-template-create-static
+.. _wl-storage-template-create-static:
+
+:command:`wl storage-template create static --container <container> [-u] [--user <user>] [--file <path>=<content> ...]`
+-----------------------------------------------------------------------------------------------------------------------
+
+Creates static storage, presenting files included directly in the storage
+manifest. See documentation of 'wl storage create static' for details.
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/static.rsti
+
 .. program:: wl-storage-template-create-zip-archive
 .. _wl-storage-template-create-zip-archive:
 

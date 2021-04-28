@@ -29,6 +29,9 @@ Storage backends
 .. autoclass:: wildland.storage_backends.dummy.DummyStorageBackend
    :members:
 
+.. autoclass:: wildland.storage_backends.static.StaticStorageBackend
+   :members:
+
 .. autoclass:: wildland.storage_backends.local_cached.LocalCachedStorageBackend
    :members:
 
