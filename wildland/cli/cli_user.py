@@ -21,9 +21,10 @@
 Manage users
 """
 
-from typing import Tuple, Iterable, Optional, Union
+from typing import Tuple, Iterable, Optional, Union, List
 from pathlib import PurePosixPath, Path
 import logging
+import uuid
 import binascii
 import click
 
@@ -345,6 +346,21 @@ def _find_user_manifest_within_infrastructures(obj, user: User) -> \
 
     return None
 
+def _sanitize_imported_paths(paths: Iterable[PurePosixPath]) -> List[PurePosixPath]:
+    """
+    Accept a list of imported paths (either from a user or a bridge manifest) and return only
+    the first one with sanitised (safe) path.
+    """
+    if not paths:
+        raise CliError('No paths found to sanitize')
+
+    path = PurePosixPath(str(list(paths)[0]).strip('/'))
+    safety_uuid = uuid.uuid4()
+
+    safe_path = f'/forests/{safety_uuid}-' + '_'.join(path.parts)
+
+    return [PurePosixPath(safe_path)]
+
 
 def _do_process_imported_manifest(
         obj: ContextObj, copied_manifest_path: Path, user_manifest_location: str,
@@ -385,7 +401,7 @@ def _do_process_imported_manifest(
             user_location=user_location,
             user_pubkey=user.primary_pubkey,
             user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
-            paths=(paths if paths else user.paths),
+            paths=(paths if paths else _sanitize_imported_paths(user.paths)),
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
@@ -396,6 +412,8 @@ def _do_process_imported_manifest(
         # adjust imported bridge
         if paths:
             bridge.paths = list(paths)
+        else:
+            bridge.paths = _sanitize_imported_paths(bridge.paths)
         if default_user:
             bridge.owner = default_user
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
