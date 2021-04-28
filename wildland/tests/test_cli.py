@@ -1785,6 +1785,65 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     assert bridges.count('/people/other') == 2
 
 
+def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'Other', '--key', '0xbbb')
+    os.mkdir(base_dir / 'user-infra')
+    # add infrastructure container
+    with open(base_dir / 'users/User.user.yaml', 'r+') as f:
+        documents = list(yaml.safe_load_all(f))
+        documents[1]['infrastructures'].append({
+            'paths': ['/.uuid/1111-2222-3333-4444'],
+            'owner': '0xaaa',
+            'object': 'container',
+            'version': Manifest.CURRENT_VERSION,
+            'backends': {'storage': [{
+                'type': 'local',
+                'location': str(base_dir / 'user-infra'),
+                'manifest-pattern': {
+                    'type': 'glob',
+                    'path': '/*.yaml',
+                }
+            }]}
+        })
+        f.seek(0)
+        f.write('signature: |\n  dummy.0xaaa\n---\n')
+        f.write(yaml.safe_dump(documents[1]))
+
+    # move user manifest out of the default path, so the bridge would be the only way to access it
+    os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
+    cli('bridge', 'create', '--ref-user-path', '/users/other',
+                            '--ref-user-path', '/people/other',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'user-Other.user.yaml'),
+                            'br-other')
+    # "publish" the bridge
+    os.rename(base_dir / 'bridges/br-other.bridge.yaml',
+              base_dir / 'user-infra/br-other.bridge.yaml')
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', '--no-import-users', 'wildland::*:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert '/.users/0xbbb:' in command[0]['paths']
+    assert '/users/other:' in command[0]['paths']
+    assert '/people/other:' in command[0]['paths']
+
+    control_client.calls = {}
+
+    # mounting bridge specifically should work too
+    cli('container', 'mount', '--no-import-users', 'wildland::/users/other:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert command[0]['storage']['type'] == 'static'
+    assert '/.users/0xbbb:' in command[0]['paths']
+
+
 def test_container_mount_store_trusted_owner(cli, control_client):
     control_client.expect('status', {})
 

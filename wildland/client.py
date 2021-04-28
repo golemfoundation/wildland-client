@@ -444,10 +444,15 @@ class Client:
              if ustep.bridge is not None])
 
     def load_containers_from(self, name: Union[str, WildlandPath],
-                             aliases: Optional[dict] = None) -> Iterator[Container]:
+                             aliases: Optional[dict] = None,
+                             bridge_placeholders: bool = True) -> Iterator[Container]:
         """
         Load a list of containers. Currently supports WL paths, glob patterns (*) and
         tilde (~), but only in case of local files.
+
+        :param name: containers to load - can be a local path (including glob) or a Wildland path
+        :param aliases: aliases to use when resolving a Wildland path
+        :param bridge_placeholders: include bridges as placeholder containers
         """
         wlpath = None
         if isinstance(name, WildlandPath):
@@ -462,11 +467,20 @@ class Client:
                     aliases = self.config.aliases
                 search = Search(self, wlpath, aliases)
                 for final_step in search.resolve_raw():
-                    if final_step.container is None:
+                    if final_step.container is None and final_step.bridge is None:
+                        # should not happen right now, but might in the future;
+                        # but also makes below conditions a bit nicer, as we can assume it is
+                        # either container or a bridge
+                        continue
+                    if final_step.container is None and not bridge_placeholders:
                         continue
                     self.recognize_users_from_search(final_step)
 
-                    yield final_step.container
+                    if final_step.container is None:
+                        assert final_step.bridge is not None
+                        yield final_step.bridge.to_placeholder_container()
+                    else:
+                        yield final_step.container
             except WildlandError as ex:
                 raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return

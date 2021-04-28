@@ -24,6 +24,7 @@ Bridge manifest object
 from pathlib import PurePosixPath, Path
 from typing import Optional, List, Iterable, Union
 
+from .container import Container
 from .manifest.manifest import Manifest, WildlandObjectType
 from .manifest.schema import Schema
 from .manifest.sig import SigContext
@@ -87,6 +88,24 @@ class Bridge:
         })
         manifest.apply_schema(self.SCHEMA)
         return manifest
+
+    def to_placeholder_container(self) -> Container:
+        """
+        Create a placeholder container that shows how to mount the target user's forest.
+        """
+
+        return Container(
+            owner=self.user_id,
+            paths=[PurePosixPath('/')],
+            backends=[{
+                'type': 'static',
+                'content': {
+                    'WILDLAND-FOREST.txt': \
+                        f'This directory holds forest of user {self.user_id}.\n'
+                        f'Use \'wl forest mount\' command to get access to it.\n',
+                }
+            }]
+        )
 
     def __repr__(self):
         return f'<Bridge: {self.owner}: {", ".join([str(p) for p in self.paths])}>'
