@@ -41,7 +41,6 @@ mypy:
       junit: artifacts/wildland-mypy.xml
 
 mypy-plugins:
-  allow_failure: true
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:

@@ -10,7 +10,7 @@ import mimetypes
 import imaplib
 from dataclasses import dataclass
 from threading import Lock
-from typing import List, Set
+from typing import List, Set, Dict, Tuple, Iterable
 from email.header import decode_header
 from email.parser import BytesParser
 from email import policy
@@ -62,14 +62,14 @@ class ImapClient:
         self.login = login
         self.password = password
         self.folder = folder
-        self._envelope_cache = dict()
+        self._envelope_cache: Dict[int, MessageEnvelopeData] = dict()
 
         # message id: message contents (only populated, when
         # messge content is requested)
-        self._message_cache = dict()
+        self._message_cache: Dict[int, List[MessagePart]] = dict()
 
         # all ids retrieved
-        self._all_ids = set()
+        self._all_ids: Set[int] = set()
 
         # lock guarding access to local data structures
         self._local_lock = Lock()
@@ -92,6 +92,9 @@ class ImapClient:
         """
         self.logger.debug('connecting to IMAP server')
         self.imap = IMAPClient(self.host, use_uid=True, ssl=self.ssl)
+
+        assert self.imap is not None
+
         self.imap.login(self.login, self.password)
         self.imap.select_folder(self.folder, True)
         self._envelope_cache = dict()
@@ -112,6 +115,8 @@ class ImapClient:
             if self._connected:
                 self._connected = False
                 with self._imap_lock:
+                    assert self.imap is not None
+
                     self.imap.logout()
                     # note that there is a bug in current
                     # IMAPClient code, which makes it impossible
@@ -121,7 +126,7 @@ class ImapClient:
                     self.imap = None
                 self.logger.debug("ImapClient  disconnected")
 
-    def all_messages_env(self) -> List[MessageEnvelopeData]:
+    def all_messages_env(self) -> Iterable[MessageEnvelopeData]:
         """
         Provides iterable over collection of all envelopes fetched
         from server.
@@ -148,7 +153,9 @@ class ImapClient:
                     repeats = 3
                     while again:
                         try:
-                            reply = self.imap.noop()
+                            assert self.imap is not None
+
+                            reply: Tuple[int, List[Tuple[str, ...]]] = self.imap.noop()
                             again = False
                         except (ConnectionResetError, imaplib.IMAP4.abort):
                             if repeats > 0:
@@ -159,7 +166,7 @@ class ImapClient:
                                 raise
 
 
-                    self._last_mailbox_query = time.time()
+                    self._last_mailbox_query = int(time.time())
                     if len(reply) > 1:
                         try:
                             self._invalidate_and_reread()
@@ -189,7 +196,10 @@ class ImapClient:
         return it as a "pretty string".
         """
         self.logger.debug('fetching message %d', mid)
-        rv = list()
+        rv: List[MessagePart] = list()
+
+        assert self.imap is not None
+
         with self._imap_lock:
             data = self.imap.fetch([mid], 'RFC822')
         parser = BytesParser(policy=policy.default)
@@ -243,6 +253,7 @@ class ImapClient:
         Fetch headers of given message and register them in
         cache.
         """
+        assert self.imap is not None
         data = self.imap.fetch([msg_id], 'ENVELOPE')
         env = data[msg_id][b'ENVELOPE']
         self._register_envelope(msg_id, env)
@@ -255,7 +266,7 @@ class ImapClient:
         """
         # pylint: disable=no-self-use
 
-        rv = set()
+        rv: Set[str] = set()
 
         if addr is None:
             return rv
@@ -300,6 +311,7 @@ class ImapClient:
         """
         invalidate local message list. Reread and update index.
         """
+        assert self.imap is not None
         srv_msg_ids = self.imap.search('ALL')
         ids_to_remove = self._all_ids - set(srv_msg_ids)
         ids_to_add = set(srv_msg_ids) - self._all_ids
