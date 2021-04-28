@@ -10,7 +10,6 @@ Client interface
 .. autoclass:: wildland.client.Client
    :members:
 
-
 Storage backends
 ----------------
 
@@ -148,6 +147,19 @@ Data transfer objects
    :members:
 
 .. autoclass:: wildland.bridge.Bridge
+   :members:
+
+
+Wildland path
+-------------
+
+.. autoclass:: wildland.wlpath.WildlandPath
+   :members:
+
+.. autoclass:: wildland.search.Search
+   :members:
+
+.. autoclass:: wildland.search.Step
    :members:
 
 
