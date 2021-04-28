@@ -243,8 +243,6 @@ def delete(obj: ContextObj, name, force, no_cascade, container):
         click.echo(f'Deleting: {local_path}')
         local_path.unlink()
     else:
-        if not used_by:
-            return
         if no_cascade:
             raise CliError('Inline storage cannot be deleted in --no-cascade mode')
 

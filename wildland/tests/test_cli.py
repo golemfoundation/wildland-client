@@ -512,8 +512,55 @@ def test_storage_delete(cli, base_dir):
     with pytest.raises(CliError, match='Storage is still used'):
         cli('storage', 'delete', '--no-cascade', 'Storage')
 
-    cli('storage', 'delete', '--force', 'Storage')
+    cli('storage', 'delete', 'Storage')
+
     assert not storage_path.exists()
+
+
+def test_storage_delete_force(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
+    assert storage_path.exists()
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        base_data = f.read().split('\n', 4)[-1]
+
+    with pytest.raises(CliError, match='Storage is still used'):
+        cli('storage', 'delete', '--no-cascade', 'Storage')
+
+    cli('storage', 'delete', '--no-cascade', '--force', 'Storage')
+
+    assert not storage_path.exists()
+    assert str(storage_path) in base_data
+
+
+def test_storage_delete_force_broken_manifest(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    storage_path = base_dir / 'storage/Storage.storage.yaml'
+    assert storage_path.exists()
+
+    # broke manifest
+    with open(storage_path, 'r+') as f:
+        f.truncate()
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        base_data = f.read().split('\n', 4)[-1]
+
+    with pytest.raises(ManifestError):
+        cli('storage', 'delete', 'Storage')
+
+    cli('storage', 'delete', '--force', 'Storage')
+
+    assert not storage_path.exists()
+    assert str(storage_path) in base_data
 
 
 def test_storage_delete_inline(cli, base_dir):
@@ -586,9 +633,12 @@ def test_storage_delete_inline_many_in_one(monkeypatch, cli, base_dir):
         f.write('signature: |\n  dummy.0xaaa\n---\n')
         f.write(yaml.safe_dump(documents[1]))
 
+    monkeypatch.setattr('sys.stdin.readline', lambda: "n")
+    cli('storage', 'delete', str(backend_id), '--container', 'Container')
+    assert backend_id in container_path.read_text()
+
     monkeypatch.setattr('sys.stdin.readline', lambda: "y")
     cli('storage', 'delete', str(backend_id), '--container', 'Container')
-
     assert backend_id not in container_path.read_text()
 
 
