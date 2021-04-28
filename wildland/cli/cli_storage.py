@@ -73,6 +73,11 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help="limit access to this storage to the provided users. "
                           "Default: same as the container."),
+        click.Option(['--encrypt-manifest/--no-encrypt-manifest'], default=True,
+                     required=False,
+                     help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
+                          "and --access cannot be used. For inline storage, "
+                          "container manifest might still be encrypted."),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -107,6 +112,7 @@ def _do_create(
         watcher_interval,
         base_url,
         access,
+        encrypt_manifest,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
@@ -139,7 +145,9 @@ def _do_create(
             'path': manifest_pattern,
         }
 
-    if access:
+    if not encrypt_manifest:
+        access = [{'user': '*'}]
+    elif access:
         access = [{'user': obj.client.load_object_from_name(
             WildlandObjectType.USER, user).owner} for user in access]
     else:
