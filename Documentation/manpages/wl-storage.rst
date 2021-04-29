@@ -12,7 +12,7 @@ Synopsis
 | :command:`wl {storage|storages} list`
 | :command:`wl storage create <type> --container <container> [-u|-n] [--user <user>] [<type-specific-options>] <storage>`
 | :command:`wl storage {sign|verify|edit} [...]`
-| :command:`wl storage create-from-set --storage-set <storage_set> <container>`
+| :command:`wl storage create-from-template --storage-template <storage_template> <container>`
 | :command:`wl storage modify {set-location} [...] <file>`
 
 Description
@@ -261,17 +261,17 @@ See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-du
 and :ref:`wl edit <wl-edit>` documentation.
 
 
-.. program:: wl-storage-create-from-set
-.. _wl-storage-create-from-set:
+.. program:: wl-storage-create-from-template
+.. _wl-storage-create-from-template:
 
-:command:`wl storage create-from-set --storage-set <storage_set> <container>`
+:command:`wl storage create-from-template --storage-template <storage_template> <container>`
 -----------------------------------------------------------------------------------------------
 
-Create storages for a given container based on the set provided.
+Create storages for a given container based on the storage template provided.
 
-.. option:: --storage-set <storage_set>, --set, -s
+.. option:: --storage-template <storage_template>, --template, -t
 
-   Storage template set to use. If not specified, will use user's default set (if available)
+   Storage template to use.
 
 .. option:: --local-dir <local_dir>
 

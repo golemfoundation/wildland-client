@@ -21,7 +21,7 @@
 Storage object
 """
 
-from typing import Type, Union, Tuple, List, Optional
+from typing import Type, Union, Tuple, List, Optional, Iterable
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse, urlunparse
 import functools
@@ -34,7 +34,7 @@ from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
 from ..container import Container
 from ..storage import Storage
-from ..manifest.template import TemplateManager
+from ..manifest.template import TemplateManager, StorageTemplate
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
@@ -310,24 +310,26 @@ def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[str,
             click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
 
 
-def do_create_storage_from_set(client, container, storage_set, local_dir):
+def do_create_storage_from_templates(
+        client,
+        container,
+        storage_templates: Iterable[StorageTemplate],
+        local_dir):
     """
-    Create storages for a container from a given StorageSet.
+    Create storages for a container from a given list of storage templates.
     :param client: Wildland client
     :param container: Wildland container
-    :param storage_set: StorageSet of manifest templates
+    :param storage_templates: list of storage templates
     :param local_dir: str to be passed to template renderer as a parameter, can be used by template
         creators
     """
-    if isinstance(storage_set, str):
-        template_manager = TemplateManager(client.dirs[WildlandObjectType.SET])
-        storage_set = template_manager.get_storage_set(storage_set)
+    to_process: List[Tuple[Storage, Optional[StorageBackend]]] = []
 
-    for file, t in storage_set.templates:
+    for template in storage_templates:
         try:
-            manifest = file.get_unsigned_manifest(container, local_dir)
+            manifest = template.get_unsigned_manifest(container, local_dir)
         except ValueError as ex:
-            click.echo(f'Failed to create manifest in template {file.file_name}: {ex}')
+            click.echo(f'Failed to create storage from storage template: {ex}')
             raise ex
 
         manifest.encrypt_and_sign(client.session.sig, encrypt=False)
@@ -337,6 +339,7 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
 
         storage_type = storage.params['type']
         storage_cls = StorageBackend.types()[storage_type]
+        backend = None
 
         if (storage_cls.LOCATION_PARAM and
             storage_cls.LOCATION_PARAM in storage.params and
@@ -346,65 +349,57 @@ def do_create_storage_from_set(client, container, storage_set, local_dir):
             orig_location = str(storage.params[storage_cls.LOCATION_PARAM])
 
             if client.is_url(orig_location):
-                uri      = urlparse(orig_location)
-                path     = Path(uri.path).resolve()
+                uri = urlparse(orig_location)
+                path = Path(uri.path).resolve()
                 location = urlunparse((uri.scheme, uri.netloc, str(path),
                                        uri.params, uri.query, uri.fragment))
             else:
-                path     = Path(orig_location)
+                path = Path(orig_location)
                 location = orig_location
 
             storage.params[storage_cls.LOCATION_PARAM] = str(location)
 
             backend = StorageBackend.from_params(storage.params)
 
-            # Ensure that base path actually exists
-            if storage.is_writeable:
-                try:
-                    with backend:
-                        backend.mkdir(PurePosixPath(path))
-                        click.echo(f"Created base path: {path}")
-                except Exception as ex:
-                    print(f"FAIL: {ex}")
+        to_process.append((storage, backend))
+
+    for storage, backend in to_process:
+        # Ensure that base path actually exists
+        if storage.is_writeable and backend:
+            try:
+                with backend:
+                    backend.mkdir(PurePosixPath(path))
+                    click.echo(f"Created base path: {path}")
+            except Exception as ex:
+                click.echo(f'WARN: Could not create base path {path} in a writable '
+                           f'storage [{backend.backend_id}]. {ex}')
 
         click.echo(f'Adding storage {storage.backend_id} to container.')
-        client.add_storage_to_container(container=container, storage=storage,
-                                        inline=(t == 'inline'), storage_name=storage_set.name)
+        client.add_storage_to_container(container=container, storage=storage, inline=True)
         click.echo(f'Saved container {container.local_path}')
 
 
-@storage_.command('create-from-set', short_help='create a storage from a set of templates',
+@storage_.command('create-from-template', short_help='create a storage from a storage template',
                   alias=['cs'])
-@click.option('--storage-set', '--set', '-s', multiple=False, required=False,
-              help='name of storage template set to use')
+@click.option('--storage-template', '--template', '-t', multiple=False, required=True,
+              help='name of storage template to use')
 @click.option('--local-dir', multiple=False, required=False,
               help='local directory to be passed to storage templates')
 @click.argument('cont', metavar='CONTAINER', required=True)
 @click.pass_obj
-def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
+def create_from_template(obj: ContextObj, cont, storage_template: str, local_dir=None):
     """
-    Setup storage for a container from a storage template set.
+    Setup storage for a container from a storage template.
     """
-
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
-
-    if not storage_set:
-        storage_set = obj.client.config.get('default-storage-set-for-user')\
-            .get(container.owner, None)
-        if not storage_set:
-            raise WildlandError(f'User {container.owner} has no default storage template set. '
-                                f'Specify template set explicitly.')
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
 
     try:
-        storage_set = template_manager.get_storage_set(storage_set)
-    except FileNotFoundError as fnf:
-        raise WildlandError(f'Storage set {storage_set} not found.') from fnf
+        storage_templates = template_manager.get_template_file_by_name(storage_template).templates
 
-    try:
-        do_create_storage_from_set(obj.client, container, storage_set, local_dir)
-    except ValueError:
-        pass
+        do_create_storage_from_templates(obj.client, container, storage_templates, local_dir)
+    except WildlandError as we:
+        raise CliError(f'Could not create storage from [{storage_template}] template. {we}') from we
 
 
 storage_.add_command(sign)

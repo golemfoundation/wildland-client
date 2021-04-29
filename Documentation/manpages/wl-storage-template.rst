@@ -11,12 +11,12 @@ Synopsis
 
 | :command:`wl storage-template list [--show-filenames]`
 | :command:`wl storage-template create <storage_type> [<storage_params>] NAME`
-| :command:`wl storage-template remove <storage_set>`
+| :command:`wl storage-template remove NAME`
 
 Description
 ===========
 
-Storage templates and their sets are a convenient tool to easily create storage manifests for
+Storage templates are a convenient tool to easily create storage manifests for
 containers.
 
 
@@ -81,20 +81,10 @@ Display known storage templates.
 .. program:: wl-storage-template-remove
 .. _wl-storage-template-remove:
 
-:command:`wl storage-template remove [--force] [--cascade] NAME`
-----------------------------------------------------------------
+:command:`wl storage-template remove NAME`
+------------------------------------------
 
-Delete a storage template from local filesystem. If attached to a storage set, you must use either
-`--force` or `--cascade` to delete it. Note that you can't use both options simultaneously.
-
-.. option:: --force
-
-    Force removing storage template if attached to a set.
-
-.. option:: --cascade
-
-    Remove storage template along with all storage sets attached to it.
-
+Delete a storage template from local filesystem.
 
 .. program:: wl-storage-template-create-local
 .. _wl-storage-template-create-local:

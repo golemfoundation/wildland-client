@@ -7,6 +7,9 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2021-04-28) Storage sets are now deprecated. Instead, storage templates now accept multiple
+  templates as an array of yaml objects
+
 * (2021-04-15) Renamed ``http-index`` storage backend to ``http``.
 
 * (2021-02-08) Rename --user to --owner in ``wl container create``.

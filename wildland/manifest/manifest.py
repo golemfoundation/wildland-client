@@ -48,7 +48,7 @@ class WildlandObjectType(enum.Enum):
     BRIDGE = 'bridge'
     STORAGE = 'storage'
     CONTAINER = 'container'
-    SET = 'set'
+    TEMPLATE = 'template'
     LINK = 'link'
 
 

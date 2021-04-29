@@ -73,14 +73,6 @@
             "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl mount'"
         },
 
-        "default-storage-set-for-user": {
-            "type": "object",
-            "description": "A dictionary of default storage set for each user",
-            "patternProperties": {
-                "^0x[a-f0-9]+$": { "type": "string" }
-            }
-        },
-
         "default-remote-for-container": {
             "type": "object",
             "description": "A dictionary of default remote storage for each container",
