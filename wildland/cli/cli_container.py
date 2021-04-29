@@ -606,13 +606,21 @@ def prepare_mount(obj: ContextObj,
 @click.pass_obj
 def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
           with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
-          infra: bool):
+          infrastructure: bool):
     """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
 
     The Wildland system has to be mounted first, see ``wl start``.
     """
+    _mount(obj, container_names, remount, save, import_users,
+           with_subcontainers, only_subcontainers, list_all, infrastructure)
+
+
+def _mount(obj: ContextObj, container_names,
+           remount: bool = True, save: bool = True, import_users: bool = True,
+           with_subcontainers: bool = True, only_subcontainers: bool = False,
+           list_all: bool = True, infrastructure: bool = False):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 
@@ -630,7 +638,7 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
                                    List[Iterable[PurePosixPath]], Container]] = []
         try:
             for container in obj.client.load_containers_from(
-                    container_name, include_user_infrastructure=infra):
+                    container_name, include_user_infrastructure=infrastructure):
                 counter += 1
                 if not list_all:
                     print(f"Loading containers. Loaded {counter}...", end='\r')
@@ -688,7 +696,11 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     Unmount a container. You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
     """
+    _unmount(obj, container_names, path, with_subcontainers)
 
+
+def _unmount(obj: ContextObj, container_names, path: Optional[str] = '',
+             with_subcontainers: bool = True):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 

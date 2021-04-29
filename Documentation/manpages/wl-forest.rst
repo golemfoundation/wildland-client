@@ -1,13 +1,21 @@
 .. program:: wl-forest
 .. _wl-forest:
 
+*************************************************
 :command:`wl forest` - Forest management commands
-=================================================
+*************************************************
 
 Synopsis
 ========
 
 | :command:`wl forest create <user> [<storage-set>]`
+| :command:`wl forest mount []`
+| :command:`wl forest unmount []`
+
+Description
+===========
+
+These are commands to manage forests.
 
 Commands
 ========
@@ -18,15 +26,7 @@ Commands
 :command:`wl forest create <user> [<storage-set>]`
 --------------------------------------------------
 
-Synopsis
---------
-
-| Usage: wl forest create [OPTIONS] USER [STORAGE_SET]
-
-Description
------------
-
-Bootstrap a new Forest for given USER.
+Bootstrap a new Forest for given `<user>`.
 You must have private key of that user in order to use this command.
 
 Arguments:
@@ -42,10 +42,7 @@ The storage set *must* contain a template with RW storage.
 After the container is created, the following steps take place:
 
 1. A link object to infrastructure container is generated and appended to USER's manifest.
-2. USER manifest and instracture manifest are copied to the storage from Forest manifests container
-
-Options
---------
+2. USER manifest and infrastructure manifest are copied to the storage from Forest manifests container
 
 .. option:: --access USER
 
@@ -55,3 +52,21 @@ Options
 .. option:: --manifest-local-dir PATH
 
    Set manifests storage local directory. Must be an absolute path. Default: `/`
+
+
+.. program:: wl-forest-mount
+.. _wl-forest-mount:
+
+:command:`wl forest mount <forest_name> [<forest_name>...]`
+-----------------------------------------------------------
+
+Mount a forest given by name or path to manifest.
+The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
+
+.. program:: wl-forest-unmount
+.. _wl-forest-unmount:
+
+:command:`wl forest unmount <forest_name> [<forest_name>...]`
+-------------------------------------------------------------
+
+Unmount a forest given by name or path to manifest.

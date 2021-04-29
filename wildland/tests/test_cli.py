@@ -774,6 +774,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
         '/PATH',
     ]
 
+
 def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -3461,6 +3462,101 @@ def test_forest_create(cli, tmp_path):
 
     assert Path(f'{uuid_dir}/users/Alice.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+
+
+def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location',
+        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+    cli('storage-set', 'add', '--inline', 'rw', 'my-set')
+    cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
+        'my_awesome_capsule', "--category", "/testing", "--storage-set",
+        "my-set", '--no-encrypt-manifest')
+    cli('bridge', 'create', '--owner', 'Alice', '--ref-user', 'Alice',
+        '--ref-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
+        '--ref-user-path', '/forests/Alice', 'self_bridge')
+    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+    cli('container', 'publish', 'mycapsule')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('forest', 'mount', ':/forests/Alice:')
+    command = control_client.calls['mount']['items']
+
+    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    infra_dirs = list(infra_path.glob('*'))
+    infra_uuid_dir = str(infra_dirs[0])
+
+    with open(f'{infra_uuid_dir}/.manifests.yaml') as f:
+        documents = list(load_yaml_all(f))
+    infra_uuid_path = documents[1]['paths'][0]
+    infra_uuid = get_container_uuid_from_uuid_path(infra_uuid_path)
+    infra_backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    with open(base_dir / 'containers/mycapsule.container.yaml') as f:
+        documents = list(load_yaml_all(f))
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    all_paths = command[0]['paths'] + command[1]['paths']
+    expected_paths = {f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+                      f'/.users/0xaaa:/.backends/{infra_uuid}/{infra_backend_id}',
+                      '/.users/0xaaa:/.manifests',
+                      f'/.users/0xaaa:/.uuid/{uuid}',
+                      f'/.users/0xaaa:/.uuid/{infra_uuid}',
+                      '/.users/0xaaa:/testing/my_awesome_capsule'}
+    assert expected_paths == set(all_paths)
+    info = {
+        "infra_uuid": infra_uuid,
+        "infra_backend_id": infra_backend_id,
+        "uuid": uuid,
+        "backend_id": backend_id,
+        "infra_path": ".manifests",
+        "path": "testing/my_awesome_capsule"
+    }
+    return info
+
+
+def test_forest_mount(cli, tmp_path, base_dir, control_client):
+    _setup_forest_and_mount(cli, tmp_path, base_dir, control_client)
+
+
+def test_forest_unmount(cli, tmp_path, base_dir, control_client):
+    info = _setup_forest_and_mount(cli, tmp_path, base_dir, control_client)
+    control_client.expect('paths', {
+                f'/.users/0xaaa:/.backends/{info["uuid"]}/{info["backend_id"]}': [101],
+                f'/.users/0xaaa:/.uuid/{info["uuid"]}': [102],
+                f'/.users/0xaaa:/{info["path"]}': [103],
+                f'/.users/0xaaa:/.backends/{info["infra_uuid"]}/{info["infra_backend_id"]}': [104],
+                f'/.users/0xaaa:/.uuid/{info["infra_uuid"]}': [105],
+                f'/.users/0xaaa:/{info["infra_path"]}': [106]
+            })
+    control_client.expect('info', {
+        '1': {
+            'paths': [
+                f'/.users/0xaaa:/.backends/{info["uuid"]}/{info["backend_id"]}',
+                f'/.users/0xaaa:/.uuid/{info["uuid"]}',
+                f'/.users/0xaaa:/{info["path"]}'
+            ],
+            'type': 'local',
+            'extra': {},
+        },
+        '2': {
+            'paths': [
+                f'/.users/0xaaa:/.backends/{info["infra_uuid"]}/{info["infra_backend_id"]}',
+                f'/.users/0xaaa:/.uuid/{info["infra_uuid"]}',
+                f'/.users/0xaaa:/{info["infra_path"]}'
+            ],
+            'type': 'local',
+            'extra': {},
+        },
+    })
+    control_client.expect('unmount')
+    cli('forest', 'unmount', ':/forests/Alice:')
 
 
 def test_forest_create_check_for_published_infra(cli, tmp_path):
