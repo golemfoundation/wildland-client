@@ -421,7 +421,9 @@ class Client:
              if ustep.user is not None])
 
     def load_containers_from(self, name: Union[str, WildlandPath],
-                             aliases: Optional[dict] = None) -> Iterator[Container]:
+                             aliases: Optional[dict] = None,
+                             include_user_infrastructure: bool = False,
+                             ) -> Iterator[Container]:
         """
         Load a list of containers. Currently supports WL paths, glob patterns (*) and
         tilde (~), but only in case of local files.
@@ -439,6 +441,8 @@ class Client:
                     aliases = self.config.aliases
                 search = Search(self, wlpath, aliases)
                 for final_step in search.resolve_raw():
+                    if final_step.user and not include_user_infrastructure:
+                        continue
                     if final_step.container is None:
                         continue
                     self.recognize_users_from_search(final_step)

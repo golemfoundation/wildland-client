@@ -600,10 +600,13 @@ def prepare_mount(obj: ContextObj,
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all containers, including those who '
                    'did not need to be changed')
+@click.option('--infra', '-i', is_flag=True, default=False,
+              help='Allow to mount infrastructure container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
 def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
-          with_subcontainers: bool, only_subcontainers: bool, list_all: bool):
+          with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
+          infra: bool):
     """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -626,7 +629,8 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
         current_params: List[Tuple[Container, List[Storage],
                                    List[Iterable[PurePosixPath]], Container]] = []
         try:
-            for container in obj.client.load_containers_from(container_name):
+            for container in obj.client.load_containers_from(
+                    container_name, include_user_infrastructure=infra):
                 counter += 1
                 if not list_all:
                     print(f"Loading containers. Loaded {counter}...", end='\r')

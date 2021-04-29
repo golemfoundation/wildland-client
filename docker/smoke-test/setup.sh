@@ -72,5 +72,8 @@ wl c publish work-qubesos
 wl c publish work-debian
 wl c publish work-wildland
 
+# mount forest infra container
+wl c mount --infra :/forests/User:
+
 # mount all
 wl c mount :/forests/User:*:

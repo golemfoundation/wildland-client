@@ -228,6 +228,10 @@ avoided.
    During mount, list all the containers to be mounted and result of mount (changed/not changed).
    Can be very long in case of Wildland paths or numerous subcontainers.
 
+.. option:: -i, --infra
+
+   Allow to mount infrastructure container.
+
 .. program:: wl-container-mount-watch
 .. _wl-container-mount-watch:
 
