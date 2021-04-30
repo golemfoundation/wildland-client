@@ -29,6 +29,7 @@ RUN apt-get -qy update && apt-get install -y \
       tmux \
       screen \
       jq \
+      procps \
       gocryptfs \
       encfs
 

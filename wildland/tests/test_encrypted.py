@@ -109,13 +109,13 @@ def test_encrypted_with_url(cli, base_dir, engine):
     ft2 = open(mounted_plaintext / 'leak.test', 'w')
 
     if engine == 'gocryptfs':
-        subprocess.run(['pidof gocryptfs | xargs kill'], shell=True, check=True)
+        subprocess.run(['pkill gocryptfs'], shell=True, check=True)
         time.sleep(1)
         with pytest.raises(FileNotFoundError):
             ft2.write("2" * 10000)
 
     if engine == 'encfs':
-        subprocess.run(['pidof encfs | xargs kill -9'], shell=True, check=True)
+        subprocess.run(['pkill --signal 9 encfs'], shell=True, check=True)
         time.sleep(1)
         with pytest.raises(OSError):
             ft2.write("2" * 10000)
