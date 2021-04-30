@@ -27,9 +27,11 @@ import subprocess
 import tempfile
 from subprocess import Popen, PIPE
 from pathlib import PurePosixPath, Path
+import datetime
 import logging
 import secrets
 import string
+import time
 from typing import Dict, List, Optional, Type
 
 import click
@@ -75,7 +77,7 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     # pylint: disable=subprocess-run-check
-    def stop(self):
+    def stop(self) -> int:
         '''
         Unmount.
         '''
@@ -89,7 +91,7 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
         unmounted_msg = 'fusermount: entry for ' + str(self.cleartextdir) + ' not found in '
         if cproc.stderr.decode().find(unmounted_msg) > -1:
             return 0
-        raise WildlandFSError('Unmounting failed: mount point is busy')
+        return cproc.returncode
 
     @abc.abstractmethod
     def credentials(self) -> str:
@@ -246,6 +248,7 @@ class GoCryptFS(EncryptedFSRunner):
     topdiriv: bytes
     ciphertextdir: PurePosixPath
     cleartextdir: Optional[PurePosixPath]
+    started_at: Optional[datetime.datetime]
 
     def __init__(self, tmpdir: PurePosixPath,
                  ciphertextdir: PurePosixPath,
@@ -303,6 +306,21 @@ class GoCryptFS(EncryptedFSRunner):
             if len(out.decode()) > 0:
                 logger.error(out.decode())
             raise WildlandFSError("Can't mount gocryptfs")
+        self.started_at = datetime.datetime.now()
+
+    def stop(self) -> int:
+        '''
+        Unmount.
+
+        Handles gocryptfs being unresponsive immediately after mounting.
+        '''
+        if self.started_at is not None:
+            earliest_unmount = self.started_at + datetime.timedelta(seconds=1)
+            delta = (earliest_unmount - datetime.datetime.now()) / datetime.timedelta(seconds=1)
+            if delta > 0:
+                time.sleep(delta)
+        return super().stop()
+
 
     @classmethod
     def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, _) -> 'GoCryptFS':
@@ -535,5 +553,6 @@ class EncryptedStorageBackend(StorageBackend):
     def unmount(self) -> None:
         if self.engine_obj is not None:
             self.local.request_unmount()
-            self.engine_obj.stop()
+            if self.engine_obj.stop() != 0:
+                raise WildlandFSError('Unmounting failed: mount point is busy')
             self.engine_obj = None
