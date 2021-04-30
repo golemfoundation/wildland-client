@@ -23,6 +23,7 @@ import time
 import subprocess
 import uuid
 import zlib
+import shutil
 
 import pytest
 
@@ -120,6 +121,12 @@ def test_encrypted_with_url(cli, base_dir, engine):
             ft2.write("2" * 10000)
 
     time.sleep(1) # otherwise "unmount: /tmp/.../mnt: target is busy"
+
+def test_encfs_binary():
+    assert shutil.which('encfs') is not None, "EncFS is not installed!"
+
+def test_gocryptfs_binary():
+    assert shutil.which('gocryptfs') is not None, "Gocryptfs is not installed!"
 
 def mount_containers(obj, to_mount):
     commands = []
