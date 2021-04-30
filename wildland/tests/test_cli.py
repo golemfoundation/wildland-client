@@ -2900,7 +2900,7 @@ def test_cli_remove_nonexisting_storage_template(cli):
 
 def test_appending_to_existing_storage_template(cli, base_dir):
     cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
-    cli('storage-template', 'create', 'local', '--location', '/bar', '--read-only', 't1')
+    cli('storage-template', 'add', 'local', '--location', '/bar', '--read-only', 't1')
 
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
         read_data = load_yaml(f)
@@ -2913,6 +2913,18 @@ def test_appending_to_existing_storage_template(cli, base_dir):
             'location': '/bar{{ local_dir if local_dir is defined else \'/\' }}/{{ uuid }}',
             'read-only': True
         }]
+
+
+def test_create_existing_template(cli):
+    cli('storage-template', 'create', 'local', '--location', '/foo', 't1')
+
+    with pytest.raises(CliError, match='already exists'):
+        cli('storage-template', 'create', 'local', '--location', '/bar', 't1')
+
+
+def test_append_non_existing_template(cli):
+    with pytest.raises(CliError, match='does not exist'):
+        cli('storage-template', 'add', 'local', '--location', '/foo', 't1')
 
 
 def test_template_parsing(cli, base_dir):
@@ -3370,7 +3382,7 @@ def test_forest_create(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
@@ -3392,7 +3404,7 @@ def test_forest_create_check_for_published_infra(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
@@ -3420,7 +3432,7 @@ def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--base-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
@@ -3454,7 +3466,7 @@ def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--base-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', 'Alice', 'forest-tpl')
@@ -3492,7 +3504,7 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
     # Both storages are writable, first one will take default manifest pattern
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
@@ -3514,7 +3526,7 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
     # First storage is not read-only, the second storage takes precedence with its custom template
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         '--read-only', 'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
@@ -3537,7 +3549,7 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     # the second storage takes precedence with the default manifest pattern
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', '--read-only', 'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
@@ -3560,7 +3572,7 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
     # the second storage takes precedence with the default manifest pattern
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', '--read-only', 'forest-tpl')
-    cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
+    cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
