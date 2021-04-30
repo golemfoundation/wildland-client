@@ -36,8 +36,8 @@ Display known storages.
 .. program:: wl-storage-delete
 .. _wl-storage-delete:
 
-:command:`wl storage delete [--force] [--no-cascade] [--container] NAME`
-------------------------------------------------------------------------
+:command:`wl storage delete [--force] [--no-cascade] [--container <container>] NAME`
+------------------------------------------------------------------------------------
 
 Delete a storage from local filesystem.
 
@@ -50,7 +50,7 @@ Delete a storage from local filesystem.
 
    Do not delete the reference to storage from containers.
 
-.. option:: --container
+.. option:: --container <container>
 
    Chose container from which the storage will be removed. (Required if NAME is ambiguous.)
 
