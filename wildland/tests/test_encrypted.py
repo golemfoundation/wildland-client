@@ -34,6 +34,7 @@ from ..client import Client
 
 from ..cli.cli_base import ContextObj
 from ..cli.cli_main import _do_mount_containers
+from ..manifest.manifest import WildlandObjectType
 
 def test_encrypted_with_url_and_gocryptfs(cli, base_dir):
     local_dir = base_dir / 'local'
@@ -60,7 +61,7 @@ def test_encrypted_with_url_and_gocryptfs(cli, base_dir):
     obj.fs_client = client.fs_client
 
     # But select_storage loads also the reference manifest
-    container = client.load_container_from('Container')
+    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container')
     storage = client.select_storage(container)
     assert storage.storage_type == 'encrypted'
     assert storage.params['symmetrickey']
@@ -127,7 +128,7 @@ def test_encrypted_with_url_and_encfs(cli, base_dir):
     obj.fs_client = client.fs_client
 
     # But select_storage loads also the reference manifest
-    container = client.load_container_from('Container')
+    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container')
     storage = client.select_storage(container)
     assert storage.storage_type == 'encrypted'
     assert storage.params['symmetrickey']
