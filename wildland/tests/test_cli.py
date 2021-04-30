@@ -2846,7 +2846,7 @@ def test_cli_storage_template_create(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
             'read-only': False
         }]
 
@@ -2861,7 +2861,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
             'read-only': False,
             'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]
         }]
@@ -2873,7 +2873,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
             'read-only': False,
             'access': [{'user': '*'}]
         }]
@@ -2906,11 +2906,11 @@ def test_appending_to_existing_storage_template(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else \'/\' }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
             'read-only': False
         }, {
             'type': 'local',
-            'location': '/bar{{ local_dir if local_dir is defined else \'/\' }}/{{ uuid }}',
+            'location': '/bar{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
             'read-only': True
         }]
 

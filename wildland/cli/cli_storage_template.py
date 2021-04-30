@@ -148,7 +148,7 @@ def _do_create(
 
     if base_url:
         params['base-url'] = base_url.rstrip('/') + \
-                                "{{ local_dir if local_dir is defined else '/' }}/{{ uuid }}"
+                                '{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}'
 
     # remove default, non-required values
     for param, value in list(params.items()):
