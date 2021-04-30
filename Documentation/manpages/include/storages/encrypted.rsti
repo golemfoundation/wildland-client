@@ -1,3 +1,7 @@
 .. option:: --reference-container-url <url>
 
    Inner container URL for this storage. Required.
+
+.. option:: --engine <ENGINE>
+
+   Cryptographic filesystem to use. Choices are: EncFS or GoCryptFS.
