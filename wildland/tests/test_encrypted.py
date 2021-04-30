@@ -140,7 +140,7 @@ def test_encrypted_with_url_and_encfs(cli, base_dir):
     # start and check if engine is running
     user = client.users['0xaaa']
     client.fs_client.mount(single_thread=False, default_user=user)
-    to_mount = ['Container']
+    to_mount = ['referenceContainer', 'Container']
     _do_mount_containers(obj, to_mount)
     subprocess.run(['pidof', 'encfs'], check=True)
 
@@ -156,9 +156,9 @@ def test_encrypted_with_url_and_encfs(cli, base_dir):
 
     # check if ciphertext directory looks familiar
     listing = os.listdir(local_dir)
-    assert len(listing) == 2
-    assert '.encfs6.xml' in listing
-    listing.remove('.encfs6.xml')
+    assert len(listing) > 1
+    listing_set = set(listing) - set(['gocryptfs.conf', 'gocryptfs.diriv', '.encfs6.xml'])
+    listing = list(listing_set)
 
     # read and examine entropy of ciphertext file
     with open(local_dir / listing[0], 'rb') as fb:

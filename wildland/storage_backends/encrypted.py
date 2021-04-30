@@ -178,10 +178,10 @@ class EncFS(EncryptedFSRunner):
         self.cleartextdir = cleartextdir
         self._write_config(inner_storage)
         args = ['--stdinpass', str(self.ciphertextdir), str(self.cleartextdir)]
-        sp, err = self._run_binary(self.opts + args)
+        sp, err = self.run_binary(self.opts + args)
         if sp.returncode != 0:
             errmsg = "Failed to mount encrypted filesystem. %s exit code: %s."
-            logger.error(errmsg, self.binary, sp.errorcode)
+            logger.error(errmsg, self.binary, sp.returncode)
             if len(err.decode()) > 0:
                 logger.error(err.decode())
             raise WildlandFSError("Can't mount encfs")
@@ -198,7 +198,7 @@ class EncFS(EncryptedFSRunner):
         encfs = cls(tempdir, ciphertextdir, None)
         encfs.password = generate_password(30)
         options = encfs.opts + ['--stdinpass', str(encfs.ciphertextdir), str(cleartextdir)]
-        sp, err = encfs._run_binary(options)
+        sp, err = encfs.run_binary(options)
         if sp.returncode != 0:
             logger.error("Failed to initialize encfs encrypted filesystem.")
             if len(err.decode()) > 0:
@@ -210,7 +210,10 @@ class EncFS(EncryptedFSRunner):
         encfs.stop() # required, since encfs has the same command for initialization and mounting
         return encfs
 
-    def _run_binary(self, cmd):
+    def run_binary(self, cmd):
+        '''
+        For internal use only.
+        '''
         cmd = [self.binary] + cmd
         sp = Popen(cmd, stdin=PIPE, stderr=PIPE, stdout=PIPE)
         (_, err) = sp.communicate(input=self.password.encode())
@@ -284,7 +287,7 @@ class GoCryptFS(EncryptedFSRunner):
     def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
         self.cleartextdir = cleartextdir
         self._write_config(inner_storage)
-        out = self._run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
+        out = self.run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
         if out.decode().find('Filesystem mounted and ready.') == -1:
             errmsg = "Failed to mount %s encrypted filesystem"
             logger.error(errmsg, self.binary)
@@ -302,7 +305,7 @@ class GoCryptFS(EncryptedFSRunner):
         '''
         gcfs = cls(tempdir, ciphertextdir, None)
         gcfs.password = generate_password(30)
-        out = gcfs._run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
+        out = gcfs.run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
         assert out.decode().find('filesystem has been created successfully') > -1
         with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.conf') as tf:
             gcfs.config = tf.read()
@@ -310,7 +313,10 @@ class GoCryptFS(EncryptedFSRunner):
             gcfs.topdiriv = bf.read()
         return gcfs
 
-    def _run_binary(self, cmd1, cmd2):
+    def run_binary(self, cmd1, cmd2):
+        '''
+        For internal use only.
+        '''
         passwordpipe = self.tmpdir / 'password-pipe'
         try:
             os.mkfifo(passwordpipe)
@@ -461,6 +467,7 @@ class EncryptedStorageBackend(StorageBackend):
                 'engine': data['engine']
                 }
 
+    # pylint: disable=protected-access
     def open(self, path: PurePosixPath, flags: int) -> File:
         if self.local.ignore_own_events and self.local.watcher_instance:
             return FileOnAMount(path, self.local._path(path), flags,
