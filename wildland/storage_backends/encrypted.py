@@ -413,15 +413,10 @@ class EncryptedStorageBackend(StorageBackend):
 
         alphabet = string.ascii_letters + string.digits
         mountid = ''.join(secrets.choice(alphabet) for i in range(15))
-        tmpdir = PurePosixPath(os.getenv('XDG_RUNTIME_DIR', '/tmp/')) / 'wl' / 'encrypted'
+        tmpdir = PurePosixPath(tempfile.mkdtemp())
         self.tmpdir_path =  tmpdir / mountid / self.engine
+        self.cleartext_path = tmpdir / mountid / 'cleartext'
         Path(self.tmpdir_path).mkdir(parents=True)
-        # Specification says that XDG_RUNTIME_DIR might be cleaned up automatically every 6 hours.
-        # That would mean data loss if container is mounted. Thus cleartext is mounted to /tmp/...
-        # Specification offers workarounds (updating timestamps, setting sticky bit) but they
-        # don't look good since they interefe with user's data.
-        # https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-        self.cleartext_path = PurePosixPath('/tmp') / 'wl' / 'encrypted' / mountid / 'cleartext'
         Path(self.cleartext_path).mkdir(parents=True)
         local_params = {'location': self.cleartext_path,
                         'type': 'local',
