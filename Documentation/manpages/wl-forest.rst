@@ -66,7 +66,12 @@ The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
 .. program:: wl-forest-unmount
 .. _wl-forest-unmount:
 
-:command:`wl forest unmount <forest_name> [<forest_name>...]`
--------------------------------------------------------------
+
+:command:`wl forest unmount [--path] <forest_name> [<forest_name>...]`
+----------------------------------------------------------------------
 
 Unmount a forest given by name or path to manifest.
+
+.. option:: --path <path>
+
+   Mount path to search for.

@@ -62,19 +62,19 @@ def mount(ctx: click.Context, forest_names):
 
     forests = []
     for forest_name in forest_names:
-        wlpath = WildlandPath.from_str(forest_name)
-        if not wlpath:
+        if forest_name.endswith('*:') or not forest_name.endswith(':'):
             raise WildlandError(
-                f'Failed to parse forest pattern: {forest_name}')
-        wlpath.append('*')
-        forests.append(str(wlpath))
+                f'Failed to parse forest name: {forest_name}. '
+                f'For example, ":/forests/User:" is a valid forest name')
+        forests.append(f'{forest_name}*:')
     mount_container(obj, forests)
 
 
 @forest_.command(short_help='Unmount Wildland Forest')
+@click.option('--path', metavar='PATH', help='mount path to search for')
 @click.argument('forest_names', nargs=-1, required=True)
 @click.pass_context
-def unmount(ctx: click.Context, forest_names):
+def unmount(ctx: click.Context, path: str, forest_names):
     """
     Unmount a forest given by name or path to manifest. Repeat the argument to
     unmount multiple forests.
@@ -85,13 +85,12 @@ def unmount(ctx: click.Context, forest_names):
 
     forests = []
     for forest_name in forest_names:
-        wlpath = WildlandPath.from_str(forest_name)
-        if not wlpath:
+        if forest_name.endswith('*:') or not forest_name.endswith(':'):
             raise WildlandError(
-                f'Failed to parse forest pattern: {forest_name}')
-        wlpath.append('*')
-        forests.append(str(wlpath))
-    unmount_container(obj, forests)
+                f'Failed to parse forest name: {forest_name}. '
+                f'For example, ":/forests/User:" is a valid forest name')
+        forests.append(f'{forest_name}*:')
+    unmount_container(obj, path=path, container_names=forests)
 
 
 @forest_.command(short_help='Bootstrap Wildland Forest')

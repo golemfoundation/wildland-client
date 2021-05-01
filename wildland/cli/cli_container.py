@@ -600,7 +600,7 @@ def prepare_mount(obj: ContextObj,
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all containers, including those who '
                    'did not need to be changed')
-@click.option('--infra', '-i', is_flag=True, default=False,
+@click.option('--infrastructure', '-i', is_flag=True, default=False,
               help='Allow to mount infrastructure container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
@@ -696,11 +696,10 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     Unmount a container. You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
     """
-    _unmount(obj, container_names, path, with_subcontainers)
+    _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers)
 
 
-def _unmount(obj: ContextObj, container_names, path: Optional[str] = '',
-             with_subcontainers: bool = True):
+def _unmount(obj: ContextObj, container_names, path: str, with_subcontainers: bool = True):
     obj.fs_client.ensure_mounted()
     obj.client.recognize_users()
 

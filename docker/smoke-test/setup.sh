@@ -73,7 +73,7 @@ wl c publish work-debian
 wl c publish work-wildland
 
 # mount forest infra container
-wl c mount --infra :/forests/User:
+wl c mount --infrastructure :/forests/User:
 
 # mount all
 wl c mount :/forests/User:*:
