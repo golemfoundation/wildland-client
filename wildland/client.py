@@ -124,7 +124,7 @@ class Client:
         # _instance_ being added multiple times
         self.bridges: Set[Bridge] = set()
 
-        self._select_reference_storage_cache = {}
+        self._select_reference_storage_cache: Dict[Tuple[str, str, bool], Optional[Dict]] = {}
 
         if load:
             self.recognize_users_and_bridges()
