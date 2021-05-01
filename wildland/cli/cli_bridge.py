@@ -90,6 +90,7 @@ def create(obj: ContextObj,
         owner=owner_user.owner,
         user_location=ref_user_location,
         user_pubkey=ref_user.primary_pubkey,
+        user_id=obj.client.session.sig.fingerprint(ref_user.primary_pubkey),
         paths=paths,
     )
     path = obj.client.save_new_object(WildlandObjectType.BRIDGE,

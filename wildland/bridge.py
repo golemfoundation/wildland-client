@@ -26,6 +26,7 @@ from typing import Optional, List, Iterable, Union
 
 from .manifest.manifest import Manifest, WildlandObjectType
 from .manifest.schema import Schema
+from .manifest.sig import SigContext
 
 
 class Bridge:
@@ -40,18 +41,21 @@ class Bridge:
                  owner: str,
                  user_location: Union[str, dict],
                  user_pubkey: str,
+                 user_id: str,
                  paths: Iterable[PurePosixPath],
                  local_path: Optional[Path] = None,
                  manifest: Manifest = None):
         self.owner = owner
         self.user_location = user_location
         self.user_pubkey = user_pubkey
+        self.user_id = user_id
         self.paths: List[PurePosixPath] = list(paths)
         self.local_path = local_path
         self.manifest = manifest
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, local_path=None) -> "Bridge":
+    def from_manifest(cls, manifest: Manifest, sig_context: SigContext,
+                      local_path=None) -> "Bridge":
         """
         Construct a Container instance from a manifest.
         """
@@ -61,6 +65,7 @@ class Bridge:
             owner=manifest.fields['owner'],
             user_location=manifest.fields['user'],
             user_pubkey=manifest.fields['pubkey'],
+            user_id=sig_context.fingerprint(manifest.fields['pubkey']),
             paths=[PurePosixPath(p) for p in manifest.fields['paths']],
             local_path=local_path,
             manifest=manifest

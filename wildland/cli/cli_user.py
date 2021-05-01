@@ -317,6 +317,7 @@ def _do_process_imported_manifest(
             owner=default_user,
             user_location=manifest_url,
             user_pubkey=user.primary_pubkey,
+            user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
             paths=(paths if paths else user.paths),
         )
 
@@ -324,7 +325,7 @@ def _do_process_imported_manifest(
         bridge_path = obj.client.save_new_object(WildlandObjectType.BRIDGE, bridge, name, None)
         click.echo(f'Created: {bridge_path}')
     else:
-        bridge = Bridge.from_manifest(manifest)
+        bridge = Bridge.from_manifest(manifest, obj.client.session.sig)
         # adjust imported bridge
         if paths:
             bridge.paths = list(paths)
@@ -380,6 +381,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                     owner=default_user,
                     user_location=bridge.user_location,
                     user_pubkey=bridge.user_pubkey,
+                    user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
                     paths=paths or bridge.paths,
                 )
                 bridge_name = name.replace(WILDLAND_URL_PREFIX, '')

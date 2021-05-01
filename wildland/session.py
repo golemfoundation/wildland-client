@@ -77,7 +77,7 @@ class Session:
             return User.from_manifest(manifest, owner_pubkey, local_path)
 
         if object_type == WildlandObjectType.BRIDGE:
-            return Bridge.from_manifest(manifest, local_path)
+            return Bridge.from_manifest(manifest, self.sig, local_path)
 
         if object_type == WildlandObjectType.STORAGE:
             return Storage.from_manifest(manifest, local_path, local_owners=local_owners)
