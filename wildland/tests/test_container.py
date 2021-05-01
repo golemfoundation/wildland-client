@@ -45,7 +45,6 @@ def setup(base_dir, cli):
 def client(setup, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
     return client
 
 
@@ -130,7 +129,6 @@ def test_users_additional_pubkeys(cli, base_dir):
     cli('user', 'create', 'User3', '--key', '0xccc', '--add-pubkey', 'key.0xddd')
 
     client = Client(base_dir=base_dir)
-    client.recognize_users()
 
     assert set(client.session.sig.get_possible_owners('0xaaa')) == {'0xaaa'}
     assert set(client.session.sig.get_possible_owners('0xbbb')) == {'0xbbb', '0xaaa'}

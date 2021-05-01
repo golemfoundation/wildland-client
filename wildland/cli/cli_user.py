@@ -131,8 +131,6 @@ def list_(obj: ContextObj):
     Display known users.
     """
 
-    obj.client.recognize_users()
-
     default_user = obj.client.config.get('@default')
     default_owner = obj.client.config.get('@default-owner')
     default_override = (default_user != obj.client.config.get('@default', use_override=False))
@@ -172,8 +170,6 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
     """
     Delete a user.
     """
-
-    obj.client.recognize_users()
 
     user = obj.client.load_object_from_name(WildlandObjectType.USER, name)
 
@@ -422,8 +418,6 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
     # collect information on (potentially) multiple objects created
 
-    obj.client.recognize_users()
-
     import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
 
 
@@ -435,7 +429,6 @@ def user_refresh(obj: ContextObj, name):
     """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
-    obj.client.recognize_users()
     user = obj.client.load_object_from_name(WildlandObjectType.USER, name) if name else None
 
     for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):

@@ -40,7 +40,7 @@ from .container import Container
 from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath, PathError
-from .manifest.sig import DummySigContext, SodiumSigContext
+from .manifest.sig import DummySigContext, SodiumSigContext, SigContext
 from .manifest.manifest import ManifestError, Manifest, WildlandObjectType
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
@@ -63,11 +63,21 @@ class Client:
 
     def __init__(
             self,
-            base_dir=None,
-            sig=None,
-            config=None,
+            base_dir: PurePosixPath = None,
+            sig: SigContext = None,
+            config: Config = None,
+            load: bool = True,
             **config_kwargs
     ):
+        """
+        A high-level interface for operating on Wildland objects.
+
+        :param base_dir: base directory (``~/.config/wildland`` by default)
+        :param sig: SigContext to use
+        :param config: config object
+        :param load: Load initial state (users, bridges etc)
+        :param config_kwargs: Override select config options
+        """
         if config is None:
             config = Config.load(base_dir)
             config.override(**config_kwargs)
@@ -113,6 +123,9 @@ class Client:
 
         self._select_reference_storage_cache = {}
 
+        if load:
+            self.recognize_users()
+
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         """
         Create a copy of the current Client, with a public key imported.
@@ -121,7 +134,7 @@ class Client:
 
         sig = self.session.sig.copy()
         owner = sig.add_pubkey(pubkey)
-        return Client(config=self.config, sig=sig), owner
+        return Client(config=self.config, sig=sig, load=False), owner
 
     def recognize_users(self, users: Optional[Iterable[User]] = None):
         """
@@ -533,7 +546,7 @@ class Client:
             # where it could be dangerous
             sig = self.session.sig.copy()
             sig.recognize_local_keys()
-            client = Client(config=self.config, sig=sig)
+            client = Client(config=self.config, sig=sig, load=False)
         else:
             client = self
 

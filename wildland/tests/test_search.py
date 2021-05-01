@@ -180,7 +180,6 @@ def setup(base_dir, cli):
 def client(setup, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
     return client
 
 
@@ -379,7 +378,6 @@ def setup_pattern(request, base_dir, cli):
 def test_read_container_traverse_pattern(setup_pattern, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
 
     search = Search(client, WildlandPath.from_str(':/path:/path1:'),
         aliases={'default': '0xaaa'})
@@ -394,7 +392,6 @@ def test_read_container_traverse_pattern(setup_pattern, base_dir):
 def test_read_container_wildcard(setup_pattern, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
 
     search = Search(client, WildlandPath.from_str(':/path:*:'),
         aliases={'default': '0xaaa'})
@@ -930,7 +927,6 @@ def two_users_infra(base_dir, cli, control_client):
 def client2(two_users_infra, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
     return client
 
 

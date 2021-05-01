@@ -99,7 +99,6 @@ def _boostrap_forest(ctx: click.Context,
                      manifest_storage_set_name: str = None):
 
     obj: ContextObj = ctx.obj
-    obj.client.recognize_users()
 
     # Load users manifests
     try:

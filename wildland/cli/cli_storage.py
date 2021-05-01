@@ -111,8 +111,6 @@ def _do_create(
 
     obj: ContextObj = click.get_current_context().obj
 
-    obj.client.recognize_users()
-
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     if not container.local_path:
         raise WildlandError('Need a local container')
@@ -172,8 +170,6 @@ def list_(obj: ContextObj):
     Display known storages.
     """
 
-    obj.client.recognize_users()
-
     for storage in obj.client.load_all(WildlandObjectType.STORAGE):
         click.echo(storage.local_path)
         click.echo(f'  type: {storage.storage_type}')
@@ -210,8 +206,6 @@ def delete(obj: ContextObj, name, force, cascade):
     """
     Delete a storage.
     """
-
-    obj.client.recognize_users()
 
     try:
         storage = obj.client.load_object_from_name(WildlandObjectType.STORAGE, name)
@@ -341,7 +335,6 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
     Setup storage for a container from a storage template set.
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
@@ -398,8 +391,6 @@ def add_access(ctx: click.Context, input_file, access):
     """
     Add category to the manifest.
     """
-    ctx.obj.client.recognize_users()
-
     processed_access = []
 
     try:
@@ -421,8 +412,6 @@ def del_access(ctx: click.Context, input_file, access):
     """
     Remove category from the manifest.
     """
-    ctx.obj.client.recognize_users()
-
     processed_access = []
 
     try:

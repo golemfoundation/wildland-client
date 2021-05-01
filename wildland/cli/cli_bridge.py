@@ -64,8 +64,6 @@ def create(obj: ContextObj,
     Create a new bridge manifest.
     """
 
-    obj.client.recognize_users()
-
     owner_user = obj.client.load_object_from_name(WildlandObjectType.USER,
                                                   owner or '@default-owner')
 
@@ -106,7 +104,6 @@ def list_(obj: ContextObj):
     Display known bridges.
     """
 
-    obj.client.recognize_users()
     for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):
         click.echo(bridge.local_path)
 
@@ -141,7 +138,6 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Optionally override bridge paths with paths provided via --paths.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
-    obj.client.recognize_users()
 
     import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
 

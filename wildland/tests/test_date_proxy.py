@@ -47,7 +47,6 @@ def test_date_proxy_with_url(cli, base_dir):
         '--container', 'Container', '--no-inline')
 
     client = Client(base_dir)
-    client.recognize_users()
 
     # When loaded directly, the storage manifest contains container URL...
     storage = client.load_object_from_name(WildlandObjectType.STORAGE, 'ProxyStorage')
@@ -182,7 +181,6 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
               int(datetime(2008, 2, 3, 10, 30).timestamp())))
 
     client = Client(base_dir)
-    client.recognize_users()
 
     container = client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     subcontainers = list(client.all_subcontainers(container))
@@ -214,7 +212,6 @@ def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
               int(datetime(2008, 2, 3, 10, 30).timestamp())))
 
     client = Client(base_dir)
-    client.recognize_users()
 
     container = client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     for subcontainer in client.all_subcontainers(container):

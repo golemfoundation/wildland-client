@@ -486,6 +486,7 @@ class Search:
                                location, str(ex))
                 return
         assert isinstance(user, User)
+        next_client.recognize_users([user])
         yield from self._user_step(
             user, next_owner, next_client, bridge, step)
 
