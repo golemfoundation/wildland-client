@@ -232,7 +232,7 @@ avoided.
 
    Allow to mount infrastructure container.
 
-   Currently if a user wants to mount the whole forest (i.e. all the containers), the support syntax is this:
+   Currently if a user wants to mount the whole forest (i.e. all the containers), the supported syntax is this:
 
       wl c mount `:/forests/User:*:`
 
@@ -243,7 +243,7 @@ avoided.
 
    This latter syntax is very similar to the above syntax and it is very easy for users to confuse the two.
 
-   In order to better differentiate these two actions, specifically make this second syntax more explicit, using
+   In order to better differentiate between these two actions, the second syntax can be made more explicit using
    the `--infrastructure` option:
 
       wl c mount --infrastructure :/forests/User:
