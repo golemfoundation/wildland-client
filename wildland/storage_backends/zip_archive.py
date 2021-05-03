@@ -32,7 +32,7 @@ import click
 from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr, verify_local_access
+from .base import StorageBackend, Attr, verify_local_access, StorageError
 from .watch import SimpleStorageWatcher
 
 
@@ -125,13 +125,22 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         self.zip_file = zipfile.ZipFile(self.zip_path)
 
     def unmount(self) -> None:
+        if self.zip_file is None:
+            raise StorageError("Storage is already unmounted.")
         self.zip_file.close()
         self.zip_file = None
+
+    def _reload(self):
+        if self.zip_file is None:
+            raise StorageError("Storage is unmounted.")
+        self.zip_file.close()
+        self.zip_file = zipfile.ZipFile(self.zip_path)
 
     def _update(self):
         # Update when the ZIP file changes.
         st = self.zip_path.stat()
         if self.last_mtime != st.st_mtime or self.last_size != st.st_size:
+            self._reload()
             self._refresh()
             self.last_mtime = st.st_mtime
             self.last_size = st.st_size
@@ -157,6 +166,8 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
                 yield path, self._attr(zinfo)
 
     def open(self, path: PurePosixPath, _mode: int) -> ZipArchiveFile:
+        if self.zip_file is None:
+            raise StorageError("Storage is unmounted.")
         try:
             zinfo = self.zip_file.getinfo(str(path))
         except KeyError as ke:
