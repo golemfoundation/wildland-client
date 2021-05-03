@@ -35,7 +35,8 @@
                 },
                 "manifest-pattern": {
                     "oneOf": [
-                    { "$ref": "#/definitions/pattern-glob" }
+                    { "$ref": "/schemas/types.json#pattern-glob" },
+                    { "$ref": "/schemas/types.json#pattern-list" }
                     ],
                     "description": "A strategy for finding manifests in this storage, based on path."
                 },
@@ -56,21 +57,6 @@
                     "description": "Designate storage as primary, overriding the upper-most one being primary by default. Can only be used once."
                 }
             }
-        },
-        "pattern-glob": {
-            "type": "object",
-            "required": ["type", "path"],
-            "properties": {
-                "type": {
-                    "const": "glob"
-                },
-                "path": {
-                    "type": "string",
-                    "description": "An absolute path that can contain '*' and '{path}'. Default is '/{path}.yaml'.",
-                    "pattern": "^/.*$"
-                }
-            },
-            "additionalProperties": false
         }
     }
 }

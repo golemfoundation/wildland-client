@@ -561,10 +561,15 @@ def prepare_mount(obj: ContextObj,
         storage = obj.client.select_storage(container)
         with StorageBackend.from_params(storage.params, deduplicate=True):
             for subcontainer in subcontainers:
-                yield from prepare_mount(obj, subcontainer,
-                                         f'{container_name}:{subcontainer.paths[0]}',
-                                         user_paths, remount, with_subcontainers, container,
-                                         verbose, only_subcontainers)
+                # TODO: use MR !240 to pass a container set to prepare mount
+                if isinstance(subcontainer, Container) and\
+                        subcontainer.ensure_uuid() == container.ensure_uuid():
+                    continue
+                if isinstance(subcontainer, Container):
+                    yield from prepare_mount(obj, subcontainer,
+                                             f'{container_name}:{subcontainer.paths[0]}',
+                                             user_paths, remount, with_subcontainers, container,
+                                             verbose, only_subcontainers)
 
 
 @container_.command(short_help='mount container')

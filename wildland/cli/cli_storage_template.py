@@ -53,8 +53,6 @@ def _append():
 
 def _make_create_command(backend: Type[StorageBackend], create: bool):
     params = [
-        click.Option(['--manifest-pattern'], metavar='GLOB',
-                     help='Set the manifest pattern for storage.'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help="Limit access to this storage to the provided users. "
                           "By default the @default owner is used."),
@@ -92,7 +90,6 @@ def _do_create(
         backend: Type[StorageBackend],
         create: bool,
         name,
-        manifest_pattern,
         watcher_interval,
         base_url,
         read_only,
@@ -118,14 +115,6 @@ def _do_create(
 
     if watcher_interval:
         params['watcher-interval'] = int(watcher_interval)
-
-    manifest_pattern_dict = None
-    if manifest_pattern:
-        manifest_pattern_dict = {
-            'type': 'glob',
-            'path': manifest_pattern,
-        }
-    params['manifest-pattern'] = manifest_pattern_dict
 
     if access:
         # We only accept '*' if '*' is the only entry, ie there can't be list of users

@@ -35,14 +35,14 @@ from ..client import Client
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.generated import GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
+from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..wlpath import WildlandPath, PathError
-from ..search import Search, storage_glob
+from ..search import Search
 from ..config import Config
 from ..utils import load_yaml_all
 from ..exc import WildlandError
 
 ## Path
-
 
 def test_path_from_str():
     wlpath = WildlandPath.from_str(':/foo/bar:')
@@ -254,7 +254,7 @@ def test_read_container_unsigned(base_dir, client):
         with pytest.raises(StopIteration):
             next(search.read_container())
         assert mock_logger.call_count == 1
-        mock_logger.assert_called_with('%s: cannot load manifest file %s: %s',
+        mock_logger.assert_called_with('%s: cannot load subcontainer %s: %s',
                                        PurePosixPath('/unsigned'), mock.ANY, mock.ANY)
 
 
@@ -436,7 +436,8 @@ def test_container_with_storage_path(base_dir, cli):
 
 ## Wildcard matching
 
-class TestBackend(GeneratedStorageMixin, StorageBackend):
+
+class TestBackend(GeneratedStorageMixin, FileSubcontainersMixin, StorageBackend):
     """
     A data-driven storage backend for tests.
     """
@@ -455,8 +456,8 @@ class TestBackend(GeneratedStorageMixin, StorageBackend):
             else:
                 yield FuncDirEntry(k, partial(self._dir, v))
 
-
 def test_glob_simple():
+    # pylint: disable=protected-access
     backend = TestBackend({
         'foo': {
             'bar.yaml': None,
@@ -468,14 +469,15 @@ def test_glob_simple():
         },
     })
 
-    assert list(storage_glob(backend, '/foo/bar.yaml')) == [
+    assert list(backend._find_manifest_files(PurePosixPath('.'),
+                                             PurePosixPath('foo/bar.yaml'))) == [
         PurePosixPath('foo/bar.yaml'),
     ]
-    assert list(storage_glob(backend, '/foo/*.yaml')) == [
+    assert list(backend._find_manifest_files(PurePosixPath('.'), PurePosixPath('foo/*.yaml'))) == [
         PurePosixPath('foo/bar.yaml'),
         PurePosixPath('foo/baz.yaml'),
     ]
-    assert list(storage_glob(backend, '/*/*.yaml')) == [
+    assert list(backend._find_manifest_files(PurePosixPath('.'), PurePosixPath('*/*.yaml'))) == [
         PurePosixPath('foo/bar.yaml'),
         PurePosixPath('foo/baz.yaml'),
         PurePosixPath('foo2/bar.yaml'),
@@ -915,7 +917,7 @@ def two_users_infra(base_dir, cli, control_client):
 
     # all manifests done; now move them out of standard WL config,
     # so Search() will really have some work to do
-    print((base_dir / 'users/Dummy2.user.yaml').read_text())
+
     shutil.move(base_dir / 'users/Dummy2.user.yaml', base_dir / 'manifests/user2.yaml')
     shutil.move(base_dir / 'users/Dummy3.user.yaml', base_dir / 'manifests/user3.yaml')
     # container manifests are already published to relevant infra, remove them
@@ -939,33 +941,6 @@ def test_traverse_with_fs_client_empty(client2, control_client):
 
     data = search.read_file()
     assert data == b'test1'
-
-
-def test_traverse_with_fs_client_mounted(base_dir, control_client, client2):
-    control_client.expect('status', {})
-
-    # simulate mounted infrastructure
-    user2_infra_mount_path = base_dir / 'mnt' / \
-        f'.users/0xbbb:/.backends/00000000-2222-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
-    user2_infra_mount_path.parent.mkdir(parents=True)
-    user2_infra_mount_path.symlink_to(base_dir / 'infra2')
-
-    search = Search(client2,
-        WildlandPath.from_str(':/users/User2:/containers/c1:/test1.txt'),
-        aliases={'default': '0xaaa'},
-        fs_client=client2.fs_client)
-
-    with mock.patch('wildland.storage_backends.base.StorageBackend.from_params',
-                    wraps=StorageBackend.from_params) as mock_storage_backend:
-        data = search.read_file()
-        assert data == b'test1'
-        mock_storage_backend.assert_any_call(PartialDict({
-            'type': 'local',
-            'location': user2_infra_mount_path
-        }))
-        # check if infra container was _not_ accessed directly
-        direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
-        assert direct_access not in mock_storage_backend.mock_calls
 
 
 def test_traverse_container_with_fs_client_mounted(
@@ -995,18 +970,9 @@ def test_traverse_container_with_fs_client_mounted(
         assert containers[0].owner == '0xbbb'
         assert PurePosixPath('/containers/c1') in containers[0].paths
 
-        assert len(mock_storage_backend.mock_calls) == 2
-        mock_storage_backend.assert_any_call(PartialDict({
-            'type': 'local',
-            'location': user2_infra_mount_path
-        }))
-        mock_storage_backend.assert_any_call(PartialDict({
-            'type': 'local',
-            'location': user1_infra_mount_path
-        }))
-        # check if infra container was _not_ accessed directly
+        # check if infra container was accessed
         direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
-        assert direct_access not in mock_storage_backend.mock_calls
+        assert direct_access in mock_storage_backend.mock_calls
 
 
 def test_get_watch_params_not_mounted(control_client, client2):

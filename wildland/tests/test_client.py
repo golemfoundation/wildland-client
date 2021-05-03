@@ -62,7 +62,6 @@ def test_add_storage(client, owner):
         container_path=container.paths[0],
         params={},
         trusted=True,
-        manifest_pattern=None,
         access=None)
 
     client.add_storage_to_container(container, storage)
@@ -78,10 +77,10 @@ def test_add_storage(client, owner):
     assert len(container.backends) == 1
 
     # but changes should be reflected
-    storage.manifest_pattern = {'type': 'glob', 'path': '/*'}
+    storage.base_url = '/'
     client.add_storage_to_container(container, storage)
     assert len(container.backends) == 1
-    assert container.backends[0]['manifest-pattern'] == {'type': 'glob', 'path': '/*'}
+    assert container.backends[0]['base-url'] == '/'
 
 
 def test_add_storage_not_inline(client, owner):
@@ -94,7 +93,6 @@ def test_add_storage_not_inline(client, owner):
         container_path=container.paths[0],
         params={},
         trusted=True,
-        manifest_pattern=None,
         access=None)
 
     client.add_storage_to_container(container, storage, False, "storage")
@@ -110,10 +108,10 @@ def test_add_storage_not_inline(client, owner):
     assert len(container.backends) == 1
 
     # but changes should be reflected
-    storage.manifest_pattern = {'type': 'glob', 'path': '/*'}
+    storage.base_url = '/BASEURL'
     client.add_storage_to_container(container, storage)
     assert len(container.backends) == 1
-    assert 'type: glob' in storage_path.read_text()
+    assert '/BASEURL' in storage_path.read_text()
 
 
 def test_add_storage_link(client, owner, tmpdir):
@@ -126,7 +124,6 @@ def test_add_storage_link(client, owner, tmpdir):
         container_path=container.paths[0],
         params={},
         trusted=True,
-        manifest_pattern=None,
         access=None)
 
     target_dir = Path(tmpdir / 'test')
@@ -145,7 +142,7 @@ def test_add_storage_link(client, owner, tmpdir):
     client.save_new_object(WildlandObjectType.CONTAINER, container, "container")
 
     # reflect changes
-    storage.manifest_pattern = {'type': 'glob', 'path': '/*'}
+    storage.base_url = '/BASEURL'
     client.add_storage_to_container(container, storage)
     assert len(container.backends) == 1
-    assert 'type: glob' in storage_path.read_text()
+    assert '/BASEURL' in storage_path.read_text()

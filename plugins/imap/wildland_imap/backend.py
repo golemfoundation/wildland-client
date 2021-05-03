@@ -4,17 +4,17 @@ Wildland storage backend exposing read only IMAP mailbox
 import logging
 from functools import partial
 from pathlib import PurePosixPath
-from typing import Iterable, List, Set, Optional
+from typing import Iterable, List, Set, Tuple
 from datetime import timezone
 
 import uuid
 import click
 
-from wildland.manifest.sig import SigContext
 from wildland.storage_backends.base import StorageBackend
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
+from wildland.container import ContainerStub
 from .ImapClient import ImapClient, MessageEnvelopeData, \
     MessagePart
 
@@ -65,10 +65,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def watcher(self):
         return ImapStorageWatcher(self)
 
-    def list_subcontainers(
-        self,
-        sig_context: Optional[SigContext] = None,
-    ) -> Iterable[dict]:
+    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+            Iterable[Tuple[PurePosixPath, ContainerStub]]:
         for msg in self.client.all_messages_env():
             yield self._make_msg_container(msg)
 
@@ -131,8 +129,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         ns = uuid.UUID(self.backend_id)
         return str(uuid.uuid3(ns, str(env.msg_uid)))
 
-
-    def _make_msg_container(self, env: MessageEnvelopeData) -> dict:
+    def _make_msg_container(self, env: MessageEnvelopeData) -> Tuple[PurePosixPath, ContainerStub]:
         """
         Create a container manifest for a single mail message.
         """
@@ -141,16 +138,17 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         logger.debug('making msg container for msg %d as %s',
                      env.msg_uid, ident)
         categories = self._get_message_categories(env)
-        return {
+        subcontainer_path = '/' + ident
+        return PurePosixPath(subcontainer_path), ContainerStub({
             'paths': paths,
             'title': f'{env.subject} - {ident}',
             'categories': categories,
             'backends': {'storage': [{
                 'type': 'delegate',
                 'reference-container': 'wildland:@default:@parent-container:',
-                'subdirectory': '/' + ident
+                'subdirectory': subcontainer_path
                 }]}
-        }
+        })
 
 
     @classmethod

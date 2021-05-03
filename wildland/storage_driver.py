@@ -23,9 +23,6 @@ Convenience module to directly access storage data.
 import errno
 import os
 
-from wildland.storage import Storage
-from wildland.storage_backends.base import StorageBackend
-
 
 class StorageDriver:
     """
@@ -33,16 +30,19 @@ class StorageDriver:
     :class:`wildland.storage_backends.base.StorageBackend`
     """
 
-    def __init__(self, storage_backend: StorageBackend, storage=None):
+    def __init__(self, storage_backend, storage=None):
         self.storage_backend = storage_backend
         self.storage = storage
 
     @classmethod
-    def from_storage(cls, storage: Storage) -> 'StorageDriver':
+    def from_storage(cls, storage) -> 'StorageDriver':
         """
         Create :class:`StorageDriver` from
         :class:`wildland.storage.Storage`
         """
+        # This is to avoid circular imports
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from wildland.storage_backends.base import StorageBackend
         return cls(StorageBackend.from_params(storage.params, deduplicate=True), storage=storage)
 
     def __enter__(self):

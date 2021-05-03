@@ -28,7 +28,8 @@ import click
 
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
-from ..storage import StorageBackend, Storage
+from ..storage import StorageBackend
+from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..user import User
 from ..publish import Publisher
 from ..manifest.manifest import Manifest
@@ -184,17 +185,22 @@ def _boostrap_forest(ctx: click.Context,
                                                   predicate=lambda x: x.is_writeable)
 
         # If a writeable infra storage doesn't have manifest_pattern defined,
-        if not infra_storage.manifest_pattern:
-            infra_storage.manifest_pattern = Storage.DEFAULT_MANIFEST_PATTERN
-
         # forcibly set manifest pattern for all storages in this container.
+        # TODO: improve support for more complex forms of writeable storages and more complex
+        # manifest-patterns
+
+        infra_backend = StorageBackend.from_params(infra_storage.params)
+        if isinstance(infra_backend, FileSubcontainersMixin) and \
+                not infra_backend.params.get('manifest-pattern', None):
+            infra_backend.params['manifest-pattern'] = infra_backend.DEFAULT_MANIFEST_PATTERN
+
         # Additionally ensure that they are going to be stored inline and override old storages
         # completely
         old_storages = list(obj.client.all_storages(infra_container))
         infra_container.backends = []
 
         for storage in old_storages:
-            storage.manifest_pattern = infra_storage.manifest_pattern
+            storage.params['manifest-pattern'] = infra_storage.params['manifest-pattern']
             obj.client.add_storage_to_container(infra_container, storage, inline=True)
         obj.client.save_object(WildlandObjectType.CONTAINER, infra_container)
 

@@ -28,14 +28,13 @@ from .manifest.manifest import Manifest, ManifestError, WildlandObjectType
 from .manifest.schema import Schema
 from .container import Container
 
+
 class Storage:
     """
     A data transfer object representing Wildland storage.
     """
 
     BASE_SCHEMA = Schema('storage')
-
-    DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/*.yaml'}
 
     OBJECT_TYPE = WildlandObjectType.STORAGE
 
@@ -45,7 +44,6 @@ class Storage:
                  container_path: PurePosixPath,
                  trusted: bool,
                  params: Dict[str, Any],
-                 manifest_pattern: Optional[Dict[str, Any]] = None,
                  base_url: Optional[str] = None,
                  local_path: Optional[Path] = None,
                  manifest: Manifest = None,
@@ -57,7 +55,6 @@ class Storage:
         self.params = params
         self.trusted = trusted
         self.local_path = local_path
-        self.manifest_pattern = manifest_pattern
         self.base_url = base_url
         self.manifest = manifest
         self.access = access
@@ -65,14 +62,12 @@ class Storage:
         if 'backend-id' not in params:
             self.params['backend-id'] = StorageBackend.generate_hash(params)
 
-
     def __repr__(self):
         return (f'{self.OBJECT_TYPE.value}('
                 f'owner={self.owner!r}, '
                 f'storage_type={self.storage_type!r}, '
                 f'container_path={self.container_path!r}, '
                 f'trusted={self.trusted!r}, '
-                f'manifest_pattern={self.manifest_pattern!r}, '
                 f'base_url={self.base_url!r}, '
                 f'local_path={self.local_path!r}, '
                 f'access={self.access!r}, '
@@ -143,7 +138,6 @@ class Storage:
             storage_type=manifest.fields['type'],
             container_path=PurePosixPath(manifest.fields['container-path']),
             trusted=manifest.fields.get('trusted', False),
-            manifest_pattern=manifest.fields.get('manifest-pattern'),
             base_url=manifest.fields.get('base-url'),
             params=manifest.fields,
             local_path=local_path,
@@ -162,8 +156,6 @@ class Storage:
         }
         if self.trusted:
             fields['trusted'] = True
-        if self.manifest_pattern:
-            fields['manifest-pattern'] = self.manifest_pattern
         if self.base_url:
             fields['base-url'] = self.base_url
         if self.access:
