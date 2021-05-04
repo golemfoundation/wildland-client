@@ -129,6 +129,7 @@ class WildlandFSClient:
         logger.info('running mount command: %s', cmd)
 
         # Start a new session in order to not propagate SIGINT.
+        # pylint: disable=consider-using-with
         proc = subprocess.Popen(cmd, start_new_session=True)
         if foreground:
             self.wait_for_mount()
