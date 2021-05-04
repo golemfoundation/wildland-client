@@ -88,7 +88,7 @@ class Client:
             WildlandObjectType.CONTAINER: Path(self.config.get('container-dir')),
             WildlandObjectType.STORAGE: Path(self.config.get('storage-dir')),
             WildlandObjectType.BRIDGE: Path(self.config.get('bridge-dir')),
-            WildlandObjectType.SET: Path(self.config.get('template-dir'))
+            WildlandObjectType.TEMPLATE: Path(self.config.get('template-dir'))
         }
 
         for d in self.dirs.values():

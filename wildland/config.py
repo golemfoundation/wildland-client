@@ -141,6 +141,11 @@ class Config:
                 logger.warning('Owner %s in \'local-owners\' uses obsolete Signify key '
                                'format. Please update to the new format.', owner)
 
+        if 'default-storage-set-for-user' in file_fields:
+            logger.warning('\'default-storage-set-for-user\' config entry is deprecated and no '
+                           'longer in use. Remove it from your config.yaml')
+            del file_fields['default-storage-set-for-user']
+
     @classmethod
     def load(cls, base_dir=None):
         """
@@ -206,7 +211,6 @@ class Config:
             'local-hostname': 'localhost',
             'local-owners': [],
             'default-containers': [],
-            'default-storage-set-for-user': {},
             'default-remote-for-container': {},
         }
 

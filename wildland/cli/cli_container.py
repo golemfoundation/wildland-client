@@ -42,7 +42,7 @@ from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, \
     set_field, del_nested_field, find_manifest_file, dump
-from .cli_storage import do_create_storage_from_set
+from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, WildlandObjectType
@@ -97,12 +97,11 @@ class OptionRequires(click.Option):
               help='container title')
 @click.option('--update-user/--no-update-user', '-u/-n', default=False,
               help='Attach the container to the user')
-@click.option('--storage-set', '--set', multiple=False, required=False,
-              help='Use a storage template set to generate storages (see wl storage-set)')
+@click.option('--storage-template', '--template', multiple=False, required=False,
+              help='Use a storage template to generate storages (see wl storage-template)')
 @click.option('--local-dir', multiple=False, required=False,
-              help='local directory to be passed to storage templates (requires --storage-set)')
-@click.option('--default-storage-set/--no-default-storage-set', default=True,
-              help="use user's default storage template set (ignored if --storage-set is used)")
+              help='local directory to be passed to storage templates '
+                   '(requires --storage-template)')
 @click.option('--access', multiple=True, required=False,
               help="allow additional users access to this container manifest")
 @click.option('--encrypt-manifest/--no-encrypt-manifest', default=True, required=False,
@@ -110,34 +109,31 @@ class OptionRequires(click.Option):
                    "and --access cannot be used.")
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, owner, path, name, update_user, default_storage_set, access,
-           title=None, category=None, storage_set=None, local_dir=None, encrypt_manifest=True):
+def create(obj: ContextObj, owner, path, name, update_user, access, title=None, category=None,
+           storage_template=None, local_dir=None, encrypt_manifest=True):
     """
     Create a new container manifest.
     """
 
     owner = obj.client.load_object_from_name(WildlandObjectType.USER, owner or '@default-owner')
 
-    if default_storage_set and not storage_set:
-        set_name = obj.client.config.get('default-storage-set-for-user')\
-            .get(owner.owner, None)
-    else:
-        set_name = storage_set
-
-    if local_dir and not set_name:
-        raise CliError('--local-dir requires --storage-set or default storage set.')
+    if local_dir and not storage_template:
+        raise CliError('--local-dir requires --storage-template')
 
     if category and not title:
         if not name:
             raise CliError('--category option requires --title or container name')
         title = name
 
-    if set_name:
+    storage_templates = []
+
+    if storage_template:
         try:
-            storage_set = TemplateManager(
-                obj.client.dirs[WildlandObjectType.SET]).get_storage_set(set_name)
-        except FileNotFoundError as fnf:
-            raise WildlandError(f'Storage set {set_name} not found.') from fnf
+            tpl_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+
+            storage_templates = tpl_manager.get_template_file_by_name(storage_template).templates
+        except WildlandError as we:
+            raise CliError(f'Could not load [{storage_template}] storage template. {we}') from we
 
     if access and not encrypt_manifest:
         raise CliError('--no-encrypt and --access are mutually exclusive.')
@@ -160,17 +156,13 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
     path = obj.client.save_new_object(WildlandObjectType.CONTAINER, container, name)
     click.echo(f'Created: {path}')
 
-    if storage_set:
+    if storage_templates:
         try:
-            do_create_storage_from_set(obj.client, container, storage_set, local_dir)
-        except FileNotFoundError as fnf:
+            do_create_storage_from_templates(obj.client, container, storage_templates, local_dir)
+        except (WildlandError, ValueError) as ex:
             click.echo(f'Removing container: {path}')
             path.unlink()
-            raise WildlandError('Failed to create storage from set: storage set not found') from fnf
-        except ValueError as e:
-            click.echo(f'Removing container: {path}')
-            path.unlink()
-            raise WildlandError(f'Failed to create storage from set: {e}') from e
+            raise WildlandError('Failed to create storage from template. {ex}') from ex
 
     if update_user:
         if not owner.local_path:

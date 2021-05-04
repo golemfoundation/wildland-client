@@ -8,7 +8,7 @@
 Synopsis
 ========
 
-| :command:`wl forest create <user> [<storage-set>]`
+| :command:`wl forest create <user> [<storage-template>]`
 | :command:`wl forest mount []`
 | :command:`wl forest unmount []`
 
@@ -23,21 +23,20 @@ Commands
 .. program:: wl-forest-create
 .. _wl-forest-create:
 
-:command:`wl forest create <user> [<storage-set>]`
---------------------------------------------------
+:command:`wl forest create <user> [<storage-template>]`
+-------------------------------------------------------
 
 Bootstrap a new Forest for given `<user>`.
 You must have private key of that user in order to use this command.
 
 Arguments:
 | USER                  name of the user who owns the Forest (mandatory)
-| STORAGE_SET           storage set used to create Forest containers, if not given, user's
-|                       default storage-set is used instead
+| STORAGE_TEMPLATE      storage template used to create Forest containers
 
 Description
 
 This command creates an infrastructure container for the Forest
-The storage set *must* contain a template with RW storage.
+The storage template *must* contain at least one read-write storage.
 
 After the container is created, the following steps take place:
 

@@ -87,6 +87,20 @@ class AliasedGroup(click.Group):
 
         return decorator
 
+    def group(self, *args, **kwargs):
+        if 'alias' not in kwargs:
+            return super().group(*args, **kwargs)
+
+        aliases = kwargs.pop('alias')
+        super_decorator = super().group(*args, **kwargs)
+
+        def decorator(f):
+            cmd = super_decorator(f)
+            self.add_alias(**{alias: cmd.name for alias in aliases})
+            return cmd
+
+        return decorator
+
     def add_alias(self, **kwds):
         """Add aliases to a command
 

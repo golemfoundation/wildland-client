@@ -178,7 +178,6 @@ man_pages = [
     ('manpages/wl', 'wl', 'Wildland command-line interface', [author], 1),
     ('manpages/wl-container', 'wl-container', 'Container management', [author], 1),
     ('manpages/wl-storage', 'wl-storage', 'Storage management', [author], 1),
-    ('manpages/wl-storage-set', 'wl-storage-set', 'Storage set management', [author], 1),
     ('manpages/wl-storage-template', 'wl-storage-template', 'Storage template management', [author], 1),
     ('manpages/wl-user', 'wl-user', 'Wildland user management', [author], 1),
     ('manpages/wl-forest', 'wl-forest', 'Wildland forest management', [author], 1),

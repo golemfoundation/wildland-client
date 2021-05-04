@@ -22,9 +22,8 @@ Templates for manifests.
 import logging
 import re
 import uuid
-from typing import List
+from typing import List, Union
 from pathlib import Path
-from collections import namedtuple
 
 import yaml
 from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
@@ -37,9 +36,6 @@ from ..exc import WildlandError
 logger = logging.getLogger('wl-template')
 
 TEMPLATE_SUFFIX = '.template.jinja'
-SET_SUFFIX = '.set.yaml'
-
-TemplateWithType = namedtuple('TemplateWithType', ['template', 'type'])
 
 
 def get_file_from_name(directory: Path, name: str, suffix: str) -> Path:
@@ -72,37 +68,17 @@ def regex_contains(s, pattern):
 
 class StorageTemplate:
     """
-    Template for a storage manifest. Uses yaml and jinja2 template language.
-    The template should provide a yaml file with fields filled with information need, especially
-    type and any fields the given storage backend needs. Owner and container-path fields will be
-    ignored.
-    The following container fields can be used: uuid, categories, title, paths
-    Sample local storage template:
-
-path: /home/user/{{ uuid }}
-type: local
-
+    Single storage template object for a storage manifest. See TemplateFile class for details on
+    defining a list of such objects.
     """
 
-    def __init__(self, source_data: str, file_name: str, name: str = None):
+    def __init__(self, source_data: Union[str, dict]):
+        if isinstance(source_data, dict):
+            source_data = yaml.dump(source_data)
+
         self.template = Template(source=source_data, undefined=StrictUndefined)
         self.template.environment.filters['regex_replace'] = regex_replace
         self.template.environment.tests['regex_contains'] = regex_contains
-        self.file_name = file_name
-        if not name:
-            if self.file_name.endswith(TEMPLATE_SUFFIX):
-                self.name = self.file_name[:-len(TEMPLATE_SUFFIX)]
-            else:
-                self.name = self.file_name
-        else:
-            self.name = name
-
-    @classmethod
-    def from_file(cls, path: Path):
-        """
-        Returns a StorageTemplate based on a yaml/jinja file
-        """
-        return cls(source_data=path.read_text(), file_name=path.name)
 
     def get_unsigned_manifest(self, cont: container.Container, local_dir: str = None):
         """
@@ -129,238 +105,136 @@ type: local
         data['backend-id'] = str(uuid.uuid4())
         return Manifest.from_fields(data)
 
-    def __str__(self):
-        return self.name
 
-
-class StorageSet:
+class TemplateFile:
     """
-    Set of StorageTemplates with a name. Each StorageTemplate is stored within a named tuple
-    TemplateWithType which contains the StorageTemplate and a type: 'file' or 'inline'.
-    'file' manifests are created as standalone files, and 'inline' as inline manifests.
+    Defines physical file that holds list of StorageTemplate-s in yaml format using jinja2 template
+    language. The template file should provide a yaml file with array of objects where each object
+    contains fields required for a specific type of storage backend, especially backend type.
+    Owner and container-path fields will be ignored.
+
+    The following container fields can be used: uuid, categories, title, paths
+    Sample local storage template file:
+
+- type: local
+  location: /home/user/{{ uuid }}
+- type: dropbox
+  location: /subdir_in_dropbox{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}
+  read-only: true
+  token: dropbox_secret_token
+
     """
 
-    def __init__(self, name: str, templates: List[TemplateWithType],
-                 template_dir: Path, path: Path = None):
-        self.name = name
-        self.templates: List[TemplateWithType] = []
-        self.path = path
-        self.template_dir = template_dir
+    def __init__(self, path: Path):
+        self.file_path = path
+        self.templates = self._load_templates()
 
-        for t in templates:
-            try:
-                file = get_file_from_name(self.template_dir, t.template, TEMPLATE_SUFFIX)
-                template = StorageTemplate.from_file(file)
-                self.templates.append(TemplateWithType(template, t.type))
-            except FileNotFoundError:
-                logger.warning("Template [%s] defined in storage set [%s], was not found.",
-                               t.template, name)
+    def _load_templates(self) -> List[StorageTemplate]:
+        if not self.file_path.exists():
+            raise WildlandError(f'Template file [{self.file_path}] does not exist.')
 
-    @classmethod
-    def from_file(cls, file: Path, template_dir: Path):
-        """
-        Loads a StorageSet from a simple yaml file that contains the following fields:
-        name: name of the set
-        templates: list of simple dictionaries with two fields: file (name of the template file)
-        and type (file or inline)
-        Type specifies if the given storage manifest should be created as a separate file or as
-        inline manifest.
-        """
-        with open(file) as f:
-            data = load_yaml(f)
-
-        name = data['name']
-        templates = []
-        for t in data['templates']:
-            templates.append(TemplateWithType(t['file'], t['type']))
-        return cls(name=name, templates=templates,
-                   path=file.absolute(), template_dir=template_dir)
+        with self.file_path.open() as f:
+            return [StorageTemplate(source_data=data) for data in load_yaml(f)]
 
     def __str__(self):
-        ret = self.name
-        file_templates = [str(t.template) for t in self.templates if t.type == 'file']
-        inline_templates = [str(t.template) for t in self.templates if t.type == 'inline']
-        if file_templates:
-            ret += " (file: " + ", ".join(file_templates) + ')'
-        if inline_templates:
-            ret += " (inline: " + ", ".join(inline_templates) + ')'
-        return ret
+        file_name = self.file_path.name
 
-    def to_dict(self):
-        """
-        Returns a dict with the same structure as a StorageSet .yaml file (see from_file)
-        """
-        data = {
-            'name': self.name,
-            'templates': [
-                {'file': t.template.file_name,
-                 'type': t.type} for t in self.templates
-            ]
-        }
-        return data
+        if file_name.endswith(TEMPLATE_SUFFIX):
+            return file_name[:-len(TEMPLATE_SUFFIX)]
 
-    def add_template(self, file_name: str, template_type: str):
-        """
-        Add provided template to this set, with type of 'inline' or 'file'.
-        """
-        if template_type not in ['file', 'inline']:
-            raise ValueError(f'Incorrect template type: {template_type}')
-        file = get_file_from_name(self.template_dir, file_name, TEMPLATE_SUFFIX)
-        template = StorageTemplate.from_file(file)
-        self.templates.append(TemplateWithType(template, template_type))
-
-    def remove_template(self, template_name):
-        """
-        Remove all occurrences of the given template from the current set.
-        """
-        file = get_file_from_name(self.template_dir, template_name, TEMPLATE_SUFFIX).name
-        self.templates = [t for t in self.templates if t.template.file_name != file]
+        return file_name
 
 
 class TemplateManager:
     """
-    Helper class to manage StorageTemplates and StorageSets.
+    Helper class to manage TemplateFiles and StorageTemplates.
     """
+
     def __init__(self, template_dir: Path):
         self.template_dir = template_dir
         if not self.template_dir.exists():
             self.template_dir.mkdir(parents=True)
 
-    def storage_sets(self) -> List[StorageSet]:
+    def get_file_path(self, name: str) -> Path:
         """
-        Returns a list of all StorageSets in template_dir; StorageSets must be correct yaml files
-        ending with SET_SUFFIX(.set.yaml).
-        """
-        sets = []
-        for file in self.template_dir.iterdir():
-            if file.name.endswith(SET_SUFFIX):
-                try:
-                    sets.append(StorageSet.from_file(file, self.template_dir))
-                except (yaml.YAMLError, KeyError):
-                    logger.warning('failed to load storage template set file %s', file)
-                    continue
-        return sets
+        Return path to TemplateFile based on given name
 
-    def available_templates(self):
+        :param name: Can be either an absolute path to a file or a template name inside template_dir
         """
-        Returns a list of all StorageTemplates in template_dir; StorageTemplates must be correct
-        yaml/jinja files with TEMPLATE_SUFFIX(.template.jinja)
+        default_path = self.template_dir / (name + str(TEMPLATE_SUFFIX))
+
+        file_candidates: List[Union[Path, str]] = [
+            name,
+            self.template_dir / name,
+            default_path,
+        ]
+
+        for file in file_candidates:
+            path = Path(file)
+            logger.debug('Looking for template: %s', path)
+            if Path(name).exists():
+                return Path(name)
+
+        # Existing file not found, assuming default path for newly created file
+        logger.debug('Existing template not found. Returning default path %s', default_path)
+        return default_path
+
+    @staticmethod
+    def is_valid_template_file_path(path: Path) -> bool:
+        """
+        Return true if given path has a valid TemplateFile name
+        """
+        return path.name.endswith(TEMPLATE_SUFFIX)
+
+    def available_templates(self) -> List[TemplateFile]:
+        """
+        Returns a list of all TemplateFiles in template_dir; TemplateFiles must be correct
+        yaml/jinja files with TEMPLATE_SUFFIX
         """
         templates = []
         for file in self.template_dir.iterdir():
-            if file.name.endswith(TEMPLATE_SUFFIX):
+            if self.is_valid_template_file_path(file):
                 try:
-                    templates.append(StorageTemplate.from_file(file))
+                    templates.append(TemplateFile(file))
                 except TemplateError:
                     logger.warning('failed to load template file %s', file)
                     continue
         return templates
 
-    def create_storage_template(self, name: str, params: dict):
+    def get_template_file_by_name(self, template_name: str) -> TemplateFile:
         """
-        Create storage template from given params
+        Return TemplateFile object for a given template name
         """
-        file_name = name + str(TEMPLATE_SUFFIX)
-        target_path = Path(self.template_dir / file_name)
+        target_path = self.get_file_path(template_name)
+
+        return TemplateFile(target_path)
+
+    def create_storage_template(self, template_name: str, params: dict):
+        """
+        Create storage template from given, arbitrary params and append to a given template file.
+        If template file doesn't exist, create it and then append the template.
+        """
+        target_path = self.get_file_path(template_name)
+        yaml_contents = []
 
         if target_path.exists():
-            raise FileExistsError
+            with open(target_path, 'r') as f:
+                yaml_contents = list(load_yaml(f))
+
+        yaml_contents.append(params)
 
         with open(target_path, 'w') as f:
-            yaml.dump(params, f)
+            yaml.dump(yaml_contents, f)
 
         return target_path
 
-    def create_storage_set(self, name: str, templates: List[TemplateWithType], target_path: Path):
-        """
-        Create and save a StorageSet.
-        :param name: str, name for the StorageSet
-        :param templates: list of TemplateWithType tuples containing names of template files
-        and their types (file or inline)
-        :param target_path: path where the set should be saved at
-        """
-        # check if files exist
-        template_files_with_type = []
-        for template, t in templates:
-            try:
-                template_file = get_file_from_name(self.template_dir, template, TEMPLATE_SUFFIX)
-                template_files_with_type.append(TemplateWithType(template_file.name, t))
-            except FileNotFoundError:
-                logger.warning('Template file not found: %s', template)
-                return None
-
-        if not templates:
-            logger.error('Failed to create storage template set: no valid templates provided.')
-            return None
-
-        new_template = StorageSet(name=name, templates=template_files_with_type,
-                                  template_dir=self.template_dir)
-        if target_path.exists():
-            raise FileExistsError
-
-        with open(target_path, 'w') as f:
-            yaml.dump(new_template.to_dict(), f)
-
-        return target_path
-
-    def remove_storage_template(self, name: str, force: bool = False, cascade: bool = False):
+    def remove_storage_template(self, name: str):
         """
         Remove storage template by name.
-
-        :param force: bool if True, remove the template even if it's attached to a set
-        :param cascade: bool if True, remove the template together with attached sets
         """
-        file_name = name + str(TEMPLATE_SUFFIX)
-        target_path = Path(self.template_dir / file_name)
+        target_path = self.get_file_path(name)
 
         if not target_path.exists():
             raise FileNotFoundError
 
-        attached_sets = []
-
-        for s_set in self.storage_sets():
-            for template in s_set.templates:
-                if template[0].file_name == file_name:
-                    attached_sets.append(s_set)
-                    break
-
-        if attached_sets and not force and not cascade:
-            set_names = ','.join([str(s.name) for s in attached_sets])
-            raise WildlandError(f'Template [{name}] is attached to following sets: [{set_names}]')
-
-        if cascade:
-            for s in attached_sets:
-                logger.info('Conditionally removing [%s] storage set.', s.name)
-                self.remove_storage_set(s.name)
-
         target_path.unlink()
-
-    def remove_storage_set(self, name: str) -> Path:
-        """
-        Removes a given storage template set and return path to the removed file. Storage template
-        set can be specified as filename, filename without suffix or internal storage template set
-        name (as provided by the 'name' field in storage template set file).
-        """
-        # were we supplied with a (variant of) file name?
-        storage_set = self.get_storage_set(name)
-        removed_path = storage_set.path
-        removed_path.unlink()
-        return removed_path
-
-    def get_storage_set(self, name):
-        """
-        Get StorageSet; can be specified as filename without suffix, complete filename or
-        StorageSet's internal name.
-        If there is more than one StorageSet with a given name, returns first one found.
-        """
-        try:
-            storage_set = StorageSet.from_file(name, self.template_dir)
-            return storage_set
-        except FileNotFoundError:
-            pass
-
-        for storage_set in self.storage_sets():
-            if storage_set.name == name and storage_set.path:
-                return storage_set
-
-        raise FileNotFoundError

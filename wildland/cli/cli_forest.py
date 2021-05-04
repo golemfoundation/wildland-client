@@ -20,19 +20,19 @@ Manage bridges
 """
 
 from pathlib import Path, PurePosixPath
-from typing import List, Optional
+from typing import List
 
 import os
 import uuid
 import click
 
-from .cli_storage import do_create_storage_from_set
+from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..storage import StorageBackend, Storage
 from ..user import User
 from ..publish import Publisher
 from ..manifest.manifest import Manifest
-from ..manifest.template import TemplateManager, StorageSet
+from ..manifest.template import TemplateManager, StorageTemplate
 from ..manifest.manifest import WildlandObjectType
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_field
@@ -95,7 +95,7 @@ def unmount(ctx: click.Context, path: str, forest_names):
 
 @forest_.command(short_help='Bootstrap Wildland Forest')
 @click.argument('user', metavar='USER', required=True)
-@click.argument('storage_set', required=False)
+@click.argument('storage_template', required=True)
 @click.option('--access', metavar='USER', required=False, multiple=True,
               help='Name of users to encrypt the container with. Can be used multiple times. '
                    'If not set, the container is unencrypted.')
@@ -105,7 +105,7 @@ def unmount(ctx: click.Context, path: str, forest_names):
 @click.pass_context
 def create(ctx: click.Context,
            user: str,
-           storage_set: str = None,
+           storage_template: str,
            manifest_local_dir: str = '/.manifests/',
            access: List[str] = None):
     """
@@ -115,13 +115,12 @@ def create(ctx: click.Context,
     \b
     Arguments:
       USER                  name of the user who owns the Forest (mandatory)
-      STORAGE_SET           storage set used to create Forest containers, if not given, user's
-                            default storage-set is used instead
+      STORAGE_TEMPLATE      storage template used to create Forest containers
 
     Description
 
-    This command creates an infrastructure container for the Forest
-    The storage set *must* contain a template with RW storage.
+    This command creates an infrastructure container for the Forest.
+    The storage template *must* contain at least one read-write storage.
 
     After the container is created, the following steps take place:
 
@@ -134,16 +133,16 @@ def create(ctx: click.Context,
     """
     _boostrap_forest(ctx,
                      user,
+                     storage_template,
                      manifest_local_dir,
-                     access=access,
-                     manifest_storage_set_name=storage_set)
+                     access)
 
 
 def _boostrap_forest(ctx: click.Context,
                      user: str,
+                     manifest_storage_template_name: str,
                      manifest_local_dir: str = '/',
-                     access: List[str] = None,
-                     manifest_storage_set_name: str = None):
+                     access: List[str] = None):
 
     obj: ContextObj = ctx.obj
 
@@ -169,14 +168,14 @@ def _boostrap_forest(ctx: click.Context,
     else:
         access_list = [{'user': forest_owner.owner}]
 
-    manifest_storage_set = _resolve_storage_set(obj, forest_owner, manifest_storage_set_name)
+    storage_templates = _resolve_storage_templates(obj, manifest_storage_template_name)
 
     infra_container = None
 
     try:
         infra_container = _create_container(obj, forest_owner, [Path('/.manifests')],
                                             f'{user}-forest-infra', access_list,
-                                            manifest_storage_set, manifest_local_dir)
+                                            storage_templates, manifest_local_dir)
 
         assert infra_container.local_path is not None
         assert forest_owner.local_path is not None
@@ -244,28 +243,13 @@ def _boostrap_forest(ctx: click.Context,
             infra_container.local_path.unlink()
 
 
-def _resolve_storage_set(obj, user: User, storage_set: Optional[str]) -> StorageSet:
-    default_set = obj.client.config.get('default-storage-set-for-user')\
-                                   .get(user.owner, None)
-
-    if storage_set is None:
-        if default_set is None:
-            raise CliError('No storage set available')
-
-        storage_set = default_set
-
+def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]:
     try:
-        storage_set_obj = TemplateManager(
-            obj.client.dirs[WildlandObjectType.SET]
-        ).get_storage_set(storage_set)
+        tpl_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
 
-        for template, template_type in storage_set_obj.templates:
-            if template_type != 'inline':
-                click.echo(f"Warning: {template} will be saved as inline template")
-
-        return storage_set_obj
-    except FileNotFoundError as fnf:
-        raise CliError(f'Storage set [{storage_set}] not found. {fnf}') from fnf
+        return tpl_manager.get_template_file_by_name(template_name).templates
+    except WildlandError as we:
+        raise CliError(f'Could not load [{template_name}] storage template. {we}') from we
 
 
 def _create_container(obj: ContextObj,
@@ -273,14 +257,14 @@ def _create_container(obj: ContextObj,
                       container_paths: List[Path],
                       container_name: str,
                       access: List[dict],
-                      storage_set: StorageSet,
+                      storage_templates: List[StorageTemplate],
                       storage_local_dir: str = '') -> Container:
 
     container = Container(owner=user.owner, paths=[PurePosixPath(p) for p in container_paths],
                           backends=[], access=access)
 
     obj.client.save_new_object(WildlandObjectType.CONTAINER, container, container_name)
-    do_create_storage_from_set(obj.client, container, storage_set, storage_local_dir)
+    do_create_storage_from_templates(obj.client, container, storage_templates, storage_local_dir)
 
     return container
 

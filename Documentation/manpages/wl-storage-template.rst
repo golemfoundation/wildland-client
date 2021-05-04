@@ -1,6 +1,7 @@
 .. program:: wl-storage-template
 .. _wl-storage-template:
 .. _wl-storage-template-create:
+.. _wl-storage-template-add:
 
 ************************************************************
 :command:`wl storage-template` - Storage template management
@@ -11,12 +12,13 @@ Synopsis
 
 | :command:`wl storage-template list [--show-filenames]`
 | :command:`wl storage-template create <storage_type> [<storage_params>] NAME`
-| :command:`wl storage-template remove <storage_set>`
+| :command:`wl storage-template add <storage_type> [<storage_params>] NAME`
+| :command:`wl storage-template remove NAME`
 
 Description
 ===========
 
-Storage templates and their sets are a convenient tool to easily create storage manifests for
+Storage templates are a convenient tool to easily create storage manifests for
 containers.
 
 
@@ -81,20 +83,10 @@ Display known storage templates.
 .. program:: wl-storage-template-remove
 .. _wl-storage-template-remove:
 
-:command:`wl storage-template remove [--force] [--cascade] NAME`
-----------------------------------------------------------------
+:command:`wl storage-template remove NAME`
+------------------------------------------
 
-Delete a storage template from local filesystem. If attached to a storage set, you must use either
-`--force` or `--cascade` to delete it. Note that you can't use both options simultaneously.
-
-.. option:: --force
-
-    Force removing storage template if attached to a set.
-
-.. option:: --cascade
-
-    Remove storage template along with all storage sets attached to it.
-
+Delete a storage template from local filesystem.
 
 .. program:: wl-storage-template-create-local
 .. _wl-storage-template-create-local:
@@ -258,6 +250,166 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 :command:`wl storage-template create bear-db --container <container> [-u] [--user <user>] --path <path>`
 --------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/bear.rsti
+
+.. program:: wl-storage-template-add-local
+.. _wl-storage-template-add-local:
+
+:command:`wl storage-template add local --container <container> [-u] [--user <user>] [--subcontainer] --location <filesystem_path> <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+
+.. include:: include/storages/local.rsti
+
+.. program:: wl-storage-template-add-local-cached
+.. _wl-storage-template-add-local-cached:
+
+:command:`wl storage-template add local-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+-----------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/local-cached.rsti
+
+.. program:: wl-storage-template-add-local-dir-cached
+.. _wl-storage-template-add-local-dir-cached:
+
+:command:`wl storage-template add local-dir-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/local-dir-cached.rsti
+
+.. program:: wl-storage-template-add-date-proxy
+.. _wl-storage-template-add-date-proxy:
+
+:command:`wl storage-template add date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
+------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/date-proxy.rsti
+
+.. program:: wl-storage-template-add-delegate
+.. _wl-storage-template-add-delegate:
+
+:command:`wl storage-template add delegate --container <container> [-u] [--user <user>] --reference-container-url <url> [--subdirectory <dir>] <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/delegate.rsti
+
+.. program:: wl-storage-template-add-dummy
+.. _wl-storage-template-add-dummy:
+
+:command:`wl storage-template add dummy --container <container> [-u] [--user <user>]`
+----------------------------------------------------------------------------------------
+
+Creates dummy storage, presenting empty directory not backed by any actual data.
+
+.. include:: include/wl-storage-template-create.rsti
+
+.. program:: wl-storage-template-add-static
+.. _wl-storage-template-add-static:
+
+:command:`wl storage-template add static --container <container> [-u] [--user <user>] [--file <path>=<content> ...]`
+--------------------------------------------------------------------------------------------------------------------
+
+Creates static storage, presenting files included directly in the storage
+manifest. See documentation of 'wl storage create static' for details.
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/static.rsti
+
+.. program:: wl-storage-template-add-zip-archive
+.. _wl-storage-template-add-zip-archive:
+
+:command:`wl storage-template add zip-archive --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
+----------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/zip-archive.rsti
+
+.. program:: wl-storage-template-add-http
+.. _wl-storage-template-add-http:
+
+:command:`wl storage-template add http --container <container> [-u] [--user <user>] --url <url> <storage>`
+----------------------------------------------------------------------------------------------------------
+
+This is a HTTP storage that relies on directory listings. Currently used for buckets published using S3.
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/http.rsti
+
+.. program:: wl-storage-template-add-imap
+.. _wl-storage-template-add-imap:
+
+:command:`wl storage-template add imap --container <container> [-u] [--user <user>] --host <host> --login <login> --password <password> [--folder <folder>] <storage>`
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/imap.rsti
+
+.. program:: wl-storage-template-add-dropbox
+.. _wl-storage-template-add-dropbox:
+
+:command:`wl storage-template add dropbox --container <container> [-u] [--user <user>] --token <access_token>`
+--------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/dropbox.rsti
+
+.. program:: wl-storage-template-add-dropbox
+.. _wl-storage-template-add-googledrive:
+
+:command:`wl storage-template add googledrive --container <container> [-u] [--user <user>] --credentials <credentials> --skip-interaction`
+------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/googledrive.rsti
+
+.. program:: wl-storage-template-add-categorization
+.. _wl-storage-template-add-categorization:
+
+:command:`wl storage-template add categorization --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
+----------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/categorization.rsti
+
+.. program:: wl-storage-template-add-s3
+.. _wl-storage-template-add-s3:
+
+:command:`wl storage-template add s3 --container <container> [-u] [--user <user>] --url <url> <storage>`
+--------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/s3.rsti
+
+.. program:: wl-storage-template-add-ipfs
+.. _wl-storage-template-add-ipfs:
+
+:command:`wl storage-template add ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-address <multiaddress> <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/ipfs.rsti
+
+.. program:: wl-storage-template-add-webdav
+.. _wl-storage-template-add-webdav:
+
+:command:`wl storage-template add webdav --container <container> [-u] [--user <user>] --url <url> --login <login> --password <password> <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/webdav.rsti
+
+.. program:: wl-storage-template-add-bear-db
+.. _wl-storage-template-add-bear-db:
+
+:command:`wl storage-template add bear-db --container <container> [-u] [--user <user>] --path <path>`
+-----------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/bear.rsti

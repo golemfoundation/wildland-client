@@ -38,7 +38,6 @@ from . import (
     cli_forest,
     cli_storage,
     cli_storage_template,
-    cli_storage_set,
     cli_container,
     cli_bridge,
     cli_transfer,
@@ -78,7 +77,6 @@ main.add_command(cli_user.user_)
 main.add_command(cli_forest.forest_)
 main.add_command(cli_storage.storage_)
 main.add_command(cli_storage_template.storage_template)
-main.add_command(cli_storage_set.storage_set_)
 main.add_command(cli_container.container_)
 main.add_command(cli_bridge.bridge_)
 main.add_alias(users='user', u='user', storages='storage', s='storage', containers='container',

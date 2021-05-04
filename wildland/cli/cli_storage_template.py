@@ -37,14 +37,21 @@ def storage_template():
     """Manage storage templates"""
 
 
-@storage_template.group('create', short_help='create storage template')
-def create():
+@storage_template.group('create', alias=['c'], short_help='create storage template')
+def _create():
     """
     Creates storage template based on storage type.
     """
 
 
-def _make_create_command(backend: Type[StorageBackend]):
+@storage_template.group('add', alias=['a'], short_help='append to an existing storage template')
+def _append():
+    """
+    Appends to an existing storage template based on storage type.
+    """
+
+
+def _make_create_command(backend: Type[StorageBackend], create: bool):
     params = [
         click.Option(['--manifest-pattern'], metavar='GLOB',
                      help='Set the manifest pattern for storage.'),
@@ -62,7 +69,7 @@ def _make_create_command(backend: Type[StorageBackend]):
 
     params.extend(backend.cli_options())
 
-    callback = functools.partial(_do_create, backend=backend)
+    callback = functools.partial(_do_create, backend=backend, create=create)
 
     command = click.Command(
         name=backend.TYPE,
@@ -72,10 +79,10 @@ def _make_create_command(backend: Type[StorageBackend]):
     return command
 
 
-def _add_create_commands(group):
+def _add_create_commands(group, create: bool):
     for backend in get_storage_backends().values():
         try:
-            command = _make_create_command(backend)
+            command = _make_create_command(backend, create=create)
         except NotImplementedError:
             continue
         group.add_command(command)
@@ -83,6 +90,7 @@ def _add_create_commands(group):
 
 def _do_create(
         backend: Type[StorageBackend],
+        create: bool,
         name,
         manifest_pattern,
         watcher_interval,
@@ -93,10 +101,19 @@ def _do_create(
 
     obj: ContextObj = click.get_current_context().obj
 
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    tpl_exists = template_manager.get_file_path(name).exists()
+
+    if tpl_exists and create:
+        raise CliError(f'Template {name} already exists. Choose another name or use '
+                       '[wl storage-template add] command to append to existing template.')
+
+    if not tpl_exists and not create:
+        raise CliError(f'Template {name} does not exist. Use [wl storage-template create] '
+                       'command to create a new template.')
+
     params = backend.cli_create(data)
-
     params['type'] = backend.TYPE
-
     params['read-only'] = read_only
 
     if watcher_interval:
@@ -126,25 +143,24 @@ def _do_create(
 
     if backend.LOCATION_PARAM:
         params[backend.LOCATION_PARAM] = str(params[backend.LOCATION_PARAM]).rstrip('/') + \
-                                            "{{ local_dir if local_dir is defined else '/' }}" + \
-                                            "/{{ uuid }}"
+                                             '{{ local_dir if local_dir is defined else "/" }}' + \
+                                             '/{{ uuid }}'
 
     if base_url:
         params['base-url'] = base_url.rstrip('/') + \
-                                "{{ local_dir if local_dir is defined else '/' }}/{{ uuid }}"
+                                '{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}'
 
     # remove default, non-required values
     for param, value in list(params.items()):
         if value is None or value == []:
             del params[param]
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
+    path = template_manager.create_storage_template(name, params)
 
-    try:
-        path = template_manager.create_storage_template(name, params)
-        click.echo(f"Template [{name}] created in {path}")
-    except FileExistsError as fee:
-        raise CliError(f"Template [{name}] already exists. Choose another name.") from fee
+    if tpl_exists:
+        click.echo(f"Appended to an existing storage template [{name}]")
+    else:
+        click.echo(f"Storage template [{name}] created in {path}")
 
 
 @storage_template.command('list', short_help='list storage templates', alias=['ls'])
@@ -156,7 +172,7 @@ def template_list(obj: ContextObj, show_filenames):
     Display known storage templates
     """
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
 
     click.echo("Available templates:")
     templates = template_manager.available_templates()
@@ -166,29 +182,22 @@ def template_list(obj: ContextObj, show_filenames):
     else:
         for template in templates:
             if show_filenames:
-                click.echo(f"    {template} [{template_manager.template_dir / template.file_name}]")
+                click.echo(f"    {template} [{template_manager.get_file_path(str(template))}]")
             else:
                 click.echo(f"    {template}")
 
 
 @storage_template.command('remove', short_help='remove storage template', alias=['rm', 'd'])
-@click.option('--force', is_flag=True, default=False,
-              help="Force delete even if attached to a set.")
-@click.option('--cascade', is_flag=True, default=False,
-              help="Delete together with attached sets")
 @click.argument('name', required=True)
 @click.pass_obj
-def template_del(obj: ContextObj, name: str, force: bool, cascade: bool):
+def template_del(obj: ContextObj, name: str):
     """
     Remove a storage template set.
     """
 
-    if force and cascade:
-        raise CliError("Remove command accepts either force or cascade option, but not both.")
-
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
     try:
-        template_manager.remove_storage_template(name, force, cascade)
+        template_manager.remove_storage_template(name)
     except FileNotFoundError as fnf:
         raise CliError(f"Template [{name}] does not exist.") from fnf
     except WildlandError as ex:
@@ -197,4 +206,5 @@ def template_del(obj: ContextObj, name: str, force: bool, cascade: bool):
     click.echo(f'Deleted [{name}] storage template.')
 
 
-_add_create_commands(create)
+_add_create_commands(_create, create=True)
+_add_create_commands(_append, create=False)

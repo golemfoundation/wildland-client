@@ -11,7 +11,7 @@ Synopsis
 | :command:`wl {container|containers} list`
 | :command:`wl container info NAME`
 | :command:`wl container delete [--force] [--cascade] NAME`
-| :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-set <storage_set>]`
+| :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-template <storage_template>]`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
@@ -69,8 +69,8 @@ Delete a container from local filesystem.
 .. program:: wl-container-create
 .. _wl-container-create:
 
-:command:`wl container create [--owner <user>] [--path <path>] [--path <path2> ...] [--storage-set <storage-set>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl container create [--owner <user>] [--path <path>] [--path <path2> ...] [--storage-template <storage-template>] [--encrypt-manifest/--no-encrypt-manifest] [--access <user>]`
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create a |~| new container manifest.
 
@@ -100,21 +100,13 @@ Create a |~| new container manifest.
 
    Don't add the container to the user manifest. This is the default.
 
-.. option:: --storage-set <storage_set>, --set
+.. option:: --storage-template <storage_template>, --template
 
-   Create storages for a container with a given storage-set.
+   Create storages for a container with a given storage-template.
 
 .. option:: --local-dir <local_dir>
 
-    Local directory to be passed to storage templates as a parameter. Requires --storage-set.
-
-.. option:: --default-storage-set
-
-    Use default storage set for the user, if available.
-
-.. option:: --no-default-storage-set
-
-    Do not use default storage set for the user, even if available.
+    Local directory to be passed to storage templates as a parameter. Requires --storage-template.
 
 .. option:: --encrypt-manifest
 
