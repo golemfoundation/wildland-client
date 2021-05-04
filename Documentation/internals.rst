@@ -178,6 +178,15 @@ Manifests
 .. autoclass:: wildland.manifest.manifest.WildlandObjectType
    :members:
 
+.. autoclass:: wildland.manifest.template.StorageTemplate
+   :members:
+
+.. autoclass:: wildland.manifest.template.TemplateFile
+   :members:
+
+.. autoclass:: wildland.manifest.template.TemplateManager
+   :members:
+
 
 Signing
 -------
