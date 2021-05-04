@@ -35,28 +35,21 @@ wl u create User1
 
 mkdir -p ~/.config/wildland/templates
 
-# storage-set
-cat > ~/.config/wildland/templates/local_title.template.jinja << EOF
-location: $STORAGE/{{ uuid }}
-read-only: false
-type: local
-manifest-pattern:
-  type: glob
-  path: /*.yaml
-EOF
-
-cat > ~/.config/wildland/templates/simple.set.yaml << EOF
-name: simple
-templates:
-  - file: local_title.template.jinja
-    type: inline
+# storage-template
+cat > ~/.config/wildland/templates/simple.template.jinja << EOF
+- location: $STORAGE/{{ uuid }}
+  read-only: false
+  type: local
+  manifest-pattern:
+    type: glob
+    path: /*.yaml
 EOF
 
 # containers
-wl c create --owner User work-qubesos --title "my work on qubesos" --category /qubesos --storage-set simple
-wl c create --owner User work-debian --title "my work on debian" --category /debian --storage-set simple
-wl c create --owner User work-wildland --title "my work on wildland" --category /wildland --storage-set simple
-wl c create --owner User1 work --title "generalstuff" --category /stuff --storage-set simple
+wl c create --owner User work-qubesos --title "my work on qubesos" --category /qubesos --storage-template simple
+wl c create --owner User work-debian --title "my work on debian" --category /debian --storage-template simple
+wl c create --owner User work-wildland --title "my work on wildland" --category /wildland --storage-template simple
+wl c create --owner User1 work --title "generalstuff" --category /stuff --storage-template simple
 
 # bridges
 wl bridge create --owner User --ref-user User1 --ref-user-location \

@@ -3407,14 +3407,13 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location',
         f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
-    cli('storage-set', 'add', '--inline', 'rw', 'my-set')
     cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
-        'my_awesome_capsule', "--category", "/testing", "--storage-set",
-        "my-set", '--no-encrypt-manifest')
+        'my_awesome_capsule', "--category", "/testing", "--storage-template",
+        "rw", '--no-encrypt-manifest')
     cli('bridge', 'create', '--owner', 'Alice', '--ref-user', 'Alice',
         '--ref-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
         '--ref-user-path', '/forests/Alice', 'self_bridge')
-    cli('forest', 'create', '--access', '*', 'Alice', 'my-set')
+    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
     cli('container', 'publish', 'mycapsule')
 
     control_client.expect('paths', {})
