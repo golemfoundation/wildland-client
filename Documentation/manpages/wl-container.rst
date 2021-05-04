@@ -228,6 +228,26 @@ avoided.
    During mount, list all the containers to be mounted and result of mount (changed/not changed).
    Can be very long in case of Wildland paths or numerous subcontainers.
 
+.. option:: -i, --infrastructure
+
+   Allow to mount infrastructure container.
+
+   Currently if a user wants to mount the whole forest (i.e. all the containers), the supported syntax is this:
+
+      wl c mount `:/forests/User:*:`
+
+   But we also support mounting of the infrastructure container, i.e. one that holds the manifests for the
+   forest, using the following syntax:
+
+      wl c mount :/forests/User:
+
+   This latter syntax is very similar to the above syntax and it is very easy for users to confuse the two.
+
+   In order to better differentiate between these two actions, the second syntax can be made more explicit using
+   the `--infrastructure` option:
+
+      wl c mount --infrastructure :/forests/User:
+
 .. program:: wl-container-mount-watch
 .. _wl-container-mount-watch:
 

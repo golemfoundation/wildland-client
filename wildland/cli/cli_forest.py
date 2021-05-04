@@ -36,6 +36,8 @@ from ..manifest.template import TemplateManager, StorageSet
 from ..manifest.manifest import WildlandObjectType
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_field
+from .cli_container import _mount as mount_container
+from .cli_container import _unmount as unmount_container
 from ..exc import WildlandError
 
 
@@ -44,6 +46,51 @@ def forest_():
     """
     Manage Wildland Forests
     """
+
+
+@forest_.command(short_help='Mount Wildland Forest')
+@click.argument('forest_names', nargs=-1, required=True)
+@click.pass_context
+def mount(ctx: click.Context, forest_names):
+    """
+    Mount a forest given by name or path to manifest. Repeat the argument to
+    mount multiple forests.
+
+    The Wildland system has to be mounted first, see ``wl start``.
+    """
+    obj: ContextObj = ctx.obj
+
+    forests = []
+    for forest_name in forest_names:
+        if forest_name.endswith('*:') or not forest_name.endswith(':'):
+            raise WildlandError(
+                f'Failed to parse forest name: {forest_name}. '
+                f'For example, ":/forests/User:" is a valid forest name')
+        forests.append(f'{forest_name}*:')
+    mount_container(obj, forests)
+
+
+@forest_.command(short_help='Unmount Wildland Forest')
+@click.option('--path', metavar='PATH', help='mount path to search for')
+@click.argument('forest_names', nargs=-1, required=True)
+@click.pass_context
+def unmount(ctx: click.Context, path: str, forest_names):
+    """
+    Unmount a forest given by name or path to manifest. Repeat the argument to
+    unmount multiple forests.
+
+    The Wildland system has to be mounted first, see ``wl start``.
+    """
+    obj: ContextObj = ctx.obj
+
+    forests = []
+    for forest_name in forest_names:
+        if forest_name.endswith('*:') or not forest_name.endswith(':'):
+            raise WildlandError(
+                f'Failed to parse forest name: {forest_name}. '
+                f'For example, ":/forests/User:" is a valid forest name')
+        forests.append(f'{forest_name}*:')
+    unmount_container(obj, path=path, container_names=forests)
 
 
 @forest_.command(short_help='Bootstrap Wildland Forest')

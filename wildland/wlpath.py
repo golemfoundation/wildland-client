@@ -134,6 +134,15 @@ class WildlandPath:
 
         return cls(owner, hint, parts, file_path)
 
+    def append(self, s: str):
+        """
+        Append string to WildlandPath.
+
+        Accepts paths both with and without ':' into.
+        """
+        split = s.split(':')
+        self.parts += [PurePosixPath(p) for p in split if p != ""]
+
     def __str__(self):
         s = ''
         if self.owner is not None:
