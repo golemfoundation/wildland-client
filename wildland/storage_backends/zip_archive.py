@@ -20,8 +20,7 @@
 """
 A ZIP file storage.
 """
-
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Optional
 import zipfile
 from pathlib import Path, PurePosixPath
 from datetime import datetime
@@ -33,7 +32,7 @@ import click
 from ..manifest.schema import Schema
 from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr, verify_local_access
+from .base import StorageBackend, Attr, verify_local_access, StorageError
 from .watch import SimpleStorageWatcher
 
 
@@ -45,14 +44,13 @@ class ZipArchiveFile(FullBufferedFile):
     A file inside a ZIP archive.
     """
 
-    def __init__(self, zip_path: Path, path: PurePosixPath, attr):
+    def __init__(self, zip_file: zipfile.ZipFile, path: PurePosixPath, attr):
         super().__init__(attr)
-        self.zip_path = zip_path
+        self.zip_file = zip_file
         self.path = path
 
     def read_full(self) -> bytes:
-        with zipfile.ZipFile(self.zip_path) as zf:
-            return zf.read(str(self.path))
+        return self.zip_file.read(str(self.path))
 
     def write_full(self, data):
         raise IOError(errno.EROFS, str(self.path))
@@ -72,7 +70,7 @@ class ZipArchiveWatcher(SimpleStorageWatcher):
             st = self.zip_path.stat()
         except FileNotFoundError:
             return None
-        return (st.st_size, st.st_mtime)
+        return st.st_size, st.st_mtime
 
 
 class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
@@ -99,6 +97,8 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
         self.zip_path = Path(self.params['location'])
         self.read_only = True
 
+        self.zip_file: Optional[zipfile.ZipFile] = None
+
         self.last_mtime = 0.
         self.last_size = -1
 
@@ -122,11 +122,25 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
     def mount(self) -> None:
         verify_local_access(self.zip_path, self.params['owner'],
                             self.params.get('is-local-owner', False))
+        self.zip_file = zipfile.ZipFile(self.zip_path)
+
+    def unmount(self) -> None:
+        if self.zip_file is None:
+            raise StorageError("Storage is already unmounted.")
+        self.zip_file.close()
+        self.zip_file = None
+
+    def _reload(self):
+        if self.zip_file is None:
+            raise StorageError("Storage is unmounted.")
+        self.zip_file.close()
+        self.zip_file = zipfile.ZipFile(self.zip_path)
 
     def _update(self):
         # Update when the ZIP file changes.
         st = self.zip_path.stat()
         if self.last_mtime != st.st_mtime or self.last_size != st.st_size:
+            self._reload()
             self._refresh()
             self.last_mtime = st.st_mtime
             self.last_size = st.st_size
@@ -152,15 +166,16 @@ class ZipArchiveStorageBackend(CachedStorageMixin, StorageBackend):
                 yield path, self._attr(zinfo)
 
     def open(self, path: PurePosixPath, _mode: int) -> ZipArchiveFile:
-        with zipfile.ZipFile(self.zip_path) as zf:
-            try:
-                zinfo = zf.getinfo(str(path))
-            except KeyError as ke:
-                raise IOError(errno.ENOENT, str(path)) from ke
+        if self.zip_file is None:
+            raise StorageError("Storage is unmounted.")
+        try:
+            zinfo = self.zip_file.getinfo(str(path))
+        except KeyError as ke:
+            raise IOError(errno.ENOENT, str(path)) from ke
 
-            if zinfo.is_dir():
-                raise IOError(errno.EISDIR, str(path))
+        if zinfo.is_dir():
+            raise IOError(errno.EISDIR, str(path))
 
-            attr = self._attr(zinfo)
+        attr = self._attr(zinfo)
 
-        return ZipArchiveFile(self.zip_path, path, attr)
+        return ZipArchiveFile(self.zip_file, path, attr)
