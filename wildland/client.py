@@ -40,7 +40,7 @@ from .container import Container
 from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath, PathError
-from .manifest.sig import DummySigContext, SodiumSigContext
+from .manifest.sig import DummySigContext, SodiumSigContext, SigContext
 from .manifest.manifest import ManifestError, Manifest, WildlandObjectType
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
@@ -63,11 +63,21 @@ class Client:
 
     def __init__(
             self,
-            base_dir=None,
-            sig=None,
-            config=None,
+            base_dir: PurePosixPath = None,
+            sig: SigContext = None,
+            config: Config = None,
+            load: bool = True,
             **config_kwargs
     ):
+        """
+        A high-level interface for operating on Wildland objects.
+
+        :param base_dir: base directory (``~/.config/wildland`` by default)
+        :param sig: SigContext to use
+        :param config: config object
+        :param load: Load initial state (users, bridges etc)
+        :param config_kwargs: Override select config options
+        """
         if config is None:
             config = Config.load(base_dir)
             config.override(**config_kwargs)
@@ -110,8 +120,14 @@ class Client:
         self.session: Session = Session(sig)
 
         self.users: Dict[str, User] = {}
+        # FIXME: this doesn't really deduplicate bridges, only avoids the same
+        # _instance_ being added multiple times
+        self.bridges: Set[Bridge] = set()
 
-        self._select_reference_storage_cache = {}
+        self._select_reference_storage_cache: Dict[Tuple[str, str, bool], Optional[Dict]] = {}
+
+        if load:
+            self.recognize_users_and_bridges()
 
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         """
@@ -121,11 +137,13 @@ class Client:
 
         sig = self.session.sig.copy()
         owner = sig.add_pubkey(pubkey)
-        return Client(config=self.config, sig=sig), owner
+        return Client(config=self.config, sig=sig, load=False), owner
 
-    def recognize_users(self, users: Optional[Iterable[User]] = None):
+    def recognize_users_and_bridges(self, users: Optional[Iterable[User]] = None,
+                                    bridges: Optional[Iterable[Bridge]] = None):
         """
         Load users and recognize their keys from the users directory or a given iterable.
+        This function loads also all (local) bridges, so it's possible to find paths for the users.
         """
         for user in users or self.load_all(WildlandObjectType.USER, decrypt=False):
             user.add_user_keys(self.session.sig)
@@ -133,6 +151,9 @@ class Client:
         # duplicated to decrypt infrastructures correctly
         for user in users or self.load_all(WildlandObjectType.USER):
             self.users[user.owner] = user
+
+        for bridge in bridges or self.load_all(WildlandObjectType.BRIDGE):
+            self.bridges.add(bridge)
 
     def find_local_manifest(self, object_type: Union[WildlandObjectType, None],
                             name: str) -> Optional[Path]:
@@ -437,15 +458,22 @@ class Client:
                 path.write_bytes(step.bridge.manifest.to_bytes())
 
         # load encountered users to the current context - may be needed for subcontainers
-        self.recognize_users(
+        self.recognize_users_and_bridges(
             [ustep.user for ustep in final_step.steps_chain()
-             if ustep.user is not None])
+             if ustep.user is not None],
+            [ustep.bridge for ustep in final_step.steps_chain()
+             if ustep.bridge is not None])
 
     def load_containers_from(self, name: Union[str, WildlandPath],
-                             aliases: Optional[dict] = None) -> Iterator[Container]:
+                             aliases: Optional[dict] = None,
+                             bridge_placeholders: bool = True) -> Iterator[Container]:
         """
         Load a list of containers. Currently supports WL paths, glob patterns (*) and
         tilde (~), but only in case of local files.
+
+        :param name: containers to load - can be a local path (including glob) or a Wildland path
+        :param aliases: aliases to use when resolving a Wildland path
+        :param bridge_placeholders: include bridges as placeholder containers
         """
         wlpath = None
         if isinstance(name, WildlandPath):
@@ -460,11 +488,20 @@ class Client:
                     aliases = self.config.aliases
                 search = Search(self, wlpath, aliases)
                 for final_step in search.resolve_raw():
-                    if final_step.container is None:
+                    if final_step.container is None and final_step.bridge is None:
+                        # should not happen right now, but might in the future;
+                        # but also makes below conditions a bit nicer, as we can assume it is
+                        # either container or a bridge
+                        continue
+                    if final_step.container is None and not bridge_placeholders:
                         continue
                     self.recognize_users_from_search(final_step)
 
-                    yield final_step.container
+                    if final_step.container is None:
+                        assert final_step.bridge is not None
+                        yield final_step.bridge.to_placeholder_container()
+                    else:
+                        yield final_step.container
             except WildlandError as ex:
                 raise ManifestError(f'Failed to load container {name}: {ex}') from ex
             return
@@ -554,7 +591,7 @@ class Client:
             # where it could be dangerous
             sig = self.session.sig.copy()
             sig.recognize_local_keys()
-            client = Client(config=self.config, sig=sig)
+            client = Client(config=self.config, sig=sig, load=False)
         else:
             client = self
 
@@ -628,7 +665,7 @@ class Client:
             return [[]]
 
         bridges_map: Dict[str, List[Bridge]] = {}
-        for bridge in self.load_all(WildlandObjectType.BRIDGE):
+        for bridge in self.bridges:
             bridges_map.setdefault(bridge.owner, []).append(bridge)
 
         if owner.owner in bridges_map:

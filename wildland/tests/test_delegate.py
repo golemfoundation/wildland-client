@@ -48,7 +48,6 @@ def test_delegate_with_url(cli, base_dir):
         '--container', 'Container', '--no-inline')
 
     client = Client(base_dir)
-    client.recognize_users()
 
     # When loaded directly, the storage manifest contains container URL...
     storage = client.load_object_from_name(WildlandObjectType.STORAGE, 'ProxyStorage')

@@ -1,0 +1,6 @@
+.. option:: --file <path>=<content>
+
+    Single file to be included in the storage. The file path may contain slash
+    (/) to put it into a subdirectory. Path should be relative (without leading
+    slash).
+

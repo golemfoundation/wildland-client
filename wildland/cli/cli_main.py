@@ -158,7 +158,6 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
         else:
             raise CliError('Already mounted')
 
-    obj.client.recognize_users()
     if not default_user:
         # Attempt to get '@default' user
         default_user = obj.client.config.get('@default')

@@ -34,3 +34,15 @@
 
     Allow an additional user access to this storage manifest. By default, storage manifests inherit
     access settings from the container.
+
+.. option:: --encrypt-manifest
+
+    Encrypt storage manifest so that it's readable only by the owner. This is the default.
+    This option makes sense only together with ``-no-inline``, otherwise
+    encryption is inherited from the container manifest.
+
+.. option:: --no-encrypt-manifest
+
+    Do not encrypt container manifest at all.
+    This option makes sense only together with ``-no-inline``, otherwise
+    encryption is inherited from the container manifest.

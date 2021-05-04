@@ -618,9 +618,7 @@ def test_nested_mounts(env, storage_type):
     with open(env.test_dir / 'storage/storage1/nested1/file-conflict') as f:
         assert f.read() == 'new content'
 
-    # I shouldn't be able to remove the file, or create a new one
-    with pytest.raises(PermissionError):
-        os.unlink(path1)
+    # I shouldn't be able to create a new file
     with pytest.raises(PermissionError):
         open(env.mnt_dir / 'container1/nested1/new-file', 'w')
 
@@ -670,6 +668,54 @@ def test_read_only(env, storage_type):
         os.mkdir(env.mnt_dir / 'container1/dir-new')
     with pytest.raises(OSError):
         os.rmdir(env.mnt_dir / 'container1/dir')
+
+def test_read_only_merged(env, storage_type):
+    env.create_dir('storage/storage1')
+    env.create_file('storage/storage1/file1')
+    env.create_dir('storage/storage1/dir')
+
+    env.create_dir('storage/storage2')
+    env.create_file('storage/storage2/file2')
+    env.create_dir('storage/storage2/dir')
+
+    storage1 = storage_manifest(env, 'storage/storage1', storage_type,
+                                read_only=True)
+    env.mount_storage(['/container1', '/container'], storage1)
+    storage2 = storage_manifest(env, 'storage/storage2', storage_type)
+    env.mount_storage(['/container2', '/container'], storage2)
+
+    st = os.lstat(env.mnt_dir / 'container/file1')
+    assert st.st_mode & 0o222 == 0
+
+    st = os.lstat(env.mnt_dir / 'container/file2')
+    assert st.st_mode & 0o200 == 0o200
+
+    st = os.lstat(env.mnt_dir / 'container/dir')
+    assert st.st_mode & 0o200 == 0o200
+
+    with pytest.raises(OSError):
+        os.unlink(env.mnt_dir / 'container/file1')
+    with open(env.mnt_dir / 'container/file2', 'w') as f:
+        f.write('test')
+
+    assert (env.test_dir / 'storage/storage2/file2').read_text() == 'test'
+    os.truncate(env.mnt_dir / 'container/file2', 0)
+    os.unlink(env.mnt_dir / 'container/file2')
+    assert not (env.test_dir / 'storage/storage2/file2').exists()
+
+    with open(env.mnt_dir / 'container/file-new', 'w') as f:
+        f.write('test')
+
+    assert (env.test_dir / 'storage/storage2/file-new').read_text() == 'test'
+
+    os.mkdir(env.mnt_dir / 'container/dir-new')
+    assert (env.test_dir / 'storage/storage2/dir-new').is_dir()
+
+    st = os.lstat(env.mnt_dir / 'container/dir-new')
+    assert st.st_mode & 0o200 == 0o200
+
+    os.rmdir(env.mnt_dir / 'container/dir-new')
+    assert not (env.test_dir / 'storage/storage2/dir-new').exists()
 
 
 # Test the paging while reading a file.

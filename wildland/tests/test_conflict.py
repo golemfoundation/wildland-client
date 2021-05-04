@@ -29,7 +29,7 @@ import errno
 
 import pytest
 
-from ..conflict import ConflictResolver
+from ..conflict import ConflictResolver, Resolved
 from ..storage_backends.base import Attr
 
 
@@ -52,15 +52,15 @@ class TestFS(ConflictResolver):
         _, data = self.storages[ident]
         data = self.get(data, relpath)
         if isinstance(data, dict):
-            return Attr(mode=stat.S_IFDIR | 0o755)
-        return Attr(mode=stat.S_IFREG | 0o644)
+            return Attr(mode=stat.S_IFDIR | data.get('_mode', 0o755))
+        return Attr(mode=stat.S_IFREG | (data or 0o644))
 
     def storage_readdir(self, ident, relpath):
         _, data = self.storages[ident]
         data = self.get(data, relpath)
         if not isinstance(data, dict):
             raise NotADirectoryError()
-        return list(data.keys())
+        return list(key for key in data.keys() if not key.startswith('_'))
 
     # Test helpers
 
@@ -248,3 +248,87 @@ def test_readdir_mounted_subdir():
     assert fs.dir('/foo/bar') == ['baz']
 
     assert fs.dir('/foo/bar/baz') == ['dir2', 'file2']
+
+    assert fs.mode('/') == stat.S_IFDIR | 0o555
+    assert fs.mode('/foo') == stat.S_IFDIR | 0o755
+    assert fs.mode('/foo/dir1') == stat.S_IFDIR | 0o755
+    assert fs.mode('/foo/file1') == stat.S_IFREG | 0o644
+    assert fs.mode('/foo/bar') == stat.S_IFDIR | 0o555
+    assert fs.mode('/foo/bar/baz') == stat.S_IFDIR | 0o755
+    assert fs.mode('/foo/bar/baz/dir2') == stat.S_IFDIR | 0o755
+    assert fs.mode('/foo/bar/baz/file2') == stat.S_IFREG | 0o644
+
+
+def test_readdir_merged_writable():
+    fs = TestFS(
+        (PurePosixPath('/mount1/mount2'), {
+            'file1.txt': None,
+            'file2': None,
+            'dir1': {
+                'file3': None,
+                'file4': None,
+                'file6': None
+            },
+            'dir2': {
+                'file3': None,
+                'file4': None,
+                'file6': None
+            },
+        }),
+        (PurePosixPath('/mount1/mount2'), {
+            'file1.txt': None,
+            'file3': None,
+            'dir1': {
+                '_mode': 0o555,
+                'file3': None,
+                'file5': None,
+                'file6.txt': None
+            },
+            'dir3': {
+                '_mode': 0o500,
+                'file3': None,
+                'file5': None,
+                'file6.txt': None
+            },
+        }),
+    )
+
+    assert fs.dir('/') == ['mount1']
+    assert fs.dir('/mount1') == ['mount2']
+    assert fs.dir('/mount1/mount2') == [
+        'dir1', 'dir2', 'dir3',
+        'file1.wl_0.txt', 'file1.wl_1.txt',
+        'file2', 'file3',
+    ]
+    assert fs.dir('/mount1/mount2/dir1') == [
+        'file3.wl_0',
+        'file3.wl_1',
+        'file4',
+        'file5',
+        'file6',
+        'file6.txt',
+    ]
+
+    with pytest.raises(FileNotFoundError):
+        fs.dir('/mount1/mount2/other')
+    with pytest.raises(FileNotFoundError):
+        fs.dir('/mount1/mount2/file1.txt')
+    with pytest.raises(NotADirectoryError):
+        fs.dir('/mount1/mount2/file2')
+
+    assert fs.mode('/mount1/mount2') == stat.S_IFDIR | 0o555
+    assert fs.mode('/mount1/mount2/dir1') == stat.S_IFDIR | 0o755
+    assert fs.mode('/mount1/mount2/dir2') == stat.S_IFDIR | 0o755
+    assert fs.mode('/mount1/mount2/dir3') == stat.S_IFDIR | 0o500
+    assert fs.mode('/mount1/mount2/file2') == stat.S_IFREG | 0o0644
+
+    assert fs.getattr_extended(PurePosixPath('/mount1/mount2/dir1'))[1] == \
+        Resolved(ident=0, relpath=PurePosixPath('dir1'))
+
+    assert fs.getattr_extended(PurePosixPath('/mount1/mount2/dir2'))[1] == \
+        Resolved(ident=0, relpath=PurePosixPath('dir2'))
+
+    assert fs.getattr_extended(PurePosixPath('/mount1/mount2/dir3'))[1] == \
+        Resolved(ident=1, relpath=PurePosixPath('dir3'))
+
+    assert fs.getattr_extended(PurePosixPath('/mount1/mount2'))[1] is None
