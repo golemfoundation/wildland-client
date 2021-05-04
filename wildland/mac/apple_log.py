@@ -23,7 +23,6 @@ Apple's Unified Logging.
 
 # pylint: disable=import-error
 import logging
-import logging.config
 from PBRLogBridge import log_message
 
 class apple_log(logging.StreamHandler):
@@ -50,6 +49,6 @@ class apple_log(logging.StreamHandler):
         ioshandler = apple_log()
         logging.basicConfig(level=logging.DEBUG)
         logger = logging.getLogger()
-        consoleHandler = logger.handlers[0]
+        logger.handlers = [ ]
         logger.addHandler(ioshandler)
-        logger.removeHandler(consoleHandler)
+ 
