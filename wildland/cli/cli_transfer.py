@@ -42,7 +42,6 @@ def put(obj: ContextObj, local_file, wlpath):
     except PathError as ex:
         click.echo(f"Path error: {ex}")
         return
-    obj.client.recognize_users()
     data = local_file.read()
     search = Search(obj.client, wlpath, obj.client.config.aliases)
     try:
@@ -65,7 +64,6 @@ def get(obj: ContextObj, wlpath, local_file):
     except PathError as ex:
         click.echo(f"Path error: {ex}")
         return
-    obj.client.recognize_users()
     search = Search(obj.client, wlpath, obj.client.config.aliases)
     data = search.read_file()
     try:

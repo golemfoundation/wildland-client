@@ -131,7 +131,6 @@ def set_default_(obj: ContextObj, user, name):
     except FileNotFoundError as fnf:
         raise WildlandError(f'Storage set {name} does not exist') from fnf
 
-    obj.client.recognize_users()
     try:
         user = obj.client.load_object_from_name(WildlandObjectType.USER, user_name)
     except ManifestError as ex:

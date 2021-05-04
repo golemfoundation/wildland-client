@@ -116,7 +116,6 @@ def create(obj: ContextObj, owner, path, name, update_user, default_storage_set,
     Create a new container manifest.
     """
 
-    obj.client.recognize_users()
     owner = obj.client.load_object_from_name(WildlandObjectType.USER, owner or '@default-owner')
 
     if default_storage_set and not storage_set:
@@ -192,7 +191,6 @@ def update(obj: ContextObj, storage, cont):
     Update a container manifest.
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     if container.local_path is None:
         raise WildlandError('Can only update a local manifest')
@@ -220,7 +218,6 @@ def publish(obj: ContextObj, cont):
     Publish a container manifest to an infrastructure container.
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     Publisher(obj.client, container).publish_container()
 
@@ -234,7 +231,6 @@ def unpublish(obj: ContextObj, cont):
     from all infrastructure containers.
     '''
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     Publisher(obj.client, container).unpublish_container()
 
@@ -264,7 +260,6 @@ def list_(obj: ContextObj):
     Display known containers.
     """
 
-    obj.client.recognize_users()
     for container in obj.client.load_all(WildlandObjectType.CONTAINER):
         _container_info(obj.client, container)
 
@@ -277,7 +272,6 @@ def info(obj: ContextObj, name):
     Show information about single container.
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, name)
 
     _container_info(obj.client, container)
@@ -295,7 +289,6 @@ def delete(obj: ContextObj, name, force, cascade):
     Delete a container.
     """
     # TODO: also consider detecting user-container link (i.e. user's main container).
-    obj.client.recognize_users()
 
     try:
         container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, name)
@@ -434,8 +427,6 @@ def add_access(ctx: click.Context, input_file, access):
     """
     Allow an additional user access to this manifest.
     """
-    ctx.obj.client.recognize_users()
-
     processed_access = []
 
     for user in access:
@@ -454,8 +445,6 @@ def del_access(ctx: click.Context, input_file, access):
     """
     Remove category from the manifest.
     """
-    ctx.obj.client.recognize_users()
-
     processed_access = []
 
     for user in access:
@@ -611,7 +600,6 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
     The Wildland system has to be mounted first, see ``wl start``.
     """
     obj.fs_client.ensure_mounted()
-    obj.client.recognize_users()
 
     if import_users:
         obj.client.auto_import_users = True
@@ -686,7 +674,6 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     """
 
     obj.fs_client.ensure_mounted()
-    obj.client.recognize_users()
 
     if bool(container_names) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
@@ -760,7 +747,6 @@ def mount_watch(obj: ContextObj, container_names):
     """
 
     obj.fs_client.ensure_mounted()
-    obj.client.recognize_users()
     if os.path.exists(MW_PIDFILE):
         raise ClickException("Mount-watch already running; use stop-mount-watch to stop it "
                              "or add-mount-watch to watch more containers.")
@@ -841,7 +827,6 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
     (by default the first listed in manifest).
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
 
     sync_pidfile = syncer_pidfile_for_container(container)
@@ -929,7 +914,6 @@ def stop_syncing_container(obj: ContextObj, cont):
     Keep the given container in sync across storages.
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
 
     sync_pidfile = syncer_pidfile_for_container(container)
@@ -947,7 +931,6 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
     """
     List conflicts detected by the syncing tool.
     """
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
 
     storages = [StorageBackend.from_params(storage.params) for storage in
@@ -984,8 +967,6 @@ def duplicate(obj: ContextObj, new_name, cont):
     """
     Duplicate an existing container manifest.
     """
-
-    obj.client.recognize_users()
 
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     old_uuid = container.ensure_uuid()
@@ -1034,8 +1015,6 @@ def find(obj: ContextObj, path):
     """
     Find container by mounted file path.
     """
-    obj.client.recognize_users()
-
     results = set(sorted([
         (fileinfo.backend_id, f'wildland:{fileinfo.storage_owner}:{fileinfo.container_path}:')
         for fileinfo in obj.fs_client.pathinfo(Path(path))

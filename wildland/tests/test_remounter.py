@@ -102,7 +102,6 @@ def setup(base_dir, cli, control_client):
 def client(setup, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
     return client
 
 

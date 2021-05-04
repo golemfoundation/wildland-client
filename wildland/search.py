@@ -31,6 +31,7 @@ from pathlib import PurePosixPath
 from typing import Optional, Tuple, Iterable, Mapping, List, Set
 from typing import TYPE_CHECKING
 
+import wildland
 from .fs_client import WildlandFSClient
 from .storage_driver import StorageDriver
 from .user import User
@@ -43,7 +44,7 @@ from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
 if TYPE_CHECKING:
-    from .client import Client  # pylint: disable=cyclic-import
+    import wildland.client  # pylint: disable=cyclic-import
 
 logger = logging.getLogger('search')
 
@@ -58,7 +59,7 @@ class Step:
     owner: str
 
     # Client with the current key loaded
-    client: Client
+    client: wildland.client.Client
 
     # Container
     container: Optional[Container]
@@ -96,7 +97,7 @@ class Search:
     """
 
     def __init__(self,
-            client: Client,
+            client: wildland.client.Client,
             wlpath: WildlandPath,
             aliases: Mapping[str, str] = types.MappingProxyType({}),
             fs_client: Optional[WildlandFSClient] = None):
@@ -223,10 +224,11 @@ class Search:
         This function returns a tuple of:
          - list of mount parameters (for WildlandFSClient.mount_multiple_containers())
          - set of patterns (relative to the FUSE mount point) to watch
+
         Watching the patterns is legal only if all returned mount commands succeeded.
 
         Usage:
-        >>> client = Client()
+        >>> client = wildland.client.Client()
         >>> fs_client = client.fs_client
         >>> search = Search(...)
         >>> mount_cmds, patterns = search.get_watch_params()
@@ -424,7 +426,7 @@ class Search:
         )
 
     def _bridge_step(self,
-                     client: Client,
+                     client: wildland.client.Client,
                      owner: str,
                      part: PurePosixPath,
                      manifest_path: Optional[PurePosixPath],
@@ -486,13 +488,14 @@ class Search:
                                location, str(ex))
                 return
         assert isinstance(user, User)
+        next_client.recognize_users_and_bridges([user], [bridge])
         yield from self._user_step(
             user, next_owner, next_client, bridge, step)
 
     def _user_step(self,
                    user: User,
                    owner: str,
-                   client: Client,
+                   client: wildland.client.Client,
                    current_bridge: Optional[Bridge],
                    step: Optional[Step]) -> Iterable[Step]:
 

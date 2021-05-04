@@ -131,8 +131,6 @@ def list_(obj: ContextObj):
     Display known users.
     """
 
-    obj.client.recognize_users()
-
     default_user = obj.client.config.get('@default')
     default_owner = obj.client.config.get('@default-owner')
     default_override = (default_user != obj.client.config.get('@default', use_override=False))
@@ -172,8 +170,6 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
     """
     Delete a user.
     """
-
-    obj.client.recognize_users()
 
     user = obj.client.load_object_from_name(WildlandObjectType.USER, name)
 
@@ -321,6 +317,7 @@ def _do_process_imported_manifest(
             owner=default_user,
             user_location=manifest_url,
             user_pubkey=user.primary_pubkey,
+            user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
             paths=(paths if paths else user.paths),
         )
 
@@ -328,7 +325,7 @@ def _do_process_imported_manifest(
         bridge_path = obj.client.save_new_object(WildlandObjectType.BRIDGE, bridge, name, None)
         click.echo(f'Created: {bridge_path}')
     else:
-        bridge = Bridge.from_manifest(manifest)
+        bridge = Bridge.from_manifest(manifest, obj.client.session.sig)
         # adjust imported bridge
         if paths:
             bridge.paths = list(paths)
@@ -384,6 +381,7 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                     owner=default_user,
                     user_location=bridge.user_location,
                     user_pubkey=bridge.user_pubkey,
+                    user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
                     paths=paths or bridge.paths,
                 )
                 bridge_name = name.replace(WILDLAND_URL_PREFIX, '')
@@ -422,8 +420,6 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
     # collect information on (potentially) multiple objects created
 
-    obj.client.recognize_users()
-
     import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
 
 
@@ -435,7 +431,6 @@ def user_refresh(obj: ContextObj, name):
     """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
-    obj.client.recognize_users()
     user = obj.client.load_object_from_name(WildlandObjectType.USER, name) if name else None
 
     for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):

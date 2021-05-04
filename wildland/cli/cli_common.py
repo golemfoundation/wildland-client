@@ -103,8 +103,6 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
     """
     obj: ContextObj = ctx.obj
 
-    obj.client.recognize_users()
-
     manifest_type = ctx.parent.command.name if ctx.parent else None
     if manifest_type == 'main':
         manifest_type = None
@@ -169,7 +167,6 @@ def verify(ctx: click.Context, input_file):
     else:
         data = sys.stdin.buffer.read()
 
-    obj.client.recognize_users()
     try:
         manifest = Manifest.from_bytes(data, obj.client.session.sig,
                                        allow_only_primary_key=(manifest_type == 'user'))
@@ -199,7 +196,6 @@ def dump(ctx: click.Context, input_file, decrypt):
     path = find_manifest_file(obj.client, input_file, manifest_type)
 
     if decrypt:
-        obj.client.recognize_users()
         manifest = Manifest.from_file(path, obj.client.session.sig)
         print(yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False).decode())
 
@@ -230,7 +226,6 @@ def edit(ctx: click.Context, editor, input_file, remount):
 
     path = find_manifest_file(obj.client, input_file, provided_manifest_type)
 
-    obj.client.recognize_users()
     try:
         manifest = Manifest.from_file(path, obj.client.session.sig)
         manifest_type = manifest.fields['object']
@@ -312,7 +307,6 @@ def modify_manifest(ctx: click.Context, name: str, edit_func: Callable[..., dict
 
     manifest_path = find_manifest_file(obj.client, name, manifest_type)
 
-    obj.client.recognize_users()
     sig_ctx = obj.client.session.sig
     manifest = Manifest.from_file(manifest_path, sig_ctx)
     if manifest_type is not None:

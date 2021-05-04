@@ -614,7 +614,7 @@ class WildlandFSBase:
             event_type='update')
 
     def rmdir(self, path):
-        return self.proxy('rmdir', path, parent=True, modify=True, event_type='delete')
+        return self.proxy('rmdir', path, modify=True, event_type='delete')
 
     def setxattr(self, *args):
         return -errno.ENOSYS
@@ -629,10 +629,10 @@ class WildlandFSBase:
         return self.proxy('truncate', path, length, modify=True, event_type='modify')
 
     def unlink(self, path):
-        return self.proxy('unlink', path, parent=True, modify=True, event_type='delete')
+        return self.proxy('unlink', path, modify=True, event_type='delete')
 
     def utimens(self, path: str, atime: Timespec, mtime: Timespec):
-        return self.proxy('utimens', path, atime, mtime, parent=True, modify=True,
+        return self.proxy('utimens', path, atime, mtime, modify=True,
                           event_type='modify')
 
 
@@ -648,7 +648,13 @@ class WildlandFSConflictResolver(ConflictResolver):
     def storage_getattr(self, ident: int, relpath: PurePosixPath) -> Attr:
         with self.fs.mount_lock:
             storage = self.fs.storages[ident]
-        return storage.getattr(relpath)
+        attr = storage.getattr(relpath)
+        if storage.read_only:
+            return Attr(
+                mode=attr.mode & ~0o222,
+                size=attr.size,
+                timestamp=attr.timestamp)
+        return attr
 
     def storage_readdir(self, ident: int, relpath: PurePosixPath) -> List[str]:
         with self.fs.mount_lock:

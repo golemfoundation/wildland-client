@@ -99,7 +99,6 @@ def _boostrap_forest(ctx: click.Context,
                      manifest_storage_set_name: str = None):
 
     obj: ContextObj = ctx.obj
-    obj.client.recognize_users()
 
     # Load users manifests
     try:
@@ -184,7 +183,7 @@ def _boostrap_forest(ctx: click.Context,
                             'infrastructures', [link_obj])
 
         # Refresh users infrastructures
-        obj.client.recognize_users()
+        obj.client.recognize_users_and_bridges()
 
         with manifests_backend:
             manifests_backend.mkdir(PurePosixPath('users'))

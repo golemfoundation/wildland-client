@@ -75,6 +75,11 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help="limit access to this storage to the provided users. "
                           "Default: same as the container."),
+        click.Option(['--encrypt-manifest/--no-encrypt-manifest'], default=True,
+                     required=False,
+                     help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
+                          "and --access cannot be used. For inline storage, "
+                          "container manifest might still be encrypted."),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -109,11 +114,10 @@ def _do_create(
         watcher_interval,
         base_url,
         access,
+        encrypt_manifest,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
-
-    obj.client.recognize_users()
 
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, container)
     if not container.local_path:
@@ -143,7 +147,9 @@ def _do_create(
             'path': manifest_pattern,
         }
 
-    if access:
+    if not encrypt_manifest:
+        access = [{'user': '*'}]
+    elif access:
         access = [{'user': obj.client.load_object_from_name(
             WildlandObjectType.USER, user).owner} for user in access]
     else:
@@ -173,8 +179,6 @@ def list_(obj: ContextObj):
     """
     Display known storages.
     """
-
-    obj.client.recognize_users()
 
     for storage in obj.client.load_all(WildlandObjectType.STORAGE):
         click.echo(storage.local_path)
@@ -214,8 +218,6 @@ def delete(obj: ContextObj, name, force, no_cascade, container):
     """
     Delete a storage.
     """
-
-    obj.client.recognize_users()
 
     try:
         local_path, used_by = _get_local_path_and_find_usage(obj.client, name)
@@ -384,7 +386,6 @@ def create_from_set(obj: ContextObj, cont, storage_set=None, local_dir=None):
     Setup storage for a container from a storage template set.
     """
 
-    obj.client.recognize_users()
     container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
     template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.SET])
 
@@ -441,8 +442,6 @@ def add_access(ctx: click.Context, input_file, access):
     """
     Add category to the manifest.
     """
-    ctx.obj.client.recognize_users()
-
     processed_access = []
 
     try:
@@ -464,8 +463,6 @@ def del_access(ctx: click.Context, input_file, access):
     """
     Remove category from the manifest.
     """
-    ctx.obj.client.recognize_users()
-
     processed_access = []
 
     try:

@@ -1,8 +1,8 @@
 {
     "abs-path": {
         "type": "string",
-        "description": "absolute path (must begin with '/')",
-        "pattern": "^/.*$"
+        "description": "absolute path (must begin with a single '/')",
+        "pattern": "^/([^/].*)?$"
     },
     "rel-path": {
         "type": "string",

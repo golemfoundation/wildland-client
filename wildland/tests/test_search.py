@@ -180,7 +180,6 @@ def setup(base_dir, cli):
 def client(setup, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
     return client
 
 
@@ -379,7 +378,6 @@ def setup_pattern(request, base_dir, cli):
 def test_read_container_traverse_pattern(setup_pattern, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
 
     search = Search(client, WildlandPath.from_str(':/path:/path1:'),
         aliases={'default': '0xaaa'})
@@ -394,7 +392,6 @@ def test_read_container_traverse_pattern(setup_pattern, base_dir):
 def test_read_container_wildcard(setup_pattern, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
 
     search = Search(client, WildlandPath.from_str(':/path:*:'),
         aliases={'default': '0xaaa'})
@@ -500,7 +497,7 @@ def modify_file(path, pattern, replacement):
 def test_traverse_other_key(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
-    client.recognize_users()
+    client.recognize_users_and_bridges()
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'
@@ -574,7 +571,7 @@ paths:
 def test_traverse_bridge_link(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd')
 
-    client.recognize_users()
+    client.recognize_users_and_bridges()
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'
@@ -659,7 +656,7 @@ paths:
 def test_traverse_linked_infra(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
-    client.recognize_users()
+    client.recognize_users_and_bridges()
     client.config = Config.load(base_dir)
 
     storage_path = base_dir / 'storage3'
@@ -930,7 +927,6 @@ def two_users_infra(base_dir, cli, control_client):
 def client2(two_users_infra, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
-    client.recognize_users()
     return client
 
 

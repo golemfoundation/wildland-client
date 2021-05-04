@@ -93,8 +93,6 @@ def _do_create(
 
     obj: ContextObj = click.get_current_context().obj
 
-    obj.client.recognize_users()
-
     params = backend.cli_create(data)
 
     params['type'] = backend.TYPE
