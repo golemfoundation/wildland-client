@@ -213,6 +213,10 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
         self.client.rmdir(self._path(path))
         self.clear_cache()
 
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath) -> None:
+        self.client.rename(move_from, move_to)
+        self.clear_cache()
+
     def utimens(self, path: PurePosixPath, _atime, _mtime) -> None:
         # pylint: disable=no-self-use
         logger.debug("utimens dummy op %s", str(path))

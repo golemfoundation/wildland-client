@@ -21,11 +21,12 @@ Dropbox client wrapping and exposing Dropbox API calls that are relevant for the
 """
 
 import errno
+import logging
 from pathlib import PurePosixPath
 from typing import List, Optional
 
 from dropbox import Dropbox
-from dropbox.exceptions import AuthError, BadInputError
+from dropbox.exceptions import ApiError, AuthError, BadInputError
 from dropbox.files import (
     CommitInfo,
     DeleteResult,
@@ -35,6 +36,8 @@ from dropbox.files import (
     UploadSessionCursor,
     WriteMode
 )
+
+logger = logging.getLogger('dropbox-client')
 
 
 class DropboxClient:
@@ -120,6 +123,33 @@ class DropboxClient:
         """
         return self.unlink(path)
 
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath, overwrite=True) -> Metadata:
+        """
+        Rename given file.
+
+        Dropbox API doesn't support overwriting the file when moving, thus we need to manually
+        remove ``move_to`` if it already exists and it is not a directory.
+
+        Alternative implementation could check if ``move_to`` file exists before calling API's
+        ``move`` operation (instead of handling API error that indicates a conflict). It would
+        require more network traffic (unless cached) to check if a file exists. It would also
+        possibly introduce race condition.
+        """
+        assert self.connection
+        move_from_str = self._convert_to_dropbox_path(move_from)
+        move_to_str = self._convert_to_dropbox_path(move_to)
+        try:
+            return self.connection.files_move(move_from_str, move_to_str)
+        except (AuthError, BadInputError) as e:
+            raise PermissionError(errno.EACCES,
+                                  f'No permissions to move file [{move_from_str}]') from e
+        except ApiError as e:
+            if overwrite and self._is_destination_exists_error(e):
+                logger.debug('File [%s] exists - overwriting', move_to_str)
+                self.unlink(move_to)
+                return self.rename(move_from, move_to, overwrite=False)
+            raise e
+
     def get_metadata(self, path: PurePosixPath) -> Metadata:
         """
         Get file/directory metadata. This is kind of a superset of getattr().
@@ -187,3 +217,11 @@ class DropboxClient:
         In particular, Dropbox uses empty string instead of '.'.
         """
         return '' if path == PurePosixPath('.') else str('/' / path)
+
+    @staticmethod
+    def _is_destination_exists_error(api_err: ApiError) -> bool:
+        if api_err.error.is_to():
+            to_err = api_err.error.get_to()
+            if to_err.is_conflict():
+                return True
+        return False
