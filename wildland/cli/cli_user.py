@@ -21,8 +21,9 @@
 Manage users
 """
 
-from typing import Tuple, Iterable, Optional
+from typing import Tuple, Optional, Union, List
 from pathlib import PurePosixPath, Path
+import logging
 import binascii
 import click
 
@@ -36,6 +37,10 @@ from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
 from ..manifest.manifest import Manifest, WildlandObjectType
+from ..storage_driver import StorageDriver
+from ..storage import Storage
+
+logger = logging.getLogger('cli-user')
 
 
 @aliased_group('user', short_help='user management')
@@ -246,7 +251,8 @@ def _remove_suffix(s: str, suffix: str) -> str:
     return s
 
 
-def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path], Optional[str]]:
+def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
+                        force: bool = False) -> Tuple[Optional[Path], Optional[str]]:
     """
     Takes a manifest as pointed towards by path (can be local file path, url, wildland url),
     imports its public keys, copies the manifest itself.
@@ -255,15 +261,34 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
     :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
         input)
     """
-    if Path(path).exists():
-        file_data = Path(path).read_bytes()
-        file_name = Path(path).stem
-        file_url = obj.client.local_url(Path(path).absolute())
+
+    # TODO: Accepting paths (string) should be deprecated and force using link objects
+    if isinstance(path_or_dict, dict):
+        if path_or_dict.get('object', None) != WildlandObjectType.LINK.value:
+            raise CliError(f'Dictionary object must be of type {WildlandObjectType.LINK.value}')
+
+        if not manifest_owner:
+            raise CliError('Unable to import a link object without specifying a trusted owner')
+
+        file_path = PurePosixPath(path_or_dict['file'])
+        file_data = obj.client.read_link_object(path_or_dict['storage'], file_path, manifest_owner)
+        file_name = file_path.stem
+        file_url = None
     else:
-        file_data = obj.client.read_from_url(path, obj.client.config.get('@default'),
-                                             use_aliases=True)
-        file_name = _remove_suffix(path.split('/')[-1], '.yaml')
-        file_url = path
+        path = str(path_or_dict)
+
+        if Path(path).exists():
+            file_data = Path(path).read_bytes()
+            file_name = Path(path).stem
+            file_url = obj.client.local_url(Path(path).absolute())
+        else:
+            try:
+                file_data = obj.client.read_from_url(path, use_aliases=True)
+            except FileNotFoundError as fnf:
+                raise CliError('File was not found') from fnf
+
+            file_name = _remove_suffix(path.split('/')[-1], '.yaml')
+            file_url = path
 
     # load user pubkeys
     Manifest.verify_and_load_pubkeys(file_data, obj.session.sig)
@@ -297,15 +322,75 @@ def _do_import_manifest(obj, path, force: bool = False) -> Tuple[Optional[Path],
     return destination, file_url
 
 
+def _find_user_manifest_within_infrastructures(obj, user: User) -> \
+        Optional[Tuple[Storage, PurePosixPath]]:
+    """
+    Mounts containers of the given user (infrastructures) and attempts to find that user's
+    manifest file within that infrastructure.
+    The user manifest file is expected to be named 'forest-owner.yaml' and be placed in the root
+    directory of the infrastructure storage.
+
+    :param user: User
+    :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
+    at that manifest in the storage
+
+    """
+    for container in user.containers:
+        try:
+            container_candidate = (
+                obj.client.load_object_from_url_or_dict(
+                    WildlandObjectType.CONTAINER, container, user.owner))
+
+            all_storages = obj.client.all_storages(container=container_candidate)
+        except WildlandError as ex:
+            logger.debug('Could not load container manifest. Exception: %s', ex)
+            continue
+
+        for storage_candidate in all_storages:
+            with StorageDriver.from_storage(storage_candidate) as driver:
+                try:
+                    file_candidate = PurePosixPath('forest-owner.yaml')
+                    file_content = driver.read_file(file_candidate)
+
+                    # Ensure you're able to load this object
+                    obj.client.load_object_from_bytes(
+                        WildlandObjectType.USER, file_content, expected_owner=user.owner)
+
+                    return storage_candidate, file_candidate
+
+                except WildlandError as ex:
+                    logger.debug('Could not read user manifest. Exception: %s', ex)
+
+    return None
+
+
+def _sanitize_imported_paths(paths: List[PurePosixPath], owner: str) -> List[PurePosixPath]:
+    """
+    Accept a list of imported paths (either from a user or a bridge manifest) and return only
+    the first one with sanitised (safe) path.
+    """
+    if not paths:
+        raise CliError('No paths found to sanitize')
+
+    path = paths[0]
+
+    if path.is_relative_to('/'):
+        path = path.relative_to('/')
+
+    safe_path = f'/forests/{owner}-' + '_'.join(path.parts)
+
+    return [PurePosixPath(safe_path)]
+
+
 def _do_process_imported_manifest(
-        obj: ContextObj, copied_manifest_path: Path, manifest_url: str,
-        paths: Iterable[PurePosixPath], default_user: str):
+        obj: ContextObj, copied_manifest_path: Path, user_manifest_location: str,
+        paths: List[PurePosixPath], default_user: str):
     """
     Perform followup actions after importing a manifest: create a Bridge manifest for a user,
     import a Bridge manifest's target user
     :param obj: ContextObj
     :param copied_manifest_path: Path to where the manifest was copied
-    :param manifest_url: url to manifest (local or remote, depending on input)
+    :param user_manifest_location: url to manifest (local or remote, depending on input)
     :param paths: list of paths to use in created Bridge manifest
     :param default_user: owner of the manifests to be created
     """
@@ -313,12 +398,30 @@ def _do_process_imported_manifest(
 
     if manifest.fields['object'] == 'user':
         user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
+        result = _find_user_manifest_within_infrastructures(obj, user)
+
+        user_location: Union[str, dict] = user_manifest_location
+
+        if result:
+            storage, file_path = result
+
+            storage.owner = default_user
+            storage_manifest = storage.to_unsigned_manifest()
+            storage_manifest.remove_redundant_inline_manifest_keys()
+            storage_manifest.skip_verification()
+
+            user_location = {
+                'object': WildlandObjectType.LINK.value,
+                'file': str(('/' / file_path)),
+                'storage': storage_manifest.fields
+            }
+
         bridge = Bridge(
             owner=default_user,
-            user_location=manifest_url,
+            user_location=user_location,
             user_pubkey=user.primary_pubkey,
             user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
-            paths=(paths if paths else user.paths),
+            paths=(paths if paths else _sanitize_imported_paths(user.paths, user.owner)),
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
@@ -326,16 +429,23 @@ def _do_process_imported_manifest(
         click.echo(f'Created: {bridge_path}')
     else:
         bridge = Bridge.from_manifest(manifest, obj.client.session.sig)
+
+        original_bridge_owner = bridge.owner
+
         # adjust imported bridge
-        if paths:
-            bridge.paths = list(paths)
         if default_user:
             bridge.owner = default_user
+
+        if paths:
+            bridge.paths = list(paths)
+        else:
+            bridge.paths = _sanitize_imported_paths(bridge.paths, original_bridge_owner)
+
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
-        _do_import_manifest(obj, bridge.user_location)
+        _do_import_manifest(obj, bridge.user_location, bridge.owner)
 
 
-def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
+def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_owner, only_first):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
@@ -350,9 +460,8 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
     if not default_user:
         raise CliError('Cannot import user or bridge without a --bridge-owner or a default user.')
 
-    if Path(name).exists() or obj.client.is_url_file_path(name):
-        # try to import manifest file
-        copied_manifest_path, manifest_url = _do_import_manifest(obj, name)
+    if wl_obj_type == WildlandObjectType.USER:
+        copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
         if not copied_manifest_path or not manifest_url:
             return
         try:
@@ -364,9 +473,18 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
             copied_manifest_path.unlink()
             raise CliError(f'Failed to import: {str(ex)}') from ex
-    else:
-        # this didn't work out, perhaps we have an url to a bunch of bridges?
-        bridges = list(obj.client.read_bridge_from_url(name, use_aliases=True))
+    elif wl_obj_type == WildlandObjectType.BRIDGE:
+        if Path(path_or_url).exists():
+            path = Path(path_or_url)
+            bridges = [
+                obj.client.load_object_from_bytes(
+                    WildlandObjectType.BRIDGE, path.read_bytes(), file_path=path)
+            ]
+            name = path.stem
+        else:
+            bridges = list(obj.client.read_bridge_from_url(path_or_url, use_aliases=True))
+            name = path_or_url.replace(WILDLAND_URL_PREFIX, '')
+
         if not bridges:
             raise CliError('No bridges found.')
         if only_first:
@@ -382,21 +500,22 @@ def import_manifest(obj: ContextObj, name, paths, bridge_owner, only_first):
                     user_location=bridge.user_location,
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=paths or bridge.paths,
+                    paths=(paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
                 )
-                bridge_name = name.replace(WILDLAND_URL_PREFIX, '')
-                bridge_name = bridge_name.replace(':', '_').replace('/', '_')
+                bridge_name = name.replace(':', '_').replace('/', '_')
                 bridge_path = obj.client.save_new_object(
                     WildlandObjectType.BRIDGE, new_bridge, bridge_name, None)
                 click.echo(f'Created: {bridge_path}')
                 copied_files.append(bridge_path)
-                _do_import_manifest(obj, bridge.user_location)
+                _do_import_manifest(obj, bridge.user_location, bridge.owner)
         except Exception as ex:
             for file in copied_files:
                 click.echo(
                     f'Import error occurred. Removing created files: {str(file)}')
                 file.unlink(missing_ok=True)
             raise CliError(f'Failed to import: {str(ex)}') from ex
+    else:
+        raise CliError(f"[{wl_obj_type}] object type is not supported")
 
 
 @user_.command('import', short_help='import bridge or user manifest', alias=['im'])
@@ -420,7 +539,7 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
     # collect information on (potentially) multiple objects created
 
-    import_manifest(obj, path_or_url, paths, bridge_owner, only_first)
+    import_manifest(obj, path_or_url, paths, WildlandObjectType.USER, bridge_owner, only_first)
 
 
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
@@ -438,7 +557,7 @@ def user_refresh(obj: ContextObj, name):
             continue
 
         try:
-            _do_import_manifest(obj, bridge.user_location, force=True)
+            _do_import_manifest(obj, bridge.user_location, bridge.owner, force=True)
         except WildlandError as ex:
             click.echo(f"Error while refreshing bridge: {ex}")
 

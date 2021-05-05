@@ -118,16 +118,16 @@ class Container:
         """
 
         # remove redundant fields from inline manifest
-        cleaned_backends = deepcopy(self.backends)
-        for backend in cleaned_backends:
-            if not isinstance(backend, dict):
-                continue
-            if 'owner' in backend:
-                del backend['owner']
-            if 'container-path' in backend:
-                del backend['container-path']
-            if 'object' in backend and backend['object'] != 'link':
-                del backend['object']
+        cleaned_backends = []
+
+        for backend in deepcopy(self.backends):
+            if isinstance(backend, dict):
+                backend_manifest = Manifest.from_fields(backend)
+                backend_manifest.remove_redundant_inline_manifest_keys()
+                backend_manifest.skip_verification()
+                cleaned_backends.append(backend_manifest.fields)
+            else:
+                cleaned_backends.append(backend)
 
         fields: dict[str, Any] = {
             "object": self.OBJECT_TYPE.value,

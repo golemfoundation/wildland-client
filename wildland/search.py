@@ -22,6 +22,7 @@ Utilities for URL resolving and traversing the path
 """
 
 from __future__ import annotations
+from copy import deepcopy
 
 import logging
 import re
@@ -441,7 +442,7 @@ class Search:
 
         next_client, next_owner = client.sub_client_with_key(bridge.user_pubkey)
 
-        location = bridge.user_location
+        location = deepcopy(bridge.user_location)
         if isinstance(location, str):
             if location.startswith('./') or location.startswith('../'):
 

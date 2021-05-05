@@ -101,11 +101,15 @@ See help for :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl du
 :command:`wl user import [--path path] [--bridge-owner user] [--only-first] url_or_path`
 ----------------------------------------------------------------------------------------
 
-Import a user or bridge. Accepts local paths to manifests, urls to manifests, Wildland urls
+Imports a user. Accepts local paths to manifests, urls to manifests, Wildland urls
 to manifests and Wildland urls to Wildland objects.
 
 For users, will import the user and create an appropriate bridge manifest referencing the user.
-For bridge manifests, will import the bridge manifest and import the referenced user.
+In the process of bridge creation, the client will attempt to mount the imported user's
+infrastructures (if any) and find the imported user's manifest file in `/users/` directory within
+that infrastructure. If successful, it will create a link object to that file and store is in the
+bridge manifest. Otherwise it will use the url or path that was passed as an argument to this
+command.
 
 For Wildland object path, will import all referenced bridges and their reference users.
 

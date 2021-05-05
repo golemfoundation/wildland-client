@@ -371,6 +371,23 @@ class Manifest:
         self._fields = fields
         self.header = Header(signature)
 
+    def remove_redundant_inline_manifest_keys(self):
+        """
+        To be used for inline manifests. Removes manifest fields that are not needed in
+        inline manifests.
+
+        Note: You might need to re(encrypt|sign) this manifest after calling this method
+        """
+        if 'owner' in self._fields:
+            del self._fields['owner']
+        if 'container-path' in self._fields:
+            del self._fields['container-path']
+        if 'object' in self._fields and self._fields['object'] != 'link':
+            del self._fields['object']
+
+        self.original_data = Manifest.from_fields(self._fields).original_data
+
+
     def skip_verification(self):
         """
         Explicitly mark the manifest as unsigned, and allow using it.
