@@ -441,12 +441,13 @@ class EncryptedStorageBackend(StorageBackend):
         self.engine_cls = engines[self.engine]
 
         alphabet = string.ascii_letters + string.digits
-        tmpdir = PurePosixPath(tempfile.mkdtemp())
-        self.tmpdir_path =  tmpdir / self.engine
-        self.cleartext_path = tmpdir / 'cleartext'
+        default = Path('~/.local/share/').expanduser()
+        mountid = ''.join(secrets.choice(alphabet) for i in range(15))
+        tmpdir = PurePosixPath(os.getenv('XDG_HOME_DATA', default)) / 'wl' / 'encrypted'
+        self.tmpdir_path =  tmpdir / mountid / self.engine
+        self.cleartext_path = tmpdir / mountid / 'cleartext'
         Path(self.tmpdir_path).mkdir(parents=True)
         Path(self.cleartext_path).mkdir(parents=True)
-        mountid = ''.join(secrets.choice(alphabet) for i in range(15))
         local_params = {'location': self.cleartext_path,
                         'type': 'local',
                         'owner': kwds['params']['owner'],
