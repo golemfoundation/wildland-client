@@ -51,4 +51,3 @@ class apple_log(logging.StreamHandler):
         logger = logging.getLogger()
         logger.handlers = [ ]
         logger.addHandler(ioshandler)
- 
