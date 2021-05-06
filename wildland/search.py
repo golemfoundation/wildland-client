@@ -283,9 +283,13 @@ class Search:
         Resolve all path parts, yield all results that match.
         """
 
+        # deduplicate results
+        seen = set()
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
-                yield last_step
+                if last_step not in seen:
+                    yield last_step
+                    seen.add(last_step)
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
         if i == len(self.wlpath.parts):
