@@ -92,6 +92,22 @@ class Container:
                 f'manifest={self.manifest!r}, '
                 f'access={self.access!r})')
 
+    def __eq__(self, other):
+        if not isinstance(other, Container):
+            return NotImplemented
+        return (self.owner == other.owner and
+                set(self.paths) == set(other.paths) and
+                self.title == other.title and
+                set(self.categories) == set(other.categories))
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            frozenset(self.paths),
+            self.title,
+            frozenset(self.categories),
+        ))
+
     @classmethod
     def from_manifest(cls, manifest: Manifest, local_path=None) -> 'Container':
         """

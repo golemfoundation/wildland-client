@@ -234,7 +234,9 @@ def test_read_file_traverse(base_dir, client):
 def test_read_container_traverse(client):
     search = Search(client, WildlandPath.from_str(':/path:/other/path:'),
                     aliases={'default': '0xaaa'})
-    container = next(search.read_container())
+    containers = list(search.read_container())
+    assert len(containers) == 1
+    container = containers[0]
     assert PurePosixPath('/other/path') in container.paths
 
 

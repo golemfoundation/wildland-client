@@ -114,3 +114,17 @@ class User:
             sig_context.add_pubkey(self.pubkeys[0])
         for additional_pubkey in self.pubkeys[1:]:
             sig_context.add_pubkey(additional_pubkey, self.owner)
+
+    def __eq__(self, other):
+        if not isinstance(other, User):
+            return NotImplemented
+        return (self.owner == other.owner and
+                set(self.pubkeys) == set(other.pubkeys) and
+                set(repr(c) for c in self.containers) == set(repr(c) for c in other.containers))
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            frozenset(self.pubkeys),
+            frozenset(repr(c) for c in self.containers),
+        ))

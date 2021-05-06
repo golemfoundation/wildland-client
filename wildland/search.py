@@ -84,6 +84,22 @@ class Step:
             yield step
             step = step.previous
 
+    def __eq__(self, other):
+        if not isinstance(other, Step):
+            return NotImplemented
+        return (self.owner == other.owner and
+                self.bridge == other.bridge and
+                self.user == other.user and
+                self.container == other.container
+        )
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            self.user,
+            self.bridge,
+            self.container
+        ))
 
 class Search:
     """
@@ -268,9 +284,13 @@ class Search:
         Resolve all path parts, yield all results that match.
         """
 
+        # deduplicate results
+        seen = set()
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
-                yield last_step
+                if last_step not in seen:
+                    yield last_step
+                    seen.add(last_step)
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
         if i == len(self.wlpath.parts):

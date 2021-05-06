@@ -109,3 +109,19 @@ class Bridge:
 
     def __repr__(self):
         return f'<Bridge: {self.owner}: {", ".join([str(p) for p in self.paths])}>'
+
+    def __eq__(self, other):
+        if not isinstance(other, Bridge):
+            return NotImplemented
+        return (self.owner == other.owner and
+                self.user_pubkey == other.user_pubkey and
+                set(self.paths) == set(other.paths) and
+                self.user_location == other.user_location)
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            self.user_pubkey,
+            frozenset(self.paths),
+            repr(self.user_location),
+        ))
