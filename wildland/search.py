@@ -140,6 +140,7 @@ class Search:
 
         for step in self._resolve_all():
             if step.bridge and not step.container:
+                self.client.recognize_users_from_search(step)
                 yield step.bridge
 
     def read_file(self) -> bytes:

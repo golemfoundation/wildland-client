@@ -20,7 +20,7 @@
 """
 Manage users
 """
-
+from copy import deepcopy
 from typing import Tuple, Optional, Union, List
 from pathlib import PurePosixPath, Path
 import logging
@@ -497,7 +497,7 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
             for bridge in bridges:
                 new_bridge = Bridge(
                     owner=default_user,
-                    user_location=bridge.user_location,
+                    user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
                     paths=(paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
