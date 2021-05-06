@@ -35,5 +35,9 @@ Options
 
 .. option:: --default-user
 
-    Specify a default user different than specified in configuration file. This will be used
-    until Wildland FUSE driver is stopped.
+   Specify a default user different than specified in configuration file. This will be used
+   until Wildland FUSE driver is stopped.
+
+.. option:: --skip-forest-mount
+
+   Don't mount forest containers of default user.

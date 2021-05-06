@@ -136,10 +136,12 @@ def _do_mount_containers(obj: ContextObj, to_mount):
     help='Container to mount (can be repeated)')
 @click.option('--skip-default-containers', '-s', is_flag=True,
     help='skip mounting default-containers from config')
+@click.option('--skip-forest-mount', is_flag=True,
+    help='skip mounting forest of default user')
 @click.option('--default-user', help="specify a default user to be used")
 @click.pass_obj
 def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
-          skip_default_containers, default_user):
+          skip_default_containers, skip_forest_mount, default_user):
     """
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -175,6 +177,10 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
     if not skip_default_containers:
         to_mount += obj.client.config.get('default-containers')
+
+    if not skip_forest_mount:
+        forest_containers = [f'{user.owner}:*:']
+        to_mount += forest_containers
 
     if not debug:
         obj.fs_client.mount(single_thread=single_thread, default_user=user)
