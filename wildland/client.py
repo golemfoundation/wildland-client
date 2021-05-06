@@ -120,8 +120,6 @@ class Client:
         self.session: Session = Session(sig)
 
         self.users: Dict[str, User] = {}
-        # FIXME: this doesn't really deduplicate bridges, only avoids the same
-        # _instance_ being added multiple times
         self.bridges: Set[Bridge] = set()
 
         self._select_reference_storage_cache: Dict[Tuple[str, str, bool], Optional[Dict]] = {}

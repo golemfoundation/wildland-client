@@ -84,6 +84,22 @@ class Step:
             yield step
             step = step.previous
 
+    def __eq__(self, other):
+        if not isinstance(other, Step):
+            return NotImplemented
+        return (self.owner == other.owner and
+                self.bridge == other.bridge and
+                self.user == other.user and
+                self.container == other.container
+        )
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            self.user,
+            self.bridge,
+            self.container
+        ))
 
 class Search:
     """
