@@ -62,6 +62,11 @@ After the container is created, the following steps take place:
 Mount a forest given by name or path to manifest.
 The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
 
+.. option:: -s, --save
+
+   Add the forest containers to ``default-containers`` in configuration file, so
+   that they will be mounted at startup.
+
 .. option:: -l, --list-all
 
    During mount, list all the forest containers to be mounted and result of mount (changed/not changed).
