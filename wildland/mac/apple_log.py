@@ -48,4 +48,6 @@ class apple_log(logging.StreamHandler):
 
         ioshandler = apple_log()
         logging.basicConfig(level=logging.DEBUG)
-        logging.getLogger().addHandler(ioshandler)
+        logger = logging.getLogger()
+        logger.handlers = [ ]
+        logger.addHandler(ioshandler)
