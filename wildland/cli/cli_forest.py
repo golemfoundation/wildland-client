@@ -50,8 +50,11 @@ def forest_():
 
 @forest_.command(short_help='Mount Wildland Forest')
 @click.argument('forest_names', nargs=-1, required=True)
+@click.option('--list-all', '-l', is_flag=True,
+              help='During mount, list all forest containers, including those '
+                   'who did not need to be changed')
 @click.pass_context
-def mount(ctx: click.Context, forest_names):
+def mount(ctx: click.Context, forest_names, list_all: bool):
     """
     Mount a forest given by name or path to manifest. Repeat the argument to
     mount multiple forests.
@@ -67,7 +70,7 @@ def mount(ctx: click.Context, forest_names):
                 f'Failed to parse forest name: {forest_name}. '
                 f'For example, ":/forests/User:" is a valid forest name')
         forests.append(f'{forest_name}*:')
-    mount_container(obj, forests)
+    mount_container(obj, forests, list_all=list_all)
 
 
 @forest_.command(short_help='Unmount Wildland Forest')
