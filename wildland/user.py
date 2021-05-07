@@ -119,12 +119,10 @@ class User:
         if not isinstance(other, User):
             return NotImplemented
         return (self.owner == other.owner and
-                set(self.pubkeys) == set(other.pubkeys) and
-                set(repr(c) for c in self.containers) == set(repr(c) for c in other.containers))
+                set(self.pubkeys) == set(other.pubkeys))
 
     def __hash__(self):
         return hash((
             self.owner,
-            frozenset(self.pubkeys),
-            frozenset(repr(c) for c in self.containers),
+            frozenset(self.pubkeys)
         ))
