@@ -237,6 +237,9 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 :command:`wl storage create encrypted --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
 -----------------------------------------------------------------------------------------------------------------------------
 
+Create encrypted storage for a given container. Please read details below to understand it's limitations.
+used.
+
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/encrypted.rsti
 
