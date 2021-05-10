@@ -257,15 +257,30 @@ class WildlandFSClient:
 
     def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
         """
-        Find storage ID for a given mount path.
+        Find first storage ID for a given mount path.
         """
         paths = self.get_paths()
         storage_ids = paths.get(path)
+
         if storage_ids is None:
             return None
-        if len(storage_ids) > 1:
-            logger.warning('multiple storages found for path: %s', path)
-        return storage_ids[0]
+
+        sorted_storage_ids = sorted(storage_ids)
+
+        if len(sorted_storage_ids) > 1 and \
+                not self._is_storage_id_with_pseudomanifest_storage_id(sorted_storage_ids):
+            logger.warning('multiple storages found for path: %s (storage ids: %s)', path,
+                           str(sorted_storage_ids))
+
+        return sorted_storage_ids[0]
+
+    @staticmethod
+    def _is_storage_id_with_pseudomanifest_storage_id(sorted_storage_ids: List[int]) -> bool:
+        """
+        Check if given list of storage IDs contains storage ID and its corresponding storage ID
+        storing pseudo-manifest.
+        """
+        return len(sorted_storage_ids) == 2 and sorted_storage_ids[0] + 1 == sorted_storage_ids[1]
 
     def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
         """
@@ -482,14 +497,14 @@ class WildlandFSClient:
 
         if container:
             pattern = fr'^/.users/{container.owner}:' \
-                fr'/.backends/{container.ensure_uuid()}/[0-9a-z-]+$'
+                      fr'/.backends/{container.ensure_uuid()}/[0-9a-z-]+$'
         else:
             pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+$'
 
         path_regex = re.compile(pattern)
 
         for path, _storage_id in paths.items():
-            if path_regex.match(str(path)):
+            if path_regex.match(str(path)) and not path.name.endswith('-pseudomanifest'):
                 yield path
 
     def should_remount(self, container: Container, storage: Storage,
@@ -556,6 +571,8 @@ class WildlandFSClient:
                 'trusted_owner': trusted_owner,
                 'subcontainer_of': (f'{subcontainer_of.owner}:{subcontainer_of.paths[0]}'
                                     if subcontainer_of else None),
+                'title': container.title,
+                'categories': [str(p) for p in container.categories],
             },
             'remount': remount,
         }

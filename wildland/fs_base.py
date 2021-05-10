@@ -32,9 +32,11 @@ from typing import List, Dict, Iterable, Optional, Set, Union
 
 from .conflict import ConflictResolver, Resolved
 from .storage_backends.base import Attr, File, StorageBackend
+from .storage_backends.pseudomanifest import PseudoManifestStorage
 from .storage_backends.watch import FileEvent, StorageWatcher
 from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
+from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 
 
@@ -71,7 +73,7 @@ class WildlandFSBase:
     # pylint: disable=no-self-use,too-many-public-methods,unused-argument
 
     def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds) # type: ignore
+        super().__init__(*args, **kwds)  # type: ignore
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_extra: Dict[int, Dict] = {}
@@ -118,7 +120,8 @@ class WildlandFSBase:
                             current_ident, main_path)
                 self._unmount_storage(current_ident)
             else:
-                raise WildlandError(f'Storage already mounted under main path: {main_path}')
+                raise WildlandError(
+                    f'Storage already mounted under main path: {main_path}')
 
         ident = self.storage_counter
         self.storage_counter += 1
@@ -148,7 +151,7 @@ class WildlandFSBase:
         paths = self.storage_paths[storage_id]
 
         logger.info('Unmounting storage %r from paths: %s',
-                     storage, [str(p) for p in paths])
+                    storage, [str(p) for p in paths])
 
         storage.request_unmount()
 
@@ -158,6 +161,23 @@ class WildlandFSBase:
         del self.main_paths[paths[0]]
         for path in paths:
             self.resolver.unmount(path, storage_id)
+
+    def _create_pseudomanifest_storage(self, paths: List[PurePosixPath], storage_params: Dict,
+                                       extra_params: Dict) -> PseudoManifestStorage:
+        """
+        Create pseudomanifest storage out of storage params and paths.
+        """
+        pseudo_manifest_params = {
+            'object': 'container',
+            'owner': storage_params['owner'],
+            'paths': [str(p) for p in paths],
+            'title': extra_params.get('title', 'null'),
+            'categories': extra_params.get('categories', []),
+            'version': storage_params.get('version', 'null'),
+            'access': storage_params.get('access', [])
+        }
+        storage_manifest = Manifest.from_fields(pseudo_manifest_params)
+        return PseudoManifestStorage(storage_manifest.original_data)
 
     # pylint: disable=missing-docstring
 
@@ -169,14 +189,26 @@ class WildlandFSBase:
     def control_mount(self, _handler, items):
         for params in items:
             paths = [PurePosixPath(p) for p in params['paths']]
+            assert len(paths) > 0
             storage_params = params['storage']
             read_only = params.get('read-only')
-            extra = params.get('extra')
+            extra_params = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
             storage.request_mount()
+            pseudomanifest_storage = self._create_pseudomanifest_storage(
+                paths, storage_params, extra_params or {})
+            pseudomanifest_storage.request_mount()
             with self.mount_lock:
-                self._mount_storage(paths, storage, extra, remount)
+                # Note that order of below mounts is important as we assume in the code that:
+                # - an even storage ID corresponds to pseudo-manifest storage,
+                # - an odd storage ID number corresponds to its underlying storage.
+                self._mount_storage(paths, storage, extra_params, remount)
+                main_path = paths[0]
+                pseudomanifest_main_path = main_path.parent / (main_path.name + '-pseudomanifest')
+                pseudomanifest_paths = [pseudomanifest_main_path] + paths
+                self._mount_storage(pseudomanifest_paths,
+                                    pseudomanifest_storage)
 
     @control_command('unmount')
     def control_unmount(self, _handler, storage_id: int):
@@ -323,18 +355,18 @@ class WildlandFSBase:
         return {'kwargs': kwargs}
 
     def _stat(self, attr: Attr) -> os.stat_result:
-        return os.stat_result(( # type: ignore
+        return os.stat_result((  # type: ignore
             attr.mode,
-            0, # st_ino
-            None, # st_dev
-            1, # nlink
+            0,  # st_ino
+            None,  # st_dev
+            1,  # nlink
             self.uid,
             self.gid,
             attr.size,
-            attr.timestamp, # atime
-            attr.timestamp, # mtime
-            attr.timestamp # ctime
-            ))
+            attr.timestamp,  # atime
+            attr.timestamp,  # mtime
+            attr.timestamp  # ctime
+        ))
 
     def _notify_storage_watches(self, event_type, relpath, storage_id):
         with self.mount_lock:
@@ -376,7 +408,8 @@ class WildlandFSBase:
         # Start a watch thread, but only if the storage provides watcher() method
         if len(self.storage_watches[storage_id]) == 1:
 
-            watch_handler = lambda events: self._watch_handler(storage_id, events)
+            def watch_handler(events):
+                return self._watch_handler(storage_id, events)
             watcher = self.storages[storage_id].start_watcher(
                 watch_handler, ignore_own_events=ignore_own)
 
@@ -422,7 +455,7 @@ class WildlandFSBase:
         logger.info('removing watch: %s', watch)
 
         if (len(self.storage_watches[watch.storage_id]) == 1 and
-            watch.storage_id in self.watchers):
+                watch.storage_id in self.watchers):
 
             logger.info('stopping watcher for storage: %s', watch.storage_id)
             self.storages[watch.storage_id].stop_watcher()
@@ -473,7 +506,8 @@ class WildlandFSBase:
         """
 
         path = PurePosixPath(path)
-        resolved = self._resolve_path(path, parent) if not resolved_path else resolved_path
+        resolved = self._resolve_path(
+            path, parent) if not resolved_path else resolved_path
         with self.mount_lock:
             storage = self.storages[resolved.ident]
 
@@ -597,7 +631,7 @@ class WildlandFSBase:
         return -errno.ENOSYS
 
     def rename(self, move_from: Union[str, PurePosixPath],
-            move_to: Union[str, PurePosixPath]):
+               move_to: Union[str, PurePosixPath]):
         move_from = PurePosixPath(move_from)
         move_to = PurePosixPath(move_to)
         resolved_from = self._resolve_path(move_from, parent=False)
@@ -610,8 +644,8 @@ class WildlandFSBase:
             move_to.name, resolved_to, parent=True)
 
         return self.proxy('rename', move_from, dst_relative,
-            resolved_path=resolved_from, parent=False, modify=True,
-            event_type='update')
+                          resolved_path=resolved_from, parent=False, modify=True,
+                          event_type='update')
 
     def rmdir(self, path):
         return self.proxy('rmdir', path, modify=True, event_type='delete')

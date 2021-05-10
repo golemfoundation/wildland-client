@@ -22,7 +22,7 @@ Manage containers
 """
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple, Optional, Iterable
+from typing import Iterable, List, Optional, Sequence, Tuple
 from itertools import combinations
 import os
 import uuid
@@ -673,10 +673,10 @@ def _mount(obj: ContextObj, container_names,
 @click.option('--path', metavar='PATH',
               help='mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              help='Do not umount subcontainers.')
+              help='Do not umount subcontainers. Unmounts subcontainers by default.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
-def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names):
+def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names: Sequence[str]):
     """
     Unmount a container. You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
@@ -684,7 +684,8 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers)
 
 
-def _unmount(obj: ContextObj, container_names, path: str, with_subcontainers: bool = True):
+def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
+        with_subcontainers: bool = True):
     obj.fs_client.ensure_mounted()
 
     if bool(container_names) + bool(path) != 1:
@@ -718,7 +719,6 @@ def _unmount(obj: ContextObj, container_names, path: str, with_subcontainers: bo
         storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
         if storage_id is None:
             raise WildlandError('Container not mounted')
-        storage_ids = [storage_id]
         if with_subcontainers:
             storage_ids.extend(
                 obj.fs_client.find_all_subcontainers_storage_ids(
@@ -727,8 +727,13 @@ def _unmount(obj: ContextObj, container_names, path: str, with_subcontainers: bo
     if not storage_ids:
         raise WildlandError('No containers mounted')
 
+    # Make sure to unmount pseudomanifest storages. Pseudomanifest storage ID is always an even even
+    # number, one greater than the corresponding underlying storage ID.
+    storage_ids_with_pseudomanifests_storage_ids = [
+        storage_id + addend for storage_id in storage_ids for addend in (0, 1)
+    ]
     click.echo(f'Unmounting {len(storage_ids)} containers')
-    for storage_id in storage_ids:
+    for storage_id in storage_ids_with_pseudomanifests_storage_ids:
         obj.fs_client.unmount_storage(storage_id)
 
     if failed:
