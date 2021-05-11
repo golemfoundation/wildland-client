@@ -123,7 +123,7 @@ Mixins
 .. autoclass:: wildland.storage_backends.generated.GeneratedStorageMixin
    :members:
 
-.. autoclass:: wildland.storage_backends.base.StaticSubcontainerStorageMixin
+.. autoclass:: wildland.storage_backends.file_subcontainers.FileSubcontainersMixin
    :members:
 
 
@@ -143,10 +143,16 @@ Data transfer objects
 .. autoclass:: wildland.container.Container
    :members:
 
+.. autoclass:: wildland.container.ContainerStub
+   :members:
+
 .. autoclass:: wildland.storage.Storage
    :members:
 
 .. autoclass:: wildland.bridge.Bridge
+   :members:
+
+.. autoclass:: wildland.link.Link
    :members:
 
 

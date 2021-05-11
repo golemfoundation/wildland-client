@@ -132,5 +132,36 @@
     "version": {
         "const": "1",
         "description": "manifest version"
+    },
+    "pattern-glob": {
+        "type": "object",
+        "required": ["type", "path"],
+        "properties": {
+            "type": {
+                "const": "glob"
+            },
+            "path": {
+                "type": "string",
+                "description": "An absolute path that can contain '*' and '{path}'. Default is '/*.yaml'.",
+                "pattern": "^/.*$"
+                }
+            },
+        "additionalProperties": false
+    },
+    "pattern-list": {
+        "type": "object",
+        "required": ["type", "paths"],
+        "properties": {
+            "type": {
+                "const": "list"
+            },
+            "paths": {
+                "type": "array",
+                "items": { "$ref": "types.json#abs-path"},
+                "description": "List of paths to manifest files; must consist of absolute paths to objects inside the storage'."
+                }
+            },
+        "additionalProperties": false
     }
+
 }

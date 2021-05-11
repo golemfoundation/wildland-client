@@ -37,7 +37,7 @@ from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, Manifest
-from ..storage import Storage
+from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..utils import load_yaml, load_yaml_all
 
 
@@ -2174,6 +2174,17 @@ def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
 
     uuid2 = '0000-1111-2222-3333-4444'
     backend_id = '5555-6666-7777-8888-9999'
+
+    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--subcontainer-manifest', '/subcontainer.yaml')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(load_yaml_all(f))
+
+    uuid_path1 = documents[1]['paths'][0]
+    uuid1 = get_container_uuid_from_uuid_path(uuid_path1)
+    backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
+
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
   dummy.0xaaa
@@ -2182,22 +2193,14 @@ owner: '0xaaa'
 paths:
  - /.uuid/{uuid2}
  - /subcontainer
+object: container
 backends:
   storage:
     - type: delegate
       backend-id: {backend_id}
-      reference-container: 'wildland:@default:@parent-container:'
+      reference-container: 'wildland:@default:/.uuid/{uuid1}:'
       subdirectory: '/subdir'
-""")
-    cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
-        '--container', 'Container', '--subcontainer', './subcontainer.yaml')
-
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-
-    uuid_path1 = documents[1]['paths'][0]
-    uuid1 = get_container_uuid_from_uuid_path(uuid_path1)
-    backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
+    """)
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -2250,6 +2253,7 @@ owner: '0xaaa'
 paths:
  - {path2}
  - /container-99
+object: container
 backends:
   storage:
     - type: delegate
@@ -2295,6 +2299,11 @@ def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_p
 
     uuid2 = '0000-1111-2222-3333-4444'
     backend_id = '5555-6666-7777-8888-9999'
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        container_data = f.read().split('\n', 4)[-1]
+        uuid1 = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+
     with open(tmp_path / 'subcontainer.yaml', 'w') as f:
         f.write(f"""signature: |
   dummy.0xaaa
@@ -2303,19 +2312,16 @@ owner: '0xaaa'
 paths:
  - /.uuid/{uuid2}
  - /subcontainer
+object: container
 backends:
   storage:
     - type: delegate
       backend-id: {backend_id}
-      reference-container: 'wildland:@default:@parent-container:'
+      reference-container: 'wildland:@default:/.uuid/{uuid1}:'
       subdirectory: '/subdir'
 """)
     cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
-        '--container', 'Container', '--subcontainer', './subcontainer.yaml')
-
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        container_data = f.read().split('\n', 4)[-1]
-        uuid1 = re.search(r'/.uuid/(.+?)\\n', container_data).group(1)
+        '--container', 'Container', '--subcontainer-manifest', '/subcontainer.yaml')
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -2341,7 +2347,7 @@ backends:
     ]
 
 
-def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path):
+def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path, base_dir):
     control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -2355,15 +2361,16 @@ owner: '0xaaa'
 paths:
  - /.uuid/{uuid}
  - /subcontainer
+object: container
 backends:
   storage:
     - type: delegate
       backend-id: {backend_id}
-      reference-container: 'wildland:@default:@parent-container:'
+      reference-container: 'file://{base_dir / 'containers/Container.container.yaml'}'
       subdirectory: '/subdir'
 """)
     cli('storage', 'create', 'local', 'Storage', '--location', os.fspath(tmp_path),
-        '--container', 'Container', '--trusted', '--subcontainer', './subcontainer.yaml')
+        '--container', 'Container', '--trusted', '--subcontainer-manifest', '/subcontainer.yaml')
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -3240,8 +3247,8 @@ def test_only_subcontainers(cli, base_dir, control_client):
     cli('storage', 'create', 'local',
         '--location', base_dir / 'containers',
         '--container', 'Parent',
-        '--subcontainer', './Child.container.yaml',
-        '--subcontainer', './MaliciousChild.container.yaml')
+        '--subcontainer-manifest', '/Child.container.yaml',
+        '--subcontainer-manifest', '/MaliciousChild.container.yaml')
     cli('container', 'create', 'Child',
         '--no-encrypt-manifest',
         '--path', '/PATH_CHILD',
@@ -3611,8 +3618,6 @@ def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
 
     infra = data['infrastructures']
 
-    print(infra)
-
     assert len(infra) == 2
 
     # Without base-url thus storage template type (local)
@@ -3642,8 +3647,8 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
@@ -3687,8 +3692,8 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tmp_path):
@@ -3710,8 +3715,8 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == Storage.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):

@@ -8,10 +8,6 @@
    Make the storage trusted. Wildland will load unsigned manifests from a
    trusted storage, as long as the owner matches. Default: false.
 
-.. option:: --manifest-pattern
-
-   Glob pattern for manifest lookup (see "Manifests").
-
 .. option:: --inline
 
    Add the storage definition directly to container manifest. (This is the default behavior)

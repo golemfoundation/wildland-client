@@ -36,7 +36,8 @@ import yaml
 import requests
 
 from .user import User
-from .container import Container
+from .container import Container, ContainerStub
+from .link import Link
 from .storage import Storage
 from .bridge import Bridge
 from .wlpath import WildlandPath, PathError
@@ -211,10 +212,10 @@ class Client:
                                data: bytes,
                                allow_only_primary_key: Optional[bool] = None,
                                file_path: Optional[Path] = None,
-                               expected_owner: Optional[str] = None,
                                trusted_owner: Optional[str] = None,
                                local_owners: Optional[List[str]] = None,
-                               decrypt: bool = True):
+                               decrypt: bool = True,
+                               expected_owner: Optional[str] = None):
         """
         Load and return a Wildland object from raw bytes.
         :param data: object bytes
@@ -226,6 +227,8 @@ class Client:
         :param trusted_owner: accept signature-less manifests from this owner
         :param local_owners: owners allowed to access local storages
         :param decrypt: should we attempt to decrypt the bytes
+        :param expected_owner: if object received has a different owner than that, raise an
+        ManifestError
         """
 
         if allow_only_primary_key is None:
@@ -234,37 +237,33 @@ class Client:
         if not object_type:
             manifest = Manifest.from_bytes(data, self.session.sig,
                                            allow_only_primary_key=allow_only_primary_key,
-                                           decrypt=decrypt)
+                                           decrypt=decrypt, trusted_owner=trusted_owner)
 
             object_type = WildlandObjectType(manifest.fields['object'])
 
         if object_type in [WildlandObjectType.USER, WildlandObjectType.BRIDGE,
                            WildlandObjectType.STORAGE, WildlandObjectType.CONTAINER]:
-            loaded_object = self.session.load_object(data, object_type, local_path=file_path,
-                                                     trusted_owner=trusted_owner,
-                                                     local_owners=local_owners,
-                                                     decrypt=decrypt)
 
-            if expected_owner and expected_owner != loaded_object.owner:
-                raise WildlandError('Owner mismatch: expected {}, got {}'.format(
-                    expected_owner, loaded_object.owner))
-
-            return loaded_object
+            return self.session.load_object(data, object_type, local_path=file_path,
+                                            trusted_owner=trusted_owner, local_owners=local_owners,
+                                            decrypt=decrypt, expected_owner=expected_owner)
 
         raise WildlandError(f'Unknown manifest type: {object_type.value}')
 
-    def read_link_object(self,
-                         storage: dict,
-                         file_path: PurePosixPath,
-                         expected_owner: Optional[str]) -> bytes:
-        """
-        Attempt to find file in storage (aka link object) and return its content
-        """
-        storage_obj = self.load_object_from_dict(WildlandObjectType.STORAGE, storage,
-                                                 expected_owner=expected_owner, container_path='/')
-        storage_backend = StorageBackend.from_params(storage_obj.params)
-        with StorageDriver(storage_backend, storage) as driver:
-            return driver.read_file(file_path.relative_to('/'))
+    def load_link_object(self, link_dict: dict, expected_owner: Optional[str]) -> Link:
+        """Load a Link object from a dictionary"""
+        if isinstance(link_dict['storage'], dict):
+            storage_obj = self.load_object_from_dict(
+                WildlandObjectType.STORAGE, link_dict['storage'], expected_owner=expected_owner,
+                container_path='/')
+            storage_backend = StorageBackend.from_params(storage_obj.params)
+        elif isinstance(link_dict['storage'], StorageBackend):
+            storage_backend = link_dict['storage']
+        else:
+            raise ValueError('Incorrect Link object format')
+
+        link = Link(storage_backend=storage_backend, file_path=link_dict['file'])
+        return link
 
     def load_object_from_dict(self,
                               object_type: Union[WildlandObjectType, None],
@@ -290,10 +289,8 @@ class Client:
                 raise ManifestError('This inline storage cannot be decrypted')
 
         if dictionary.get('object', None) == 'link':
-            content = self.read_link_object(
-                dictionary['storage'], PurePosixPath(dictionary['file']), expected_owner)
-
-            return self.load_object_from_bytes(object_type, content)
+            link = self.load_link_object(dictionary, expected_owner)
+            return self.load_object_from_bytes(object_type, link.get_target_file())
 
         if object_type:
             if 'object' not in dictionary:
@@ -580,13 +577,10 @@ class Client:
 
                 if isinstance(backend, dict):
                     if backend.get('object', None) == 'link':
-                        tg_storage = self.load_object_from_dict(
-                            WildlandObjectType.STORAGE, backend['storage'],
-                            expected_owner=container.owner, container_path='/')
-                        storage_driver = StorageDriver(
-                            StorageBackend.from_params(tg_storage.params), tg_storage)
+                        link = self.load_link_object(backend, container.owner)
                         self.save_object(WildlandObjectType.STORAGE, storage,
-                                         Path(backend['file']).relative_to('/'), storage_driver)
+                                         Path(backend['file']).relative_to('/'),
+                                         link.storage_driver)
                         return
                     container.backends[idx] = storage_manifest.fields
                 else:
@@ -926,36 +920,25 @@ class Client:
         self._select_reference_storage_cache[cache_key] = reference_storage.params
         return reference_storage.params
 
-    @staticmethod
-    def _postprocess_subcontainer(container: Container,
-                                  backend: StorageBackend,
-                                  subcontainer_params: dict) -> Container:
+    def load_subcontainer_object(
+            self, container: Container, storage: Storage,
+            subcontainer_obj: Union[ContainerStub, Link]) -> Union[Container, Bridge]:
         """
+        Transform a Link or ContainerStub into a real Container or Bridge.
         Fill remaining fields of the subcontainer and possibly apply transformations.
+        """
+        trusted_owner = None
+        if storage.trusted:
+            trusted_owner = storage.owner
 
-        :param container: parent container
-        :param backend: storage backend generating this subcontainer
-        :param subcontainer_params: subcontainer manifest dict
-        :return:
-        """  # pylint: disable=unused-argument
-        subcontainer_params['object'] = 'container'
-        subcontainer_params['owner'] = container.owner
-        subcontainer_params['version'] = Manifest.CURRENT_VERSION
-        for sub_storage in subcontainer_params['backends']['storage']:
-            sub_storage['object'] = 'storage'
-            sub_storage['owner'] = container.owner
-            subcontainer_params['version'] = Manifest.CURRENT_VERSION
-            sub_storage['container-path'] = subcontainer_params['paths'][0]
-            if isinstance(sub_storage.get('reference-container'), str) and \
-                    WildlandPath.match(sub_storage['reference-container']):
-                sub_storage['reference-container'] = \
-                    sub_storage['reference-container'].replace(
-                        ':@parent-container:', f':{container.paths[0]}:')
-        manifest = Manifest.from_fields(subcontainer_params)
-        manifest.skip_verification()
-        return Container.from_manifest(manifest)
+        if isinstance(subcontainer_obj, Link):
+            target_bytes = subcontainer_obj.get_target_file()
+            return self.load_object_from_bytes(None,
+                                               target_bytes, trusted_owner=trusted_owner,
+                                               expected_owner=container.owner)
+        return subcontainer_obj.get_container(container)
 
-    def all_subcontainers(self, container: Container) -> Iterator[Container]:
+    def all_subcontainers(self, container: Container) -> Iterator[Union[Container, Bridge]]:
         """
         List subcontainers of this container.
 
@@ -968,12 +951,13 @@ class Client:
         for storage in self.all_storages(container):
             try:
                 with StorageBackend.from_params(storage.params, deduplicate=True) as backend:
-                    for subcontainer in backend.list_subcontainers(
-                        sig_context=self.session.sig,
-                    ):
-                        yield self._postprocess_subcontainer(container, backend, subcontainer)
+                    for _, subcontainer in backend.get_children():
+                        yield self.load_subcontainer_object(container, storage, subcontainer)
             except NotImplementedError:
                 continue
+            except (WildlandError, ManifestError) as ex:
+                logger.warning('Container %s: cannot load subcontainer: %s',
+                               container.ensure_uuid(), str(ex))
             else:
                 return
 

@@ -134,9 +134,6 @@ class CachedStorageMixin:
         with self.cache_lock:
             self._update()
             if path not in self.readdir_cache:
-
-                print(self.getattr_cache)
-                print(self.readdir_cache)
                 raise FileNotFoundError(errno.ENOENT, str(path))
 
             return sorted(self.readdir_cache[path])

@@ -247,6 +247,16 @@ class Manifest:
         if fields.get('type', None) == 'http-index':
             fields['type'] = 'http'
 
+        if fields.get('subcontainers', None):
+            if 'manifest-pattern' in fields:
+                raise ManifestError('Obsolete subcontainers field cannot be '
+                                    'merged into an existing manifest-patter.')
+            fields['manifest-pattern'] = {
+                'type': 'list',
+                'paths': fields['subcontainers']
+            }
+            del fields['subcontainers']
+
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
                 if isinstance(storage, dict):

@@ -41,7 +41,7 @@ from wildland.storage_backends.generated import (
 )
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.schema import Schema
-from wildland.manifest.sig import SigContext
+from wildland.container import ContainerStub
 
 logger = logging.getLogger('storage-bear')
 
@@ -254,7 +254,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         }
 
     @staticmethod
-    def _make_note_container(ident: str, title: str, tags: List[str]) -> dict:
+    def _make_note_container(ident: str, title: str, tags: List[str]) -> ContainerStub:
         """
         Create a container manifest for a single note. The container paths will
         be derived from note tags.
@@ -264,7 +264,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
         categories = get_note_categories(tags)
         if len (title) == 0:
             title = f"{ident}"
-        return {
+        return ContainerStub({
             'object': 'container',
             'title': '"' + title.replace ('/', '_') + '"',
             'paths': paths,
@@ -275,15 +275,13 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
                 'subdirectory': '/' + ident,
                 'backend_id': ident
             }]}
-        }
+        })
 
-    def list_subcontainers(
-        self,
-        sig_context: Optional[SigContext] = None,
-    ) -> Iterable[dict]:
+    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+            Iterable[Tuple[PurePosixPath, ContainerStub]]:
         for ident, title, tags, _timestamp in \
                 self.bear_db.get_notes_with_metadata():
-            yield self._make_note_container(ident, title, tags)
+            yield PurePosixPath('/' + ident), self._make_note_container(ident, title, tags)
 
     def get_root(self):
         return self.root

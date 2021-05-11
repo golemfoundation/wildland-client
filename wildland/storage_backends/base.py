@@ -32,16 +32,16 @@ import stat
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union
 from uuid import UUID
 
 import click
 import yaml
 
-from ..manifest.sig import SigContext
-from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
 from ..hashdb import HashDb, HashCache
+from ..link import Link
+from ..container import ContainerStub
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
@@ -239,16 +239,19 @@ class StorageBackend(metaclass=abc.ABCMeta):
     @classmethod
     def cli_options(cls) -> List[click.Option]:
         """
-        Provide a list of command-line options needed to create this storage.
+        Provide a list of command-line options needed to create this storage. If using mixins,
+        check if a super() call is needed.
         """
-        raise OptionalError()
+        return []
 
     @classmethod
     def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert provided command-line arguments to a list of storage parameters.
+        Convert provided command-line arguments to a list of storage parameters. If using mixins,
+        check if a super() call is needed.
         """
-        raise OptionalError()
+        # pylint: disable=unused-argument
+        return {}
 
     @staticmethod
     def types() -> Dict[str, Type['StorageBackend']]:
@@ -574,22 +577,25 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
-    def list_subcontainers(
-            self,
-            sig_context: Optional[SigContext] = None,
-        ) -> Iterable[dict]:
+    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+            Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]]:
         """
-        List sub-containers provided by this storage.
+        List all subcontainers provided by this storage.
 
-        This method should return an iterable of dict representation of partial manifests.
-        Specifically, 'owner' field must not be filled in (will be inherited from
-        the parent container).
+        This method should provide an Iterable of tuples:
+        - PurePosixPath to object (needed for search)
+        - Link or ContainerStub of the object
 
         Storages of listed containers, when set as 'delegate' backend,
         may reference parent (this) container via Wildland URL:
         `wildland:@default:@parent-container:`
+        """
+        raise OptionalError()
 
-        :return:
+    def get_subcontainer_watch_pattern(self, query_path: PurePosixPath):
+        """
+        This function must return pattern usable by mount-watch and by search's resolve
+        mechanism.
         """
         raise OptionalError()
 
@@ -661,50 +667,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return pathlib.PurePosixPath(
             url[len(self.params['base-url']):].lstrip('/'))
 
-
-class StaticSubcontainerStorageMixin(StorageBackend):
-    """
-    A backend storage mixin that is used in all backends that support ``subcontainers`` key in their
-    manifests.
-
-    The ``subcontainers`` key is an array that holds a list of relative paths to the subcontainers
-    manifests within the storage itself. The paths are relative to the storage's root (i.e. ``path``
-    for Local storage backend).
-
-    When adding this mixin, you should append the following snippet to the backend's ``SCHEMA``::
-
-        "subcontainers" : {
-            "type": "array",
-            "items": {
-                "$ref": "types.json#rel-path",
-            }
-        }
-
-    """
-    # pylint: disable=abstract-method
-
-    def list_subcontainers(
-        self,
-        sig_context: Optional[SigContext] = None,
-    ) -> Iterable[dict]:
-        """
-        Return list of subcontainers manifest fields based and perform an integrity check on each
-        container.
-        """
-        if not sig_context:
-            raise ValueError('Signature context must be defined for static subcontainers')
-
-        trusted_owner = self.params.get('owner') if self.params.get('trusted') else None
-        for subcontainer_path in self.params.get('subcontainers', []):
-            with self.open(PurePosixPath(subcontainer_path), os.O_RDONLY) as file:
-                manifest = Manifest.from_bytes(
-                    data=file.read(None, 0),
-                    sig_context=sig_context,
-                    trusted_owner=trusted_owner,
-                )
-
-                if self.params.get('owner') == manifest.fields.get('owner'):
-                    yield manifest.fields
 
 def _inner_proxy(method_name):
     def method(self, *args, **kwargs):

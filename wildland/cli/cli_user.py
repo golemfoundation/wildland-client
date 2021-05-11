@@ -268,10 +268,11 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
             raise CliError(f'Dictionary object must be of type {WildlandObjectType.LINK.value}')
 
         if not manifest_owner:
-            raise CliError('Unable to import a link object without specifying a trusted owner')
+            raise CliError('Unable to import a link object without specifying expected owner')
 
-        file_path = PurePosixPath(path_or_dict['file'])
-        file_data = obj.client.read_link_object(path_or_dict['storage'], file_path, manifest_owner)
+        link = obj.client.load_link_object(path_or_dict, manifest_owner)
+        file_path = link.file_path
+        file_data = link.get_target_file()
         file_name = file_path.stem
         file_url = None
     else:

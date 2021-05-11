@@ -26,8 +26,9 @@ import uuid
 from typing import Optional, List, Union, Any
 import itertools
 
-from .manifest.manifest import Manifest, WildlandObjectType
+from .manifest.manifest import Manifest, WildlandObjectType, ManifestError
 from .manifest.schema import Schema
+from .wlpath import WildlandPath
 
 
 class Container:
@@ -179,3 +180,51 @@ class Container:
                 paths.append(p1 / subpath / self.title)
         self._expanded_paths = paths
         return self._expanded_paths
+
+
+class ContainerStub:
+    """
+    Helper Wildland Object, representing a subcontainer that has not yet been completely filled
+    with data from parent container.
+    """
+    def __init__(self, fields: dict):
+        self.fields = fields
+
+    @classmethod
+    def from_manifest(cls, manifest: Manifest):
+        """
+        Create ContainerStub from verified manifest.
+        """
+        return cls(manifest.fields)
+
+    def get_container(self, parent_container: Container) -> Container:
+        """
+        Fill container fields with data from parent_container and construct a complete Container.
+        """
+        if 'owner' in self.fields and self.fields['owner'] != parent_container.owner:
+            raise ManifestError(f'Unexpected owner for subcontainer. Expected '
+                                f'{parent_container.owner}, received {self.fields["owner"]}')
+        self.fields['object'] = 'container'
+        self.fields['owner'] = parent_container.owner
+        self.fields['version'] = Manifest.CURRENT_VERSION
+        if 'backends' not in self.fields or 'storage' not in self.fields['backends']:
+            backends = []
+        else:
+            backends = self.fields['backends']['storage']
+        for sub_storage in backends:
+            if not isinstance(sub_storage, dict) or \
+                    sub_storage.get('object', 'storage') != 'storage':
+                continue
+            sub_storage['object'] = 'storage'
+            sub_storage['owner'] = parent_container.owner
+            self.fields['version'] = Manifest.CURRENT_VERSION
+            sub_storage['container-path'] = self.fields['paths'][0]
+            if isinstance(sub_storage.get('reference-container'), str) and \
+                    WildlandPath.match(sub_storage['reference-container']):
+                sub_storage['reference-container'] = \
+                    sub_storage['reference-container'].replace(
+                        ':@parent-container:', f':{parent_container.paths[0]}:')
+
+        manifest = Manifest.from_fields(self.fields)
+        manifest.skip_verification()
+        return Container.from_manifest(manifest)
