@@ -18,6 +18,7 @@ services:
       - wildland-client-ci
     privileged: true
     stdin_open: true
+    hostname: wildland-client
     tty: true
     devices:
       - /dev/fuse
