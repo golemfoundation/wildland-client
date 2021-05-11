@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Stuff related to publishing and unpublishing containers.
-'''
+"""
 
 import collections.abc
 import logging
@@ -52,7 +52,7 @@ class Publisher:
     >>> Publisher(client, container2).unpublish_manifest()
     """
     def __init__(self, client: Client, container: Container,
-            infrastructure: Optional[Container] = None):
+                 infrastructure: Optional[Container] = None):
         self.client = client
         self.container = container
 
@@ -67,7 +67,7 @@ class Publisher:
         Publish the manifest
         """
         _StoragePublisher(self, next(self._get_storages_for_publish())
-            ).publish_container(False)
+                          ).publish_container(False)
 
     def unpublish_container(self) -> None:
         """
@@ -77,9 +77,9 @@ class Publisher:
             _StoragePublisher(self, storage).publish_container(True)
 
     def _get_storages_for_publish(self) -> Generator[Storage, None, None]:
-        '''
+        """
         Iterate over all suitable storages to publish container manifest.
-        '''
+        """
         owner = self.client.load_object_from_name(WildlandObjectType.USER, self.container.owner)
 
         ok = False
@@ -151,6 +151,18 @@ class Publisher:
                 'Cannot find any container suitable as publishing platform:'
                 + ''.join(f'\n- {i}' for i in rejected))
 
+    def is_published(self) -> bool:
+        """
+        Check if the container is published in any storage.
+        """
+        try:
+            for storage in self._get_storages_for_publish():
+                if _StoragePublisher(self, storage).is_published():
+                    return True
+        except WildlandError:
+            pass
+        return False
+
 
 class _StoragePublisher:
     """
@@ -185,9 +197,8 @@ class _StoragePublisher:
         path_pattern = self.pattern.replace('*', container.ensure_uuid())
 
         # always return /.uuid/ path first
-        yield pathlib.PurePosixPath(path_pattern
-            .replace('{path}', str(self.container_uuid_path.relative_to('/')))
-        ).relative_to('/')
+        path = path_pattern.replace('{path}', str(self.container_uuid_path.relative_to('/')))
+        yield pathlib.PurePosixPath(path).relative_to('/')
 
         if '{path}' in path_pattern:
             for path in container.expanded_paths:
@@ -195,6 +206,19 @@ class _StoragePublisher:
                     continue
                 yield pathlib.PurePosixPath(path_pattern.replace(
                     '{path}', str(path.relative_to('/')))).relative_to('/')
+
+    def is_published(self) -> bool:
+        """
+        Check if the container is published.
+        """
+        container_relpaths = list(self._get_relpaths_for_container_manifests(self.container))
+
+        with StorageDriver.from_storage(self.infra_storage) as driver:
+            try:
+                driver.read_file(container_relpaths[0])
+                return True
+            except FileNotFoundError:
+                return False
 
     def publish_container(self, just_unpublish: bool) -> None:
         """
@@ -224,16 +248,14 @@ class _StoragePublisher:
 
         with StorageDriver.from_storage(self.infra_storage) as driver:
             for i in range(len(self.container.backends)):
-                if isinstance(self.container.backends[i],
-                        collections.abc.Mapping):
+                if isinstance(self.container.backends[i], collections.abc.Mapping):
                     continue
                 backend = self.client.load_object_from_url(WildlandObjectType.STORAGE,
                     cast(str, self.container.backends[i]), self.container.owner)
                 relpath = self._get_relpath_for_storage_manifest(backend)
                 assert relpath not in storage_relpaths
                 storage_relpaths[relpath] = backend
-                self.container.backends[i] = (
-                    driver.storage_backend.get_url_for_path(relpath))
+                self.container.backends[i] = driver.storage_backend.get_url_for_path(relpath)
 
             # fetch from /.uuid path
             try:
@@ -280,10 +302,8 @@ class _StoragePublisher:
             if not just_unpublish:
                 for relpath, storage in storage_relpaths.items():
                     driver.makedirs(relpath.parent)
-                    driver.write_file(relpath,
-                        self.client.session.dump_object(storage))
+                    driver.write_file(relpath, self.client.session.dump_object(storage))
 
                 for relpath in container_relpaths:
                     driver.makedirs(relpath.parent)
-                    driver.write_file(relpath,
-                        self.client.session.dump_object(self.container))
+                    driver.write_file(relpath, self.client.session.dump_object(self.container))

@@ -64,7 +64,7 @@ def setup(base_dir, cli, control_client):
         '--container', 'Infra')
     cli('container', 'create', 'Container1', '--path', '/path',
         '--path', '/.uuid/0000000000-1111-0000-1111-000000000000',
-        '--no-encrypt-manifest')
+        '--no-encrypt-manifest', '--no-publish')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
@@ -72,7 +72,7 @@ def setup(base_dir, cli, control_client):
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest',
         '--path', '/.uuid/0000000000-1111-1111-1111-000000000000',
-        '--path', '/other/path')
+        '--path', '/other/path', '--no-publish')
     cli('storage', 'create', 'local', 'Storage2',
         '--location', base_dir / 'storage2',
         '--container', 'Container2', '--no-inline')
@@ -81,7 +81,8 @@ def setup(base_dir, cli, control_client):
         '--path', '/.uuid/0000000000-2222-0000-1111-000000000000',
         '--owner', 'User2',
         '--path', '/users/User2',
-        '--update-user', '--no-encrypt-manifest')
+        '--update-user', '--no-encrypt-manifest',
+        '--no-publish')
     cli('storage', 'create', 'local', 'Storage3',
         '--location', base_dir / 'storage3',
         '--container', 'C.User2', '--no-inline',
