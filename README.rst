@@ -17,6 +17,12 @@ Quick start
    docker-compose build
    docker-compose run --service-ports wildland-client
 
+Alternatively, run directly:
+
+.. code-block:: sh
+
+   ./wildland-docker.sh
+
 This container serves FUSE content as WebDAV too.
 
 See `Setup <https://wildland.gitlab.io/wildland-client/setup.html>`_ for more.

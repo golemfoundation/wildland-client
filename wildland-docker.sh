@@ -1,5 +1,11 @@
-#!/bin/sh
+#!/bin/sh -e
 # a very simple wrapper script for starting up-to-date docker with wildland
-cd docker
+
+localdir="$(readlink -f "$(dirname "$0")")"
+cd "$localdir/docker"
+
+# build docker services
 docker-compose build
-docker-compose run --service-ports wildland-client "$@"
+
+# run wildland-client service
+docker-compose run --service-ports wildland-client
