@@ -7,6 +7,7 @@ pip install . plugins/*
 export EDITOR=vim
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
 export __fish_prompt_hostname="$HOSTNAME"
+export LC_ALL=C
 
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"
