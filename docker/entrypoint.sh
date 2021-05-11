@@ -36,6 +36,11 @@ set -g default-command /usr/bin/fish
 set -g default-shell /usr/bin/fish
 EOF
 
+# minimal screen configuration for FISH as default SHELL
+cat > .screenrc << EOF
+shell /usr/bin/fish
+EOF
+
 ipfs init &> /dev/null
 ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
 
