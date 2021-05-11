@@ -4,8 +4,9 @@
 
 pip install . plugins/*
 
-export EDITOR=nano
+export EDITOR=vim
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
+export __fish_prompt_hostname="$HOSTNAME"
 
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"
@@ -13,9 +14,7 @@ mkdir "$MOUNT_DIR"
 # workaround for https://github.com/docker/distribution/issues/2853
 sudo chmod 666 /dev/fuse
 
-export __fish_prompt_hostname="wildland-client"
-export EDITOR=vim
-
+# start apache
 sudo /etc/init.d/apache2 start
 
 sudo chown -R user.user ~/.config ~/storage
@@ -27,14 +26,10 @@ fi
 
 cd /home/user
 
-
 ipfs init &> /dev/null
 ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
 
-
-echo
-echo "WebDAV server is running at dav://localhost:8080/"
-echo
+printf "\nWebDAV server is running at dav://localhost:8080/\n\n"
 
 if [ -n "$1" ]; then
     exec "$@"
