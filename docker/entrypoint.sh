@@ -30,6 +30,12 @@ fi
 
 cd /home/user
 
+# minimal tmux configuration for FISH as default SHELL
+cat > .tmux.conf << EOF
+set -g default-command /usr/bin/fish
+set -g default-shell /usr/bin/fish
+EOF
+
 ipfs init &> /dev/null
 ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
 
