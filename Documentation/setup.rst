@@ -80,7 +80,7 @@ Usage:
     docker-compose run wildland-client
 
 To create and mount the example containers, run ``wl-example``. wildland-client
-is mounted in ``/home/user/mnt`` and the log is in ``/tmp/wlfuse.log``.
+is mounted in ``/home/user/wildland`` and the log is in ``/tmp/wlfuse.log``.
 
 Running tests:
 

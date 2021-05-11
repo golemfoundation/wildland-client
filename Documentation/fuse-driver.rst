@@ -12,8 +12,8 @@ Quick start
 -----------
 Mount the filesystem::
 
-   mkdir mnt
-   ./wildland-fuse ./mnt -f -o log=-,socket=/tmp/wlfuse.sock
+   mkdir wildland
+   ./wildland-fuse ./wildland -f -o log=-,socket=/tmp/wlfuse.sock
 
 Mount a storage::
 
@@ -25,7 +25,7 @@ connection).
 
 After you're done, unmount::
 
-   fusermount -u ./mnt
+   fusermount -u ./wildland
 
 Usually, you will not use the driver directly, but mount it using CLI (by
 running ``wl start``).

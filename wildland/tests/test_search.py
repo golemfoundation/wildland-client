@@ -947,7 +947,7 @@ def test_traverse_with_fs_client_mounted(base_dir, control_client, client2):
     control_client.expect('status', {})
 
     # simulate mounted infrastructure
-    user2_infra_mount_path = base_dir / 'mnt' / \
+    user2_infra_mount_path = base_dir / 'wildland' / \
         f'.users/0xbbb:/.backends/00000000-2222-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
     user2_infra_mount_path.parent.mkdir(parents=True)
     user2_infra_mount_path.symlink_to(base_dir / 'infra2')
@@ -975,12 +975,12 @@ def test_traverse_container_with_fs_client_mounted(
     control_client.expect('status', {})
 
     # simulate mounted infrastructure
-    user2_infra_mount_path = base_dir / 'mnt' / \
+    user2_infra_mount_path = base_dir / 'wildland' / \
         f'.users/0xbbb:/.backends/00000000-2222-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
     user2_infra_mount_path.parent.mkdir(parents=True)
     user2_infra_mount_path.symlink_to(base_dir / 'infra2')
 
-    user1_infra_mount_path = base_dir / 'mnt' / \
+    user1_infra_mount_path = base_dir / 'wildland' / \
         f'.users/0xaaa:/.backends/00000000-1111-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
     user1_infra_mount_path.parent.mkdir(parents=True)
     user1_infra_mount_path.symlink_to(base_dir / 'infra-known')

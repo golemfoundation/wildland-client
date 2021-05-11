@@ -21,10 +21,10 @@ def base_dir():
     base_dir_s = tempfile.mkdtemp(prefix='wlcli.')
     base_dir = Path(base_dir_s)
     try:
-        os.mkdir(base_dir / 'mnt')
+        os.mkdir(base_dir / 'wildland')
         with open(base_dir / 'config.yaml', 'w') as f:
             yaml.dump({
-                'mount-dir': str(base_dir / 'mnt'),
+                'mount-dir': str(base_dir / 'wildland'),
                 'dummy': True,
             }, f)
         yield base_dir
@@ -53,7 +53,7 @@ def cli(base_dir, capsys):
             return out
         return None
     yield cli
-    if os.path.ismount(base_dir / 'mnt'):
+    if os.path.ismount(base_dir / 'wildland'):
         cli('stop')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink()
 

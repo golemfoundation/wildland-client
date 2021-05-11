@@ -7,7 +7,7 @@ pip install . plugins/*
 export EDITOR=nano
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
 
-MOUNT_DIR="$HOME/mnt"
+MOUNT_DIR="$HOME/wildland"
 mkdir "$MOUNT_DIR"
 
 # workaround for https://github.com/docker/distribution/issues/2853

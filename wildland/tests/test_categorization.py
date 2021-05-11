@@ -169,7 +169,7 @@ def test_books_titles_dir_tree(cli, base_dir):
     cli('start', '--default-user', 'User')
     cli('container', 'mount', 'Container')
 
-    mnt_dir = base_dir / 'mnt'
+    mnt_dir = base_dir / 'wildland'
 
     assert sorted(os.listdir(mnt_dir)) == [
         '.backends',

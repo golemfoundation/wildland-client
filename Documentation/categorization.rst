@@ -99,7 +99,7 @@ Mount categorization container, which is kind of a proxy view on the referenced 
 
 Now you can list the mountpoints::
 
-  $ ls -la mnt
+  $ ls -la wildland
   total 12
   dr-xr-xr-x 1 user user    0 Jan  1  1970 ./
   drwxr-xr-x 1 user user 4096 Mar 24 13:54 ../
@@ -118,8 +118,8 @@ add ``--only-subcontainers`` flag to the ``wl c mount`` command, there would be 
 
 Now lets list ``authors`` directory::
 
-  $ tree -a mnt/authors/
-  mnt/authors/
+  $ tree -a wildland/authors/
+  wildland/authors/
   |-- author1
   |   |-- @titles
   |   |   |-- title1
@@ -149,8 +149,8 @@ Now lets list ``authors`` directory::
 
 and ``titles`` directory::
 
-  $ tree -a mnt/titles
-  mnt/titles
+  $ tree -a wildland/titles
+  wildland/titles
   |-- @authors
   |   |-- author1
   |   |   |-- title1
@@ -407,7 +407,7 @@ directory tree instead::
 
 you will get the following mountpoints (mounted with ``--only-subcontainers`` flag)::
 
-  $ ls -la mnt
+  $ ls -la wildland
   total 8
   dr-xr-xr-x 1 user user    0 Jan  1  1970 ./
   drwxr-xr-x 1 user user 4096 Mar 24 13:11 ../
@@ -427,8 +427,8 @@ you will get the following mountpoints (mounted with ``--only-subcontainers`` fl
 
 To get all of the book titles available, run::
 
-  $ tree -a -L 2 mnt/art/books/@titles/
-  mnt/art/books/@titles/
+  $ tree -a -L 2 wildland/art/books/@titles/
+  wildland/art/books/@titles/
   |-- Death\ on\ the\ Nile
   |   `-- nile.pdf
   |-- Harry\ Potter
@@ -448,12 +448,12 @@ To get all of the book titles available, run::
 
   10 directories, 6 files
 
-You can achieve the same by listing ``mnt/titles``.
+You can achieve the same by listing ``wildland/titles``.
 
 To list all book titles written by *Agatha Christie* and *J. K. Rowling* respectively, run::
 
-  $ tree -a -L 1 "mnt/authors/Agatha Christie/@titles"
-  mnt/authors/Agatha\ Christie/@titles
+  $ tree -a -L 1 "wildland/authors/Agatha Christie/@titles"
+  wildland/authors/Agatha\ Christie/@titles
   |-- Death\ on\ the\ Nile
   |-- Murder\ in\ Mesopotamia
   |-- The\ Big\ Four
@@ -461,8 +461,8 @@ To list all book titles written by *Agatha Christie* and *J. K. Rowling* respect
 
   4 directories, 0 files
 
-  $ tree -a -L 1 "mnt/authors/J.K. Rowling/@titles/"
-  mnt/authors/J.K.\ Rowling/@titles/
+  $ tree -a -L 1 "wildland/authors/J.K. Rowling/@titles/"
+  wildland/authors/J.K.\ Rowling/@titles/
   |-- Harry\ Potter
   `-- The\ Ickabog
 
@@ -470,8 +470,8 @@ To list all book titles written by *Agatha Christie* and *J. K. Rowling* respect
 
 To list all of the places visited on business trips together with *ABC Company*, run::
 
-  $ tree -a -L 2 mnt/travels/business/ABC\ Company/@places/
-  mnt/travels/business/ABC\ Company/@places/
+  $ tree -a -L 2 wildland/travels/business/ABC\ Company/@places/
+  wildland/travels/business/ABC\ Company/@places/
   `-- US
       |-- Dallas
       |-- NYC
@@ -482,8 +482,8 @@ To list all of the places visited on business trips together with *ABC Company*,
 
 To list only those places that were visited privately, run::
 
-  $ tree -a -L 3 mnt/travels/private/@places/
-  mnt/travels/private/@places/
+  $ tree -a -L 3 wildland/travels/private/@places/
+  wildland/travels/private/@places/
   |-- Poland
   |   `-- Tricity
   |       |-- Gdansk
@@ -501,8 +501,8 @@ To list only those places that were visited privately, run::
 
 To list all of the places visited, both during private and business trips, run::
 
-  $ tree -a -L 2 mnt/places/
-  mnt/places/
+  $ tree -a -L 2 wildland/places/
+  wildland/places/
   |-- Poland
   |   |-- @travels
   |   |-- Krakow
@@ -537,7 +537,7 @@ Lets use yet another directory tree::
 
 After mounting with ``--only-subcontainers`` flag, you will get the following mountpoints::
 
-  $ ls -la mnt
+  $ ls -la wildland
   total 8
   dr-xr-xr-x 1 user user    0 Jan  1  1970 ./
   drwxr-xr-x 1 user user 4096 Mar 10 11:51 ../
@@ -546,8 +546,8 @@ After mounting with ``--only-subcontainers`` flag, you will get the following mo
   dr-xr-xr-x 1 user user    0 Jan  1  1970 .uuid/
   dr-xr-xr-x 1 user user    0 Jan  1  1970 market/
 
-  $ tree -a mnt/market/
-  mnt/market/
+  $ tree -a wildland/market/
+  wildland/market/
   `-- stock-exchange
       `-- Warsaw-Stock-Exchange
           `-- Warsaw-Stock-Exchange
