@@ -34,7 +34,3 @@ RUN chown -R user /var/lock/apache2
 USER user
 
 ENTRYPOINT ["./docker/entrypoint.sh"]
-
-RUN mkdir -p /tmp/docker-user-runtime
-ENV XDG_RUNTIME_DIR /tmp/docker-user-runtime
-ENV EDITOR vim

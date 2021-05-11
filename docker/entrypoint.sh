@@ -8,6 +8,9 @@ export EDITOR=vim
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
 export __fish_prompt_hostname="$HOSTNAME"
 export LC_ALL=C
+export XDG_RUNTIME_DIR=/tmp/docker-user-runtime
+
+mkdir -p /tmp/docker-user-runtime
 
 MOUNT_DIR="$HOME/mnt"
 mkdir "$MOUNT_DIR"
