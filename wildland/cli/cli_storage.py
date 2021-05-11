@@ -66,8 +66,6 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file. Default: inline.'),
-        click.Option(['--manifest-pattern'], metavar='GLOB',
-                     help='Set the manifest pattern for storage'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--base-url'], metavar='BASEURL',
@@ -109,7 +107,6 @@ def _do_create(
         name,
         container,
         trusted,
-        manifest_pattern,
         inline,
         watcher_interval,
         base_url,
@@ -140,13 +137,6 @@ def _do_create(
     if base_url is not None:
         params['base-url'] = base_url
 
-    manifest_pattern_dict = None
-    if manifest_pattern:
-        manifest_pattern_dict = {
-            'type': 'glob',
-            'path': manifest_pattern,
-        }
-
     if not encrypt_manifest:
         access = [{'user': '*'}]
     elif access:
@@ -164,7 +154,6 @@ def _do_create(
         container_path=container_mount_path,
         params=params,
         trusted=params.get('trusted', trusted),
-        manifest_pattern=params.get('manifest_pattern', manifest_pattern_dict),
         access=access
     )
     storage.validate()

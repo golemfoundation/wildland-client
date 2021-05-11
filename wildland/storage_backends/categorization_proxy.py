@@ -25,13 +25,13 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Iterable, Iterator, List, Optional, Set, Tuple
+from typing import Iterable, Iterator, List, Set, Tuple
 
 import click
 
 from .base import StorageBackend, File, Attr
 from ..manifest.schema import Schema
-from ..manifest.sig import SigContext
+from ..container import ContainerStub
 
 logger = logging.getLogger('categorization-proxy')
 
@@ -137,7 +137,8 @@ class CategorizationProxyStorageBackend(StorageBackend):
     def open(self, path: PurePosixPath, flags: int) -> File:
         return self.inner.open(path, flags)
 
-    def list_subcontainers(self, sig_context: Optional[SigContext] = None) -> Iterable[dict]:
+    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+            Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dir_path = PurePosixPath('')
         subcontainer_metainfo_set = self._get_categories_to_subcontainer_map(dir_path)
@@ -149,17 +150,17 @@ class CategorizationProxyStorageBackend(StorageBackend):
             title = subcontainer_metainfo.title
             categories = list(subcontainer_metainfo.categories)
             ident = str(uuid.uuid3(ns, dirpath))
-            yield {
+            subcontainer_path = '/' + dirpath
+            container_stub = ContainerStub(fields={
                 'paths': [f'/.uuid/{ident}'],
                 'title': title,
                 'categories': categories,
                 'backends': {'storage': [{
                     'type': 'delegate',
                     'reference-container': 'wildland:@default:@parent-container:',
-                    'subdirectory': '/' + dirpath,
-                    'backend-id': str(uuid.uuid3(ns, dirpath))
-                }]}
-            }
+                    'subdirectory': subcontainer_path,
+                    'backend-id': str(uuid.uuid3(ns, dirpath))}]}})
+            yield PurePosixPath(subcontainer_path), container_stub
 
     def _get_categories_to_subcontainer_map(self, dir_path: PurePosixPath) -> \
             Set[CategorizationSubcontainerMetaInfo]:

@@ -57,8 +57,8 @@ Delete a storage from local filesystem.
 .. program:: wl-storage-create-local
 .. _wl-storage-create-local:
 
-:command:`wl storage create local --container <container> [-u] [--user <user>] [--subcontainer] --location <filesystem_path> <storage>`
----------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local --container <container> [-u] [--user <user>] [--manifest-pattern <glob>] [--subcontainer-manifest <path>] --location <filesystem_path> <storage>`
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create local storage.
 

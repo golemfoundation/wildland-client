@@ -32,7 +32,7 @@ import click
 from .base import StorageBackend, File, Attr
 from .cached import CachedStorageMixin
 from ..manifest.schema import Schema
-from ..manifest.sig import SigContext
+from ..container import ContainerStub
 
 
 class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
@@ -148,10 +148,8 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
         return self.inner.open(inner_path, flags)
 
-    def list_subcontainers(
-        self,
-        sig_context: Optional[SigContext] = None,
-    ) -> Iterable[dict]:
+    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+            Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dates = []
         for year in self.readdir(PurePosixPath('')):
@@ -160,7 +158,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
                     dates.append(f'{year}/{month}/{day}')
 
         for date in dates:
-            yield {
+            yield PurePosixPath('/timeline/' + date), ContainerStub({
                 'paths': [
                     '/.uuid/{!s}'.format(uuid.uuid3(ns, date)),
                     '/timeline/' + date,
@@ -171,4 +169,4 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
                     'subdirectory': '/' + date,
                     'backend-id': str(uuid.uuid3(ns, date))
                 }]}
-            }
+            })

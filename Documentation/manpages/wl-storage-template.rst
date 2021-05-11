@@ -91,8 +91,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-storage-template-create-local
 .. _wl-storage-template-create-local:
 
-:command:`wl storage-template create local --container <container> [-u] [--user <user>] [--subcontainer] --location <filesystem_path> <storage>`
-------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage-template create local --container <container> [-u] [--user <user>] [--manifest-pattern <glob>] [--subcontainer-manifest <path>] --location <filesystem_path> <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-template-create.rsti
 

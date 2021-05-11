@@ -1,7 +1,3 @@
-.. option:: --manifest-pattern
-
-   Glob pattern for manifest lookup (see "Manifests").
-
 .. option:: --access USER
 
     Allow an additional user access to this storage manifest. By default, storage manifests inherit

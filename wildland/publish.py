@@ -103,7 +103,8 @@ class Publisher:
                     continue
 
                 for storage_candidate in all_storages:
-                    if storage_candidate.manifest_pattern is None:
+                    if 'manifest-pattern' not in storage_candidate.params or \
+                            storage_candidate.params['manifest-pattern']['type'] != 'glob':
                         rejected.append(
                             f'storage {storage_candidate.params["backend-id"]} of '
                             f'container {container_candidate.ensure_uuid()} '
@@ -179,10 +180,11 @@ class _StoragePublisher:
         self.container = publisher.container
         self.container_uuid_path = publisher.container_uuid_path
 
+        # TODO this requires a more subtle manifest-pattern rewrite including more types
+        # of writeable and publisheable-to storages
         self.infra_storage = infra_storage
-        assert self.infra_storage.manifest_pattern is not None
-        assert self.infra_storage.manifest_pattern['type'] == 'glob'
-        self.pattern = self.infra_storage.manifest_pattern['path']
+        assert self.infra_storage.params['manifest-pattern']['type'] == 'glob'
+        self.pattern = self.infra_storage.params['manifest-pattern']['path']
 
     def _get_relpath_for_storage_manifest(self, storage):
         # we publish only a single manifest for a storage, under `/.uuid/` path
@@ -197,8 +199,9 @@ class _StoragePublisher:
         path_pattern = self.pattern.replace('*', container.ensure_uuid())
 
         # always return /.uuid/ path first
-        path = path_pattern.replace('{path}', str(self.container_uuid_path.relative_to('/')))
-        yield pathlib.PurePosixPath(path).relative_to('/')
+        yield pathlib.PurePosixPath(
+            path_pattern.replace('{path}', str(self.container_uuid_path.relative_to('/')))
+        ).relative_to('/')
 
         if '{path}' in path_pattern:
             for path in container.expanded_paths:

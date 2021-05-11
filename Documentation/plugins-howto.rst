@@ -178,9 +178,9 @@ The following is the list of all of the available mixins at the time of writing:
   :meth:`~wildland.storage_backends.generated.GeneratedStorageMixin.get_root` method. This mixin
   does not support cache (yet).
 
-* :class:`~wildland.storage_backends.base.StaticSubcontainerStorageMixin` - Special type of mixin
-  that is only applicable if you are working with :ref:`sub-containers <subcontainers>` (which is an
-  experimental feature at the time of writing).
+* :class:`~wildland.storage_backends.file_subcontainers.FileSubcontainersMixin` -
+  Special type of mixin, providing support for subcontainers and infrastructure containers
+  specified through flat file lists or glob expressions.
 
 .. _mixins: https://stackoverflow.com/questions/533631/what-is-a-mixin-and-why-are-they-useful
 

@@ -326,15 +326,6 @@ Fields:
 For more information on ``trusted`` field, see See "Unsigned manifests and
 trusted storage" above.
 
-The ``manifest-pattern`` field specifies how to determine manifest paths for
-path traversal. Currently, one type of pattern is supported::
-
-    manifest-pattern:
-      type: glob
-      path: /manifests/{path}/*.yaml
-
-The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
-``{path}`` is expanded to the container path we are looking for.
 
 Bridge manifest
 ---------------

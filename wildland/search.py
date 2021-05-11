@@ -25,7 +25,6 @@ from __future__ import annotations
 from copy import deepcopy
 
 import logging
-import re
 import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -75,7 +74,7 @@ class Step:
     previous: Optional['Step']
 
     # file pattern used to lookup the next step (if any)
-    pattern: Optional[str] = None
+    pattern: Optional[PurePosixPath] = None
 
     def steps_chain(self):
         """Iterate over all steps leading to this resolved path"""
@@ -84,6 +83,22 @@ class Step:
             yield step
             step = step.previous
 
+    def __eq__(self, other):
+        if not isinstance(other, Step):
+            return NotImplemented
+        return (self.owner == other.owner and
+                self.bridge == other.bridge and
+                self.user == other.user and
+                self.container == other.container
+        )
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            self.user,
+            self.bridge,
+            self.container
+        ))
 
 class Search:
     """
@@ -140,6 +155,7 @@ class Search:
 
         for step in self._resolve_all():
             if step.bridge and not step.container:
+                self.client.recognize_users_from_search(step)
                 yield step.bridge
 
     def read_file(self) -> bytes:
@@ -250,7 +266,7 @@ class Search:
             if final_step.container is None:
                 continue
             if self.wlpath.file_path is not None:
-                final_step.pattern = str(self.wlpath.file_path)
+                final_step.pattern = self.wlpath.file_path
             for step in final_step.steps_chain():
                 if step.pattern is None or step.container is None:
                     continue
@@ -258,7 +274,7 @@ class Search:
                 if mount_params:
                     mount_cmds[mount_path] = mount_params
                 patterns_for_path.add(
-                    mount_path / step.pattern.lstrip('/'))
+                    mount_path / step.pattern.relative_to(PurePosixPath('/')))
 
         return list(mount_cmds.values()), patterns_for_path
 
@@ -267,9 +283,13 @@ class Search:
         Resolve all path parts, yield all results that match.
         """
 
+        # deduplicate results
+        seen = set()
         for step in self._resolve_first():
             for last_step in self._resolve_rest(step, 1):
-                yield last_step
+                if last_step not in seen:
+                    yield last_step
+                    seen.add(last_step)
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
         if i == len(self.wlpath.parts):
@@ -291,18 +311,6 @@ class Search:
 
         assert step.container is not None
         storage = self.client.select_storage(step.container)
-        if self.fs_client is not None:
-            fuse_path = self.fs_client.get_primary_unique_mount_path(step.container, storage)
-            mounted_path = self.fs_client.mount_dir / fuse_path.relative_to('/')
-            if mounted_path.exists():
-                local_storage = StorageBackend.from_params({
-                    'type': 'local',
-                    'backend-id': storage.backend_id,
-                    'location': mounted_path,
-                    'owner': step.container.owner,
-                    'is-local-owner': True,
-                })
-                return storage, local_storage
         return storage, StorageBackend.from_params(storage.params)
 
     def _resolve_first(self):
@@ -366,39 +374,29 @@ class Search:
         yield from self._resolve_local(part, step.owner, step)
 
         storage, storage_backend = self._find_storage(step)
-        manifest_pattern = storage.manifest_pattern or storage.DEFAULT_MANIFEST_PATTERN
-        pattern = get_file_pattern(manifest_pattern, part)
+
+        pattern = storage_backend.get_subcontainer_watch_pattern(part)
         step.pattern = pattern
-        with StorageDriver(storage_backend) as driver:
-            for manifest_path in storage_glob(storage_backend, pattern):
-                trusted_owner = None
-                if storage.trusted:
-                    trusted_owner = storage.owner
 
-                try:
-                    manifest_content = driver.read_file(manifest_path)
-                except IOError as e:
-                    logger.warning('Could not read %s: %s', manifest_path, e)
-                    continue
+        for manifest_path, subcontainer_data in storage_backend.get_children(part):
+            try:
+                container_or_bridge = step.client.load_subcontainer_object(
+                    step.container, storage, subcontainer_data)
+            except ManifestError as me:
+                logger.warning('%s: cannot load subcontainer %s: %s', part, manifest_path, me)
+                continue
 
-                try:
-                    container_or_bridge = step.client.session.load_object(
-                        manifest_content, trusted_owner=trusted_owner)
-                except ManifestError as me:
-                    logger.warning('%s: cannot load manifest file %s: %s', part, manifest_path, me)
-                    continue
-
-                if isinstance(container_or_bridge, Container):
-                    logger.info('%s: container manifest: %s', part, manifest_path)
-                    yield from self._container_step(
-                        step, part, container_or_bridge)
-                elif isinstance(container_or_bridge, Bridge):
-                    logger.info('%s: bridge manifest: %s', part, manifest_path)
-                    yield from self._bridge_step(
-                        step.client, step.owner,
-                        part, manifest_path, storage_backend,
-                        container_or_bridge,
-                        step)
+            if isinstance(container_or_bridge, Container):
+                logger.info('%s: container manifest: %s', part, subcontainer_data)
+                yield from self._container_step(
+                    step, part, container_or_bridge)
+            elif isinstance(container_or_bridge, Bridge):
+                logger.info('%s: bridge manifest: %s', part, subcontainer_data)
+                yield from self._bridge_step(
+                    step.client, step.owner,
+                    part, manifest_path, storage_backend,
+                    container_or_bridge,
+                    step)
 
     # pylint: disable=no-self-use
 
@@ -573,79 +571,3 @@ class Search:
             return self.aliases[alias[1:]]
         except KeyError as ex:
             raise PathError(f'Unknown alias: {alias}') from ex
-
-
-def get_file_pattern(
-        manifest_pattern: dict,
-        query_path: PurePosixPath) -> str:
-    """
-    Return a file glob to find all files satisfying a manifest_pattern.
-    The following manifest_pattern values are supported:
-
-    - {'type': 'glob', 'path': path} where path is an absolute path that can
-      contain '*' and '{path}'
-    """
-
-    mp_type = manifest_pattern['type']
-    if mp_type == 'glob':
-        if str(query_path) == '*':
-            # iterate over manifests saved under /.uuid/ path, to try to avoid loading the
-            # same manifests multiple times
-            glob_path = manifest_pattern['path'].replace(
-                '{path}', '.uuid/*')
-        else:
-            glob_path = manifest_pattern['path'].replace(
-                '{path}', str(query_path.relative_to('/')))
-        return glob_path
-    raise WildlandError(f'Unknown manifest_pattern: {mp_type}')
-
-
-def storage_glob(storage, glob_path: str) \
-    -> Iterable[PurePosixPath]:
-    """
-    Find all files satisfying a pattern with possible wildcards (*).
-
-    Yields all files found in the storage, but without guarantee that you will
-    be able to open or read them.
-    """
-
-    path = PurePosixPath(glob_path)
-    if path.parts[0] != '/':
-        raise WildlandError(f'manifest_path should be absolute: {path}')
-    return _find(storage, PurePosixPath('.'), path.relative_to(PurePosixPath('/')))
-
-
-def _find(storage: StorageBackend, prefix: PurePosixPath, path: PurePosixPath) \
-    -> Iterable[PurePosixPath]:
-
-    assert len(path.parts) > 0, 'empty path'
-
-    part = path.parts[0]
-    sub_path = path.relative_to(part)
-
-    if '*' in part:
-        # This is a glob part, use readdir()
-        try:
-            names = list(storage.readdir(prefix))
-        except IOError:
-            return
-        regex = re.compile('^' + part.replace('.', r'\.').replace('*', '.*') + '$')
-        for name in names:
-            if regex.match(name):
-                sub_prefix = prefix / name
-                if sub_path.parts:
-                    yield from _find(storage, sub_prefix, sub_path)
-                else:
-                    yield sub_prefix
-    elif sub_path.parts:
-        # This is a normal part, recurse deeper
-        sub_prefix = prefix / part
-        yield from _find(storage, sub_prefix, sub_path)
-    else:
-        # End of a normal path, check using getattr()
-        full_path = prefix / part
-        try:
-            storage.getattr(full_path)
-        except IOError:
-            return
-        yield full_path
