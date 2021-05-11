@@ -14,7 +14,8 @@ RUN apt-get -qy update && apt-get install -y \
       procps htop \
       less nano vim \
       ranger \
-      apache2
+      apache2 \
+      nnn
 
 # Enable sudo
 
