@@ -30,6 +30,17 @@ fi
 
 cd /home/user
 
+# remove "(env) " prompt prefix when activating venv
+sed -i 's/(env) //'  /home/user/env/bin/activate.fish
+
+# modify default PATH too if another one wants to
+# open another fish shell in the running container
+mkdir -p /home/user/.config/fish
+cat >> /home/user/.config/fish/config.fish << EOF
+set -gx PATH /home/user/wildland-client /home/user/wildland-client/docker $PATH
+. /home/user/env/bin/activate.fish
+EOF
+
 # minimal tmux configuration for FISH as default SHELL
 cat > .tmux.conf << EOF
 set -g default-command /usr/bin/fish
