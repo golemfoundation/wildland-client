@@ -6,9 +6,9 @@
 
    Cryptographic filesystem to use. Choices are: GoCryptFS or EncFS.
 
-   Both choices will not protect integrity of your data if the attacker has
-   read/write access to encrypted storage. Sophisticated attacker might
-   achieve a remote code execution on your machine, breaking confidentiality.
+   Both choices do not provide integrity protection. Sophisticated
+   attacker might achieve a remote code execution on your machine,
+   breaking confidentiality.
 
    Please note that GoCryptFS is secure against attacker with read-only
    access to encrypted data.
