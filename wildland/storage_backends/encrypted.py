@@ -211,6 +211,7 @@ class EncFS(EncryptedFSRunner):
         encfs.stop() # required, since encfs has the same command for initialization and mounting
         return encfs
 
+    # pylint: disable=consider-using-with
     def run_binary(self, cmd):
         '''
         For internal use only.
@@ -342,6 +343,7 @@ class GoCryptFS(EncryptedFSRunner):
             gcfs.topdiriv = bf.read()
         return gcfs
 
+    # pylint: disable=consider-using-with
     def run_binary(self, cmd1, cmd2):
         '''
         For internal use only.

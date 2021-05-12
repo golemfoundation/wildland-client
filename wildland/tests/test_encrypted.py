@@ -37,6 +37,7 @@ from ..cli.cli_base import ContextObj
 from ..cli.cli_container import prepare_mount
 from ..manifest.manifest import WildlandObjectType
 
+# pylint: disable=consider-using-with
 @pytest.mark.parametrize('engine', ['gocryptfs', 'encfs'])
 def test_encrypted_with_url(cli, base_dir, engine):
     local_dir = base_dir / 'local'

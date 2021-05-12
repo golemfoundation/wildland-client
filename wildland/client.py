@@ -122,8 +122,8 @@ class Client:
 
         self.users: Dict[str, User] = {}
         self.bridges: Set[Bridge] = set()
-
-        self._select_reference_storage_cache: Dict[Tuple[str, str, bool], Optional[Dict]] = {}
+        self._select_reference_storage_cache: Dict[Tuple[str, str, bool],
+                                                   Optional[Tuple[PurePosixPath, Dict]]] = {}
 
         if load:
             self.recognize_users_and_bridges()
@@ -927,7 +927,8 @@ class Client:
             return None
 
         reference_storage = self.select_storage(container)
-        result = container.paths[0], reference_storage.params
+        mount_path = self.fs_client.get_primary_unique_mount_path(container, reference_storage)
+        result = mount_path, reference_storage.params
         self._select_reference_storage_cache[cache_key] = result
         return result
 
