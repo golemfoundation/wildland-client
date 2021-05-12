@@ -209,13 +209,13 @@ class RemounterWrapper(Remounter):
 
 def test_single_path(cli, client, control_client, base_dir):
     # simulate mounted container
-    (base_dir / 'mnt/.manifests').mkdir(parents=True)
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'mnt/.manifests/Container1.yaml')
+                base_dir / 'wildland/.manifests/Container1.yaml')
 
     pattern = '/.manifests/Container1.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('mnt' + pattern))],
+                                 [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -226,7 +226,7 @@ def test_single_path(cli, client, control_client, base_dir):
     def modify_container():
         cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     # initial mount
     remounter.expect_action(
@@ -257,16 +257,16 @@ def test_single_path(cli, client, control_client, base_dir):
 
 def test_glob_with_broken(client, control_client, base_dir):
     # simulate mounted container
-    (base_dir / 'mnt/.manifests').mkdir(parents=True)
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container2.container.yaml',
-                base_dir / 'mnt/.manifests/Container2.yaml')
+                base_dir / 'wildland/.manifests/Container2.yaml')
     # initially broken Container1 manifest
-    with open(base_dir / 'mnt/.manifests/Container1.yaml', 'w') as f:
+    with open(base_dir / 'wildland/.manifests/Container1.yaml', 'w') as f:
         f.write('broken manifest')
 
     pattern = '/.manifests/Container*.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('mnt' + pattern))],
+                                 [str(base_dir / ('wildland' + pattern))],
                                  additional_patterns=['/.manifests/Other*.yaml'],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
@@ -277,7 +277,7 @@ def test_glob_with_broken(client, control_client, base_dir):
 
     def fix_manifest():
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     # initial mount
     remounter.expect_action(
@@ -311,10 +311,10 @@ def test_glob_with_broken(client, control_client, base_dir):
 
 def test_glob_add_remove(cli, client, control_client, base_dir):
     # simulate mounted container
-    (base_dir / 'mnt/.manifests').mkdir(parents=True)
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
     pattern = '/.manifests/Container*.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('mnt' + pattern))],
+                                 [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     # initial events
@@ -328,10 +328,10 @@ def test_glob_add_remove(cli, client, control_client, base_dir):
 
     def add_manifest():
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     def del_manifest():
-        (base_dir / 'mnt/.manifests/Container1.yaml').unlink()
+        (base_dir / 'wildland/.manifests/Container1.yaml').unlink()
 
     remounter.expect_action([], [], add_manifest)
     # after adding conatiner
@@ -352,12 +352,12 @@ def test_glob_add_remove(cli, client, control_client, base_dir):
 
 def test_add_remove_storage(cli, client, control_client, base_dir):
     # simulate mounted container
-    (base_dir / 'mnt/.manifests').mkdir(parents=True)
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'mnt/.manifests/Container1.yaml')
+                base_dir / 'wildland/.manifests/Container1.yaml')
     pattern = '/.manifests/Container1.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('mnt' + pattern))],
+                                 [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -372,13 +372,13 @@ def test_add_remove_storage(cli, client, control_client, base_dir):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
                 '--container', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     def del_storage():
         cli('container', 'modify', 'del-storage', '--storage', '1',
             'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     remounter.expect_action([ExpectedMount(
             '0xaaa',
@@ -406,12 +406,12 @@ def test_modify_storage(cli, client, control_client, base_dir):
         cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
             '--container', 'Container1')
     # simulate mounted container
-    (base_dir / 'mnt/.manifests').mkdir(parents=True)
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'mnt/.manifests/Container1.yaml')
+                base_dir / 'wildland/.manifests/Container1.yaml')
     pattern = '/.manifests/Container1.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('mnt' + pattern))],
+                                 [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -429,7 +429,7 @@ def test_modify_storage(cli, client, control_client, base_dir):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage3'),
                 '--container', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     def switch_primary():
         """change storages order without changing anything else"""
@@ -439,7 +439,7 @@ def test_modify_storage(cli, client, control_client, base_dir):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage1'),
                 '--container', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'mnt/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.yaml')
 
     remounter.expect_action([ExpectedMount(
             '0xaaa',

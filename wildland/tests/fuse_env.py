@@ -59,7 +59,7 @@ class FuseEnv:
 
     def __init__(self):
         self.test_dir = Path(tempfile.mkdtemp(prefix='wlfuse.'))
-        self.mnt_dir = self.test_dir / 'mnt'
+        self.mnt_dir = self.test_dir / 'wildland'
         self.storage_dir = self.test_dir / 'storage'
         self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False

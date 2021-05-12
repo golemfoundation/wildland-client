@@ -137,16 +137,16 @@ Mount::
 
 You should be able to see the files::
 
-   $ find ~/mnt/timeline
-   /home/user/mnt/timeline
-   /home/user/mnt/timeline/2019
-   /home/user/mnt/timeline/2019/05
-   /home/user/mnt/timeline/2019/05/01
-   /home/user/mnt/timeline/2019/05/01/file2.txt
-   /home/user/mnt/timeline/2020
-   /home/user/mnt/timeline/2020/05
-   /home/user/mnt/timeline/2020/05/01
-   /home/user/mnt/timeline/2020/05/01/file1.txt
+   $ find ~/wildland/timeline
+   /home/user/wildland/timeline
+   /home/user/wildland/timeline/2019
+   /home/user/wildland/timeline/2019/05
+   /home/user/wildland/timeline/2019/05/01
+   /home/user/wildland/timeline/2019/05/01/file2.txt
+   /home/user/wildland/timeline/2020
+   /home/user/wildland/timeline/2020/05
+   /home/user/wildland/timeline/2020/05/01
+   /home/user/wildland/timeline/2020/05/01/file1.txt
 
 ``date-proxy`` example (self-contained manifest)
 ------------------------------------------------

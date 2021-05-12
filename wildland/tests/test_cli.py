@@ -2092,13 +2092,13 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
-    manifest_path = base_dir / 'mnt/trusted/Container.container.yaml'
+    manifest_path = base_dir / 'wildland/trusted/Container.container.yaml'
 
-    # Write an unsigned container manifest to mnt/trusted/
+    # Write an unsigned container manifest to wildland/trusted/
 
     content = (base_dir / 'containers/Container.container.yaml').read_text()
     content = content[content.index('---'):]
-    os.mkdir(base_dir / 'mnt/trusted')
+    os.mkdir(base_dir / 'wildland/trusted')
     with open(manifest_path, 'w') as f:
         f.write(content)
 
@@ -2985,8 +2985,8 @@ def test_different_default_user(cli, base_dir):
     cli('container', 'mount', 'BobContainer')
     cli('container', 'mount', 'AliceContainer')
 
-    assert 'Bob' in os.listdir(base_dir / 'mnt')
-    assert 'Alice' not in os.listdir(base_dir / 'mnt')
+    assert 'Bob' in os.listdir(base_dir / 'wildland')
+    assert 'Alice' not in os.listdir(base_dir / 'wildland')
 
 
 def _create_user_manifest(owner: str, path: str = '/PATH',
@@ -3401,7 +3401,7 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
         'token': 'bbb'
     })
 
-    result = cli('container', 'find', f'{base_dir}/mnt/PATH/file.txt', capture=True)
+    result = cli('container', 'find', f'{base_dir}/wildland/PATH/file.txt', capture=True)
 
     assert result.splitlines() == [
         f'Container: wildland:0xaaa:{uuid_path}:',
@@ -3411,7 +3411,7 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
     control_client.expect('fileinfo', {})
 
     with pytest.raises(CliError, match='Given path was not found in any storage'):
-        cli('container', 'find', f'{base_dir}/mnt/PATH/not_existing.txt', capture=True)
+        cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt', capture=True)
 
 
 # Forest
