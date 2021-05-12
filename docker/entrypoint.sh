@@ -30,6 +30,10 @@ fi
 
 cd /home/user
 
+#
+# BEING FISH CONFIGURATION
+#
+
 # remove "(env) " prompt prefix when activating venv
 sed -i 's/(env) //'  /home/user/env/bin/activate.fish
 
@@ -38,7 +42,11 @@ sed -i 's/(env) //'  /home/user/env/bin/activate.fish
 mkdir -p /home/user/.config/fish
 cat >> /home/user/.config/fish/config.fish << EOF
 set -gx PATH /home/user/wildland-client /home/user/wildland-client/docker $PATH
-. /home/user/env/bin/activate.fish
+
+# it prevents issue when doing fish in fish on venv activation
+if test -z "$VIRTUAL_ENV"
+    source /home/user/env/bin/activate.fish
+end
 EOF
 
 # minimal tmux configuration for FISH as default SHELL
@@ -51,6 +59,10 @@ EOF
 cat > .screenrc << EOF
 shell /usr/bin/fish
 EOF
+
+#
+# END FISH CONFIGURATION
+#
 
 ipfs init &> /dev/null
 ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
