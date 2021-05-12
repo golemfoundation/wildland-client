@@ -221,7 +221,7 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
     for storage in storages:
         if storage['subcontainer_of'] and not with_subcontainers:
             continue
-        if storage['type'] == 'pseudomanifest' and not with_pseudomanifests:
+        if storage['hidden'] and not with_pseudomanifests:
             continue
         main_path = storage['paths'][0]
         click.echo(main_path)

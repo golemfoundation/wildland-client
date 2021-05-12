@@ -25,7 +25,7 @@ import time
 from pathlib import Path, PurePosixPath
 import subprocess
 import logging
-from typing import Dict, List, Optional, Iterable, Tuple, Iterator
+from typing import Callable, Dict, List, Optional, Iterable, Tuple, Iterator
 import json
 import sys
 import hashlib
@@ -38,6 +38,8 @@ from .storage import Storage
 from .exc import WildlandError
 from .control_client import ControlClient
 from .entity.fileinfo import FileInfo
+from .manifest.manifest import Manifest
+from .storage_backends.static import StaticStorageBackend
 
 logger = logging.getLogger('fs_client')
 
@@ -209,7 +211,7 @@ class WildlandFSClient:
                         storages: List[Storage],
                         user_paths: Iterable[Iterable[PurePosixPath]] = ((),),
                         subcontainer_of: Optional[Container] = None,
-                        remount: bool = False):
+                        remount: bool = False) -> None:
         """
         Mount a container, assuming a storage has been already selected.
         """
@@ -222,22 +224,111 @@ class WildlandFSClient:
             params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
                                    Optional[Container]]],
             remount: bool = False,
-            unique_path_only: bool = False):
+            unique_path_only: bool = False) -> None:
         """
         Mount multiple containers using a single command.
         """
         self.clear_cache()
 
-        commands = [
+        storage_commands = self._generate_command_for_mount_container(
+            params, remount, unique_path_only)
+        pseudomanifests_commands = self._generate_command_for_mount_pseudomanifest_container(
+            params, remount, unique_path_only)
+
+        assert len(storage_commands) == len(pseudomanifests_commands)
+
+        commands = storage_commands + pseudomanifests_commands
+
+        self.run_control_command('mount', items=commands)
+
+    def _generate_command_for_mount_container(self,
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
+                                   Optional[Container]]],
+            remount: bool = False,
+            unique_path_only: bool = False) -> List[Dict]:
+
+        identity_storage_generator = lambda _, storage : storage
+        commands = self._get_commands_for_mount_containers(
+            params, remount, unique_path_only, False, identity_storage_generator)
+
+        return commands
+
+    def _generate_command_for_mount_pseudomanifest_container(self,
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
+                                   Optional[Container]]],
+            remount: bool = False,
+            unique_path_only: bool = False) -> List[Dict]:
+
+        pseudomanifest_commands = self._get_commands_for_mount_containers(
+            params, remount, unique_path_only, True, self._generate_pseudomanifest_storage)
+
+        self._prepend_pseudomanifest_main_path(pseudomanifest_commands)
+
+        return pseudomanifest_commands
+
+    def _get_commands_for_mount_containers(self,
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
+                                   Optional[Container]]],
+            remount: bool,
+            unique_path_only: bool,
+            is_hidden: bool,
+            storage_generator: Callable[[Container, Storage], Storage]) -> List[Dict]:
+
+        return [
             self.get_command_for_mount_container(
-                container, storage, user_paths,
-                remount=remount, subcontainer_of=subcontainer_of, unique_path_only=unique_path_only)
+                container, storage_generator(container, storage), user_paths, remount=remount,
+                subcontainer_of=subcontainer_of, unique_path_only=unique_path_only,
+                is_hidden=is_hidden)
             for container, storages, user_paths, subcontainer_of in params
             for storage in storages
         ]
-        self.run_control_command('mount', items=commands)
 
-    def unmount_storage(self, storage_id: int):
+    @staticmethod
+    def _prepend_pseudomanifest_main_path(pseudomanifest_commands) -> None:
+        """
+        Prepend path with '-pseudomanifest' name suffix which will be the main path for
+        pseudomanifest container.
+        """
+        for pseudo_cmd in pseudomanifest_commands:
+            assert 'paths' in pseudo_cmd
+            paths = pseudo_cmd['paths']
+            assert isinstance(paths, list) and len(paths) > 0
+            old_main_path = PurePosixPath(paths[0])
+            new_main_path = old_main_path.parent / (old_main_path.name + '-pseudomanifest')
+            paths.insert(0, str(new_main_path))
+
+    @staticmethod
+    def _generate_pseudomanifest_storage(container: Container, storage: Storage) -> Storage:
+        """
+        Create pseudomanifest storage out of storage params and paths.
+        """
+
+        pseudo_manifest_params = {
+            'object': 'container',
+            'owner': storage.owner,
+            'paths': [str(p) for p in container.paths],
+            'title': container.title or 'null',
+            'categories': [str(p) for p in container.categories],
+            'version': storage.params.get('version', 'null'),
+            'access': storage.params.get('access', [])
+        }
+        storage_manifest = Manifest.from_fields(pseudo_manifest_params)
+        pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
+
+        static_params = {
+            'type': 'static',
+            'content': {
+                '.manifest.wildland.yaml': pseudomanifest_content
+            },
+            'primary': storage.is_primary,     # determines how many mountpoints are generated
+            'backend-id': storage.backend_id,  # mountpoint paths are generated based on backend-id
+            'owner': storage.owner,
+            'version': Manifest.CURRENT_VERSION,
+        }
+        return Storage(storage.owner, StaticStorageBackend.TYPE, container.get_uuid_path(),
+                       trusted=True, params=static_params)
+
+    def unmount_storage(self, storage_id: int) -> None:
         """
         Unmount a storage with given storage id.
         """
@@ -265,22 +356,60 @@ class WildlandFSClient:
         if storage_ids is None:
             return None
 
-        sorted_storage_ids = sorted(storage_ids)
+        storage_idx = 0  # TODO return storage ID instead of an index
 
-        if len(sorted_storage_ids) > 1 and \
-                not self._is_storage_id_with_pseudomanifest_storage_id(sorted_storage_ids):
-            logger.warning('multiple storages found for path: %s (storage ids: %s)', path,
-                           str(sorted_storage_ids))
+        if len(storage_ids) > 1:
+            is_pseudomanifest_pair, storage_idx = \
+                self._is_storage_id_with_pseudomanifest_storage_id(storage_ids)
+            if not is_pseudomanifest_pair:
+                logger.warning('multiple storages found for path: %s (storage ids: %s)', path,
+                               str(storage_ids))
 
-        return sorted_storage_ids[0]
+        return storage_ids[storage_idx]
 
-    @staticmethod
-    def _is_storage_id_with_pseudomanifest_storage_id(sorted_storage_ids: List[int]) -> bool:
+    def find_all_storage_ids_by_path(self, path: PurePosixPath) -> List[int]:
         """
-        Check if given list of storage IDs contains storage ID and its corresponding storage ID
-        storing pseudo-manifest.
+        Find all storage IDs for a given mount path. This method is similar to
+        :meth:`WildlandFSClient.find_storage_id_by_path` but instead of returning just one (first)
+        storage ID, it returns all of them.
         """
-        return len(sorted_storage_ids) == 2 and sorted_storage_ids[0] + 1 == sorted_storage_ids[1]
+        paths = self.get_paths()
+        return paths.get(path, [])
+
+    def get_primary_unique_mount_path_from_storage_id(self, storage_id: int) -> PurePosixPath:
+        """
+        Get primary unique mount path corresponding to a given storage ID.
+        """
+        storage_info = self.get_info()
+        assert storage_id in storage_info
+        return storage_info[storage_id]['paths'][0]
+
+    def _is_storage_id_with_pseudomanifest_storage_id(self, storage_ids: List[int]) -> \
+            Tuple[bool, int]:
+        """
+        Check if given list of storage IDs contains two items:
+        - a storage ID corresponding to pseudo-manifest,
+        - backing storage ID corresponding to the above-mentioned pseudo-manifest storage ID.
+
+        If it is True, return ``(True, non-pseudomanifest storage ID)``.
+        Otherwise return ``(False, 0)``.
+        """
+        if len(storage_ids) != 2:
+            return False, 0
+
+        info = self.get_info()
+        first_paths = info[storage_ids[0]]['paths']
+        second_paths = info[storage_ids[1]]['paths']
+
+        # pseudomanifest storage has one more mountpoint than its corresponding, underlying storage
+        if len(first_paths) < len(second_paths):
+            second_paths = second_paths[1:]
+            idx = 0
+        else:
+            first_paths = first_paths[1:]
+            idx = 1
+
+        return (True, idx) if first_paths == second_paths else (False, 0)
 
     def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
         """
@@ -480,6 +609,7 @@ class WildlandFSClient:
                 'tag': storage['extra'].get('tag', None),
                 'trusted_owner': storage['extra'].get('trusted_owner', None),
                 'subcontainer_of': storage['extra'].get('subcontainer_of', None),
+                'hidden': storage['extra'].get('hidden', False),
             }
             for ident_str, storage in data.items()
         }
@@ -488,9 +618,17 @@ class WildlandFSClient:
     def get_unique_storage_paths(self, container: Optional[Container] = None
             ) -> Iterable[PurePosixPath]:
         """
-        Returns list of unique mount paths (ie ``/.backends/{container_uuid}/{backend_uuid}``) for
-        every mounted storage in a given container. If no container is given, return unique mount
-        paths for all mounted storages in every container.
+        Return list of unique mount paths, i.e.:
+
+            /.backends/{container_uuid}/{backend_uuid}[-pseudomanifest]
+
+        for every mounted storage in a given container. If no container is given, return unique
+        mount paths for all mounted storages in every container.
+
+        Note that for every ``/.backends/{container_uuid}/{backend_uuid}`` unique mount path, there
+        is a respective ``/.backends/{container_uuid}/{backend_uuid}-pseudomanifest`` corresponding
+        to a hidden container holding container's pseudomanifest. Both of those two paths are
+        returned for all mounted storages in a given container.
         """
 
         paths = self.get_paths()
@@ -504,7 +642,7 @@ class WildlandFSClient:
         path_regex = re.compile(pattern)
 
         for path, _storage_id in paths.items():
-            if path_regex.match(str(path)) and not path.name.endswith('-pseudomanifest'):
+            if path_regex.match(str(path)):
                 yield path
 
     def should_remount(self, container: Container, storage: Storage,
@@ -538,7 +676,8 @@ class WildlandFSClient:
                                         user_paths: Iterable[Iterable[PurePosixPath]],
                                         subcontainer_of: Optional[Container],
                                         unique_path_only: bool = False,
-                                        remount: bool = False):
+                                        remount: bool = False,
+                                        is_hidden: bool = False) -> Dict:
         """
         Prepare parameters for the control client to mount a container.
 
@@ -573,6 +712,7 @@ class WildlandFSClient:
                                     if subcontainer_of else None),
                 'title': container.title,
                 'categories': [str(p) for p in container.categories],
+                'hidden': is_hidden,
             },
             'remount': remount,
         }
@@ -629,7 +769,8 @@ class WildlandFSClient:
 
         return paths
 
-    def get_primary_unique_mount_path(self, container: Container, storage: Storage):
+    def get_primary_unique_mount_path(self, container: Container, storage: Storage) \
+            -> PurePosixPath:
         """
         Return a primary unique mount path. This is the mount path that uniquely identify a
         storage of a given container and also where the storage is always mounted -

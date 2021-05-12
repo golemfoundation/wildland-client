@@ -32,11 +32,9 @@ from typing import List, Dict, Iterable, Optional, Set, Union
 
 from .conflict import ConflictResolver, Resolved
 from .storage_backends.base import Attr, File, StorageBackend
-from .storage_backends.pseudomanifest import PseudoManifestStorage
 from .storage_backends.watch import FileEvent, StorageWatcher
 from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
-from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 
 
@@ -120,8 +118,7 @@ class WildlandFSBase:
                             current_ident, main_path)
                 self._unmount_storage(current_ident)
             else:
-                raise WildlandError(
-                    f'Storage already mounted under main path: {main_path}')
+                raise WildlandError(f'Storage already mounted under main path: {main_path}')
 
         ident = self.storage_counter
         self.storage_counter += 1
@@ -162,23 +159,6 @@ class WildlandFSBase:
         for path in paths:
             self.resolver.unmount(path, storage_id)
 
-    def _create_pseudomanifest_storage(self, paths: List[PurePosixPath], storage_params: Dict,
-                                       extra_params: Dict) -> PseudoManifestStorage:
-        """
-        Create pseudomanifest storage out of storage params and paths.
-        """
-        pseudo_manifest_params = {
-            'object': 'container',
-            'owner': storage_params['owner'],
-            'paths': [str(p) for p in paths],
-            'title': extra_params.get('title', 'null'),
-            'categories': extra_params.get('categories', []),
-            'version': storage_params.get('version', 'null'),
-            'access': storage_params.get('access', [])
-        }
-        storage_manifest = Manifest.from_fields(pseudo_manifest_params)
-        return PseudoManifestStorage(storage_manifest.original_data)
-
     # pylint: disable=missing-docstring
 
     #
@@ -191,24 +171,17 @@ class WildlandFSBase:
             paths = [PurePosixPath(p) for p in params['paths']]
             assert len(paths) > 0
             storage_params = params['storage']
-            read_only = params.get('read-only')
+            read_only = params.get('read-only', False)
             extra_params = params.get('extra')
+            # remount = params.get('remount', False)
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
             storage.request_mount()
-            pseudomanifest_storage = self._create_pseudomanifest_storage(
-                paths, storage_params, extra_params or {})
-            pseudomanifest_storage.request_mount()
+            # pseudomanifest_storage = self._create_pseudomanifest_storage(
+            #     paths, storage_params, extra_params or {})
+            # pseudomanifest_storage.request_mount()
             with self.mount_lock:
-                # Note that order of below mounts is important as we assume in the code that:
-                # - an even storage ID corresponds to pseudo-manifest storage,
-                # - an odd storage ID number corresponds to its underlying storage.
                 self._mount_storage(paths, storage, extra_params, remount)
-                main_path = paths[0]
-                pseudomanifest_main_path = main_path.parent / (main_path.name + '-pseudomanifest')
-                pseudomanifest_paths = [pseudomanifest_main_path] + paths
-                self._mount_storage(pseudomanifest_paths,
-                                    pseudomanifest_storage)
 
     @control_command('unmount')
     def control_unmount(self, _handler, storage_id: int):
@@ -506,8 +479,7 @@ class WildlandFSBase:
         """
 
         path = PurePosixPath(path)
-        resolved = self._resolve_path(
-            path, parent) if not resolved_path else resolved_path
+        resolved = self._resolve_path(path, parent) if not resolved_path else resolved_path
         with self.mount_lock:
             storage = self.storages[resolved.ident]
 

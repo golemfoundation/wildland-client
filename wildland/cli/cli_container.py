@@ -29,6 +29,7 @@ import uuid
 import sys
 import logging
 import threading
+import re
 import signal
 import click
 import daemon
@@ -57,6 +58,7 @@ MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
 MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
 
 logger = logging.getLogger('cli_container')
+
 
 @aliased_group('container', short_help='container management')
 def container_():
@@ -693,51 +695,108 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
+    storage_ids = []
 
-    # pylint: disable=too-many-nested-blocks
     if container_names:
-        storage_ids = []
         for container_name in container_names:
             try:
-                for container in obj.client.load_containers_from(container_name):
-                    for mount_path in obj.fs_client.get_unique_storage_paths(container):
-                        storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
-
-                        if storage_id is None:
-                            click.echo(f'Not mounted: {mount_path}')
-                        else:
-                            click.echo(f'Will unmount: {mount_path}')
-                            storage_ids.append(storage_id)
-
-                    if with_subcontainers:
-                        storage_ids.extend(
-                            obj.fs_client.find_all_subcontainers_storage_ids(container))
+                container_storage_ids = _collect_storage_ids_by_container_name(
+                    obj, container_name, with_subcontainers)
+                storage_ids.extend(container_storage_ids)
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
     else:
-        storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
-        if storage_id is None:
-            raise WildlandError('Container not mounted')
-        if with_subcontainers:
-            storage_ids.extend(
-                obj.fs_client.find_all_subcontainers_storage_ids(
-                    obj.fs_client.get_container_from_storage_id(storage_id)))
+        container_storage_ids = _collect_storage_ids_by_container_path(
+            obj, path, with_subcontainers)
+        storage_ids.extend(container_storage_ids)
 
     if not storage_ids:
         raise WildlandError('No containers mounted')
 
-    # Make sure to unmount pseudomanifest storages. Pseudomanifest storage ID is always an even even
-    # number, one greater than the corresponding underlying storage ID.
-    storage_ids_with_pseudomanifests_storage_ids = [
-        storage_id + addend for storage_id in storage_ids for addend in (0, 1)
-    ]
-    click.echo(f'Unmounting {len(storage_ids)} containers')
-    for storage_id in storage_ids_with_pseudomanifests_storage_ids:
+    # dividing by 2 as every container has its hidden respective pseudmanifest storage
+    containers_count_without_submanifests = len(storage_ids) // 2
+    click.echo(f'Unmounting {containers_count_without_submanifests} containers')
+
+    for storage_id in storage_ids:
         obj.fs_client.unmount_storage(storage_id)
 
     if failed:
         raise WildlandError(exc_msg)
+
+
+def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
+        with_subcontainers: bool = True) -> List[int]:
+
+    storage_ids = []
+
+    for container in obj.client.load_containers_from(container_name):
+        unique_storage_paths = obj.fs_client.get_unique_storage_paths(container)
+
+        for mount_path in unique_storage_paths:
+            storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
+            is_pseudomanifest = _is_pseudomanifest_primary_mount_path(mount_path)
+
+            if storage_id is None:
+                assert not is_pseudomanifest
+                click.echo(f'Not mounted: {mount_path}')
+            else:
+                if not is_pseudomanifest:
+                    click.echo(f'Will unmount: {mount_path}')
+                storage_ids.append(storage_id)
+
+        if with_subcontainers:
+            storage_ids.extend(
+                obj.fs_client.find_all_subcontainers_storage_ids(container))
+
+    return storage_ids
+
+
+def _is_pseudomanifest_storage_id(obj: ContextObj, storage_id: int) -> bool:
+    """
+    Check whether given storage ID corresponds to a pseudomanifest storage.
+    """
+    primary_path = obj.fs_client.get_primary_unique_mount_path_from_storage_id(storage_id)
+    return _is_pseudomanifest_primary_mount_path(primary_path)
+
+
+def _is_pseudomanifest_primary_mount_path(path: PurePosixPath) -> bool:
+    """
+    Check whether given path represents primary pseudomanifest mount path.
+    """
+    pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+-pseudomanifest$'
+    path_regex = re.compile(pattern)
+    return bool(path_regex.match(str(path)))
+
+
+def _collect_storage_ids_by_container_path(obj: ContextObj, path: str,
+        with_subcontainers: bool = True) -> List[int]:
+    """
+    Return all storage IDs corresponding to a given mount path.
+    """
+
+    storage_ids = obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path))
+    all_storage_ids = []
+
+    click.echo(f'[experimental] Found storage_ids = {str(storage_ids)}')
+
+    for storage_id in storage_ids:
+        all_storage_ids.append(storage_id)
+
+        if _is_pseudomanifest_storage_id(obj, storage_id):
+            logger.debug('Will unmount storage ID: %d', storage_id)
+            continue
+
+        click.echo(f'Will unmount storage ID: {storage_id}')
+
+        if with_subcontainers:
+            all_storage_ids.extend(
+                obj.fs_client.find_all_subcontainers_storage_ids(
+                    obj.fs_client.get_container_from_storage_id(storage_id)))
+
+    click.echo(f'[by path variant] All storage_ids = {str(all_storage_ids)}')
+
+    return all_storage_ids
 
 
 def terminate_daemon(pfile, error_message):
