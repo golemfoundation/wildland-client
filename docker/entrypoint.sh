@@ -72,5 +72,5 @@ printf "\nWebDAV server is running at dav://localhost:8080/\n\n"
 if [ -n "$1" ]; then
     exec "$@"
 else
-    exec fish
+    fish
 fi
