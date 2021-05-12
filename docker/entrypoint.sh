@@ -19,10 +19,14 @@ export EDITOR=vim
 sudo /etc/init.d/apache2 start
 
 sudo chown -R user.user ~/.config ~/storage
+# migration from ~/mnt to ~/wildland
+if [ -e ~/.config/wildland/config.yaml ]; then
+    sed -i '/^mount-dir: .*\/mnt/d' ~/.config/wildland/config.yaml
+fi
 if ! grep -q '^mount-dir:' ~/.config/wildland/config.yaml 2>/dev/null; then
-   # fresh start?
-   mkdir -p ~/.config/wildland
-   echo "mount-dir: $MOUNT_DIR" >> ~/.config/wildland/config.yaml
+    # fresh start?
+    mkdir -p ~/.config/wildland
+    echo "mount-dir: $MOUNT_DIR" >> ~/.config/wildland/config.yaml
 fi
 
 cd /home/user
