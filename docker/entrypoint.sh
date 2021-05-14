@@ -2,7 +2,7 @@
 
 . /home/user/env/bin/activate
 
-pip install . plugins/*
+pip install -q . plugins/*
 
 export EDITOR=nano
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
