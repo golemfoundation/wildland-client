@@ -4,8 +4,13 @@
 
 pip install -q . plugins/*
 
-export EDITOR=nano
+export EDITOR=vim
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
+export __fish_prompt_hostname="$HOSTNAME"
+export LC_ALL=C.UTF-8
+export XDG_RUNTIME_DIR=/tmp/docker-user-runtime
+
+mkdir -p /tmp/docker-user-runtime
 
 MOUNT_DIR="$HOME/wildland"
 mkdir "$MOUNT_DIR"
@@ -13,9 +18,7 @@ mkdir "$MOUNT_DIR"
 # workaround for https://github.com/docker/distribution/issues/2853
 sudo chmod 666 /dev/fuse
 
-export __fish_prompt_hostname="wildland-client"
-export EDITOR=vim
-
+# start apache
 sudo /etc/init.d/apache2 start
 
 sudo chown -R user.user ~/.config ~/storage
@@ -31,17 +34,47 @@ fi
 
 cd /home/user
 
+#
+# BEGIN FISH CONFIGURATION
+#
+
+# remove "(env) " prompt prefix when activating venv
+sed -i 's/(env) //'  /home/user/env/bin/activate.fish
+
+# modify default PATH too if another one wants to
+# open another fish shell in the running container
+mkdir -p /home/user/.config/fish
+cat >> /home/user/.config/fish/config.fish << EOF
+set -gx PATH /home/user/wildland-client /home/user/wildland-client/docker $PATH
+
+# it prevents issue when doing fish in fish on venv activation
+if test -z "$VIRTUAL_ENV"
+    source /home/user/env/bin/activate.fish
+end
+EOF
+
+# minimal tmux configuration for FISH as default SHELL
+cat > .tmux.conf << EOF
+set -g default-command /usr/bin/fish
+set -g default-shell /usr/bin/fish
+EOF
+
+# minimal screen configuration for FISH as default SHELL
+cat > .screenrc << EOF
+shell /usr/bin/fish
+EOF
+
+#
+# END FISH CONFIGURATION
+#
 
 ipfs init &> /dev/null
 ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
 
-
-echo
-echo "WebDAV server is running at dav://localhost:8080/"
-echo
+printf "\nWebDAV server is running at dav://localhost:8080/\n\n"
 
 if [ -n "$1" ]; then
     exec "$@"
 else
-    exec fish
+    fish
 fi
