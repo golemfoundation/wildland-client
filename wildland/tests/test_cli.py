@@ -1769,7 +1769,6 @@ def test_container_mount_infra_err(monkeypatch, cli, base_dir, control_client):
     output = []
     monkeypatch.setattr('click.echo', output.append)
     cli('container', 'mount', ':*:')
-    assert any((o.startswith("WARN: Some local containers are not published:") for o in output))
 
     command = control_client.calls['mount']['items']
     assert len(command) == 1
@@ -3537,7 +3536,7 @@ def test_forest_mount_warning(monkeypatch, cli, tmp_path, base_dir, control_clie
         '--ref-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
         '--ref-user-path', '/forests/Alice', 'self_bridge')
 
-    cli('container', 'create', 'other')
+    cli('container', 'create', 'unpublished')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'rw')
     cli('container', 'publish', 'mycapsule')
@@ -3548,7 +3547,8 @@ def test_forest_mount_warning(monkeypatch, cli, tmp_path, base_dir, control_clie
     output = []
     monkeypatch.setattr('click.echo', output.append)
     cli('forest', 'mount', ':/forests/Alice:')
-    assert any((o.startswith("WARN: Some local containers are not published:") for o in output))
+    assert any((o.startswith("WARN: Some local containers (or container updates) "
+                             "are not published:") for o in output))
 
 
 def test_forest_unmount(cli, tmp_path, base_dir, control_client):

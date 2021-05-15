@@ -369,6 +369,11 @@ def modify():
 def _republish(ctx, params):
     """
     Republish modified container manifest.
+
+    If container is already published, any modification should be republish
+    unless --no-publish flag is used.
+    Using 'resultcallback' enforce that every 'modify' subcommand have to
+    return (input_file, no_publish) to handle republishing.
     """
     input_file, no_publish = params
 
@@ -376,12 +381,11 @@ def _republish(ctx, params):
         return
 
     container = ctx.obj.client.load_object_from_name(WildlandObjectType.CONTAINER, input_file)
-    publisher = Publisher(ctx.obj.client, container)
-    if publisher.is_published():
-        try:
-            publisher.publish_container()
-        except WildlandError as ex:
-            raise WildlandError(f"Failed to republish container: {ex}") from ex
+
+    try:
+        Publisher(ctx.obj.client, container).republish_container()
+    except WildlandError as ex:
+        raise WildlandError(f"Failed to republish container: {ex}") from ex
 
 
 @modify.command(short_help='add path to the manifest')
@@ -669,14 +673,15 @@ def _mount(obj: ContextObj, container_names,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
            list_all: bool = True, infrastructure: bool = False):
 
-    containers = obj.client.load_all(WildlandObjectType.CONTAINER)
-    not_published_local = []
-    for container in containers:
-        if container.local_path and not Publisher(obj.client, container).is_published():
-            not_published_local.append(container)
-    if not_published_local and not_published_local != containers:
-        local_paths = [container.local_path.name for container in not_published_local]
-        click.echo(f"WARN: Some local containers are not published: {local_paths}")
+    # if we want to mount all containers, check if all are published
+    if any((str(c).endswith(':*:') for c in container_names)):
+        not_published = Publisher.list_unpublished_containers(obj.client)
+        n_container = len(list(obj.client.dirs[WildlandObjectType.CONTAINER].glob('*.yaml')))
+
+        # if all containers are unpublished DO NOT print warning
+        if not_published and len(not_published) != n_container:
+            click.echo("WARN: Some local containers (or container updates) are not published:"
+                       f"{not_published}")
 
     obj.fs_client.ensure_mounted()
 
