@@ -53,8 +53,14 @@ from ..storage import Storage, StorageBackend
 from ..hashdb import HashDb
 from ..log import init_logging
 
-MW_PIDFILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.pid'
-MW_DATA_FILE = Path(BaseDirectory.get_runtime_dir()) / 'wildland-mount-watch.data'
+try:
+    RUNTIME_DIR = Path(BaseDirectory.get_runtime_dir())
+except KeyError:
+    RUNTIME_DIR = Path.home() / 'run'
+    RUNTIME_DIR.mkdir(exist_ok=True)
+
+MW_PIDFILE = RUNTIME_DIR / 'wildland-mount-watch.pid'
+MW_DATA_FILE = RUNTIME_DIR / 'wildland-mount-watch.data'
 
 logger = logging.getLogger('cli_container')
 
