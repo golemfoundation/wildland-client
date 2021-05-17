@@ -66,15 +66,15 @@ class SshFsBackend(LocalProxy):
         cmd.append(addr)
         cmd.append(str(path))
 
-        executor = Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-        out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
+        with Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT) as executor:
+            out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
 
-        if executor.returncode != 0:
-            logger.error("Failed to mount sshfs filesystem (%d)",
-                         executor.returncode)
-            if len(out.decode()) > 0:
-                logger.error(out.decode())
-            raise WildlandFSError("unable to mount sshfs")
+            if executor.returncode != 0:
+                logger.error("Failed to mount sshfs filesystem (%d)",
+                             executor.returncode)
+                if len(out.decode()) > 0:
+                    logger.error(out.decode())
+                raise WildlandFSError("unable to mount sshfs")
 
     @classmethod
     def cli_create(cls, data):
