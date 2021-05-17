@@ -226,7 +226,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. _wl-storage-create-sshfs:
 
 :command:`wl storage create sshfs --container <container> [--sshfs-command <cmd>] --host <host> [--path <path>] [--ssh-user <user>] [--ssh-identity <path>|--pwprompt] [-mount-options <OPT1>[,OPT2,OPT3,...]]`
---------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/sshfs.rsti
