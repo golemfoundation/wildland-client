@@ -3,6 +3,7 @@ Wildland storage backend using sshfs
 """
 
 import logging
+import getpass
 from pathlib import PurePosixPath
 from subprocess import Popen, PIPE, STDOUT, run
 
@@ -115,10 +116,12 @@ class SshFsBackend(LocalProxy):
                          help='host to mount',
                          ),
             click.Option(['--path'],
-                         help='path on target host to mount'),
+                         help='path on target host to mount',
+                         default='.'),
             click.Option(['--ssh-user'],
                          metavar='USER',
                          help='user name to log on to target host',
+                         default=getpass.getuser()
                          ),
             click.Option(['--ssh-identity'],
                          metavar='PATH',
