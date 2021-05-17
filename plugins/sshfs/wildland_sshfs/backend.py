@@ -3,16 +3,13 @@ Wildland storage backend using sshfs
 """
 
 import logging
-import click
-import os
-
-from typing import Tuple
-from pathlib import PurePosixPath, Path
+from pathlib import PurePosixPath
 from subprocess import Popen, PIPE, STDOUT, run
-from .local_proxy import LocalProxy
 
-from wildland.storage_backends.base import StorageBackend
+import click
+
 from wildland.fs_client import WildlandFSError
+from .local_proxy import LocalProxy
 
 logger = logging.getLogger('storage-sshfs')
 
@@ -26,7 +23,7 @@ class SshFsBackend(LocalProxy):
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
-        
+
         self.sshfs_cmd = kwds['params']['cmd']
         self.inner_mount_point = None
         self.sshfs_host = kwds['params']['host']
@@ -39,10 +36,9 @@ class SshFsBackend(LocalProxy):
     ### Abstract method implementations
     def unmount_inner_fs(self, path: PurePosixPath) -> None:
         cmd = ["umount", str(path)]
-        logger.debug(f"executing {cmd}")
-        res = run(cmd, stderr=PIPE)
+        res = run(cmd, stderr=PIPE, check=True)
         if res.returncode != 0:
-            logger.error("unable to unmount sshfs (%d)", 
+            logger.error("unable to unmount sshfs (%d)",
                          res.returncode)
         if len(res.stderr) > 0:
             logger.error(res.stderr.decode())
@@ -54,30 +50,32 @@ class SshFsBackend(LocalProxy):
             cmd.extend(['-o', 'password_stdin'])
         if self.identity:
             ipath = self.backend_dir() / '.identity'
-            with open(ipath, 'w') as of: 
+            with open(ipath, 'w') as of:
                 of.write(self.identity)
                 cmd.extend(['-o', f'IdentityFile={ipath}'])
 
-        if self.mount_opts: cmd.append(self.mount_opts)
+        if self.mount_opts:
+            cmd.append(self.mount_opts)
 
         addr = self.sshfs_host
-        if self.sshfs_path: addr += ':' + self.sshfs_path
-        if self.login: addr = self.login + '@' + addr
+        if self.sshfs_path:
+            addr += ':' + self.sshfs_path
+        if self.login:
+            addr = self.login + '@' + addr
 
         cmd.append(addr)
         cmd.append(str(path))
 
-        logger.debug(f"will execute: {cmd}")
         executor = Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT)
         out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
 
         if executor.returncode != 0:
-            logger.error("Failed to mount sshfs filesystem (%d)", 
+            logger.error("Failed to mount sshfs filesystem (%d)",
                          executor.returncode)
             if len(out.decode()) > 0:
                 logger.error(out.decode())
             raise WildlandFSError("unable to mount sshfs")
-    
+
     @classmethod
     def cli_create(cls, data):
 
@@ -93,9 +91,9 @@ class SshFsBackend(LocalProxy):
 
 
         if data['pwprompt']:
-            conf['passwd'] = click.prompt('SSH password', 
+            conf['passwd'] = click.prompt('SSH password',
                                           hide_input=True)
-        
+
         if data['ssh_identity']:
             with open(data['ssh_identity']) as f:
                 conf['identity'] = f.readlines()

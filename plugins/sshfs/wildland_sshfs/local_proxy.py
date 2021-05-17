@@ -3,12 +3,15 @@
 # The contents of this file is primarily inspired by
 # Pawel Peregud's work on encrypted backend.
 
+"""
+Definition of LocalProxy stroage backend base class.
+"""
+
 import abc
 import logging
 import secrets
 import string
 from os import rmdir
-from tempfile import mkdtemp
 from pathlib import PurePosixPath, Path
 from wildland.storage_backends.base import StorageBackend, File
 from wildland.storage_backends.local import LocalStorageBackend
@@ -30,9 +33,13 @@ class LocalProxy(StorageBackend):
         self.owner = kwds['params']['owner']
 
     def open(self, path: PurePosixPath, flags: int) -> File:
-        return self.inner_backend.open(path, flags)
+        return self.local.open(path, flags)
 
     def backend_dir(self) -> Path:
+        """
+        returns a directory path where this backend can
+        create temporary files and mountpoints.
+        """
         return WLEnv().temp_root() / 'wllpb' / self.backend_id
 
     def mount(self):
@@ -44,7 +51,7 @@ class LocalProxy(StorageBackend):
         mountid  = ''.join(secrets.choice(alphabet) for i in range(15))
         self.inner_mount_point = self.backend_dir() / mountid
         Path(self.inner_mount_point).mkdir(parents=True)
-        
+
 
         backend_params = { 'location': self.inner_mount_point,
                            'type': 'local',
@@ -53,12 +60,12 @@ class LocalProxy(StorageBackend):
                            'backend-id': mountid + '/inner'
                           }
         self.local = LocalStorageBackend(params=backend_params)
-        
+
         # and do actually mount it
         self.mount_inner_fs(self.inner_mount_point)
 
         self.local.request_mount()
-        logger.debug("inner file system mounted at: %s", 
+        logger.debug("inner file system mounted at: %s",
                      self.inner_mount_point)
 
     def unmount(self):
