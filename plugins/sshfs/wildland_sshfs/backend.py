@@ -8,10 +8,11 @@ import os
 
 from typing import Tuple
 from pathlib import PurePosixPath, Path
-from subprocess import Popen, PIPE, run
+from subprocess import Popen, PIPE, STDOUT, run
 from .local_proxy import LocalProxy
 
 from wildland.storage_backends.base import StorageBackend
+from wildland.fs_client import WildlandFSError
 
 logger = logging.getLogger('storage-sshfs')
 
@@ -67,12 +68,12 @@ class SshFsBackend(LocalProxy):
         cmd.append(str(path))
 
         logger.debug(f"will execute: {cmd}")
-        executor = Popen(cmd, stdout=PIPE, stdin=PIPE)
+        executor = Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT)
         out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
 
         if executor.returncode != 0:
             logger.error("Failed to mount sshfs filesystem (%d)", 
-                         sp.returncode)
+                         executor.returncode)
             if len(out.decode()) > 0:
                 logger.error(out.decode())
             raise WildlandFSError("unable to mount sshfs")
