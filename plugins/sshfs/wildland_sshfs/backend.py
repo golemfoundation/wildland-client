@@ -5,6 +5,7 @@ Wildland storage backend using sshfs
 import logging
 import getpass
 from pathlib import PurePosixPath
+from os import chmod, unlink
 from subprocess import Popen, PIPE, STDOUT, run
 
 import click
@@ -52,7 +53,8 @@ class SshFsBackend(LocalProxy):
         if self.identity:
             ipath = self.backend_dir() / '.identity'
             with open(ipath, 'w') as of:
-                of.write(self.identity)
+                of.write(self.identity + '\n')
+                chmod(ipath, 0o600)
                 cmd.extend(['-o', f'IdentityFile={ipath}'])
 
         if self.mount_opts:
@@ -66,10 +68,13 @@ class SshFsBackend(LocalProxy):
 
         cmd.append(addr)
         cmd.append(str(path))
-
         with Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT) as executor:
-            out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
-
+            if self.passwd:
+                out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
+            else:
+                out, _ = executor.communicate()
+            if self.identity:
+                unlink(ipath)
             if executor.returncode != 0:
                 logger.error("Failed to mount sshfs filesystem (%d)",
                              executor.returncode)
@@ -97,7 +102,7 @@ class SshFsBackend(LocalProxy):
 
         if data['ssh_identity']:
             with open(data['ssh_identity']) as f:
-                conf['identity'] = f.readlines()
+                conf['identity'] = '\n'.join([l.rstrip() for l in f])
         return conf
 
     @classmethod
