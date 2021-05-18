@@ -227,6 +227,17 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/s3.rsti
 
+
+.. program:: wl-storage-template-create-sshfs
+.. _wl-storage-template-create-sshfs:
+
+:command:`wl storage-template create sshfs --container <container> [--sshfs-command <cmd>] --host <host> [--path <path>] [--ssh-user <user>] [--ssh-identity <path>|--pwprompt] [-mount-options <OPT1>[,OPT2,OPT3,...]]`
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/sshfs.rsti
+
+
 .. program:: wl-storage-template-create-ipfs
 .. _wl-storage-template-create-ipfs:
 
@@ -400,6 +411,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-template-add-ipfs
 .. _wl-storage-template-add-ipfs:
 
+
 :command:`wl storage-template add ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-address <multiaddress> <storage>`
 --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -414,6 +426,15 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/encrypted.rsti
+.. program:: wl-storage-template-add-sshfs
+.. _wl-storage-template-add-sshfs:
+
+:command:`wl storage-template add sshfs --container <container> [--sshfs-command <cmd>] --host <host> [--path <path>] [--ssh-user <user>] [--ssh-identity <path>|--pwprompt] [-mount-options <OPT1>[,OPT2,OPT3,...]]`
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/sshfs.rsti
+
 
 .. program:: wl-storage-template-add-webdav
 .. _wl-storage-template-add-webdav:
