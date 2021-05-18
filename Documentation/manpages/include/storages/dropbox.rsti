@@ -5,3 +5,12 @@
 .. option:: --token <access_token>
 
    Dropbox app token. You can generate it with Dropbox App Console. Required.
+
+.. option:: --subcontainer-manifest <path_in_storage>
+
+   Absolute path to a subcontainer manifest (can be repeated). Optional.
+
+.. option:: --manifest-pattern <glob>
+
+    Glob pattern to find manifest files in the storage, e.g. `/*.yaml`. Can use {path}`
+    and `*` special characters.

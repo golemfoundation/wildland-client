@@ -31,6 +31,7 @@ from dropbox.exceptions import ApiError
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
+from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.manifest.schema import Schema
 from .dropbox_client import DropboxClient
 
@@ -94,7 +95,7 @@ class DropboxFile(FullBufferedFile):
         return len(data)
 
 
-class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
+class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     Dropbox storage supporting both read and write operations.
     """
@@ -113,6 +114,12 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
                                "Console.",
             },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
+            },
         }
     })
     TYPE = 'dropbox'
@@ -126,21 +133,25 @@ class DropboxStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(DropboxStorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(
                 ['--location'], metavar='PATH', required=False, default='/',
                 help='Absolute path to root directory in your Dropbox account.'),
             click.Option(
                 ['--token'], metavar='ACCESS_TOKEN', required=True,
                 help='Dropbox OAuth 2.0 access token. You can generate it in Dropbox App Console.')
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
-        return {
+        result = super(DropboxStorageBackend, cls).cli_create(data)
+        result.update({
             'location': data['location'],
             'token': data['token'],
-        }
+        })
+        return result
 
     @staticmethod
     def _get_attr_from_metadata(metadata: Metadata) -> DropboxFileAttr:

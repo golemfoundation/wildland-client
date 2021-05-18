@@ -203,15 +203,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 ------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-
-.. option:: --credentials <credentials>
-
-   Google Drive Client Congifuration Object. You can generate it in Google Developer Console.
-   More info: https://developers.google.com/drive/api/v3/quickstart/python#step_1_turn_on_the
-
-.. option:: --skip-interaction
-
-   Enable this optional flag if user passes authorization token object as credentials
+.. include:: include/storages/googledrive.rsti
 
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:

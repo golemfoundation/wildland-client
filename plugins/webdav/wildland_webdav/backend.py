@@ -35,6 +35,7 @@ import click
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
+from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.manifest.schema import Schema
 
 
@@ -96,7 +97,7 @@ class PagedWebdavFile(PagedFile):
         return resp.content
 
 
-class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
+class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBackend):
     """
     WebDAV storage.
     """
@@ -117,7 +118,13 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
                     "password": {"type": "string"}
                 },
                 "additionalProperties": False
-            }
+            },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
+            },
         }
     })
     TYPE = 'webdav'
@@ -135,23 +142,27 @@ class WebdavStorageBackend(CachedStorageMixin, StorageBackend):
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(WebdavStorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(['--url'], metavar='URL', required=True),
             click.Option(['--login'], metavar='LOGIN', required=True),
             click.Option(['--password'], metavar='PASSWORD', required=True,
                          help='Password (omit for a password prompt)',
                          prompt=True, hide_input=True),
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
-        return {
+        result = super(WebdavStorageBackend, cls).cli_create(data)
+        result.update({
             'url': data['url'],
             'credentials': {
                 'login': data['login'],
                 'password': data['password'],
             }
-        }
+        })
+        return result
 
     def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         path = PurePosixPath('.')

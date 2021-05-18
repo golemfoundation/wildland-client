@@ -34,6 +34,7 @@ from treelib import Tree
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
+from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.manifest.schema import Schema
 from .drive_client import DriveClient
 
@@ -98,31 +99,35 @@ class DriveFile(FullBufferedFile):
         return len(data)
 
 
-class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
+class DriveStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     Google Drive storage supporting both read and write operations.
     """
 
-    SCHEMA = Schema(
-        {
-            "title": "Google Drive storage manifest",
-            "type": "object",
-            "required": ["credentials"],
-            "properties": {
-                "credentials": {
-                    "type": "object",
-                    "required": [
-                        "token",
-                        "refresh_token",
-                        "token_uri",
-                        "client_id",
-                        "client_secret",
-                        "scopes",
-                    ],
-                },
+    SCHEMA = Schema({
+        "title": "Google Drive storage manifest",
+        "type": "object",
+        "required": ["credentials"],
+        "properties": {
+            "credentials": {
+                "type": "object",
+                "required": [
+                    "token",
+                    "refresh_token",
+                    "token_uri",
+                    "client_id",
+                    "client_secret",
+                    "scopes",
+                ],
             },
-        }
-    )
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
+            },
+        },
+    })
     TYPE = "googledrive"
 
     def __init__(self, **kwds):
@@ -134,7 +139,8 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(DriveStorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(
                 ["--credentials"],
                 metavar="CREDENTIALS",
@@ -149,7 +155,8 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 help="Pass pre-generated refresh token as credential"
                 "and pass this flag to skip interaction",
             ),
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
@@ -162,7 +169,9 @@ class DriveStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             credentials = flow.run_console()
             credentials = json.loads(credentials.to_json())
 
-        return {"credentials": credentials}
+        result = super(DriveStorageBackend, cls).cli_create(data)
+        result.update({"credentials": credentials})
+        return result
 
     @staticmethod
     def _get_attr_from_metadata(metadata) -> Attr:
