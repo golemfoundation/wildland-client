@@ -236,6 +236,16 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/ipfs.rsti
 
+
+.. program:: wl-storage-template-create-encrypted
+.. _wl-storage-template-create-encrypted:
+
+:command:`wl storage-template create encrypted --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/encrypted.rsti
+
 .. program:: wl-storage-template-create-webdav
 .. _wl-storage-template-create-webdav:
 
@@ -395,6 +405,15 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/ipfs.rsti
+
+.. program:: wl-storage-template-add-encrypted
+.. _wl-storage-template-add-encrypted:
+
+:command:`wl storage-template add encrypted --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
+-----------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-template-create.rsti
+.. include:: include/storages/encrypted.rsti
 
 .. program:: wl-storage-template-add-webdav
 .. _wl-storage-template-add-webdav:

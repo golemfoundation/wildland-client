@@ -107,6 +107,9 @@ storage primitives.
 * :class:`~wildland.storage_backends.delegate.DelegateProxyStorageBackend` - Proxy storage that
   exposes a subdirectory of another container.
 
+* :class:`~wildland.storage_backends.encrypted.EncryptedStorageBackend` - Proxy storage that
+  encrypts data and stores it in another container.
+
 * :class:`~wildland.storage_backends.dummy.DummyStorageBackend` - Dummy storage.
 
 * :class:`~wildland.storage_backends.local_cached.LocalCachedStorageBackend` - Cached storage that
@@ -183,6 +186,25 @@ The following is the list of all of the available mixins at the time of writing:
   specified through flat file lists or glob expressions.
 
 .. _mixins: https://stackoverflow.com/questions/533631/what-is-a-mixin-and-why-are-they-useful
+
+Proxy backends
+------------------
+
+Sometimes you might want to utilize other storage backend from your own. Examples include
+following classes, working with inner storage in very different ways.
+
+* :class:`~wildland.storage_backends.delegate.DelegateProxyStorageBackend` - a simple and
+  clean example, accesses inner storage directly.
+* :class:`~wildland.storage_backends.date_proxy.DateProxyStorageBackend` - manipulates paths
+  to create a `timeline` view of container contents.
+* :class:`~wildland.storage_backends.encrypted.EncryptedStorageBackend` - utilizes access to
+  inner storage directly and via FUSE.
+
+When working with inner backend, consider what could the worst case look like. One example -
+`encrypted` backend attempts to write down a configuration file for `gocryptfs` and does not
+call `flush` to make sure that data is written to permanent storage. Since the inner storage is
+`CachedStorageMixin`, few moments later `gocryptfs` attempts to read its configuration and fails.
+A data race.
 
 
 Installation

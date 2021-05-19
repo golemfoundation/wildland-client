@@ -25,7 +25,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Iterable, Iterator, List, Set, Tuple
+from typing import Iterable, Iterator, List, Set, Tuple, FrozenSet
 
 import click
 
@@ -44,7 +44,7 @@ class CategorizationSubcontainerMetaInfo:
     """
     dir_path: PurePosixPath
     title: str
-    categories: frozenset[str]
+    categories: FrozenSet[str]
 
 
 class CategorizationProxyStorageBackend(StorageBackend):

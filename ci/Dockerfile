@@ -28,7 +28,10 @@ RUN apt-get -qy update && apt-get install -y \
       curl \
       tmux \
       screen \
-      jq
+      jq \
+      procps \
+      gocryptfs \
+      encfs
 
 # add IPFS client
 RUN ARCH=$(arch) && CHECKSUM="" \

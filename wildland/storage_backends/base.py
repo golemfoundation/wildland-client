@@ -201,6 +201,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
     TYPE = ''
     LOCATION_PARAM: Optional[str] = None
 
+    MOUNT_REFERENCE_CONTAINER = False
+
     _types: Dict[str, Type['StorageBackend']] = {}
     _cache: Dict[str, 'StorageBackend'] = {}
 

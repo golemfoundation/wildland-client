@@ -1,4 +1,6 @@
-#!/bin/sh -ex
+#!/usr/bin/env sh
+
+set -ex
 
 . /home/user/env/bin/activate
 pylint wildland/ plugins/ "$@"

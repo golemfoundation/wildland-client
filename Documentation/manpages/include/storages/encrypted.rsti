@@ -1,0 +1,22 @@
+.. option:: --reference-container-url <url>
+
+   Inner container URL for this storage. Required.
+
+.. option:: --engine <ENGINE>
+
+   Cryptographic filesystem to use. Choices are: GoCryptFS or EncFS.
+
+   Both choices do not provide integrity protection. Sophisticated
+   attacker might achieve a remote code execution on your machine,
+   breaking confidentiality.
+
+   Please note that GoCryptFS is secure against attacker with read-only
+   access to encrypted data.
+
+   EncFS (v1.x) is considered insecure! Use it only as a last resort measure!
+   For details, see https://github.com/vgough/encfs/issues/9
+
+   When considering what option should be used, and if any of the options
+   provided are good enough, please think in terms of your own threat model.
+   E.g. who might want to break confidentiality of data you store? Are they
+   sophisticated enough? What will happen if they will succeed?

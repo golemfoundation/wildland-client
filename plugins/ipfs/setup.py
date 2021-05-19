@@ -8,5 +8,9 @@ setup(
         'wildland.storage_backends': [
             'ipfs = wildland_ipfs.backend:IPFSStorageBackend'
         ]
-    }
+    },
+    install_requires=[
+        'ipfshttpclient'
+    ],
+
 )

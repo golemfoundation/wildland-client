@@ -121,7 +121,8 @@ class WildlandFSBase:
         ident = self.storage_counter
         self.storage_counter += 1
 
-        storage.request_mount()
+        # moved to control_mount()
+        # storage.request_mount()
 
         self.storages[ident] = storage
         self.storage_extra[ident] = extra or {}
@@ -172,6 +173,7 @@ class WildlandFSBase:
             extra = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
+            storage.request_mount()
             with self.mount_lock:
                 self._mount_storage(paths, storage, extra, remount)
 

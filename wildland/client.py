@@ -29,7 +29,7 @@ import glob
 import logging
 import os
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, Iterator, Optional, Tuple, Union, List, Set
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -122,8 +122,8 @@ class Client:
 
         self.users: Dict[str, User] = {}
         self.bridges: Set[Bridge] = set()
-
-        self._select_reference_storage_cache: Dict[Tuple[str, str, bool], Optional[Dict]] = {}
+        self._select_reference_storage_cache: Dict[Tuple[str, str, bool],
+                                                   Optional[Tuple[PurePosixPath, Dict]]] = {}
 
         if load:
             self.recognize_users_and_bridges()
@@ -839,9 +839,18 @@ class Client:
             # If there is a 'container' parameter with a backend URL, convert
             # it to an inline manifest.
             if 'reference-container' in storage.params:
-                storage.params['storage'] = self._select_reference_storage(
+                referenced_storage_and_path = self._select_reference_storage(
                     storage.params['reference-container'], container.owner, storage.trusted
                 )
+                if referenced_storage_and_path is None:
+                    logging.warning("Can't select reference storage: %s",
+                                    storage.params['reference-container'])
+                    continue
+                path, storage.params['storage'] = referenced_storage_and_path
+                backend_cls = StorageBackend.types()[storage.storage_type]
+                if backend_cls.MOUNT_REFERENCE_CONTAINER:
+                    storage_path = str(self.fs_client.mount_dir / path.relative_to('/'))
+                    storage.params['storage-path'] = storage_path
                 if storage.params['storage'] is None:
                     continue
 
@@ -894,11 +903,12 @@ class Client:
             self,
             container_url_or_dict: Union[str, Dict],
             owner: str,
-            trusted: bool) -> Optional[Dict]:
-        """
-        Select a "reference" storage based on URL or dictionary. This resolves a
-        container specification and then selects storage for the container.
-        """
+            trusted: bool) -> Optional[Tuple[PurePosixPath, Dict]]:
+        '''
+        Select an "reference" storage and default container path based on URL
+        or dictionary. This resolves a container specification and then selects
+        storage for the container.
+        '''
 
         # use custom caching that dumps *container_url_or_dict* to yaml,
         # because dict is not hashable (and there is no frozendict in python)
@@ -917,8 +927,10 @@ class Client:
             return None
 
         reference_storage = self.select_storage(container)
-        self._select_reference_storage_cache[cache_key] = reference_storage.params
-        return reference_storage.params
+        mount_path = self.fs_client.get_primary_unique_mount_path(container, reference_storage)
+        result = mount_path, reference_storage.params
+        self._select_reference_storage_cache[cache_key] = result
+        return result
 
     def load_subcontainer_object(
             self, container: Container, storage: Storage,
