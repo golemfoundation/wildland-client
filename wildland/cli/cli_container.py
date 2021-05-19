@@ -526,20 +526,24 @@ def prepare_mount(obj: ContextObj,
     else:
         subcontainers = []
 
-    storages = obj.client.get_storages_to_mount(container)
-
     if not subcontainers or not only_subcontainers:
-        if obj.fs_client.find_primary_storage_id(container) is None:
+        storages = obj.client.get_storages_to_mount(container)
+        primary_storage_id = obj.fs_client.find_primary_storage_id(container)
+
+        if primary_storage_id is None:
             if verbose:
                 click.echo(f'new: {container_name}')
             yield (container, storages, user_paths, subcontainer_of)
         elif remount:
             storages_to_remount = []
 
-            for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
+            orphaned_storage_paths = obj.fs_client.get_orphaned_container_storage_paths(
+                container, storages)
+
+            for path in orphaned_storage_paths:
                 storage_id = obj.fs_client.find_storage_id_by_path(path)
                 assert storage_id is not None
-                click.echo(f'Removing orphaned storage {path} (id: {storage_id} )')
+                click.echo(f'Removing orphaned storage {path} (id: {storage_id})')
                 obj.fs_client.unmount_storage(storage_id)
 
             for storage in storages:
@@ -592,9 +596,9 @@ def prepare_mount(obj: ContextObj,
               help='Allow to mount infrastructure container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
-          with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
-          infrastructure: bool):
+def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: bool,
+          import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
+          infrastructure: bool) -> None:
     """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -605,10 +609,10 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
            with_subcontainers, only_subcontainers, list_all, infrastructure)
 
 
-def _mount(obj: ContextObj, container_names,
+def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
-           list_all: bool = True, infrastructure: bool = False):
+           list_all: bool = True, infrastructure: bool = False) -> None:
     obj.fs_client.ensure_mounted()
 
     if import_users:
@@ -631,9 +635,10 @@ def _mount(obj: ContextObj, container_names,
                     print(f"Loading containers. Loaded {counter}...", end='\r')
                 try:
                     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-                    current_params.extend(prepare_mount(
+                    mount_params = prepare_mount(
                         obj, container, str(container), user_paths,
-                        remount, with_subcontainers, None, list_all, only_subcontainers))
+                        remount, with_subcontainers, None, list_all, only_subcontainers)
+                    current_params.extend(mount_params)
                 except WildlandError as ex:
                     fails.append(f'Cannot mount container {container.ensure_uuid()}: {str(ex)}')
         except WildlandError as ex:
@@ -752,6 +757,31 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
     return storage_ids
 
 
+def _collect_storage_ids_by_container_path(obj: ContextObj, path: str,
+        with_subcontainers: bool = True) -> List[int]:
+    """
+    Return all storage IDs corresponding to a given mount path.
+    """
+
+    storage_ids = obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path))
+    all_storage_ids = []
+
+    for storage_id in storage_ids:
+        all_storage_ids.append(storage_id)
+
+        if _is_pseudomanifest_storage_id(obj, storage_id):
+            logger.debug('Ignoring unmounting solely pseudomanifest path (storage ID = %d)',
+                         storage_id)
+            continue
+
+        if with_subcontainers:
+            container = obj.fs_client.get_container_from_storage_id(storage_id)
+            subcontainer_storage_ids = obj.fs_client.find_all_subcontainers_storage_ids(container)
+            all_storage_ids.extend(subcontainer_storage_ids)
+
+    return all_storage_ids
+
+
 def _is_pseudomanifest_storage_id(obj: ContextObj, storage_id: int) -> bool:
     """
     Check whether given storage ID corresponds to a pseudomanifest storage.
@@ -767,36 +797,6 @@ def _is_pseudomanifest_primary_mount_path(path: PurePosixPath) -> bool:
     pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+-pseudomanifest$'
     path_regex = re.compile(pattern)
     return bool(path_regex.match(str(path)))
-
-
-def _collect_storage_ids_by_container_path(obj: ContextObj, path: str,
-        with_subcontainers: bool = True) -> List[int]:
-    """
-    Return all storage IDs corresponding to a given mount path.
-    """
-
-    storage_ids = obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path))
-    all_storage_ids = []
-
-    click.echo(f'[experimental] Found storage_ids = {str(storage_ids)}')
-
-    for storage_id in storage_ids:
-        all_storage_ids.append(storage_id)
-
-        if _is_pseudomanifest_storage_id(obj, storage_id):
-            logger.debug('Will unmount storage ID: %d', storage_id)
-            continue
-
-        click.echo(f'Will unmount storage ID: {storage_id}')
-
-        if with_subcontainers:
-            all_storage_ids.extend(
-                obj.fs_client.find_all_subcontainers_storage_ids(
-                    obj.fs_client.get_container_from_storage_id(storage_id)))
-
-    click.echo(f'[by path variant] All storage_ids = {str(all_storage_ids)}')
-
-    return all_storage_ids
 
 
 def terminate_daemon(pfile, error_message):

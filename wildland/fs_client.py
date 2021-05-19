@@ -284,7 +284,7 @@ class WildlandFSClient:
         ]
 
     @staticmethod
-    def _prepend_pseudomanifest_main_path(pseudomanifest_commands) -> None:
+    def _prepend_pseudomanifest_main_path(pseudomanifest_commands: List[Dict]) -> None:
         """
         Prepend path with '-pseudomanifest' name suffix which will be the main path for
         pseudomanifest container.
@@ -348,30 +348,34 @@ class WildlandFSClient:
 
     def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
         """
-        Find first storage ID for a given mount path.
+        Find first storage ID for a given mount path. ``None` is returned if the given path is not
+        related to any storage.
         """
         paths = self.get_paths()
         storage_ids = paths.get(path)
 
-        if storage_ids is None:
+        if not storage_ids:
             return None
 
-        storage_idx = 0  # TODO return storage ID instead of an index
+        is_pseudomanifest_pair, storage_id = \
+            self._is_storage_id_with_pseudomanifest_storage_id(storage_ids)
 
-        if len(storage_ids) > 1:
-            is_pseudomanifest_pair, storage_idx = \
-                self._is_storage_id_with_pseudomanifest_storage_id(storage_ids)
-            if not is_pseudomanifest_pair:
-                logger.warning('multiple storages found for path: %s (storage ids: %s)', path,
-                               str(storage_ids))
+        if not is_pseudomanifest_pair and len(storage_ids) > 1:
+            logger.warning('multiple non-psuedomanifest storages found for path: %s (storage '
+                            'ids: %s)', path, str(storage_ids))
 
-        return storage_ids[storage_idx]
+        return storage_id
 
     def find_all_storage_ids_by_path(self, path: PurePosixPath) -> List[int]:
         """
         Find all storage IDs for a given mount path. This method is similar to
         :meth:`WildlandFSClient.find_storage_id_by_path` but instead of returning just one (first)
-        storage ID, it returns all of them.
+        storage ID, it returns all of them. This method is useful when unmounting a storage by given
+        path.
+
+        Note that this method returns at least 2 storage IDs if called with ``path`` corresponding
+        to primary storage: one for pseudomanifest storage (which is also mounted in primary path)
+        and one for the underlying storage.
         """
         paths = self.get_paths()
         return paths.get(path, [])
@@ -387,29 +391,31 @@ class WildlandFSClient:
     def _is_storage_id_with_pseudomanifest_storage_id(self, storage_ids: List[int]) -> \
             Tuple[bool, int]:
         """
-        Check if given list of storage IDs contains two items:
+        Check if the given list of storage IDs contains two items:
         - a storage ID corresponding to pseudo-manifest,
         - backing storage ID corresponding to the above-mentioned pseudo-manifest storage ID.
 
         If it is True, return ``(True, non-pseudomanifest storage ID)``.
-        Otherwise return ``(False, 0)``.
+        Otherwise return ``(False, storage_ids[0])``.
         """
         if len(storage_ids) != 2:
-            return False, 0
+            return False, storage_ids[0]
 
         info = self.get_info()
         first_paths = info[storage_ids[0]]['paths']
         second_paths = info[storage_ids[1]]['paths']
 
-        # pseudomanifest storage has one more mountpoint than its corresponding, underlying storage
+        # pseudomanifest storage has always one more mountpoint (i.e. primary path +
+        # `-pseudomanifest` suffix) than its corresponding storage; rest of the paths are identical
+        # if pair consists of storage ID with its corresponding pseudomanifest storage ID
         if len(first_paths) < len(second_paths):
             second_paths = second_paths[1:]
-            idx = 0
+            storage_id = storage_ids[0]
         else:
             first_paths = first_paths[1:]
-            idx = 1
+            storage_id = storage_ids[1]
 
-        return (True, idx) if first_paths == second_paths else (False, 0)
+        return (True, storage_id) if first_paths == second_paths else (False, storage_ids[0])
 
     def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
         """
@@ -418,11 +424,13 @@ class WildlandFSClient:
         removed from the manifest since the last mount.
         """
         mounted_paths = self.get_unique_storage_paths(container)
+        filtered_mounted_paths = filter(lambda path: not path.name.endswith('-pseudomanifest'),
+                                        mounted_paths)
         valid_paths = [
             self.get_primary_unique_mount_path(container, storage)
             for storage in storages_to_mount]
 
-        return list(set(mounted_paths) - set(valid_paths))
+        return list(set(filtered_mounted_paths) - set(valid_paths))
 
     def get_container_from_storage_id(self, storage_id: int):
         """

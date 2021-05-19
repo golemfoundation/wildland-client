@@ -173,13 +173,9 @@ class WildlandFSBase:
             storage_params = params['storage']
             read_only = params.get('read-only', False)
             extra_params = params.get('extra')
-            # remount = params.get('remount', False)
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
             storage.request_mount()
-            # pseudomanifest_storage = self._create_pseudomanifest_storage(
-            #     paths, storage_params, extra_params or {})
-            # pseudomanifest_storage.request_mount()
             with self.mount_lock:
                 self._mount_storage(paths, storage, extra_params, remount)
 
