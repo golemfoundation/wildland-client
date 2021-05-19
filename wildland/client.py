@@ -851,8 +851,6 @@ class Client:
                 if backend_cls.MOUNT_REFERENCE_CONTAINER:
                     storage_path = str(self.fs_client.mount_dir / path.relative_to('/'))
                     storage.params['storage-path'] = storage_path
-                if storage.params['storage'] is None:
-                    continue
 
             if predicate is not None and not predicate(storage):
                 continue
