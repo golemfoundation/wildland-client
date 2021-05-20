@@ -451,11 +451,10 @@ class _PublisherCache:
             -> Generator[Tuple[Path, Optional[PurePosixPath], str], None, None]:
         for path in sorted(self.file.parent.glob('*.yaml')):
             try:
-                trusted_owner = self.client.fs_client.find_trusted_owner(path)
                 data = path.read_bytes()
                 manifest = Manifest.from_bytes(data, self.client.session.sig,
                                                allow_only_primary_key=False,
-                                               trusted_owner=trusted_owner, decrypt=True)
+                                               trusted_owner=None, decrypt=True)
 
                 for c_path in manifest.fields['paths']:
                     pure_path = PurePosixPath(c_path)
