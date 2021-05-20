@@ -680,8 +680,8 @@ def _mount(obj: ContextObj, container_names,
 
         # if all containers are unpublished DO NOT print warning
         if not_published and len(not_published) != n_container:
-            click.echo("WARN: Some local containers (or container updates) are not published:"
-                       f"{not_published}")
+            click.echo("WARN: Some local containers (or container updates) are not published:\n" +
+                       '\n'.join(not_published))
 
     obj.fs_client.ensure_mounted()
 
