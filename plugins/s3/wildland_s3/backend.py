@@ -514,9 +514,9 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
 
     def _get_index_entries(self, path):
         # (name, url, is_dir)
-        entries: List[Tuple[str, str, bool]] = []
+        entries: List[Tuple[str, str, Attr]] = []
         if path != PurePosixPath('.'):
-            entries.append(('..', self.url(path.parent), True))
+            entries.append(('..', self.url(path.parent), Attr.dir()))
 
         try:
             names = list(self.readdir(path))
@@ -528,12 +528,13 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 attr = self.getattr(path / name)
             except IOError:
                 continue
-            entry = (name, self.url(path / name), attr.is_dir())
+            entry = (name, self.url(path / name), attr)
             entries.append(entry)
 
         # Sort directories first
         def key(entry):
             name, _url, attr = entry
+
             return (0 if attr.is_dir() else 1), name
 
         entries.sort(key=key)
