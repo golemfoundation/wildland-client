@@ -262,8 +262,6 @@ class WildlandFSClient:
         pseudomanifest_commands = self._get_commands_for_mount_containers(
             params, remount, unique_path_only, True, self._generate_pseudomanifest_storage)
 
-        self._prepend_pseudomanifest_main_path(pseudomanifest_commands)
-
         return pseudomanifest_commands
 
     def _get_commands_for_mount_containers(self,
@@ -282,20 +280,6 @@ class WildlandFSClient:
             for container, storages, user_paths, subcontainer_of in params
             for storage in storages
         ]
-
-    @staticmethod
-    def _prepend_pseudomanifest_main_path(pseudomanifest_commands: List[Dict]) -> None:
-        """
-        Prepend path with '-pseudomanifest' name suffix which will be the main path for
-        pseudomanifest container.
-        """
-        for pseudo_cmd in pseudomanifest_commands:
-            assert 'paths' in pseudo_cmd
-            paths = pseudo_cmd['paths']
-            assert isinstance(paths, list) and len(paths) > 0
-            old_main_path = PurePosixPath(paths[0])
-            new_main_path = old_main_path.parent / (old_main_path.name + '-pseudomanifest')
-            paths.insert(0, str(new_main_path))
 
     @staticmethod
     def _generate_pseudomanifest_storage(container: Container, storage: Storage) -> Storage:
@@ -320,8 +304,8 @@ class WildlandFSClient:
             'content': {
                 '.manifest.wildland.yaml': pseudomanifest_content
             },
-            'primary': storage.is_primary,     # determines how many mountpoints are generated
-            'backend-id': storage.backend_id,  # mountpoint paths are generated based on backend-id
+            'primary': storage.is_primary,  # determines how many mountpoints are generated
+            'backend-id': storage.backend_id,
             'owner': storage.owner,
             'version': Manifest.CURRENT_VERSION,
         }
@@ -398,24 +382,32 @@ class WildlandFSClient:
         If it is True, return ``(True, non-pseudomanifest storage ID)``.
         Otherwise return ``(False, storage_ids[0])``.
         """
+        assert len(storage_ids) > 0
+        storage_id = storage_ids[0]
+
         if len(storage_ids) != 2:
-            return False, storage_ids[0]
+            return False, storage_id
 
         info = self.get_info()
-        first_paths = info[storage_ids[0]]['paths']
-        second_paths = info[storage_ids[1]]['paths']
+        all_paths = (
+            info[storage_ids[0]]['paths'],
+            info[storage_ids[1]]['paths']
+        )
 
-        # pseudomanifest storage has always one more mountpoint (i.e. primary path +
-        # `-pseudomanifest` suffix) than its corresponding storage; rest of the paths are identical
-        # if pair consists of storage ID with its corresponding pseudomanifest storage ID
-        if len(first_paths) < len(second_paths):
-            second_paths = second_paths[1:]
-            storage_id = storage_ids[0]
-        else:
-            first_paths = first_paths[1:]
-            storage_id = storage_ids[1]
+        assert len(all_paths[0]) > 0
+        assert len(all_paths[1]) > 0
 
-        return (True, storage_id) if first_paths == second_paths else (False, storage_ids[0])
+        matching_main_paths = False
+
+        for i, j in (0, 1), (1, 0):
+            if str(all_paths[i][0]) + '-pseudomanifest' == str(all_paths[j][0]):
+                matching_main_paths = True
+                storage_id = i
+                break
+
+        # pseudomanifest storage has the same mountpoint list as its underlying storage except the
+        # first (main) path
+        return matching_main_paths and all_paths[0][1:] == all_paths[1][1:], storage_id
 
     def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
         """
@@ -708,6 +700,11 @@ class WildlandFSClient:
             trusted_owner = storage.owner
         else:
             trusted_owner = None
+
+        if is_hidden:
+            old_main_path = mount_paths[0]
+            new_main_path = old_main_path.parent / (old_main_path.name + '-pseudomanifest')
+            mount_paths[0] = new_main_path
 
         return {
             'paths': [str(p) for p in mount_paths],

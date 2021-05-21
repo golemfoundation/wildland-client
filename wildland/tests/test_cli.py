@@ -794,12 +794,14 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
     assert len(command) == 2
     backend3_paths = [
-        f'/.backends/{uuid}/{backend_id3}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id3}',
+        f'/.backends/{uuid}/{backend_id3}',
     ]
-    assert sorted(command[0]['paths']) == backend3_paths
-    assert sorted(command[1]['paths']) == \
-        backend3_paths + [f'/.users/0xaaa:/.backends/{uuid}/{backend_id3}-pseudomanifest']
+    assert command[0]['paths'] == backend3_paths
+    assert command[1]['paths'] == [
+        backend3_paths[0] + '-pseudomanifest',
+        backend3_paths[1]
+    ]
 
 
 def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client):
@@ -894,7 +896,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     assert sorted(command[0]['paths']) == expected_paths_backend
 
     expected_paths_pseudomanifest = \
-        expected_paths_backend[:2] + \
+        expected_paths_backend[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}-pseudomanifest'] + \
         expected_paths_backend[2:]
     assert sorted(command[1]['paths']) == expected_paths_pseudomanifest
@@ -1762,7 +1764,7 @@ def test_container_mount_infra_err(cli, base_dir, control_client):
     assert len(command) == 2
     paths_backend1 = command[0]['paths']
     paths_backend2 = command[1]['paths']
-    assert [paths_backend1[0] + '-pseudomanifest'] + paths_backend1 == paths_backend2
+    assert [paths_backend1[0] + '-pseudomanifest'] + paths_backend1[1:] == paths_backend2
 
 
 def test_container_mount_with_import(cli, base_dir, control_client):
@@ -2046,12 +2048,12 @@ def test_container_mount_glob(cli, base_dir, control_client):
     assert sorted(command[1]['paths']) == paths_backend2
 
     assert sorted(command[2]['paths']) == \
-        paths_backend1[:2] + \
+        paths_backend1[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] + \
         paths_backend1[2:]
 
     assert sorted(command[3]['paths']) == \
-        paths_backend2[:2] + \
+        paths_backend2[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id2}-pseudomanifest'] + \
         paths_backend2[2:]
 
@@ -2266,7 +2268,7 @@ backends:
     assert sorted(command[1]['paths']) == paths_backend2
 
     assert sorted(command[2]['paths']) == \
-        paths_backend1[:2] + \
+        paths_backend1[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] + \
         paths_backend1[2:]
 
@@ -2274,7 +2276,7 @@ backends:
     assert command[2]['storage']['type'] == 'static'
 
     assert sorted(command[3]['paths']) == \
-        paths_backend2[:2] + \
+        paths_backend2[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}-pseudomanifest'] + \
         paths_backend2[2:]
 
@@ -2350,7 +2352,6 @@ backends:
     ]
     assert command[1]['paths'] == [
         '/.users/0xaaa:/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444-pseudomanifest',
-        '/.users/0xaaa:/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
         '/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
         '/.users/0xaaa:/.uuid/0000-1111-2222-3333-4444',
         '/.uuid/0000-1111-2222-3333-4444',
@@ -2418,7 +2419,7 @@ backends:
     assert command[1]['storage']['owner'] == '0xaaa'
     assert command[1]['storage']['type'] == 'static'
     assert sorted(command[1]['paths']) == \
-        backend_paths[:2] + \
+        backend_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}-pseudomanifest'] + \
         backend_paths[2:]
 
@@ -2471,7 +2472,7 @@ backends:
     assert command[1]['storage']['type'] == 'static'
 
     assert sorted(command[1]['paths']) == \
-        backend_paths[:2] + \
+        backend_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid}/{backend_id}-pseudomanifest'] + \
         backend_paths[2:]
 
@@ -3413,7 +3414,7 @@ def test_only_subcontainers(cli, base_dir, control_client):
     assert command[2]['extra']['hidden'] is True
 
     pseudomanifest_parent_paths = \
-        parent_paths[:2] + \
+        parent_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid_parent}/{backend_id_parent}-pseudomanifest'] + \
         parent_paths[2:]
     assert sorted(command[2]['paths']) == pseudomanifest_parent_paths
@@ -3422,7 +3423,7 @@ def test_only_subcontainers(cli, base_dir, control_client):
     assert command[3]['extra']['hidden'] is True
 
     pseudomanifest_child_paths = \
-        child_paths[:2] + \
+        child_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid_child}/{backend_id_child}-pseudomanifest'] + \
         child_paths[2:]
     assert sorted(command[3]['paths']) == pseudomanifest_child_paths
