@@ -432,6 +432,7 @@ class EncryptedStorageBackend(StorageBackend):
         self.cleartext_path = tmpdir / mountid / 'cleartext'
         Path(self.tmpdir_path).mkdir(parents=True)
         Path(self.cleartext_path).mkdir(parents=True)
+        self.mountid_path = tmpdir / mountid
         local_params = {'location': self.cleartext_path,
                         'type': 'local',
                         'owner': kwds['params']['owner'],
@@ -527,6 +528,8 @@ class EncryptedStorageBackend(StorageBackend):
     def mount(self) -> None:
         # If ciphertext_path is not available, ask user to mount it!
         if Path(self.ciphertext_path).exists():
+            Path(self.cleartext_path).mkdir(parents=True, exist_ok=True)
+            Path(self.tmpdir_path).mkdir(parents=True, exist_ok=True)
             self.engine_obj = self.engine_cls(self.tmpdir_path,
                                               self.ciphertext_path,
                                               self.credentials)
@@ -541,3 +544,9 @@ class EncryptedStorageBackend(StorageBackend):
             if self.engine_obj.stop() != 0:
                 raise WildlandFSError('Unmounting failed: mount point is busy')
             self.engine_obj = None
+            try:
+                Path(self.cleartext_path).rmdir()
+                Path(self.tmpdir_path).rmdir()
+                Path(self.mountid_path).rmdir()
+            except OSError:
+                pass
