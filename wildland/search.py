@@ -350,7 +350,7 @@ class Search:
 
         assert step.container is not None
         storage = self.client.select_storage(step.container)
-        return storage, StorageBackend.from_params(storage.params)
+        return storage, StorageBackend.from_params(storage.params, deduplicate=True)
 
     def _resolve_first(self):
         if self.wlpath.hint:

@@ -256,7 +256,7 @@ class Client:
             storage_obj = self.load_object_from_dict(
                 WildlandObjectType.STORAGE, link_dict['storage'], expected_owner=expected_owner,
                 container_path='/')
-            storage_backend = StorageBackend.from_params(storage_obj.params)
+            storage_backend = StorageBackend.from_params(storage_obj.params, deduplicate=True)
         elif isinstance(link_dict['storage'], StorageBackend):
             storage_backend = link_dict['storage']
         else:

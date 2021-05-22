@@ -973,7 +973,8 @@ def test_traverse_container_with_fs_client_mounted(
         assert PurePosixPath('/containers/c1') in containers[0].paths
 
         # check if infra container was accessed
-        direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}))
+        direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}),
+                                  deduplicate=True)
         assert direct_access in mock_storage_backend.mock_calls
 
 
