@@ -414,10 +414,20 @@ class Search:
 
         storage, storage_backend = self._find_storage(step)
 
-        pattern = storage_backend.get_subcontainer_watch_pattern(part)
-        step.pattern = pattern
+        try:
+            pattern = storage_backend.get_subcontainer_watch_pattern(part)
+            step.pattern = pattern
+        except NotImplementedError:
+            logger.warning('Storage %s does not support watching', storage.params["type"])
 
-        for manifest_path, subcontainer_data in storage_backend.get_children(part):
+        try:
+            children_iter = storage_backend.get_children(part)
+        except NotImplementedError:
+            logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
+                           storage.params["type"], part)
+            return
+
+        for manifest_path, subcontainer_data in children_iter:
             try:
                 container_or_bridge = step.client.load_subcontainer_object(
                     step.container, storage, subcontainer_data)
