@@ -13,6 +13,7 @@ import pytest
 
 from .fuse_env import FuseEnv
 from ..cli import cli_main
+from ..search import Search
 
 ## CLI
 
@@ -30,6 +31,7 @@ def base_dir():
         yield base_dir
     finally:
         shutil.rmtree(base_dir)
+        Search.clear_cache()
 
 
 @pytest.fixture
