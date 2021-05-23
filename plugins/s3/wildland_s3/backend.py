@@ -258,6 +258,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         try:
             if self.sts_client:
                 self.sts_client.get_caller_identity()
+                # do this only once
+                self.sts_client = None
         except botocore.exceptions.ClientError as ex:
             raise WildlandError(f"Could not connect to AWS with Exception: {ex}") from ex
 
