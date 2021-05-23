@@ -34,7 +34,7 @@ import manhelper
 
 project = 'Wildland'
 copyright = '2021, Golem Foundation'
-author = 'Folem Foundation'
+author = 'Golem Foundation'
 
 # The short X.Y version
 version = ''
