@@ -242,9 +242,6 @@ def _boostrap_forest(ctx: click.Context,
         # Refresh users infrastructures
         obj.client.recognize_users_and_bridges()
 
-        with manifests_backend:
-            manifests_backend.mkdir(PurePosixPath('users'))
-
         _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
         Publisher(obj.client, infra_container).publish_container()
     except Exception as ex:
