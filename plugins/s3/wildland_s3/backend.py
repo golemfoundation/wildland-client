@@ -166,6 +166,12 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 "items": {
                     "$ref": "types.json#rel-path",
                 }
+            },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
             }
         }
     })
@@ -223,7 +229,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(S3StorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(['--endpoint-url'], metavar='URL',
                          help='Override default AWS S3 URL with the given URL.'),
             click.Option(['--s3-url'], metavar='URL', required=True,
@@ -235,11 +242,13 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
             click.Option(['--secret-key'], required=True,
                          help='S3 secret key (omit for a prompt)',
                          prompt=True, hide_input=True),
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
-        return {
+        result = super(S3StorageBackend, cls).cli_create(data)
+        result.update({
             's3_url': data['s3_url'],
             'endpoint_url': data['endpoint_url'],
             'credentials': {
@@ -247,7 +256,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 'secret-key': data['secret_key'],
             },
             'with-index': data['with_index'],
-        }
+        })
+        return result
 
     def mount(self):
         """
@@ -504,9 +514,9 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
 
     def _get_index_entries(self, path):
         # (name, url, is_dir)
-        entries: List[Tuple[str, str, bool]] = []
+        entries: List[Tuple[str, str, Attr]] = []
         if path != PurePosixPath('.'):
-            entries.append(('..', self.url(path.parent), True))
+            entries.append(('..', self.url(path.parent), Attr.dir()))
 
         try:
             names = list(self.readdir(path))
@@ -518,12 +528,13 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 attr = self.getattr(path / name)
             except IOError:
                 continue
-            entry = (name, self.url(path / name), attr.is_dir())
+            entry = (name, self.url(path / name), attr)
             entries.append(entry)
 
         # Sort directories first
         def key(entry):
             name, _url, attr = entry
+
             return (0 if attr.is_dir() else 1), name
 
         entries.sort(key=key)

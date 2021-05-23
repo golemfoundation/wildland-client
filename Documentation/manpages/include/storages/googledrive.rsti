@@ -6,3 +6,12 @@
 .. option:: --skip-interaction
 
    Enable this optional flag if user passes authorization token object as credentials
+
+.. option:: --subcontainer-manifest <path_in_storage>
+
+   Absolute path to a subcontainer manifest (can be repeated). Optional.
+
+.. option:: --manifest-pattern <glob>
+
+    Glob pattern to find manifest files in the storage, e.g. `/*.yaml`. Can use {path}`
+    and `*` special characters.
