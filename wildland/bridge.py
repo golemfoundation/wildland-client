@@ -21,73 +21,66 @@
 Bridge manifest object
 """
 
-from pathlib import PurePosixPath, Path
+from pathlib import PurePosixPath
 from typing import Optional, List, Iterable, Union
+from copy import deepcopy
 
-from .container import Container
-from .manifest.manifest import Manifest, WildlandObjectType
-from .manifest.schema import Schema
-from .manifest.sig import SigContext
+from wildland.container import Container
+from wildland.manifest.manifest import Manifest
+from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.manifest.schema import Schema
+from wildland.exc import WildlandError
 
 
-class Bridge:
+class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     """
     Bridge object: a wrapper for user manifests.
     """
 
     SCHEMA = Schema("bridge")
-    OBJECT_TYPE = WildlandObjectType.BRIDGE
 
-    def __init__(self, *,
+    def __init__(self,
                  owner: str,
                  user_location: Union[str, dict],
                  user_pubkey: str,
                  user_id: str,
                  paths: Iterable[PurePosixPath],
-                 local_path: Optional[Path] = None,
+                 client,
                  manifest: Manifest = None):
+        super().__init__()
         self.owner = owner
-        self.user_location = user_location
+        self.user_location = deepcopy(user_location)
         self.user_pubkey = user_pubkey
         self.user_id = user_id
         self.paths: List[PurePosixPath] = list(paths)
-        self.local_path = local_path
         self.manifest = manifest
+        self.client = client
 
     @classmethod
-    def from_manifest(cls, manifest: Manifest, sig_context: SigContext,
-                      local_path=None) -> "Bridge":
-        """
-        Construct a Container instance from a manifest.
-        """
-
-        manifest.apply_schema(cls.SCHEMA)
+    def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
         return cls(
-            owner=manifest.fields['owner'],
-            user_location=manifest.fields['user'],
-            user_pubkey=manifest.fields['pubkey'],
-            user_id=sig_context.fingerprint(manifest.fields['pubkey']),
-            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            local_path=local_path,
-            manifest=manifest
-        )
+                owner=fields['owner'],
+                user_location=fields['user'],
+                user_pubkey=fields['pubkey'],
+                user_id=client.session.sig.fingerprint(fields['pubkey']),
+                paths=[PurePosixPath(p) for p in fields['paths']],
+                client=client,
+                manifest=manifest
+            )
 
-    def to_unsigned_manifest(self) -> Manifest:
-        """
-        Create a manifest based on Bridge's data.
-        Has to be signed separately.
-        """
-
-        manifest = Manifest.from_fields({
-            "object": self.OBJECT_TYPE.value,
+    def to_manifest_fields(self, inline: bool) -> dict:
+        if inline:
+            raise WildlandError('Bridge manifest cannot be inlined.')
+        result = {
+            "object": WildlandObject.Type.BRIDGE.value,
             "owner": self.owner,
-            "user": self.user_location,
+            "user": deepcopy(self.user_location),
             "pubkey": self.user_pubkey,
             "paths": [str(p) for p in self.paths],
             "version": Manifest.CURRENT_VERSION
-        })
-        manifest.apply_schema(self.SCHEMA)
-        return manifest
+        }
+        self.SCHEMA.validate(result)
+        return result
 
     def to_placeholder_container(self) -> Container:
         """
@@ -104,7 +97,8 @@ class Bridge:
                         f'This directory holds forest of user {self.user_id}.\n'
                         f'Use \'wl forest mount\' command to get access to it.\n',
                 }
-            }]
+            }],
+            client=self.client
         )
 
     def __repr__(self):

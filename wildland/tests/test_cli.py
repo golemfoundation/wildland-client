@@ -843,7 +843,19 @@ def test_storage_list(cli, base_dir):
     ]
 
     result = cli('storage', 'list', capture=True)
+    result_lines = result.splitlines()
+    backend_id_line = [line for line in result_lines if 'backend_id' in line][0]
+    assert backend_id_line
+
+    ok = [
+        str(base_dir / 'storage/Storage.storage.yaml'),
+        '  type: local',
+        backend_id_line,
+        '  location: /PATH',
+    ]
+
     assert result.splitlines() == ok
+
     result = cli('storages', 'list', capture=True)
     assert result.splitlines() == ok
 
@@ -1206,9 +1218,9 @@ def test_container_duplicate(cli, base_dir):
 
 def test_container_duplicate_storage(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
-        '--container', 'Container')
+        '--container', 'Container', '--no-encrypt-manifest')
 
     cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
 
@@ -1225,7 +1237,7 @@ def test_container_duplicate_storage(cli, base_dir):
 
     assert old_backend_id != new_backend_id
     assert base_data.replace(old_uuid, new_uuid).replace(
-        old_backend_id, new_backend_id) == copy_data
+        old_backend_id, new_backend_id).splitlines().sort() == copy_data.splitlines().sort()
 
 
 def test_container_duplicate_noinline(cli, base_dir):

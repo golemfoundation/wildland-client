@@ -310,6 +310,7 @@ class WildlandFSClient:
             owner=owner,
             paths=container_paths,
             backends=[],
+            client=None
         )
 
     def find_all_subcontainers_storage_ids(self, container: Container,
@@ -482,7 +483,7 @@ class WildlandFSClient:
 
         if container:
             pattern = fr'^/.users/{container.owner}:' \
-                fr'/.backends/{container.ensure_uuid()}/[0-9a-z-]+$'
+                fr'/.backends/{container.uuid}/[0-9a-z-]+$'
         else:
             pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+$'
 

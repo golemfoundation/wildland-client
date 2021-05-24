@@ -16,17 +16,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,protected-access
 
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from ..client import Client
-from ..manifest.manifest import WildlandObjectType
 from ..manifest.sig import DummySigContext
-from ..container import Container
+from ..container import Container, _StorageCache
 from ..storage import Storage
 
 
@@ -54,19 +54,20 @@ def client(base_dir, sig):
 
 
 def test_add_storage(client, owner):
-    container = Container(owner=owner, paths=[], backends=[])
-    cont_path = client.save_new_object(WildlandObjectType.CONTAINER, container, "container")
+    container = Container(owner=owner, paths=[], backends=[], client=client)
+    cont_path = client.save_new_object(WildlandObject.Type.CONTAINER, container, "container")
     storage = Storage(
         storage_type='local',
         owner=owner,
         container_path=container.paths[0],
         params={},
+        client=client,
         trusted=True,
         access=None)
 
     client.add_storage_to_container(container, storage)
 
-    assert len(container.backends) == 1
+    assert len(container._storage_cache) == 1
 
     cont_data = cont_path.read_text()
     assert 'backend-id' in cont_data
@@ -74,75 +75,77 @@ def test_add_storage(client, owner):
 
     # duplicate should not be re-added
     client.add_storage_to_container(container, storage)
-    assert len(container.backends) == 1
+    assert len(container._storage_cache) == 1
 
     # but changes should be reflected
     storage.base_url = '/'
     client.add_storage_to_container(container, storage)
-    assert len(container.backends) == 1
-    assert container.backends[0]['base-url'] == '/'
+    assert len(container._storage_cache) == 1
+    assert container._storage_cache[0].storage['base-url'] == '/'
 
 
 def test_add_storage_not_inline(client, owner):
     client.config.override(override_fields={'local-owners': [owner]})
-    container = Container(owner=owner, paths=[], backends=[])
-    client.save_new_object(WildlandObjectType.CONTAINER, container, "container")
+    container = Container(owner=owner, paths=[], backends=[], client=client)
+    client.save_new_object(WildlandObject.Type.CONTAINER, container, "container")
     storage = Storage(
         storage_type='local',
         owner=owner,
         container_path=container.paths[0],
         params={},
+        client=client,
         trusted=True,
         access=None)
 
     client.add_storage_to_container(container, storage, False, "storage")
 
-    assert len(container.backends) == 1
-    assert container.backends[0].startswith('file://localhost')
+    assert len(container._storage_cache) == 1
+    assert container._storage_cache[0].storage.startswith('file://localhost')
 
-    storage_path = Path(container.backends[0][len('file://localhost'):])
+    storage_path = Path(container._storage_cache[0].storage[len('file://localhost'):])
     assert 'type: local' in storage_path.read_text()
 
     # re-adding should not cause duplicates
     client.add_storage_to_container(container, storage, False, "storage")
-    assert len(container.backends) == 1
+    assert len(container._storage_cache) == 1
 
     # but changes should be reflected
     storage.base_url = '/BASEURL'
     client.add_storage_to_container(container, storage)
-    assert len(container.backends) == 1
+    assert len(container._storage_cache) == 1
     assert '/BASEURL' in storage_path.read_text()
 
 
 def test_add_storage_link(client, owner, tmpdir):
     client.config.override(override_fields={'local-owners': [owner]})
-    container = Container(owner=owner, paths=[], backends=[])
+    container = Container(owner=owner, paths=[], backends=[], client=client)
 
     storage = Storage(
         storage_type='local',
         owner=owner,
         container_path=container.paths[0],
         params={},
+        client=client,
         trusted=True,
         access=None)
 
     target_dir = Path(tmpdir / 'test')
     target_dir.mkdir()
 
-    storage_path = client.save_new_object(WildlandObjectType.STORAGE, storage,
+    storage_path = client.save_new_object(WildlandObject.Type.STORAGE, storage,
                                           "storage", target_dir / "s.storage.yaml")
 
-    container.backends.append({
+    container._storage_cache.append(_StorageCache({
         'storage': {'type': 'local', 'location': str(target_dir), 'owner': owner,
                     'backend-id': 'test'},
         'file': '/s.storage.yaml',
         'object': 'link'
-    })
+    }, None))
 
-    client.save_new_object(WildlandObjectType.CONTAINER, container, "container")
+    client.save_new_object(WildlandObject.Type.CONTAINER, container, "container")
 
     # reflect changes
     storage.base_url = '/BASEURL'
     client.add_storage_to_container(container, storage)
-    assert len(container.backends) == 1
+    assert len(container._storage_cache) == 1
     assert '/BASEURL' in storage_path.read_text()

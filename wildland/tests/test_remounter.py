@@ -27,10 +27,11 @@ from unittest import mock
 
 import pytest
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from ..client import Client
 from ..container import Container
 from ..control_client import ControlClientError
-from ..manifest.manifest import ManifestError, WildlandObjectType
+from ..manifest.manifest import ManifestError
 from ..remounter import Remounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
@@ -502,11 +503,11 @@ def search_mock():
 def test_wlpath_single(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
 
-    c1_changed = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    c1_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     search_mock.containers_results = [
         [c1],
@@ -557,8 +558,8 @@ def test_wlpath_single(cli, client, search_mock, control_client):
 def test_wlpath_delete_container(client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
 
     search_mock.containers_results = [
         [c1, c2],
@@ -612,14 +613,14 @@ def test_wlpath_delete_container(client, search_mock, control_client):
 def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml', '/.manifests/Container2.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
 
     cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
     cli('container', 'modify', 'add-path', '--path', '/yet/another/path', 'Container2')
 
-    c1_changed = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2_changed = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
+    c1_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
 
     search_mock.containers_results = [
         [c1, c2],
@@ -692,7 +693,7 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
 def test_wlpath_iterate_error(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     search_mock.containers_results = [
         [c1, ManifestError('container load failed')],
@@ -746,6 +747,7 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
 
 
 def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_client):
+    # pylint: disable=protected-access
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
     with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
@@ -753,12 +755,14 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             '--location', base_dir / 'manifests',
             '--container', 'Infra')
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
-    infra = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Infra')
-    infra_s0 = client.load_object_from_dict(WildlandObjectType.STORAGE, infra.backends[0],
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
+    infra = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Infra')
+    infra_s0 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
+                                            infra._storage_cache[0].storage,
                                             infra.owner, infra.paths[0])
-    infra_s1 = client.load_object_from_dict(WildlandObjectType.STORAGE, infra.backends[1],
+    infra_s1 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
+                                            infra._storage_cache[1].storage,
                                             infra.owner, infra.paths[0])
     search_mock.containers_results = [
         [c1],
@@ -831,20 +835,20 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
     ]
     assert control_client.all_calls['mount'] == [
         {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID0}'],
+            'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID0}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,
         }]},
         {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
+            'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID1}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,
         }]},
         # should retry on the next event
         {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
+            'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID1}'],
             'remount': False,
             'storage': mock.ANY,
             'extra': mock.ANY,

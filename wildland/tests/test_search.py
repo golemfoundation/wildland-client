@@ -1008,7 +1008,7 @@ def test_get_watch_params_not_mounted(control_client, client2):
     # generator here would make failure message much less useful
     # pylint: disable=use-a-generator
     assert all([
-        (c[0].owner == e[0] and c[0].ensure_uuid() == e[1]  # container
+        (c[0].owner == e[0] and c[0].uuid == e[1]  # container
          and len(c[1]) == 1  # storage
          and c[2] == []  # paths
          and c[3] is None)  # subcontainer_of
@@ -1037,7 +1037,7 @@ def test_get_watch_params_mounted1_pattern_path(control_client, client2):
     ]
     assert sorted(patterns) == expected_patterns_re
     assert mount_cmds[0][0].owner == '0xbbb'
-    assert mount_cmds[0][0].ensure_uuid() == '00000000-2222-0000-0000-000000000000'
+    assert mount_cmds[0][0].uuid == '00000000-2222-0000-0000-000000000000'
 
 
 def test_get_watch_params_pattern_star(control_client, client2):

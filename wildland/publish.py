@@ -21,15 +21,15 @@
 Stuff related to publishing and unpublishing containers.
 '''
 
-import collections.abc
 import logging
 import pathlib
-from typing import Optional, Generator, cast
+from typing import Optional, Generator
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .client import Client
 from .container import Container
 from .exc import WildlandError
-from .manifest.manifest import ManifestError, WildlandObjectType
+from .manifest.manifest import ManifestError
 from .storage_driver import StorageDriver
 from .storage import Storage
 
@@ -60,7 +60,7 @@ class Publisher:
             raise NotImplementedError(
                 'choosing infrastructure is not supported')
 
-        self.container_uuid_path = self.container.get_uuid_path()
+        self.container_uuid_path = self.container.uuid_path
 
     def publish_container(self) -> None:
         """
@@ -80,25 +80,19 @@ class Publisher:
         '''
         Iterate over all suitable storages to publish container manifest.
         '''
-        owner = self.client.load_object_from_name(WildlandObjectType.USER, self.container.owner)
+        owner = self.client.load_object_from_name(WildlandObject.Type.USER, self.container.owner)
 
         ok = False
         rejected = []
-        if not owner.containers:
-            rejected.append(f'user {owner.owner} has no infrastructure containers')
 
-        for c in owner.containers:
+        for container_candidate in owner.load_infrastractures():
             try:
-                container_candidate = (
-                    self.client.load_object_from_url_or_dict(
-                        WildlandObjectType.CONTAINER, c, self.container.owner))
-
                 all_storages = list(
                     self.client.all_storages(container=container_candidate))
 
                 if not all_storages:
                     rejected.append(
-                        f'container {container_candidate.ensure_uuid()} '
+                        f'container {container_candidate.uuid} '
                         'has no available storages')
                     continue
 
@@ -107,14 +101,14 @@ class Publisher:
                             storage_candidate.params['manifest-pattern']['type'] != 'glob':
                         rejected.append(
                             f'storage {storage_candidate.params["backend-id"]} of '
-                            f'container {container_candidate.ensure_uuid()} '
+                            f'container {container_candidate.uuid} '
                             'does not have manifest_pattern')
                         continue
 
                     if not storage_candidate.is_writeable:
                         rejected.append(
                             f'storage {storage_candidate.params["backend-id"]} of '
-                            f'container {container_candidate.ensure_uuid()} '
+                            f'container {container_candidate.uuid} '
                             'is not writeable')
                         continue
 
@@ -132,7 +126,7 @@ class Publisher:
                     except (WildlandError, PermissionError, FileNotFoundError) as ex:
                         rejected.append(
                             f'storage {storage_candidate.params["backend-id"]} of '
-                            f'container {container_candidate.ensure_uuid()} '
+                            f'container {container_candidate.uuid} '
                             f'could not be mounted: {ex!s}')
                         logger.debug(
                             'Failed to mount storage when publishing with '
@@ -142,7 +136,7 @@ class Publisher:
 
             except (ManifestError, WildlandError) as ex:
                 rejected.append(
-                    f'container {repr(c)} has serious problems: {ex!s}')
+                    f'container {repr(container_candidate)} has serious problems: {ex!s}')
                 logger.debug(
                     'Failed to load container when publishing with exception: %s', ex)
                 continue
@@ -174,17 +168,17 @@ class _StoragePublisher:
         assert self.infra_storage.params['manifest-pattern']['type'] == 'glob'
         self.pattern = self.infra_storage.params['manifest-pattern']['path']
 
-    def _get_relpath_for_storage_manifest(self, storage):
+    def _get_relpath_for_storage_manifest(self, backend_id):
         # we publish only a single manifest for a storage, under `/.uuid/` path
         container_manifest = next(
             self._get_relpaths_for_container_manifests(self.container))
         return container_manifest.with_name(
             container_manifest.name.removesuffix('.yaml')
-            + f'.{storage.params["backend-id"]}.yaml'
+            + f'.{backend_id}.yaml'
         )
 
     def _get_relpaths_for_container_manifests(self, container):
-        path_pattern = self.pattern.replace('*', container.ensure_uuid())
+        path_pattern = self.pattern.replace('*', container.uuid)
 
         # always return /.uuid/ path first
         yield pathlib.PurePosixPath(
@@ -225,30 +219,25 @@ class _StoragePublisher:
         old_relpaths_to_remove = set()
 
         with StorageDriver.from_storage(self.infra_storage) as driver:
-            for i in range(len(self.container.backends)):
-                if isinstance(self.container.backends[i],
-                        collections.abc.Mapping):
-                    continue
-                backend = self.client.load_object_from_url(WildlandObjectType.STORAGE,
-                    cast(str, self.container.backends[i]), self.container.owner)
-                relpath = self._get_relpath_for_storage_manifest(backend)
+            # replace old relative URLs with new, better URLs
+            for backend in self.container.load_backends(include_inline=False):
+                relpath = self._get_relpath_for_storage_manifest(backend.backend_id)
                 assert relpath not in storage_relpaths
                 storage_relpaths[relpath] = backend
-                self.container.backends[i] = (
-                    driver.storage_backend.get_url_for_path(relpath))
+                self.container.add_storage_from_obj(
+                    backend, inline=False, new_url=driver.storage_backend.get_url_for_path(relpath))
 
             # fetch from /.uuid path
             try:
-                old_container_manifest_data = driver.read_file(
-                    container_relpaths[0])
+                old_container_manifest_data = driver.read_file(container_relpaths[0])
             except FileNotFoundError:
                 pass
             else:
-                old_container = self.client.session.load_object(
-                    old_container_manifest_data, WildlandObjectType.CONTAINER)
+                old_container = self.client.load_object_from_bytes(
+                    WildlandObject.Type.CONTAINER, old_container_manifest_data)
                 assert isinstance(old_container, Container)
 
-                if not old_container.ensure_uuid() == self.container.ensure_uuid():
+                if not old_container.uuid == self.container.uuid:
                     # we just downloaded this file from container_relpaths[0], so
                     # things are very wrong here
                     raise WildlandError(
@@ -258,11 +247,9 @@ class _StoragePublisher:
 
                 old_relpaths_to_remove.update(set(
                     self._get_relpaths_for_container_manifests(old_container)))
-                for url_or_dict in old_container.backends:
-                    if isinstance(url_or_dict, collections.abc.Mapping):
-                        continue
+                for url in old_container.load_raw_backends(include_inline=False):
                     old_relpaths_to_remove.add(
-                        driver.storage_backend.get_path_for_url(url_or_dict))
+                        driver.storage_backend.get_path_for_url(url))
 
             if just_unpublish:
                 old_relpaths_to_remove.update(container_relpaths)
@@ -273,7 +260,7 @@ class _StoragePublisher:
 
             # remove /.uuid path last, if present (bool sorts False < True)
             for relpath in sorted(old_relpaths_to_remove,
-                    key=(lambda path: path.parts[:2] == ('/', '.uuid'))):
+                                  key=(lambda path: path.parts[:2] == ('/', '.uuid'))):
                 try:
                     driver.remove_file(relpath)
                 except FileNotFoundError:
@@ -282,10 +269,8 @@ class _StoragePublisher:
             if not just_unpublish:
                 for relpath, storage in storage_relpaths.items():
                     driver.makedirs(relpath.parent)
-                    driver.write_file(relpath,
-                        self.client.session.dump_object(storage))
+                    driver.write_file(relpath, self.client.session.dump_object(storage))
 
                 for relpath in container_relpaths:
                     driver.makedirs(relpath.parent)
-                    driver.write_file(relpath,
-                        self.client.session.dump_object(self.container))
+                    driver.write_file(relpath, self.client.session.dump_object(self.container))

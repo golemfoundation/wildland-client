@@ -21,89 +21,120 @@
 User manifest and user management
 """
 
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from typing import List, Optional, Union
+from copy import deepcopy
+
 import logging
 
-from .manifest.manifest import Manifest, WildlandObjectType
+from wildland.wildland_object.wildland_object import WildlandObject
+from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
+from .exc import WildlandError
 
 
 logger = logging.getLogger('user')
 
 
-class User:
+class _InfraCache:
+    """Helper object to manage infrastructure cache"""
+    def __init__(self, infrastructure, cached_infra):
+        self.infrastructure = infrastructure
+        self.cached_infra = cached_infra
+
+    def get(self, client, owner):
+        """
+        Retrieve a cached storage object or construct it if needed (for construction it needs
+        client and owner).
+        """
+        if not self.cached_infra:
+            try:
+                self.cached_infra = client.load_object_from_url_or_dict(
+                    WildlandObject.Type.CONTAINER, self.infrastructure, owner)
+            except (ManifestError, WildlandError) as ex:
+                logger.warning('User %s: cannot load infrastructure: %s', owner, str(ex))
+                return None
+        return self.cached_infra
+
+    def __eq__(self, other):
+        return self.infrastructure == other.infrastructure
+
+
+class User(WildlandObject, obj_type=WildlandObject.Type.USER):
     """
     A data transfer object representing Wildland user.
     Can be converted from/to a self-signed user manifest.
     """
 
     SCHEMA = Schema('user')
-    OBJECT_TYPE = WildlandObjectType.USER
 
-    def __init__(self, *,
+    def __init__(self,
                  owner: str,
                  pubkeys: List[str],
                  paths: List[PurePosixPath],
-                 containers: List[Union[str, dict]],
-                 local_path: Optional[Path] = None,
+                 infrastructures: List[Union[str, dict]],
+                 client,
                  manifest: Manifest = None):
+        super().__init__()
         self.owner = owner
         self.paths = paths
-        self.containers = containers
-        self.local_path = local_path
+
+        self._infrastructures = [_InfraCache(infra, None) for infra in infrastructures]
+
         self.pubkeys = pubkeys
         self.manifest = manifest
+        self.client = client
+
+    @classmethod
+    def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
+        pubkey = kwargs.get('pubkey', None)
+        if pubkey and pubkey not in fields['pubkeys']:
+            fields['pubkeys'].insert(0, pubkey)
+
+        return cls(
+            owner=fields['owner'],
+            pubkeys=fields['pubkeys'],
+            paths=[PurePosixPath(p) for p in fields['paths']],
+            infrastructures=deepcopy(fields.get('infrastructures', [])),
+            manifest=manifest,
+            client=client)
+
+    def load_infrastractures(self):
+        """Load and cache all of user's infrastructures."""
+        assert self.client
+        for infra_with_cache in self._infrastructures:
+            infra = infra_with_cache.get(self.client, self.owner)
+            if infra:
+                yield infra
+
+    def get_infrastructure_descriptions(self):
+        """Provide a human-readable descriptions of user's infrastructures without loading them."""
+        for infr in self._infrastructures:
+            yield str(infr.infrastructure)
+
+    def add_infrastructure(self, path: str):
+        """Add a path to an infrastructure to user's infrastructures."""
+        self._infrastructures.append(_InfraCache(path, None))
 
     @property
     def primary_pubkey(self):
         """Primary pubkey for signatures. User manifest needs to be signed with this key"""
         return self.pubkeys[0]
 
-    @classmethod
-    def from_manifest(cls, manifest: Manifest, pubkey, local_path=None) -> 'User':
-        """
-        Construct a User instance from a manifest.
-        Requires public key for backwards compatibility.
-        """
-
-        # TODO: local_path should be also part of Manifest?
-        owner = manifest.fields['owner']
-        manifest.apply_schema(cls.SCHEMA)
-
-        if 'containers' in manifest.fields:
-            logger.warning("deprecated 'containers' field in user manifest "
-                           "(renamed to 'infrastructures'), ignoring")
-
-        pubkeys = manifest.fields.get('pubkeys', [])
-        if pubkey not in pubkeys:
-            pubkeys = [pubkey] + pubkeys
-
-        return cls(
-            owner=owner,
-            pubkeys=pubkeys,
-            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            containers=manifest.fields.get('infrastructures', []),
-            local_path=local_path,
-            manifest=manifest
-        )
-
-    def to_unsigned_manifest(self) -> Manifest:
-        """
-        Create a manifest based on User's data.
-        Has to be signed separately.
-        """
-
-        manifest = Manifest.from_fields({
-            'object': self.OBJECT_TYPE.value,
-            'owner': self.owner,
-            'paths': [str(p) for p in self.paths],
-            'infrastructures': self.containers,
-            'pubkeys': self.pubkeys,
-            'version': Manifest.CURRENT_VERSION
-        })
-        manifest.apply_schema(self.SCHEMA)
-        return manifest
+    def to_manifest_fields(self, inline: bool) -> dict:
+        if inline:
+            raise WildlandError('User manifest cannot be inlined.')
+        result = {
+                'object': 'user',
+                'owner': self.owner,
+                'paths': [str(p) for p in self.paths],
+                'infrastructures': [deepcopy(infra_cache.infrastructure)
+                                    for infra_cache in self._infrastructures],
+                'pubkeys': self.pubkeys.copy(),
+                'version': Manifest.CURRENT_VERSION
+            }
+        self.SCHEMA.validate(result)
+        return result
 
     def add_user_keys(self, sig_context, add_primary=True):
         """

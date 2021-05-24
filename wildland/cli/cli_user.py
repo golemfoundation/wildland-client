@@ -27,16 +27,17 @@ import logging
 import binascii
 import click
 
+from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.bridge import Bridge
 from ..user import User
 
 from .cli_base import aliased_group, ContextObj, CliError
 from ..wlpath import WILDLAND_URL_PREFIX
-from ..bridge import Bridge
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, dump
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
-from ..manifest.manifest import Manifest, WildlandObjectType
+from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
 
@@ -94,11 +95,12 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         owner=owner,
         pubkeys=[pubkey] + additional_pubkeys,
         paths=[PurePosixPath(p) for p in paths],
-        containers=[],
+        infrastructures=[],
+        client=obj.client
     )
     try:
         error_on_save = False
-        path = obj.client.save_new_object(WildlandObjectType.USER, user, name)
+        path = obj.client.save_new_object(WildlandObject.Type.USER, user, name)
     except binascii.Error as ex:
         # Separate error to provide some sort of readable feedback
         # raised by SigContext.fingerprint through base64.b64decode
@@ -140,7 +142,7 @@ def list_(obj: ContextObj):
     default_owner = obj.client.config.get('@default-owner')
     default_override = (default_user != obj.client.config.get('@default', use_override=False))
 
-    for user in obj.client.load_all(WildlandObjectType.USER):
+    for user in obj.client.load_all(WildlandObject.Type.USER):
         path_string = str(user.local_path)
         if user.owner == default_user:
             path_string += ' (@default)'
@@ -157,7 +159,7 @@ def list_(obj: ContextObj):
 
         for user_path in user.paths:
             click.echo(f'   path: {user_path}')
-        for user_container in user.containers:
+        for user_container in user.get_infrastructure_descriptions():
             click.echo(f'   container: {user_container}')
         click.echo()
 
@@ -176,20 +178,20 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
     Delete a user.
     """
 
-    user = obj.client.load_object_from_name(WildlandObjectType.USER, name)
+    user = obj.client.load_object_from_name(WildlandObject.Type.USER, name)
 
     if not user.local_path:
         raise WildlandError('Can only delete a local manifest')
 
     # Check if this is the only manifest with such owner
     other_count = 0
-    for other_user in obj.client.load_all(WildlandObjectType.USER):
+    for other_user in obj.client.load_all(WildlandObject.Type.USER):
         if other_user.local_path != user.local_path and other_user.owner == user.owner:
             other_count += 1
 
     used = False
 
-    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
+    for container in obj.client.load_all(WildlandObject.Type.CONTAINER):
         assert container.local_path is not None
         if container.owner == user.owner:
             if cascade:
@@ -199,7 +201,7 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
                 click.echo('Found container: {}'.format(container.local_path))
                 used = True
 
-    for storage in obj.client.load_all(WildlandObjectType.STORAGE):
+    for storage in obj.client.load_all(WildlandObject.Type.STORAGE):
         assert storage.local_path is not None
         if storage.owner == user.owner:
             if cascade:
@@ -264,8 +266,8 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
 
     # TODO: Accepting paths (string) should be deprecated and force using link objects
     if isinstance(path_or_dict, dict):
-        if path_or_dict.get('object', None) != WildlandObjectType.LINK.value:
-            raise CliError(f'Dictionary object must be of type {WildlandObjectType.LINK.value}')
+        if path_or_dict.get('object', None) != WildlandObject.Type.LINK.value:
+            raise CliError(f'Dictionary object must be of type {WildlandObject.Type.LINK.value}')
 
         if not manifest_owner:
             raise CliError('Unable to import a link object without specifying expected owner')
@@ -296,17 +298,18 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
 
     # determine type
     manifest = Manifest.from_bytes(file_data, obj.session.sig)
-    import_type = WildlandObjectType(manifest.fields['object'])
+    import_type = WildlandObject.Type(manifest.fields['object'])
 
-    if import_type not in [WildlandObjectType.USER, WildlandObjectType.BRIDGE]:
+    if import_type not in [WildlandObject.Type.USER, WildlandObject.Type.BRIDGE]:
         raise CliError('Can import only user or bridge manifests')
 
     file_name = _remove_suffix(file_name, '.' + import_type.value)
 
     # do not import existing users, unless forced
-    if import_type == WildlandObjectType.USER:
-        imported_user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
-        for user in obj.client.load_all(WildlandObjectType.USER):
+    if import_type == WildlandObject.Type.USER:
+        imported_user = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.USER,
+                                                     pubkey=manifest.fields['pubkeys'][0])
+        for user in obj.client.load_all(WildlandObject.Type.USER):
             if user.owner == imported_user.owner:
                 if not force:
                     click.echo(f'User {user.owner} already exists. Skipping import.')
@@ -336,16 +339,8 @@ def _find_user_manifest_within_infrastructures(obj, user: User) -> \
     at that manifest in the storage
 
     """
-    for container in user.containers:
-        try:
-            container_candidate = (
-                obj.client.load_object_from_url_or_dict(
-                    WildlandObjectType.CONTAINER, container, user.owner))
-
-            all_storages = obj.client.all_storages(container=container_candidate)
-        except WildlandError as ex:
-            logger.debug('Could not load container manifest. Exception: %s', ex)
-            continue
+    for container in user.load_infrastractures():
+        all_storages = obj.client.all_storages(container=container)
 
         for storage_candidate in all_storages:
             with StorageDriver.from_storage(storage_candidate) as driver:
@@ -355,7 +350,7 @@ def _find_user_manifest_within_infrastructures(obj, user: User) -> \
 
                     # Ensure you're able to load this object
                     obj.client.load_object_from_bytes(
-                        WildlandObjectType.USER, file_content, expected_owner=user.owner)
+                        WildlandObject.Type.USER, file_content, expected_owner=user.owner)
 
                     return storage_candidate, file_candidate
 
@@ -398,7 +393,8 @@ def _do_process_imported_manifest(
     manifest = Manifest.from_file(copied_manifest_path, obj.session.sig)
 
     if manifest.fields['object'] == 'user':
-        user = User.from_manifest(manifest, manifest.fields['pubkeys'][0])
+        user = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.USER,
+                                            pubkey=manifest.fields['pubkeys'][0])
         result = _find_user_manifest_within_infrastructures(obj, user)
 
         user_location: Union[str, dict] = user_manifest_location
@@ -407,14 +403,10 @@ def _do_process_imported_manifest(
             storage, file_path = result
 
             storage.owner = default_user
-            storage_manifest = storage.to_unsigned_manifest()
-            storage_manifest.remove_redundant_inline_manifest_keys()
-            storage_manifest.skip_verification()
-
             user_location = {
-                'object': WildlandObjectType.LINK.value,
+                'object': WildlandObject.Type.LINK.value,
                 'file': str(('/' / file_path)),
-                'storage': storage_manifest.fields
+                'storage': storage.to_manifest_fields(inline=True)
             }
 
         bridge = Bridge(
@@ -423,13 +415,14 @@ def _do_process_imported_manifest(
             user_pubkey=user.primary_pubkey,
             user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
             paths=(paths if paths else _sanitize_imported_paths(user.paths, user.owner)),
+            client=obj.client
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
-        bridge_path = obj.client.save_new_object(WildlandObjectType.BRIDGE, bridge, name, None)
+        bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name, None)
         click.echo(f'Created: {bridge_path}')
     else:
-        bridge = Bridge.from_manifest(manifest, obj.client.session.sig)
+        bridge = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.BRIDGE)
 
         original_bridge_owner = bridge.owner
 
@@ -454,14 +447,15 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
-        default_user = obj.client.load_object_from_name(WildlandObjectType.USER, bridge_owner).owner
+        default_user = obj.client.load_object_from_name(
+            WildlandObject.Type.USER, bridge_owner).owner
     else:
         default_user = obj.client.config.get('@default-owner')
 
     if not default_user:
         raise CliError('Cannot import user or bridge without a --bridge-owner or a default user.')
 
-    if wl_obj_type == WildlandObjectType.USER:
+    if wl_obj_type == WildlandObject.Type.USER:
         copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
         if not copied_manifest_path or not manifest_url:
             return
@@ -474,12 +468,12 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
             copied_manifest_path.unlink()
             raise CliError(f'Failed to import: {str(ex)}') from ex
-    elif wl_obj_type == WildlandObjectType.BRIDGE:
+    elif wl_obj_type == WildlandObject.Type.BRIDGE:
         if Path(path_or_url).exists():
             path = Path(path_or_url)
             bridges = [
                 obj.client.load_object_from_bytes(
-                    WildlandObjectType.BRIDGE, path.read_bytes(), file_path=path)
+                    WildlandObject.Type.BRIDGE, path.read_bytes(), file_path=path)
             ]
             name = path.stem
         else:
@@ -502,10 +496,11 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
                     paths=(paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
+                    client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')
                 bridge_path = obj.client.save_new_object(
-                    WildlandObjectType.BRIDGE, new_bridge, bridge_name, None)
+                    WildlandObject.Type.BRIDGE, new_bridge, bridge_name, None)
                 click.echo(f'Created: {bridge_path}')
                 copied_files.append(bridge_path)
                 _do_import_manifest(obj, bridge.user_location, bridge.owner)
@@ -540,7 +535,7 @@ def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
     # collect information on (potentially) multiple objects created
 
-    import_manifest(obj, path_or_url, paths, WildlandObjectType.USER, bridge_owner, only_first)
+    import_manifest(obj, path_or_url, paths, WildlandObject.Type.USER, bridge_owner, only_first)
 
 
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
@@ -551,9 +546,9 @@ def user_refresh(obj: ContextObj, name):
     """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
-    user = obj.client.load_object_from_name(WildlandObjectType.USER, name) if name else None
+    user = obj.client.load_object_from_name(WildlandObject.Type.USER, name) if name else None
 
-    for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):
+    for bridge in obj.client.load_all(WildlandObject.Type.BRIDGE):
         if user and user.owner != obj.client.session.sig.fingerprint(bridge.user_pubkey):
             continue
 

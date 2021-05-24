@@ -23,9 +23,9 @@ from typing import Type
 import functools
 import click
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..manifest.template import TemplateManager
-from ..manifest.manifest import WildlandObjectType
 from ..exc import WildlandError
 
 from ..storage_backends.base import StorageBackend
@@ -98,7 +98,7 @@ def _do_create(
 
     obj: ContextObj = click.get_current_context().obj
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     tpl_exists = template_manager.get_file_path(name).exists()
 
     if tpl_exists and create:
@@ -124,7 +124,7 @@ def _do_create(
         else:
             try:
                 params['access'] = [
-                    {'user': obj.client.load_object_from_name(WildlandObjectType.USER, user).owner}
+                    {'user': obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
                     for user in access
                 ]
             except WildlandError as ex:
@@ -161,7 +161,7 @@ def template_list(obj: ContextObj, show_filenames):
     Display known storage templates
     """
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
     click.echo("Available templates:")
     templates = template_manager.available_templates()
@@ -184,7 +184,7 @@ def template_del(obj: ContextObj, name: str):
     Remove a storage template set.
     """
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     try:
         template_manager.remove_storage_template(name)
     except FileNotFoundError as fnf:

@@ -32,6 +32,7 @@ from typing import Optional, Tuple, Iterable, Mapping, List, Set, Union, Dict
 from typing import TYPE_CHECKING
 
 import wildland
+from wildland.wildland_object.wildland_object import WildlandObject
 from .fs_client import WildlandFSClient
 from .storage_driver import StorageDriver
 from .user import User
@@ -39,7 +40,7 @@ from .container import Container
 from .bridge import Bridge
 from .storage import Storage
 from .storage_backends.base import StorageBackend
-from .manifest.manifest import ManifestError, WildlandObjectType
+from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
@@ -127,9 +128,9 @@ class Search:
         self.initial_owner = self._subst_alias(wlpath.owner or '@default')
         self.fs_client = fs_client
 
-        self.local_containers = list(self.client.load_all(WildlandObjectType.CONTAINER))
-        self.local_users = list(self.client.load_all(WildlandObjectType.USER))
-        self.local_bridges = list(self.client.load_all(WildlandObjectType.BRIDGE))
+        self.local_containers = list(self.client.load_all(WildlandObject.Type.CONTAINER))
+        self.local_users = list(self.client.load_all(WildlandObject.Type.USER))
+        self.local_bridges = list(self.client.load_all(WildlandObject.Type.BRIDGE))
 
     def resolve_raw(self) -> Iterable[Step]:
         """
@@ -354,7 +355,7 @@ class Search:
 
     def _resolve_first(self):
         if self.wlpath.hint:
-            hint_user = self.client.load_object_from_url(WildlandObjectType.USER, self.wlpath.hint,
+            hint_user = self.client.load_object_from_url(WildlandObject.Type.USER, self.wlpath.hint,
                                                          self.initial_owner, self.initial_owner)
 
             for step in self._user_step(hint_user, self.initial_owner, self.client, None, None):
@@ -520,8 +521,8 @@ class Search:
                 logger.debug('%s: remote user manifest: %s',
                              part, location)
             try:
-                user = next_client.session.load_object(user_manifest_content,
-                                                       WildlandObjectType.USER)
+                user = next_client.load_object_from_bytes(WildlandObject.Type.USER,
+                                                          user_manifest_content)
             except WildlandError as e:
                 logger.warning('Could not load user manifest %s: %s',
                                location, e)
@@ -529,7 +530,7 @@ class Search:
 
         else:
             try:
-                user = next_client.load_object_from_dict(WildlandObjectType.USER, location,
+                user = next_client.load_object_from_dict(WildlandObject.Type.USER, location,
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load linked user manifest: %s. Exception: %s',
@@ -557,44 +558,13 @@ class Search:
             previous=step,
         )
 
-        for container_spec in user.containers:
-            if isinstance(container_spec, dict):
-                if 'encrypted' in container_spec:
-                    continue
-                if container_spec['object'] == 'container':
-                    container_desc = '(inline)'
-                else:
-                    container_desc = '(linked)'
-                try:
-                    container = self.client.load_object_from_dict(
-                        WildlandObjectType.CONTAINER, container_spec, expected_owner=user.owner)
-                except (WildlandError, FileNotFoundError) as ex:
-                    logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
-                                   user.owner, container_spec, str(ex))
-                    continue
-            else:
-                try:
-                    manifest_content = client.read_from_url(container_spec, user.owner)
-                except (WildlandError, FileNotFoundError) as ex:
-                    logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
-                                   user.owner, container_spec, str(ex))
-                    continue
-
-                try:
-                    container = client.session.load_object(manifest_content,
-                                                           WildlandObjectType.CONTAINER)
-                    container_desc = container_spec
-                except WildlandError as ex:
-                    logger.warning('failed to load user %s infrastructure: %s: Exception: %s',
-                                   user.owner, container_spec, str(ex))
-                    continue
-
+        for container in user.load_infrastractures():
             if container.owner != user.owner:
                 logger.warning('Unexpected owner for %s: %s (expected %s)',
-                               container_desc, container.owner, user.owner)
+                               container, container.owner, user.owner)
                 continue
 
-            logger.info("user's container manifest: %s", container_desc)
+            logger.info("user's container manifest: %s", container)
 
             yield Step(
                 owner=user.owner,

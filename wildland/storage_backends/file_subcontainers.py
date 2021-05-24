@@ -81,16 +81,15 @@ class FileSubcontainersMixin(StorageBackend):
                 except FileNotFoundError:
                     continue
                 if not attr.is_dir():
-                    subcontainer_link = Link(storage_backend=self,
-                                             file_path=subcontainer_path)
+                    subcontainer_link = Link(file_path=subcontainer_path, storage_backend=self)
                     yield PurePosixPath(subcontainer_path), subcontainer_link
         elif manifest_pattern['type'] == 'glob':
             path = self._parse_glob_pattern(query_path)
 
             for file_path in self._find_manifest_files(PurePosixPath('.'),
                                                        path.relative_to(PurePosixPath('/'))):
-                subcontainer_link = Link(storage_backend=self,
-                                         file_path=PurePosixPath('/') / file_path)
+                subcontainer_link = Link(file_path=PurePosixPath('/') / file_path,
+                                         storage_backend=self)
                 yield file_path, subcontainer_link
 
     def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath)\

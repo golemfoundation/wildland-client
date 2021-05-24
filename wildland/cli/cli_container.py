@@ -25,7 +25,6 @@ from pathlib import PurePosixPath, Path
 from typing import List, Tuple, Optional, Iterable
 from itertools import combinations
 import os
-import uuid
 import sys
 import logging
 import threading
@@ -38,6 +37,7 @@ from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, \
@@ -45,7 +45,7 @@ from .cli_common import sign, verify, edit, modify_manifest, add_field, del_fiel
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
-from ..manifest.manifest import ManifestError, WildlandObjectType
+from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..remounter import Remounter
@@ -121,7 +121,7 @@ def create(obj: ContextObj, owner, path, name, update_user, access, title=None, 
     Create a new container manifest.
     """
 
-    owner = obj.client.load_object_from_name(WildlandObjectType.USER, owner or '@default-owner')
+    owner = obj.client.load_object_from_name(WildlandObject.Type.USER, owner or '@default-owner')
 
     if local_dir and not storage_template:
         raise CliError('--local-dir requires --storage-template')
@@ -135,7 +135,7 @@ def create(obj: ContextObj, owner, path, name, update_user, access, title=None, 
 
     if storage_template:
         try:
-            tpl_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+            tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
             storage_templates = tpl_manager.get_template_file_by_name(storage_template).templates
         except WildlandError as we:
@@ -146,7 +146,7 @@ def create(obj: ContextObj, owner, path, name, update_user, access, title=None, 
 
     if access:
         access = [{'user': obj.client.load_object_from_name(
-            WildlandObjectType.USER, user).owner} for user in access]
+            WildlandObject.Type.USER, user).owner} for user in access]
     elif not encrypt_manifest:
         access = [{'user': '*'}]
 
@@ -154,12 +154,13 @@ def create(obj: ContextObj, owner, path, name, update_user, access, title=None, 
         owner=owner.owner,
         paths=[PurePosixPath(p) for p in path] if path else [],
         backends=[],
+        client=obj.client,
         title=title,
         categories=category,
         access=access
     )
 
-    path = obj.client.save_new_object(WildlandObjectType.CONTAINER, container, name)
+    path = obj.client.save_new_object(WildlandObject.Type.CONTAINER, container, name)
     click.echo(f'Created: {path}')
 
     if storage_templates:
@@ -175,8 +176,8 @@ def create(obj: ContextObj, owner, path, name, update_user, access, title=None, 
             raise WildlandError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        owner.containers.append(str(obj.client.local_url(path)))
-        obj.client.save_object(WildlandObjectType.USER, owner)
+        owner.add_infrastructure(str(obj.client.local_url(path)))
+        obj.client.save_object(WildlandObject.Type.USER, owner)
 
 
 @container_.command(short_help='update container')
@@ -189,7 +190,7 @@ def update(obj: ContextObj, storage, cont):
     Update a container manifest.
     """
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
     if container.local_path is None:
         raise WildlandError('Can only update a local manifest')
 
@@ -198,14 +199,12 @@ def update(obj: ContextObj, storage, cont):
         return
 
     for storage_name in storage:
-        storage = obj.client.load_object_from_name(WildlandObjectType.STORAGE, storage_name)
+        storage = obj.client.load_object_from_name(WildlandObject.Type.STORAGE, storage_name)
         assert storage.local_path
         click.echo(f'Adding storage: {storage.local_path}')
-        if str(storage.local_path) in container.backends:
-            raise WildlandError('Storage already attached to container')
-        container.backends.append(obj.client.local_url(storage.local_path))
+        container.add_storage_from_obj(storage, inline=False, storage_name=storage_name)
 
-    obj.client.save_object(WildlandObjectType.CONTAINER, container)
+    obj.client.save_object(WildlandObject.Type.CONTAINER, container)
 
 
 @container_.command(short_help='publish container manifest')
@@ -216,7 +215,7 @@ def publish(obj: ContextObj, cont):
     Publish a container manifest to an infrastructure container.
     """
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
     Publisher(obj.client, container).publish_container()
 
 
@@ -229,14 +228,14 @@ def unpublish(obj: ContextObj, cont):
     from all infrastructure containers.
     '''
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
     Publisher(obj.client, container).unpublish_container()
 
 
 def _container_info(client, container):
     click.echo(container.local_path)
     try:
-        user = client.load_object_from_name(WildlandObjectType.USER, container.owner)
+        user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
         if user.paths:
             user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
         else:
@@ -246,7 +245,7 @@ def _container_info(client, container):
     click.echo(f'  owner: {container.owner}' + user_desc)
     for container_path in container.expanded_paths:
         click.echo(f'  path: {container_path}')
-    for storage_path in container.backends:
+    for storage_path in container.get_backends_description():
         click.echo(f'  storage: {storage_path}')
     click.echo()
 
@@ -258,7 +257,7 @@ def list_(obj: ContextObj):
     Display known containers.
     """
 
-    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
+    for container in obj.client.load_all(WildlandObject.Type.CONTAINER):
         _container_info(obj.client, container)
 
 
@@ -270,7 +269,7 @@ def info(obj: ContextObj, name):
     Show information about single container.
     """
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, name)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
 
     _container_info(obj.client, container)
 
@@ -289,12 +288,12 @@ def delete(obj: ContextObj, name, force, cascade):
     # TODO: also consider detecting user-container link (i.e. user's main container).
 
     try:
-        container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, name)
+        container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
     except ManifestError as ex:
         if force:
             click.echo(f'Failed to load manifest: {ex}')
             try:
-                path = obj.client.find_local_manifest(WildlandObjectType.CONTAINER, name)
+                path = obj.client.find_local_manifest(WildlandObject.Type.CONTAINER, name)
                 if path:
                     click.echo(f'Deleting file {path}')
                     path.unlink()
@@ -325,18 +324,17 @@ def delete(obj: ContextObj, name, force, cascade):
     except FileNotFoundError:
         pass
 
-
     has_local = False
-    for url_or_dict in list(container.backends):
-        if isinstance(url_or_dict, str):
-            path = obj.client.parse_file_url(url_or_dict, container.owner)
-            if path and path.exists():
-                if cascade:
-                    click.echo('Deleting storage: {}'.format(path))
-                    path.unlink()
-                else:
-                    click.echo('Container refers to a local manifest: {}'.format(path))
-                    has_local = True
+
+    for backend in container.load_raw_backends(include_inline=False):
+        path = obj.client.parse_file_url(backend, container.owner)
+        if path and path.exists():
+            if cascade:
+                click.echo('Deleting storage: {}'.format(path))
+                path.unlink()
+            else:
+                click.echo('Container refers to a local manifest: {}'.format(path))
+                has_local = True
 
     if has_local and not force:
         raise CliError('Container refers to local manifests, not deleting '
@@ -428,7 +426,7 @@ def add_access(ctx: click.Context, input_file, access):
     processed_access = []
 
     for user in access:
-        user = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, user)
+        user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
         processed_access.append({'user': user.owner})
 
     modify_manifest(ctx, input_file, add_field, 'access', processed_access)
@@ -446,7 +444,7 @@ def del_access(ctx: click.Context, input_file, access):
     processed_access = []
 
     for user in access:
-        user = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, user)
+        user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
         processed_access.append({'user': user.owner})
 
     modify_manifest(ctx, input_file, del_field, 'access', processed_access)
@@ -569,7 +567,7 @@ def prepare_mount(obj: ContextObj,
             for subcontainer in subcontainers:
                 # TODO: use MR !240 to pass a container set to prepare mount
                 if isinstance(subcontainer, Container) and\
-                        subcontainer.ensure_uuid() == container.ensure_uuid():
+                        subcontainer.uuid == container.uuid:
                     continue
                 if isinstance(subcontainer, Container):
                     yield from prepare_mount(obj, subcontainer,
@@ -639,7 +637,7 @@ def _mount(obj: ContextObj, container_names,
                         obj, container, str(container), user_paths,
                         remount, with_subcontainers, None, list_all, only_subcontainers))
                 except WildlandError as ex:
-                    fails.append(f'Cannot mount container {container.ensure_uuid()}: {str(ex)}')
+                    fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
         except WildlandError as ex:
             fails.append(f'Failed to load all containers from {container_name}:{str(ex)}')
 
@@ -812,7 +810,7 @@ def syncer_pidfile_for_container(container: Container) -> Path:
     """
     Helper function that returns a pidfile for a given container's sync process.
     """
-    container_id = container.ensure_uuid()
+    container_id = container.uuid
     return Path(BaseDirectory.get_runtime_dir()) / f'wildland-sync-{container_id}.pid'
 
 
@@ -845,7 +843,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
     (by default the first listed in manifest).
     """
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
 
     sync_pidfile = syncer_pidfile_for_container(container)
 
@@ -870,10 +868,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
 
     if target_storage:
         target_object = _get_storage_by_id_or_type(target_storage, all_storages)
-        default_remotes[container.ensure_uuid()] = target_object.backend_id
+        default_remotes[container.uuid] = target_object.backend_id
         obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
     else:
-        target_remote_id = default_remotes.get(container.ensure_uuid(), None)
+        target_remote_id = default_remotes.get(container.uuid, None)
         try:
             target_object = [storage for storage in all_storages
                              if target_remote_id == storage.backend_id
@@ -889,7 +887,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
 
     # Store information about container/backend mappings
     hash_db = HashDb(obj.client.config.base_dir)
-    hash_db.update_storages_for_containers(container.ensure_uuid(),
+    hash_db.update_storages_for_containers(container.uuid,
                                            [source_backend, target_backend])
 
     if container.local_path:
@@ -912,7 +910,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
-        init_logging(False, f'/tmp/wl-sync-{container.ensure_uuid()}.log')
+        init_logging(False, f'/tmp/wl-sync-{container.uuid}.log')
         try:
             syncer.start_sync()
         except FileNotFoundError as e:
@@ -932,7 +930,7 @@ def stop_syncing_container(obj: ContextObj, cont):
     Keep the given container in sync across storages.
     """
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
 
     sync_pidfile = syncer_pidfile_for_container(container)
 
@@ -949,7 +947,7 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
     """
     List conflicts detected by the syncing tool.
     """
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
 
     storages = [StorageBackend.from_params(storage.params) for storage in
                 obj.client.all_storages(container)]
@@ -986,43 +984,10 @@ def duplicate(obj: ContextObj, new_name, cont):
     Duplicate an existing container manifest.
     """
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
-    old_uuid = container.ensure_uuid()
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
+    new_container = container.copy(new_name)
 
-    new_container = Container(
-        owner=container.owner,
-        paths=container.paths[1:],
-        backends=container.backends,
-        title=container.title,
-        categories=container.categories,
-        access=container.access,
-    )
-    new_uuid = new_container.ensure_uuid()
-
-    replace_backends = []
-    for backend in new_container.backends:
-        if isinstance(backend, dict):
-            backend['backend-id'] = str(uuid.uuid4())
-        else:
-            storage = obj.client.load_object_from_url(WildlandObjectType.STORAGE, backend,
-                                                      container.owner)
-            storage.params['backend-id'] = str(uuid.uuid4())
-            new_storage = Storage(
-                container_path=PurePosixPath(str(storage.container_path).replace(
-                    old_uuid, new_uuid)),
-                storage_type=storage.storage_type,
-                owner=storage.owner,
-                params=storage.params,
-                trusted=storage.trusted)
-            new_path = obj.client.save_new_object(WildlandObjectType.STORAGE, new_storage, new_name)
-            click.echo(f'Created storage: {new_path}')
-            replace_backends.append((backend, obj.client.local_url(new_path)))
-
-    for old, new in replace_backends:
-        new_container.backends.remove(old)
-        new_container.backends.append(new)
-
-    path = obj.client.save_new_object(WildlandObjectType.CONTAINER, new_container, new_name)
+    path = obj.client.save_new_object(WildlandObject.Type.CONTAINER, new_container, new_name)
     click.echo(f'Created: {path}')
 
 

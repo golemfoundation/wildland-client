@@ -27,6 +27,7 @@ from pathlib import Path
 import click
 
 from wildland.exc import WildlandError
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
     aliased_group,
     CliError,
@@ -44,7 +45,7 @@ from . import (
 )
 
 from ..log import init_logging
-from ..manifest.manifest import ManifestError, WildlandObjectType
+from ..manifest.manifest import ManifestError
 from ..client import Client
 from .. import __version__ as _version
 
@@ -167,7 +168,7 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
                        'default user in Wildland config.yaml.')
 
     try:
-        user = obj.client.load_object_from_name(WildlandObjectType.USER, default_user)
+        user = obj.client.load_object_from_name(WildlandObject.Type.USER, default_user)
     except (FileNotFoundError, ManifestError) as e:
         raise CliError(f'User {default_user} not found') from e
 

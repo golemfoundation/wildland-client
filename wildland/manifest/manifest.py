@@ -23,8 +23,8 @@ Classes for handling signed Wildland manifests
 
 from typing import Tuple, Optional, Dict
 import re
-import enum
 import logging
+from pathlib import Path
 
 import yaml
 
@@ -38,18 +38,6 @@ logger = logging.getLogger('manifest')
 
 HEADER_SEPARATOR = b'\n---\n'
 HEADER_SEPARATOR_EMPTY = b'---\n'
-
-
-class WildlandObjectType(enum.Enum):
-    """
-    Possible Wildland object types.
-    """
-    USER = 'user'
-    BRIDGE = 'bridge'
-    STORAGE = 'storage'
-    CONTAINER = 'container'
-    TEMPLATE = 'template'
-    LINK = 'link'
 
 
 class ManifestError(WildlandError):
@@ -67,18 +55,31 @@ class Manifest:
     """
     CURRENT_VERSION = '1'  # update also in schemas/types.json
 
-    def __init__(self, header: Optional['Header'], fields,
-                 original_data: bytes):
+    def __init__(self, header: Optional['Header'], fields: dict,
+                 original_data: Optional[bytes], local_path: Optional[Path] = None):
 
         # If header is set, that means we have verified the signature,
         # or explicitly accepted an unsigned manifest.
         self.header = header
 
+        self.local_path = local_path
+
         # Accessible as 'fields' only if there is a header.
         self._fields = fields
 
+        self.owner = fields.get('owner', None)
+
         # Original data that has been signed.
-        self.original_data = original_data
+        self._original_data = original_data
+
+    @property
+    def original_data(self):
+        """
+        Return manifest's bytes data.
+        """
+        if not self._original_data:
+            self._original_data = yaml.dump(self._fields, encoding='utf-8', sort_keys=False)
+        return self._original_data
 
     def copy_to_unsigned(self) -> 'Manifest':
         """
@@ -321,20 +322,22 @@ class Manifest:
         return fields
 
     @classmethod
-    def from_fields(cls, fields: dict, sig: SigContext = None) -> 'Manifest':
+    def from_fields(cls, fields: dict, sig: SigContext = None,
+                    local_path: Optional[Path] = None) -> 'Manifest':
         """
         Create a manifest based on a dict of fields.
 
-        Has to be signed separately.
+        Has to be signed separately, but is assumed to be verified for the purpose of accessing
+        data.
         """
         if sig:
             fields = cls.decrypt(fields, sig)
         fields = cls.update_manifest_version(fields)
-        data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
-        return cls(None, fields, data)
+        return cls(Header(None), fields, None, local_path=local_path)
 
     @classmethod
-    def from_unsigned_bytes(cls, data: bytes, sig: SigContext = None) -> 'Manifest':
+    def from_unsigned_bytes(cls, data: bytes, sig: SigContext = None,
+                            local_path: Optional[Path] = None) -> 'Manifest':
         """
         Create a new Manifest based on existing YAML-serialized
         content. The content can include an existing header, it will be ignored.
@@ -353,7 +356,7 @@ class Manifest:
         if sig:
             fields = cls.decrypt(fields, sig)
         fields = cls.update_manifest_version(fields)
-        return cls(None, fields, data)
+        return cls(None, fields, data, local_path=local_path)
 
     def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
                          encrypt=True):
@@ -377,26 +380,9 @@ class Manifest:
         signature = sig_context.sign(owner, data,
                                      only_use_primary_key=only_use_primary_key)
 
-        self.original_data = data
+        self._original_data = data
         self._fields = fields
         self.header = Header(signature)
-
-    def remove_redundant_inline_manifest_keys(self):
-        """
-        To be used for inline manifests. Removes manifest fields that are not needed in
-        inline manifests.
-
-        Note: You might need to re(encrypt|sign) this manifest after calling this method
-        """
-        if 'owner' in self._fields:
-            del self._fields['owner']
-        if 'container-path' in self._fields:
-            del self._fields['container-path']
-        if 'object' in self._fields and self._fields['object'] != 'link':
-            del self._fields['object']
-
-        self.original_data = Manifest.from_fields(self._fields).original_data
-
 
     def skip_verification(self):
         """
@@ -422,14 +408,15 @@ class Manifest:
         with open(path, 'rb') as f:
             data = f.read()
         return cls.from_bytes(
-            data, sig_context, schema, trusted_owner)
+            data, sig_context, schema, trusted_owner, local_path=path)
 
     @classmethod
     def from_bytes(cls, data: bytes, sig_context: SigContext,
                    schema: Optional[Schema] = None,
                    trusted_owner: Optional[str] = None,
                    allow_only_primary_key: bool = False,
-                   decrypt: bool = True) -> 'Manifest':
+                   decrypt: bool = True,
+                   local_path: Optional[Path] = None) -> 'Manifest':
         """
         Load a manifest from YAML content, verifying it.
 
@@ -467,7 +454,7 @@ class Manifest:
                 raise ManifestError(
                     'Manifest owner does not have access to signing key: header {!r}, '
                     'manifest {!r}'.format(header_signer, fields.get('owner')))
-        manifest = cls(header, fields, rest_data)
+        manifest = cls(header, fields, rest_data, local_path=local_path)
         if schema:
             manifest.apply_schema(schema)
 

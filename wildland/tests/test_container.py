@@ -20,7 +20,9 @@
 # pylint: disable=missing-docstring,redefined-outer-name
 
 import pytest
-from ..manifest.manifest import Manifest, WildlandObjectType
+from wildland.wildland_object.wildland_object import WildlandObject
+from ..manifest.manifest import Manifest
+from ..wildland_object.wildland_object import WildlandObject
 from ..client import Client
 from ..storage import StorageBackend
 
@@ -49,14 +51,14 @@ def client(setup, base_dir):
 
 
 def test_select_storage(client, base_dir):
-    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     storage = client.select_storage(container)
     assert storage.params['location'] == str(base_dir / 'storage1')
 
 
 def test_select_storage_unsupported(client, base_dir):
-    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     storage_manifest = Manifest.from_fields({
         'owner': '0xaaa',
@@ -92,11 +94,11 @@ def test_storage_without_backend_id(client, base_dir):
     with open(base_dir / 'storage' / 'Storage3.storage.yaml', 'wb') as f:
         f.write(storage_manifest_modified.to_bytes())
 
-    storage = client.load_object_from_file_path(WildlandObjectType.STORAGE,
+    storage = client.load_object_from_file_path(WildlandObject.Type.STORAGE,
         base_dir / 'storage' / 'Storage1.storage.yaml')
-    storage2 = client.load_object_from_file_path(WildlandObjectType.STORAGE,
+    storage2 = client.load_object_from_file_path(WildlandObject.Type.STORAGE,
         base_dir / 'storage' / 'Storage2.storage.yaml')
-    storage3 = client.load_object_from_file_path(WildlandObjectType.STORAGE,
+    storage3 = client.load_object_from_file_path(WildlandObject.Type.STORAGE,
         base_dir / 'storage' / 'Storage3.storage.yaml')
 
     backend = StorageBackend.from_params(storage.params)
@@ -113,8 +115,8 @@ def test_expanded_paths(client, cli):
     cli('container', 'create', 'ContainerExt', '--path', '/path', '--title',
         'title', '--category', '/t1/t2', '--category', '/t3')
 
-    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'ContainerExt')
-    uuid = container.ensure_uuid()
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'ContainerExt')
+    uuid = container.uuid
 
     assert {'/path', '/t1/t2/title', '/t3/title', '/t1/t2/@t3/title', '/t3/@t1/t2/title'} \
            == {str(p) for p in container.expanded_paths if 'uuid' not in str(p)}
@@ -135,3 +137,30 @@ def test_users_additional_pubkeys(cli, base_dir):
     assert set(client.session.sig.get_possible_owners('0xddd')) == {'0xddd', '0xccc'}
 
     assert len(client.session.sig.keys) == 4
+
+
+def test_infra_cache(cli, client):
+    cli('container', 'create', 'ContainerWithInfra', '--path', '/p1', '--update-user')
+
+    user = client.load_object_from_name(WildlandObject.Type.USER, "User")
+
+    container = next(user.load_infrastractures())
+    assert not container.title
+    container.title = 'Test'
+
+    # test that we got the same object
+    container2 = next(user.load_infrastractures())
+    assert container2.title == 'Test'
+
+
+def test_storage_cache(client):
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, "Container1")
+
+    storages = list(container.load_backends())
+    assert 'storage1' in storages[0].params['location']
+    storages[0].params['location'] = '/test'
+
+    # test that we got the same object
+    storages = list(container.load_backends())
+    assert 'storage1' not in storages[0].params['location']
+    assert storages[0].params['location'] == '/test'

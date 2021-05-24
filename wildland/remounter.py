@@ -33,7 +33,7 @@ from wildland.fs_client import WildlandFSClient, WatchEvent
 from wildland.search import Search
 from wildland.storage import Storage
 from wildland.wlpath import WildlandPath
-from wildland.manifest.manifest import WildlandObjectType
+from wildland.wildland_object.wildland_object import WildlandObject
 
 logger = logging.getLogger('remounter')
 
@@ -238,7 +238,7 @@ class Remounter:
         if event.event_type in ['create', 'modify']:
             local_path = self.fs_client.mount_dir / event.path.relative_to('/')
             container = self.client.load_object_from_file_path(
-                WildlandObjectType.CONTAINER, local_path)
+                WildlandObject.Type.CONTAINER, local_path)
 
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_container_path(

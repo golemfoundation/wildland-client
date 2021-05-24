@@ -20,12 +20,13 @@ Manage bridges
 """
 
 from pathlib import Path, PurePosixPath
-from typing import List
+from typing import List, Dict, Any
 
 import os
 import uuid
 import click
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..storage import StorageBackend
@@ -34,7 +35,6 @@ from ..user import User
 from ..publish import Publisher
 from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageTemplate
-from ..manifest.manifest import WildlandObjectType
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_field
 from .cli_container import _mount as mount_container
@@ -154,7 +154,7 @@ def _boostrap_forest(ctx: click.Context,
 
     # Load users manifests
     try:
-        forest_owner = obj.client.load_object_from_name(WildlandObjectType.USER, user)
+        forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
@@ -167,7 +167,7 @@ def _boostrap_forest(ctx: click.Context,
         else:
             try:
                 access_list = [{'user': obj.client.load_object_from_name(
-                                WildlandObjectType.USER, user_name).owner}
+                                WildlandObject.Type.USER, user_name).owner}
                                for user_name in access]
             except WildlandError as we:
                 raise CliError(f'User could not be loaded. {we}') from we
@@ -201,13 +201,16 @@ def _boostrap_forest(ctx: click.Context,
 
         # Additionally ensure that they are going to be stored inline and override old storages
         # completely
+
         old_storages = list(obj.client.all_storages(infra_container))
-        infra_container.backends = []
+
+        infra_container.clear_storages()
 
         for storage in old_storages:
             storage.params['manifest-pattern'] = infra_storage.params['manifest-pattern']
             obj.client.add_storage_to_container(infra_container, storage, inline=True)
-        obj.client.save_object(WildlandObjectType.CONTAINER, infra_container)
+
+        obj.client.save_object(WildlandObject.Type.CONTAINER, infra_container)
 
         manifests_storage = obj.client.select_storage(container=infra_container,
                                                       predicate=lambda x: x.is_writeable)
@@ -218,23 +221,20 @@ def _boostrap_forest(ctx: click.Context,
                            Path('.manifests.yaml'))
 
         for storage in obj.client.all_storages(container=infra_container):
-            link_obj = {'object': 'link', 'file': '/.manifests.yaml'}
 
-            if not storage.access:
-                storage.access = access_list
+            link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.yaml'}
 
             if not storage.base_url:
-                manifest = storage.to_unsigned_manifest()
+                fields = storage.to_manifest_fields(inline=True)
+                if not storage.access:
+                    fields['access'] = access_list
             else:
-                http_backend = StorageBackend.from_params({
+                fields = {
                     'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
                     'backend-id': str(uuid.uuid4()), 'owner': infra_container.owner,
-                    'url': storage.base_url, 'access': storage.access
-                })
-                manifest = Manifest.from_fields(http_backend.params)
+                    'url': storage.base_url, 'access': storage.access or access_list}
 
-            manifest.encrypt_and_sign(obj.client.session.sig, encrypt=True)
-            link_obj['storage'] = manifest.fields
+            link_obj['storage']= fields
 
             modify_manifest(ctx, str(forest_owner.local_path), add_field,
                             'infrastructures', [link_obj])
@@ -253,7 +253,7 @@ def _boostrap_forest(ctx: click.Context,
 
 def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]:
     try:
-        tpl_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+        tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
         return tpl_manager.get_template_file_by_name(template_name).templates
     except WildlandError as we:
@@ -269,9 +269,9 @@ def _create_container(obj: ContextObj,
                       storage_local_dir: str = '') -> Container:
 
     container = Container(owner=user.owner, paths=[PurePosixPath(p) for p in container_paths],
-                          backends=[], access=access)
+                          backends=[], client=obj.client, access=access)
 
-    obj.client.save_new_object(WildlandObjectType.CONTAINER, container, container_name)
+    obj.client.save_new_object(WildlandObject.Type.CONTAINER, container, container_name)
     do_create_storage_from_templates(obj.client, container, storage_templates, storage_local_dir)
 
     return container

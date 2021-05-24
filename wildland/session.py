@@ -22,83 +22,30 @@ Session class
 """
 
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union
 
-from .manifest.manifest import Manifest, ManifestError, WildlandObjectType
+from wildland.bridge import Bridge
+from .manifest.manifest import Manifest, ManifestError
 from .manifest.sig import SigContext
 from .user import User
 from .container import Container
 from .storage import Storage
-from .bridge import Bridge
 
 
 class Session:
     """
-    A low-level interface for loading and saving Wildland objects.
+    A low-level interface for saving Wildland objects.
     """
 
     def __init__(self, sig: SigContext):
         self.sig = sig
 
-    def load_object(self, data: bytes,
-                    object_type: Optional[WildlandObjectType] = None,
-                    local_path: Optional[Path] = None,
-                    trusted_owner: Optional[str] = None,
-                    local_owners: Optional[List[str]] = None,
-                    allow_only_primary_key: Optional[bool] = None,
-                    decrypt: bool = True,
-                    expected_owner: Optional[str] = None) -> \
-            Union[User, Bridge, Storage, Container]:
-        """
-        Load a WL object from raw bytes and return it.
-        :param data: raw object bytes
-        :param object_type: expected object type; if received object of a different type, an
-        AssertionError will be raised
-        :param local_path: path to local file with object manifest, if exists
-        :param trusted_owner: skip signature verification for this owner (optional)
-        :param local_owners: list of owners allows to access local files (optional)
-        :param allow_only_primary_key: must the data be signed by owner's primary key or are
-        other keys also allowed?
-        :param decrypt: should we attempt to decrypt the object manifest?
-        :param expected_owner: if received object's owner is different, raise an exception
-        """
-        if allow_only_primary_key is None:
-            allow_only_primary_key = (object_type == WildlandObjectType.USER)
-
-        manifest = Manifest.from_bytes(data, self.sig,
-                                       allow_only_primary_key=allow_only_primary_key,
-                                       trusted_owner=trusted_owner, decrypt=decrypt)
-
-        if expected_owner and manifest.fields.get('owner', None) != expected_owner:
-            raise ManifestError(f'Unexpected owner: expected {expected_owner}, '
-                                f'received {manifest.fields.get("owner", None)}')
-
-        assert not object_type or manifest.fields['object'] == object_type.value
-        if not object_type:
-            object_type = WildlandObjectType(manifest.fields['object'])
-
-        if object_type == WildlandObjectType.USER:
-            _, owner_pubkey = self.sig.load_key(manifest.fields['owner'])
-            self.sig.add_pubkey(owner_pubkey)
-            return User.from_manifest(manifest, owner_pubkey, local_path)
-
-        if object_type == WildlandObjectType.BRIDGE:
-            return Bridge.from_manifest(manifest, self.sig, local_path)
-
-        if object_type == WildlandObjectType.STORAGE:
-            return Storage.from_manifest(manifest, local_path, local_owners=local_owners)
-
-        if object_type == WildlandObjectType.CONTAINER:
-            return Container.from_manifest(manifest, local_path)
-
-        raise ValueError
-
-    def dump_user(self, user: User) -> bytes:
+    def dump_user(self, user: User, path: Optional[Path] = None) -> bytes:
         """
         Create a signed manifest out of a User object.
         """
 
-        manifest = user.to_unsigned_manifest()
+        manifest = Manifest.from_fields(user.to_manifest_fields(inline=False), local_path=path)
 
         try:
             if user.manifest and user.manifest.fields == manifest.fields:
@@ -109,15 +56,17 @@ class Session:
         sig_temp = self.sig.copy()
         user.add_user_keys(sig_temp)
         manifest.encrypt_and_sign(sig_temp, only_use_primary_key=True)
+        user.manifest = manifest
         return manifest.to_bytes()
 
-    def dump_object(self, obj: Union[Bridge, Storage, Container]) -> bytes:
+    def dump_object(self, obj: Union[Bridge, Storage, Container],
+                    path: Optional[Path] = None) -> bytes:
         """
         Create a signed manifest out of a Bridge/Container/Storage object; if the object was created
         from a signed manifest and did not change, returns that object, otherwise creates and
         signs the manifest.
         """
-        manifest = obj.to_unsigned_manifest()
+        manifest = Manifest.from_fields(obj.to_manifest_fields(inline=False), local_path=path)
 
         try:
             if obj.manifest and obj.manifest.fields == manifest.fields:
@@ -126,4 +75,5 @@ class Session:
             pass
 
         manifest.encrypt_and_sign(self.sig)
+        obj.manifest = manifest
         return manifest.to_bytes()

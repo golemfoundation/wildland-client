@@ -28,19 +28,16 @@ from typing import Callable, List, Any, Optional
 import click
 import yaml
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import ContextObj, CliError
 from ..client import Client
-from ..user import User
 from ..container import Container
-from ..storage import Storage
-from ..bridge import Bridge
 from ..manifest.sig import SigError
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
     Manifest,
     ManifestError,
     split_header,
-    WildlandObjectType
 )
 from ..manifest.schema import SchemaError
 from ..exc import WildlandError
@@ -51,7 +48,7 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     CLI helper: load a manifest by name.
     """
     try:
-        object_type: Optional[WildlandObjectType] = WildlandObjectType(manifest_type)
+        object_type: Optional[WildlandObject.Type] = WildlandObject.Type(manifest_type)
     except ValueError:
         object_type = None
 
@@ -66,24 +63,15 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     """
     CLI helper: validate a manifest.
     """
+    try:
+        wl_type: Optional[WildlandObject.Type] = WildlandObject.Type(manifest_type)
+    except ValueError:
+        wl_type = None
+    obj = WildlandObject.from_manifest(manifest, client, wl_type)
 
-    if manifest_type == 'user':
-        manifest.apply_schema(User.SCHEMA)
-    if manifest_type == 'container':
-        manifest.apply_schema(Container.SCHEMA)
-        manifest.skip_verification()
-        for storage in manifest.fields['backends']['storage']:
-            if isinstance(storage, str):
-                continue
-            storage_obj = client.load_object_from_dict(WildlandObjectType.STORAGE, storage,
-                                                       manifest.fields['owner'],
-                                                       manifest.fields['paths'][0])
-            storage_obj.validate()
-
-    if manifest_type == 'storage':
-        manifest.apply_schema(Storage.BASE_SCHEMA)
-    if manifest_type == 'bridge':
-        manifest.apply_schema(Bridge.SCHEMA)
+    if isinstance(obj, Container):
+        for backend in obj.load_backends(include_url=False):
+            backend.validate()
 
 
 @click.command(short_help='manifest signing tool')
@@ -120,6 +108,7 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
         data = sys.stdin.buffer.read()
 
     manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
+    manifest.skip_verification()
     if manifest_type:
         try:
             validate_manifest(manifest, manifest_type, obj.client)
@@ -252,6 +241,7 @@ def edit(ctx: click.Context, editor, input_file, remount):
 
         try:
             manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
+            manifest.skip_verification()
         except (ManifestError, WildlandError) as e:
             click.echo(f'Manifest parse error: {e}')
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
@@ -283,7 +273,7 @@ def edit(ctx: click.Context, editor, input_file, remount):
     click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_mounted():
-        container = obj.client.load_object_from_file_path(WildlandObjectType.CONTAINER, path)
+        container = obj.client.load_object_from_file_path(WildlandObject.Type.CONTAINER, path)
         if obj.fs_client.find_primary_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')
 
