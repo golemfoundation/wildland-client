@@ -135,10 +135,13 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         ))
 
     def to_str(self, include_sensitive=False):
+        """
+        Return string representation
+        """
         if not include_sensitive:
-            return f'container(owner={self.owner!r}, paths={self.paths!r})'
+            str_repr = f'container(owner={self.owner!r}, paths={self.paths!r})'
         else:
-            return f'container(' \
+            str_repr = f'container(' \
                    f'owner={self.owner!r}, ' \
                    f'paths={self.paths!r}, ' \
                    f'backends={[cache.storage for cache in self._storage_cache]!r}, ' \
@@ -148,6 +151,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                    f'manifest={self.manifest!r}, ' \
                    f'access={self.access!r}' \
                    f')'
+        return str_repr
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):

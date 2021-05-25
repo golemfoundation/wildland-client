@@ -28,6 +28,7 @@ import logging
 from typing import Optional, List, Iterator
 
 from .exc import WildlandError
+from .control_server import ControlRequest
 
 logger = logging.getLogger('control-server')
 
@@ -83,10 +84,9 @@ class ControlClient:
         assert self.conn
         assert self.conn_file
 
-        args = {key.replace('_', '-'): value for key, value in kwargs.items()}
-        request = {'cmd': name, 'args': args, 'id': self.id_counter}
+        request = ControlRequest(cmd=name, args=kwargs, request_id=self.id_counter)
         logger.debug('cmd: %s', request)
-        self.conn.sendall(json.dumps(request).encode() + b'\n\n')
+        self.conn.sendall(json.dumps(request.raw()).encode() + b'\n\n')
 
         self.id_counter += 1
 
@@ -102,9 +102,9 @@ class ControlClient:
                 response = message
 
         response_id = response.get('id')
-        if response_id != request['id']:
+        if response_id != request.id:
             raise ControlClientError(
-                f'Wrong response ID: expected {request["id"]}, got {response_id}')
+                f'Wrong response ID: expected {request.id}, got {response_id}')
 
         if 'error' in response:
             error_class = response['error']['class']

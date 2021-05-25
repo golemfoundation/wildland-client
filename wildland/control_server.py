@@ -30,7 +30,15 @@ import json
 from typing import Dict, Callable
 import socket
 
+from .exc import WildlandError
+
 logger = logging.getLogger('control-server')
+
+
+class ControlRequestError(WildlandError):
+    """
+    An error originating from ControlRequest.
+    """
 
 
 def control_command(name):
@@ -57,6 +65,58 @@ def control_command(name):
         return func
 
     return _wrapper
+
+
+class ControlRequest:
+    """
+    A class for connection request.
+    """
+    def __init__(self, cmd, args, request_id):
+        self.cmd = cmd
+        self.args = {key.replace('_', '-'): value for key, value in args.items()}
+        self.id = request_id
+
+    def __repr__(self):
+        return self.to_str()
+
+    @classmethod
+    def from_str(cls, request_str):
+        """
+        Create ControlRequest instance from string
+        """
+        try:
+            request = json.loads(request_str)
+
+            assert isinstance(request, dict), 'expecting a dictionary'
+            assert 'cmd' in request, 'expecting "cmd" key'
+
+            return ControlRequest(
+                cmd=request["cmd"],
+                request_id=request.get('id', None),
+                args=request.get('args', {})
+            )
+        except AssertionError as e:
+            raise ControlRequestError from e
+        except Exception:
+            # pylint: disable=raise-missing-from
+            raise ControlRequestError("Failed to parse request")
+
+    def to_str(self, include_sensitive=False):
+        """
+        Return string representation
+        """
+        if not include_sensitive:
+            str_repr = f'request(cmd: {self.cmd}, id: {self.id})'
+        else:
+            str_repr = f'request(cmd: {self.cmd}, id: {self.id}, ' \
+                       f'args: {self.args})'
+        return str_repr
+
+    def raw(self):
+        """
+        Return the content to be passed as request
+        """
+        return {'cmd': self.cmd, 'args': self.args, 'id': self.id}
 
 
 class ControlHandler(BaseRequestHandler):
@@ -121,23 +181,17 @@ class ControlHandler(BaseRequestHandler):
     def _handle_request(self, request_str: str):
         request = None
         try:
-            request = json.loads(request_str)
+            request = ControlRequest.from_str(request_str)
+            assert request.cmd in self.commands, f'unknown command: {request.cmd}'
 
-            assert isinstance(request, dict), 'expecting a dictionary'
-            assert 'cmd' in request, 'expecting "cmd" key'
-
-            cmd = request['cmd']
-            assert cmd in self.commands, f'unknown command: {cmd}'
-
-            args = request.get('args') or {}
+            args = request.args
             if self.validators is not None:
-                assert cmd in self.validators, f'no validator for command: {cmd}'
-                validator = self.validators[cmd]
+                assert request.cmd in self.validators, f'no validator for command: {request.cmd}'
+                validator = self.validators[request.cmd]
                 validator(args)
 
             args = {key.replace('-', '_'): value for key, value in args.items()}
-
-            result = self.commands[cmd](self, **args)
+            result = self.commands[request.cmd](self, **args)
 
             response = {'result': result}
             logger.debug('%r -> %r', request, result)
@@ -145,8 +199,8 @@ class ControlHandler(BaseRequestHandler):
             logger.exception('error when handling: %r', request or request_str)
             response = {'error': {'class': type(e).__name__, 'desc': str(e)}}
 
-        if request and 'id' in request:
-            response['id'] = request['id']
+        if request and request.id:
+            response['id'] = request.id
 
         self._send_message(response)
 
