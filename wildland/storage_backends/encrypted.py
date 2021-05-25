@@ -528,8 +528,6 @@ class EncryptedStorageBackend(StorageBackend):
     def mount(self) -> None:
         # If ciphertext_path is not available, ask user to mount it!
         if Path(self.ciphertext_path).exists():
-            Path(self.cleartext_path).mkdir(parents=True, exist_ok=True)
-            Path(self.tmpdir_path).mkdir(parents=True, exist_ok=True)
             self.engine_obj = self.engine_cls(self.tmpdir_path,
                                               self.ciphertext_path,
                                               self.credentials)
