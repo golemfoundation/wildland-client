@@ -38,6 +38,7 @@ import boto3
 import botocore
 import click
 
+from wildland.link import Link
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
@@ -267,6 +268,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         try:
             if self.sts_client:
                 self.sts_client.get_caller_identity()
+                # do this only once
+                self.sts_client = None
         except botocore.exceptions.ClientError as ex:
             raise WildlandError(f"Could not connect to AWS with Exception: {ex}") from ex
 
@@ -342,6 +345,21 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
 
         for dir_path in all_s3_dirs:
             yield dir_path, Attr.dir()
+
+    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+            Iterable[Tuple[PurePosixPath, Link]]:
+
+        for res_path, res_obj in super().get_children(query_path):
+            assert isinstance(res_obj, Link)
+            assert res_obj.storage_backend is self
+            # fast path to get the file, bypassing refreshing getattr cache
+            response = self.client.get_object(
+                Bucket=self.bucket,
+                Key=self.key(res_obj.file_path.relative_to('/'))
+            )
+            res_obj.file_bytes = response['Body'].read()
+            yield res_path, res_obj
+
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:

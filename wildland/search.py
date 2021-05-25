@@ -28,7 +28,7 @@ import logging
 import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Optional, Tuple, Iterable, Mapping, List, Set
+from typing import Optional, Tuple, Iterable, Mapping, List, Set, Union, Dict
 from typing import TYPE_CHECKING
 
 import wildland
@@ -111,6 +111,10 @@ class Search:
         search = Search(client, wlpath, client.config.aliases)
         search.read_file()
     """
+
+    #: cache of results of (Step, part) resolve, shared between different Search instances;
+    #: for initial step, the first element is initial_owner field
+    _resolve_cache: Dict[Tuple[Union[str, Step], PurePosixPath], Iterable[Step]] = {}
 
     def __init__(self,
             client: wildland.client.Client,
@@ -208,6 +212,17 @@ class Search:
 
         raise PathError(f'Container not found for path: {self.wlpath}')
 
+    @classmethod
+    def clear_cache(cls):
+        """
+        Clear path resolution cache.
+
+        Calling this method is necessary, if it's necessary to re-download
+        user's infrastructure content during lifetime of the same process.
+        This may be the case for example after (re)publishing some new container.
+        """
+        cls._resolve_cache.clear()
+
     def _get_params_for_mount_step(self, step: Step) -> \
             Tuple[PurePosixPath,
                   Optional[Tuple[Container,
@@ -284,20 +299,44 @@ class Search:
         """
 
         # deduplicate results
-        seen = set()
-        for step in self._resolve_first():
+        seen_last = set()
+        # deduplicate and cache result of self._resolve_first(); it's here,
+        # because _resolve_first() structure does not have a single place for
+        # returning results, and is using `yield from`, so deduplicating it
+        # there would require quite a bit of boilerplate there
+        seen_first = set()
+        cache_key = (self.initial_owner, self.wlpath.parts[0])
+        if cache_key in self._resolve_cache:
+            first_iter = self._resolve_cache[cache_key]
+        else:
+            first_iter = self._resolve_first()
+        for step in first_iter:
+            if step in seen_first:
+                continue
+            seen_first.add(step)
             for last_step in self._resolve_rest(step, 1):
-                if last_step not in seen:
+                if last_step not in seen_last:
                     yield last_step
-                    seen.add(last_step)
+                    seen_last.add(last_step)
+        self._resolve_cache[cache_key] = seen_first
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
         if i == len(self.wlpath.parts):
             yield step
             return
 
-        for next_step in self._resolve_next(step, i):
+        seen = set()
+        cache_key = (step, self.wlpath.parts[i])
+        if cache_key in self._resolve_cache:
+            next_steps = self._resolve_cache[cache_key]
+        else:
+            next_steps = self._resolve_next(step, i)
+        for next_step in next_steps:
+            if next_step in seen:
+                continue
+            seen.add(next_step)
             yield from self._resolve_rest(next_step, i+1)
+        self._resolve_cache[cache_key] = seen
 
     def _find_storage(self, step: Step) -> Tuple[Storage, StorageBackend]:
         """
@@ -311,7 +350,7 @@ class Search:
 
         assert step.container is not None
         storage = self.client.select_storage(step.container)
-        return storage, StorageBackend.from_params(storage.params)
+        return storage, StorageBackend.from_params(storage.params, deduplicate=True)
 
     def _resolve_first(self):
         if self.wlpath.hint:
@@ -375,10 +414,20 @@ class Search:
 
         storage, storage_backend = self._find_storage(step)
 
-        pattern = storage_backend.get_subcontainer_watch_pattern(part)
-        step.pattern = pattern
+        try:
+            pattern = storage_backend.get_subcontainer_watch_pattern(part)
+            step.pattern = pattern
+        except NotImplementedError:
+            logger.warning('Storage %s does not support watching', storage.params["type"])
 
-        for manifest_path, subcontainer_data in storage_backend.get_children(part):
+        try:
+            children_iter = storage_backend.get_children(part)
+        except NotImplementedError:
+            logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
+                           storage.params["type"], part)
+            return
+
+        for manifest_path, subcontainer_data in children_iter:
             try:
                 container_or_bridge = step.client.load_subcontainer_object(
                     step.container, storage, subcontainer_data)
