@@ -426,6 +426,7 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 
 .. include:: include/wl-storage-template-create.rsti
 .. include:: include/storages/encrypted.rsti
+
 .. program:: wl-storage-template-add-sshfs
 .. _wl-storage-template-add-sshfs:
 
