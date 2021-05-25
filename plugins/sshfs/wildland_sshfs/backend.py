@@ -27,14 +27,14 @@ class SshFsBackend(LocalProxy):
     def __init__(self, **kwds):
         super().__init__(**kwds)
 
-        self.sshfs_cmd = kwds['params']['cmd']
+        self.sshfs_cmd = self.params['cmd']
         self.inner_mount_point = None
-        self.sshfs_host = kwds['params']['host']
-        self.sshfs_path = kwds['params']['path']
-        self.mount_opts = kwds['params'].get('mount_opts')
-        self.login = kwds['params']['login']
-        self.passwd = kwds['params'].get('passwd')
-        self.identity = kwds['params'].get('identity')
+        self.sshfs_host = self.params['host']
+        self.sshfs_path = self.params['path']
+        self.mount_opts = self.params.get('mount_opts')
+        self.login = self.params['login']
+        self.passwd = self.params.get('passwd')
+        self.identity = self.params.get('identity')
 
     ### Abstract method implementations
     def unmount_inner_fs(self, path: PurePosixPath) -> None:
