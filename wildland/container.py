@@ -116,15 +116,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         return f'{self.owner}:{[str(p) for p in self.paths]}' + local_str
 
     def __repr__(self):
-        return (f'container('
-                f'owner={self.owner!r}, '
-                f'paths={self.paths!r}, '
-                f'backends={[cache.storage for cache in self._storage_cache]!r}, '
-                f'title={self.title!r}, '
-                f'categories={self.categories!r}, '
-                f'local_path={self.local_path!r}, '
-                f'manifest={self.manifest!r}, '
-                f'access={self.access!r})')
+        return self.to_str()
 
     def __eq__(self, other):
         if not isinstance(other, Container):
@@ -141,6 +133,21 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             self.title,
             frozenset(self.categories),
         ))
+
+    def to_str(self, include_sensitive=False):
+        if not include_sensitive:
+            return f'container(owner={self.owner!r}, paths={self.paths!r})'
+        else:
+            return f'container(' \
+                   f'owner={self.owner!r}, ' \
+                   f'paths={self.paths!r}, ' \
+                   f'backends={[cache.storage for cache in self._storage_cache]!r}, ' \
+                   f'title={self.title!r}, ' \
+                   f'categories={self.categories!r}, ' \
+                   f'local_path={self.local_path!r}, ' \
+                   f'manifest={self.manifest!r}, ' \
+                   f'access={self.access!r}' \
+                   f')'
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):

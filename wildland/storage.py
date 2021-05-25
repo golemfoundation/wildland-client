@@ -63,15 +63,26 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             self.params['backend-id'] = StorageBackend.generate_hash(params)
 
     def __repr__(self):
-        return (f'storage('
-                f'owner={self.owner!r}, '
-                f'storage_type={self.storage_type!r}, '
-                f'container_path={self.container_path!r}, '
-                f'trusted={self.trusted!r}, '
-                f'base_url={self.base_url!r}, '
-                f'local_path={self.local_path!r}, '
-                f'access={self.access!r}, '
-                f'backend_id={self.params["backend-id"]!r})')
+        return self.to_str()
+
+    def to_str(self, include_sensitive=False):
+        """
+        Return string representation
+        """
+        if not include_sensitive:
+            str_repr = f'storage(owner={self.owner!r}, storage_type={self.storage_type!r})'
+        else:
+            str_repr = f'storage(' \
+                   f'owner={self.owner!r}, ' \
+                   f'storage_type={self.storage_type!r}, ' \
+                   f'container_path={self.container_path!r}, ' \
+                   f'trusted={self.trusted!r}, ' \
+                   f'base_url={self.base_url!r}, ' \
+                   f'local_path={self.local_path!r}, ' \
+                   f'access={self.access!r}, ' \
+                   f'backend_id={self.params["backend-id"]!r}' \
+                   f')'
+        return str_repr
 
     @property
     def backend_id(self):

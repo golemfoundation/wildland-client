@@ -236,10 +236,20 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.hash = self.generate_hash(self.params)
 
     def __repr__(self):
-        return (f'{type(self).__name__}('
-                f'type={self.TYPE!r}, '
-                f'params={self.params!r})'
-        )
+        return self.to_str()
+
+    def to_str(self, include_sensitive=False):
+        """
+        Return string representation
+        """
+        if not include_sensitive:
+            str_repr = f'{type(self).__name__}'
+        else:
+            str_repr = f'{type(self).__name__}(' \
+                   f'type={self.TYPE!r}, ' \
+                   f'params={self.params!r}' \
+                   f')'
+        return str_repr
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
