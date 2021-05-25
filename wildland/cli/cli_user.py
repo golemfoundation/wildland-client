@@ -622,16 +622,37 @@ def del_infrastructure(ctx: click.Context, input_file, path):
     modify_manifest(ctx, input_file, del_field, 'infrastructures', path)
 
 
-@modify.command(short_help='add public key to the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True, help='Public key to add')
+@modify.command(short_help='add public key(s) to the manifest')
+@click.option('--pubkey', metavar='PUBKEY', required=False, multiple=True,
+              help='Raw public keys to append')
+@click.option('--user', metavar='USER', required=False, multiple=True,
+              help='Users whose public keys should be appended to FILE')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_pubkey(ctx: click.Context, input_file, pubkey):
+def add_pubkey(ctx: click.Context, input_file, pubkey, user):
     """
     Add public key to the manifest.
     """
-    # TODO: validate values, schema is not enough
-    modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkey)
+    if not pubkey and not user:
+        raise CliError('You must provide at least one --user or --pubkey.')
+
+    pubkeys = set(pubkey)
+
+    for name in user:
+        user_obj = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, name)
+
+        click.echo(f'Pubkeys found in [{name}]:')
+
+        for key in user_obj.pubkeys:
+            click.echo(f'  {key}')
+
+        pubkeys.update(user_obj.pubkeys)
+
+    for key in pubkeys:
+        if not ctx.obj.session.sig.is_valid_pubkey(key):
+            raise CliError(f'Given pubkey [{key}] is not a valid pubkey')
+
+    modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkeys)
 
 
 @modify.command(short_help='remove public key from the manifest')

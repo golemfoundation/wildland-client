@@ -266,3 +266,13 @@ def test_encrypt_multiple_owners(sig):
 
     assert sig.decrypt(enc_data, enc_keys) == test_data
     assert sig.decrypt(enc_data, [enc_keys[1], enc_keys[0]]) == test_data
+
+def test_sig_key_validity(sig):
+    _, pubkey = sig.generate()
+
+    assert sig.is_valid_pubkey(pubkey)
+
+    # Remove a few bytes
+    bogus = pubkey[0:len(pubkey)-3]
+
+    assert not sig.is_valid_pubkey(bogus)

@@ -165,14 +165,19 @@ Remove Wildland path from a user |~| manifest given by *<file>*.
 
 .. _wl-user-modify-add-pubkey:
 
-:command:`wl user modify add-pubkey --pubkey PUBKEY <file>`
------------------------------------------------------------
+:command:`wl user modify add-pubkey [--pubkey PUBKEY] [--user USER] <file>`
+---------------------------------------------------------------------------
 
 Add public key to a user |~| manifest given by *<file>*.
+Either one pubkey or user is required.
 
 .. option:: --pubkey
 
    Public key to add (the same format as in the public key file). Can be repeated.
+
+.. option:: --user
+
+   User whose public key to add. Can be repeated.
 
 .. _wl-user-modify-del-pubkey:
 

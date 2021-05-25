@@ -522,7 +522,13 @@ def test_user_del_path(cli, base_dir):
     # cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
-def test_user_add_pubkey(cli, base_dir):
+def test_user_add_pubkey_no_arguments(cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    cli_fail('user', 'modify', 'add-pubkey', 'User')
+
+
+def test_user_add_pubkey(cli, base_dir, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
     pubkey1 = 'key.0xbbb'
@@ -547,8 +553,20 @@ def test_user_add_pubkey(cli, base_dir):
     assert data.count(pubkey1) == 1
     assert data.count(pubkey2) == 1
 
-    # TODO: invalid key
-    #cli_fail('user', 'modify', 'add-pubkey', 'User', '--pubkey', 'abc')
+    cli_fail('user', 'modify', 'add-pubkey', 'User', '--pubkey', 'abc')
+
+
+def test_user_add_pubkey_of_another_user(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+
+    cli('user', 'modify', 'add-pubkey', 'Alice', '--user', 'Bob')
+
+    with open(base_dir / 'users/Alice.user.yaml') as f:
+        data = [i.strip() for i in f.read().split()]
+
+    assert data.count('key.0xaaa') == 1
+    assert data.count('key.0xbbb') == 1
 
 
 def test_user_del_pubkey(cli, base_dir):
