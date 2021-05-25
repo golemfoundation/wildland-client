@@ -5,7 +5,8 @@ Wildland storage backend using sshfs
 import logging
 import getpass
 from pathlib import PurePosixPath
-from os import chmod, unlink
+from os import unlink
+from tempfile import mkstemp
 from subprocess import Popen, PIPE, STDOUT, run
 
 import click
@@ -51,11 +52,10 @@ class SshFsBackend(LocalProxy):
         if self.passwd:
             cmd.extend(['-o', 'password_stdin'])
         if self.identity:
-            ipath = self.backend_dir() / '.identity'
-            with open(ipath, 'w') as of:
-                of.write(self.identity + '\n')
-                chmod(ipath, 0o600)
-                cmd.extend(['-o', f'IdentityFile={ipath}'])
+            fd, ipath = mkstemp(text=True)
+            with open(fd, 'w') as f:
+                f.write(self.identity + '\n')
+            cmd.extend(['-o', f'IdentityFile={ipath}'])
 
         if self.mount_opts:
             cmd.append(self.mount_opts)
@@ -68,19 +68,23 @@ class SshFsBackend(LocalProxy):
 
         cmd.append(addr)
         cmd.append(str(path))
-        with Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT) as executor:
-            if self.passwd:
-                out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
-            else:
-                out, _ = executor.communicate()
+
+        try:
+            with Popen(cmd, stdout=PIPE, stdin=PIPE, stderr=STDOUT) as executor:
+                if self.passwd:
+                    out, _ = executor.communicate(bytes(self.passwd, 'utf-8'))
+                else:
+                    out, _ = executor.communicate()
+                if executor.returncode != 0:
+                    logger.error("Failed to mount sshfs filesystem (%d)",
+                                 executor.returncode)
+                    if len(out.decode()) > 0:
+                        logger.error(out.decode())
+                        raise WildlandFSError("unable to mount sshfs")
+        finally:
             if self.identity:
                 unlink(ipath)
-            if executor.returncode != 0:
-                logger.error("Failed to mount sshfs filesystem (%d)",
-                             executor.returncode)
-                if len(out.decode()) > 0:
-                    logger.error(out.decode())
-                raise WildlandFSError("unable to mount sshfs")
+
 
     @classmethod
     def cli_create(cls, data):

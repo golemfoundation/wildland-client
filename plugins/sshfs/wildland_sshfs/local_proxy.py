@@ -4,19 +4,18 @@
 # Pawel Peregud's work on encrypted backend.
 
 """
-Definition of LocalProxy stroage backend base class.
+Definition of LocalProxy storage backend base class.
 """
 
 import abc
 import logging
-import secrets
-import string
+import uuid
 from os import rmdir
+from tempfile import mkdtemp
 from typing import Optional
-from pathlib import PurePosixPath, Path
+from pathlib import PurePosixPath
 from wildland.storage_backends.base import StorageBackend, File
 from wildland.storage_backends.local import LocalStorageBackend
-from wildland.wlenv import WLEnv
 
 logger = logging.getLogger('local-proxy')
 
@@ -31,35 +30,25 @@ class LocalProxy(StorageBackend):
         super().__init__(**kwds)
         self.inner_mount_point: Optional[PurePosixPath] = None
         self.local: Optional[StorageBackend] = None
-        self.owner = kwds['params']['owner']
+        self.owner = self.params['owner']
 
     def open(self, path: PurePosixPath, flags: int) -> File:
         assert self.local
         return self.local.open(path, flags)
-
-    def backend_dir(self) -> Path:
-        """
-        returns a directory path where this backend can
-        create temporary files and mountpoints.
-        """
-        return WLEnv().temp_root() / 'wllpb' / self.backend_id
 
     def mount(self):
         """
         mount the file system
         """
         # Ensure mount point for inner file system
-        alphabet = string.ascii_letters + string.digits
-        mountid  = ''.join(secrets.choice(alphabet) for i in range(15))
-        self.inner_mount_point = PurePosixPath(self.backend_dir()) / mountid
-        Path(self.inner_mount_point).mkdir(parents=True)
-
+        mountid = str(uuid.uuid4())
+        self.inner_mount_point = PurePosixPath(mkdtemp(suffix=mountid))
 
         backend_params = { 'location': self.inner_mount_point,
                            'type': 'local',
                            'owner': self.owner,
                            'is-local-owner': True,
-                           'backend-id': mountid + '/inner'
+                           'backend-id': str(uuid.uuid4())
                           }
         self.local = LocalStorageBackend(params=backend_params)
 
