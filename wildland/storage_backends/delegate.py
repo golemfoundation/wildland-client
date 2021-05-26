@@ -42,10 +42,10 @@ class DelegateProxyStorageBackend(StorageBackend):
     or as an inline manifest. When creating the object instance:
 
     1. First, the storage parameters for the reference container will be resolved
-    (see Client.select_storage()),
+       (see: :meth:`~wildland.client.Client.select_storage`),
 
-    2. Then, the reference storage backend will be instantiated and passed as
-    params['storage'] (see StorageBackend.from_params()).
+    2. Then, the reference storage backend will be instantiated and passed as `params['storage']`
+       (see: :meth:`~wildland.storage_backends.base.StorageBackend.from_params`).
     """
 
     # Consider refactoring this as a mixin, if needed in another backend too
@@ -76,7 +76,8 @@ class DelegateProxyStorageBackend(StorageBackend):
         self.reference = self.params['storage']
         self.subdirectory = PurePosixPath(self.params.get('subdirectory', '/'))
         if self.subdirectory.anchor != '/':
-            raise ValueError('subdirectory needs to be an absolute path')
+            raise ValueError(f'subdirectory needs to be an absolute path (given path: '
+                             f'{str(self.subdirectory)})')
 
     @classmethod
     def cli_options(cls):

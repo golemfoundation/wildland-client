@@ -245,7 +245,7 @@ class _StoragePublisher:
         self.container_uuid_path = publisher.container_uuid_path
 
         # TODO this requires a more subtle manifest-pattern rewrite including more types
-        # of writeable and publisheable-to storages
+        # of writeable and publishable-to storages
         self.catalog_storage = catalog_storage
         assert self.catalog_storage.params['manifest-pattern']['type'] == 'glob'
         self.pattern = self.catalog_storage.params['manifest-pattern']['path']

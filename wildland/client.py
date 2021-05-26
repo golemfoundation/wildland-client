@@ -798,8 +798,7 @@ class Client:
             i += 1
 
     @staticmethod
-    def all_storages(container: Container, *,
-                     predicate=None) -> Iterator[Storage]:
+    def all_storages(container: Container, *, predicate=None) -> Iterator[Storage]:
         """
         Return (and load on returning) all storages for a given container.
 
@@ -810,7 +809,7 @@ class Client:
             if not StorageBackend.is_type_supported(storage.storage_type):
                 logging.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
                 continue
-            if predicate is not None and not predicate(storage):
+            if predicate and not predicate(storage):
                 continue
             yield storage
 
@@ -822,8 +821,7 @@ class Client:
         inline the manifest.
         """
         try:
-            return next(
-                self.all_storages(container, predicate=predicate))
+            return next(self.all_storages(container, predicate=predicate))
         except StopIteration as ex:
             raise ManifestError('no supported storage manifest') from ex
 
@@ -831,7 +829,7 @@ class Client:
         """
         Return valid, mountable storages for the given container
         """
-        storages = list(self.all_storages(container, predicate=None))
+        storages = list(self.all_storages(container))
 
         if not storages:
             raise WildlandError('No valid storages found')
@@ -857,11 +855,11 @@ class Client:
             container_url_or_dict: Union[str, Dict],
             owner: str,
             trusted: bool) -> Optional[Tuple[PurePosixPath, Dict]]:
-        '''
-        Select an "reference" storage and default container path based on URL
+        """
+        Select a "reference" storage and default container path based on URL
         or dictionary. This resolves a container specification and then selects
         storage for the container.
-        '''
+        """
 
         # use custom caching that dumps *container_url_or_dict* to yaml,
         # because dict is not hashable (and there is no frozendict in python)

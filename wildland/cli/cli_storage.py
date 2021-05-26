@@ -77,13 +77,13 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--public-url'], metavar='PUBLICURL',
                      help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="limit access to this storage to the provided users. "
-                          "Default: same as the container."),
+                     help='limit access to this storage to the provided users. '
+                          'Default: same as the container.'),
         click.Option(['--encrypt-manifest/--no-encrypt-manifest'], default=True,
                      required=False,
-                     help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
-                          "and --access cannot be used. For inline storage, "
-                          "container manifest might still be encrypted."),
+                     help='default: encrypt. if --no-encrypt, this manifest will not be encrypted '
+                          'and --access cannot be used. For inline storage, '
+                          'container manifest might still be encrypted.'),
         click.Option(['--no-publish'], is_flag=True,
                             help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
@@ -372,7 +372,7 @@ def do_create_storage_from_templates(
             try:
                 with backend:
                     backend.mkdir(PurePosixPath(path))
-                    click.echo(f"Created base path: {path}")
+                    click.echo(f'Created base path: {path}')
             except Exception as ex:
                 click.echo(f'WARN: Could not create base path {path} in a writable '
                            f'storage [{backend.backend_id}]. {ex}')

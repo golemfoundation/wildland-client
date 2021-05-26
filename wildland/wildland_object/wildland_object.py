@@ -20,7 +20,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Abstract class representing all Wildland Objects (Users, Containers, Bridges, Storages, Links.
+Abstract class representing all Wildland Objects (Users, Containers, Bridges, Storages, Links).
 """
 import abc
 import enum
@@ -31,9 +31,9 @@ from wildland.manifest.manifest import Manifest, ManifestError
 
 class WildlandObject(abc.ABC):
     """
-    Abstract class representing Wildland Objects. To implement it, implement parse_fields and
-    to_manifest_fields at minimum. If implementing from_manifest, make sure fields are
-    correctly validated.
+    Abstract class representing Wildland Objects. To implement it, implement :meth:`parse_fields`
+    and :meth:`to_manifest_fields` at minimum. If implementing :meth:`from_manifest`, make sure
+    fields are correctly validated.
 
     WildlandObject should own all objects contained within; if passing dicts (e.g. as
     manifests-catalog or backends), deepcopy them.
@@ -76,11 +76,11 @@ class WildlandObject(abc.ABC):
         """
         if object_type:
             class_name = fields.get('object', object_type.value)
-            if not class_name == object_type.value:
+            if class_name != object_type.value:
                 raise ManifestError(f'Unexpected object type: expected {object_type.value}, '
                                     f'received {class_name}')
         else:
-            class_name = fields.get('object', None)
+            class_name = fields.get('object')
         class_type = WildlandObject.Type(class_name)
 
         object_class = cls._subclasses[class_type]
@@ -133,7 +133,7 @@ class WildlandObject(abc.ABC):
         The dict can be later modified, so be careful and deepcopy when needed.
 
         When implementing, take care to verify that returned fields are valid
-        (through self.SCHEMA.validate or other appropriate methods).
+        (through ``Schema.validate`` or other appropriate methods).
         """
 
     @property
