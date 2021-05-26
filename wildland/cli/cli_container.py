@@ -161,7 +161,8 @@ def create(obj: ContextObj, owner, path, name, update_user, access, no_publish,
 
     if storage_templates:
         try:
-            do_create_storage_from_templates(obj.client, container, storage_templates, local_dir)
+            do_create_storage_from_templates(obj.client, container, storage_templates, local_dir,
+                                             no_publish=no_publish)
         except (WildlandError, ValueError) as ex:
             click.echo(f'Removing container: {path}')
             path.unlink()

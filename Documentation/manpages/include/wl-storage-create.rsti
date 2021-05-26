@@ -42,3 +42,8 @@
     Do not encrypt container manifest at all.
     This option makes sense only together with ``-no-inline``, otherwise
     encryption is inherited from the container manifest.
+
+.. option:: --no-publish
+
+   Do not publish the container after adding storage. By default, if the container owner has proper
+   infrastructure defined in the user manifest, the container is published.
