@@ -85,6 +85,35 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         self.manifest = manifest
         self.client = client
 
+    def __eq__(self, other):
+        if not isinstance(other, User):
+            return NotImplemented
+        return (self.owner == other.owner and
+                set(self.pubkeys) == set(other.pubkeys))
+
+    def __hash__(self):
+        return hash((
+            self.owner,
+            frozenset(self.pubkeys)
+        ))
+
+    def __str__(self):
+        return self.to_str()
+
+    def __repr__(self):
+        return self.to_str()
+
+    def to_str(self):
+        """
+        Return string representation
+        """
+        array_repr = [
+            f"owner={self.owner}",
+            f"paths={[str(p) for p in self.paths]}"
+        ]
+        str_repr = "user(" + ", ".join(array_repr) + ")"
+        return str_repr
+
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
         pubkey = kwargs.get('pubkey', None)
@@ -145,15 +174,3 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
             sig_context.add_pubkey(self.pubkeys[0])
         for additional_pubkey in self.pubkeys[1:]:
             sig_context.add_pubkey(additional_pubkey, self.owner)
-
-    def __eq__(self, other):
-        if not isinstance(other, User):
-            return NotImplemented
-        return (self.owner == other.owner and
-                set(self.pubkeys) == set(other.pubkeys))
-
-    def __hash__(self):
-        return hash((
-            self.owner,
-            frozenset(self.pubkeys)
-        ))

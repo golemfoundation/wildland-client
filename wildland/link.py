@@ -50,6 +50,23 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         self.file_path = PurePosixPath(file_path)
         self.file_bytes = file_bytes
 
+    def __str__(self):
+        return self.to_str()
+
+    def __repr__(self):
+        return self.to_str()
+
+    def to_str(self):
+        """
+        Return string representation
+        """
+        array_repr = [
+            f"storage_driver={self.storage_driver}",
+            f"file_path={self.file_path}"
+        ]
+        str_repr = "link(" + ", ".join(array_repr) + ")"
+        return str_repr
+
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest=None, **kwargs):
         # this method is currently unused, due to manual handling of Link objects

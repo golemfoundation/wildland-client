@@ -109,11 +109,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         return path
 
     def __str__(self):
-        """Friendly text representation of the container."""
-        local_str = ''
-        if self.local_path:
-            local_str = f' ({self.local_path})'
-        return f'{self.owner}:{[str(p) for p in self.paths]}' + local_str
+        return self.to_str()
 
     def __repr__(self):
         return self.to_str()
@@ -138,19 +134,24 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         """
         Return string representation
         """
-        if not include_sensitive:
-            str_repr = f'container(owner={self.owner!r}, paths={self.paths!r})'
-        else:
-            str_repr = f'container(' \
-                   f'owner={self.owner!r}, ' \
-                   f'paths={self.paths!r}, ' \
-                   f'backends={[cache.storage for cache in self._storage_cache]!r}, ' \
-                   f'title={self.title!r}, ' \
-                   f'categories={self.categories!r}, ' \
-                   f'local_path={self.local_path!r}, ' \
-                   f'manifest={self.manifest!r}, ' \
-                   f'access={self.access!r}' \
-                   f')'
+        array_repr = [
+            f"owner={self.owner!r}",
+            f"paths={[str(p) for p in self.paths]}"
+        ]
+        if self.local_path:
+            array_repr += [f"local_path={self.local_path!r}"]
+        if include_sensitive:
+            array_repr += [
+                f"backends={[cache.storage for cache in self._storage_cache]!r}",
+                f"manifest={self.manifest!r}"
+            ]
+        if self.title:
+            array_repr += [f"title={self.title!r}"]
+        if self.categories:
+            array_repr += [f"categories={self.categories!r}"]
+        if self.access:
+            array_repr += [f"access={self.access!r}"]
+        str_repr = "container(" + ", ".join(array_repr) + ")"
         return str_repr
 
     @classmethod

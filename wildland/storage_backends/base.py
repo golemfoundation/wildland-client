@@ -235,6 +235,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.backend_id = self.params['backend-id']
         self.hash = self.generate_hash(self.params)
 
+    def __str__(self):
+        return self.to_str()
+
     def __repr__(self):
         return self.to_str()
 
@@ -242,13 +245,15 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         Return string representation
         """
-        if not include_sensitive:
-            str_repr = f'{type(self).__name__}'
-        else:
-            str_repr = f'{type(self).__name__}(' \
-                   f'type={self.TYPE!r}, ' \
-                   f'params={self.params!r}' \
-                   f')'
+        array_repr = [
+            f"backend_id={self.backend_id}"
+        ]
+        if include_sensitive:
+            array_repr += [
+                f"type={self.TYPE!r}",
+                f"params={self.params!r}"
+            ]
+        str_repr = f"{type(self).__name__}(" + ", ".join(array_repr) + ")"
         return str_repr
 
     @classmethod
