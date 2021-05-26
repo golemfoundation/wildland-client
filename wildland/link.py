@@ -35,9 +35,9 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
 
     def __init__(self,
                  file_path: Union[str, PurePosixPath],
-                 storage = None,
-                 storage_backend = None,
-                 storage_driver = None,
+                 storage=None,
+                 storage_backend=None,
+                 storage_driver=None,
                  file_bytes: Optional[bytes] = None):
         super().__init__()
         assert storage or storage_backend or storage_driver

@@ -162,7 +162,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             if isinstance(cache.storage, str):
                 cleaned_backends.append(cache.storage)
                 continue
-            if isinstance(cache.storage, dict) and cache.storage['object'] == \
+            if isinstance(cache.storage, dict) and cache.storage.get('object', None) == \
                     WildlandObject.Type.LINK.value:
                 cleaned_backends.append(deepcopy(cache.storage))
                 continue
@@ -224,23 +224,28 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             storage_dict['container-path'] = str(self.uuid_path)
         return storage_dict
 
+    def _backend_iterator(self, include_inline: bool = True, include_url: bool = True):
+        """Iterate over backend caches, yield cache obj (not copied)"""
+        for cache in self._storage_cache:
+            if isinstance(cache.storage, str):
+                if not include_url:
+                    continue
+            elif isinstance(cache.storage, dict) and \
+                    cache.storage.get('object', None) == WildlandObject.Type.LINK:
+                if not include_url:
+                    continue
+            else:
+                if not include_inline:
+                    continue
+            yield cache
+
     def load_raw_backends(self, include_inline: bool = True, include_url: bool = True):
         """
         Load and return raw backends (copied, so that there will not be surprise side effects).
         :param include_inline: should inline storages be included?
         :param include_url: should url storages be included?
         """
-        for cache in self._storage_cache:
-            if isinstance(cache.storage, str):
-                if not include_url:
-                    continue
-            elif isinstance(cache.storage, dict) and \
-                    cache.storage['object'] == WildlandObject.Type.LINK:
-                if not include_url:
-                    continue
-            else:
-                if not include_inline:
-                    continue
+        for cache in self._backend_iterator(include_inline, include_url):
             yield deepcopy(cache.storage)
 
     def load_backends(self, include_inline: bool = True, include_url: bool = True):
@@ -250,17 +255,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         :param include_url: should url storages be included?
         """
         assert self.client
-        for cache in self._storage_cache:
-            if isinstance(cache.storage, str):
-                if not include_url:
-                    continue
-            elif isinstance(cache.storage, dict) and \
-                    cache.storage['object'] == WildlandObject.Type.LINK:
-                if not include_url:
-                    continue
-            else:
-                if not include_inline:
-                    continue
+        for cache in self._backend_iterator(include_inline, include_url):
             try:
                 backend = cache.get(self.client, self.owner)
                 if 'reference-container' in backend.params:

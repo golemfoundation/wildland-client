@@ -351,7 +351,7 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
 
         for res_path, res_obj in super().get_children(query_path):
             assert isinstance(res_obj, Link)
-            assert res_obj.storage_backend is self
+            assert res_obj.storage_driver.storage_backend is self
             # fast path to get the file, bypassing refreshing getattr cache
             response = self.client.get_object(
                 Bucket=self.bucket,

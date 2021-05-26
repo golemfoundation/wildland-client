@@ -634,7 +634,7 @@ def add_pubkey(ctx: click.Context, input_file, pubkey, user):
     pubkeys = set(pubkey)
 
     for name in user:
-        user_obj = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, name)
+        user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, name)
 
         click.echo(f'Pubkeys found in [{name}]:')
 
