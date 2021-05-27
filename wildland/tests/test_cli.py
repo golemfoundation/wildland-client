@@ -3212,7 +3212,7 @@ def test_cli_storage_template_create(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False
         }]
 
@@ -3227,7 +3227,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False,
             'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]
         }]
@@ -3239,7 +3239,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False,
             'access': [{'user': '*'}]
         }]
@@ -3272,11 +3272,11 @@ def test_appending_to_existing_storage_template(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False
         }, {
             'type': 'local',
-            'location': '/bar{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/bar{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': True
         }]
 
@@ -4032,6 +4032,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     assert catalog[1]['object'] == 'link'
     assert catalog[1]['storage']['type'] == 'http'
     assert catalog[1]['storage']['url'] == f'file://{uuid_dir}'
+
 
 def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')

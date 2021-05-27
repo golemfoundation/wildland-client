@@ -123,7 +123,7 @@ class TemplateFile:
         - type: local
         location: /home/user/{{ uuid }}
         - type: dropbox
-        location: /subdir_in_dropbox{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}
+        location: /subdir_in_dropbox{{ local_dir if local_dir is defined else "" }}/{{ uuid }}
         read-only: true
         token: dropbox_secret_token
     """

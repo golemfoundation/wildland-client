@@ -132,19 +132,18 @@ def _do_create(
             except WildlandError as ex:
                 raise CliError(f'Failed to create storage template: {ex}') from ex
 
+    local_dir_postfix = '{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
+
     if backend.LOCATION_PARAM:
-        params[backend.LOCATION_PARAM] = str(params[backend.LOCATION_PARAM]).rstrip('/') + \
-                                             '{{ local_dir if local_dir is defined else "/" }}' + \
-                                             '/{{ uuid }}'
+        params[backend.LOCATION_PARAM] = \
+            (params[backend.LOCATION_PARAM] or '').rstrip('/') + local_dir_postfix
 
     if public_url:
-        params['public-url'] = public_url.rstrip('/') + \
-                                '{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}'
+        params['public-url'] = public_url.rstrip('/') + local_dir_postfix
 
     # remove default, non-required values
-    for param, value in list(params.items()):
-        if value is None or value == []:
-            del params[param]
+    for param_key in [k for k, v in params.items() if v is None or v == []]:
+        del params[param_key]
 
     path = template_manager.create_storage_template(name, params)
 

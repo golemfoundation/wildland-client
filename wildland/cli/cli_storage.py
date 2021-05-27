@@ -308,12 +308,9 @@ def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path
             click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
 
 
-def do_create_storage_from_templates(
-        client,
-        container,
-        storage_templates: Iterable[StorageTemplate],
-        local_dir,
-        no_publish: bool = False):
+def do_create_storage_from_templates(client: Client, container: Container,
+        storage_templates: Iterable[StorageTemplate], local_dir: Optional[str],
+        no_publish: bool = False) -> None:
     """
     Create storages for a container from a given list of storage templates.
     :param client: Wildland client
@@ -323,47 +320,11 @@ def do_create_storage_from_templates(
         creators
     :param no_publish: should the container not be published after creation
     """
-    to_process: List[Tuple[Storage, Optional[StorageBackend]]] = []
 
     for template in storage_templates:
-        try:
-            storage_fields = template.get_storage_fields(container, local_dir)
-        except ValueError as ex:
-            click.echo(f'Failed to create storage from storage template: {ex}')
-            raise ex
-        storage_fields = container.fill_storage_fields(storage_fields)
+        storage, backend, path = _create_storage_backend_from_template(client, container, template,
+            local_dir)
 
-        storage = WildlandObject.from_fields(
-            storage_fields, client, WildlandObject.Type.STORAGE,
-            local_owners=client.config.get('local-owners'))
-
-        storage_type = storage.storage_type
-        storage_cls = StorageBackend.types()[storage_type]
-        backend = None
-
-        if (storage_cls.LOCATION_PARAM and
-            storage_cls.LOCATION_PARAM in storage.params and
-            storage.params[storage_cls.LOCATION_PARAM]):
-
-            # Template-generated paths/uris sanity check
-            orig_location = str(storage.params[storage_cls.LOCATION_PARAM])
-
-            if client.is_url(orig_location):
-                uri = urlparse(orig_location)
-                path = Path(uri.path).resolve()
-                location = urlunparse((uri.scheme, uri.netloc, str(path),
-                                       uri.params, uri.query, uri.fragment))
-            else:
-                path = Path(orig_location)
-                location = orig_location
-
-            storage.params[storage_cls.LOCATION_PARAM] = str(location)
-
-            backend = StorageBackend.from_params(storage.params)
-
-        to_process.append((storage, backend))
-
-    for storage, backend in to_process:
         # TODO: why is this in practice under the if? This may be solved by factoring the
         #  above cleanup code into either storage template handling, or Storage class.
         #  Then, the mkdir could depend on is_writable only.
@@ -388,6 +349,58 @@ def do_create_storage_from_templates(
             Publisher(client, container).republish_container()
         except WildlandError as ex:
             raise WildlandError(f"Failed to republish container: {ex}") from ex
+
+
+def _create_storage_backend_from_template(client: Client, container: Container,
+        template: StorageTemplate, local_dir: Optional[str]):
+
+    try:
+        storage_fields = template.get_storage_fields(container, local_dir)
+    except ValueError as ex:
+        click.echo(f'Failed to create storage from storage template: {ex}')
+        raise ex
+    storage_fields = container.fill_storage_fields(storage_fields)
+
+    storage = WildlandObject.from_fields(
+        storage_fields, client, WildlandObject.Type.STORAGE,
+        local_owners=client.config.get('local-owners'))
+
+    if 'reference-container' in storage.params:
+        referenced_storage_and_path = client.select_reference_storage(
+            storage.params['reference-container'],
+            container.owner,
+            storage.params.get('trusted', False))
+        if referenced_storage_and_path:
+            referenced_path, storage.params['storage'] = referenced_storage_and_path
+
+    storage_cls = StorageBackend.types()[storage.storage_type]
+    backend = None
+
+    if (storage_cls.LOCATION_PARAM and
+        storage_cls.LOCATION_PARAM in storage.params and
+        storage.params[storage_cls.LOCATION_PARAM]):
+
+        # Template-generated paths/uris sanity check
+        orig_location = storage.params[storage_cls.LOCATION_PARAM]
+
+        if client.is_url(orig_location):
+            uri = urlparse(orig_location)
+            path = Path(uri.path).resolve()
+            location = urlunparse((uri.scheme, uri.netloc, str(path),
+                                    uri.params, uri.query, uri.fragment))
+        else:
+            path = Path(orig_location)
+            location = orig_location
+
+        storage.params[storage_cls.LOCATION_PARAM] = str(location)
+
+        backend = StorageBackend.from_params(storage.params)
+
+        if backend.MOUNT_REFERENCE_CONTAINER:
+            storage_path = str(client.fs_client.mount_dir / referenced_path.relative_to('/'))
+            backend.params['storage-path'] = storage_path
+
+    return storage, backend, path
 
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',
