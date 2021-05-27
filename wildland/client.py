@@ -17,6 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# pylint: disable=too-many-lines
+
 """
 Client class
 """
@@ -26,6 +28,7 @@ import functools
 import glob
 import logging
 import os
+from graphlib import TopologicalSorter
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse, quote
@@ -595,6 +598,63 @@ class Client:
                         bridges_map
                     )
 
+    def ensure_mount_reference_container(self, containers) -> Tuple[List[Container], str, bool]:
+        '''
+        Ensure that for any storage with MOUNT_REFERENCE_CONTAINER corresponding
+        reference_container appears in sequence before the referencer.
+        '''
+
+        dependency_graph: Dict[Container, Set[Container]] = dict()
+        exc_msg = ""
+        failed = False
+        containers_to_process = []
+        try:
+            for c in containers:
+                containers_to_process.append(c)
+        except WildlandError as ex:
+            failed = True
+            exc_msg += str(ex) + '\n'
+
+        def open_node(container):
+            for storage in self.all_storages(container):
+                if 'reference-container' not in storage.params:
+                    continue
+
+                backend_cls = StorageBackend.types()[storage.params['type']]
+                if not backend_cls.MOUNT_REFERENCE_CONTAINER:
+                    continue
+
+                container_url_or_dict = storage.params['reference-container']
+                referenced = self.load_object_from_url_or_dict(
+                    WildlandObject.Type.CONTAINER,
+                    container_url_or_dict, container.owner
+                )
+
+                if container in dependency_graph.keys():
+                    dependency_graph[container].add(referenced)
+                else:
+                    dependency_graph[container] = {referenced}
+                if referenced not in containers_to_process:
+                    containers_to_process.append(referenced)
+
+        for container in containers_to_process:
+            try:
+                open_node(container)
+            except WildlandError as ex:
+                failed = True
+                exc_msg += str(ex) + '\n'
+
+        ts = TopologicalSorter(dependency_graph)
+        dependencies_first = list(ts.static_order())
+
+        final_order = []
+        for i in containers_to_process:
+            if i in dependencies_first:
+                continue
+            final_order.append(i)
+        final_order = dependencies_first + final_order
+        return (final_order, exc_msg, failed)
+
     @functools.lru_cache
     def get_bridge_paths_for_user(self, user: Union[User, str], owner: Optional[User] = None) \
             -> Iterable[Iterable[PurePosixPath]]:
@@ -827,7 +887,12 @@ class Client:
         """
         for storage in self.all_storages(container):
             try:
-                with StorageBackend.from_params(storage.params, deduplicate=True) as backend:
+                backend = StorageBackend.from_params(storage.params, deduplicate=True)
+                if backend.MOUNT_REFERENCE_CONTAINER:
+                    # Encrypted storage backend does not support subcontainers
+                    # enumeration in general case. See #419 for details.
+                    continue
+                with backend:
                     for _, subcontainer in backend.get_children():
                         yield self.load_subcontainer_object(container, storage, subcontainer)
             except NotImplementedError:

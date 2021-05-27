@@ -5,6 +5,7 @@ pyyaml
 click
 entrypoints
 pynacl
+graphlib-backport; python_version < '3.9'
 
 # Storage
 ipfshttpclient

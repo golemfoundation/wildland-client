@@ -564,7 +564,7 @@ def prepare_mount(obj: ContextObj,
         else:
             raise WildlandError(f'Already mounted: {container.local_path}')
 
-    if with_subcontainers:
+    if with_subcontainers and subcontainers:
         # keep the parent container mounted, when touching its subcontainers -
         # if they all point to the parent, this will avoid mounting and
         # unmounting it each time
@@ -631,9 +631,20 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
     for container_name in container_names:
         current_params: List[Tuple[Container, List[Storage],
                                    List[Iterable[PurePosixPath]], Container]] = []
+
         try:
-            for container in obj.client.load_containers_from(
-                    container_name, include_user_infrastructure=infrastructure):
+            containers = obj.client.load_containers_from(container_name,
+                                                         include_user_infrastructure=infrastructure)
+
+        except WildlandError as ex:
+            fails.append(container_name + ':' + str(ex) + '\n')
+            continue
+
+        try:
+            reordered, em_cont, failed = obj.client.ensure_mount_reference_container(containers)
+            if failed:
+                fails.append(em_cont)
+            for container in reordered:
                 counter += 1
                 if not list_all:
                     print(f"Loading containers. Loaded {counter}...", end='\r')

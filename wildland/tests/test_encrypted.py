@@ -23,19 +23,17 @@ import time
 import subprocess
 import uuid
 import zlib
-import shutil
 
 import pytest
 
 from wildland.storage_backends.encrypted import EncFS, GoCryptFS, generate_password
 from wildland.storage_backends.local import LocalStorageBackend
-from wildland.fs_client import WildlandFSError
 from wildland.wildland_object.wildland_object import WildlandObject
 
 from ..client import Client
 
 from ..cli.cli_base import ContextObj
-from ..cli.cli_container import prepare_mount
+from ..cli.cli_main import _do_mount_containers
 
 # pylint: disable=consider-using-with
 @pytest.mark.parametrize('engine', ['gocryptfs', 'encfs'])
@@ -76,13 +74,9 @@ def test_encrypted_with_url(cli, base_dir, engine):
     # start and check if engine is running
     user = client.users['0xaaa']
     client.fs_client.mount(single_thread=False, default_user=user)
-
-
-    with pytest.raises(WildlandFSError, match='Please run'):
-        mount_containers(obj, ['Container'])
-
-    mount_containers(obj, ['referenceContainer'])
-    mount_containers(obj, ['Container'])
+    to_mount = ['Container']
+    _do_mount_containers(obj, to_mount)
+    subprocess.run(['pidof', engine], check=True)
 
     # write and read a file
     mounted_plaintext = obj.fs_client.mount_dir / Path('/PATH').relative_to('/')
@@ -123,24 +117,6 @@ def test_encrypted_with_url(cli, base_dir, engine):
             ft2.write("2" * 10000)
 
     time.sleep(1) # otherwise "unmount: /tmp/.../mnt: target is busy"
-
-def test_encfs_binary():
-    assert shutil.which('encfs') is not None, "EncFS is not installed!"
-
-def test_gocryptfs_binary():
-    assert shutil.which('gocryptfs') is not None, "Gocryptfs is not installed!"
-
-def mount_containers(obj, to_mount):
-    commands = []
-    fs_client = obj.fs_client
-    for name in to_mount:
-        for container in obj.client.load_containers_from(name):
-            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            commands.extend(prepare_mount(
-                obj, container, str(container.local_path), user_paths,
-                remount=False, with_subcontainers=True, subcontainer_of=None, verbose=False,
-                only_subcontainers=False))
-    fs_client.mount_multiple_containers(commands)
 
 def test_gocryptfs_runner(base_dir):
     first = base_dir / 'a'

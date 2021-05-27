@@ -2524,8 +2524,7 @@ backends:
 
     # TODO: cli_fail doesn't capture stderr now...
     with pytest.raises(WildlandError, match='Failed to load some container manifests'):
-        output = cli('container', 'mount', tmp_path / 'container-*.yaml', capture=True)
-        assert 'Traceback' not in output
+        cli('container', 'mount', tmp_path / 'container-*.yaml', capture=True)
 
     # the other container should still be mounted
     command = control_client.calls['mount']['items']

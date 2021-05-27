@@ -104,7 +104,9 @@ def _do_mount_containers(obj: ContextObj, to_mount):
     commands = []
     for name in to_mount:
         click.echo(f'Resolving containers: {name}')
-        for container in obj.client.load_containers_from(name):
+        containers = obj.client.load_containers_from(name)
+        reordered, _, _ = obj.client.ensure_mount_reference_container(containers)
+        for container in reordered:
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
             try:
                 commands.extend(cli_container.prepare_mount(

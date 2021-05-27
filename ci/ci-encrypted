@@ -20,15 +20,16 @@ MINIO_ACCESS_KEY='dmr' MINIO_SECRET_KEY='/.,/.,/.,' /tmp/minio server /tmp/minio
 ./wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
 ./wl container create decrypted --path /decrypted
 ./wl storage create encrypted --container decrypted --engine encfs --reference-container-url wildland::/s3:
-./wl start
-./wl c mount s3-con
-./wl c mount decrypted
+./wl start --container decrypted
 
 # Test files
 
 time -p chronic /bin/bash -c 'echo "foo" > ~/wildland/decrypted/file'
 time -p chronic /bin/bash -c 'mkdir -p ~/wildland/decrypted/subdir/'
 time -p chronic /bin/bash -c 'echo "bar" > ~/wildland/decrypted/subdir/file'
+
+# this sleep is due to bug described in #342
+time sleep 2
 
 time -p chronic /bin/bash -c '[[ $(cat ~/wildland/decrypted/file) == "foo" ]]'
 time -p chronic /bin/bash -c '[[ $(cat ~/wildland/decrypted/subdir/file) == "bar" ]]'
