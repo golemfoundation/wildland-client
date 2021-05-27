@@ -47,6 +47,12 @@ class LocalProxy(StorageBackend):
         backend_params = { 'location': self.inner_mount_point,
                            'type': 'local',
                            'owner': self.owner,
+                           # This backend just exposes "inner filesystem"
+                           # which will be mounted by `mount_inner_fs()`
+                           # call. Whether user can access the data
+                           # depends on the access rules of actual
+                           # filesystem being mounted, so the below setting
+                           # is safe.
                            'is-local-owner': True,
                            'backend-id': str(uuid.uuid4())
                           }
