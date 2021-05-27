@@ -61,9 +61,10 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         Return string representation
         """
         array_repr = [
-            f"storage_driver={self.storage_driver}",
             f"file_path={self.file_path}"
         ]
+        if self.storage_driver and self.storage_driver.storage_backend:
+            array_repr += [f"storage={self.storage_driver.storage_backend}"]
         str_repr = "link(" + ", ".join(array_repr) + ")"
         return str_repr
 

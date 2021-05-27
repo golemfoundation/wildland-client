@@ -250,10 +250,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         ]
         if include_sensitive:
             array_repr += [
-                f"type={self.TYPE!r}",
                 f"params={self.params!r}"
             ]
-        str_repr = f"{type(self).__name__}(" + ", ".join(array_repr) + ")"
+        str_repr = f"{self.TYPE!r}(" + ", ".join(array_repr) + ")"
         return str_repr
 
     @classmethod
