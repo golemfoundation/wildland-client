@@ -317,15 +317,24 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 )
 
             for summary in resp.get('Contents', []):
-
                 full_path = PurePosixPath('/') / summary['Key']
+
                 try:
                     obj_path = full_path.relative_to(self.base_path)
                 except ValueError:
                     continue
 
-                if not (self.with_index and obj_path.name == self.INDEX_NAME):
-                    yield obj_path, self._stat(summary)
+                # We cannot use PosixPath because S3 may return Key with trailing slash which is
+                # the case for empty directories. If we move straight ahead to transforming Key into
+                # PosixPath, we'll loose this trailing slash and we won't be able to differentiate
+                # an empty directory from a file.
+                _, file = os.path.split(summary['Key'])
+                if not file:
+                    # We hit an empty directory
+                    new_s3_dirs.add(obj_path)
+                else:
+                    if not (self.with_index and obj_path.name == self.INDEX_NAME):
+                        yield obj_path, self._stat(summary)
 
                 # Add path to s3_dirs even if we just see index.html.
                 for parent in obj_path.parents:
@@ -340,7 +349,7 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         new_s3_dirs.add(PurePosixPath('.'))
 
         with self.s3_dirs_lock:
-            self.s3_dirs.update(new_s3_dirs)
+            self.s3_dirs = new_s3_dirs
             all_s3_dirs = list(self.s3_dirs)
 
         for dir_path in all_s3_dirs:
