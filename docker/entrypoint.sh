@@ -2,7 +2,10 @@
 
 . /home/user/env/bin/activate
 
-pip install -q . plugins/*
+# --no-deps is provided in order to run service in offline mode.
+# 'install_requires' such as 'pybear @ git+https://github.com/golemfoundation/pybear#egg=0.0.20200914'
+# makes pip requesting network access on startup. This is unsuitable for offline mode.
+pip install --no-deps -q . plugins/*
 
 export EDITOR=vim
 export PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
