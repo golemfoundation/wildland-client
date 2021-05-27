@@ -22,16 +22,15 @@ Local storage, similar to :command:`mount --bind`
 """
 
 import errno
+import logging
 import os
+import select
+import threading
 import time
 from pathlib import Path, PurePosixPath
-import logging
-import threading
 from typing import Optional, List, Dict, Tuple
-import select
-import inotify_simple
-
 import click
+import inotify_simple
 
 from .base import StorageBackend, File, Attr, verify_local_access
 from .file_subcontainers import FileSubcontainersMixin
@@ -41,7 +40,8 @@ from .watch import StorageWatcher, FileEvent
 
 __all__ = ['LocalStorageBackend']
 
-logger = logging.getLogger('local-storage')
+logger = logging.getLogger('local')
+
 
 def to_attr(st: os.stat_result) -> Attr:
     """
@@ -140,7 +140,7 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
             location_path = relative_to / location_path
         location_path = location_path.resolve()
         if not location_path.is_dir():
-            logging.warning('LocalStorage root does not exist: %s', location_path)
+            logger.warning('LocalStorage root does not exist: %s', location_path)
         self.root = location_path
 
     @classmethod

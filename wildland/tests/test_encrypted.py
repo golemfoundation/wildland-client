@@ -86,11 +86,12 @@ def test_encrypted_with_url(cli, base_dir, engine):
 
     # write and read a file
     mounted_plaintext = obj.fs_client.mount_dir / Path('/PATH').relative_to('/')
-    assert os.listdir(mounted_plaintext) == [], "plaintext dir should be empty!"
+    assert os.listdir(mounted_plaintext) == ['.manifest.wildland.yaml'], \
+            "plaintext dir should contain pseudomanifest only!"
     with open(mounted_plaintext / 'test.file', 'w') as ft:
         ft.write("1" * 10000) # low entropy plaintext file
 
-    assert os.listdir(mounted_plaintext) == ['test.file']
+    assert sorted(os.listdir(mounted_plaintext)) == ['.manifest.wildland.yaml', 'test.file']
 
     time.sleep(1) # time to let engine finish writing to plaintext dir
 

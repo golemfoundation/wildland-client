@@ -89,11 +89,7 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.read_only = True
-
-        if 'endpoint_addr' in self.params.keys():
-            endpoint = self.params['endpoint_addr']
-        else:
-            endpoint = '/ip4/127.0.0.1/tcp/8080/http'
+        endpoint = self.params.get('endpoint_addr', '/ip4/127.0.0.1/tcp/8080/http')
         self.client = ipfshttpclient.connect(endpoint)
 
         ipfs_hash = self.params['ipfs_hash']
@@ -181,8 +177,7 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         for dir_path in dirs:
             yield str(dir_path), dir_stat
 
-    def open(self, path: PurePosixPath, flags: int) -> File:
-
+    def open(self, path: PurePosixPath, _flags: int) -> File:
         key = self.key(path)
         head = self.client.object.stat(key)
         attr = self._stat(head)

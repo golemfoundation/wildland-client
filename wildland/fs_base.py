@@ -25,13 +25,13 @@ import errno
 import logging
 import os
 import stat
-from pathlib import PurePosixPath
-from typing import List, Dict, Optional, Set, Union
 import threading
 from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import List, Dict, Iterable, Optional, Set, Union
 
 from .conflict import ConflictResolver, Resolved
-from .storage_backends.base import StorageBackend, Attr
+from .storage_backends.base import Attr, File, StorageBackend
 from .storage_backends.watch import FileEvent, StorageWatcher
 from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
@@ -55,6 +55,7 @@ class Watch:
     def __str__(self):
         return f'{self.storage_id}:{self.pattern}'
 
+
 @dataclass
 class Timespec:
     """
@@ -64,12 +65,13 @@ class Timespec:
     tv_sec: int
     tv_nsec: int
 
+
 class WildlandFSBase:
     """A base class for implementations of Wildland"""
     # pylint: disable=no-self-use,too-many-public-methods,unused-argument
 
     def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds) # type: ignore
+        super().__init__(*args, **kwds)  # type: ignore
         # Mount information
         self.storages: Dict[int, StorageBackend] = {}
         self.storage_extra: Dict[int, Dict] = {}
@@ -98,7 +100,7 @@ class WildlandFSBase:
         })
 
     def _mount_storage(self, paths: List[PurePosixPath], storage: StorageBackend,
-                       extra: Optional[Dict] = None, remount=False):
+                       extra: Optional[Dict] = None, remount: bool = False):
         """
         Mount a storage under a set of paths.
         """
@@ -146,7 +148,7 @@ class WildlandFSBase:
         paths = self.storage_paths[storage_id]
 
         logger.info('Unmounting storage %r from paths: %s',
-                     storage, [str(p) for p in paths])
+                    storage, [str(p) for p in paths])
 
         storage.request_unmount()
 
@@ -159,7 +161,6 @@ class WildlandFSBase:
 
     # pylint: disable=missing-docstring
 
-
     #
     # .control API
     #
@@ -168,14 +169,15 @@ class WildlandFSBase:
     def control_mount(self, _handler, items):
         for params in items:
             paths = [PurePosixPath(p) for p in params['paths']]
+            assert len(paths) > 0
             storage_params = params['storage']
-            read_only = params.get('read-only')
-            extra = params.get('extra')
+            read_only = params.get('read-only', False)
+            extra_params = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
             storage.request_mount()
             with self.mount_lock:
-                self._mount_storage(paths, storage, extra, remount)
+                self._mount_storage(paths, storage, extra_params, remount)
 
     @control_command('unmount')
     def control_unmount(self, _handler, storage_id: int):
@@ -322,18 +324,18 @@ class WildlandFSBase:
         return {'kwargs': kwargs}
 
     def _stat(self, attr: Attr) -> os.stat_result:
-        return os.stat_result(( # type: ignore
+        return os.stat_result((  # type: ignore
             attr.mode,
-            0, # st_ino
-            None, # st_dev
-            1, # nlink
+            0,  # st_ino
+            None,  # st_dev
+            1,  # nlink
             self.uid,
             self.gid,
             attr.size,
-            attr.timestamp, # atime
-            attr.timestamp, # mtime
-            attr.timestamp # ctime
-            ))
+            attr.timestamp,  # atime
+            attr.timestamp,  # mtime
+            attr.timestamp  # ctime
+        ))
 
     def _notify_storage_watches(self, event_type, relpath, storage_id):
         with self.mount_lock:
@@ -375,7 +377,8 @@ class WildlandFSBase:
         # Start a watch thread, but only if the storage provides watcher() method
         if len(self.storage_watches[storage_id]) == 1:
 
-            watch_handler = lambda events: self._watch_handler(storage_id, events)
+            def watch_handler(events):
+                return self._watch_handler(storage_id, events)
             watcher = self.storages[storage_id].start_watcher(
                 watch_handler, ignore_own_events=ignore_own)
 
@@ -421,7 +424,7 @@ class WildlandFSBase:
         logger.info('removing watch: %s', watch)
 
         if (len(self.storage_watches[watch.storage_id]) == 1 and
-            watch.storage_id in self.watchers):
+                watch.storage_id in self.watchers):
 
             logger.info('stopping watcher for storage: %s', watch.storage_id)
             self.storages[watch.storage_id].stop_watcher()
@@ -451,7 +454,6 @@ class WildlandFSBase:
     # File System API
     #
 
-
     def proxy(self, method_name, path: Union[str, PurePosixPath], *args,
               resolved_path: Optional[Resolved] = None,
               parent=False,
@@ -459,7 +461,7 @@ class WildlandFSBase:
               event_type=None,
               **kwargs):
         """
-        Proxy a call to corresponding Storage.
+        Proxy a call to the corresponding Storage.
 
         Flags:
           parent: if true, resolve the path based on parent. This will
@@ -474,7 +476,6 @@ class WildlandFSBase:
 
         path = PurePosixPath(path)
         resolved = self._resolve_path(path, parent) if not resolved_path else resolved_path
-
         with self.mount_lock:
             storage = self.storages[resolved.ident]
 
@@ -497,7 +498,7 @@ class WildlandFSBase:
             self._notify_storage_watches(event_type, relpath, resolved.ident)
         return result
 
-    def open(self, path, flags):
+    def open(self, path: str, flags: int) -> File:
         modify = bool(flags & (os.O_RDWR | os.O_WRONLY))
         obj = self.proxy('open', path, flags, modify=modify)
         obj.created = False
@@ -518,9 +519,8 @@ class WildlandFSBase:
             attr.mode &= ~0o222
         return self._stat(attr)
 
-    def readdir(self, path, _offset):
-        names = ['.', '..'] + self.resolver.readdir(PurePosixPath(path))
-        return names
+    def readdir(self, path: str, _offset: int) -> Iterable[str]:
+        return ['.', '..'] + self.resolver.readdir(PurePosixPath(path))
 
     # pylint: disable=unused-argument
 
@@ -533,7 +533,7 @@ class WildlandFSBase:
     def fsync(self, *args):
         return self.proxy('fsync', *args)
 
-    def release(self, path, flags, obj):
+    def release(self, path: str, flags: int, obj: File) -> None:
         # Notify if the file was created, or open for writing.
         event_type: Optional[str] = None
         if obj.created:
@@ -542,7 +542,7 @@ class WildlandFSBase:
             event_type = 'modify'
         return self.proxy('release', path, flags, obj, event_type=event_type)
 
-    def flush(self, *args):
+    def flush(self, *args) -> None:
         return self.proxy('flush', *args)
 
     def fgetattr(self, path, *args):
@@ -599,11 +599,11 @@ class WildlandFSBase:
         return -errno.ENOSYS
 
     def rename(self, move_from: Union[str, PurePosixPath],
-            move_to: Union[str, PurePosixPath]):
+               move_to: Union[str, PurePosixPath]):
         move_from = PurePosixPath(move_from)
         move_to = PurePosixPath(move_to)
-        resolved_from = self._resolve_path( move_from, parent=False)
-        resolved_to = self._resolve_path( move_to, parent=True)
+        resolved_from = self._resolve_path(move_from, parent=False)
+        resolved_to = self._resolve_path(move_to, parent=True)
 
         if not self._is_same_storage(resolved_from, resolved_to):
             return -errno.EXDEV
@@ -612,8 +612,8 @@ class WildlandFSBase:
             move_to.name, resolved_to, parent=True)
 
         return self.proxy('rename', move_from, dst_relative,
-            resolved_path=resolved_from, parent=False, modify=True,
-            event_type='update')
+                          resolved_path=resolved_from, parent=False, modify=True,
+                          event_type='update')
 
     def rmdir(self, path):
         return self.proxy('rmdir', path, modify=True, event_type='delete')

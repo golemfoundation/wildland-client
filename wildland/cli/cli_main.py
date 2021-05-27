@@ -206,8 +206,10 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 @main.command(short_help='display mounted containers')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
               help='list subcontainers hidden by default')
+@click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
+              default=False, help='list containers with pseudomanifests')
 @click.pass_obj
-def status(obj: ContextObj, with_subcontainers):
+def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool):
     """
     Display all mounted containers.
     """
@@ -219,6 +221,8 @@ def status(obj: ContextObj, with_subcontainers):
     storages = list(obj.fs_client.get_info().values())
     for storage in storages:
         if storage['subcontainer_of'] and not with_subcontainers:
+            continue
+        if storage['hidden'] and not with_pseudomanifests:
             continue
         main_path = storage['paths'][0]
         click.echo(main_path)

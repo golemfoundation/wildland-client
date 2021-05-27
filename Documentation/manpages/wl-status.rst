@@ -20,5 +20,12 @@ Options
 
    Do not list subcontainers. This is the default.
 
+.. option:: -p, --with-pseudomanifests
+
+    List containers with pseudo-manifests.
+
+.. option:: -P, --without-pseudomanifests
+
+    Do not list containers with pseudo-manifests. This is the default.
 
 :command:`wl status`

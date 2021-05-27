@@ -833,26 +833,60 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             'pattern': 'Container2.yaml'
         },
     ]
+
     assert control_client.all_calls['mount'] == [
-        {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID0}'],
-            'remount': False,
-            'storage': mock.ANY,
-            'extra': mock.ANY,
-        }]},
-        {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID1}'],
-            'remount': False,
-            'storage': mock.ANY,
-            'extra': mock.ANY,
-        }]},
+        {'items': [
+            {
+                'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID0}'],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            },
+            {
+                'paths': [
+                    f'/.users/0xaaa:/.backends/{infra.uuid}/' \
+                        f'{DUMMY_BACKEND_UUID0}-pseudomanifest',
+                ],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            }
+        ]},
+        {'items': [
+            {
+                'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID1}'],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            },
+            {
+                'paths': [
+                    f'/.users/0xaaa:/.backends/{infra.uuid}/' \
+                        f'{DUMMY_BACKEND_UUID1}-pseudomanifest',
+                ],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            }
+        ]},
         # should retry on the next event
-        {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID1}'],
-            'remount': False,
-            'storage': mock.ANY,
-            'extra': mock.ANY,
-        }]},
+        {'items': [
+            {
+                'paths': [f'/.users/0xaaa:/.backends/{infra.uuid}/{DUMMY_BACKEND_UUID1}'],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            },
+            {
+                'paths': [
+                    f'/.users/0xaaa:/.backends/{infra.uuid}/' \
+                        f'{DUMMY_BACKEND_UUID1}-pseudomanifest',
+                ],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            }
+        ]},
     ]
 
 

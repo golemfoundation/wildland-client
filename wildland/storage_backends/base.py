@@ -39,6 +39,7 @@ import click
 import yaml
 
 from ..manifest.schema import Schema
+from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
 from ..container import ContainerStub
@@ -117,6 +118,8 @@ class File(metaclass=abc.ABCMeta):
 
     # pylint: disable=missing-docstring, no-self-use
 
+    created: bool
+
     @abc.abstractmethod
     def release(self, flags: int) -> None:
         """
@@ -176,8 +179,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
                                             points to a location in storage backend.
 
                                             Some backends (eg. dateproxy) don't specify any
-                                            locationsas they are merely proxying actual backends.
-                                            In those cases this costant should be omited.
+                                            locations as they are merely proxying actual backends.
+                                            In those cases this costant should be omitted.
 
                                             Examples:
                                             - `location` for `local` storage as it points to a
@@ -370,11 +373,11 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def watcher(self):
         """
         Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
-        manifest contains a 'watcher-interval' parameter, SimpleStorageWatcher (which is a naive,
+        manifest contains a ``watcher-interval`` parameter, SimpleStorageWatcher (which is a naive,
         brute-force watcher that scans the entire storage every watcher-interval seconds) will be
         used. If a given StorageBackend provides a better solution, it's recommended to overwrite
         this method to provide it. It is recommended to still use SimpleStorageWatcher if the user
-        explicitly specifies watcher-interval in the manifest. See local.py for a simple super()
+        explicitly specifies watcher-interval in the manifest. See local.py for a simple ``super()``
         implementation that avoids duplicating code.
 
         Note that changes originating from FUSE are reported without using this
@@ -402,7 +405,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         is permitted. Flags are expressed in POSIX style (see os module flag constants).
         Caution: flags such as read-only may be ignored by backends, this is not checked
         anywhere in base storage backend. For example of testing if flags are respected, see
-        test_backend.test_read_only_flags
+        ``test_backend.test_read_only_flags``.
         """
         raise NotImplementedError()
 
@@ -509,7 +512,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
+    def rename(self, move_from: PurePosixPath, move_to: PurePosixPath) -> None:
         """
         Move file/directory. Optional.
         """
@@ -628,7 +631,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
     @staticmethod
     def from_params(params, read_only=False, deduplicate=False) -> 'StorageBackend':
         """
-        Construct a Storage from fields originating from manifest.
+        Construct a ``StorageBackend`` from fields originating from manifest.
 
         Assume the fields have been validated before.
 
@@ -650,7 +653,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = params['type']
         cls = StorageBackend.types()[storage_type]
         backend = cls(params=params, read_only=read_only)
-
         if deduplicate:
             StorageBackend._cache[deduplicate_key] = backend
         return backend
@@ -663,7 +665,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return storage_type in StorageBackend.types()
 
     @staticmethod
-    def validate_manifest(manifest):
+    def validate_manifest(manifest: Manifest) -> None:
         """
         Validate manifest, assuming it's of a supported type.
         """

@@ -22,12 +22,13 @@ Manage containers
 """
 
 from pathlib import PurePosixPath, Path
-from typing import List, Tuple, Optional, Iterable
+from typing import Iterable, List, Optional, Sequence, Tuple
 from itertools import combinations
 import os
 import sys
 import logging
 import threading
+import re
 import signal
 import click
 import daemon
@@ -63,6 +64,7 @@ MW_PIDFILE = RUNTIME_DIR / 'wildland-mount-watch.pid'
 MW_DATA_FILE = RUNTIME_DIR / 'wildland-mount-watch.data'
 
 logger = logging.getLogger('cli_container')
+
 
 @aliased_group('container', short_help='container management')
 def container_():
@@ -528,20 +530,24 @@ def prepare_mount(obj: ContextObj,
     else:
         subcontainers = []
 
-    storages = obj.client.get_storages_to_mount(container)
-
     if not subcontainers or not only_subcontainers:
-        if obj.fs_client.find_primary_storage_id(container) is None:
+        storages = obj.client.get_storages_to_mount(container)
+        primary_storage_id = obj.fs_client.find_primary_storage_id(container)
+
+        if primary_storage_id is None:
             if verbose:
                 click.echo(f'new: {container_name}')
             yield (container, storages, user_paths, subcontainer_of)
         elif remount:
             storages_to_remount = []
 
-            for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
+            orphaned_storage_paths = obj.fs_client.get_orphaned_container_storage_paths(
+                container, storages)
+
+            for path in orphaned_storage_paths:
                 storage_id = obj.fs_client.find_storage_id_by_path(path)
                 assert storage_id is not None
-                click.echo(f'Removing orphaned storage {path} (id: {storage_id} )')
+                click.echo(f'Removing orphaned storage {path} (id: {storage_id})')
                 obj.fs_client.unmount_storage(storage_id)
 
             for storage in storages:
@@ -594,9 +600,9 @@ def prepare_mount(obj: ContextObj,
               help='Allow to mount infrastructure container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
-          with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
-          infrastructure: bool):
+def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: bool,
+          import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
+          infrastructure: bool) -> None:
     """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -607,10 +613,10 @@ def mount(obj: ContextObj, container_names, remount, save, import_users: bool,
            with_subcontainers, only_subcontainers, list_all, infrastructure)
 
 
-def _mount(obj: ContextObj, container_names,
+def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
-           list_all: bool = True, infrastructure: bool = False):
+           list_all: bool = True, infrastructure: bool = False) -> None:
     obj.fs_client.ensure_mounted()
 
     if import_users:
@@ -633,9 +639,10 @@ def _mount(obj: ContextObj, container_names,
                     print(f"Loading containers. Loaded {counter}...", end='\r')
                 try:
                     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-                    current_params.extend(prepare_mount(
+                    mount_params = prepare_mount(
                         obj, container, str(container), user_paths,
-                        remount, with_subcontainers, None, list_all, only_subcontainers))
+                        remount, with_subcontainers, None, list_all, only_subcontainers)
+                    current_params.extend(mount_params)
                 except WildlandError as ex:
                     fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
         except WildlandError as ex:
@@ -677,10 +684,10 @@ def _mount(obj: ContextObj, container_names,
 @click.option('--path', metavar='PATH',
               help='mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              help='Do not umount subcontainers.')
+              help='Do not umount subcontainers. Unmounts subcontainers by default.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
-def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names):
+def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names: Sequence[str]):
     """
     Unmount a container. You can either specify the container manifest, or
     identify the container by one of its path (using ``--path``).
@@ -688,7 +695,8 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
     _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers)
 
 
-def _unmount(obj: ContextObj, container_names, path: str, with_subcontainers: bool = True):
+def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
+        with_subcontainers: bool = True):
     obj.fs_client.ensure_mounted()
 
     if bool(container_names) + bool(path) != 1:
@@ -696,47 +704,103 @@ def _unmount(obj: ContextObj, container_names, path: str, with_subcontainers: bo
 
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
+    storage_ids = []
 
-    # pylint: disable=too-many-nested-blocks
     if container_names:
-        storage_ids = []
         for container_name in container_names:
             try:
-                for container in obj.client.load_containers_from(container_name):
-                    for mount_path in obj.fs_client.get_unique_storage_paths(container):
-                        storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
-
-                        if storage_id is None:
-                            click.echo(f'Not mounted: {mount_path}')
-                        else:
-                            click.echo(f'Will unmount: {mount_path}')
-                            storage_ids.append(storage_id)
-
-                    if with_subcontainers:
-                        storage_ids.extend(
-                            obj.fs_client.find_all_subcontainers_storage_ids(container))
+                container_storage_ids = _collect_storage_ids_by_container_name(
+                    obj, container_name, with_subcontainers)
+                storage_ids.extend(container_storage_ids)
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
     else:
-        storage_id = obj.fs_client.find_storage_id_by_path(PurePosixPath(path))
-        if storage_id is None:
-            raise WildlandError('Container not mounted')
-        storage_ids = [storage_id]
-        if with_subcontainers:
-            storage_ids.extend(
-                obj.fs_client.find_all_subcontainers_storage_ids(
-                    obj.fs_client.get_container_from_storage_id(storage_id)))
+        container_storage_ids = _collect_storage_ids_by_container_path(
+            obj, path, with_subcontainers)
+        storage_ids.extend(container_storage_ids)
 
     if not storage_ids:
         raise WildlandError('No containers mounted')
 
-    click.echo(f'Unmounting {len(storage_ids)} containers')
+    # dividing by 2 as every container has its hidden respective pseudmanifest storage
+    containers_count_without_submanifests = len(storage_ids) // 2
+    click.echo(f'Unmounting {containers_count_without_submanifests} containers')
+
     for storage_id in storage_ids:
         obj.fs_client.unmount_storage(storage_id)
 
     if failed:
         raise WildlandError(exc_msg)
+
+
+def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
+        with_subcontainers: bool = True) -> List[int]:
+
+    storage_ids = []
+
+    for container in obj.client.load_containers_from(container_name):
+        unique_storage_paths = obj.fs_client.get_unique_storage_paths(container)
+
+        for mount_path in unique_storage_paths:
+            storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
+            is_pseudomanifest = _is_pseudomanifest_primary_mount_path(mount_path)
+
+            if storage_id is None:
+                assert not is_pseudomanifest
+                click.echo(f'Not mounted: {mount_path}')
+            else:
+                if not is_pseudomanifest:
+                    click.echo(f'Will unmount: {mount_path}')
+                storage_ids.append(storage_id)
+
+        if with_subcontainers:
+            storage_ids.extend(
+                obj.fs_client.find_all_subcontainers_storage_ids(container))
+
+    return storage_ids
+
+
+def _collect_storage_ids_by_container_path(obj: ContextObj, path: str,
+        with_subcontainers: bool = True) -> List[int]:
+    """
+    Return all storage IDs corresponding to a given mount path.
+    """
+
+    storage_ids = obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path))
+    all_storage_ids = []
+
+    for storage_id in storage_ids:
+        all_storage_ids.append(storage_id)
+
+        if _is_pseudomanifest_storage_id(obj, storage_id):
+            logger.debug('Ignoring unmounting solely pseudomanifest path (storage ID = %d)',
+                         storage_id)
+            continue
+
+        if with_subcontainers:
+            container = obj.fs_client.get_container_from_storage_id(storage_id)
+            subcontainer_storage_ids = obj.fs_client.find_all_subcontainers_storage_ids(container)
+            all_storage_ids.extend(subcontainer_storage_ids)
+
+    return all_storage_ids
+
+
+def _is_pseudomanifest_storage_id(obj: ContextObj, storage_id: int) -> bool:
+    """
+    Check whether given storage ID corresponds to a pseudomanifest storage.
+    """
+    primary_path = obj.fs_client.get_primary_unique_mount_path_from_storage_id(storage_id)
+    return _is_pseudomanifest_primary_mount_path(primary_path)
+
+
+def _is_pseudomanifest_primary_mount_path(path: PurePosixPath) -> bool:
+    """
+    Check whether given path represents primary pseudomanifest mount path.
+    """
+    pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+-pseudomanifest$'
+    path_regex = re.compile(pattern)
+    return bool(path_regex.match(str(path)))
 
 
 def terminate_daemon(pfile, error_message):
