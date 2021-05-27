@@ -149,6 +149,9 @@ class File(metaclass=abc.ABCMeta):
     def flush(self) -> None:
         pass
 
+    def fsync(self, isfsyncfile: bool) -> None:
+        pass
+
     def __enter__(self):
         return self
 
@@ -434,6 +437,13 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     def flush(self, _path: PurePosixPath, obj: File) -> None:
         obj.flush()
+
+    def fsync(self, _path: PurePosixPath, isfsyncfile: bool, obj: File) -> None:
+        """
+        Flush dirty information about the file to disk. If ``isfsyncfile`` is ``True``, only data
+        needs to be flushed (without metadata).
+        """
+        obj.fsync(isfsyncfile)
 
     # Other FUSE operations
 

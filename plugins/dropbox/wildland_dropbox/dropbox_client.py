@@ -21,11 +21,12 @@ Dropbox client wrapping and exposing Dropbox API calls that are relevant for the
 """
 
 import errno
+import logging
 from pathlib import PurePosixPath
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from dropbox import Dropbox
-from dropbox.exceptions import AuthError, BadInputError
+from dropbox.exceptions import ApiError, AuthError, BadInputError
 from dropbox.files import (
     CommitInfo,
     DeleteResult,
@@ -35,6 +36,8 @@ from dropbox.files import (
     UploadSessionCursor,
     WriteMode
 )
+
+logger = logging.getLogger('dropbox-client')
 
 
 class DropboxClient:
@@ -89,18 +92,27 @@ class DropboxClient:
             raise PermissionError(errno.EACCES, f'No permissions to read files [{path_str}]') from e
         return response.content
 
+    def rmdir(self, path: PurePosixPath) -> DeleteResult:
+        """
+        Remove given directory.
+        """
+        return self.unlink(path)
+
     def unlink(self, path: PurePosixPath) -> DeleteResult:
         """
         Remove given file.
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
+        return self._unlink(path_str)
+
+    def _unlink(self, path: str):
+        assert self.connection
         try:
-            return self.connection.files_delete_v2(path_str)
+            return self.connection.files_delete_v2(path)
         except (AuthError, BadInputError) as e:
             raise PermissionError(
                 errno.EACCES,
-                f'No permissions to remove files and directories [{path_str}]') from e
+                f'No permissions to remove files and directories [{path}]') from e
 
     def mkdir(self, path: PurePosixPath) -> FolderMetadata:
         """
@@ -114,11 +126,100 @@ class DropboxClient:
             raise PermissionError(errno.EACCES,
                                   f'No permissions to create directories [{path_str}]') from e
 
-    def rmdir(self, path: PurePosixPath) -> DeleteResult:
+    def rename(self, move_from_path: PurePosixPath, move_to_path: PurePosixPath,
+            overwrite: bool=True) -> Metadata:
         """
-        Remove given directory.
+        Rename given file or folder.
         """
-        return self.unlink(path)
+        move_from_str = self._convert_to_dropbox_path(move_from_path)
+        move_to_str = self._convert_to_dropbox_path(move_to_path)
+        destination_exists_handler = self._rename_with_overwrite if overwrite else None
+        return self._rename(move_from_str, move_to_str, destination_exists_handler)
+
+    def _rename(self, move_from_path: str, move_to_path: str,
+            destination_exists_handler: Optional[Callable[[str, str, ApiError], Metadata]]=None) \
+                -> Metadata:
+        """
+        Rename given file or folder.
+
+        Dropbox API doesn't support overwriting the file when moving, thus we need to manually
+        remove ``move_to_path`` if it already exists and it is not a directory.
+
+        Alternative implementation could check if ``move_to_path`` file exists before calling API's
+        ``move`` operation instead of handling API error that indicates a conflict. It would require
+        more network traffic (unless cached) to check if a file exists. It could also introduce a
+        race condition.
+        """
+        assert self.connection
+
+        logger.debug('Renaming [%s] to [%s]', move_from_path, move_to_path)
+
+        try:
+            return self.connection.files_move(move_from_path, move_to_path)
+        except (AuthError, BadInputError) as e:
+            raise PermissionError(
+                errno.EACCES,
+                f'No permissions to move [{move_from_path}] to [{move_to_path}]') from e
+        except ApiError as e:
+            if destination_exists_handler and self._is_destination_exists_error(e):
+                return destination_exists_handler(move_from_path, move_to_path, e)
+            raise e
+
+    def _rename_with_overwrite(self, move_from_path: str, move_to_path: str,
+            original_overwrite_reason: ApiError, safe_rename: bool=True) -> Metadata:
+
+        logger.debug('Rename destination [%s] already exist - removing it', move_to_path)
+
+        if safe_rename:
+            rename_handler = self._rename_with_overwrite_safely
+        else:
+            rename_handler = self._rename_with_overwrite_unsafely
+
+        return rename_handler(move_from_path, move_to_path, original_overwrite_reason)
+
+    def _rename_with_overwrite_safely(self, move_from_path: str, move_to_path: str,
+            original_overwrite_reason: ApiError) -> Metadata:
+        """
+        This is safer rename implementation. Instead of removing ``move_to_path`` file before
+        renaming ``move_from_path``, it temporarily renames ``move_to_path`` file to be able to
+        recover it in case final rename fails (as opposed to unsafe rename implementation which
+        deletes ``move_to_path`` before rename).
+        """
+        tmp_file_path = move_to_path + '.rename_tmp'
+
+        try:
+            self._rename(move_to_path, tmp_file_path)
+        except (PermissionError, ApiError):
+            logger.error('Failed to rename [%s] to [%s]', move_to_path, tmp_file_path,
+                exc_info=True)
+            raise ApiError from original_overwrite_reason
+
+        try:
+            metadata = self._rename(move_from_path, move_to_path)
+        except (PermissionError, ApiError):
+            # if below _rename() fails, we will leave destination filename with a temporary suffix
+            self._rename(tmp_file_path, move_to_path)
+            logger.error('Failed to rename [%s] to [%s]', move_to_path, tmp_file_path,
+                exc_info=True)
+            raise ApiError from original_overwrite_reason
+
+        self._unlink(tmp_file_path)
+
+        return metadata
+
+    def _rename_with_overwrite_unsafely(self, move_from_path: str, move_to_path: str,
+            original_overwrite_reason: ApiError) -> Metadata:
+        """
+        This is unsafe rename version. If ``_unlink()`` is successful but ``rename()`` is not, we
+        effectively only delete destination file.
+        """
+        try:
+            self._unlink(move_to_path)
+            return self._rename(move_from_path, move_to_path)
+        except:
+            logger.error('Failed to remove [%s] and rename [%s] to [%s]', move_to_path,
+                move_from_path, move_to_path, exc_info=True)
+            raise ApiError from original_overwrite_reason
 
     def get_metadata(self, path: PurePosixPath) -> Metadata:
         """
@@ -187,3 +288,10 @@ class DropboxClient:
         In particular, Dropbox uses empty string instead of '.'.
         """
         return '' if path == PurePosixPath('.') else str('/' / path)
+
+    @staticmethod
+    def _is_destination_exists_error(api_err: ApiError) -> bool:
+        if api_err.error.is_to():
+            to_err = api_err.error.get_to()
+            return to_err.is_conflict()
+        return False

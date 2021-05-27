@@ -43,16 +43,31 @@ time -p chronic ls -lai "$TEST_DIRPATH"
 # Test non-empty files creation with echo
 
 DEST="$TEST_DIRPATH/123.txt" time -p chronic /bin/bash -c 'echo "one two three" > "$DEST"'
-DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo "four five six" > "$DEST"'
+DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo -n "four five six" > "$DEST"'
 
 # Test file append
 
-DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo "seven eight" >> "$DEST"'
-DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo "nine ten" >> "$DEST"'
+DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo -n " seven eight" >> "$DEST"'
+DEST="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c 'echo " nine ten" >> "$DEST"'
 
 # Test file copy
 
 time -p chronic cp "$TEST_DIRPATH/123.txt" "$TEST_DIRPATH/123_copy.txt"
+time -p chronic cp "$TEST_DIRPATH/"{123,456}.txt "$TEST_DIRPATH/dir00/subdir00"
+
+# Test file rename with no filename collision (no overwrite)
+
+time -p chronic mv "$TEST_DIRPATH"/dir0{0,1}/subdir00/123.txt
+SRC="$TEST_DIRPATH/dir01/subdir00/123.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "one two three" ]]'
+
+# Test file rename with name collision (overwrtie)
+
+time -p chronic mv "$TEST_DIRPATH/dir00/subdir00/456.txt" "$TEST_DIRPATH/dir01/subdir00/123.txt"
+SRC="$TEST_DIRPATH/dir01/subdir00/123.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four five six seven eight nine ten" ]]'
+
+# Move directory
+
+time -p chronic mv "$TEST_DIRPATH/dir01/subdir00" "$TEST_DIRPATH/dir02/subdir02"
 
 # Test getattr sycall
 
