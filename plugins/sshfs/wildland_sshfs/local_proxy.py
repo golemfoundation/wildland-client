@@ -64,7 +64,7 @@ class LocalProxy(StorageBackend):
         unmount the file system
         """
         assert self.inner_mount_point
-        logger.debug("will unmount inner filesystem at: %s",
+        logger.debug("unmounting inner filesystem at: %s",
                      self.inner_mount_point)
         assert self.local
         self.local.request_unmount()
