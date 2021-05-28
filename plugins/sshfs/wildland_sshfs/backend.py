@@ -12,6 +12,7 @@ from subprocess import Popen, PIPE, STDOUT, run
 import click
 
 from wildland.fs_client import WildlandFSError
+from wildland.manifest.schema import Schema
 from .local_proxy import LocalProxy
 
 logger = logging.getLogger('storage-sshfs')
@@ -21,7 +22,48 @@ class SshFsBackend(LocalProxy):
     """
     sshfs backend
     """
-
+    SCHEMA = Schema({
+        "title": "SSHFS storage manifest",
+        "type": "object",
+        "required": ["host"],
+        "properties": {
+            "host": {
+                "type": ["string"],
+                "description": "Host name or IP address of SSH server to mount."
+            },
+            "login": {
+                "type": ["string"],
+                "description": "User login name on the SSH server."
+            },
+            "identity": {
+                "type": ["string"],
+                "description": "Private key to use during sshfs authentication."
+            },
+            "passwd": {
+                "type": ["string"],
+                "description": "Password to use during sshfs authentication."
+            },
+            "cmd": {
+                "type": ["string"],
+                "description": "Custom command to perform SSHFS mount."
+            },
+            "path": {
+                "$ref": "/schemas/types.json#rel-path",
+                "description": "A POSIX path to the directory on target server that will be "
+                               "mounted as root.",
+            },
+            "mount_opts": {
+                "type": ["string"],
+                "description": "Additional mount options passed directly to sshfs command."
+            },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
+            },
+        }
+})
     TYPE='sshfs'
 
     def __init__(self, **kwds):
@@ -126,7 +168,7 @@ class SshFsBackend(LocalProxy):
                          ),
             click.Option(['--path'],
                          help='path on target host to mount',
-                         default='.'),
+                         default='./'),
             click.Option(['--ssh-user'],
                          metavar='USER',
                          help='user name to log on to target host',
