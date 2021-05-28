@@ -1061,7 +1061,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
         default_remotes[container.uuid] = target_object.backend_id
         obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
     else:
-        target_remote_id = default_remotes.get(container.uuid, None)
+        target_remote_id = default_remotes.get(container.uuid)
         try:
             target_object = [storage for storage in all_storages
                              if target_remote_id == storage.backend_id

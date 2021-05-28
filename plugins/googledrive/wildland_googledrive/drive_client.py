@@ -316,7 +316,7 @@ class DriveClient:
             listing = self.drive_api.list(
                 q=query, pageSize=200, fields=fields, pageToken=next_token
             ).execute()
-            next_token = listing.get("nextPageToken", None)
+            next_token = listing.get("nextPageToken")
             next_entries = listing.get("files", [])
             entries.extend(next_entries)
         return entries
@@ -349,7 +349,7 @@ class DriveClient:
             if not entries:
                 raise EntryNotFoundError(f"Entries not found for given path: {path}")
 
-            parent_id = entries[0].get("id", None)
+            parent_id = entries[0].get("id")
 
         return parent_id
 
@@ -362,7 +362,7 @@ class DriveClient:
             entries = self._retrieve_entries(query)
             if not entries:
                 return False
-            return entries[0].get("id", None)
+            return entries[0].get("id")
         except Exception:
             return False
 

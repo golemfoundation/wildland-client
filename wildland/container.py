@@ -170,10 +170,10 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             paths=[PurePosixPath(p) for p in fields['paths']],
             backends=fields['backends']['storage'],
             client=client,
-            title=fields.get('title', None),
+            title=fields.get('title'),
             categories=[PurePosixPath(p) for p in fields.get('categories', [])],
             manifest=manifest,
-            access=fields.get('access', None)
+            access=fields.get('access')
         )
 
     def to_manifest_fields(self, inline: bool) -> dict:
@@ -183,7 +183,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             if isinstance(cache.storage, str):
                 cleaned_backends.append(cache.storage)
                 continue
-            if isinstance(cache.storage, dict) and cache.storage.get('object', None) == \
+            if isinstance(cache.storage, dict) and cache.storage.get('object') == \
                     WildlandObject.Type.LINK.value:
                 cleaned_backends.append(deepcopy(cache.storage))
                 continue
@@ -252,7 +252,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                 if not include_url:
                     continue
             elif isinstance(cache.storage, dict) and \
-                    cache.storage.get('object', None) == WildlandObject.Type.LINK:
+                    cache.storage.get('object') == WildlandObject.Type.LINK:
                 if not include_url:
                     continue
             elif not include_inline:
@@ -377,7 +377,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     return
 
                 if isinstance(cache.storage, dict):
-                    if cache.storage.get('object', None) == 'link':
+                    if cache.storage.get('object') == 'link':
                         link = self.client.load_link_object(cache.storage, self.owner)
                         self.client.save_object(WildlandObject.Type.STORAGE, storage,
                                                 Path(cache.storage['file']).relative_to('/'),

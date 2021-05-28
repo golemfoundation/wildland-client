@@ -73,15 +73,15 @@ class FileSubcontainersMixin(StorageBackend):
     @classmethod
     def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         result = super(FileSubcontainersMixin, cls).cli_create(data)
-        if data.get('subcontainer_manifest', None):
-            if data.get('manifest_pattern', None):
+        if data.get('subcontainer_manifest'):
+            if data.get('manifest_pattern'):
                 raise WildlandError('--subcontainer-manifest and --manifest-pattern '
                                     'are mutually exclusive.')
             result['manifest-pattern'] = {
                     'type': 'list',
                     'paths': list(data['subcontainer_manifest'])
                 }
-        elif data.get('manifest_pattern', None):
+        elif data.get('manifest_pattern'):
             result['manifest-pattern'] = {
                     'type': 'glob',
                     'path': data['manifest_pattern']

@@ -161,7 +161,7 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             params=params,
             client=client,
             manifest=manifest,
-            access=fields.get('access', None)
+            access=fields.get('access')
         )
 
     def to_manifest_fields(self, inline: bool) -> dict:

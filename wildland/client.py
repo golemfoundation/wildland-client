@@ -109,7 +109,7 @@ class Client:
 
         try:
             fuse_status = self.fs_client.run_control_command('status')
-            default_user = fuse_status.get('default-user', None)
+            default_user = fuse_status.get('default-user')
             if default_user:
                 self.config.override(override_fields={'@default': default_user})
         except (ConnectionRefusedError, FileNotFoundError):
@@ -176,7 +176,7 @@ class Client:
                     fuse_status = self.fs_client.run_control_command('status')
                 except (ConnectionRefusedError, FileNotFoundError):
                     fuse_status = {}
-                name = fuse_status.get('default-user', None)
+                name = fuse_status.get('default-user')
                 if not name:
                     name = self.config.get('@default')
                 if not name:
@@ -288,7 +288,7 @@ class Client:
         """
         if 'encrypted' in dictionary.keys():
             raise WildlandError('Cannot decrypt manifest: decryption key unavailable')
-        if dictionary.get('object', None) == 'link':
+        if dictionary.get('object') == 'link':
             link = self.load_link_object(dictionary, expected_owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
             if expected_owner and obj.owner != expected_owner:
