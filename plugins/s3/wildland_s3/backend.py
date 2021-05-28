@@ -162,12 +162,6 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 "type": "boolean",
                 "description": "Maintain index.html files with directory listings (default: False)",
             },
-            "subcontainers" : {
-                "type": "array",
-                "items": {
-                    "$ref": "types.json#rel-path",
-                }
-            },
             "manifest-pattern": {
                 "oneOf": [
                     {"$ref": "/schemas/types.json#pattern-glob"},
@@ -273,12 +267,16 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         except botocore.exceptions.ClientError as ex:
             raise WildlandError(f"Could not connect to AWS with Exception: {ex}") from ex
 
-        if self.with_index and not self.read_only:
-            self.refresh()
-            with self.s3_dirs_lock:
-                s3_dirs = list(self.s3_dirs)
-            for path in s3_dirs:
-                self._update_index(path)
+        # TODO
+        # Commenting out as it makes S3 with-index completely unusable
+        # https://gitlab.com/wildland/wildland-client/-/issues/435
+        #
+        # if self.with_index and not self.read_only:
+        #     self.refresh()
+        #     with self.s3_dirs_lock:
+        #         s3_dirs = list(self.s3_dirs)
+        #     for path in s3_dirs:
+        #         self._update_index(path)
 
     def key(self, path: PurePosixPath, is_dir: bool = False) -> str:
         """

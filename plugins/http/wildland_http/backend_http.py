@@ -82,12 +82,6 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
                 "$ref": "/schemas/types.json#http-url",
                 "description": "HTTP URL pointing to an index",
             },
-            "subcontainers" : {
-                "type": "array",
-                "items": {
-                    "$ref": "types.json#rel-path",
-                }
-            },
             "manifest-pattern": {
                 "oneOf": [
                     {"$ref": "/schemas/types.json#pattern-glob"},
@@ -209,8 +203,8 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
         return attr
 
     def open(self, path: PurePosixPath, _flags: int) -> PagedHttpFile:
-        url = self.make_url(path, is_dir=self.getattr(path).is_dir())
-        attr = self._get_single_file_attr(url)
+        attr = self.getattr(path)
+        url = self.make_url(path, is_dir=attr.is_dir())
         return PagedHttpFile(url, attr)
 
     @staticmethod
