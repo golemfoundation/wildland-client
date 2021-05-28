@@ -183,6 +183,7 @@ man_pages = [
     ('manpages/wl-forest', 'wl-forest', 'Wildland forest management', [author], 1),
     ('manpages/wl-bridge', 'wl-bridge', 'Bridge manifest management', [author], 1),
 
+    ('manpages/wl-version', 'wl-version', 'Wildland version', [author], 1),
     ('manpages/wl-sign', 'wl-sign', 'Sign manifests', [author], 1),
     ('manpages/wl-verify', 'wl-verify', 'Verify signatures', [author], 1),
     ('manpages/wl-edit', 'wl-edit', 'Edit manifests', [author], 1),

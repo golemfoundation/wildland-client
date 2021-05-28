@@ -95,6 +95,12 @@ def cleanup():
         f()
 
 
+def test_version(base_dir):
+    output = wl_call_output(base_dir, 'version').decode().strip('\n')
+    version_regex = r'(v([0-9]+\.[0-9]+\.[0-9]+)|[0-9a-f]{7})'
+    assert re.match(version_regex, output) is not None
+
+
 def test_storage_dropbox_params(cli, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--no-encrypt-manifest')
