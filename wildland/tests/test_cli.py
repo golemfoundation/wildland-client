@@ -95,170 +95,6 @@ def cleanup():
         f()
 
 
-def test_storage_dropbox_params(cli, base_dir):
-    cli('user', 'create', 'Alice', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--no-encrypt-manifest')
-    cli('storage', 'create', 'dropbox',
-        '--container', 'Container',
-        '--inline',
-        '--subcontainer-manifest', '/sub.yaml',
-        '--location', '/foo-location',
-        '--token', 'foo-token')
-
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['location'] == '/foo-location'
-    assert storage['token'] == 'foo-token'
-    assert storage['manifest-pattern']['type'] == 'list'
-    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
-
-    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
-    cli('storage', 'create', 'dropbox',
-        '--container', 'Container2',
-        '--inline',
-        '--manifest-pattern', '/*.yaml',
-        '--location', '/foo-location',
-        '--token', 'foo-token')
-
-    with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['location'] == '/foo-location'
-    assert storage['token'] == 'foo-token'
-    assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
-
-
-def test_storage_googledrive_params(cli, base_dir):
-    cli('user', 'create', 'Alice', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--no-encrypt-manifest')
-    cli('storage', 'create', 'googledrive',
-        '--container', 'Container',
-        '--inline',
-        '--subcontainer-manifest', '/sub.yaml',
-        '--credentials', '{"token": "foo", "refresh_token": "foo", "token_uri": "foo",'
-                         '"client_id": "foo", "client_secret": "foo", "scopes": "foo"}',
-        '--skip-interaction')
-
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
-                                      "client_id": "foo", "client_secret": "foo", "scopes": "foo"}
-    assert storage['manifest-pattern']['type'] == 'list'
-    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
-
-    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
-    cli('storage', 'create', 'googledrive',
-        '--container', 'Container2',
-        '--inline',
-        '--manifest-pattern', '/*.yaml',
-        '--credentials', '{"token": "foo", "refresh_token": "foo", "token_uri": "foo",'
-                         '"client_id": "foo", "client_secret": "foo", "scopes": "foo"}',
-        '--skip-interaction')
-
-    with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
-                                      "client_id": "foo", "client_secret": "foo", "scopes": "foo"}
-    assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
-
-
-def test_storage_webdav_params(cli, base_dir):
-    cli('user', 'create', 'Alice', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--no-encrypt-manifest')
-    cli('storage', 'create', 'webdav',
-        '--container', 'Container',
-        '--inline',
-        '--subcontainer-manifest', '/sub.yaml',
-        '--url', 'http://foo-location.com',
-        '--login', 'foo-login',
-        '--password', 'foo-password')
-
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['url'] == 'http://foo-location.com'
-    assert storage['credentials']['login'] == 'foo-login'
-    assert storage['credentials']['password'] == 'foo-password'
-    assert storage['manifest-pattern']['type'] == 'list'
-    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
-
-    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
-    cli('storage', 'create', 'webdav',
-        '--container', 'Container2',
-        '--inline',
-        '--manifest-pattern', '/*.yaml',
-        '--url', 'http://foo-location.com',
-        '--login', 'foo-login',
-        '--password', 'foo-password')
-
-    with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['url'] == 'http://foo-location.com'
-    assert storage['credentials']['login'] == 'foo-login'
-    assert storage['credentials']['password'] == 'foo-password'
-    assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
-
-
-def test_storage_s3_params(cli, base_dir):
-    cli('user', 'create', 'Alice', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--no-encrypt-manifest')
-    cli('storage', 'create', 's3',
-        '--container', 'Container',
-        '--inline',
-        '--subcontainer-manifest', '/sub.yaml',
-        '--s3-url', 's3://foo-location',
-        '--endpoint-url', 'http://foo-location.com',
-        '--access-key', 'foo-access-key',
-        '--secret-key', 'foo-secret-key',
-        '--with-index')
-
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['s3_url'] == 's3://foo-location'
-    assert storage['endpoint_url'] == 'http://foo-location.com'
-    assert storage['credentials']['access-key'] == 'foo-access-key'
-    assert storage['credentials']['secret-key'] == 'foo-secret-key'
-    assert storage['with-index']
-    assert storage['manifest-pattern']['type'] == 'list'
-    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
-
-    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
-    cli('storage', 'create', 's3',
-        '--container', 'Container2',
-        '--inline',
-        '--manifest-pattern', '/*.yaml',
-        '--s3-url', 's3://foo-location',
-        '--endpoint-url', 'http://foo-location.com',
-        '--access-key', 'foo-access-key',
-        '--secret-key', 'foo-secret-key')
-
-    with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
-        storage = documents[1]['backends']['storage'][0]
-
-    assert storage['s3_url'] == 's3://foo-location'
-    assert storage['endpoint_url'] == 'http://foo-location.com'
-    assert storage['credentials']['access-key'] == 'foo-access-key'
-    assert storage['credentials']['secret-key'] == 'foo-secret-key'
-    assert not storage['with-index']
-    assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
-
 # Users
 
 def test_user_create(cli, base_dir):
@@ -4055,6 +3891,192 @@ def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
     assert data['user']['object'] == 'link'
     assert data['user']['file'] == '/forest-owner.yaml'
     assert data['user']['storage']['type'] == 'local'
+
+
+## Storage params sanity test
+
+
+def test_storage_dropbox_params(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--no-encrypt-manifest')
+    cli('storage', 'create', 'dropbox',
+        '--container', 'Container',
+        '--inline',
+        '--subcontainer-manifest', '/sub.yaml',
+        '--location', '/foo-location',
+        '--token', 'foo-token')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['location'] == '/foo-location'
+    assert storage['token'] == 'foo-token'
+    assert storage['manifest-pattern']['type'] == 'list'
+    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+
+    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
+    cli('storage', 'create', 'dropbox',
+        '--container', 'Container2',
+        '--inline',
+        '--manifest-pattern', '/*.yaml',
+        '--location', '/foo-location',
+        '--token', 'foo-token')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['location'] == '/foo-location'
+    assert storage['token'] == 'foo-token'
+    assert storage['manifest-pattern']['type'] == 'glob'
+    assert storage['manifest-pattern']['path'] == '/*.yaml'
+
+
+def test_storage_googledrive_params(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--no-encrypt-manifest')
+    cli('storage', 'create', 'googledrive',
+        '--container', 'Container',
+        '--inline',
+        '--subcontainer-manifest', '/sub.yaml',
+        '--credentials', '{"token": "foo", "refresh_token": "foo", "token_uri": "foo",'
+                         '"client_id": "foo", "client_secret": "foo", "scopes": "foo"}',
+        '--skip-interaction')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
+                                      "client_id": "foo", "client_secret": "foo", "scopes": "foo"}
+    assert storage['manifest-pattern']['type'] == 'list'
+    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+
+    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
+    cli('storage', 'create', 'googledrive',
+        '--container', 'Container2',
+        '--inline',
+        '--manifest-pattern', '/*.yaml',
+        '--credentials', '{"token": "foo", "refresh_token": "foo", "token_uri": "foo",'
+                         '"client_id": "foo", "client_secret": "foo", "scopes": "foo"}',
+        '--skip-interaction')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
+                                      "client_id": "foo", "client_secret": "foo", "scopes": "foo"}
+    assert storage['manifest-pattern']['type'] == 'glob'
+    assert storage['manifest-pattern']['path'] == '/*.yaml'
+
+
+def test_storage_webdav_params(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--no-encrypt-manifest')
+    cli('storage', 'create', 'webdav',
+        '--container', 'Container',
+        '--inline',
+        '--subcontainer-manifest', '/sub.yaml',
+        '--url', 'http://foo-location.com',
+        '--login', 'foo-login',
+        '--password', 'foo-password')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['url'] == 'http://foo-location.com'
+    assert storage['credentials']['login'] == 'foo-login'
+    assert storage['credentials']['password'] == 'foo-password'
+    assert storage['manifest-pattern']['type'] == 'list'
+    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+
+    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
+    cli('storage', 'create', 'webdav',
+        '--container', 'Container2',
+        '--inline',
+        '--manifest-pattern', '/*.yaml',
+        '--url', 'http://foo-location.com',
+        '--login', 'foo-login',
+        '--password', 'foo-password')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['url'] == 'http://foo-location.com'
+    assert storage['credentials']['login'] == 'foo-login'
+    assert storage['credentials']['password'] == 'foo-password'
+    assert storage['manifest-pattern']['type'] == 'glob'
+    assert storage['manifest-pattern']['path'] == '/*.yaml'
+
+
+def test_storage_s3_params(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--no-encrypt-manifest')
+    cli('storage', 'create', 's3',
+        '--container', 'Container',
+        '--inline',
+        '--subcontainer-manifest', '/sub.yaml',
+        '--s3-url', 's3://foo-location',
+        '--endpoint-url', 'http://foo-location.com',
+        '--access-key', 'foo-access-key',
+        '--secret-key', 'foo-secret-key',
+        '--with-index')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['s3_url'] == 's3://foo-location'
+    assert storage['endpoint_url'] == 'http://foo-location.com'
+    assert storage['credentials']['access-key'] == 'foo-access-key'
+    assert storage['credentials']['secret-key'] == 'foo-secret-key'
+    assert storage['with-index']
+    assert storage['manifest-pattern']['type'] == 'list'
+    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+
+    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
+    cli('storage', 'create', 's3',
+        '--container', 'Container2',
+        '--inline',
+        '--manifest-pattern', '/*.yaml',
+        '--s3-url', 's3://foo-location',
+        '--endpoint-url', 'http://foo-location.com',
+        '--access-key', 'foo-access-key',
+        '--secret-key', 'foo-secret-key')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['s3_url'] == 's3://foo-location'
+    assert storage['endpoint_url'] == 'http://foo-location.com'
+    assert storage['credentials']['access-key'] == 'foo-access-key'
+    assert storage['credentials']['secret-key'] == 'foo-secret-key'
+    assert not storage['with-index']
+    assert storage['manifest-pattern']['type'] == 'glob'
+    assert storage['manifest-pattern']['path'] == '/*.yaml'
+
+def test_storage_http_params(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--no-encrypt-manifest')
+    cli('storage', 'create', 'http',
+        '--container', 'Container',
+        '--inline',
+        '--subcontainer-manifest', '/sub.yaml',
+        '--url', 'http://foo-location.com')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['url'] == 'http://foo-location.com'
+    assert storage['manifest-pattern']['type'] == 'list'
+    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+
 
 ## Global options (--help, --version etc.)
 

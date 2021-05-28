@@ -32,6 +32,7 @@ import click
 from lxml import etree
 import requests
 
+from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import PagedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
@@ -67,7 +68,7 @@ class PagedHttpFile(PagedFile):
         return resp.content
 
 
-class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
+class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     A read-only HTTP storage that gets its information from directory listings.
     """
@@ -81,6 +82,18 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 "$ref": "/schemas/types.json#http-url",
                 "description": "HTTP URL pointing to an index",
             },
+            "subcontainers" : {
+                "type": "array",
+                "items": {
+                    "$ref": "types.json#rel-path",
+                }
+            },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
+            }
         }
     })
     TYPE = 'http'
@@ -96,15 +109,19 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(HttpStorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(['--url'], metavar='URL', required=True),
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
-        return {
+        result = super(HttpStorageBackend, cls).cli_create(data)
+        result.update({
             'url': data['url'],
-        }
+        })
+        return result
 
     def make_url(self, path: PurePosixPath, is_dir=False) -> str:
         """

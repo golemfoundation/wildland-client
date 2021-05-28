@@ -173,7 +173,7 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                     {"$ref": "/schemas/types.json#pattern-glob"},
                     {"$ref": "/schemas/types.json#pattern-list"},
                 ]
-            },
+            }
         }
     })
     TYPE = 's3'
