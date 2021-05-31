@@ -32,7 +32,7 @@ import shutil
 import subprocess
 import time
 
-from unittest.mock import patch
+from unittest import mock
 
 import pytest
 import yaml
@@ -741,9 +741,9 @@ def test_storage_edit_fail(cli):
         '--container', 'Container')
 
     editor = r'sed -i s,/LOCATION,WRONGLOCATION,g'
-    with patch('click.confirm', return_value=False) as mock:
+    with mock.patch('click.confirm', return_value=False) as m:
         cli('container', 'edit', 'Container', '--editor', editor)
-        mock.assert_called()
+        m.assert_called()
 
 
 def test_storage_set_location(cli, base_dir):
@@ -3316,6 +3316,81 @@ def test_template_parsing(cli, base_dir):
     assert f'url: https://acme.com{uuid_path}/foobar/a_local_dir/{just_uuid}' in data
     assert 'login: /boo!foo:hoo' in data
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
+
+
+def setup_storage_templates(cli, config_dir):
+    cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't1')
+    cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't2')
+    cli('storage-template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't3')
+
+
+def test_delegated_template(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
+        '--container', 'Container', '--inline')
+
+    cli('storage-template', 'create', 'delegate', '--reference-container-url',
+        f'file://{base_dir}/containers/Container.container.yaml', 'delegated_template')
+
+    with open(base_dir / 'templates/delegated_template.template.jinja') as f:
+        template_jinja = load_yaml(f)
+
+    assert len(template_jinja) == 1
+    storage_template = template_jinja[0]
+    assert storage_template == {
+        'read-only': False,
+        'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+        'subdirectory': '{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+        'type': 'delegate'
+    }
+
+    cli('container', 'create', '--storage-template', 'delegated_template', '--no-encrypt-manifest',
+        'delegated_container')
+
+    with open(base_dir / 'containers/delegated_container.container.yaml') as f:
+        delegated_container_manifest = list(load_yaml_all(f))
+    assert len(delegated_container_manifest) == 2
+    assert delegated_container_manifest[0] == {
+        'signature': 'dummy.0xaaa\n'
+    }
+    assert delegated_container_manifest[1] == {
+        'object': 'container',
+        'owner': '0xaaa',
+        'paths': [
+            mock.ANY
+        ],
+        'backends': {
+            'storage': [
+                {
+                    'read-only': False,
+                    'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+                    'subdirectory': mock.ANY,
+                    'type': 'delegate',
+                    'backend-id': mock.ANY,
+                    'storage': {
+                        'location': '/STORAGE',
+                        'backend-id': mock.ANY,
+                        'type': 'local',
+                        'owner': '0xaaa',
+                        'version': '1',
+                        'object': 'storage',
+                        'container-path': mock.ANY,
+                        'is-local-owner': True
+                    }
+                }
+            ]
+        },
+        'title': None,
+        'categories': [
+        ],
+        'version': '1',
+        'access': [
+            {
+                'user': '*'
+            }
+        ]
+    }
 
 
 def test_different_default_user(cli, base_dir):
