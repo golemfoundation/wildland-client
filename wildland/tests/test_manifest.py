@@ -329,7 +329,7 @@ def test_encrypt_inline_storage(sig, owner):
     assert test_data == decrypted_data
 
 
-def test_encrypt_infrastructure(sig, owner):
+def test_encrypt_catalog(sig, owner):
     additional_owner, pubkey = sig.generate()
     sig.add_pubkey(pubkey)
 
@@ -337,7 +337,7 @@ def test_encrypt_infrastructure(sig, owner):
         'owner': owner,
         'object': 'user',
         'key': 'VALUE',
-        'infrastructures': [
+        'manifests-catalog': [
                 {'key3': 'VALUE3'},
                 {'key2': 'VALUE2',
                  'access': [{'user': additional_owner}]}
@@ -346,10 +346,10 @@ def test_encrypt_infrastructure(sig, owner):
     encrypted_data = Manifest.encrypt(test_data, sig)
     assert 'owner' in encrypted_data
     assert encrypted_data['owner'] == owner
-    assert 'infrastructures' in encrypted_data
-    assert len(encrypted_data['infrastructures']) == 2
-    assert 'encrypted' in encrypted_data['infrastructures'][1]
-    assert len(encrypted_data['infrastructures'][1]['encrypted']['encrypted-keys']) == 2
+    assert 'manifests-catalog' in encrypted_data
+    assert len(encrypted_data['manifests-catalog']) == 2
+    assert 'encrypted' in encrypted_data['manifests-catalog'][1]
+    assert len(encrypted_data['manifests-catalog'][1]['encrypted']['encrypted-keys']) == 2
 
     decrypted_data = Manifest.decrypt(encrypted_data, sig)
     assert test_data == decrypted_data

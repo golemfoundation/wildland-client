@@ -139,17 +139,17 @@ def test_users_additional_pubkeys(cli, base_dir):
     assert len(client.session.sig.keys) == 4
 
 
-def test_infra_cache(cli, client):
-    cli('container', 'create', 'ContainerWithInfra', '--path', '/p1', '--update-user')
+def test_catalog_cache(cli, client):
+    cli('container', 'create', 'ContainerWithCatalog', '--path', '/p1', '--update-user')
 
     user = client.load_object_from_name(WildlandObject.Type.USER, "User")
 
-    container = next(user.load_infrastractures())
+    container = next(user.load_catalog())
     assert not container.title
     container.title = 'Test'
 
     # test that we got the same object
-    container2 = next(user.load_infrastractures())
+    container2 = next(user.load_catalog())
     assert container2.title == 'Test'
 
 

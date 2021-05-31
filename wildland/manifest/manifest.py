@@ -258,12 +258,16 @@ class Manifest:
             }
             del fields['subcontainers']
 
+        if 'infrastructures' in fields:
+            fields['manifests-catalog'] = fields['infrastructures']
+            del fields['infrastructures']
+
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
                 if isinstance(storage, dict):
                     cls.update_obsolete(storage)
-        if 'infrastructures' in fields:
-            for container in fields['infrastructures']:
+        if 'manifests-catalog' in fields:
+            for container in fields['manifests-catalog']:
                 if isinstance(container, dict):
                     cls.update_obsolete(container)
 

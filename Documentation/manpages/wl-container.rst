@@ -220,15 +220,15 @@ avoided.
    During mount, list all the containers to be mounted and result of mount (changed/not changed).
    Can be very long in case of Wildland paths or numerous subcontainers.
 
-.. option:: -i, --infrastructure
+.. option:: -m, --manifests-catalog
 
-   Allow to mount infrastructure container.
+   Allow to mount manifests catalog containers.
 
    Currently if a user wants to mount the whole forest (i.e. all the containers), the supported syntax is this:
 
       wl c mount `:/forests/User:*:`
 
-   But we also support mounting of the infrastructure container, i.e. one that holds the manifests for the
+   But we also support mounting of the manifests catalog container, i.e. one that holds the manifests for the
    forest, using the following syntax:
 
       wl c mount :/forests/User:
@@ -236,9 +236,9 @@ avoided.
    This latter syntax is very similar to the above syntax and it is very easy for users to confuse the two.
 
    In order to better differentiate between these two actions, the second syntax can be made more explicit using
-   the `--infrastructure` option:
+   the `--manifests-catalog` option:
 
-      wl c mount --infrastructure :/forests/User:
+      wl c mount --manifests-catalog :/forests/User:
 
 .. program:: wl-container-mount-watch
 .. _wl-container-mount-watch:
@@ -317,7 +317,7 @@ Stop the current mount-watch daemon.
 :command:`wl container publish <container>`
 -------------------------------------------
 
-Publish a container manifest into user's infrastructure container.
+Publish a container manifest into user's manifests catalog.
 
 .. program:: wl-container-unpublish
 .. _wl-container-unpublish:
@@ -325,7 +325,7 @@ Publish a container manifest into user's infrastructure container.
 :command:`wl container unpublish <container>`
 ---------------------------------------------
 
-Unublish a container manifest from all of user's infrastructure containers.
+Unublish a container manifest from the whole of a user's manifests catalog.
 
 .. _wl-container-sign:
 .. _wl-container-verify:

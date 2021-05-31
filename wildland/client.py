@@ -149,7 +149,7 @@ class Client:
         for user in users or self.load_all(WildlandObject.Type.USER, decrypt=False):
             user.add_user_keys(self.session.sig)
 
-        # duplicated to decrypt infrastructures correctly
+        # duplicated to decrypt manifests catalog correctly
         for user in users or self.load_all(WildlandObject.Type.USER):
             self.users[user.owner] = user
 
@@ -460,7 +460,7 @@ class Client:
     def load_containers_from(self, name: Union[str, WildlandPath],
                              aliases: Optional[dict] = None,
                              bridge_placeholders: bool = True,
-                             include_user_infrastructure: bool = False,
+                             include_manifests_catalog: bool = False,
                              ) -> Iterator[Container]:
         """
         Load a list of containers. Currently supports WL paths, glob patterns (*) and
@@ -492,7 +492,7 @@ class Client:
                         continue
                     if final_step.container is not None \
                             and final_step.user is not None \
-                            and not include_user_infrastructure:
+                            and not include_manifests_catalog:
                         continue
                     self.recognize_users_from_search(final_step)
 

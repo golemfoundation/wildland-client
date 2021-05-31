@@ -125,15 +125,15 @@ def create(ctx: click.Context,
 
     Description
 
-    This command creates an infrastructure container for the Forest.
+    This command creates a manifest catalog entry for the Forest.
     The storage template *must* contain at least one read-write storage.
 
     After the container is created, the following steps take place:
 
     \b
-      1. A link object to infrastructure container is generated
-         and appended to USER's manifest.
-      2. USER manifest and instracture manifest are copied to the
+      1. A link object to the container is generated
+         and appended to USER's manifests catalog.
+      2. USER manifest and container manifest are copied to the
          storage from Forest manifests container
 
     """
@@ -176,51 +176,51 @@ def _boostrap_forest(ctx: click.Context,
 
     storage_templates = _resolve_storage_templates(obj, manifest_storage_template_name)
 
-    infra_container = None
+    catalog_container = None
 
     try:
-        infra_container = _create_container(obj, forest_owner, [Path('/.manifests')],
-                                            f'{user}-forest-infra', access_list,
+        catalog_container = _create_container(obj, forest_owner, [Path('/.manifests')],
+                                            f'{user}-forest-catalog', access_list,
                                             storage_templates, manifest_local_dir)
 
-        assert infra_container.local_path is not None
+        assert catalog_container.local_path is not None
         assert forest_owner.local_path is not None
 
-        infra_storage = obj.client.select_storage(container=infra_container,
+        catalog_storage = obj.client.select_storage(container=catalog_container,
                                                   predicate=lambda x: x.is_writeable)
 
-        # If a writeable infra storage doesn't have manifest_pattern defined,
+        # If a writeable catalog storage doesn't have manifest_pattern defined,
         # forcibly set manifest pattern for all storages in this container.
         # TODO: improve support for more complex forms of writeable storages and more complex
         # manifest-patterns
 
-        infra_backend = StorageBackend.from_params(infra_storage.params)
-        if isinstance(infra_backend, FileSubcontainersMixin) and \
-                not infra_backend.params.get('manifest-pattern', None):
-            infra_backend.params['manifest-pattern'] = infra_backend.DEFAULT_MANIFEST_PATTERN
+        catalog_backend = StorageBackend.from_params(catalog_storage.params)
+        if isinstance(catalog_backend, FileSubcontainersMixin) and \
+                not catalog_backend.params.get('manifest-pattern', None):
+            catalog_backend.params['manifest-pattern'] = catalog_backend.DEFAULT_MANIFEST_PATTERN
 
         # Additionally ensure that they are going to be stored inline and override old storages
         # completely
 
-        old_storages = list(obj.client.all_storages(infra_container))
+        old_storages = list(obj.client.all_storages(catalog_container))
 
-        infra_container.clear_storages()
+        catalog_container.clear_storages()
 
         for storage in old_storages:
-            storage.params['manifest-pattern'] = infra_storage.params['manifest-pattern']
-            obj.client.add_storage_to_container(infra_container, storage, inline=True)
+            storage.params['manifest-pattern'] = catalog_storage.params['manifest-pattern']
+            obj.client.add_storage_to_container(catalog_container, storage, inline=True)
 
-        obj.client.save_object(WildlandObject.Type.CONTAINER, infra_container)
+        obj.client.save_object(WildlandObject.Type.CONTAINER, catalog_container)
 
-        manifests_storage = obj.client.select_storage(container=infra_container,
+        manifests_storage = obj.client.select_storage(container=catalog_container,
                                                       predicate=lambda x: x.is_writeable)
         manifests_backend = StorageBackend.from_params(manifests_storage.params)
 
-        # Provision manifest storage with infrastructure container
-        _boostrap_manifest(manifests_backend, infra_container.local_path,
+        # Provision manifest storage with container from manifest catalog
+        _boostrap_manifest(manifests_backend, catalog_container.local_path,
                            Path('.manifests.yaml'))
 
-        for storage in obj.client.all_storages(container=infra_container):
+        for storage in obj.client.all_storages(container=catalog_container):
 
             link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.yaml'}
 
@@ -231,24 +231,24 @@ def _boostrap_forest(ctx: click.Context,
             else:
                 fields = {
                     'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
-                    'backend-id': str(uuid.uuid4()), 'owner': infra_container.owner,
+                    'backend-id': str(uuid.uuid4()), 'owner': catalog_container.owner,
                     'url': storage.base_url, 'access': storage.access or access_list}
 
-            link_obj['storage']= fields
+            link_obj['storage'] = fields
 
             modify_manifest(ctx, str(forest_owner.local_path), add_field,
-                            'infrastructures', [link_obj])
+                            'manifests-catalog', [link_obj])
 
-        # Refresh users infrastructures
+        # Refresh user's manifests catalog
         obj.client.recognize_users_and_bridges()
 
         _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
-        Publisher(obj.client, infra_container).publish_container()
+        Publisher(obj.client, catalog_container).publish_container()
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:
-        if infra_container and infra_container.local_path:
-            infra_container.local_path.unlink()
+        if catalog_container and catalog_container.local_path:
+            catalog_container.local_path.unlink()
 
 
 def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]:

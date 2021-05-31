@@ -182,7 +182,7 @@ The following is the list of all of the available mixins at the time of writing:
   does not support cache (yet).
 
 * :class:`~wildland.storage_backends.file_subcontainers.FileSubcontainersMixin` -
-  Special type of mixin, providing support for subcontainers and infrastructure containers
+  Special type of mixin, providing support for subcontainers and manifests catalog containers
   specified through flat file lists or glob expressions.
 
 .. _mixins: https://stackoverflow.com/questions/533631/what-is-a-mixin-and-why-are-they-useful

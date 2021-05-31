@@ -52,13 +52,13 @@ class Publisher:
     >>> Publisher(client, container2).unpublish_manifest()
     """
     def __init__(self, client: Client, container: Container,
-            infrastructure: Optional[Container] = None):
+                 catalog_entry: Optional[Container] = None):
         self.client = client
         self.container = container
 
-        if infrastructure is not None:
+        if catalog_entry is not None:
             raise NotImplementedError(
-                'choosing infrastructure is not supported')
+                'choosing catalog entry is not supported')
 
         self.container_uuid_path = self.container.uuid_path
 
@@ -85,7 +85,7 @@ class Publisher:
         ok = False
         rejected = []
 
-        for container_candidate in owner.load_infrastractures():
+        for container_candidate in owner.load_catalog():
             try:
                 all_storages = list(
                     self.client.all_storages(container=container_candidate))
@@ -152,21 +152,21 @@ class _StoragePublisher:
     Helper class: publish/unpublish for a single storage
 
     This is because publishing is done to single storage, but unpublish should
-    be attempted from all viable infra containers to avoid a situation when user
-    commands an unpublish, we find no manifests at some container and report to
+    be attempted from all viable manifests catalog entries to avoid a situation when user
+    commands an unpublish, we find no manifests in some container and report to
     user that there no manifests, which would obviously be wrong.
     """
 
-    def __init__(self, publisher: Publisher, infra_storage: Storage):
+    def __init__(self, publisher: Publisher, catalog_storage: Storage):
         self.client = publisher.client
         self.container = publisher.container
         self.container_uuid_path = publisher.container_uuid_path
 
         # TODO this requires a more subtle manifest-pattern rewrite including more types
         # of writeable and publisheable-to storages
-        self.infra_storage = infra_storage
-        assert self.infra_storage.params['manifest-pattern']['type'] == 'glob'
-        self.pattern = self.infra_storage.params['manifest-pattern']['path']
+        self.catalog_storage = catalog_storage
+        assert self.catalog_storage.params['manifest-pattern']['type'] == 'glob'
+        self.pattern = self.catalog_storage.params['manifest-pattern']['path']
 
     def _get_relpath_for_storage_manifest(self, backend_id):
         # we publish only a single manifest for a storage, under `/.uuid/` path
@@ -197,10 +197,10 @@ class _StoragePublisher:
         Publish a container to a container owner by the same user.
         """
         # Marczykowski-Górecki's Algorithm:
-        # 1) choose infrastructure container from container owner
-        #    - if the container was published earlier, the same infrastructure
+        # 1) choose manifests catalog entry from container owner
+        #    - if the container was published earlier, the same entry
         #      should be chosen; this will make sense when user will be able to
-        #      choose to which infrastructure the container should be published
+        #      choose to which catalog entry the container should be published
         # 2) generate all new relpaths for the container and storages
         # 3) try to fetch container from new relpaths; check if the file
         #    contains the same container; if yes, generate relpaths for old
@@ -218,7 +218,7 @@ class _StoragePublisher:
         storage_relpaths = {}
         old_relpaths_to_remove = set()
 
-        with StorageDriver.from_storage(self.infra_storage) as driver:
+        with StorageDriver.from_storage(self.catalog_storage) as driver:
             # replace old relative URLs with new, better URLs
             for backend in self.container.load_backends(include_inline=False):
                 relpath = self._get_relpath_for_storage_manifest(backend.backend_id)

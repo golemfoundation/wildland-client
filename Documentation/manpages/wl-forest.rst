@@ -35,13 +35,13 @@ Arguments:
 
 Description
 
-This command creates an infrastructure container for the Forest
+This command creates an container in user's manifest catalog for the Forest
 The storage template *must* contain at least one read-write storage.
 
 After the container is created, the following steps take place:
 
-1. A link object to infrastructure container is generated and appended to USER's manifest.
-2. USER manifest and infrastructure manifest are copied to the storage from Forest manifests container
+1. A link object to manifests catalog container is generated and appended to USER's manifest.
+2. USER manifest and catalog container's manifest are copied to the storage from Forest manifests container
 
 .. option:: --access USER
 
