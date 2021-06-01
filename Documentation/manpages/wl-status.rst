@@ -28,4 +28,9 @@ Options
 
     Do not list containers with pseudo-manifests. This is the default.
 
+.. option:: -a, --all-paths
+
+    Print all mountpoint paths, including synthetic ones.
+
+
 :command:`wl status`

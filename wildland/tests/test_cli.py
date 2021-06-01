@@ -2908,6 +2908,29 @@ def test_status(cli, control_client):
     out_lines = result.splitlines()
     assert '/path1' in out_lines
     assert '  storage: local' in out_lines
+    assert '/path2' in out_lines
+    assert '  storage: s3' in out_lines
+
+
+def test_status_all_paths(cli, control_client):
+    control_client.expect('status', {})
+    control_client.expect('info', {
+        '1': {
+            'paths': ['/path1', '/path1.1'],
+            'type': 'local',
+            'extra': {},
+        },
+        '2': {
+            'paths': ['/path2', '/path2.1'],
+            'type': 's3',
+            'extra': {},
+        },
+    })
+
+    result = cli('status', '--all-paths', capture=True)
+    out_lines = result.splitlines()
+    assert '/path1' in out_lines
+    assert '  storage: local' in out_lines
     assert '    /path1' in out_lines
     assert '    /path1.1' in out_lines
     assert '/path2' in out_lines

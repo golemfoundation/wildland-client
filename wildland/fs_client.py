@@ -616,8 +616,10 @@ class WildlandFSClient:
                 'trusted_owner': storage['extra'].get('trusted_owner'),
                 'subcontainer_of': storage['extra'].get('subcontainer_of'),
                 'hidden': storage['extra'].get('hidden', False),
-            }
-            for ident_str, storage in data.items()
+                'title': storage['extra'].get('title'),
+                'categories': [PurePosixPath(c) for c in storage['extra'].get('categories', [])],
+                'primary': storage['extra'].get('primary')
+            } for ident_str, storage in data.items()
         }
         return self.info_cache
 
