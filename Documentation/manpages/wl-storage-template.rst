@@ -45,7 +45,7 @@ Warning: `title` and `categories` are optional; thus, if the container does not 
 not be passed to the template. Use jinja's {% if variable is defined %} syntax to check if they are
 defined and provide reasonable defaults.
 
-A few examples of basic storage templates for:
+A few examples of basic storage templates:
 
 .. code-block:: yaml
 
