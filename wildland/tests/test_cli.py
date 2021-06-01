@@ -1398,6 +1398,24 @@ def test_container_publish_unpublish(cli, tmp_path):
     assert not tuple(tmp_path.glob('*.yaml'))
 
 
+def test_container_delete_unpublish(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--manifest-pattern', '/*.yaml')
+
+    cli('container', 'publish', 'Container')
+
+    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+
+    cli('container', 'delete', 'Container')
+
+    assert not tuple(tmp_path.glob('*.yaml'))
+
+
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',

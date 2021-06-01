@@ -294,8 +294,10 @@ def info(obj: ContextObj, name):
               help='delete even when using local storage manifests; ignore errors on parse')
 @click.option('--cascade', is_flag=True,
               help='also delete local storage manifests')
+@click.option('--no-unpublish', '-n', is_flag=True,
+              help='do not attempt to unpublish the container before deleting it')
 @click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, cascade):
+def delete(obj: ContextObj, name, force, cascade, no_unpublish):
     """
     Delete a container.
     """
@@ -353,6 +355,14 @@ def delete(obj: ContextObj, name, force, cascade):
     if has_local and not force:
         raise CliError('Container refers to local manifests, not deleting '
                        '(use --force or --cascade)')
+
+    # unpublish
+    if not no_unpublish:
+        try:
+            Publisher(obj.client, container).unpublish_container()
+        except WildlandError:
+            # not published
+            pass
 
     click.echo(f'Deleting: {container.local_path}')
     container.local_path.unlink()

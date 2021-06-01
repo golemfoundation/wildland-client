@@ -53,10 +53,10 @@ Display a short summary of a single container. The information is equivalent to
 .. program:: wl-container-delete
 .. _wl-container-delete:
 
-:command:`wl container delete [--force] [--cascade] NAME`
----------------------------------------------------------
+:command:`wl container delete [--force] [--cascade] [--no-unpublish] NAME`
+--------------------------------------------------------------------------
 
-Delete a container from local filesystem.
+Delete a container from local filesystem and unpublish it, if published.
 
 .. option:: --force, -f
 
@@ -65,6 +65,10 @@ Delete a container from local filesystem.
 .. option:: --cascade
 
    Delete together with all local storage manifests.
+
+.. option:: --no-unpublish, -n
+
+    Do not attempt to unpublish the container before deleting it.
 
 .. program:: wl-container-create
 .. _wl-container-create:
