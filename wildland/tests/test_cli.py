@@ -147,14 +147,14 @@ def test_user_list(cli, base_dir):
     assert result.splitlines() == ok
 
 
-def test_user_list_encrypted_infra(base_dir):
+def test_user_list_encrypted_catalog(base_dir):
     wl_call(base_dir, 'user', 'create', '--path', '/USER', 'User')
     user_file = (base_dir / 'users/User.user.yaml')
     data = user_file.read_text()
     owner_key = re.search('owner: (.+?)\n', data).group(1)
-    data = data.replace("infrastructures: []\n",
+    data = data.replace("manifests-catalog: []\n",
                         f'''
-infrastructures:
+manifests-catalog:
 - object: link
   storage:
     type: dummy
@@ -1645,10 +1645,10 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
 
     backend_id = documents_container[1]['backends']['storage'][0]['backend-id']
 
-    # add infrastructure container
+    # add manifest catalog entry container
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
         documents = list(yaml.safe_load_all(f))
-        documents[1]['infrastructures'].append({
+        documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'object': 'container',
             'version': Manifest.CURRENT_VERSION,
@@ -1756,9 +1756,9 @@ def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
     ]
 
 
-def test_container_mount_infra_err(cli, base_dir, control_client):
-    infra_dir = base_dir / 'infra'
-    infra_dir.mkdir()
+def test_container_mount_catalog_err(cli, base_dir, control_client):
+    catalog_dir = base_dir / 'catalog'
+    catalog_dir.mkdir()
 
     storage_dir = base_dir / 'storage_dir'
     storage_dir.mkdir()
@@ -1766,10 +1766,10 @@ def test_container_mount_infra_err(cli, base_dir, control_client):
     control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Infra', '--owner', 'User', '--path', '/INFRA',
+    cli('container', 'create', 'Catalog', '--owner', 'User', '--path', '/CATALOG',
         '--no-encrypt-manifest')
-    cli('storage', 'create', 'local', 'Storage', '--location', str(infra_dir),
-        '--container', 'Infra', '--manifest-pattern', '/*.yaml')
+    cli('storage', 'create', 'local', 'Storage', '--location', str(catalog_dir),
+        '--container', 'Catalog', '--manifest-pattern', '/*.yaml')
 
     cli('container', 'create', 'Mock1', '--owner', 'User', '--path', '/C',
         '--no-encrypt-manifest')
@@ -1780,15 +1780,15 @@ def test_container_mount_infra_err(cli, base_dir, control_client):
     cli('storage', 'create', 'local', 'Storage', '--location', str(storage_dir),
         '--container', 'Mock2')
 
-    os.rename(base_dir / 'containers/Mock1.container.yaml', infra_dir / 'Mock1.yaml')
-    os.rename(base_dir / 'containers/Mock2.container.yaml', infra_dir / 'Mock2.yaml')
+    os.rename(base_dir / 'containers/Mock1.container.yaml', catalog_dir / 'Mock1.yaml')
+    os.rename(base_dir / 'containers/Mock2.container.yaml', catalog_dir / 'Mock2.yaml')
 
-    container_file = base_dir / 'containers/Infra.container.yaml'
-    cli('user', 'modify', 'add-infrastructure', '--path', f'file://{str(container_file)}', 'User')
+    container_file = base_dir / 'containers/Catalog.container.yaml'
+    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{str(container_file)}', 'User')
 
     # if first container is somehow broken, others should be mounted
-    for file in os.listdir(infra_dir):
-        (infra_dir / file).write_text('testdata')
+    for file in os.listdir(catalog_dir):
+        (catalog_dir / file).write_text('testdata')
         break
 
     control_client.expect('paths', {})
@@ -1808,18 +1808,18 @@ def test_container_mount_with_import(cli, base_dir, control_client):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
-    os.mkdir(base_dir / 'other-infra')
-    # add infrastructure container
+    os.mkdir(base_dir / 'other-catalog')
+    # add container to manifests catalog
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
         documents = list(yaml.safe_load_all(f))
-        documents[1]['infrastructures'].append({
+        documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xbbb',
             'object': 'container',
             'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
-                'location': str(base_dir / 'other-infra'),
+                'location': str(base_dir / 'other-catalog'),
                 'manifest-pattern': {
                     'type': 'glob',
                     'path': '/*.yaml',
@@ -1837,7 +1837,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
     # same for the container manifest
     os.rename(base_dir / 'containers/Container.container.yaml',
-              base_dir / 'other-infra/Container.container.yaml')
+              base_dir / 'other-catalog/Container.container.yaml')
     cli('bridge', 'create', '--ref-user-path', '/users/other',
                             '--ref-user-path', '/people/other',
                             '--ref-user-location',
@@ -1886,18 +1886,18 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
-    os.mkdir(base_dir / 'other-infra')
-    # add infrastructure container
+    os.mkdir(base_dir / 'other-catalog')
+    # add container to manifests catalog
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
         documents = list(yaml.safe_load_all(f))
-        documents[1]['infrastructures'].append({
+        documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xbbb',
             'object': 'container',
             'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
-                'location': str(base_dir / 'other-infra'),
+                'location': str(base_dir / 'other-catalog'),
                 'manifest-pattern': {
                     'type': 'glob',
                     'path': '/*.yaml',
@@ -1915,7 +1915,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
     # same for the container manifest
     os.rename(base_dir / 'containers/Container.container.yaml',
-              base_dir / 'other-infra/Container.container.yaml')
+              base_dir / 'other-catalog/Container.container.yaml')
     cli('bridge', 'create', '--ref-user-path', '/users/other',
                             '--ref-user-path', '/people/other',
                             '--ref-user-location',
@@ -1954,18 +1954,18 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
-    os.mkdir(base_dir / 'user-infra')
-    # add infrastructure container
+    os.mkdir(base_dir / 'user-catalog')
+    # add container to manifests catalog
     with open(base_dir / 'users/User.user.yaml', 'r+') as f:
         documents = list(yaml.safe_load_all(f))
-        documents[1]['infrastructures'].append({
+        documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xaaa',
             'object': 'container',
             'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
-                'location': str(base_dir / 'user-infra'),
+                'location': str(base_dir / 'user-catalog'),
                 'manifest-pattern': {
                     'type': 'glob',
                     'path': '/*.yaml',
@@ -1985,7 +1985,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
                             'br-other')
     # "publish" the bridge
     os.rename(base_dir / 'bridges/br-other.bridge.yaml',
-              base_dir / 'user-infra/br-other.bridge.yaml')
+              base_dir / 'user-catalog/br-other.bridge.yaml')
     control_client.expect('paths', {})
     control_client.expect('mount')
 
@@ -3124,26 +3124,27 @@ def test_different_default_user(cli, base_dir):
 
 
 def _create_user_manifest(owner: str, path: str = '/PATH',
-                          infrastructure_path: str = None) -> bytes:
-    if infrastructure_path:
-        infrastructure = f'''
+                          catalog_path: str = None) -> bytes:
+    if catalog_path:
+        catalog_entry = f'''
 - object: container
   owner: '{owner}'
   paths:
   - /manifests
+  version: '1'
   backends:
     storage:
     - owner: '{owner}'
       container-path: /manifests
       type: local
-      location: {infrastructure_path}
+      location: {catalog_path}
       manifest-pattern:
         type: glob
         path: /{{path}}.yaml
 '''
 
     else:
-        infrastructure = '[]'
+        catalog_entry = '[]'
     data = f'''signature: |
   dummy.{owner}
 ---
@@ -3151,7 +3152,7 @@ object: user
 owner: '{owner}'
 paths:
 - {path}
-infrastructures: {infrastructure}
+manifests-catalog: {catalog_entry}
 pubkeys:
 - key.{owner}
 '''
@@ -3579,14 +3580,14 @@ def test_forest_create(cli, tmp_path):
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    assert infra_path.exists()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert catalog_path.exists()
 
-    infra_dirs = list(infra_path.glob('*'))
+    catalog_dirs = list(catalog_path.glob('*'))
 
-    assert len(infra_dirs) == 1
+    assert len(catalog_dirs) == 1
 
-    uuid_dir = str(infra_dirs[0])
+    uuid_dir = str(catalog_dirs[0])
 
     assert Path(f'{uuid_dir}/forest-owner.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
@@ -3613,15 +3614,15 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     cli('forest', 'mount', ':/forests/Alice:')
     command = control_client.calls['mount']['items']
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    infra_dirs = list(infra_path.glob('*'))
-    infra_uuid_dir = str(infra_dirs[0])
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    catalog_dirs = list(catalog_path.glob('*'))
+    catalog_uuid_dir = str(catalog_dirs[0])
 
-    with open(f'{infra_uuid_dir}/.manifests.yaml') as f:
+    with open(f'{catalog_uuid_dir}/.manifests.yaml') as f:
         documents = list(load_yaml_all(f))
-    infra_uuid_path = documents[1]['paths'][0]
-    infra_uuid = get_container_uuid_from_uuid_path(infra_uuid_path)
-    infra_backend_id = documents[1]['backends']['storage'][0]['backend-id']
+    entry_uuid_path = documents[1]['paths'][0]
+    entry_uuid = get_container_uuid_from_uuid_path(entry_uuid_path)
+    entry_backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     with open(base_dir / 'containers/mycapsule.container.yaml') as f:
         documents = list(load_yaml_all(f))
@@ -3631,18 +3632,18 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
 
     all_paths = command[0]['paths'] + command[1]['paths']
     expected_paths = {f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
-                      f'/.users/0xaaa:/.backends/{infra_uuid}/{infra_backend_id}',
+                      f'/.users/0xaaa:/.backends/{entry_uuid}/{entry_backend_id}',
                       '/.users/0xaaa:/.manifests',
                       f'/.users/0xaaa:/.uuid/{uuid}',
-                      f'/.users/0xaaa:/.uuid/{infra_uuid}',
+                      f'/.users/0xaaa:/.uuid/{entry_uuid}',
                       '/.users/0xaaa:/testing/my_awesome_capsule'}
     assert expected_paths == set(all_paths)
     info = {
-        "infra_uuid": infra_uuid,
-        "infra_backend_id": infra_backend_id,
+        "entry_uuid": entry_uuid,
+        "entry_backend_id": entry_backend_id,
         "uuid": uuid,
         "backend_id": backend_id,
-        "infra_path": ".manifests",
+        "catalog_path": ".manifests",
         "path": "testing/my_awesome_capsule"
     }
     return info
@@ -3658,9 +3659,9 @@ def test_forest_unmount(cli, tmp_path, base_dir, control_client):
                 f'/.users/0xaaa:/.backends/{info["uuid"]}/{info["backend_id"]}': [101],
                 f'/.users/0xaaa:/.uuid/{info["uuid"]}': [102],
                 f'/.users/0xaaa:/{info["path"]}': [103],
-                f'/.users/0xaaa:/.backends/{info["infra_uuid"]}/{info["infra_backend_id"]}': [104],
-                f'/.users/0xaaa:/.uuid/{info["infra_uuid"]}': [105],
-                f'/.users/0xaaa:/{info["infra_path"]}': [106]
+                f'/.users/0xaaa:/.backends/{info["entry_uuid"]}/{info["entry_backend_id"]}': [104],
+                f'/.users/0xaaa:/.uuid/{info["entry_uuid"]}': [105],
+                f'/.users/0xaaa:/{info["catalog_path"]}': [106]
             })
     control_client.expect('info', {
         '1': {
@@ -3674,9 +3675,9 @@ def test_forest_unmount(cli, tmp_path, base_dir, control_client):
         },
         '2': {
             'paths': [
-                f'/.users/0xaaa:/.backends/{info["infra_uuid"]}/{info["infra_backend_id"]}',
-                f'/.users/0xaaa:/.uuid/{info["infra_uuid"]}',
-                f'/.users/0xaaa:/{info["infra_path"]}'
+                f'/.users/0xaaa:/.backends/{info["entry_uuid"]}/{info["entry_backend_id"]}',
+                f'/.users/0xaaa:/.uuid/{info["entry_uuid"]}',
+                f'/.users/0xaaa:/{info["catalog_path"]}'
             ],
             'type': 'local',
             'extra': {},
@@ -3686,7 +3687,7 @@ def test_forest_unmount(cli, tmp_path, base_dir, control_client):
     cli('forest', 'unmount', ':/forests/Alice:')
 
 
-def test_forest_create_check_for_published_infra(cli, tmp_path):
+def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         'forest-tpl')
@@ -3695,10 +3696,10 @@ def test_forest_create_check_for_published_infra(cli, tmp_path):
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    infra_dirs = list(infra_path.glob('*'))
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    catalog_dirs = list(catalog_path.glob('*'))
 
-    uuid_dir = infra_dirs[0]
+    uuid_dir = catalog_dirs[0]
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
 
     with open(uuid_dir / '.manifests.yaml') as f:
@@ -3714,7 +3715,7 @@ def test_forest_create_check_for_published_infra(cli, tmp_path):
     assert data == data2
 
 
-def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
+def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
@@ -3723,32 +3724,32 @@ def test_forest_user_infrastructure_objects(cli, tmp_path, base_dir):
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    assert infra_path.exists()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert catalog_path.exists()
 
-    infra_dirs = list(infra_path.glob('*'))
+    catalog_dirs = list(catalog_path.glob('*'))
 
-    assert len(infra_dirs) == 1
+    assert len(catalog_dirs) == 1
 
-    uuid_dir = str(infra_dirs[0].resolve())
+    uuid_dir = str(catalog_dirs[0].resolve())
 
     with open(base_dir / 'users/Alice.user.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
-    infra = data['infrastructures']
+    catalog = data['manifests-catalog']
 
-    assert len(infra) == 2
+    assert len(catalog) == 2
 
     # Without base-url thus storage template type (local)
-    assert infra[0]['object'] == 'link'
-    assert infra[0]['storage']['type'] == 'local'
-    assert infra[0]['storage']['location'] == f'{uuid_dir}'
+    assert catalog[0]['object'] == 'link'
+    assert catalog[0]['storage']['type'] == 'local'
+    assert catalog[0]['storage']['location'] == f'{uuid_dir}'
 
-    assert infra[1]['object'] == 'link'
-    assert infra[1]['storage']['type'] == 'http'
-    assert infra[1]['storage']['url'] == f'file://{uuid_dir}'
+    assert catalog[1]['object'] == 'link'
+    assert catalog[1]['storage']['type'] == 'http'
+    assert catalog[1]['storage']['url'] == f'file://{uuid_dir}'
 
-def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
+def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
@@ -3757,29 +3758,29 @@ def test_forest_encrypted_infrastructure_objects(cli, tmp_path, base_dir):
 
     cli('forest', 'create', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    assert infra_path.exists()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    assert catalog_path.exists()
 
-    infra_dirs = list(infra_path.glob('*'))
+    catalog_dirs = list(catalog_path.glob('*'))
 
-    assert len(infra_dirs) == 1
+    assert len(catalog_dirs) == 1
 
-    uuid_dir = str(infra_dirs[0].resolve())
+    uuid_dir = str(catalog_dirs[0].resolve())
 
     with open(base_dir / 'users/Alice.user.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
-    infra = data['infrastructures']
+    catalog = data['manifests-catalog']
 
-    assert len(infra) == 2
+    assert len(catalog) == 2
 
     # Without base-url thus storage template type (local)
-    assert infra[0]['object'] == 'link'
-    assert 'type: local' in infra[0]['storage']['encrypted']['encrypted-data']
-    assert f'location: {uuid_dir}' in infra[0]['storage']['encrypted']['encrypted-data']
+    assert catalog[0]['object'] == 'link'
+    assert 'type: local' in catalog[0]['storage']['encrypted']['encrypted-data']
+    assert f'location: {uuid_dir}' in catalog[0]['storage']['encrypted']['encrypted-data']
 
-    assert 'type: http' in infra[1]['storage']['encrypted']['encrypted-data']
-    assert f'url: file://{uuid_dir}' in infra[1]['storage']['encrypted']['encrypted-data']
+    assert 'type: http' in catalog[1]['storage']['encrypted']['encrypted-data']
+    assert f'url: file://{uuid_dir}' in catalog[1]['storage']['encrypted']['encrypted-data']
 
 
 def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
@@ -3793,8 +3794,8 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
@@ -3815,8 +3816,8 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
@@ -3838,8 +3839,8 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
@@ -3861,8 +3862,8 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
-    infra_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
-    uuid_dir = list(infra_path.glob('*'))[0].resolve()
+    catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
+    uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]

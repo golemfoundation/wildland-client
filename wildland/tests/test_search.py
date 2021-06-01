@@ -318,7 +318,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
     (base_dir / 'containers/C.User2.container.yaml').unlink()
 
     # Inline the container manifest inside user manifest
-    user_dict['infrastructures'] = [container_dict]
+    user_dict['manifests-catalog'] = [container_dict]
 
     # Save the new container to storage, sign
     with open(user_path, 'w') as f:
@@ -520,9 +520,10 @@ paths:
 - /users/User2
 pubkeys:
 - key.0xbbb
-infrastructures:
+manifests-catalog:
  - object: container
    owner: '0xfff'
+   version: '1'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:
@@ -596,9 +597,10 @@ paths:
 - /users/User2
 pubkeys:
 - key.0xbbb
-infrastructures:
+manifests-catalog:
  - object: container
    owner: '0xfff'
+   version: '1'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:
@@ -657,7 +659,7 @@ paths:
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_linked_infra(cli, base_dir, client, owner, caplog):
+def test_traverse_linked_catalog_entry(cli, base_dir, client, owner, caplog):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users_and_bridges()
@@ -688,9 +690,9 @@ backends:
       path: /manifests/{{path}}/*.yaml
 '''.encode()
 
-    infra_storage_path = base_dir / 'storage_infra'
-    infra_storage_path.mkdir()
-    (infra_storage_path / 'cont.yaml').write_bytes(container_data)
+    catalog_storage_path = base_dir / 'storage_catalog'
+    catalog_storage_path.mkdir()
+    (catalog_storage_path / 'cont.yaml').write_bytes(container_data)
 
     remote_user_file = base_dir / 'storage1/users/DummyUser.user.yaml'
 
@@ -704,13 +706,13 @@ paths:
 - /users/User2
 pubkeys:
 - key.0xbbb
-infrastructures:
+manifests-catalog:
  - object: link
    file: '/cont.yaml'
    storage:
      object: storage
      type: local
-     location: {infra_storage_path}
+     location: {catalog_storage_path}
      backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a8933'
 '''.encode()
 
@@ -739,7 +741,7 @@ paths:
     if owner == '0xfff':
         with pytest.raises(PermissionError):
             data = search.read_file()
-        (infra_storage_path / '.wildland-owners').write_bytes(b'0xfff\n')
+        (catalog_storage_path / '.wildland-owners').write_bytes(b'0xfff\n')
         data = search.read_file()
         assert data == b'Hello world'
 
@@ -799,20 +801,20 @@ def test_search_different_default_user(base_dir, cli):
 DUMMY_BACKEND_UUID = '00000000-0000-0000-000000000000'
 
 @pytest.fixture
-def two_users_infra(base_dir, cli, control_client):
+def two_users_catalog(base_dir, cli, control_client):
     """
     Create this structure:
       KnownUser(0xaaa):
-        - infra: base_dir / infra-known-user
+        - catalog: base_dir / catalog-known-user
           - /users/User2: bridge -> Dummy2 (0xbbb):
-            - infra: base_dir / infra2 (pattern: {path})
+            - catalog: base_dir / catalog2 (pattern: {path})
               - /containers/c1 -> base_dir / storage-user2-1
                 - test1.txt: test1
                 - test2.txt: test2
               - /containers/c2 -> base_dir / storage-user2-2
                 - test3.txt: test3
           - /users/User3: bridge -> Dummy3 (0xccc):
-            - infra: base_dir / infra3 (pattern: *)
+            - catalog: base_dir / catalog3 (pattern: *)
               - /containers/c1 -> base_dir / storage-user3-1
                 - test1.txt: 42
               - /containers/c2 -> base_dir / storage-user3-2
@@ -870,65 +872,65 @@ def two_users_infra(base_dir, cli, control_client):
         base_dir / 'storage-user3-c2',
         {'test1.txt': '42'})
 
-    # now infra containers
+    # now manifests catalog
     (base_dir / 'manifests').mkdir(parents=True, exist_ok=True)
     (base_dir / 'manifests/.wildland-owners').write_text('0xaaa\n0xbbb\n0xccc\n')
 
     manifest = container_with_files(
-        'Dummy2', 'dummy2-infra', ['/.infra', '/.uuid/00000000-2222-0000-0000-000000000000'],
-        base_dir / 'infra2',
+        'Dummy2', 'dummy2-catalog', ['/.catalog', '/.uuid/00000000-2222-0000-0000-000000000000'],
+        base_dir / 'catalog2',
         {'containers/c1.yaml': manifest_dummy2_c1,
          'containers/c2.yaml': manifest_dummy2_c2,
          f'.uuid/{uuid_dummy2_c1}.yaml': manifest_dummy2_c1,
          f'.uuid/{uuid_dummy2_c2}.yaml': manifest_dummy2_c2},
         s_args=('--manifest-pattern', '/{path}.yaml'),
     )
-    infra_path = (base_dir / 'manifests/dummy2-infra.yaml')
-    infra_path.write_text(manifest)
-    cli('user', 'modify', 'add-infrastructure', '--path', f'file://{infra_path}', 'Dummy2')
+    entry_path = (base_dir / 'manifests/dummy2-catalog.yaml')
+    entry_path.write_text(manifest)
+    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{entry_path}', 'Dummy2')
 
     manifest = container_with_files(
-        'Dummy3', 'dummy3-infra', ['/.infra', '/.uuid/00000000-3333-0000-0000-000000000000'],
-        base_dir / 'infra3',
+        'Dummy3', 'dummy3-catalog', ['/.catalog', '/.uuid/00000000-3333-0000-0000-000000000000'],
+        base_dir / 'catalog3',
         {'c1.yaml': manifest_dummy3_c1,
          'c2.yaml': manifest_dummy3_c2},
         s_args=('--manifest-pattern', '/*.yaml'),
     )
-    infra_path = (base_dir / 'manifests/dummy3-infra.yaml')
-    infra_path.write_text(manifest)
-    cli('user', 'modify', 'add-infrastructure', '--path', f'file://{infra_path}', 'Dummy3')
+    entry_path = (base_dir / 'manifests/dummy3-catalog.yaml')
+    entry_path.write_text(manifest)
+    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{entry_path}', 'Dummy3')
 
     # and finally bridges
     container_with_files(
-        'KnownUser', 'infra-known', ['/.infra', '/.uuid/00000000-1111-0000-0000-000000000000'],
-        base_dir / 'infra-known', {},
+        'KnownUser', 'catalog-known', ['/.catalog', '/.uuid/00000000-1111-0000-0000-000000000000'],
+        base_dir / 'catalog-known', {},
         s_args=('--manifest-pattern', '/{path}.yaml'),
         c_args=('--update-user',),
     )
-    (base_dir / 'infra-known/users').mkdir()
+    (base_dir / 'catalog-known/users').mkdir()
     cli('bridge', 'create', '--owner', 'KnownUser',
         '--ref-user', 'Dummy2',
         '--ref-user-path', '/users/User2',
         '--ref-user-location', f'file://{base_dir}/manifests/user2.yaml',
-        '--file-path', f'{base_dir}/infra-known/users/User2.yaml')
+        '--file-path', f'{base_dir}/catalog-known/users/User2.yaml')
     cli('bridge', 'create', '--owner', 'KnownUser',
         '--ref-user', 'Dummy3',
         '--ref-user-path', '/users/User3',
         '--ref-user-location', f'file://{base_dir}/manifests/user3.yaml',
-        '--file-path', f'{base_dir}/infra-known/users/User3.yaml')
+        '--file-path', f'{base_dir}/catalog-known/users/User3.yaml')
 
     # all manifests done; now move them out of standard WL config,
     # so Search() will really have some work to do
 
     shutil.move(base_dir / 'users/Dummy2.user.yaml', base_dir / 'manifests/user2.yaml')
     shutil.move(base_dir / 'users/Dummy3.user.yaml', base_dir / 'manifests/user3.yaml')
-    # container manifests are already published to relevant infra, remove them
+    # container manifests are already published to relevant catalog, remove them
     for f in (base_dir / 'containers').glob('dummy*.yaml'):
         f.unlink()
 
 
 @pytest.fixture
-def client2(two_users_infra, base_dir):
+def client2(two_users_catalog, base_dir):
     # pylint: disable=unused-argument
     client = Client(base_dir=base_dir)
     return client
@@ -949,16 +951,16 @@ def test_traverse_container_with_fs_client_mounted(
         base_dir, control_client, client2):
     control_client.expect('status', {})
 
-    # simulate mounted infrastructure
-    user2_infra_mount_path = base_dir / 'wildland' / \
+    # simulate mounted container from manifests catalog
+    user2_catalog_mount_path = base_dir / 'wildland' / \
         f'.users/0xbbb:/.backends/00000000-2222-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
-    user2_infra_mount_path.parent.mkdir(parents=True)
-    user2_infra_mount_path.symlink_to(base_dir / 'infra2')
+    user2_catalog_mount_path.parent.mkdir(parents=True)
+    user2_catalog_mount_path.symlink_to(base_dir / 'catalog2')
 
-    user1_infra_mount_path = base_dir / 'wildland' / \
+    user1_catalog_mount_path = base_dir / 'wildland' / \
         f'.users/0xaaa:/.backends/00000000-1111-0000-0000-000000000000/{DUMMY_BACKEND_UUID}'
-    user1_infra_mount_path.parent.mkdir(parents=True)
-    user1_infra_mount_path.symlink_to(base_dir / 'infra-known')
+    user1_catalog_mount_path.parent.mkdir(parents=True)
+    user1_catalog_mount_path.symlink_to(base_dir / 'catalog-known')
 
     search = Search(client2,
         WildlandPath.from_str(':/users/User2:/containers/c1:'),
@@ -972,8 +974,8 @@ def test_traverse_container_with_fs_client_mounted(
         assert containers[0].owner == '0xbbb'
         assert PurePosixPath('/containers/c1') in containers[0].paths
 
-        # check if infra container was accessed
-        direct_access = mock.call(PartialDict({'location': str(base_dir / 'infra2')}),
+        # check if catalog container was accessed
+        direct_access = mock.call(PartialDict({'location': str(base_dir / 'catalog2')}),
                                   deduplicate=True)
         assert direct_access in mock_storage_backend.mock_calls
 
@@ -1102,8 +1104,8 @@ def test_get_watch_params_wildcard_pattern_path(control_client, client2):
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xddd'])
 def test_search_hint(base_dir, client, owner):
-    storage_path_infra = base_dir / 'storage_infra'
-    storage_path_infra.mkdir()
+    storage_path_catalog = base_dir / 'storage_catalog'
+    storage_path_catalog.mkdir()
 
     user_data = f'''\
 signature: |
@@ -1115,16 +1117,17 @@ pubkeys:
 - key.0xddd
 paths:
 - /users/Remote
-infrastructures:
+manifests-catalog:
  - object: container
    owner: '0xddd'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+   version: '1'
    backends:
     storage:
      - object: storage
        type: local
-       location: {storage_path_infra}
+       location: {storage_path_catalog}
        owner: '0xddd'
        container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
@@ -1155,13 +1158,13 @@ backends:
     backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e3'
 '''
 
-    with open(storage_path_infra / 'path.yaml', 'w') as f:
+    with open(storage_path_catalog / 'path.yaml', 'w') as f:
         f.write(container_data)
 
     with open(storage_path_cont / 'file.txt', 'w') as f:
         f.write('Hello world')
 
-    (storage_path_infra / '.wildland-owners').write_bytes(b'0xddd\n')
+    (storage_path_catalog / '.wildland-owners').write_bytes(b'0xddd\n')
     (storage_path_cont / '.wildland-owners').write_bytes(b'0xddd\n')
 
     search = Search(client,

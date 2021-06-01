@@ -32,7 +32,7 @@ class WildlandObject(abc.ABC):
     correctly validated.
 
     WildlandObject should own all objects contained within; if passing dicts (e.g. as
-    infrastructures or backends), deepcopy them.
+    manifests-catalog or backends), deepcopy them.
     """
     class Type(enum.Enum):
         """

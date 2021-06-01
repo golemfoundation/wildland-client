@@ -95,7 +95,7 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         owner=owner,
         pubkeys=[pubkey] + additional_pubkeys,
         paths=[PurePosixPath(p) for p in paths],
-        infrastructures=[],
+        manifests_catalog=[],
         client=obj.client
     )
     try:
@@ -159,7 +159,7 @@ def list_(obj: ContextObj):
 
         for user_path in user.paths:
             click.echo(f'   path: {user_path}')
-        for user_container in user.get_infrastructure_descriptions():
+        for user_container in user.get_catalog_descriptions():
             click.echo(f'   container: {user_container}')
         click.echo()
 
@@ -326,20 +326,20 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     return destination, file_url
 
 
-def _find_user_manifest_within_infrastructures(obj, user: User) -> \
+def _find_user_manifest_within_catalog(obj, user: User) -> \
         Optional[Tuple[Storage, PurePosixPath]]:
     """
-    Mounts containers of the given user (infrastructures) and attempts to find that user's
-    manifest file within that infrastructure.
+    Mounts containers of the given user's manifests-catalog and attempts to find that user's
+    manifest file within that catalog.
     The user manifest file is expected to be named 'forest-owner.yaml' and be placed in the root
-    directory of the infrastructure storage.
+    directory of a storage.
 
     :param user: User
     :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
     at that manifest in the storage
 
     """
-    for container in user.load_infrastractures():
+    for container in user.load_catalog():
         all_storages = obj.client.all_storages(container=container)
 
         for storage_candidate in all_storages:
@@ -395,7 +395,7 @@ def _do_process_imported_manifest(
     if manifest.fields['object'] == 'user':
         user = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.USER,
                                             pubkey=manifest.fields['pubkeys'][0])
-        result = _find_user_manifest_within_infrastructures(obj, user)
+        result = _find_user_manifest_within_catalog(obj, user)
 
         user_location: Union[str, dict] = user_manifest_location
 
@@ -593,28 +593,28 @@ def del_path(ctx: click.Context, input_file, path):
     modify_manifest(ctx, input_file, del_field, 'paths', path)
 
 
-@modify.command(short_help='add infrastructure to the manifest')
+@modify.command(short_help='add entry to manifests-catalog')
 @click.option('--path', metavar='PATH', required=True, multiple=True,
-              help='Infrastructure path to add')
+              help='Container path to add')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_infrastructure(ctx: click.Context, input_file, path):
+def add_catalog_entry(ctx: click.Context, input_file, path):
     """
     Add path to the manifest.
     """
-    modify_manifest(ctx, input_file, add_field, 'infrastructures', path)
+    modify_manifest(ctx, input_file, add_field, 'manifests-catalog', path)
 
 
-@modify.command(short_help='remove infrastructure from the manifest')
+@modify.command(short_help="remove an entry from manifest's manifest catalog")
 @click.option('--path', metavar='PATH', required=True, multiple=True,
-              help='Infrastructure path to remove')
+              help='Container path to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_infrastructure(ctx: click.Context, input_file, path):
+def del_catalog_entry(ctx: click.Context, input_file, path):
     """
     Add path to the manifest.
     """
-    modify_manifest(ctx, input_file, del_field, 'infrastructures', path)
+    modify_manifest(ctx, input_file, del_field, 'manifests-catalog', path)
 
 
 @modify.command(short_help='add public key(s) to the manifest')

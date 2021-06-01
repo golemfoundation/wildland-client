@@ -219,7 +219,7 @@ class Search:
         Clear path resolution cache.
 
         Calling this method is necessary, if it's necessary to re-download
-        user's infrastructure content during lifetime of the same process.
+        user's manifests catalog content during lifetime of the same process.
         This may be the case for example after (re)publishing some new container.
         """
         cls._resolve_cache.clear()
@@ -364,7 +364,7 @@ class Search:
         # Try local containers
         yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner, None)
 
-        # Try user's infrastructure containers
+        # Try user's manifests catalog
         for user in self.local_users:
             if user.owner == self.initial_owner:
                 for step in self._user_step(user, self.initial_owner, self.client, None, None):
@@ -558,7 +558,7 @@ class Search:
             previous=step,
         )
 
-        for container in user.load_infrastractures():
+        for container in user.load_catalog():
             if container.owner != user.owner:
                 logger.warning('Unexpected owner for %s: %s (expected %s)',
                                container, container.owner, user.owner)

@@ -178,7 +178,7 @@ def create(obj: ContextObj, owner, path, name, update_user, access, title=None, 
             raise WildlandError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        owner.add_infrastructure(str(obj.client.local_url(path)))
+        owner.add_catalog_entry(str(obj.client.local_url(path)))
         obj.client.save_object(WildlandObject.Type.USER, owner)
 
 
@@ -214,7 +214,7 @@ def update(obj: ContextObj, storage, cont):
 @click.pass_obj
 def publish(obj: ContextObj, cont):
     """
-    Publish a container manifest to an infrastructure container.
+    Publish a container manifest to a container from manifests catalog.
     """
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
@@ -227,7 +227,7 @@ def publish(obj: ContextObj, cont):
 def unpublish(obj: ContextObj, cont):
     '''
     Attempt to unpublish a container manifest under a given wildland path
-    from all infrastructure containers.
+    from all containers in manifests catalogs.
     '''
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
@@ -596,13 +596,13 @@ def prepare_mount(obj: ContextObj,
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all containers, including those who '
                    'did not need to be changed')
-@click.option('--infrastructure', '-i', is_flag=True, default=False,
-              help='Allow to mount infrastructure container')
+@click.option('--manifests-catalog', '-m', is_flag=True, default=False,
+              help='Allow mounting containers from manifest catalogs')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
 def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: bool,
           import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
-          infrastructure: bool) -> None:
+          manifests_catalog: bool) -> None:
     """
     Mount a container given by name or path to manifest. Repeat the argument to
     mount multiple containers.
@@ -610,13 +610,13 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
     The Wildland system has to be mounted first, see ``wl start``.
     """
     _mount(obj, container_names, remount, save, import_users,
-           with_subcontainers, only_subcontainers, list_all, infrastructure)
+           with_subcontainers, only_subcontainers, list_all, manifests_catalog)
 
 
 def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
-           list_all: bool = True, infrastructure: bool = False) -> None:
+           list_all: bool = True, manifests_catalog: bool = False) -> None:
     obj.fs_client.ensure_mounted()
 
     if import_users:
@@ -633,8 +633,8 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
                                    List[Iterable[PurePosixPath]], Container]] = []
 
         try:
-            containers = obj.client.load_containers_from(container_name,
-                                                         include_user_infrastructure=infrastructure)
+            containers = obj.client.load_containers_from(
+                container_name, include_manifests_catalog=manifests_catalog)
 
         except WildlandError as ex:
             fails.append(container_name + ':' + str(ex) + '\n')

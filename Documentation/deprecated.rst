@@ -7,6 +7,11 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2021-05-31) The ``infrastructures`` field in user manifest has been renamed to
+  ``manifests-catalog``. For backwards compatibility, both fields are
+  permitted when loading a manifest, but only the latter one is used. Also completely
+  removed support for the older, obsolete form of 'containers'.
+
 * (2021-04-28) Storage sets are now deprecated. Instead, storage templates now accept multiple
   templates as an array of yaml objects. Manual adjustment of existing templates is required as
   they **must** be an array of objects.
@@ -48,10 +53,6 @@ The dates are commit dates of introducing the change..
   name with suffix.
 
   Note that the above doesn't apply to full file paths.
-
-* (2020-09-01) The ``containers`` field in user manifest has been renamed to
-  ``infrastructures``. For backwards compatibility, both fields are
-  permitted when loading a manifest, but only the latter one is used.
 
 * (2020-08-27) The user manifests should no longer contain public keys in a
   header. Instead, a key is taken either from a bridge manifest, or from a
