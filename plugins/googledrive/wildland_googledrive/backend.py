@@ -115,7 +115,7 @@ class DriveStorageBackend(
             "properties": {
                 "location": {
                     "$ref": "/schemas/types.json#abs-path",
-                    "description": "Absolute POSIX path acting as a root directory in user's google drive",
+                    "description": "Absolute POSIX path acting as a root directory in user's google drive",  # pylint: disable=line-too-long
                 },
                 "credentials": {
                     "type": "object",
@@ -225,8 +225,12 @@ class DriveStorageBackend(
             attr = self._get_attr_from_metadata(metadata)
             return DriveFile(self.client, path, attr, self.clear_cache)
         except Exception as e:
-            if e.error.is_path() and e.error.get_path().is_not_found():
+            if e.code == "404":
                 raise FileNotFoundError(errno.ENOENT, str(path)) from e
+            if e.code == "403":
+                raise PermissionError(
+                    errno.EACCES, f"No permissions to read file [{path}]"
+                ) from e
             raise e
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
@@ -290,4 +294,4 @@ class DriveStorageBackend(
                     data=metadata["mimeType"],
                 )
         except Exception as error:
-            raise Exception("Cache tree error: %s", error)
+            raise Exception(f"Cache tree error: {error}") from error

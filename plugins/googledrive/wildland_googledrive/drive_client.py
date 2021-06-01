@@ -343,7 +343,7 @@ class DriveClient:
             entries = self._retrieve_entries(query)
 
             if not entries:
-                raise Exception("Invalid path: %s", path)
+                raise Exception(f"Invalid path: {path}")
 
             parent_id = entries[0].get("id", None)
 
