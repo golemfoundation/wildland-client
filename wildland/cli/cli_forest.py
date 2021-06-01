@@ -39,6 +39,7 @@ from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_field
 from .cli_container import _mount as mount_container
 from .cli_container import _unmount as unmount_container
+from .cli_user import refresh_users
 from ..exc import WildlandError
 
 
@@ -56,8 +57,10 @@ def forest_():
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all forest containers, including those '
                    'who did not need to be changed')
+@click.option('--no-refresh-users', '-n', is_flag=True, default=False, show_default=True,
+              help="Do not refresh remote users when mounting")
 @click.pass_context
-def mount(ctx: click.Context, forest_names, save:bool, list_all: bool):
+def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refresh_users: bool):
     """
     Mount a forest given by name or path to manifest. Repeat the argument to
     mount multiple forests.
@@ -73,6 +76,13 @@ def mount(ctx: click.Context, forest_names, save:bool, list_all: bool):
                 f'Failed to parse forest name: {forest_name}. '
                 f'For example, ":/forests/User:" is a valid forest name')
         forests.append(f'{forest_name}*:')
+
+    # TODO: in versions v.0.0.2 or up
+    # Refresh all local users; this could be optimized by refactoring search.py itself
+    # to only use remote users, not local
+    if not no_refresh_users:
+        refresh_users(obj)
+
     mount_container(obj, forests, save=save, list_all=list_all)
 
 
