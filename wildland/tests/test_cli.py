@@ -97,7 +97,7 @@ def cleanup():
 
 def test_version(base_dir):
     output = wl_call_output(base_dir, 'version').decode().strip('\n')
-    version_regex = r'(v([0-9]+\.[0-9]+\.[0-9]+)|[0-9a-f]{7})'
+    version_regex = r'[0-9]+\.[0-9]+\.[0-9]+( \(commit [0-9a-f]+\))?$'
     assert re.match(version_regex, output) is not None
 
 
