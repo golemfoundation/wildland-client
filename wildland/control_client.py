@@ -29,7 +29,7 @@ from pathlib import Path
 import socket
 import json
 import logging
-from typing import Optional, List, Iterator
+from typing import Dict, Iterator, List, Optional
 
 from .exc import WildlandError
 from .control_server import ControlRequest
@@ -76,13 +76,12 @@ class ControlClient:
         self.conn.close()
         self.conn = None
 
-    def run_command(self, name, **kwargs):
+    def run_command(self, name, **kwargs) -> Optional[Dict]:
         """
-        Run a command with given name and (named) arguments. The argument names
-        will be converted to a proper format ('container_id' -> 'container-id').
+        Run a command with given name and (named) arguments. The argument names will be converted to
+        a proper format (``container_id`` -> ``container-id``).
 
-        Returns a result, or raises ControlClientError if the server reported
-        an error.
+        Returns a result, or raises :class:`ControlClientError` if the server reported an error.
         """
 
         assert self.conn
@@ -153,7 +152,7 @@ class ControlClient:
 
     def _recv_message(self) -> Optional[dict]:
         """
-        Receive a message from the server. Returns None on EOF.
+        Receive a message from the server. Returns ``None`` on ``EOF``.
         """
 
         assert self.conn_file

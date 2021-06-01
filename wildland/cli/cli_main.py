@@ -59,11 +59,11 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
 @aliased_group('wl')
-@click.option('--dummy/--no-dummy', default=False,
+@click.option('--dummy/--no-dummy', default=False, show_default=True,
               help='use dummy signatures')
-@click.option('--base-dir', default=None,
+@click.option('--base-dir', default=None, show_default=True,
               help='base directory for configuration')
-@click.option('--debug/--no-debug', default=False,
+@click.option('--debug/--no-debug', default=False, show_default=True,
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
@@ -223,7 +223,7 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
 @main.command(short_help='display mounted containers')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
-              help='list subcontainers hidden by default')
+              show_default=True, help='list subcontainers hidden by default')
 @click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
               default=False, help='list containers with pseudomanifests')
 @click.pass_obj
@@ -255,7 +255,7 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
 
 @main.command(short_help='unmount Wildland filesystem')
 @click.pass_obj
-def stop(obj: ContextObj):
+def stop(obj: ContextObj) -> None:
     """
     Unmount the Wildland filesystem.
     """
@@ -269,10 +269,9 @@ def stop(obj: ContextObj):
 
 @main.command(short_help='watch for changes')
 @click.option('--with-initial', is_flag=True, help='include initial files')
-@click.argument('patterns', metavar='PATH',
-                nargs=-1, required=True)
+@click.argument('patterns', metavar='PATH', nargs=-1, required=True)
 @click.pass_obj
-def watch(obj: ContextObj, patterns, with_initial):
+def watch(obj: ContextObj, patterns, with_initial) -> None:
     """
     Watch for changes in inside mounted Wildland filesystem.
     """
