@@ -41,7 +41,7 @@ Template files can use the following variables in their jinja templates:
 - `local_path`: container local path (path to container file)
 - `owner`: container owner. Warning: you must encapsulate {{ owner }} variable in quotes, eg. '{{ owner }}'
 
-Warning: `title` and `categories` are optional thus if the container does not have them they will
+Warning: `title` and `categories` are optional; thus, if the container does not have them, they will
 not be passed to the template. Use jinja's {% if variable is defined %} syntax to check if they are
 defined and provide reasonable defaults.
 
