@@ -1,8 +1,9 @@
 from setuptools import setup, find_packages
+from wildland import __version__
 
 setup(
     name="wildland-client",
-    version="0.1",
+    version=__version__,
     packages=find_packages(),
     package_data={'wildland': ['schemas/*.json']},
     entry_points={

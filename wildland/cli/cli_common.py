@@ -20,7 +20,8 @@
 """
 Common commands (sign, edit, ...) for multiple object types
 """
-
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, List, Any, Optional
@@ -28,6 +29,7 @@ from typing import Callable, List, Any, Optional
 import click
 import yaml
 
+from wildland import __version__
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import ContextObj, CliError
 from ..client import Client
@@ -72,6 +74,34 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     if isinstance(obj, Container):
         for backend in obj.load_backends(include_url=False):
             backend.validate()
+
+
+@click.command(short_help='Wildland version')
+def version():
+    """
+    Returns Wildland version
+    """
+    # Fallback version
+    wildland_version = __version__
+    commit_hash = None
+
+    cmd = ["git", "describe", "--always"]
+    try:
+        result = subprocess.run(cmd, capture_output=True, check=True,
+                                cwd=Path(__file__).resolve().parents[1])
+        output = result.stdout.decode('utf-8').strip('\n')
+        # version 'vX.Y.Z' or 'vX.Y.Z-L-g<ABBREVIATED_COMMIT_HASH>'
+        version_regex = r'v(([0-9]+\.[0-9]+\.[0-9]+)(-[0-9]+-g([0-9a-f]+))?)$'
+        parsed_output = re.match(version_regex, output)
+        if parsed_output:
+            wildland_version = parsed_output.group(2)
+            if len(parsed_output.groups()) == 4:
+                commit_hash = parsed_output.group(4)
+    except subprocess.CalledProcessError:
+        pass
+    if commit_hash:
+        wildland_version = f"{wildland_version} (commit {commit_hash})"
+    print(wildland_version)
 
 
 @click.command(short_help='manifest signing tool')

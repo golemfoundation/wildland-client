@@ -50,6 +50,8 @@ Global options
 Subcommands
 -----------
 
+:ref:`wl-version <wl-version>`
+
 :ref:`wl-container <wl-container>`
 :ref:`wl-storage <wl-storage>`
 :ref:`wl-user <wl-user>`
