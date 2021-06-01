@@ -17,19 +17,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-'''
+"""
 Stuff related to publishing and unpublishing containers.
-'''
+"""
 
 import logging
-import pathlib
-from typing import Optional, Generator
+from pathlib import Path, PurePosixPath
+from typing import Optional, Generator, List, Set, Tuple
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .client import Client
 from .container import Container
 from .exc import WildlandError
-from .manifest.manifest import ManifestError
+from .manifest.manifest import ManifestError, Manifest
 from .storage_driver import StorageDriver
 from .storage import Storage
 
@@ -66,21 +66,99 @@ class Publisher:
         """
         Publish the manifest
         """
-        _StoragePublisher(self, next(self._get_storages_for_publish())
-            ).publish_container(False)
+        infra_storage = next(_InfraChecker.get_storages_for_publish(
+            self.client, self.container.owner))
+        _StoragePublisher(self, infra_storage).publish_container()
+        if self.container.local_path:
+            _PublisherCache(self.client).remove(self.container.local_path)
 
     def unpublish_container(self) -> None:
         """
         Unpublish the manifest
         """
-        for storage in self._get_storages_for_publish():
-            _StoragePublisher(self, storage).publish_container(True)
+        for storage in _InfraChecker.get_storages_for_publish(self.client, self.container.owner):
+            _StoragePublisher(self, storage).unpublish_container()
+        if self.container.local_path:
+            _PublisherCache(self.client).add(self.container.local_path)
 
-    def _get_storages_for_publish(self) -> Generator[Storage, None, None]:
-        '''
+    def republish_container(self) -> None:
+        """
+        If the manifest is already published, republish it in the same manifest catalog.
+        """
+        published = []
+        try:
+            for storage in _InfraChecker.get_storages_for_publish(
+                    self.client, self.container.owner):
+                if _InfraChecker.is_published_in_storage(storage, self.container_uuid_path):
+                    published.append(storage)
+        except WildlandError:
+            pass
+
+        for storage in published:
+            _StoragePublisher(self, storage).publish_container()
+
+        if published and self.container.local_path:
+            _PublisherCache(self.client).remove(self.container.local_path)
+
+    @staticmethod
+    def list_unpublished_containers(client) -> List[str]:
+        """
+        Return list of unpublished containers for given client.
+        """
+        not_published = list(_PublisherCache(client).load_cache())
+        return not_published
+
+
+class _InfraChecker:
+    """
+    Helper class: checking which container has been published and finding
+    suitable storages to publish the container manifest.
+
+    Group of static methods used in Publisher and _PublisherCache.
+    """
+
+    @staticmethod
+    def is_published(client: Client, owner: str, container_uuid_path: PurePosixPath) -> bool:
+        """
+        Check if the container is published in any storage.
+        """
+        try:
+            for storage in _InfraChecker.get_storages_for_publish(client, owner):
+                if _InfraChecker.is_published_in_storage(storage, container_uuid_path):
+                    return True
+        except WildlandError:
+            pass
+        return False
+
+    @staticmethod
+    def is_published_in_storage(infra_storage: Storage,
+                                container_uuid_path: PurePosixPath) -> bool:
+        """
+        Check if the container is published in given manifest catalog storage.
+        """
+        assert infra_storage.params['manifest-pattern']['type'] == 'glob'
+        pattern = infra_storage.params['manifest-pattern']['path']
+
+        path_pattern = pattern.replace('*', container_uuid_path.name)
+
+        container_relpath = PurePosixPath(
+            path_pattern.replace('{path}', str(container_uuid_path.relative_to('/')))
+        ).relative_to('/')
+
+        with StorageDriver.from_storage(infra_storage) as driver:
+            try:
+                driver.read_file(container_relpath)
+                return True
+            except FileNotFoundError:
+                return False
+
+    @staticmethod
+    def get_storages_for_publish(client: Client, container_owner: str
+                                 ) -> Generator[Storage, None, None]:
+        """
         Iterate over all suitable storages to publish container manifest.
-        '''
-        owner = self.client.load_object_from_name(WildlandObject.Type.USER, self.container.owner)
+        """
+        owner = client.load_object_from_name(WildlandObject.Type.USER, container_owner)
 
         ok = False
         rejected = []
@@ -88,7 +166,7 @@ class Publisher:
         for container_candidate in owner.load_catalog():
             try:
                 all_storages = list(
-                    self.client.all_storages(container=container_candidate))
+                    client.all_storages(container=container_candidate))
 
                 if not all_storages:
                     rejected.append(
@@ -181,7 +259,7 @@ class _StoragePublisher:
         path_pattern = self.pattern.replace('*', container.uuid)
 
         # always return /.uuid/ path first
-        yield pathlib.PurePosixPath(
+        yield PurePosixPath(
             path_pattern.replace('{path}', str(self.container_uuid_path.relative_to('/')))
         ).relative_to('/')
 
@@ -189,10 +267,16 @@ class _StoragePublisher:
             for path in container.expanded_paths:
                 if path == self.container_uuid_path:
                     continue
-                yield pathlib.PurePosixPath(path_pattern.replace(
+                yield PurePosixPath(path_pattern.replace(
                     '{path}', str(path.relative_to('/')))).relative_to('/')
 
-    def publish_container(self, just_unpublish: bool) -> None:
+    def unpublish_container(self) -> None:
+        """
+        Unpublish a container from a container owner.
+        """
+        self.publish_container(just_unpublish=True)
+
+    def publish_container(self, just_unpublish: bool = False) -> None:
         """
         Publish a container to a container owner by the same user.
         """
@@ -274,3 +358,105 @@ class _StoragePublisher:
                 for relpath in container_relpaths:
                     driver.makedirs(relpath.parent)
                     driver.write_file(relpath, self.client.session.dump_object(self.container))
+
+
+class _PublisherCache:
+    """
+    Helper class: caching paths of unpublished containers in '.unpublished' file.
+
+    To avoid loading all containers and checking where are published every
+    time during mounting. Caching unpublished containers seems better than
+    published ones since containers are publishing by default.
+    """
+
+    def __init__(self, client: Client):
+        self.client = client
+        self.file: Path = client.dirs[WildlandObject.Type.CONTAINER] / '.unpublished'
+
+    def load_cache(self) -> Set[str]:
+        """
+        Return updated cache content.
+        """
+        if self._is_invalid():
+            self._update()
+        return self._load()
+
+    def add(self, path: Path) -> None:
+        """
+        Cache path.
+        """
+        to_add = self.client.dirs[WildlandObject.Type.CONTAINER] / path
+        if self._is_invalid(ignore=to_add):
+            self._update()
+        cache = self._load()
+        cache.add(str(to_add))
+        self._save(cache)
+
+    def remove(self, path: Path) -> None:
+        """
+        Remove path from cache.
+        """
+        to_remove = self.client.dirs[WildlandObject.Type.CONTAINER] / path
+        if self._is_invalid(ignore=to_remove):
+            self._update()
+        cache = self._load()
+        cache.discard(str(to_remove))
+        self._save(cache)
+
+    def _load(self) -> Set[str]:
+        with open(self.file, 'r') as f:
+            lines = f.readlines()
+            cache = set(line.rstrip() for line in lines)
+        return cache
+
+    def _save(self, cache: Set[str]) -> None:
+        with open(self.file, 'w') as f:
+            f.writelines([path + '\n' for path in cache])
+
+    def _is_invalid(self, ignore: Optional[Path] = None) -> bool:
+        if not self.file.exists():
+            return True
+
+        manifests = list(self.file.parent.glob('*.yaml'))
+        if ignore:
+            manifests.remove(ignore)
+        if not manifests:
+            return False
+
+        newest = max(manifests, key=lambda y: y.stat().st_mtime)
+        return self.file.stat().st_mtime < newest.stat().st_mtime
+
+    def _update(self) -> None:
+        containers = self._load_all_containers_info()
+
+        cache = set()
+        for path, uuid, owner in containers:
+            if uuid and not _InfraChecker.is_published(self.client, owner, uuid):
+                cache.add(str(path))
+
+        self._save(cache)
+
+    def _load_all_containers_info(self) \
+            -> Generator[Tuple[Path, Optional[PurePosixPath], str], None, None]:
+        for path in sorted(self.file.parent.glob('*.yaml')):
+            try:
+                data = path.read_bytes()
+                manifest = Manifest.from_bytes(data, self.client.session.sig,
+                                               allow_only_primary_key=False,
+                                               trusted_owner=None, decrypt=True)
+
+                for c_path in manifest.fields['paths']:
+                    pure_path = PurePosixPath(c_path)
+                    if pure_path.parent == PurePosixPath('/.uuid/'):
+                        uuid: Optional[PurePosixPath] = pure_path
+                        break
+                else:
+                    uuid = None
+
+                owner = manifest.fields['owner']
+
+            except WildlandError as e:
+                logger.warning('error loading %s manifest: %s: %s',
+                               WildlandObject.Type.CONTAINER.value, path, e)
+            else:
+                yield path, uuid, owner

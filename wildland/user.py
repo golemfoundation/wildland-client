@@ -128,6 +128,11 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
             manifest=manifest,
             client=client)
 
+    @property
+    def has_catalog(self) -> bool:
+        """Checks if user has a manifest catalog defined"""
+        return bool(self._manifests_catalog)
+
     def load_catalog(self):
         """Load and cache all of user's manifests catalog."""
         assert self.client

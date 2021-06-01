@@ -57,8 +57,8 @@ Delete a storage from local filesystem.
 .. program:: wl-storage-create-local
 .. _wl-storage-create-local:
 
-:command:`wl storage create local --container <container> [-u] [--user <user>] [--manifest-pattern <glob>] [--subcontainer-manifest <path>] --location <filesystem_path> <storage>`
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local --container <container> [-u] [--user <user>] [--manifest-pattern <glob>] [--subcontainer-manifest <path>] --location <filesystem_path> [--no-publish] <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create local storage.
 
@@ -78,8 +78,8 @@ with content like this:
 .. program:: wl-storage-create-local-cached
 .. _wl-storage-create-local-cached:
 
-:command:`wl storage create local-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local-cached --container <container> [-u] [--user <user>] --location <filesystem_path> [--no-publish] <storage>`
+--------------------------------------------------------------------------------------------------------------------------------------------
 
 Create cached local storage. See ``local`` storage description above for
 details.
@@ -90,8 +90,8 @@ details.
 .. program:: wl-storage-create-local-dir-cached
 .. _wl-storage-create-local-dir-cached:
 
-:command:`wl storage create local-dir-cached --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
----------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create local-dir-cached --container <container> [-u] [--user <user>] --location <filesystem_path> [--no-publish] <storage>`
+------------------------------------------------------------------------------------------------------------------------------------------------
 
 Create directory cached local storage. See ``local`` storage description above
 for details.
@@ -102,8 +102,8 @@ for details.
 .. program:: wl-storage-create-date-proxy
 .. _wl-storage-create-date-proxy:
 
-:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url> <storage>`
-------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url> [--no-publish] <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/date-proxy.rsti
@@ -111,8 +111,8 @@ for details.
 .. program:: wl-storage-create-delegate
 .. _wl-storage-create-delegate:
 
-:command:`wl storage create delegate --container <container> [-u] [--user <user>] --reference-container-url <url> [--subdirectory <dir>] <storage>`
----------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create delegate --container <container> [-u] [--user <user>] --reference-container-url <url> [--subdirectory <dir>] [--no-publish] <storage>`
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/delegate.rsti
@@ -120,8 +120,8 @@ for details.
 .. program:: wl-storage-create-dummy
 .. _wl-storage-create-dummy:
 
-:command:`wl storage create dummy --container <container> [-u] [--user <user>]`
--------------------------------------------------------------------------------
+:command:`wl storage create dummy --container <container> [-u] [--user <user>] [--no-publish]`
+----------------------------------------------------------------------------------------------
 
 Creates dummy storage, presenting empty directory not backed by any actual data.
 
@@ -130,8 +130,8 @@ Creates dummy storage, presenting empty directory not backed by any actual data.
 .. program:: wl-storage-create-static
 .. _wl-storage-create-static:
 
-:command:`wl storage create static --container <container> [-u] [--user <user>] [--file <path>=<content> ...]`
---------------------------------------------------------------------------------------------------------------
+:command:`wl storage create static --container <container> [-u] [--user <user>] [--file <path>=<content> ...] [--no-publish]`
+-----------------------------------------------------------------------------------------------------------------------------
 
 Creates static storage, presenting files included directly in the storage manifest.
 
@@ -152,8 +152,8 @@ This will result in storage manifest with the following field::
 .. program:: wl-storage-create-zip-archive
 .. _wl-storage-create-zip-archive:
 
-:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --location <filesystem_path> <storage>`
-----------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create zip-archive --container <container> [-u] [--user <user>] --location <filesystem_path> [--no-publish] <storage>`
+-------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/zip-archive.rsti
@@ -161,8 +161,8 @@ This will result in storage manifest with the following field::
 .. program:: wl-storage-create-http
 .. _wl-storage-create-http:
 
-:command:`wl storage create http --container <container> [-u] [--user <user>] --url <url> <storage>`
-----------------------------------------------------------------------------------------------------
+:command:`wl storage create http --container <container> [-u] [--user <user>] --url <url> [--no-publish] <storage>`
+-------------------------------------------------------------------------------------------------------------------
 
 This is a HTTP storage that relies on directory listings. Currently used for buckets published using S3.
 
@@ -172,8 +172,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-imap
 .. _wl-storage-create-imap:
 
-:command:`wl storage create imap --container <container> [-u] [--user <user>] --host <host> --login <login> --password <password> [--folder <folder>] <storage>`
-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create imap --container <container> [-u] [--user <user>] --host <host> --login <login> --password <password> [--folder <folder>] [--no-publish] <storage>`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/imap.rsti
@@ -181,8 +181,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-dropbox
 .. _wl-storage-create-dropbox:
 
-:command:`wl storage create dropbox --container <container> [-u] [--user <user>] --token <access_token>`
---------------------------------------------------------------------------------------------------------
+:command:`wl storage create dropbox --container <container> [-u] [--user <user>] --token <access_token> [--no-publish]`
+-----------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/dropbox.rsti
@@ -190,8 +190,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-categorization
 .. _wl-storage-create-categorization:
 
-:command:`wl storage create categorization --container <container> [-u] [--user <user>] --reference-container-url <url> [--with-unclassified-category] [--unclassified-category-path <path>] <storage>`
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create categorization --container <container> [-u] [--user <user>] --reference-container-url <url> [--with-unclassified-category] [--unclassified-category-path <path>] [--no-publish] <storage>`
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/categorization.rsti
@@ -199,8 +199,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-googledrive
 .. _wl-storage-create-googledrive:
 
-:command:`wl storage create googledrive --container <container> [-u] [--user <user>] --credentials <credentials> --skip-interaction`
-------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create googledrive --container <container> [-u] [--user <user>] --credentials <credentials> --skip-interaction [--no-publish]`
+---------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/googledrive.rsti
@@ -208,8 +208,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-s3
 .. _wl-storage-create-s3:
 
-:command:`wl storage create s3 --container <container> [-u] [--user <user>] --url <url> <storage>`
---------------------------------------------------------------------------------------------------
+:command:`wl storage create s3 --container <container> [-u] [--user <user>] --url <url> <storage> [--no-publish]`
+-----------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/s3.rsti
@@ -217,8 +217,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-ipfs
 .. _wl-storage-create-ipfs:
 
-:command:`wl storage create ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-address <multiaddress> <storage>`
---------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-address <multiaddress> <storage> [--no-publish]`
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/ipfs.rsti
@@ -238,8 +238,8 @@ Create encrypted storage for a given container. Please read details below to und
 .. program:: wl-storage-create-webdav
 .. _wl-storage-create-webdav:
 
-:command:`wl storage create webdav --container <container> [-u] [--user <user>] --url <url> --login <login> --password <password> <storage>`
---------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create webdav --container <container> [-u] [--user <user>] --url <url> --login <login> --password <password> <storage [--no-publish]`
+----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/webdav.rsti
@@ -247,8 +247,8 @@ Create encrypted storage for a given container. Please read details below to und
 .. program:: wl-storage-create-bear-db
 .. _wl-storage-create-bear-db:
 
-:command:`wl storage create bear-db --container <container> [-u] [--user <user>] --path <path>`
------------------------------------------------------------------------------------------------
+:command:`wl storage create bear-db --container <container> [-u] [--user <user>] --path <path> [--no-publish]`
+--------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/bear.rsti
@@ -280,6 +280,11 @@ Create storages for a given container based on the storage template provided.
 .. option:: --local-dir <local_dir>
 
     Local directory to be passed to storage templates as a parameter.
+
+.. option:: --no-publish
+
+   Do not publish the container after adding storage. By default, if the container owner has proper
+   infrastructure defined in the user manifest, the container is published.
 
 .. program:: wl-storage-modify
 .. _wl-storage-modify:
