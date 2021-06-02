@@ -36,6 +36,7 @@ from .cli_common import sign, verify, edit, modify_manifest, set_field, add_fiel
 from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager, StorageTemplate
+from ..publish import Publisher
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
@@ -79,6 +80,8 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
                           "and --access cannot be used. For inline storage, "
                           "container manifest might still be encrypted."),
+        click.Option(['--no-publish'], is_flag=True,
+                            help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -113,6 +116,7 @@ def _do_create(
         base_url,
         access,
         encrypt_manifest,
+        no_publish,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
@@ -162,6 +166,14 @@ def _do_create(
     click.echo(f'Adding storage {storage.backend_id} to container.')
     obj.client.add_storage_to_container(container, storage, inline, name)
     click.echo(f'Saved container {container.local_path}')
+
+    if no_publish:
+        return
+
+    try:
+        Publisher(obj.client, container).republish_container()
+    except WildlandError as ex:
+        raise WildlandError(f"Failed to republish container: {ex}") from ex
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
@@ -296,7 +308,8 @@ def do_create_storage_from_templates(
         client,
         container,
         storage_templates: Iterable[StorageTemplate],
-        local_dir):
+        local_dir,
+        no_publish: bool = False):
     """
     Create storages for a container from a given list of storage templates.
     :param client: Wildland client
@@ -304,6 +317,7 @@ def do_create_storage_from_templates(
     :param storage_templates: list of storage templates
     :param local_dir: str to be passed to template renderer as a parameter, can be used by template
         creators
+    :param no_publish: should the container not be published after creation
     """
     to_process: List[Tuple[Storage, Optional[StorageBackend]]] = []
 
@@ -363,6 +377,14 @@ def do_create_storage_from_templates(
         client.add_storage_to_container(container=container, storage=storage, inline=True)
         click.echo(f'Saved container {container.local_path}')
 
+        if no_publish:
+            return
+
+        try:
+            Publisher(client, container).republish_container()
+        except WildlandError as ex:
+            raise WildlandError(f"Failed to republish container: {ex}") from ex
+
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',
                   alias=['cs'])
@@ -370,9 +392,12 @@ def do_create_storage_from_templates(
               help='name of storage template to use')
 @click.option('--local-dir', multiple=False, required=False,
               help='local directory to be passed to storage templates')
+@click.option('--no-publish', is_flag=True,
+              help='do not publish the container after creation')
 @click.argument('cont', metavar='CONTAINER', required=True)
 @click.pass_obj
-def create_from_template(obj: ContextObj, cont, storage_template: str, local_dir=None):
+def create_from_template(obj: ContextObj, cont, storage_template: str, local_dir=None,
+                         no_publish=False):
     """
     Setup storage for a container from a storage template.
     """
@@ -382,7 +407,8 @@ def create_from_template(obj: ContextObj, cont, storage_template: str, local_dir
     try:
         storage_templates = template_manager.get_template_file_by_name(storage_template).templates
 
-        do_create_storage_from_templates(obj.client, container, storage_templates, local_dir)
+        do_create_storage_from_templates(obj.client, container, storage_templates, local_dir,
+                                         no_publish=no_publish)
     except WildlandError as we:
         raise CliError(f'Could not create storage from [{storage_template}] template. {we}') from we
 

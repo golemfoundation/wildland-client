@@ -78,9 +78,11 @@ def strip_yaml(line):
 
     return line.strip('\n -')
 
+
 def get_container_uuid_from_uuid_path(uuid_path):
     match = re.search('/.uuid/(.+?)$', uuid_path)
     return match.group(1) if match else ''
+
 
 @pytest.fixture
 def cleanup():
@@ -101,6 +103,7 @@ def test_version(base_dir):
 
 
 # Users
+
 
 def test_user_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1395,6 +1398,24 @@ def test_container_publish_unpublish(cli, tmp_path):
     assert not tuple(tmp_path.glob('*.yaml'))
 
 
+def test_container_delete_unpublish(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--manifest-pattern', '/*.yaml')
+
+    cli('container', 'publish', 'Container')
+
+    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+
+    cli('container', 'delete', 'Container')
+
+    assert not tuple(tmp_path.glob('*.yaml'))
+
+
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
@@ -1423,6 +1444,25 @@ def test_container_publish_rewrite(cli, tmp_path):
             else:
                 assert False
 
+
+def test_container_publish_auto(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'InfraContainer', '--path', '/PATH', '--update-user')
+    assert not tuple(tmp_path.glob('*.yaml'))  # no infrastructure yet
+
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'InfraContainer',
+        '--inline',
+        '--manifest-pattern', '/*.yaml')
+
+    cli('container', 'create', 'NoPublic', '--path', '/PATH', '--no-publish')
+    assert not tuple(tmp_path.glob('*.yaml'))  # --no-publish
+
+    cli('container', 'create', 'Public', '--path', '/PATH')
+    assert len(tuple(tmp_path.glob('*.yaml'))) == 1  # auto published
+
+
 def test_container_republish_paths(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container',
@@ -1443,10 +1483,10 @@ def test_container_republish_paths(cli, tmp_path):
     assert (tmp_path / 'manifests/PA/TH2.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH3.yaml').exists()
 
-    cli('container', 'modify', 'del-path', 'Container', '--path', '/PA/TH2')
+    # --no-publish', modification in progress
+    cli('container', 'modify', 'del-path', 'Container', '--path', '/PA/TH2', '--no-publish')
+    # auto republishing
     cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH3')
-
-    cli('container', 'publish', 'Container')
 
     assert (tmp_path / 'manifests/PA/TH1.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
@@ -1756,7 +1796,7 @@ def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
     ]
 
 
-def test_container_mount_catalog_err(cli, base_dir, control_client):
+def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client):
     catalog_dir = base_dir / 'catalog'
     catalog_dir.mkdir()
 
@@ -1794,6 +1834,8 @@ def test_container_mount_catalog_err(cli, base_dir, control_client):
     control_client.expect('paths', {})
     control_client.expect('mount')
 
+    output = []
+    monkeypatch.setattr('click.echo', output.append)
     cli('container', 'mount', ':*:')
 
     command = control_client.calls['mount']['items']
@@ -1829,7 +1871,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
         f.seek(0)
         f.write('signature: |\n  dummy.0xbbb\n---\n')
         f.write(yaml.safe_dump(documents[1]))
-    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH')
+    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH', '--no-publish')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
@@ -1907,7 +1949,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
         f.seek(0)
         f.write('signature: |\n  dummy.0xbbb\n---\n')
         f.write(yaml.safe_dump(documents[1]))
-    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH')
+    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH', '--no-publish')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
 
@@ -3651,6 +3693,34 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
 
 def test_forest_mount(cli, tmp_path, base_dir, control_client):
     _setup_forest_and_mount(cli, tmp_path, base_dir, control_client)
+
+
+def test_forest_mount_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location',
+        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+    cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
+        'my_awesome_capsule', "--category", "/testing", "--storage-template",
+        "rw", '--no-encrypt-manifest')
+    cli('bridge', 'create', '--owner', 'Alice', '--ref-user', 'Alice',
+        '--ref-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
+        '--ref-user-path', '/forests/Alice', 'self_bridge')
+
+    cli('container', 'create', 'unpublished')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
+    cli('container', 'publish', 'mycapsule')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    output = []
+    monkeypatch.setattr('click.echo', output.append)
+    cli('forest', 'mount', ':/forests/Alice:')
+    assert any((o.startswith("WARN: Some local containers (or container updates) "
+                             "are not published:") for o in output))
 
 
 def test_forest_unmount(cli, tmp_path, base_dir, control_client):
