@@ -35,6 +35,7 @@ import yaml
 
 from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
+from ..cli.cli_container import _resolve_container
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, Manifest
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
@@ -1248,6 +1249,62 @@ def test_container_set_title(cli, base_dir):
 
     cli('container', 'modify', 'set-title', 'Container', '--title', 'another thing')
     with open(manifest_path) as f:
+        data = f.read()
+    assert 'title: another thing' in data
+
+
+def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
+    # Create local forest so that container can be published somewhere
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('storage-template', 'create', 'local', '--location', base_dir, 'local-catalog',
+        '--manifest-pattern', '/{path}.yaml')
+    cli('container', 'create', 'Catalog', '--template', 'local-catalog',
+        '--update-user', '--no-encrypt-manifest')
+
+    with open(base_dir / 'containers/Catalog.container.yaml') as f:
+        documents = list(load_yaml_all(f))
+
+    catalog_dir = Path(documents[1]['backends']['storage'][0]['location'])
+
+    # Create the container (with auto-publish)
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    # Modify it right away (and auto-re-publish)
+    cli('container', 'modify', 'set-title', 'Container.container', '--title', 'something')
+
+    # Find it using forest catalog path
+    with open(catalog_dir / 'PATH.yaml') as f:
+        data = f.read()
+    assert 'title: something' in data
+
+    # Mock inbuilt string to pass startswith() check.
+    # This is done to allow testing the is_url() logic but with local file.
+    #
+    # def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
+    #    if client.is_url(path) and not path.startswith('file:'):
+    class MyStr(str):
+        def __init__(self, *_args):
+            super().__init__()
+            self.visited = False
+
+        def startswith(self, _str):
+            if _str == 'file:' and not self.visited:
+                self.visited = True
+                return False
+
+            return super().startswith(_str)
+
+    def _cb(ctx, path, callback, **callback_kwargs):
+        return _resolve_container(ctx, MyStr(path), callback, **callback_kwargs)
+
+    monkeypatch.setattr("wildland.cli.cli_container._resolve_container", _cb)
+
+    # Modify it again, although this time use file:// URL (and auto-re-publish)
+    cli('container', 'modify', 'set-title', '--title', 'another thing',
+        f'file://localhost/{base_dir}/containers/Container.container.yaml')
+
+    # Check if it was re-published with updated title
+    with open(catalog_dir / 'PATH.yaml') as f:
         data = f.read()
     assert 'title: another thing' in data
 
