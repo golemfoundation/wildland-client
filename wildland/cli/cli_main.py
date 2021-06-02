@@ -281,7 +281,7 @@ def _print_container_shortened_paths(paths: List[PurePosixPath], categories: Lis
     """
     def _is_relevant_path(path: PurePosixPath):
         path_str = str(path)
-        if any(path_str.startswith(c) for c in ['/.users/', '/.backends/', '/.uuid/']):
+        if any(path_str.startswith(c) for c in ('/.users/', '/.backends/', '/.uuid/')):
             return False
         return all(not path_str.startswith(str(c)) for c in categories)
 
