@@ -45,7 +45,7 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
                  trusted: bool,
                  params: Dict[str, Any],
                  client,
-                 base_url: Optional[str] = None,
+                 public_url: Optional[str] = None,
                  manifest: Manifest = None,
                  access: Optional[List[dict]] = None):
         super().__init__()
@@ -54,7 +54,7 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         self.container_path = container_path
         self.params = deepcopy(params)
         self.trusted = trusted
-        self.base_url = base_url
+        self.public_url = public_url
         self.manifest = manifest
         self.access = deepcopy(access)
         self.primary = self.params.get('primary', False)
@@ -83,8 +83,8 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
                 f"trusted={self.trusted!r}",
                 f"manifest={self.manifest!r}"
             ]
-            if self.base_url:
-                array_repr += [f"base_url={self.base_url!r}"]
+            if self.public_url:
+                array_repr += [f"public_url={self.public_url!r}"]
             if self.local_path:
                 array_repr += [f"local_path={self.local_path!r}"]
             if self.access:
@@ -153,7 +153,7 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             storage_type=fields['type'],
             container_path=PurePosixPath(fields['container-path']),
             trusted=fields.get('trusted', False),
-            base_url=fields.get('base-url'),
+            public_url=fields.get('public-url'),
             params=params,
             client=client,
             manifest=manifest,
@@ -172,8 +172,8 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
         if self.trusted:
             fields['trusted'] = True
-        if self.base_url:
-            fields['base-url'] = self.base_url
+        if self.public_url:
+            fields['public-url'] = self.public_url
         if self.access:
             fields['access'] = deepcopy(self.access)
 

@@ -70,7 +70,7 @@ def _make_create_command(backend: Type[StorageBackend]):
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
-        click.Option(['--base-url'], metavar='BASEURL',
+        click.Option(['--public-url'], metavar='PUBLICURL',
                      help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help="limit access to this storage to the provided users. "
@@ -113,7 +113,7 @@ def _do_create(
         trusted,
         inline,
         watcher_interval,
-        base_url,
+        public_url,
         access,
         encrypt_manifest,
         no_publish,
@@ -139,8 +139,8 @@ def _do_create(
         params['watcher-interval'] = int(watcher_interval)
 
     params['backend-id'] = str(uuid.uuid4())
-    if base_url is not None:
-        params['base-url'] = base_url
+    if public_url is not None:
+        params['public-url'] = public_url
 
     if not encrypt_manifest:
         access = [{'user': '*'}]
