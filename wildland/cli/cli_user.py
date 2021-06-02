@@ -21,7 +21,7 @@
 Manage users
 """
 from copy import deepcopy
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, Dict
 from pathlib import PurePosixPath, Path
 import logging
 import binascii
@@ -546,14 +546,38 @@ def user_refresh(obj: ContextObj, name):
     """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
-    user = obj.client.load_object_from_name(WildlandObject.Type.USER, name) if name else None
+    if name:
+        user_list = [obj.client.load_object_from_name(WildlandObject.Type.USER, name)]
+    else:
+        user_list = obj.client.load_all(WildlandObject.Type.USER)
 
+    refresh_users(obj, user_list)
+
+
+def refresh_users(obj: ContextObj, user_list: Optional[List[User]] = None):
+    """
+    Refresh user manifests. Users can come from user_list parameter, or, if empty, all users
+    referred to by local bridges will be refreshed.
+    """
+    user_fingerprints = [user.owner for user in user_list] if user_list is not None else None
+
+    users_to_refresh: Dict[str, Union[dict, str]] = dict()
     for bridge in obj.client.load_all(WildlandObject.Type.BRIDGE):
-        if user and user.owner != obj.client.session.sig.fingerprint(bridge.user_pubkey):
+        if user_fingerprints is not None and \
+                obj.client.session.sig.fingerprint(bridge.user_pubkey) not in user_fingerprints:
             continue
+        if bridge.owner in users_to_refresh:
+            # this is a heuristic to avoid downloading the same user multiple times, but
+            # preferring link object to bare URL
+            if isinstance(users_to_refresh[bridge.owner], str) and \
+                    isinstance(bridge.user_location, dict):
+                users_to_refresh[bridge.owner] = bridge.user_location
+        else:
+            users_to_refresh[bridge.owner] = bridge.user_location
 
+    for owner, location in users_to_refresh.items():
         try:
-            _do_import_manifest(obj, bridge.user_location, bridge.owner, force=True)
+            _do_import_manifest(obj, location, owner, force=True)
         except WildlandError as ex:
             click.echo(f"Error while refreshing bridge: {ex}")
 

@@ -3541,7 +3541,20 @@ def test_user_refresh(cli, base_dir, tmpdir):
     destination = tmpdir / 'Alice.user.yaml'
     destination.write(test_data)
 
+    # TODO: this is a very ugly way of putting a link obj into a bridge,
+    # it should be replaced by native link object support for wl u import
     cli('user', 'import', str(destination))
+    bridge_destination = base_dir / 'bridges/Alice.bridge.yaml'
+
+    link_data = f'''
+  storage:
+    type: local
+    location: {str(tmpdir)}
+  object: link
+  file: /Alice.user.yaml'''
+    bridge_text = bridge_destination.read_text()
+    bridge_text = bridge_text.replace('file://localhost' + str(destination), link_data)
+    bridge_destination.write_text(bridge_text)
 
     user_data = (base_dir / 'users/Alice.user.yaml').read_text()
     assert 'paths:\n- /FOO' in user_data
