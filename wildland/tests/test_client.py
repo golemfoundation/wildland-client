@@ -78,10 +78,10 @@ def test_add_storage(client, owner):
     assert len(container._storage_cache) == 1
 
     # but changes should be reflected
-    storage.base_url = '/'
+    storage.public_url = '/'
     client.add_storage_to_container(container, storage)
     assert len(container._storage_cache) == 1
-    assert container._storage_cache[0].storage['base-url'] == '/'
+    assert container._storage_cache[0].storage['public-url'] == '/'
 
 
 def test_add_storage_not_inline(client, owner):
@@ -110,10 +110,10 @@ def test_add_storage_not_inline(client, owner):
     assert len(container._storage_cache) == 1
 
     # but changes should be reflected
-    storage.base_url = '/BASEURL'
+    storage.public_url = '/PUBLICURL'
     client.add_storage_to_container(container, storage)
     assert len(container._storage_cache) == 1
-    assert '/BASEURL' in storage_path.read_text()
+    assert '/PUBLICURL' in storage_path.read_text()
 
 
 def test_add_storage_link(client, owner, tmpdir):
@@ -145,7 +145,7 @@ def test_add_storage_link(client, owner, tmpdir):
     client.save_new_object(WildlandObject.Type.CONTAINER, container, "container")
 
     # reflect changes
-    storage.base_url = '/BASEURL'
+    storage.public_url = '/PUBLICURL'
     client.add_storage_to_container(container, storage)
     assert len(container._storage_cache) == 1
-    assert '/BASEURL' in storage_path.read_text()
+    assert '/PUBLICURL' in storage_path.read_text()

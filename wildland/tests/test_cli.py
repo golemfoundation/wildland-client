@@ -1425,7 +1425,7 @@ def test_container_publish_rewrite(cli, tmp_path):
         '--container', 'Container',
         '--no-inline',
         '--manifest-pattern', '/m-*.yaml',
-        '--base-url', 'https://example.invalid/')
+        '--public-url', 'https://example.invalid/')
 
     cli('container', 'publish', 'Container')
 
@@ -1475,7 +1475,7 @@ def test_container_republish_paths(cli, tmp_path):
         '--container', 'Container',
         '--no-inline',
         '--manifest-pattern', '/manifests/{path}.yaml',
-        '--base-url', 'https://example.invalid/')
+        '--public-url', 'https://example.invalid/')
 
     cli('container', 'publish', 'Container')
 
@@ -3803,7 +3803,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
     cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--base-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
@@ -3823,7 +3823,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
 
     assert len(catalog) == 2
 
-    # Without base-url thus storage template type (local)
+    # Without public-url thus storage template type (local)
     assert catalog[0]['object'] == 'link'
     assert catalog[0]['storage']['type'] == 'local'
     assert catalog[0]['storage']['location'] == f'{uuid_dir}'
@@ -3837,7 +3837,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('storage-template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
     cli('storage-template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--base-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', 'Alice', 'forest-tpl')
 
@@ -3857,7 +3857,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
 
     assert len(catalog) == 2
 
-    # Without base-url thus storage template type (local)
+    # Without public-url thus storage template type (local)
     assert catalog[0]['object'] == 'link'
     assert 'type: local' in catalog[0]['storage']['encrypted']['encrypted-data']
     assert f'location: {uuid_dir}' in catalog[0]['storage']['encrypted']['encrypted-data']

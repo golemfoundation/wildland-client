@@ -43,7 +43,7 @@ class Publisher:
     # Things that (we assume) didn't change:
     # - container uuid,
     # - manifest-pattern,
-    # - base-url.
+    # - public-url.
 
     """
     A behavior for publishing and unpublishing manifests

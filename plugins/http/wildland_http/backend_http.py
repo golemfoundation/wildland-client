@@ -98,8 +98,8 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
         self.url = urlparse(self.params['url'])
         self.read_only = True
 
-        self.base_url = self.params['url']
-        self.base_path = PurePosixPath(urlparse(self.base_url).path or '/')
+        self.public_url = self.params['url']
+        self.base_path = PurePosixPath(urlparse(self.public_url).path or '/')
 
     @classmethod
     def cli_options(cls):
@@ -129,7 +129,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
             # as not every webserver will reply with missing trailing slash
             full_path += '/'
 
-        return urljoin(self.base_url, quote(full_path))
+        return urljoin(self.public_url, quote(full_path))
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
         url = self.make_url(path, is_dir=True)

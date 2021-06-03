@@ -234,7 +234,7 @@ def _boostrap_forest(ctx: click.Context,
 
             link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.yaml'}
 
-            if not storage.base_url:
+            if not storage.public_url:
                 fields = storage.to_manifest_fields(inline=True)
                 if not storage.access:
                     fields['access'] = access_list
@@ -242,7 +242,7 @@ def _boostrap_forest(ctx: click.Context,
                 fields = {
                     'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
                     'backend-id': str(uuid.uuid4()), 'owner': catalog_container.owner,
-                    'url': storage.base_url, 'access': storage.access or access_list}
+                    'url': storage.public_url, 'access': storage.access or access_list}
 
             link_obj['storage'] = fields
 

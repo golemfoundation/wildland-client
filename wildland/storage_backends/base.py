@@ -679,9 +679,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Return a URL, under which a file can be accessed.
         """
         assert not path.is_absolute()
-        if 'base-url' not in self.params:
+        if 'public-url' not in self.params:
             return None
-        return posixpath.join(self.params['base-url'],
+        return posixpath.join(self.params['public-url'],
             urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
 
     def get_path_for_url(self, url):
@@ -690,10 +690,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
         URL can be accessed.
         """
         # TODO unquote?
-        assert 'base-url' in self.params
-        assert url.startswith(self.params['base-url'])
+        assert 'public-url' in self.params
+        assert url.startswith(self.params['public-url'])
         return pathlib.PurePosixPath(
-            url[len(self.params['base-url']):].lstrip('/'))
+            url[len(self.params['public-url']):].lstrip('/'))
 
 
 def _inner_proxy(method_name):

@@ -58,7 +58,7 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
                           "By default the @default owner is used."),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
-        click.Option(['--base-url'], metavar='URL', required=False,
+        click.Option(['--public-url'], metavar='URL', required=False,
                      help='Set public base URL.'),
         click.Option(['--read-only'], metavar='BOOL', is_flag=True,
                      help='Mark storage as read-only.'),
@@ -91,7 +91,7 @@ def _do_create(
         create: bool,
         name,
         watcher_interval,
-        base_url,
+        public_url,
         read_only,
         access,
         **data):
@@ -135,8 +135,8 @@ def _do_create(
                                              '{{ local_dir if local_dir is defined else "/" }}' + \
                                              '/{{ uuid }}'
 
-    if base_url:
-        params['base-url'] = base_url.rstrip('/') + \
+    if public_url:
+        params['public-url'] = public_url.rstrip('/') + \
                                 '{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}'
 
     # remove default, non-required values

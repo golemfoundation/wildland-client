@@ -137,8 +137,8 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         self.auth = requests.auth.HTTPBasicAuth(
             credentials['login'], credentials['password'])
 
-        self.base_url = self.params['url']
-        self.base_path = PurePosixPath(urlparse(self.base_url).path)
+        self.public_url = self.params['url']
+        self.base_path = PurePosixPath(urlparse(self.public_url).path)
 
     @classmethod
     def cli_options(cls):
@@ -213,7 +213,7 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         """
 
         full_path = self.base_path / path
-        return urljoin(self.base_url, quote(str(full_path)))
+        return urljoin(self.public_url, quote(str(full_path)))
 
     def open(self, path: PurePosixPath, flags: int):
         attr = self.getattr(path)
@@ -249,7 +249,7 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         )
 
         # WebDAV spec (RFC 4918) chapter 9.3 says code 409 "Conflict" is non-existing parent,
-        # try to create it (even if above base_url) and retry
+        # try to create it (even if above public_url) and retry
         if resp.status_code == 409 and urlparse(url).path != '/':
             self._mkdir_with_parent(path / '..')
             resp = requests.request(
