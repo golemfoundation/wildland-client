@@ -31,6 +31,7 @@ from typing import cast, Callable, Iterable, Optional, Tuple
 import click
 
 from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.errors import HttpError
 from treelib import Tree
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile
@@ -224,10 +225,10 @@ class DriveStorageBackend(
             metadata = self.client.get_metadata(path)
             attr = self._get_attr_from_metadata(metadata)
             return DriveFile(self.client, path, attr, self.clear_cache)
-        except Exception as e:
-            if e.code == "404":
+        except HttpError as e:
+            if e.resp.status == "404":
                 raise FileNotFoundError(errno.ENOENT, str(path)) from e
-            if e.code == "403":
+            if e.resp.status == "403":
                 raise PermissionError(
                     errno.EACCES, f"No permissions to read file [{path}]"
                 ) from e

@@ -1,3 +1,7 @@
+.. option:: --location <absolute_path>
+
+   Absolute path to root directory in your Google Drive account.
+
 .. option:: --credentials <credentials>
 
    Google Drive Client Congifuration Object. You can generate it in Google Developer Console. Required.
