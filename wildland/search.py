@@ -437,6 +437,9 @@ class Search:
                 continue
 
             if isinstance(container_or_bridge, Container):
+                if container_or_bridge == step.container:
+                    # manifests catalog published into itself
+                    container_or_bridge.is_manifests_catalog = True
                 logger.info('%s: container manifest: %s', part, subcontainer_data)
                 yield from self._container_step(
                     step, part, container_or_bridge)

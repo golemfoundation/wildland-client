@@ -601,7 +601,8 @@ def prepare_mount(obj: ContextObj,
     :param only_subcontainers: only mount subcontainers
     :return: combined 'params' argument
     """
-    if with_subcontainers:
+    # avoid iterating manifests catalog recursively, again
+    if with_subcontainers and not container.is_manifests_catalog:
         subcontainers = list(obj.client.all_subcontainers(container))
     else:
         subcontainers = []

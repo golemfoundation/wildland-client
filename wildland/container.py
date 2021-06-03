@@ -83,6 +83,11 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         self.manifest = manifest
         self.access = deepcopy(access)
 
+        #: whether this container is a manifests catalog, loaded by iterating this
+        #: manifests catalog itself; this property is set externally by the
+        #: Search class, when loading a container by iterating a manifest catalog
+        self.is_manifests_catalog = False
+
         self._uuid_path = self._ensure_uuid()
         self._storage_cache = [_StorageCache(self.fill_storage_fields(b), None)
                                for b in deepcopy(backends)]
