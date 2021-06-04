@@ -36,6 +36,10 @@ class LocalProxy(StorageBackend):
         assert self.local
         return self.local.open(path, flags)
 
+    def create(self, path: PurePosixPath, flags: int, mode: int=0o666):
+        assert self.local
+        return self.local.create(path, flags, mode)
+
     def mount(self):
         """
         mount the file system
