@@ -28,7 +28,7 @@ from copy import deepcopy
 import logging
 
 from wildland.wildland_object.wildland_object import WildlandObject
-from .manifest.manifest import Manifest, ManifestError
+from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 from .exc import WildlandError
 
@@ -51,9 +51,16 @@ class _CatalogCache:
             try:
                 self.cached_object = client.load_object_from_url_or_dict(
                     WildlandObject.Type.CONTAINER, self.manifest, owner)
-            except (ManifestError, WildlandError) as ex:
+            except (PermissionError, FileNotFoundError) as ex:
+                # Those errors lead to different ways of coping with the error and are caught in
+                # search.py
                 logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
-                return None
+                raise ex
+            except Exception as ex:  # pylint: disable=broad-except
+                # All other errors should not cause WL to completely give up, and we cannot
+                # anticipate all possible kinds of error
+                logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
+                raise WildlandError(f'Cannot load manifests catalog entry: {str(ex)}') from ex
         return self.cached_object
 
     def __eq__(self, other):
@@ -137,7 +144,10 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         """Load and cache all of user's manifests catalog."""
         assert self.client
         for cached_object in self._manifests_catalog:
-            container = cached_object.get(self.client, self.owner)
+            try:
+                container = cached_object.get(self.client, self.owner)
+            except WildlandError:
+                continue
             if container:
                 yield container
 
