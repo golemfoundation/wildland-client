@@ -115,7 +115,8 @@ def _do_mount_containers(obj: ContextObj, to_mount):
                     remount=False, with_subcontainers=True, subcontainer_of=None, verbose=False,
                     only_subcontainers=False))
             except WildlandError as we:
-                failed.append(f'Container {name} cannot be mounted: {we}')
+                failed.append(
+                    f'Container {container} (expanded from {name}) cannot be mounted: {we}')
                 continue
 
     click.echo(f'Mounting {len(commands)} containers.')
