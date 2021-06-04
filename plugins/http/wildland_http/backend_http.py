@@ -48,15 +48,17 @@ class PagedHttpFile(PagedFile):
     """
 
     def __init__(self,
+                 session,
                  url: str,
                  attr):
         super().__init__(attr)
+        self.session = session
         self.url = url
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
 
-        resp = requests.request(
+        resp = self.session.request(
             method='GET',
             url=self.url,
             headers={
@@ -97,6 +99,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
 
         self.url = urlparse(self.params['url'])
         self.read_only = True
+        self.session = requests.session()
 
         self.public_url = self.params['url']
         self.base_path = PurePosixPath(urlparse(self.public_url).path or '/')
@@ -133,7 +136,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
         url = self.make_url(path, is_dir=True)
-        resp = requests.request(
+        resp = self.session.request(
             method='GET',
             url=url,
             headers={
@@ -205,11 +208,10 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
     def open(self, path: PurePosixPath, _flags: int) -> PagedHttpFile:
         attr = self.getattr(path)
         url = self.make_url(path, is_dir=attr.is_dir())
-        return PagedHttpFile(url, attr)
+        return PagedHttpFile(self.session, url, attr)
 
-    @staticmethod
-    def _get_single_file_attr(url: str) -> Attr:
-        resp = requests.request(
+    def _get_single_file_attr(self, url: str) -> Attr:
+        resp = self.session.request(
             method='HEAD',
             url=url,
             headers={
