@@ -93,6 +93,7 @@ encrypted-test:
     - ./ci/ci-encrypted
 
 dropbox-test:
+  allow_failure: true
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
