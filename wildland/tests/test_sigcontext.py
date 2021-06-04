@@ -90,6 +90,12 @@ def test_verify_key_not_loaded(sig):
     with pytest.raises(SigError):
         sig.sign(owner, test_data)
 
+    # when local keys can be used, we can access the key (just for sign, not for encryption)
+    sig.use_local_keys = True
+    signature = sig.sign(owner, test_data)
+
+    assert sig.verify(signature, test_data) == owner
+
 
 def test_verify_wrong_data(sig, owner):
     test_data = b'hello world'

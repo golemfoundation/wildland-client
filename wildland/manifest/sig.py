@@ -460,6 +460,10 @@ class SodiumSigContext(SigContext):
         """
         if owner in self.keys:
             key_candidates = [owner]
+        elif self.use_local_keys:
+            logger.warning('Unknown owner %s: will attempt to load key from local key '
+                           'directory.', owner)
+            key_candidates = [owner]
         else:
             key_candidates = []
 
