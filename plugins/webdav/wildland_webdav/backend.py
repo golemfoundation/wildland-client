@@ -44,27 +44,25 @@ class WebdavFile(FullBufferedFile):
     A buffered WebDAV file.
     """
 
-    def __init__(self, auth, url: str, attr: Attr, clear_cache_callback):
+    def __init__(self, session, url: str, attr: Attr, clear_cache_callback):
         super().__init__(attr, clear_cache_callback)
-        self.auth = auth
+        self.session = session
         self.url = url
 
     def read_full(self) -> bytes:
-        resp = requests.request(
+        resp = self.session.request(
             method='GET',
             url=self.url,
             headers={'Accept': '*/*'},
-            auth=self.auth,
         )
         resp.raise_for_status()
         return resp.content
 
     def write_full(self, data: bytes) -> int:
-        resp = requests.request(
+        resp = self.session.request(
             method='PUT',
             url=self.url,
             data=data,
-            auth=self.auth,
         )
         resp.raise_for_status()
         return len(data)
@@ -75,23 +73,22 @@ class PagedWebdavFile(PagedFile):
     A read-only paged WebDAV file.
     """
 
-    def __init__(self, auth, url: str,
+    def __init__(self, session, url: str,
                  attr: Attr):
         super().__init__(attr)
-        self.auth = auth
+        self.session = session
         self.url = url
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
 
-        resp = requests.request(
+        resp = self.session.request(
             method='GET',
             url=self.url,
             headers={
                 'Accept': '*/*',
                 'Range': range_header
             },
-            auth=self.auth,
         )
         resp.raise_for_status()
         return resp.content
@@ -136,9 +133,11 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         credentials = self.params['credentials']
         self.auth = requests.auth.HTTPBasicAuth(
             credentials['login'], credentials['password'])
+        self.session = requests.session()
+        self.session.auth = self.auth
 
-        self.base_url = self.params['url']
-        self.base_path = PurePosixPath(urlparse(self.base_url).path)
+        self.public_url = self.params['url']
+        self.base_path = PurePosixPath(urlparse(self.public_url).path)
 
     @classmethod
     def cli_options(cls):
@@ -167,11 +166,10 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
     def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
         path = PurePosixPath('.')
         depth = 'infinity'
-        resp = requests.request(
+        resp = self.session.request(
             method='PROPFIND',
             url=self.make_url(path),
             headers={'Accept': '*/*', 'Depth': depth},
-            auth=self.auth,
         )
         resp.raise_for_status()
 
@@ -213,49 +211,45 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         """
 
         full_path = self.base_path / path
-        return urljoin(self.base_url, quote(str(full_path)))
+        return urljoin(self.public_url, quote(str(full_path)))
 
     def open(self, path: PurePosixPath, flags: int):
         attr = self.getattr(path)
 
         if flags & (os.O_WRONLY | os.O_RDWR):
-            return WebdavFile(self.auth, self.make_url(path), attr, self.clear_cache)
+            return WebdavFile(self.session, self.make_url(path), attr, self.clear_cache)
 
-        return PagedWebdavFile(self.auth, self.make_url(path), attr)
+        return PagedWebdavFile(self.session, self.make_url(path), attr)
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666):
-        resp = requests.request(
-            method='PUT', url=self.make_url(path), data=b'',
-            auth=self.auth)
+        resp = self.session.request(
+            method='PUT', url=self.make_url(path), data=b'')
         resp.raise_for_status()
         self.clear_cache()
         attr = self.getattr(path)
-        return WebdavFile(self.auth, self.make_url(path), attr, self.clear_cache)
+        return WebdavFile(self.session, self.make_url(path), attr, self.clear_cache)
 
     def truncate(self, path: PurePosixPath, length: int):
         if length > 0:
             raise NotImplementedError()
-        resp = requests.request(
-            method='PUT', url=self.make_url(path), data=b'',
-            auth=self.auth)
+        resp = self.session.request(
+            method='PUT', url=self.make_url(path), data=b'')
         resp.raise_for_status()
 
     def _mkdir_with_parent(self, path: PurePosixPath):
         url = self.make_url(path)
-        resp = requests.request(
+        resp = self.session.request(
             method='MKCOL',
             url=url,
-            auth=self.auth,
         )
 
         # WebDAV spec (RFC 4918) chapter 9.3 says code 409 "Conflict" is non-existing parent,
-        # try to create it (even if above base_url) and retry
+        # try to create it (even if above public_url) and retry
         if resp.status_code == 409 and urlparse(url).path != '/':
             self._mkdir_with_parent(path / '..')
-            resp = requests.request(
+            resp = self.session.request(
                 method='MKCOL',
                 url=url,
-                auth=self.auth,
             )
 
         # The endpoint (URL) doesn't map to any dav resource. We most likely went to "deep" and
@@ -270,10 +264,9 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         self.clear_cache()
 
     def unlink(self, path: PurePosixPath):
-        resp = requests.request(
+        resp = self.session.request(
             method='DELETE',
             url=self.make_url(path),
-            auth=self.auth,
         )
         resp.raise_for_status()
         self.clear_cache()

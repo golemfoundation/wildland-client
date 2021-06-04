@@ -33,7 +33,7 @@ from wildland.fs_client import WildlandFSClient, WatchEvent
 from wildland.search import Search
 from wildland.storage import Storage
 from wildland.wlpath import WildlandPath
-from wildland.manifest.manifest import WildlandObjectType
+from wildland.wildland_object.wildland_object import WildlandObject
 
 logger = logging.getLogger('remounter')
 
@@ -50,17 +50,19 @@ class Remounter:
     mount it new, or remount relevant storages).
 
     When a Wildland Path watching is requested, it is resolved to a list of
-    manifests in relevant container infrastructures, using
+    manifests in relevant container manifests-catalog, using
     :py:meth:`Search.get_watch_params`. If some of those containers are not mounted,
     the function returns also a list of containers to mount. Those containers are mounted
     only at "backend unique" paths (in /.users/... hierarchy) to not pollute user view.
     Then, they are monitored similarly to normal files like described above, with the difference
     that a file change event results in a Wildland path resolve again, instead of loading
     just changed file. This way, it will detect any new/removed containers if the change was to
-    infrastructure container like `manifest-pattern` field, or redirecting to a different storage.
+    a container in manifests catalog like `manifest-pattern` field, or redirecting to a
+    different storage.
 
-    Currently this class does not unmount infrastructure containers that are no longer needed
-    (neither because of some infrastructure change, nor because of simply terminating remounter).
+    Currently this class does not unmount containers from manifests catalog that are no longer
+    needed (neither because of some manifest catalog change, nor because of simply
+    terminating remounter).
     """
 
     def __init__(self, client: Client, fs_client: WildlandFSClient,
@@ -238,7 +240,7 @@ class Remounter:
         if event.event_type in ['create', 'modify']:
             local_path = self.fs_client.mount_dir / event.path.relative_to('/')
             container = self.client.load_object_from_file_path(
-                WildlandObjectType.CONTAINER, local_path)
+                WildlandObject.Type.CONTAINER, local_path)
 
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_container_path(

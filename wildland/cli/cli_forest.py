@@ -20,12 +20,13 @@ Manage bridges
 """
 
 from pathlib import Path, PurePosixPath
-from typing import List
+from typing import List, Dict, Any
 
 import os
 import uuid
 import click
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..storage import StorageBackend
@@ -34,11 +35,11 @@ from ..user import User
 from ..publish import Publisher
 from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageTemplate
-from ..manifest.manifest import WildlandObjectType
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_field
 from .cli_container import _mount as mount_container
 from .cli_container import _unmount as unmount_container
+from .cli_user import refresh_users
 from ..exc import WildlandError
 
 
@@ -56,8 +57,10 @@ def forest_():
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all forest containers, including those '
                    'who did not need to be changed')
+@click.option('--no-refresh-users', '-n', is_flag=True, default=False, show_default=True,
+              help="Do not refresh remote users when mounting")
 @click.pass_context
-def mount(ctx: click.Context, forest_names, save:bool, list_all: bool):
+def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refresh_users: bool):
     """
     Mount a forest given by name or path to manifest. Repeat the argument to
     mount multiple forests.
@@ -73,6 +76,13 @@ def mount(ctx: click.Context, forest_names, save:bool, list_all: bool):
                 f'Failed to parse forest name: {forest_name}. '
                 f'For example, ":/forests/User:" is a valid forest name')
         forests.append(f'{forest_name}*:')
+
+    # TODO: in versions v.0.0.2 or up
+    # Refresh all local users; this could be optimized by refactoring search.py itself
+    # to only use remote users, not local
+    if not no_refresh_users:
+        refresh_users(obj)
+
     mount_container(obj, forests, save=save, list_all=list_all)
 
 
@@ -125,15 +135,15 @@ def create(ctx: click.Context,
 
     Description
 
-    This command creates an infrastructure container for the Forest.
+    This command creates a manifest catalog entry for the Forest.
     The storage template *must* contain at least one read-write storage.
 
     After the container is created, the following steps take place:
 
     \b
-      1. A link object to infrastructure container is generated
-         and appended to USER's manifest.
-      2. USER manifest and instracture manifest are copied to the
+      1. A link object to the container is generated
+         and appended to USER's manifests catalog.
+      2. USER manifest and container manifest are copied to the
          storage from Forest manifests container
 
     """
@@ -154,7 +164,7 @@ def _boostrap_forest(ctx: click.Context,
 
     # Load users manifests
     try:
-        forest_owner = obj.client.load_object_from_name(WildlandObjectType.USER, user)
+        forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
@@ -167,7 +177,7 @@ def _boostrap_forest(ctx: click.Context,
         else:
             try:
                 access_list = [{'user': obj.client.load_object_from_name(
-                                WildlandObjectType.USER, user_name).owner}
+                                WildlandObject.Type.USER, user_name).owner}
                                for user_name in access]
             except WildlandError as we:
                 raise CliError(f'User could not be loaded. {we}') from we
@@ -176,84 +186,84 @@ def _boostrap_forest(ctx: click.Context,
 
     storage_templates = _resolve_storage_templates(obj, manifest_storage_template_name)
 
-    infra_container = None
+    catalog_container = None
 
     try:
-        infra_container = _create_container(obj, forest_owner, [Path('/.manifests')],
-                                            f'{user}-forest-infra', access_list,
+        catalog_container = _create_container(obj, forest_owner, [Path('/.manifests')],
+                                            f'{user}-forest-catalog', access_list,
                                             storage_templates, manifest_local_dir)
 
-        assert infra_container.local_path is not None
+        assert catalog_container.local_path is not None
         assert forest_owner.local_path is not None
 
-        infra_storage = obj.client.select_storage(container=infra_container,
+        catalog_storage = obj.client.select_storage(container=catalog_container,
                                                   predicate=lambda x: x.is_writeable)
 
-        # If a writeable infra storage doesn't have manifest_pattern defined,
+        # If a writeable catalog storage doesn't have manifest_pattern defined,
         # forcibly set manifest pattern for all storages in this container.
         # TODO: improve support for more complex forms of writeable storages and more complex
         # manifest-patterns
 
-        infra_backend = StorageBackend.from_params(infra_storage.params)
-        if isinstance(infra_backend, FileSubcontainersMixin) and \
-                not infra_backend.params.get('manifest-pattern', None):
-            infra_backend.params['manifest-pattern'] = infra_backend.DEFAULT_MANIFEST_PATTERN
+        catalog_backend = StorageBackend.from_params(catalog_storage.params)
+        if isinstance(catalog_backend, FileSubcontainersMixin) and \
+                not catalog_backend.params.get('manifest-pattern', None):
+            catalog_backend.params['manifest-pattern'] = catalog_backend.DEFAULT_MANIFEST_PATTERN
 
         # Additionally ensure that they are going to be stored inline and override old storages
         # completely
-        old_storages = list(obj.client.all_storages(infra_container))
-        infra_container.backends = []
+
+        old_storages = list(obj.client.all_storages(catalog_container))
+
+        catalog_container.clear_storages()
 
         for storage in old_storages:
-            storage.params['manifest-pattern'] = infra_storage.params['manifest-pattern']
-            obj.client.add_storage_to_container(infra_container, storage, inline=True)
-        obj.client.save_object(WildlandObjectType.CONTAINER, infra_container)
+            storage.params['manifest-pattern'] = catalog_storage.params['manifest-pattern']
+            obj.client.add_storage_to_container(catalog_container, storage, inline=True)
 
-        manifests_storage = obj.client.select_storage(container=infra_container,
+        obj.client.save_object(WildlandObject.Type.CONTAINER, catalog_container)
+
+        manifests_storage = obj.client.select_storage(container=catalog_container,
                                                       predicate=lambda x: x.is_writeable)
         manifests_backend = StorageBackend.from_params(manifests_storage.params)
 
-        # Provision manifest storage with infrastructure container
-        _boostrap_manifest(manifests_backend, infra_container.local_path,
+        # Provision manifest storage with container from manifest catalog
+        _boostrap_manifest(manifests_backend, catalog_container.local_path,
                            Path('.manifests.yaml'))
 
-        for storage in obj.client.all_storages(container=infra_container):
-            link_obj = {'object': 'link', 'file': '/.manifests.yaml'}
+        for storage in obj.client.all_storages(container=catalog_container):
 
-            if not storage.access:
-                storage.access = access_list
+            link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.yaml'}
 
-            if not storage.base_url:
-                manifest = storage.to_unsigned_manifest()
+            if not storage.public_url:
+                fields = storage.to_manifest_fields(inline=True)
+                if not storage.access:
+                    fields['access'] = access_list
             else:
-                http_backend = StorageBackend.from_params({
+                fields = {
                     'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
-                    'backend-id': str(uuid.uuid4()), 'owner': infra_container.owner,
-                    'url': storage.base_url, 'access': storage.access
-                })
-                manifest = Manifest.from_fields(http_backend.params)
+                    'backend-id': str(uuid.uuid4()), 'owner': catalog_container.owner,
+                    'url': storage.public_url, 'access': storage.access or access_list}
 
-            manifest.encrypt_and_sign(obj.client.session.sig, encrypt=True)
-            link_obj['storage'] = manifest.fields
+            link_obj['storage'] = fields
 
             modify_manifest(ctx, str(forest_owner.local_path), add_field,
-                            'infrastructures', [link_obj])
+                            'manifests-catalog', [link_obj])
 
-        # Refresh users infrastructures
+        # Refresh user's manifests catalog
         obj.client.recognize_users_and_bridges()
 
         _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
-        Publisher(obj.client, infra_container).publish_container()
+        Publisher(obj.client, catalog_container).publish_container()
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:
-        if infra_container and infra_container.local_path:
-            infra_container.local_path.unlink()
+        if catalog_container and catalog_container.local_path:
+            catalog_container.local_path.unlink()
 
 
 def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]:
     try:
-        tpl_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+        tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
         return tpl_manager.get_template_file_by_name(template_name).templates
     except WildlandError as we:
@@ -269,9 +279,9 @@ def _create_container(obj: ContextObj,
                       storage_local_dir: str = '') -> Container:
 
     container = Container(owner=user.owner, paths=[PurePosixPath(p) for p in container_paths],
-                          backends=[], access=access)
+                          backends=[], client=obj.client, access=access)
 
-    obj.client.save_new_object(WildlandObjectType.CONTAINER, container, container_name)
+    obj.client.save_new_object(WildlandObject.Type.CONTAINER, container, container_name)
     do_create_storage_from_templates(obj.client, container, storage_templates, storage_local_dir)
 
     return container

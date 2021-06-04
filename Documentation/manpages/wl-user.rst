@@ -12,7 +12,7 @@ Synopsis
 | :command:`wl user create <name> --key <key>`
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
-| :command:`wl user modify {add-path|del-path|add-pubkey|del-pubkey|add-infrastructure|del-infrastructure} [...] <file>`
+| :command:`wl user modify {add-path|del-path|add-pubkey|del-pubkey|add-catalog-entry|del-catalog-entry} [...] <file>`
 
 Description
 ===========
@@ -106,10 +106,10 @@ to manifests and Wildland urls to Wildland objects.
 
 For users, will import the user and create an appropriate bridge manifest referencing the user.
 In the process of bridge creation, the client will attempt to mount the imported user's
-infrastructures (if any) and find the imported user's manifest file in `/users/` directory within
-that infrastructure. If successful, it will create a link object to that file and store is in the
-bridge manifest. Otherwise it will use the url or path that was passed as an argument to this
-command.
+manifests catalog containers (if any) and find the imported user's manifest file in `/users/`
+directory within that manifests catalog. If successful, it will create a link obj ct to that file
+and store is in the bridge manifest. Otherwise it will use the url or path that was passed as an
+argument to this command.
 
 For Wildland object path, will import all referenced bridges and their reference users.
 
@@ -165,14 +165,19 @@ Remove Wildland path from a user |~| manifest given by *<file>*.
 
 .. _wl-user-modify-add-pubkey:
 
-:command:`wl user modify add-pubkey --pubkey PUBKEY <file>`
------------------------------------------------------------
+:command:`wl user modify add-pubkey [--pubkey PUBKEY] [--user USER] <file>`
+---------------------------------------------------------------------------
 
 Add public key to a user |~| manifest given by *<file>*.
+Either one pubkey or user is required.
 
 .. option:: --pubkey
 
    Public key to add (the same format as in the public key file). Can be repeated.
+
+.. option:: --user
+
+   User whose public key to add. Can be repeated.
 
 .. _wl-user-modify-del-pubkey:
 
@@ -185,25 +190,25 @@ Remove public key from a user |~| manifest given by *<file>*.
 
    Public key to remove (the same format as in the public key file). Can be repeated.
 
-.. _wl-user-modify-add-infrastructure:
+.. _wl-user-modify-add-catalog-entry:
 
-:command:`wl user modify add-infrastructure --path path <file>`
----------------------------------------------------------------
+:command:`wl user modify add-catalog-entry --path path <file>`
+--------------------------------------------------------------
 
-Add infrastructure uri to a user |~| manifest given by *<file>*.
-
-.. option:: --path
-
-   Infrastructure uri to add. Can be repeated.
-
-.. _wl-user-modify-del-infrastructure:
-
-:command:`wl user modify del-infrastructure --path path <file>`
----------------------------------------------------------------
-
-Remove infrastructure uri from a user |~| manifest given by *<file>*.
+Add uri to a user |~| manifest's catalog given by *<file>*.
 
 .. option:: --path
 
-   Infrastructure uri to remove. Can be repeated.
+   Container uri to add. Can be repeated.
+
+.. _wl-user-modify-del-catalog-entry:
+
+:command:`wl user modify del-catalog-entry --path path <file>`
+--------------------------------------------------------------
+
+Remove uri from a user |~| manifests catalog given by *<file>*.
+
+.. option:: --path
+
+   Container uri to remove. Can be repeated.
 

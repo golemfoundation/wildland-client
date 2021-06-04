@@ -29,16 +29,18 @@ import uuid
 
 import click
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
 from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager, StorageTemplate
+from ..publish import Publisher
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
-from ..manifest.manifest import ManifestError, WildlandObjectType
+from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
 
 
@@ -68,7 +70,7 @@ def _make_create_command(backend: Type[StorageBackend]):
                      'manifest, instead of saving it to a file. Default: inline.'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
-        click.Option(['--base-url'], metavar='BASEURL',
+        click.Option(['--public-url'], metavar='PUBLICURL',
                      help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help="limit access to this storage to the provided users. "
@@ -78,6 +80,8 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
                           "and --access cannot be used. For inline storage, "
                           "container manifest might still be encrypted."),
+        click.Option(['--no-publish'], is_flag=True,
+                            help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -109,14 +113,15 @@ def _do_create(
         trusted,
         inline,
         watcher_interval,
-        base_url,
+        public_url,
         access,
         encrypt_manifest,
+        no_publish,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
 
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, container)
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
     if not container.local_path:
         raise WildlandError('Need a local container')
 
@@ -134,14 +139,14 @@ def _do_create(
         params['watcher-interval'] = int(watcher_interval)
 
     params['backend-id'] = str(uuid.uuid4())
-    if base_url is not None:
-        params['base-url'] = base_url
+    if public_url is not None:
+        params['public-url'] = public_url
 
     if not encrypt_manifest:
         access = [{'user': '*'}]
     elif access:
         access = [{'user': obj.client.load_object_from_name(
-            WildlandObjectType.USER, user).owner} for user in access]
+            WildlandObject.Type.USER, user).owner} for user in access]
     else:
         if container.access:
             access = container.access
@@ -153,6 +158,7 @@ def _do_create(
         owner=container.owner,
         container_path=container_mount_path,
         params=params,
+        client=obj.client,
         trusted=params.get('trusted', trusted),
         access=access
     )
@@ -161,6 +167,14 @@ def _do_create(
     obj.client.add_storage_to_container(container, storage, inline, name)
     click.echo(f'Saved container {container.local_path}')
 
+    if no_publish:
+        return
+
+    try:
+        Publisher(obj.client, container).republish_container()
+    except WildlandError as ex:
+        raise WildlandError(f"Failed to republish container: {ex}") from ex
+
 
 @storage_.command('list', short_help='list storages', alias=['ls'])
 @click.pass_obj
@@ -168,30 +182,21 @@ def list_(obj: ContextObj):
     """
     Display known storages.
     """
-
-    for storage in obj.client.load_all(WildlandObjectType.STORAGE):
+    for storage in obj.client.load_all(WildlandObject.Type.STORAGE):
         click.echo(storage.local_path)
         click.echo(f'  type: {storage.storage_type}')
-        if 'backend_id' in storage.params:
-            click.echo(f'  backend_id: {storage.params["backend_id"]}')
+        click.echo(f'  backend_id: {storage.backend_id}')
         if storage.storage_type in ['local', 'local-cached', 'local-dir-cached']:
             click.echo(f'  location: {storage.params["location"]}')
 
-    for container in obj.client.load_all(WildlandObjectType.CONTAINER):
-        backends = []
-        for backend in container.backends:
-            if not isinstance(backend, str):
-                backends.append(backend)
+    for container in obj.client.load_all(WildlandObject.Type.CONTAINER):
+        backends = list(container.get_backends_description(only_inline=True))
         if not backends:
             continue
 
         click.echo(f'{container.local_path} (inline)')
         for backend in backends:
-            click.echo(f'  - type: {backend["type"]}')
-            if 'backend_id' in backend:
-                click.echo(f'    backend_id: {backend["backend_id"]}')
-            if backend['type'] in ['local', 'local-cached', 'local-dir-cached']:
-                click.echo(f'    location: {backend["location"]}')
+            click.echo(backend)
 
 
 @storage_.command('delete', short_help='delete a storage', alias=['rm'])
@@ -244,7 +249,7 @@ def delete(obj: ContextObj, name, force, no_cascade, container):
                                '(please specify container name with --container)')
 
             container_obj = obj.client.load_object_from_name(
-                WildlandObjectType.CONTAINER, container)
+                WildlandObject.Type.CONTAINER, container)
             used_by = [(cont, backend) for cont, backend in used_by
                        if cont.local_path == container_obj.local_path]
 
@@ -258,9 +263,9 @@ def delete(obj: ContextObj, name, force, no_cascade, container):
 
 
 def _get_local_path_and_find_usage(client: Client, name: str) \
-        -> Tuple[Optional[Path], List[Tuple[Container, Union[str, dict]]]]:
+        -> Tuple[Optional[Path],  List[Tuple[Container, Union[Path, str]]]]:
     try:
-        storage = client.load_object_from_name(WildlandObjectType.STORAGE, name)
+        storage = client.load_object_from_name(WildlandObject.Type.STORAGE, name)
     except ManifestError:
         raise
     except WildlandError:
@@ -271,13 +276,13 @@ def _get_local_path_and_find_usage(client: Client, name: str) \
 
     if not storage.local_path:
         raise WildlandError('Can only delete a local manifest')
-    used_by = client.find_storage_usage(storage.local_path)
+    used_by = client.find_storage_usage(storage.backend_id)
     return storage.local_path, used_by
 
 
 def _delete_force(client: Client, name: str, no_cascade: bool):
     try:
-        path = client.find_local_manifest(WildlandObjectType.STORAGE, name)
+        path = client.find_local_manifest(WildlandObject.Type.STORAGE, name)
         if path:
             click.echo(f'Deleting file {path}')
             path.unlink()
@@ -288,13 +293,13 @@ def _delete_force(client: Client, name: str, no_cascade: bool):
         click.echo('Unable to cascade remove: manifest failed to load.')
 
 
-def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[str, dict]]]):
+def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path, str]]]):
     for container, backend in containers:
         click.echo(f'Removing {backend} from {container.local_path}')
-        container.backends.remove(backend)
+        container.del_storage(backend)
         try:
             click.echo(f'Saving: {container.local_path}')
-            client.save_object(WildlandObjectType.CONTAINER, container)
+            client.save_object(WildlandObject.Type.CONTAINER, container)
         except ManifestError as ex:
             click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
 
@@ -303,7 +308,8 @@ def do_create_storage_from_templates(
         client,
         container,
         storage_templates: Iterable[StorageTemplate],
-        local_dir):
+        local_dir,
+        no_publish: bool = False):
     """
     Create storages for a container from a given list of storage templates.
     :param client: Wildland client
@@ -311,22 +317,23 @@ def do_create_storage_from_templates(
     :param storage_templates: list of storage templates
     :param local_dir: str to be passed to template renderer as a parameter, can be used by template
         creators
+    :param no_publish: should the container not be published after creation
     """
     to_process: List[Tuple[Storage, Optional[StorageBackend]]] = []
 
     for template in storage_templates:
         try:
-            manifest = template.get_unsigned_manifest(container, local_dir)
+            storage_fields = template.get_storage_fields(container, local_dir)
         except ValueError as ex:
             click.echo(f'Failed to create storage from storage template: {ex}')
             raise ex
+        storage_fields = container.fill_storage_fields(storage_fields)
 
-        manifest.encrypt_and_sign(client.session.sig, encrypt=False)
+        storage = WildlandObject.from_fields(
+            storage_fields, client, WildlandObject.Type.STORAGE,
+            local_owners=client.config.get('local-owners'))
 
-        storage = Storage.from_manifest(manifest,
-                                        local_owners=client.config.get('local-owners'))
-
-        storage_type = storage.params['type']
+        storage_type = storage.storage_type
         storage_cls = StorageBackend.types()[storage_type]
         backend = None
 
@@ -353,6 +360,9 @@ def do_create_storage_from_templates(
         to_process.append((storage, backend))
 
     for storage, backend in to_process:
+        # TODO: why is this in practice under the if? This may be solved by factoring the
+        #  above cleanup code into either storage template handling, or Storage class.
+        #  Then, the mkdir could depend on is_writable only.
         # Ensure that base path actually exists
         if storage.is_writeable and backend:
             try:
@@ -367,6 +377,14 @@ def do_create_storage_from_templates(
         client.add_storage_to_container(container=container, storage=storage, inline=True)
         click.echo(f'Saved container {container.local_path}')
 
+        if no_publish:
+            return
+
+        try:
+            Publisher(client, container).republish_container()
+        except WildlandError as ex:
+            raise WildlandError(f"Failed to republish container: {ex}") from ex
+
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',
                   alias=['cs'])
@@ -374,19 +392,23 @@ def do_create_storage_from_templates(
               help='name of storage template to use')
 @click.option('--local-dir', multiple=False, required=False,
               help='local directory to be passed to storage templates')
+@click.option('--no-publish', is_flag=True,
+              help='do not publish the container after creation')
 @click.argument('cont', metavar='CONTAINER', required=True)
 @click.pass_obj
-def create_from_template(obj: ContextObj, cont, storage_template: str, local_dir=None):
+def create_from_template(obj: ContextObj, cont, storage_template: str, local_dir=None,
+                         no_publish=False):
     """
     Setup storage for a container from a storage template.
     """
-    container = obj.client.load_object_from_name(WildlandObjectType.CONTAINER, cont)
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
     try:
         storage_templates = template_manager.get_template_file_by_name(storage_template).templates
 
-        do_create_storage_from_templates(obj.client, container, storage_templates, local_dir)
+        do_create_storage_from_templates(obj.client, container, storage_templates, local_dir,
+                                         no_publish=no_publish)
     except WildlandError as we:
         raise CliError(f'Could not create storage from [{storage_template}] template. {we}') from we
 
@@ -430,7 +452,7 @@ def add_access(ctx: click.Context, input_file, access):
 
     try:
         for user in access:
-            user = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, user)
+            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
             processed_access.append({'user': user.owner})
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex
@@ -451,7 +473,7 @@ def del_access(ctx: click.Context, input_file, access):
 
     try:
         for user in access:
-            user = ctx.obj.client.load_object_from_name(WildlandObjectType.USER, user)
+            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
             processed_access.append({'user': user.owner})
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex

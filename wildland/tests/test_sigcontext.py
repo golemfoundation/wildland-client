@@ -90,6 +90,12 @@ def test_verify_key_not_loaded(sig):
     with pytest.raises(SigError):
         sig.sign(owner, test_data)
 
+    # when local keys can be used, we can access the key (just for sign, not for encryption)
+    sig.use_local_keys = True
+    signature = sig.sign(owner, test_data)
+
+    assert sig.verify(signature, test_data) == owner
+
 
 def test_verify_wrong_data(sig, owner):
     test_data = b'hello world'
@@ -266,3 +272,13 @@ def test_encrypt_multiple_owners(sig):
 
     assert sig.decrypt(enc_data, enc_keys) == test_data
     assert sig.decrypt(enc_data, [enc_keys[1], enc_keys[0]]) == test_data
+
+def test_sig_key_validity(sig):
+    _, pubkey = sig.generate()
+
+    assert sig.is_valid_pubkey(pubkey)
+
+    # Remove a few bytes
+    bogus = pubkey[0:len(pubkey)-3]
+
+    assert not sig.is_valid_pubkey(bogus)

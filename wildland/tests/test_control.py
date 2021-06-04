@@ -150,7 +150,7 @@ def test_server_error(conn):
     conn.sendall(b'malformed\n\n')
 
     response = json.loads(conn.recv(1024))
-    assert response['error']['class'] == 'JSONDecodeError'
+    assert response['error']['class'] == 'ControlRequestError'
 
     conn.sendall(json.dumps({'cmd': 'boom', 'id': 123}).encode())
     conn.sendall(b'\n\n')

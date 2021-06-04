@@ -21,6 +21,7 @@
 Conflict resolution
 """
 
+import logging
 import abc
 import functools
 import stat
@@ -32,6 +33,8 @@ import errno
 
 from .storage_backends.base import Attr
 
+logger = logging.getLogger('conflict')
+
 @dataclasses.dataclass
 class Resolved:
     """
@@ -41,8 +44,7 @@ class Resolved:
     # Storage ID
     ident: int
 
-    # Relative path inside (if inside), or relative path of the mount path
-    # (if not inside)
+    # Relative path inside (if inside), or relative path of the mount path (if not inside)
     relpath: PurePosixPath
 
 
@@ -67,19 +69,21 @@ class MountDir:
         Add a storage under the given path.
         """
 
-        if not path.parts:
-            self.storage_ids.add(storage_id)
-            return
+        mount_dir = self
 
-        first = path.parts[0]
-        rest = path.relative_to(path.parts[0])
-        if first not in self.children:
-            self.children[first] = MountDir()
-        self.children[first].mount(rest, storage_id)
+        while path.parts:
+            first = path.parts[0]
+            if first not in mount_dir.children:
+                mount_dir.children[first] = MountDir()
+            mount_dir = mount_dir.children[first]
+            path = path.relative_to(first)
+
+        assert str(path) == '.' or str(path) == ''
+        mount_dir.storage_ids.add(storage_id)
 
     def unmount(self, path: PurePosixPath, storage_id: int):
         """
-        Remove a storage from a given path.
+        Remove a storage from the given path.
         """
 
         if not path.parts:
@@ -87,7 +91,8 @@ class MountDir:
             return
 
         first = path.parts[0]
-        rest = path.relative_to(path.parts[0])
+        rest = path.relative_to(first)
+        assert first in self.children
         self.children[first].unmount(rest, storage_id)
         if self.children[first].is_empty():
             del self.children[first]
@@ -96,38 +101,47 @@ class MountDir:
         """
         Is this a synthetic directory?
 
-        A synthetic directory is one where either more than one storage is
-        mounted, or there are storages mounted on the path deeper.
+        A synthetic directory is one where either more than one storage is mounted, or there are
+        storages mounted on the path deeper. For example: if there are storages mounted in
+        ``/foo/bar`` and ``/foo/bar/baz``, then ``/``, ``/foo``, ``/foo/bar`` are synthetic
+        directories and ``/foo/bar/baz`` is not.
+
+        Returns ``False`` for paths not present in the prefix tree.
         """
 
-        if not path.parts:
-            if len(self.children) == 0 and len(self.storage_ids) == 1:
-                return False
-            return True
+        mount_dir = self
 
-        first = path.parts[0]
-        if first in self.children:
-            rest = path.relative_to(first)
-            return self.children[first].is_synthetic(rest)
-        return False
+        while path.parts:
+            first = path.parts[0]
+            if first not in mount_dir.children:
+                return False
+            mount_dir = mount_dir.children[first]
+            path = path.relative_to(first)
+
+        return len(mount_dir.children) != 0 or len(mount_dir.storage_ids) != 1
 
     def readdir(self, path: PurePosixPath) -> Optional[Iterable[str]]:
         """
-        List synthetic sub-directories under path.
+        List sub-directories under given path. Returns ``None`` if the given path is not present in
+        the prefix tree.
         """
 
-        if not path.parts:
-            return self.children.keys()
+        mount_dir = self
 
-        first = path.parts[0]
-        if first in self.children:
-            rest = path.relative_to(first)
-            return self.children[first].readdir(rest)
-        return None
+        while path.parts:
+            first = path.parts[0]
+            if first not in mount_dir.children:
+                return None
+            mount_dir = mount_dir.children[first]
+            path = path.relative_to(first)
+
+        return mount_dir.children.keys()
 
     def resolve(self, path: PurePosixPath) -> Iterable[Resolved]:
         """
-        Find all storages that could be responsible for a given path.
+        Find all storages that could be responsible for the given path. Effectively returns all
+        storage IDs from all of the ``MountDir`` nodes that are on the given ``path`` together with
+        their corresponding paths.
         """
 
         for storage_id in self.storage_ids:
@@ -139,10 +153,11 @@ class MountDir:
                 rest = path.relative_to(first)
                 yield from self.children[first].resolve(rest)
 
-    def relative_storage_ids(self):
+    def relative_storage_ids(self) -> Iterable[int]:
         """
-        Return storage ids relative to itself
+        Return storage ids relative to itself.
         """
+
         for storage_id in self.storage_ids:
             yield storage_id
 
@@ -154,21 +169,20 @@ class MountDir:
 
 class ConflictResolver(metaclass=abc.ABCMeta):
     """
-    Helper class for object resolution. To use, subclass and override the
-    abstract methods.
+    Helper class for object resolution. To use, subclass and override the abstract methods.
 
-    The storage_getattr() and storage_listdir() methods will not be called
-    until it is necessary for conflict resolution. However, it is assumed that
-    subsequent calls are cheap (it's local filesystem, or results are cached).
+    The :meth:`~wildland.conflict.ConflictResolver.storage_getattr` and
+    :meth:`~wildland.conflict.ConflictResolver.storage_listdir` methods will not be called until it
+    is necessary for conflict resolution. However, it is assumed that subsequent calls are cheap
+    (it's local filesystem, or results are cached).
 
     The conflict resolution rules are as follows:
-    - If there are multiple directories with the same name, create a synthetic
-      directory with this name. If more that one backing storage is writable, the directory
-      is forced to be read only (i.e. the list of files cannot be modified,
-      but the files themselves can).
-    - If there are multiple files with the same name, or a single file with the
-      same name as directory, the file name is changed to '{name.stem}.wl_{storage}.{name.suffix}'
-      (with stem and suffix being PurePosixPath semantic).
+    - If there are multiple directories with the same name, create a synthetic directory with this
+      name. If more that one backing storage is writable, the directory is forced to be read only
+      (i.e. the list of files cannot be modified, but the files themselves can).
+    - If there are multiple files with the same name, or a single file with the same name as
+      directory, the file name is changed to '{name.stem}.wl_{storage}.{name.suffix}' (with stem and
+      suffix being PurePosixPath semantic).
 
     For examples, look at tests/test_conflict.py.
     """
@@ -297,18 +311,18 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
     def getattr(self, path: PurePosixPath) -> Attr:
         """
-        Get file attributes. Raise FileNotFoundError if necessary.
+        Get file attributes. Raise ``FileNotFoundError`` if necessary.
         """
         st, _ = self.getattr_extended(path)
         return st
 
     def getattr_extended(self, path: PurePosixPath) -> Tuple[Attr, Optional[Resolved]]:
         """
-        Resolve the path to the right storage and run getattr() on the right
-        storage(s). Raises FileNotFoundError if file cannot be found.
+        Resolve the path to the right storage and run ``getattr()`` on the right storage(s). Raises
+        ``FileNotFoundError`` if file cannot be found.
 
         Returns a tuple (st, res):
-          st (Attr): file attributes; possibly overriden to be read-only
+          st (Attr): file attributes; possibly overridden to be read-only
           res (Resolved): resolution result (if there is exactly one)
         """
 
@@ -408,10 +422,9 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
     def find_storage_ids(self, path):
         """
-        Return a list of storage ids that claim the given path
+        Return a list of storage ids that claim the given path.
         """
         start_from = self.root
-
         real_storages = []
 
         # Try to resolve a physical (real) storages that claim this path

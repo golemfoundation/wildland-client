@@ -25,7 +25,7 @@ Create the "reference" container, and directory with files::
 
    $ ./wl container create Inner --path /reference
 
-   $ ./wl storage create local Inner --path $HOME/proxy-data \
+   $ ./wl storage create local Inner --location $HOME/proxy-data \
        --container Inner
    $ mkdir ~/proxy-data
    $ touch ~/proxy-data/file1.txt -t 202005010000

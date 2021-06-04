@@ -28,10 +28,11 @@ import logging
 import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Optional, Tuple, Iterable, Mapping, List, Set
+from typing import Optional, Tuple, Iterable, Mapping, List, Set, Union, Dict
 from typing import TYPE_CHECKING
 
 import wildland
+from wildland.wildland_object.wildland_object import WildlandObject
 from .fs_client import WildlandFSClient
 from .storage_driver import StorageDriver
 from .user import User
@@ -39,7 +40,7 @@ from .container import Container
 from .bridge import Bridge
 from .storage import Storage
 from .storage_backends.base import StorageBackend
-from .manifest.manifest import ManifestError, WildlandObjectType
+from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
 
@@ -112,6 +113,10 @@ class Search:
         search.read_file()
     """
 
+    #: cache of results of (Step, part) resolve, shared between different Search instances;
+    #: for initial step, the first element is initial_owner field
+    _resolve_cache: Dict[Tuple[Union[str, Step], PurePosixPath], Iterable[Step]] = {}
+
     def __init__(self,
             client: wildland.client.Client,
             wlpath: WildlandPath,
@@ -123,9 +128,9 @@ class Search:
         self.initial_owner = self._subst_alias(wlpath.owner or '@default')
         self.fs_client = fs_client
 
-        self.local_containers = list(self.client.load_all(WildlandObjectType.CONTAINER))
-        self.local_users = list(self.client.load_all(WildlandObjectType.USER))
-        self.local_bridges = list(self.client.load_all(WildlandObjectType.BRIDGE))
+        self.local_containers = list(self.client.load_all(WildlandObject.Type.CONTAINER))
+        self.local_users = list(self.client.load_all(WildlandObject.Type.USER))
+        self.local_bridges = list(self.client.load_all(WildlandObject.Type.BRIDGE))
 
     def resolve_raw(self) -> Iterable[Step]:
         """
@@ -208,6 +213,17 @@ class Search:
 
         raise PathError(f'Container not found for path: {self.wlpath}')
 
+    @classmethod
+    def clear_cache(cls):
+        """
+        Clear path resolution cache.
+
+        Calling this method is necessary, if it's necessary to re-download
+        user's manifests catalog content during lifetime of the same process.
+        This may be the case for example after (re)publishing some new container.
+        """
+        cls._resolve_cache.clear()
+
     def _get_params_for_mount_step(self, step: Step) -> \
             Tuple[PurePosixPath,
                   Optional[Tuple[Container,
@@ -284,20 +300,44 @@ class Search:
         """
 
         # deduplicate results
-        seen = set()
-        for step in self._resolve_first():
+        seen_last = set()
+        # deduplicate and cache result of self._resolve_first(); it's here,
+        # because _resolve_first() structure does not have a single place for
+        # returning results, and is using `yield from`, so deduplicating it
+        # there would require quite a bit of boilerplate there
+        seen_first = set()
+        cache_key = (self.initial_owner, self.wlpath.parts[0])
+        if cache_key in self._resolve_cache:
+            first_iter = self._resolve_cache[cache_key]
+        else:
+            first_iter = self._resolve_first()
+        for step in first_iter:
+            if step in seen_first:
+                continue
+            seen_first.add(step)
             for last_step in self._resolve_rest(step, 1):
-                if last_step not in seen:
+                if last_step not in seen_last:
                     yield last_step
-                    seen.add(last_step)
+                    seen_last.add(last_step)
+        self._resolve_cache[cache_key] = seen_first
 
     def _resolve_rest(self, step: Step, i: int) -> Iterable[Step]:
         if i == len(self.wlpath.parts):
             yield step
             return
 
-        for next_step in self._resolve_next(step, i):
+        seen = set()
+        cache_key = (step, self.wlpath.parts[i])
+        if cache_key in self._resolve_cache:
+            next_steps = self._resolve_cache[cache_key]
+        else:
+            next_steps = self._resolve_next(step, i)
+        for next_step in next_steps:
+            if next_step in seen:
+                continue
+            seen.add(next_step)
             yield from self._resolve_rest(next_step, i+1)
+        self._resolve_cache[cache_key] = seen
 
     def _find_storage(self, step: Step) -> Tuple[Storage, StorageBackend]:
         """
@@ -311,11 +351,11 @@ class Search:
 
         assert step.container is not None
         storage = self.client.select_storage(step.container)
-        return storage, StorageBackend.from_params(storage.params)
+        return storage, StorageBackend.from_params(storage.params, deduplicate=True)
 
     def _resolve_first(self):
         if self.wlpath.hint:
-            hint_user = self.client.load_object_from_url(WildlandObjectType.USER, self.wlpath.hint,
+            hint_user = self.client.load_object_from_url(WildlandObject.Type.USER, self.wlpath.hint,
                                                          self.initial_owner, self.initial_owner)
 
             for step in self._user_step(hint_user, self.initial_owner, self.client, None, None):
@@ -324,7 +364,7 @@ class Search:
         # Try local containers
         yield from self._resolve_local(self.wlpath.parts[0], self.initial_owner, None)
 
-        # Try user's infrastructure containers
+        # Try user's manifests catalog
         for user in self.local_users:
             if user.owner == self.initial_owner:
                 for step in self._user_step(user, self.initial_owner, self.client, None, None):
@@ -375,10 +415,20 @@ class Search:
 
         storage, storage_backend = self._find_storage(step)
 
-        pattern = storage_backend.get_subcontainer_watch_pattern(part)
-        step.pattern = pattern
+        try:
+            pattern = storage_backend.get_subcontainer_watch_pattern(part)
+            step.pattern = pattern
+        except NotImplementedError:
+            logger.warning('Storage %s does not support watching', storage.params["type"])
 
-        for manifest_path, subcontainer_data in storage_backend.get_children(part):
+        try:
+            children_iter = storage_backend.get_children(part)
+        except NotImplementedError:
+            logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
+                           storage.params["type"], part)
+            return
+
+        for manifest_path, subcontainer_data in children_iter:
             try:
                 container_or_bridge = step.client.load_subcontainer_object(
                     step.container, storage, subcontainer_data)
@@ -387,6 +437,9 @@ class Search:
                 continue
 
             if isinstance(container_or_bridge, Container):
+                if container_or_bridge == step.container:
+                    # manifests catalog published into itself
+                    container_or_bridge.is_manifests_catalog = True
                 logger.info('%s: container manifest: %s', part, subcontainer_data)
                 yield from self._container_step(
                     step, part, container_or_bridge)
@@ -471,8 +524,8 @@ class Search:
                 logger.debug('%s: remote user manifest: %s',
                              part, location)
             try:
-                user = next_client.session.load_object(user_manifest_content,
-                                                       WildlandObjectType.USER)
+                user = next_client.load_object_from_bytes(WildlandObject.Type.USER,
+                                                          user_manifest_content)
             except WildlandError as e:
                 logger.warning('Could not load user manifest %s: %s',
                                location, e)
@@ -480,7 +533,7 @@ class Search:
 
         else:
             try:
-                user = next_client.load_object_from_dict(WildlandObjectType.USER, location,
+                user = next_client.load_object_from_dict(WildlandObject.Type.USER, location,
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load linked user manifest: %s. Exception: %s',
@@ -508,44 +561,13 @@ class Search:
             previous=step,
         )
 
-        for container_spec in user.containers:
-            if isinstance(container_spec, dict):
-                if 'encrypted' in container_spec:
-                    continue
-                if container_spec['object'] == 'container':
-                    container_desc = '(inline)'
-                else:
-                    container_desc = '(linked)'
-                try:
-                    container = self.client.load_object_from_dict(
-                        WildlandObjectType.CONTAINER, container_spec, expected_owner=user.owner)
-                except (WildlandError, FileNotFoundError) as ex:
-                    logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
-                                   user.owner, container_spec, str(ex))
-                    continue
-            else:
-                try:
-                    manifest_content = client.read_from_url(container_spec, user.owner)
-                except (WildlandError, FileNotFoundError) as ex:
-                    logger.warning('cannot load user %s infrastructure: %s. Exception: %s',
-                                   user.owner, container_spec, str(ex))
-                    continue
-
-                try:
-                    container = client.session.load_object(manifest_content,
-                                                           WildlandObjectType.CONTAINER)
-                    container_desc = container_spec
-                except WildlandError as ex:
-                    logger.warning('failed to load user %s infrastructure: %s: Exception: %s',
-                                   user.owner, container_spec, str(ex))
-                    continue
-
+        for container in user.load_catalog():
             if container.owner != user.owner:
                 logger.warning('Unexpected owner for %s: %s (expected %s)',
-                               container_desc, container.owner, user.owner)
+                               container, container.owner, user.owner)
                 continue
 
-            logger.info("user's container manifest: %s", container_desc)
+            logger.info("user's container manifest: %s", container)
 
             yield Step(
                 owner=user.owner,

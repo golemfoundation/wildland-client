@@ -32,6 +32,7 @@ import click
 from lxml import etree
 import requests
 
+from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import PagedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
@@ -47,15 +48,17 @@ class PagedHttpFile(PagedFile):
     """
 
     def __init__(self,
+                 session,
                  url: str,
                  attr):
         super().__init__(attr)
+        self.session = session
         self.url = url
 
     def read_range(self, length, start) -> bytes:
         range_header = 'bytes={}-{}'.format(start, start+length-1)
 
-        resp = requests.request(
+        resp = self.session.request(
             method='GET',
             url=self.url,
             headers={
@@ -67,7 +70,7 @@ class PagedHttpFile(PagedFile):
         return resp.content
 
 
-class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
+class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     A read-only HTTP storage that gets its information from directory listings.
     """
@@ -81,6 +84,12 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 "$ref": "/schemas/types.json#http-url",
                 "description": "HTTP URL pointing to an index",
             },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
+            }
         }
     })
     TYPE = 'http'
@@ -90,33 +99,44 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
 
         self.url = urlparse(self.params['url'])
         self.read_only = True
+        self.session = requests.session()
 
-        self.base_url = self.params['url']
-        self.base_path = PurePosixPath(urlparse(self.base_url).path or '/')
+        self.public_url = self.params['url']
+        self.base_path = PurePosixPath(urlparse(self.public_url).path or '/')
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(HttpStorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(['--url'], metavar='URL', required=True),
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
-        return {
+        result = super(HttpStorageBackend, cls).cli_create(data)
+        result.update({
             'url': data['url'],
-        }
+        })
+        return result
 
-    def make_url(self, path: PurePosixPath) -> str:
+    def make_url(self, path: PurePosixPath, is_dir=False) -> str:
         """
         Convert a Path to resource URL.
         """
 
-        full_path = self.base_path / path
-        return urljoin(self.base_url, quote(str(full_path)))
+        full_path = str(self.base_path / path)
+
+        if is_dir:
+            # Ensure that directory requests have trailing slash
+            # as not every webserver will reply with missing trailing slash
+            full_path += '/'
+
+        return urljoin(self.public_url, quote(full_path))
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
-        url = self.make_url(path)
-        resp = requests.request(
+        url = self.make_url(path, is_dir=True)
+        resp = self.session.request(
             method='GET',
             url=url,
             headers={
@@ -139,21 +159,22 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             except KeyError:
                 continue
 
-            if urlparse(href).netloc:
+            parsed_href = urlparse(href)
+
+            # Skip urls to external resources (non-relative paths)
+            if parsed_href.netloc:
                 continue
 
-            # skip apache sorting links
-            if href.startswith('?C='):
+            # Skip apache sorting links
+            if parsed_href.path.startswith('?C='):
                 continue
 
-            # apache2 generates relative paths, S3StorageBackend - absolute
-            abs_path = self.base_path / path / href
-            try:
-                rel_path = PurePosixPath(abs_path).relative_to(self.base_path)
-            except ValueError:
+            # Skip apache directory listing's "Parent Directory" entry
+            if parsed_href.path.startswith('/'):
                 continue
 
-            if rel_path.parent != path:
+            # Skip our backends directory listing's "Parent Directory" entry ("../")
+            if parsed_href.path.startswith('..'):
                 continue
 
             try:
@@ -166,12 +187,12 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             except (KeyError, ValueError):
                 timestamp = 0
 
-            if href.endswith('/'):
+            if parsed_href.path.endswith('/'):
                 attr = Attr.dir(size, timestamp)
             else:
                 attr = Attr.file(size, timestamp)
 
-            yield rel_path.name, attr
+            yield PurePosixPath(parsed_href.path).name, attr
 
     def getattr(self, path: PurePosixPath) -> Attr:
         try:
@@ -185,13 +206,12 @@ class HttpStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         return attr
 
     def open(self, path: PurePosixPath, _flags: int) -> PagedHttpFile:
-        url = self.make_url(path)
-        attr = self._get_single_file_attr(url)
-        return PagedHttpFile(url, attr)
+        attr = self.getattr(path)
+        url = self.make_url(path, is_dir=attr.is_dir())
+        return PagedHttpFile(self.session, url, attr)
 
-    @staticmethod
-    def _get_single_file_attr(url: str) -> Attr:
-        resp = requests.request(
+    def _get_single_file_attr(self, url: str) -> Attr:
+        resp = self.session.request(
             method='HEAD',
             url=url,
             headers={

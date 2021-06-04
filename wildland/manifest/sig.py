@@ -189,6 +189,12 @@ class SigContext:
         """
         raise NotImplementedError()
 
+    def is_valid_pubkey(self, key: str) -> bool:
+        """
+        Verify that given string is a valid public key
+        """
+        raise NotImplementedError()
+
     def get_possible_owners(self, signer: str) -> List[str]:
         """
         List key_ids that can be owners of the provided key_id.
@@ -302,6 +308,9 @@ class DummySigContext(SigContext):
 
     def is_private_key_available(self, key_id):
         return key_id in self.private_keys
+
+    def is_valid_pubkey(self, key: str) -> bool:
+        return key.startswith('key.')
 
     def encrypt(self, data: bytes, keys: Iterable[str]) -> Tuple[str, List[str]]:
         """
@@ -451,6 +460,10 @@ class SodiumSigContext(SigContext):
         """
         if owner in self.keys:
             key_candidates = [owner]
+        elif self.use_local_keys:
+            logger.warning('Unknown owner %s: will attempt to load key from local key '
+                           'directory.', owner)
+            key_candidates = [owner]
         else:
             key_candidates = []
 
@@ -511,6 +524,15 @@ class SodiumSigContext(SigContext):
             return self.fingerprint(pubkey)
         except BadSignatureError as bse:
             raise SigError(f'Could not verify signature for {signer}') from bse
+
+    def is_valid_pubkey(self, key: str) -> bool:
+        try:
+            key_bytes = self._key_to_subkey(key, public=True, signing=False)
+            PublicKey(key_bytes, encoder=RawEncoder)
+
+            return True
+        except Exception:
+            return False
 
     def encrypt(self, data: bytes, keys: Iterable[str]) -> Tuple[str, List[str]]:
         private_key = nacl.utils.random(SecretBox.KEY_SIZE)

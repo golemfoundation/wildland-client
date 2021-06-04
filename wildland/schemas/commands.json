@@ -29,7 +29,7 @@
                                 "description": "mount as read-only"
                             },
                             "extra": {
-                                "description": "extra data to be stored and returned with ``info``"
+                                "description": "extra data to be stored and returned with ``wl c info``"
                             },
                             "remount": {
                                 "type": "boolean",

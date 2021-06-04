@@ -26,9 +26,10 @@ import yaml
 
 import pytest
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .helpers import treewalk
 from ..client import Client
-from ..manifest.manifest import Manifest, WildlandObjectType
+from ..manifest.manifest import Manifest
 
 
 def test_date_proxy_with_url(cli, base_dir):
@@ -49,11 +50,11 @@ def test_date_proxy_with_url(cli, base_dir):
     client = Client(base_dir)
 
     # When loaded directly, the storage manifest contains container URL...
-    storage = client.load_object_from_name(WildlandObjectType.STORAGE, 'ProxyStorage')
+    storage = client.load_object_from_name(WildlandObject.Type.STORAGE, 'ProxyStorage')
     assert storage.params['reference-container'] == reference_url
 
     # But select_storage loads also the reference manifest
-    container = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container')
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
     storage = client.select_storage(container)
     assert storage.storage_type == 'date-proxy'
     reference_storage = storage.params['storage']
@@ -144,6 +145,7 @@ def container(cli, base_dir, data_dir):
                     'owner': '0xaaa',
                     'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
                     'backend-id': str(uuid.uuid4()),
+                    'version': Manifest.CURRENT_VERSION,
                     'reference-container': {
                         'object': 'container',
                         'version': Manifest.CURRENT_VERSION,
@@ -156,7 +158,8 @@ def container(cli, base_dir, data_dir):
                                 'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
                                 'type': 'local',
                                 'location': str(data_dir),
-                                'backend-id': str(uuid.uuid4())
+                                'backend-id': str(uuid.uuid4()),
+                                'version': Manifest.CURRENT_VERSION
                             }]
                         }
                     }
@@ -167,7 +170,9 @@ def container(cli, base_dir, data_dir):
 
     yield 'macro'
 
+
 def test_date_proxy_subcontainers(base_dir, container, data_dir):
+    # pylint: disable=protected-access
     (data_dir / 'dir1').mkdir()
     (data_dir / 'dir1/file1').write_text('file 1')
     os.utime(data_dir / 'dir1/file1',
@@ -182,21 +187,22 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
 
     client = Client(base_dir)
 
-    container = client.load_object_from_name(WildlandObjectType.CONTAINER, container)
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
     subcontainers = list(client.all_subcontainers(container))
     assert len(subcontainers) == 2
     assert subcontainers[0].paths[1:] == [PurePosixPath('/timeline/2008/02/03')]
-    assert subcontainers[0].backends[0] == {
+    assert subcontainers[0]._storage_cache[0].storage == {
         'object': 'storage',
         'type': 'delegate',
         'subdirectory': '/2008/02/03',
         'owner': container.owner,
         'container-path': str(subcontainers[0].paths[0]),
         'reference-container': f'wildland:@default:{container.paths[0]}:',
-        'backend-id': str(subcontainers[0].paths[0])[7:]
+        'backend-id': str(subcontainers[0].paths[0])[7:],
+        'version': Manifest.CURRENT_VERSION
     }
     assert subcontainers[1].paths[1:] == [PurePosixPath('/timeline/2010/05/07')]
-    assert subcontainers[1].backends[0]['subdirectory'] == '/2010/05/07'
+    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07'
 
 def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
     (data_dir / 'dir1').mkdir()
@@ -213,7 +219,7 @@ def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
 
     client = Client(base_dir)
 
-    container = client.load_object_from_name(WildlandObjectType.CONTAINER, container)
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
     for subcontainer in client.all_subcontainers(container):
         env.mount_storage(subcontainer.paths[1:], client.select_storage(subcontainer).params)
 

@@ -35,13 +35,13 @@ Arguments:
 
 Description
 
-This command creates an infrastructure container for the Forest
+This command creates an container in user's manifest catalog for the Forest
 The storage template *must* contain at least one read-write storage.
 
 After the container is created, the following steps take place:
 
-1. A link object to infrastructure container is generated and appended to USER's manifest.
-2. USER manifest and infrastructure manifest are copied to the storage from Forest manifests container
+1. A link object to manifests catalog container is generated and appended to USER's manifest.
+2. USER manifest and catalog container's manifest are copied to the storage from Forest manifests container
 
 .. option:: --access USER
 
@@ -56,8 +56,8 @@ After the container is created, the following steps take place:
 .. program:: wl-forest-mount
 .. _wl-forest-mount:
 
-:command:`wl forest mount <forest_name> [<forest_name>...]`
------------------------------------------------------------
+:command:`wl forest mount [--no-refresh-users] [--list-all] [--save] <forest_name> [<forest_name>...]`
+------------------------------------------------------------------------------------------------------
 
 Mount a forest given by name or path to manifest.
 The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
@@ -71,6 +71,11 @@ The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
 
    During mount, list all the forest containers to be mounted and result of mount (changed/not changed).
    Can be very long as a forest could contain lot of containers and numerous subcontainers.
+
+.. option:: -n, --no-refresh-users
+
+    Do not attempt to refresh all local user manifests imported through bridges before mount.
+    This can speed up the mount, but can lead to using obsolete user manifests.
 
 .. program:: wl-forest-unmount
 .. _wl-forest-unmount:

@@ -184,7 +184,7 @@ Manifests
 .. autoclass:: wildland.manifest.schema.Schema
    :members:
 
-.. autoclass:: wildland.manifest.manifest.WildlandObjectType
+.. autoclass:: wildland.wildland_object.wildland_object.WildlandObject
    :members:
 
 .. autoclass:: wildland.manifest.template.StorageTemplate

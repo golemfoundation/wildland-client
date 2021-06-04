@@ -27,10 +27,11 @@ from unittest import mock
 
 import pytest
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from ..client import Client
 from ..container import Container
 from ..control_client import ControlClientError
-from ..manifest.manifest import ManifestError, WildlandObjectType
+from ..manifest.manifest import ManifestError
 from ..remounter import Remounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
@@ -56,15 +57,15 @@ def setup(base_dir, cli, control_client):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb', '--path', '/users/User2')
 
-    cli('container', 'create', 'Infra', '--path', '/.manifests',
+    cli('container', 'create', 'Catalog', '--path', '/.manifests',
         '--path', '/.uuid/0000000000-1111-0000-0000-000000000000',
         '--no-encrypt-manifest', '--update-user')
-    cli('storage', 'create', 'local', 'Infra1',
+    cli('storage', 'create', 'local', 'Catalog1',
         '--location', base_dir / 'manifests',
-        '--container', 'Infra')
+        '--container', 'Catalog')
     cli('container', 'create', 'Container1', '--path', '/path',
         '--path', '/.uuid/0000000000-1111-0000-1111-000000000000',
-        '--no-encrypt-manifest')
+        '--no-encrypt-manifest', '--no-publish')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
@@ -72,7 +73,7 @@ def setup(base_dir, cli, control_client):
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest',
         '--path', '/.uuid/0000000000-1111-1111-1111-000000000000',
-        '--path', '/other/path')
+        '--path', '/other/path', '--no-publish')
     cli('storage', 'create', 'local', 'Storage2',
         '--location', base_dir / 'storage2',
         '--container', 'Container2', '--no-inline')
@@ -81,7 +82,8 @@ def setup(base_dir, cli, control_client):
         '--path', '/.uuid/0000000000-2222-0000-1111-000000000000',
         '--owner', 'User2',
         '--path', '/users/User2',
-        '--update-user', '--no-encrypt-manifest')
+        '--update-user', '--no-encrypt-manifest',
+        '--no-publish')
     cli('storage', 'create', 'local', 'Storage3',
         '--location', base_dir / 'storage3',
         '--container', 'C.User2', '--no-inline',
@@ -92,9 +94,9 @@ def setup(base_dir, cli, control_client):
     shutil.copy(base_dir / 'containers/Container2.container.yaml',
                 base_dir / 'manifests/Container2.yaml')
 
-    infra_path = f'/.users/0xaaa/.uuid/0000000000-1111-0000-0000-000000000000/' \
+    catalog_path = f'/.users/0xaaa/.uuid/0000000000-1111-0000-0000-000000000000/' \
         f'.backends/{DUMMY_BACKEND_UUID0}'
-    control_client.add_storage_paths(0, [infra_path, '/.manifests'])
+    control_client.add_storage_paths(0, [catalog_path, '/.manifests'])
 
     patch_uuid.stop()
 
@@ -502,11 +504,11 @@ def search_mock():
 def test_wlpath_single(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
 
-    c1_changed = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    c1_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     search_mock.containers_results = [
         [c1],
@@ -557,8 +559,8 @@ def test_wlpath_single(cli, client, search_mock, control_client):
 def test_wlpath_delete_container(client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
 
     search_mock.containers_results = [
         [c1, c2],
@@ -612,14 +614,14 @@ def test_wlpath_delete_container(client, search_mock, control_client):
 def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml', '/.manifests/Container2.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
 
     cli('container', 'modify', 'add-path', '--path', '/new/path', 'Container1')
     cli('container', 'modify', 'add-path', '--path', '/yet/another/path', 'Container2')
 
-    c1_changed = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2_changed = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
+    c1_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
 
     search_mock.containers_results = [
         [c1, c2],
@@ -692,7 +694,7 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
 def test_wlpath_iterate_error(cli, client, search_mock, control_client):
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
     search_mock.containers_results = [
         [c1, ManifestError('container load failed')],
@@ -746,20 +748,23 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
 
 
 def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_client):
+    # pylint: disable=protected-access
     search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
 
     with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
-        cli('storage', 'create', 'local', 'Infra1',
+        cli('storage', 'create', 'local', 'Catalog1',
             '--location', base_dir / 'manifests',
-            '--container', 'Infra')
+            '--container', 'Catalog')
 
-    c1 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container1')
-    c2 = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Container2')
-    infra = client.load_object_from_name(WildlandObjectType.CONTAINER, 'Infra')
-    infra_s0 = client.load_object_from_dict(WildlandObjectType.STORAGE, infra.backends[0],
-                                            infra.owner, infra.paths[0])
-    infra_s1 = client.load_object_from_dict(WildlandObjectType.STORAGE, infra.backends[1],
-                                            infra.owner, infra.paths[0])
+    c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
+    catalog_container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Catalog')
+    catalog_s0 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
+                                              catalog_container._storage_cache[0].storage,
+                                              catalog_container.owner, catalog_container.paths[0])
+    catalog_s1 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
+                                              catalog_container._storage_cache[1].storage,
+                                              catalog_container.owner, catalog_container.paths[0])
     search_mock.containers_results = [
         [c1],
         [c1, c2],
@@ -789,12 +794,12 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
 
     def change_watch_params():
         control_client.expect('mount')
-        search_mock.watch_params = ([(infra, [infra_s0], [], None)],
+        search_mock.watch_params = ([(catalog_container, [catalog_s0], [], None)],
                                     {'/.manifests/Container2.yaml'})
 
     def fail_mount():
         control_client.expect('mount', ControlClientError('mount failed'))
-        search_mock.watch_params = ([(infra, [infra_s1], [], None)],
+        search_mock.watch_params = ([(catalog_container, [catalog_s1], [], None)],
                                     {'/.manifests/Container3.yaml'})
 
     # initial mount
@@ -829,26 +834,63 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             'pattern': 'Container2.yaml'
         },
     ]
+
     assert control_client.all_calls['mount'] == [
-        {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID0}'],
-            'remount': False,
-            'storage': mock.ANY,
-            'extra': mock.ANY,
-        }]},
-        {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
-            'remount': False,
-            'storage': mock.ANY,
-            'extra': mock.ANY,
-        }]},
+        {'items': [
+            {
+                'paths':
+                    [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/{DUMMY_BACKEND_UUID0}'],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            },
+            {
+                'paths': [
+                    f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
+                        f'{DUMMY_BACKEND_UUID0}-pseudomanifest',
+                ],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            }
+        ]},
+        {'items': [
+            {
+                'paths': [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
+                          f'{DUMMY_BACKEND_UUID1}'],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            },
+            {
+                'paths': [
+                    f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
+                        f'{DUMMY_BACKEND_UUID1}-pseudomanifest',
+                ],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            }
+        ]},
         # should retry on the next event
-        {'items': [{
-            'paths': [f'/.users/0xaaa:/.backends/{infra.ensure_uuid()}/{DUMMY_BACKEND_UUID1}'],
-            'remount': False,
-            'storage': mock.ANY,
-            'extra': mock.ANY,
-        }]},
+        {'items': [
+            {
+                'paths': [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
+                          f'{DUMMY_BACKEND_UUID1}'],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            },
+            {
+                'paths': [
+                    f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
+                        f'{DUMMY_BACKEND_UUID1}-pseudomanifest',
+                ],
+                'remount': False,
+                'storage': mock.ANY,
+                'extra': mock.ANY,
+            }
+        ]},
     ]
 
 

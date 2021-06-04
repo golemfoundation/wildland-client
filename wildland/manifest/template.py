@@ -80,12 +80,12 @@ class StorageTemplate:
         self.template.environment.filters['regex_replace'] = regex_replace
         self.template.environment.tests['regex_contains'] = regex_contains
 
-    def get_unsigned_manifest(self, cont: container.Container, local_dir: str = None):
+    def get_storage_fields(self, cont: container.Container, local_dir: str = None):
         """
-        Fill template fields with container data and return an unsigned Manifest
+        Fill template fields with container data and return them
         """
 
-        params = {'uuid': cont.ensure_uuid(), 'paths': cont.paths,
+        params = {'uuid': cont.uuid, 'paths': cont.paths,
                   'title': cont.title if cont.title else '',
                   'categories': cont.categories, 'local_path': cont.local_path,
                   'local_dir': local_dir, 'version': Manifest.CURRENT_VERSION,
@@ -103,7 +103,7 @@ class StorageTemplate:
         data['owner'] = cont.owner
         data['container-path'] = str(cont.paths[0])
         data['backend-id'] = str(uuid.uuid4())
-        return Manifest.from_fields(data)
+        return data
 
 
 class TemplateFile:

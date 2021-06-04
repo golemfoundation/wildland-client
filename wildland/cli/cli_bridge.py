@@ -26,8 +26,9 @@ from typing import List, Optional
 
 import click
 
-from ..manifest.manifest import ManifestError, WildlandObjectType
-from ..bridge import Bridge
+from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.bridge import Bridge
+from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, dump
 from .cli_user import import_manifest
@@ -64,7 +65,7 @@ def create(obj: ContextObj,
     Create a new bridge manifest.
     """
 
-    owner_user = obj.client.load_object_from_name(WildlandObjectType.USER,
+    owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER,
                                                   owner or '@default-owner')
 
     if name is None and file_path is None:
@@ -74,9 +75,9 @@ def create(obj: ContextObj,
         raise CliError('Ref user location must be an URL')
 
     if ref_user_name:
-        ref_user = obj.client.load_object_from_name(WildlandObjectType.USER, ref_user_name)
+        ref_user = obj.client.load_object_from_name(WildlandObject.Type.USER, ref_user_name)
     else:
-        ref_user = obj.client.load_object_from_url(WildlandObjectType.USER, ref_user_location,
+        ref_user = obj.client.load_object_from_url(WildlandObject.Type.USER, ref_user_location,
                                                    owner=owner_user.owner)
 
     if ref_user_paths:
@@ -92,8 +93,9 @@ def create(obj: ContextObj,
         user_pubkey=ref_user.primary_pubkey,
         user_id=obj.client.session.sig.fingerprint(ref_user.primary_pubkey),
         paths=paths,
+        client=obj.client
     )
-    path = obj.client.save_new_object(WildlandObjectType.BRIDGE,
+    path = obj.client.save_new_object(WildlandObject.Type.BRIDGE,
                                       bridge, name, Path(file_path) if file_path else None)
     click.echo(f'Created: {path}')
 
@@ -105,11 +107,11 @@ def list_(obj: ContextObj):
     Display known bridges.
     """
 
-    for bridge in obj.client.load_all(WildlandObjectType.BRIDGE):
+    for bridge in obj.client.load_all(WildlandObject.Type.BRIDGE):
         click.echo(bridge.local_path)
 
         try:
-            user = obj.client.load_object_from_name(WildlandObjectType.USER, bridge.owner)
+            user = obj.client.load_object_from_name(WildlandObject.Type.USER, bridge.owner)
             if user.paths:
                 user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
             else:
@@ -140,7 +142,7 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
 
-    import_manifest(obj, path_or_url, paths, WildlandObjectType.BRIDGE, bridge_owner, only_first)
+    import_manifest(obj, path_or_url, paths, WildlandObject.Type.BRIDGE, bridge_owner, only_first)
 
 
 bridge_.add_command(sign)

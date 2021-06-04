@@ -3,21 +3,10 @@ S3 backend for Wildland client
 
 ### Getting started
 
-The S3 backend will need your S3 key/secret/region details but will not prompt you to provide them neither in the stdin nor as the cli args. Instead, they’ll be fetched from your aws-cli client. 
+Create your container just as any other container and add S3 as a storage.
 
 ```bash
-$ python -m pip install [--user] awscli
-$ aws configure
-AWS Access Key ID: MYACCESSKEY
-AWS Secret Access Key: MYSECRETKEY
-Default region name [us-west-2]: eu-north-1
-Default output format [None]: json
-```
-
-Proceed with adding  new wild land backend as usual.
-
-```bash
-wl storage create s3 --container MYCONTAINER --s3-url s3://MY_BUCKET_NAME/PATH
+wl storage create s3 --container MYCONTAINER --s3-url s3://MY_BUCKET_NAME/PATH --access-key MY_ACCESS_KEY
 ```
 
 **Note:** If you want your backend to point to the root path of the bucket (thus listing all files in your bucket) remember about the trailing slash after the bucket’s name.
@@ -36,6 +25,12 @@ wl c mount MYCONTAINER
 ```
 
 The synchronisation is automatic and files are not fetched from the server until opened thus it may take a while to open a large file.
+
+### Notes for --with-index flag
+
+The `--with-index` flag is used for s3 backend to generate index files (named `/` -- yes, just slash) which are used by a HTTP server (ie. CDN or S3 web access) to serve directory listing, very similar to directory listing used in Apache web server.
+
+It is important to remember that those index files are refreshed only when a file or directory is modified using wildland storage backend thus the index might not be up-to-date if you modify a file or directory outside of wildland (ie. directly in the S3 bucket). The same applies if you disable `with-index` parameter and then re-enable it again (ie. it will not cause indexes to refresh until a file or directory is modified within a specific directory).
 
 ### Non-AWS S3 endpoint
 

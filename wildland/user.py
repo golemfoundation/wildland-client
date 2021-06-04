@@ -21,99 +21,69 @@
 User manifest and user management
 """
 
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 from typing import List, Optional, Union
+from copy import deepcopy
+
 import logging
 
-from .manifest.manifest import Manifest, WildlandObjectType
+from wildland.wildland_object.wildland_object import WildlandObject
+from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
+from .exc import WildlandError
 
 
 logger = logging.getLogger('user')
 
 
-class User:
+class _CatalogCache:
+    """Helper object to manage catalog cache"""
+    def __init__(self, manifest, cached_object):
+        self.manifest = manifest
+        self.cached_object = cached_object
+
+    def get(self, client, owner):
+        """
+        Retrieve a cached container object or construct it if needed (for construction it needs
+        client and owner).
+        """
+        if not self.cached_object:
+            try:
+                self.cached_object = client.load_object_from_url_or_dict(
+                    WildlandObject.Type.CONTAINER, self.manifest, owner)
+            except (ManifestError, WildlandError) as ex:
+                logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
+                return None
+        return self.cached_object
+
+    def __eq__(self, other):
+        return self.manifest == other.manifest
+
+
+class User(WildlandObject, obj_type=WildlandObject.Type.USER):
     """
     A data transfer object representing Wildland user.
     Can be converted from/to a self-signed user manifest.
     """
 
     SCHEMA = Schema('user')
-    OBJECT_TYPE = WildlandObjectType.USER
 
-    def __init__(self, *,
+    def __init__(self,
                  owner: str,
                  pubkeys: List[str],
                  paths: List[PurePosixPath],
-                 containers: List[Union[str, dict]],
-                 local_path: Optional[Path] = None,
+                 manifests_catalog: List[Union[str, dict]],
+                 client,
                  manifest: Manifest = None):
+        super().__init__()
         self.owner = owner
         self.paths = paths
-        self.containers = containers
-        self.local_path = local_path
+
+        self._manifests_catalog = [_CatalogCache(manifest, None) for manifest in manifests_catalog]
+
         self.pubkeys = pubkeys
         self.manifest = manifest
-
-    @property
-    def primary_pubkey(self):
-        """Primary pubkey for signatures. User manifest needs to be signed with this key"""
-        return self.pubkeys[0]
-
-    @classmethod
-    def from_manifest(cls, manifest: Manifest, pubkey, local_path=None) -> 'User':
-        """
-        Construct a User instance from a manifest.
-        Requires public key for backwards compatibility.
-        """
-
-        # TODO: local_path should be also part of Manifest?
-        owner = manifest.fields['owner']
-        manifest.apply_schema(cls.SCHEMA)
-
-        if 'containers' in manifest.fields:
-            logger.warning("deprecated 'containers' field in user manifest "
-                           "(renamed to 'infrastructures'), ignoring")
-
-        pubkeys = manifest.fields.get('pubkeys', [])
-        if pubkey not in pubkeys:
-            pubkeys = [pubkey] + pubkeys
-
-        return cls(
-            owner=owner,
-            pubkeys=pubkeys,
-            paths=[PurePosixPath(p) for p in manifest.fields['paths']],
-            containers=manifest.fields.get('infrastructures', []),
-            local_path=local_path,
-            manifest=manifest
-        )
-
-    def to_unsigned_manifest(self) -> Manifest:
-        """
-        Create a manifest based on User's data.
-        Has to be signed separately.
-        """
-
-        manifest = Manifest.from_fields({
-            'object': self.OBJECT_TYPE.value,
-            'owner': self.owner,
-            'paths': [str(p) for p in self.paths],
-            'infrastructures': self.containers,
-            'pubkeys': self.pubkeys,
-            'version': Manifest.CURRENT_VERSION
-        })
-        manifest.apply_schema(self.SCHEMA)
-        return manifest
-
-    def add_user_keys(self, sig_context, add_primary=True):
-        """
-        Add user keys (primary key only if add_primary is True and any keys listed in "pubkeys"
-        field) to the given sig_context.
-        """
-        if add_primary:
-            sig_context.add_pubkey(self.pubkeys[0])
-        for additional_pubkey in self.pubkeys[1:]:
-            sig_context.add_pubkey(additional_pubkey, self.owner)
+        self.client = client
 
     def __eq__(self, other):
         if not isinstance(other, User):
@@ -126,3 +96,87 @@ class User:
             self.owner,
             frozenset(self.pubkeys)
         ))
+
+    def __str__(self):
+        return self.to_str()
+
+    def __repr__(self):
+        return self.to_str()
+
+    def to_str(self):
+        """
+        Return string representation
+        """
+        array_repr = [
+            f"owner={self.owner}",
+            f"paths={[str(p) for p in self.paths]}"
+        ]
+        str_repr = "user(" + ", ".join(array_repr) + ")"
+        return str_repr
+
+    @classmethod
+    def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
+        pubkey = kwargs.get('pubkey', None)
+        if pubkey and pubkey not in fields['pubkeys']:
+            fields['pubkeys'].insert(0, pubkey)
+
+        return cls(
+            owner=fields['owner'],
+            pubkeys=fields['pubkeys'],
+            paths=[PurePosixPath(p) for p in fields['paths']],
+            manifests_catalog=deepcopy(fields.get('manifests-catalog', [])),
+            manifest=manifest,
+            client=client)
+
+    @property
+    def has_catalog(self) -> bool:
+        """Checks if user has a manifest catalog defined"""
+        return bool(self._manifests_catalog)
+
+    def load_catalog(self):
+        """Load and cache all of user's manifests catalog."""
+        assert self.client
+        for cached_object in self._manifests_catalog:
+            container = cached_object.get(self.client, self.owner)
+            if container:
+                yield container
+
+    def get_catalog_descriptions(self):
+        """Provide a human-readable descriptions of user's manifests catalog without loading
+        them."""
+        for cached_object in self._manifests_catalog:
+            yield str(cached_object.manifest)
+
+    def add_catalog_entry(self, path: str):
+        """Add a path to a container to user's manifests catalog."""
+        self._manifests_catalog.append(_CatalogCache(path, None))
+
+    @property
+    def primary_pubkey(self):
+        """Primary pubkey for signatures. User manifest needs to be signed with this key"""
+        return self.pubkeys[0]
+
+    def to_manifest_fields(self, inline: bool) -> dict:
+        if inline:
+            raise WildlandError('User manifest cannot be inlined.')
+        result = {
+                'object': 'user',
+                'owner': self.owner,
+                'paths': [str(p) for p in self.paths],
+                'manifests-catalog': [deepcopy(cached_object.manifest)
+                                      for cached_object in self._manifests_catalog],
+                'pubkeys': self.pubkeys.copy(),
+                'version': Manifest.CURRENT_VERSION
+            }
+        self.SCHEMA.validate(result)
+        return result
+
+    def add_user_keys(self, sig_context, add_primary=True):
+        """
+        Add user keys (primary key only if add_primary is True and any keys listed in "pubkeys"
+        field) to the given sig_context.
+        """
+        if add_primary:
+            sig_context.add_pubkey(self.pubkeys[0])
+        for additional_pubkey in self.pubkeys[1:]:
+            sig_context.add_pubkey(additional_pubkey, self.owner)

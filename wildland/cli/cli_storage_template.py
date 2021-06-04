@@ -23,9 +23,9 @@ from typing import Type
 import functools
 import click
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..manifest.template import TemplateManager
-from ..manifest.manifest import WildlandObjectType
 from ..exc import WildlandError
 
 from ..storage_backends.base import StorageBackend
@@ -58,7 +58,7 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
                           "By default the @default owner is used."),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
-        click.Option(['--base-url'], metavar='URL', required=False,
+        click.Option(['--public-url'], metavar='URL', required=False,
                      help='Set public base URL.'),
         click.Option(['--read-only'], metavar='BOOL', is_flag=True,
                      help='Mark storage as read-only.'),
@@ -91,14 +91,14 @@ def _do_create(
         create: bool,
         name,
         watcher_interval,
-        base_url,
+        public_url,
         read_only,
         access,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     tpl_exists = template_manager.get_file_path(name).exists()
 
     if tpl_exists and create:
@@ -124,7 +124,7 @@ def _do_create(
         else:
             try:
                 params['access'] = [
-                    {'user': obj.client.load_object_from_name(WildlandObjectType.USER, user).owner}
+                    {'user': obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
                     for user in access
                 ]
             except WildlandError as ex:
@@ -135,8 +135,8 @@ def _do_create(
                                              '{{ local_dir if local_dir is defined else "/" }}' + \
                                              '/{{ uuid }}'
 
-    if base_url:
-        params['base-url'] = base_url.rstrip('/') + \
+    if public_url:
+        params['public-url'] = public_url.rstrip('/') + \
                                 '{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}'
 
     # remove default, non-required values
@@ -161,7 +161,7 @@ def template_list(obj: ContextObj, show_filenames):
     Display known storage templates
     """
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
     click.echo("Available templates:")
     templates = template_manager.available_templates()
@@ -184,7 +184,7 @@ def template_del(obj: ContextObj, name: str):
     Remove a storage template set.
     """
 
-    template_manager = TemplateManager(obj.client.dirs[WildlandObjectType.TEMPLATE])
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     try:
         template_manager.remove_storage_template(name)
     except FileNotFoundError as fnf:

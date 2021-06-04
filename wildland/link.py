@@ -22,18 +22,75 @@ Helper link object.
 
 from typing import Union, Optional
 from pathlib import PurePosixPath
+from wildland.wildland_object.wildland_object import WildlandObject
 from .storage_driver import StorageDriver
+from .exc import WildlandError
+from .manifest.schema import Schema
 
 
-class Link:
+class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     """Wildland Link helper object"""
 
-    def __init__(self, storage_backend,
-                 file_path: Union[str, PurePosixPath], file_bytes: Optional[bytes] = None):
-        self.storage_backend = storage_backend
-        self.storage_driver = StorageDriver(storage_backend=self.storage_backend)
+    SCHEMA = Schema({"$ref": "/schemas/types.json#linked-file"})
+
+    def __init__(self,
+                 file_path: Union[str, PurePosixPath],
+                 storage=None,
+                 storage_backend=None,
+                 storage_driver=None,
+                 file_bytes: Optional[bytes] = None):
+        super().__init__()
+        assert storage or storage_backend or storage_driver
+        if storage_driver:
+            self.storage_driver = storage_driver
+        elif storage:
+            self.storage_driver = StorageDriver.from_storage(storage=storage)
+        else:
+            self.storage_driver = StorageDriver(storage_backend=storage_backend)
         self.file_path = PurePosixPath(file_path)
         self.file_bytes = file_bytes
+
+    def __str__(self):
+        return self.to_str()
+
+    def __repr__(self):
+        return self.to_str()
+
+    def to_str(self):
+        """
+        Return string representation
+        """
+        array_repr = [
+            f"file_path={self.file_path}"
+        ]
+        if self.storage_driver and self.storage_driver.storage_backend:
+            array_repr += [f"storage={self.storage_driver.storage_backend}"]
+        str_repr = "link(" + ", ".join(array_repr) + ")"
+        return str_repr
+
+    @classmethod
+    def parse_fields(cls, fields: dict, client, manifest=None, **kwargs):
+        # this method is currently unused, due to manual handling of Link objects
+        storage = client.load_object_from_dict(WildlandObject.Type.STORAGE, fields['storage'],
+                                               container_path='/')
+        storage_driver = StorageDriver.from_storage(storage)
+        return cls(
+            file_path=PurePosixPath(fields['file']),
+            storage_driver=storage_driver,
+            file_bytes=None
+        )
+
+    @classmethod
+    def from_manifest(cls, manifest, client,
+                      object_type=None, **kwargs):
+        raise WildlandError('Link object cannot be an independent manifest')
+
+    def to_manifest_fields(self, inline: bool):
+        return {
+            'object': 'link',
+            'storage': self.storage_driver.storage_backend.params,
+            'file': str(self.file_path)
+        }
 
     def get_target_file(self) -> bytes:
         """
