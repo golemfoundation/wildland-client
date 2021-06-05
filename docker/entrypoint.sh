@@ -38,7 +38,7 @@ fi
 cd /home/user
 
 #
-# BEGIN FISH CONFIGURATION
+# BEGIN SHELL CONFIGURATION
 #
 
 # remove "(env) " prompt prefix when activating venv
@@ -56,19 +56,13 @@ if test -z "$VIRTUAL_ENV"
 end
 EOF
 
-# minimal tmux configuration for FISH as default SHELL
-cat > .tmux.conf << EOF
-set -g default-command /usr/bin/fish
-set -g default-shell /usr/bin/fish
-EOF
-
 # minimal screen configuration for FISH as default SHELL
 cat > .screenrc << EOF
-shell /usr/bin/fish
+shell /bin/bash
 EOF
 
 #
-# END FISH CONFIGURATION
+# END SHELL CONFIGURATION
 #
 
 ipfs init &> /dev/null
@@ -79,5 +73,5 @@ printf "\nWebDAV server is running at dav://localhost:8080/\n\n"
 if [ -n "$1" ]; then
     exec "$@"
 else
-    fish
+    bash
 fi
