@@ -7,6 +7,8 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2021-06-04) Dropped support for relative paths to user manifests in bridges.
+
 * (2021-05-31) The ``infrastructures`` field in user manifest has been renamed to
   ``manifests-catalog``. For backwards compatibility, both fields are
   permitted when loading a manifest, but only the latter one is used. Also completely
