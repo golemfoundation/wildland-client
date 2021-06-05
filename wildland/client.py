@@ -280,6 +280,8 @@ class Client:
         :param container_path: if object is STORAGE, will be passed to it as container_path. Ignored
         otherwise.
         """
+        if 'encrypted' in dictionary.keys():
+            raise WildlandError('Cannot decrypt manifest: decryption key unavailable')
         if dictionary.get('object', None) == 'link':
             link = self.load_link_object(dictionary, expected_owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
