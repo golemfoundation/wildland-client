@@ -32,19 +32,19 @@ from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 
 
-@aliased_group('storage-template', short_help='storage templates management')
-def storage_template():
+@aliased_group('template', short_help='storage templates management')
+def template():
     """Manage storage templates"""
 
 
-@storage_template.group('create', alias=['c'], short_help='create storage template')
+@template.group('create', alias=['c'], short_help='create storage template')
 def _create():
     """
     Creates storage template based on storage type.
     """
 
 
-@storage_template.group('add', alias=['a'], short_help='append to an existing storage template')
+@template.group('add', alias=['a'], short_help='append to an existing storage template')
 def _append():
     """
     Appends to an existing storage template based on storage type.
@@ -103,10 +103,10 @@ def _do_create(
 
     if tpl_exists and create:
         raise CliError(f'Template {name} already exists. Choose another name or use '
-                       '[wl storage-template add] command to append to existing template.')
+                       '[wl template add] command to append to existing template.')
 
     if not tpl_exists and not create:
-        raise CliError(f'Template {name} does not exist. Use [wl storage-template create] '
+        raise CliError(f'Template {name} does not exist. Use [wl template create] '
                        'command to create a new template.')
 
     params = backend.cli_create(data)
@@ -152,7 +152,7 @@ def _do_create(
         click.echo(f"Storage template [{name}] created in {path}")
 
 
-@storage_template.command('list', short_help='list storage templates', alias=['ls'])
+@template.command('list', short_help='list storage templates', alias=['ls'])
 @click.option('--show-filenames', '-s', is_flag=True, required=False,
               help='show filenames for storage template sets and template files')
 @click.pass_obj
@@ -169,14 +169,14 @@ def template_list(obj: ContextObj, show_filenames):
     if not templates:
         click.echo("    No templates available.")
     else:
-        for template in templates:
+        for tpl in templates:
             if show_filenames:
-                click.echo(f"    {template} [{template_manager.get_file_path(str(template))}]")
+                click.echo(f"    {tpl} [{template_manager.get_file_path(str(tpl))}]")
             else:
-                click.echo(f"    {template}")
+                click.echo(f"    {tpl}")
 
 
-@storage_template.command('remove', short_help='remove storage template', alias=['rm', 'd'])
+@template.command('remove', short_help='remove storage template', alias=['rm', 'd'])
 @click.argument('name', required=True)
 @click.pass_obj
 def template_del(obj: ContextObj, name: str):
