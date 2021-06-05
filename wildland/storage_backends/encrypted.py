@@ -421,24 +421,20 @@ class EncryptedStorageBackend(StorageBackend):
         self.credentials = kwds['params']['symmetrickey']
         self.engine = kwds['params']['engine']
         self.reference_container = kwds['params']['reference-container']
+        self.owner = kwds['params']['owner']
         self.engine_obj = None
         self.engine_cls = engines[self.engine]
 
-        alphabet = string.ascii_letters + string.digits
         default = Path('~/.local/share/').expanduser()
-        mountid = ''.join(secrets.choice(alphabet) for i in range(15))
         tmpdir = PurePosixPath(os.getenv('XDG_DATA_HOME', default)) / 'wl' / 'encrypted'
-        self.tmpdir_path =  tmpdir / mountid / self.engine
-        self.cleartext_path = tmpdir / mountid / 'cleartext'
-        Path(self.tmpdir_path).mkdir(parents=True)
-        Path(self.cleartext_path).mkdir(parents=True)
-        local_params = {'location': self.cleartext_path,
-                        'type': 'local',
-                        'owner': kwds['params']['owner'],
-                        'is-local-owner': True,
-                        'backend-id': mountid + '/cleartext'
-                        }
-        self.local = LocalStorageBackend(params=local_params)
+        alphabet = string.ascii_letters + string.digits
+        self.mountid = ''.join(secrets.choice(alphabet) for i in range(15))
+        # delaying creation of those paths until self.mount()
+        self.mountid_path = tmpdir / self.mountid
+        self.cleartext_path = tmpdir / self.mountid / 'cleartext'
+        self.tmpdir_path =  tmpdir / self.mountid / self.engine
+
+        self.local: LocalStorageBackend
 
         # below parameters are automatically generated based on
         # reference-container and MOUNT_REFERENCE_CONTAINER flag
@@ -467,7 +463,7 @@ class EncryptedStorageBackend(StorageBackend):
         engine = engines[data['engine']]
         with tempfile.TemporaryDirectory(prefix='encrypted-temp-dir.') as d:
             d1 = PurePosixPath(d) / 'encrypted'
-            d2 = PurePosixPath(d) / 'plain'
+            d2 = PurePosixPath(d) / 'cleartext'
             Path(d1).mkdir()
             Path(d2).mkdir()
             runner = engine.init(PurePosixPath(d), d1, d2)
@@ -527,10 +523,19 @@ class EncryptedStorageBackend(StorageBackend):
     def mount(self) -> None:
         # If ciphertext_path is not available, ask user to mount it!
         if Path(self.ciphertext_path).exists():
+            Path(self.tmpdir_path).mkdir(parents=True)
+            Path(self.cleartext_path).mkdir(parents=True)
             self.engine_obj = self.engine_cls(self.tmpdir_path,
                                               self.ciphertext_path,
                                               self.credentials)
             self.engine_obj.run(self.cleartext_path, self.ciphertext_storage)
+            local_params = {'location': self.cleartext_path,
+                            'type': 'local',
+                            'owner': self.owner,
+                            'is-local-owner': True,
+                            'backend-id': self.mountid + '/cleartext'
+                            }
+            self.local = LocalStorageBackend(params=local_params)
             self.local.request_mount()
         else:
             raise WildlandFSError(f'Please run `wl c mount {self.reference_container}` first.')
@@ -541,3 +546,9 @@ class EncryptedStorageBackend(StorageBackend):
             if self.engine_obj.stop() != 0:
                 raise WildlandFSError('Unmounting failed: mount point is busy')
             self.engine_obj = None
+        try:
+            Path(self.cleartext_path).rmdir()
+            Path(self.tmpdir_path).rmdir()
+            Path(self.mountid_path).rmdir()
+        except OSError:
+            pass
