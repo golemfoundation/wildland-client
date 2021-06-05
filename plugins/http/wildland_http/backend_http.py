@@ -145,7 +145,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
         )
 
         # Special handling for 403 Forbidden
-        if resp.status_code == 403:
+        if resp.status_code == 403 or not resp.content:
             raise PermissionError(f'Could not list requested directory [{path}]')
 
         # For all other cases throw a joint HTTPError
@@ -195,11 +195,14 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
             yield PurePosixPath(parsed_href.path).name, attr
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        try:
-            attr = super().getattr(path)
-        except PermissionError:
-            logger.info('Could not list directory for [%s]. '
-                        'Falling back to the file directly.', str(path))
+        attr = None
+        if self.readdir_cache:
+            try:
+                attr = super().getattr(path)
+            except PermissionError:
+                logger.info('Could not list directory for [%s]. '
+                            'Falling back to the file directly.', str(path))
+        if not attr:
             url = self.make_url(path)
             attr = self._get_single_file_attr(url)
 
