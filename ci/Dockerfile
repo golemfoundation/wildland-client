@@ -53,7 +53,7 @@ RUN ARCH=$(arch) && CHECKSUM="" \
       && install go-ipfs/ipfs /bin/ \
       && rm -rf go-ipfs go-ipfs_v0.7.0_linux-${ARCH}.tar.gz
 
-RUN useradd --create-home user
+RUN useradd --shell /bin/bash --create-home user
 RUN echo user_allow_other >> /etc/fuse.conf
 
 RUN mkdir /home/user/wildland-client
