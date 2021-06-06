@@ -145,23 +145,40 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
-        cls.BASE_SCHEMA.validate(fields)
         params = fields
+        cls.BASE_SCHEMA.validate(params)
+        storage_type = params['type']
 
-        if 'local_owners' in kwargs and kwargs['local_owners'] is not None:
-            params['is-local-owner'] = fields['owner'] in kwargs['local_owners']
+        if 'reference-container' in params:
+            referenced_path_and_storage_params = client.select_reference_storage(
+                params['reference-container'],
+                params['owner'],
+                params.get('trusted', False))
+            if referenced_path_and_storage_params:
+                referenced_path, params['storage'] = referenced_path_and_storage_params
+
+        storage_cls = StorageBackend.types()[storage_type]
+
+        if storage_cls.MOUNT_REFERENCE_CONTAINER:
+            assert referenced_path
+            storage_path = str(client.fs_client.mount_dir / referenced_path.relative_to('/'))
+            params['storage-path'] = storage_path
+
+        if 'local_owners' in kwargs and kwargs['local_owners']:
+            params['is-local-owner'] = params['owner'] in kwargs['local_owners']
         else:
             params['is-local-owner'] = False
+
         return cls(
-            owner=fields['owner'],
-            storage_type=fields['type'],
-            container_path=PurePosixPath(fields['container-path']),
-            trusted=fields.get('trusted', False),
-            public_url=fields.get('public-url'),
+            owner=params['owner'],
+            storage_type=storage_type,
+            container_path=PurePosixPath(params['container-path']),
+            trusted=params.get('trusted', False),
+            public_url=params.get('public-url'),
             params=params,
             client=client,
             manifest=manifest,
-            access=fields.get('access')
+            access=params.get('access')
         )
 
     def to_manifest_fields(self, inline: bool) -> dict:

@@ -308,7 +308,7 @@ class _StoragePublisher:
 
         with StorageDriver.from_storage(self.catalog_storage) as driver:
             # replace old relative URLs with new, better URLs
-            for backend in self.container.load_backends(include_inline=False):
+            for backend in self.container.load_storages(include_inline=False):
                 relpath = self._get_relpath_for_storage_manifest(backend.backend_id)
                 assert relpath not in storage_relpaths
                 storage_relpaths[relpath] = backend

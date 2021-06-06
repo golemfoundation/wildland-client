@@ -191,13 +191,13 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
             raise WildlandError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        owner.add_catalog_entry(str(obj.client.local_url(container_path)))
+        owner_user.add_catalog_entry(str(obj.client.local_url(container_path)))
         obj.client.save_object(WildlandObject.Type.USER, owner_user)
 
     if not no_publish:
         try:
-            owner = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-            if owner.has_catalog:
+            owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+            if owner_user.has_catalog:
                 click.echo(f'publishing container {container.uuid_path}...')
                 publisher = Publisher(obj.client, container)
                 publisher.publish_container()

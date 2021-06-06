@@ -268,7 +268,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         for cache in self._backend_iterator(include_inline, include_url):
             yield deepcopy(cache.storage)
 
-    def load_backends(self, include_inline: bool = True, include_url: bool = True):
+    def load_storages(self, include_inline: bool = True, include_url: bool = True):
         """
         Load and return container storages. Returns Storage objects.
         :param include_inline: should inline storages be included?
@@ -277,27 +277,14 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         assert self.client
         for cache in self._backend_iterator(include_inline, include_url):
             try:
-                backend = cache.get(self.client, self.owner)
-                if 'reference-container' in backend.params:
-                    referenced_storage_and_path = self.client.select_reference_storage(
-                        backend.params['reference-container'], self.owner, backend.trusted)
-                    if referenced_storage_and_path is None:
-                        logging.warning("Can't select reference storage: %s",
-                                        backend.params['reference-container'])
-                        continue
-                    path, backend.params['storage'] = referenced_storage_and_path
-
-                    # This is to avoid circular imports, and the import is needed because of FUSE
-                    # dependence: https://gitlab.com/wildland/wildland-client/-/issues/419
-                    # pylint: disable=import-outside-toplevel,cyclic-import
-                    from .storage_backends.base import StorageBackend
-                    backend_cls = StorageBackend.types()[backend.storage_type]
-                    if backend_cls.MOUNT_REFERENCE_CONTAINER:
-                        storage_path = str(self.client.fs_client.mount_dir / path.relative_to('/'))
-                        backend.params['storage-path'] = storage_path
+                storage = cache.get(self.client, self.owner)
+                if 'reference-container' in storage.params and 'storage' not in storage.params:
+                    logging.warning("Can't select reference storage: %s",
+                                    storage.params['reference-container'])
+                    continue
             except (ManifestError, WildlandError):
                 continue
-            yield backend
+            yield storage
 
     def is_backend_in_use(self, path_or_id):
         """

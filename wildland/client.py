@@ -805,7 +805,7 @@ class Client:
         In case of proxy storage, this will also load an reference storage and
         inline the manifest.
         """
-        for storage in container.load_backends():
+        for storage in container.load_storages():
             if not StorageBackend.is_type_supported(storage.storage_type):
                 logging.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
                 continue
