@@ -208,10 +208,6 @@ googleapis-common-protos==1.53.0 \
 httplib2==0.19.1 \
     --hash=sha256:0b12617eeca7433d4c396a100eaecfa4b08ee99aa881e6df6e257a7aad5d533d \
     --hash=sha256:2ad195faf9faf079723f6714926e9a9061f694d07724b846658ce08d40f522b4
-graphlib-backport==1.0.3 ; python_version < "3.9" \
-    --hash=sha256:24246967b9e7e6a91550bc770e6169585d35aa32790258579a8a3899a8c18fde \
-    --hash=sha256:7bb8fc7757b8ae4e6d8000a26cd49e9232aaa9a3aa57edb478474b8424bfaae2
-    # via -r requirements.in
     # via
     #   google-api-python-client
     #   google-auth-httplib2
@@ -460,6 +456,9 @@ ply==3.11 \
     --hash=sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3 \
     --hash=sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce
     # via stone
+progress==1.5 \
+    --hash=sha256:69ecedd1d1bbe71bf6313d88d1e6c4d2957b7f1d4f71312c211257f7dae64372
+    # via -r requirements.in
 protobuf==3.15.8 \
     --hash=sha256:0277f62b1e42210cafe79a71628c1d553348da81cbd553402a7f7549c50b11d0 \
     --hash=sha256:07eec4e2ccbc74e95bb9b3afe7da67957947ee95bdac2b2e91b038b832dd71f0 \
