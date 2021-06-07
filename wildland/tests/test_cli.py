@@ -1441,7 +1441,7 @@ def test_container_update(cli, base_dir):
     assert str(storage_path) in data
 
 
-def test_container_publish_unpublish(cli, tmp_path):
+def test_container_publish_unpublish(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
     cli('storage', 'create', 'local', 'Storage',
@@ -1455,6 +1455,20 @@ def test_container_publish_unpublish(cli, tmp_path):
     assert len(tuple(tmp_path.glob('*.yaml'))) == 1
 
     cli('container', 'unpublish', 'Container')
+
+    assert not tuple(tmp_path.glob('*.yaml'))
+
+    cli('container', 'create', 'NewContainer', '--path', '/NEWPATH')
+
+    os.mkdir(base_dir / 'tempdir')
+    os.rename(base_dir / 'containers/NewContainer.container.yaml',
+              base_dir / 'tempdir/NewContainer.container.yaml')
+
+    cli('container', 'publish', base_dir / 'tempdir/NewContainer.container.yaml')
+
+    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+
+    cli('container', 'unpublish', base_dir / 'tempdir/NewContainer.container.yaml')
 
     assert not tuple(tmp_path.glob('*.yaml'))
 
