@@ -3136,12 +3136,6 @@ def test_template_parsing(cli, base_dir):
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
 
 
-def setup_storage_templates(cli, config_dir):
-    cli('template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't1')
-    cli('template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't2')
-    cli('template', 'create', 'local', '--location', f'{config_dir}' + '/{{ uuid }}', 't3')
-
-
 def test_different_default_user(cli, base_dir):
     storage_dir = base_dir / 'storage_dir'
     os.mkdir(storage_dir)
