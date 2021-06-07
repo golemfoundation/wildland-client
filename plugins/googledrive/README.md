@@ -8,41 +8,41 @@ Google Drive based read/write storage backend for Wildland containers.
 
 ![Create new project](./assets/1.png)
 
-2. Select "SELECT PROJECT"
+2. Select `SELECT PROJECT`
 
 ![SELECT PROJECT](./assets/2.png)
 
-3. On project page, select “Go to APIs overview”
+3. On project page, select `Go to APIs overview`
 
 ![Go to APIs overview](./assets/3.png)
 
-4.Click “ENABLE APIS AND SERVICES”
+4.Click `ENABLE APIS AND SERVICES`
 
 ![ENABLE APIS AND SERVICES](./assets/4.png)
 
-5.Search for “Google Drive API” and select it and press “Enable”
+5.Search for `Google Drive API` and select it and press `Enable`
 
 ![Google Drive API](./assets/5.png)
 
-6. When API is enabled, you will see a warning on the dashboard, says: “To use this API, you may need credentials. Click 'Create credentials' to get started.”. Click “CREATE CREDENTIALS” next to it.
+6. When API is enabled, you will see a warning on the dashboard, says: `To use this API, you may need credentials. Click 'Create credentials' to get started.`. Click `CREATE CREDENTIALS` next to it.
 
 ![CREATE CREDENTIALS](./assets/6.png)
 
-7. There will be a wizard asking for Credential Type. Select “Google Drive API” and “User Data” and press “NEXT”
+7. There will be a wizard asking for Credential Type. Select `Google Drive API` and `User Data` and press `NEXT`
 
 ![Credential Type](./assets/7.png)
 
-8. Second Wizard screen is “OAuth consent screen”, fill necessary parts and Click “SAVE AND CONTINUE”
+8. Second Wizard screen is `OAuth consent screen`, fill necessary parts and Click `SAVE AND CONTINUE`
 
 ![OAuth consent screen](./assets/8.png)
 
-9. Third Wizard screen is “Scopes”,  skip this screen by simply pressing “SAVE AND CONTINUE”
+9. Third Wizard screen is `Scopes`, skip this screen by simply pressing `SAVE AND CONTINUE`
 
-10. Fourth screen is “OAuth Client ID”. Select Desktop App as “Application type” and “Name” field can remain as it is, click “CREATE” button after.
+10. Fourth screen is `OAuth Client ID`. Select Desktop App as `Application type` and `Name` field can remain as it is, click `CREATE` button after.
 
 ![OAuth Client ID](./assets/9.png)
 
-11. In final screen, Google will show your Client ID and give an option to download application credentials as in JSON format, this is what we are looking for. Press “DOWNLOAD” to have it. We don’t need Client ID itself.
+11. In final screen, Google will show your Client ID and give an option to download application credentials as in JSON format, this is what we are looking for. Press `DOWNLOAD` to have it. We don’t need Client ID itself.
 
 ![Download application credentials](./assets/10.png)
 
@@ -77,7 +77,7 @@ This is an example of what you will find in downloaded file.
 }
 ```
 
-12. After downloading the file, Press “OK”, this will return back you to project credentials page, select “OAuth consent screen” from side menu, under “Publishing status” section, press “PUBLISH APP” button, We’re done here.
+12. After downloading the file, Press `OK`, this will return back you to project credentials page, select `OAuth consent screen` from side menu, under `Publishing status` section, press `PUBLISH APP` button, We’re done here.
 ![PUBLISH APP](./assets/11.png)
 
 ### Creating Google Drive storage
