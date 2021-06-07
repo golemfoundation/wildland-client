@@ -1,0 +1,179 @@
+#!/bin/bash
+
+# See ci/howto-test-lib.bash for docs about the "test framework"
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage
+sudo /etc/init.d/apache2 start
+
+run wl user create yatima
+
+userid=$(echo $(wl user ls|grep owner:| cut -f 2 -d :))
+
+expected="/home/user/.config/wildland/users/yatima.user.yaml (@default) (@default-owner)
+  owner: $userid
+  private and public keys available
+   no bridges to user available
+   user path: /users/yatima"
+run wl user ls
+
+run wl start
+
+run wl user import --path /mydirs/ariadne https://ariadne.wildland.io
+
+expected="/home/user/.config/wildland/bridges/ariadne.wildland.io.bridge.yaml
+  owner: $userid (/users/yatima)
+  paths: /mydirs/ariadne"
+run wl bridge ls
+
+run wl forest mount :/mydirs/ariadne:
+
+expected="/home/user/wildland/mydirs/
+└── ariadne:/
+    └── forests/
+        └── pandora:/
+            └── WILDLAND-FOREST.txt
+
+3 directories, 1 file"
+run tree -F ~/wildland/mydirs/
+
+run wl forest mount :/mydirs/ariadne:/forests/pandora:
+
+expected="/home/user/wildland/mydirs/ariadne:/forests/pandora:/
+├── WILDLAND-FOREST.txt
+├── agent/
+├── arch/
+├── backends/
+├── clients/
+├── communication/
+├── docs/
+├── economy/
+├── ecosystem/
+├── events/
+├── home/
+├── hr/
+├── maps/
+├── ops/
+├── persons/
+├── places/
+├── pubkeys/
+├── reports/
+├── resources/
+├── similar_projects/
+├── status/
+├── teams/
+├── timeline/
+├── usecases/
+└── ux/
+
+24 directories, 1 file"
+run tree -F -L 1 ~/wildland/mydirs/ariadne:/forests/pandora:/
+
+## Creating containers and forests
+
+run wl template create webdav mywebdav \
+    --login 'user' \
+    --password 'password' \
+    --url 'http://localhost:8081/'
+
+run wl template create dropbox mydropbox --token '<YOUR_DROPBOX_ACCESS_TOKEN>'
+
+
+expected="Available templates:
+    mydropbox
+    mywebdav"
+run wl template ls
+
+# FIXME: easier with webdav in CI
+#run wl forest create yatima mydropbox
+run wl forest create yatima mywebdav
+
+### Creating a container
+
+run wl container create \
+    --title "My Container" \
+    --category "/tests" \
+    --storage-template mywebdav
+
+# impossible without write access to pandora
+#run wl container create knowledge-sharing \
+#                     --owner pandora \
+#                     --title "Knowledge Sharing in Wildland Project" \
+#                     --category /docs \
+#                     --category /ops \
+#                     --category /persons/joanna \
+#                     --template pandora-storage
+
+
+run wl container mount @default:/tests/My\ Container:
+
+run wl container mount \
+  0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe:/docs/Container\ Addressing/:
+
+run wl container mount \
+  0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd:/forests/pandora:/docs/Container\ Addressing/:
+
+run wl container mount :/mydirs/ariadne:/forests/pandora:/docs/Container\ Addressing/:
+
+# TODO: set Ariadne as @default (wl stop; wl start --default-user ?)
+#run wl c mount :/forests/pandora:/docs/Container\ Addressing:
+
+expected=".
+..
+.manifest.wildland.yaml
+wildland-w2h-0.3.pdf
+wildland-w2h-0.4-pre3.pdf
+wildland-w2h.pdf"
+run ls -a1  ~/wildland/mydirs/ariadne:/forests/pandora:/docs/W2H\ paper/
+
+expected="Container: wildland:0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe:/.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb:
+  Backend id: 5570a6f5-857f-412b-8fa8-b5f6a83ea164"
+run wl c find ~/wildland/mydirs/ariadne:/forests/pandora:/docs/@arch/Container\ Addressing/addressing-v0.8.pdf
+
+# won't work without write access to pandora
+#run wl c edit wildland:<wladdr>
+# but dump will
+expected="object: container
+owner: '0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe'
+paths:
+- /.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb
+backends:
+  storage:
+  - reference-container: 'wildland:@default:/.infra:/home/joanna:'
+    subdirectory: /addressing
+    backend-id: 5570a6f5-857f-412b-8fa8-b5f6a83ea164
+    type: delegate
+title: Container Addressing
+categories:
+- /docs
+- /arch
+- /persons/joanna
+version: '1'
+access:
+- user: '*'"
+run wl c dump wildland:0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe:/.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb:
+
+
+### Sharing a forest with others
+# This is moved to the end, to not let the user switch interfere with other tests
+
+# preparation of another user, not really part of the tutorial
+mkdir -p ~/Downloads
+cp ~/.config/wildland/users/yatima.user.yaml ~/Downloads/
+run wl stop
+mv ~/.config/wildland ~/.config/wildland-yatima
+run wl user create inoshiro
+run wl start
+# preparation end
+
+run wl user import --path /forests/friends/yatima ~/Downloads/yatima.user.yaml
+
+run wl forest mount :/forests/friends/yatima:
+
+## switch back to yatima
+#run wl stop
+#mv ~/.config/wildland ~/.config/wildland-inoshiro
+#mv ~/.config/wildland-yatima ~/.config/wildland
+#run wl start
+## switch end
