@@ -169,6 +169,8 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
         print(f'Creating: {obj.mount_dir}')
         os.makedirs(obj.mount_dir)
 
+    click.echo(f'Starting Wildland at: {obj.mount_dir}')
+
     if obj.fs_client.is_mounted():
         if remount:
             obj.fs_client.unmount()
@@ -250,22 +252,15 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
             click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
         click.echo()
 
-@main.command(short_help='renamed to "start"')
-def mount():
-    """
-    Renamed to "start" command.
-    """
-    raise CliError('The "wl mount" command has been renamed to "wl start"')
 
-
-@main.command(short_help='unmount Wildland filesystem', alias=['umount', 'unmount'])
+@main.command(short_help='unmount Wildland filesystem')
 @click.pass_obj
 def stop(obj: ContextObj):
     """
     Unmount the Wildland filesystem.
     """
 
-    click.echo(f'Unmounting: {obj.mount_dir}')
+    click.echo(f'Stoping Wildland at: {obj.mount_dir}')
     try:
         obj.fs_client.unmount()
     except WildlandError as ex:

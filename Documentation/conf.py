@@ -191,8 +191,6 @@ man_pages = [
 
     ('manpages/wl-start', 'wl-start', 'Mount the whole Wildland FUSE filesystem', [author], 1),
     ('manpages/wl-stop', 'wl-stop', 'Unmount the whole Wildland FUSE filesystem', [author], 1),
-    ('manpages/wl-mount', 'wl-mount',
-     'Mount the whole Wildland FUSE filesystem (renamed to start))', [author], 1),
 
     ('manpages/wl-status', 'wl-status', 'Display all mounted containers', [author], 1),
 
