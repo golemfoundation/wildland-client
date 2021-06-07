@@ -195,14 +195,11 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
             yield PurePosixPath(parsed_href.path).name, attr
 
     def getattr(self, path: PurePosixPath) -> Attr:
-        attr = None
-        if self.readdir_cache:
-            try:
-                attr = super().getattr(path)
-            except PermissionError:
-                logger.info('Could not list directory for [%s]. '
-                            'Falling back to the file directly.', str(path))
-        if not attr:
+        try:
+            attr = super().getattr(path)
+        except PermissionError:
+            logger.info('Could not list directory for [%s]. '
+                        'Falling back to the file directly.', str(path))
             url = self.make_url(path)
             attr = self._get_single_file_attr(url)
 
