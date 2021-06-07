@@ -27,15 +27,20 @@ Manage bridges
 
 from pathlib import PurePosixPath, Path
 from typing import List, Optional
+import logging
 
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.bridge import Bridge
+from wildland.link import Link
 from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, dump
-from .cli_user import import_manifest
+from .cli_user import import_manifest, find_user_manifest_within_catalog
+
+
+logger = logging.getLogger('cli-bridge')
 
 
 @aliased_group('bridge', short_help='bridge management')
@@ -47,22 +52,24 @@ def bridge_():
 
 @bridge_.command(short_help='create bridge')
 @click.option('--owner', 'owner', help='User used to sign the bridge')
-@click.option('--ref-user', 'ref_user_name', metavar='USER',
-              help='Username to refer to. Use to verify the integrity of the --ref-user-location')
-@click.option('--ref-user-location', metavar='URL',
-              required=True,
-              help='Path to the user manifest (use file:// for local file). If --ref-user is \
-              skipped, the user manifest from this path is considered trusted.')
-@click.option('--ref-user-path', 'ref_user_paths', multiple=True,
-              help='paths for user in Wildland namespace (omit to take from user manifest)')
+@click.option('--target-user', 'target_user_name', metavar='USER',
+              help='User to whom the bridge will point. If provided, will be used to verify the '
+                   'integrity of the --target-user-location. If omitted, --target-user-location'
+                   'will be used to locate user manifest.')
+@click.option('--target-user-location', metavar='URL',
+              help='Path to the user manifest (use file:// for local file). If --target-user is \
+              skipped, the user manifest from this path is considered trusted. If omitted, the '
+                   'user manifest will be located in their manifests catalog')
+@click.option('--path', 'user_paths', multiple=True,
+              help='path(s) for user in owner namespace (omit to take from user manifest)')
 @click.option('--file-path', help='file path to create under')
 @click.argument('name', metavar='BRIDGE_NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj,
            owner: str,
-           ref_user_name: str,
-           ref_user_location: str,
-           ref_user_paths: List[str],
+           target_user_name: str,
+           target_user_location: str,
+           user_paths: List[str],
            name: Optional[str],
            file_path: Optional[str]):
     """
@@ -72,33 +79,59 @@ def create(obj: ContextObj,
     owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER,
                                                   owner or '@default-owner')
 
-    if name is None and file_path is None:
-        raise CliError('Either name or file path needs to be provided')
+    if not target_user_name and not target_user_location:
+        raise CliError('At least one of --target-user and --target-user-location must be provided.')
 
-    if not obj.client.is_url(ref_user_location):
-        raise CliError('Ref user location must be an URL')
+    if target_user_location and not obj.client.is_url(target_user_location):
+        raise CliError('Target user location must be an URL')
 
-    if ref_user_name:
-        ref_user = obj.client.load_object_from_name(WildlandObject.Type.USER, ref_user_name)
+    if target_user_name:
+        target_user = obj.client.load_object_from_name(WildlandObject.Type.USER, target_user_name)
     else:
-        ref_user = obj.client.load_object_from_url(WildlandObject.Type.USER, ref_user_location,
-                                                   owner=owner_user.owner)
+        target_user = obj.client.load_object_from_url(
+            WildlandObject.Type.USER, target_user_location, owner=owner_user.owner)
 
-    if ref_user_paths:
-        paths = [PurePosixPath(p) for p in ref_user_paths]
+    if target_user_location:
+        location = target_user_location
+    else:
+        found_manifest = find_user_manifest_within_catalog(obj, target_user)
+        if not found_manifest:
+            if target_user.local_path:
+                logger.warning('Cannot find user manifest in manifests catalog. '
+                               'Using local file path.')
+                location = obj.client.local_url(target_user.local_path)
+            else:
+                raise CliError('User manifest not found in manifests catalog. '
+                               'Provide --target-user-location.')
+        else:
+            storage, file = found_manifest
+            file = '/' / file
+            location_link = Link(file, storage=storage)
+            location = location_link.to_manifest_fields(inline=True)
+
+    if user_paths:
+        paths = [PurePosixPath(p) for p in user_paths]
     else:
         click.echo(
-            "Using user's default paths: {}".format([str(p) for p in ref_user.paths]))
-        paths = list(ref_user.paths)
+            "Using user's default paths: {}".format([str(p) for p in target_user.paths]))
+        paths = list(target_user.paths)
 
     bridge = Bridge(
         owner=owner_user.owner,
-        user_location=ref_user_location,
-        user_pubkey=ref_user.primary_pubkey,
-        user_id=obj.client.session.sig.fingerprint(ref_user.primary_pubkey),
+        user_location=location,
+        user_pubkey=target_user.primary_pubkey,
+        user_id=obj.client.session.sig.fingerprint(target_user.primary_pubkey),
         paths=paths,
         client=obj.client
     )
+
+    if not name or file_path:
+        # an heuristic for nicer paths
+        for path in paths:
+            if 'uuid' not in str(path):
+                name = str(path).lstrip('/').replace('/', '_')
+                break
+
     path = obj.client.save_new_object(WildlandObject.Type.BRIDGE,
                                       bridge, name, Path(file_path) if file_path else None)
     click.echo(f'Created: {path}')

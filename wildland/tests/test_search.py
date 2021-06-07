@@ -294,8 +294,8 @@ def test_read_file_traverse_user(cli, base_dir, client):
                     base_dir / 'storage1/users/User2.user.yaml')
 
     cli('bridge', 'create', '--owner', 'User',
-        '--ref-user', 'User2',
-        '--ref-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
+        '--target-user', 'User2',
+        '--target-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
         'User2')
 
@@ -331,8 +331,8 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Create bridge manifest
     cli('bridge', 'create', '--owner', 'User',
-        '--ref-user', 'User2',
-        '--ref-user-location', 'file://localhost' + str(user_path),
+        '--target-user', 'User2',
+        '--target-user-location', 'file://localhost' + str(user_path),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
         'User2')
 
@@ -913,14 +913,14 @@ def two_users_catalog(base_dir, cli, control_client):
     )
     (base_dir / 'catalog-known/users').mkdir()
     cli('bridge', 'create', '--owner', 'KnownUser',
-        '--ref-user', 'Dummy2',
-        '--ref-user-path', '/users/User2',
-        '--ref-user-location', f'file://{base_dir}/manifests/user2.yaml',
+        '--target-user', 'Dummy2',
+        '--path', '/users/User2',
+        '--target-user-location', f'file://{base_dir}/manifests/user2.yaml',
         '--file-path', f'{base_dir}/catalog-known/users/User2.yaml')
     cli('bridge', 'create', '--owner', 'KnownUser',
-        '--ref-user', 'Dummy3',
-        '--ref-user-path', '/users/User3',
-        '--ref-user-location', f'file://{base_dir}/manifests/user3.yaml',
+        '--target-user', 'Dummy3',
+        '--path', '/users/User3',
+        '--target-user-location', f'file://{base_dir}/manifests/user3.yaml',
         '--file-path', f'{base_dir}/catalog-known/users/User3.yaml')
 
     # all manifests done; now move them out of standard WL config,

@@ -330,7 +330,7 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     return destination, file_url
 
 
-def _find_user_manifest_within_catalog(obj, user: User) -> \
+def find_user_manifest_within_catalog(obj, user: User) -> \
         Optional[Tuple[Storage, PurePosixPath]]:
     """
     Mounts containers of the given user's manifests-catalog and attempts to find that user's
@@ -338,6 +338,7 @@ def _find_user_manifest_within_catalog(obj, user: User) -> \
     The user manifest file is expected to be named 'forest-owner.yaml' and be placed in the root
     directory of a storage.
 
+    :param obj: ContextObj
     :param user: User
     :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
     at that manifest in the storage
@@ -399,7 +400,7 @@ def _do_process_imported_manifest(
     if manifest.fields['object'] == 'user':
         user = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.USER,
                                             pubkey=manifest.fields['pubkeys'][0])
-        result = _find_user_manifest_within_catalog(obj, user)
+        result = find_user_manifest_within_catalog(obj, user)
 
         user_location: Union[str, dict] = user_manifest_location
 

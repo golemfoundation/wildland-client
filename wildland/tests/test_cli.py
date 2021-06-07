@@ -1725,10 +1725,10 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
-    cli('bridge', 'create', '--ref-user', 'Other',
-                            '--ref-user-path', '/users/other',
-                            '--ref-user-path', '/people:/other',
-                            '--ref-user-location',
+    cli('bridge', 'create', '--target-user', 'Other',
+                            '--path', '/users/other',
+                            '--path', '/people:/other',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/Other.user.yaml'),
                             'br-other')
     cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH',
@@ -1797,29 +1797,29 @@ def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
     cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('user', 'create', 'Charlie', '--key', '0xccc')
     cli('bridge', 'create', '--owner', 'Alice',
-                            '--ref-user', 'Bob',
-                            '--ref-user-path', '/users/bob',
-                            '--ref-user-path', '/people/bob',
-                            '--ref-user-location',
+                            '--target-user', 'Bob',
+                            '--path', '/users/bob',
+                            '--path', '/people/bob',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/Bob.user.yaml'),
                             'br-bob')
     cli('bridge', 'create', '--owner', 'Alice',
-                            '--ref-user', 'Charlie',
-                            '--ref-user-path', '/users/charlie',
-                            '--ref-user-location',
+                            '--target-user', 'Charlie',
+                            '--path', '/users/charlie',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/Charlie.user.yaml'),
                             'br-charlie')
     cli('bridge', 'create', '--owner', 'Charlie',
-                            '--ref-user', 'Bob',
-                            '--ref-user-path', '/users/bob',
-                            '--ref-user-location',
+                            '--target-user', 'Bob',
+                            '--path', '/users/bob',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/Bob.user.yaml'),
                             'br-charlie-bob')
     # this should not be used, as it introduces a loop
     cli('bridge', 'create', '--owner', 'Bob',
-                            '--ref-user', 'Alice',
-                            '--ref-user-path', '/users/alice',
-                            '--ref-user-location',
+                            '--target-user', 'Alice',
+                            '--path', '/users/alice',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/Alice.user.yaml'),
                             'br-alice-bob')
     cli('container', 'create', 'Container', '--owner', 'Bob', '--path', '/PATH',
@@ -1941,9 +1941,9 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     # same for the container manifest
     os.rename(base_dir / 'containers/Container.container.yaml',
               base_dir / 'other-catalog/Container.container.yaml')
-    cli('bridge', 'create', '--ref-user-path', '/users/other',
-                            '--ref-user-path', '/people/other',
-                            '--ref-user-location',
+    cli('bridge', 'create', '--path', '/users/other',
+                            '--path', '/people/other',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'user-Other.user.yaml'),
                             'br-other')
 
@@ -2019,9 +2019,9 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     # same for the container manifest
     os.rename(base_dir / 'containers/Container.container.yaml',
               base_dir / 'other-catalog/Container.container.yaml')
-    cli('bridge', 'create', '--ref-user-path', '/users/other',
-                            '--ref-user-path', '/people/other',
-                            '--ref-user-location',
+    cli('bridge', 'create', '--path', '/users/other',
+                            '--path', '/people/other',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'user-Other.user.yaml'),
                             'br-other')
 
@@ -2081,9 +2081,9 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
 
     # move user manifest out of the default path, so the bridge would be the only way to access it
     os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
-    cli('bridge', 'create', '--ref-user-path', '/users/other',
-                            '--ref-user-path', '/people/other',
-                            '--ref-user-location',
+    cli('bridge', 'create', '--path', '/users/other',
+                            '--path', '/people/other',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'user-Other.user.yaml'),
                             'br-other')
     # "publish" the bridge
@@ -2811,16 +2811,24 @@ def test_bridge_create(cli, base_dir):
     cli('user', 'create', 'RefUser', '--key', '0xbbb', '--path', '/OriginalPath')
 
     cli('bridge', 'create', 'Bridge',
-        '--ref-user', 'RefUser',
-        '--ref-user-location', 'https://example.com/RefUser.yaml',
-        '--ref-user-path', '/ModifiedPath',
-    )
+        '--target-user', 'RefUser',
+        '--target-user-location', 'https://example.com/RefUser.yaml',
+        '--path', '/ModifiedPath')
 
     data = (base_dir / 'bridges/Bridge.bridge.yaml').read_text()
     assert 'user: https://example.com/RefUser.yaml' in data
     assert 'pubkey: key.0xbbb' in data
     assert '- /ModifiedPath' in data
     assert '- /OriginalPath' not in data
+
+    cli('user', 'create', 'ThirdUser', '--key', '0xccc', '--path', '/Third')
+    cli('bridge', 'create',
+        '--target-user', 'ThirdUser')
+
+    data = (base_dir / 'bridges/Third.bridge.yaml').read_text()
+    assert f'file://localhost{base_dir / "users/ThirdUser.user.yaml"}' in data
+    assert 'pubkey: key.0xccc' in data
+    assert '- /Third' in data
 
 
 # Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
@@ -3408,7 +3416,7 @@ def test_import_bridge_wl_path(cli, base_dir, tmpdir):
     cli('user', 'create', 'DefaultUser', '--key', '0xddd')
 
     cli('bridge', 'create', '--owner', 'DefaultUser',
-        '--ref-user-location', f'file://localhost{alice_manifest_location}', 'Alice')
+        '--target-user-location', f'file://localhost{alice_manifest_location}', 'Alice')
 
     modify_file(base_dir / 'config.yaml', "local-owners:\n- '0xddd'",
                 "local-owners:\n- '0xddd'\n- '0xaaa'")
@@ -3703,6 +3711,21 @@ def test_forest_create(cli, tmp_path):
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
 
 
+def test_forest_bridge_to(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', 'Bob', 'forest-tpl')
+
+    cli('bridge', 'create', 'Bridge', '--target-user', 'Bob', '--path', '/Bridge/To/Bob')
+
+    bridge_data = (base_dir / 'bridges/Bridge.bridge.yaml').read_text()
+    assert '/Bridge/To/Bob' in bridge_data
+    assert 'object: link' in bridge_data
+    assert 'forest-owner.yaml' in bridge_data
+
+
 def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -3712,9 +3735,9 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
         'my_awesome_capsule', "--category", "/testing", "--template",
         "rw", '--no-encrypt-manifest')
-    cli('bridge', 'create', '--owner', 'Alice', '--ref-user', 'Alice',
-        '--ref-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
-        '--ref-user-path', '/forests/Alice', 'self_bridge')
+    cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Alice',
+        '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
+        '--path', '/forests/Alice', 'self_bridge')
     cli('forest', 'create', '--access', '*', 'Alice', 'rw')
     cli('container', 'publish', 'mycapsule')
 
@@ -3772,9 +3795,9 @@ def test_forest_mount_warning(monkeypatch, cli, tmp_path, base_dir, control_clie
     cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
         'my_awesome_capsule', "--category", "/testing", "--template",
         "rw", '--no-encrypt-manifest')
-    cli('bridge', 'create', '--owner', 'Alice', '--ref-user', 'Alice',
-        '--ref-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
-        '--ref-user-path', '/forests/Alice', 'self_bridge')
+    cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Alice',
+        '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
+        '--path', '/forests/Alice', 'self_bridge')
 
     cli('container', 'create', 'unpublished')
 

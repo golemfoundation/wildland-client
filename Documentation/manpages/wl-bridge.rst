@@ -25,11 +25,10 @@ Commands
 .. program:: wl-bridge-create
 .. _wl-bridge-create:
 
-:command:`wl bridge create [--user USER] --ref-user USER --ref-user-location URL-OR-PATH [--ref-user-path PATH] [--file-path FILE_PATH] [BRIDGE_NAME]`
-------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl bridge create [--user USER] [--target-user USER] [--target-user-location URL-OR-PATH] [--path PATH] [--file-path FILE_PATH] [BRIDGE_NAME]`
+-------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Create a new bridge manifest. Either ``BRIDGE_NAME`` or ``--file-path`` needs
-to be provided.
+Create a new bridge manifest. At least one of --target-user and --target-user-location must be provided.
 
 .. option:: --file-path FILE_PATH
 
@@ -40,17 +39,21 @@ to be provided.
 
    User for signing.
 
-.. option:: --ref-user USER
+.. option:: --target-user USER
 
    User which to whom the bridge is pointing. This must be an existing user in your wildland directory together with its pubkey.
-   This field is optional but recommended to use instead of relying solely on --ref-user-location.
+   If this is provided and --target-user-location is skipped, an attempt to locate the user manifest
+   in user's manifest catalog (under the canonical ``forest-owner.yaml`` form) will be made, and if
+   this fails, local path to user manifest will be used.
+   If this is omitted, user located at --target-user-location will be used.
 
-.. option:: --ref-user-location URL
+.. option:: --target-user-location URL
 
-   URL pointing to the user manifest to whom the bridge is pointing. If ref-user user is skipped, this manifest will be fetched instead
-   and considered trusted.
+   URL pointing to the user manifest to whom the bridge is pointing. If not provided, an attempt to
+   locate either canonical user manifest in user's manifest catalog or user's local file path will
+   be made.
 
-.. option:: --ref-user-path PATH
+.. option:: --path PATH
 
    Path for the user in Wildland namespace. Repeat for multiple paths.
 
