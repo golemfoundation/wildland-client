@@ -205,12 +205,16 @@ def verify(ctx: click.Context, input_file):
     help='decrypt manifest (if applicable)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def dump(ctx: click.Context, input_file, decrypt):
+def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
     """
     Dump the input manifest in a machine-readable format (currently just json). By default decrypts
     the manifest, if possible.
     """
     obj: ContextObj = ctx.obj
+
+    if obj.client.is_url(input_file):
+        raise CliError('This command supports only an absolute path to a file. Consider using '
+                       'dump command for a specific object, e.g. wl container dump')
 
     manifest_type = ctx.parent.command.name if ctx.parent else None
     if manifest_type == 'main':
@@ -236,12 +240,16 @@ def dump(ctx: click.Context, input_file, decrypt):
     help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def edit(ctx: click.Context, editor, input_file, remount):
+def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
     """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
     """
     obj: ContextObj = ctx.obj
+
+    if obj.client.is_url(input_file):
+        raise CliError('This command supports only an local path to a file. Consider using '
+                       'edit command for a specific object, e.g. wl container edit')
 
     provided_manifest_type = ctx.parent.command.name if ctx.parent else None
     if provided_manifest_type == 'main':
@@ -322,18 +330,20 @@ def edit(ctx: click.Context, editor, input_file, remount):
                 container, storages, user_paths, remount=remount)
 
 
-def modify_manifest(ctx: click.Context, name: str, edit_func: Callable[..., dict], *args, **kwargs):
+def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callable[..., dict],
+                    *args, **kwargs):
     """
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
     """
-    obj: ContextObj = ctx.obj
+    obj: ContextObj = pass_ctx.obj
 
-    manifest_type = ctx.parent.parent.command.name if ctx.parent and ctx.parent.parent else None
+    manifest_type = (pass_ctx.parent.parent.command.name
+                        if pass_ctx.parent and pass_ctx.parent.parent else None)
     if manifest_type == 'main':
         manifest_type = None
 
-    manifest_path = find_manifest_file(obj.client, name, manifest_type)
+    manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
 
     sig_ctx = obj.client.session.sig
     manifest = Manifest.from_file(manifest_path, sig_ctx)
