@@ -24,6 +24,7 @@ Welcome to Wildland's documentation!
    deprecated
    contributing
    plugins-howto
+   release
 
 Indices and tables
 ==================
