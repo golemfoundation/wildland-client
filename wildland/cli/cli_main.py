@@ -38,7 +38,7 @@ from . import (
     cli_user,
     cli_forest,
     cli_storage,
-    cli_storage_template,
+    cli_template,
     cli_container,
     cli_bridge,
     cli_transfer,
@@ -77,11 +77,19 @@ def main(ctx: click.Context, base_dir, dummy, debug, verbose):
 main.add_command(cli_user.user_)
 main.add_command(cli_forest.forest_)
 main.add_command(cli_storage.storage_)
-main.add_command(cli_storage_template.storage_template)
+main.add_command(cli_template.template)
 main.add_command(cli_container.container_)
 main.add_command(cli_bridge.bridge_)
-main.add_alias(users='user', u='user', storages='storage', s='storage', containers='container',
-               c='container', bridges='bridge', b='bridge')
+main.add_alias(**{'users': 'user',
+                  'u': 'user',
+                  'storages': 'storage',
+                  's': 'storage',
+                  'containers': 'container',
+                  'c': 'container',
+                  'storage-template': 'template',
+                  't': 'template',
+                  'bridges': 'bridge',
+                  'b': 'bridge'})
 
 main.add_command(cli_common.version)
 main.add_command(cli_common.sign)
