@@ -390,7 +390,6 @@ class Client:
         :param container_path: if loading a STORAGE object of dict type, this container path
         will be filled in if the dict does not contain it already.
         """
-
         if isinstance(obj, str):
             return self.load_object_from_url(object_type, obj, owner, expected_owner)
 

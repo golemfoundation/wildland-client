@@ -25,9 +25,8 @@
 Storage object
 """
 
-from typing import Dict, Iterable, List, Optional, Tuple, Type, Union
+from typing import Iterable, List, Optional, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlparse, urlunparse
 import functools
 import logging
 import uuid
@@ -323,75 +322,44 @@ def do_create_storage_from_templates(client: Client, container: Container,
         creators
     :param no_publish: should the container not be published after creation
     """
-    to_process: List[Tuple[Storage, Optional[StorageBackend], Path]] = []
+    to_process: List[Tuple[Storage, StorageBackend]] = []
 
     for template in storage_templates:
-        storage = _create_storage_backend_from_template(client, container, template, local_dir)
-        storage_cls = StorageBackend.types()[storage.storage_type]
-        assert storage_cls.LOCATION_PARAM
-        path = storage.params[storage_cls.LOCATION_PARAM]
-        storage_backend = StorageBackend.from_params(storage.params)
-        to_process.append((storage, storage_backend, path))
+        try:
+            storage = template.get_storage(client, container, local_dir)
+        except ValueError as ex:
+            click.echo(f'Failed to create storage from storage template: {ex}')
+            raise ex
 
-    for storage, backend, path in to_process:
-        # Ensure that base path actually exists
-        if storage.is_writeable and backend:
-            try:
-                with backend:
-                    backend.mkdir(PurePosixPath(path))
-                    click.echo(f'Created base path: {path}')
-            except Exception as ex:
-                click.echo(f'WARN: Could not create base path {path} in a writable '
-                           f'storage [{backend.backend_id}]. {ex}')
+        storage_backend = StorageBackend.from_params(storage.params)
+        to_process.append((storage, storage_backend))
+
+    for storage, backend in to_process:
+        if storage.is_writeable:
+            _ensure_backend_location_exists(backend)
 
         click.echo(f'Adding storage {storage.backend_id} to container.')
         client.add_storage_to_container(container=container, storage=storage, inline=True)
         click.echo(f'Saved container {container.local_path}')
 
-        if no_publish:
-            return
-
+    if not no_publish:
         try:
             Publisher(client, container).republish_container()
         except WildlandError as ex:
             raise WildlandError(f"Failed to republish container: {ex}") from ex
 
 
-def _create_storage_backend_from_template(client: Client, container: Container,
-        template: StorageTemplate, local_dir: Optional[str]) -> Storage:
-
-    storage_fields = _get_storage_fields_from_template(template, container, local_dir)
-    storage_type = storage_fields['type']
-    storage_cls = StorageBackend.types()[storage_type]
-
-    if storage_cls.LOCATION_PARAM and storage_cls.LOCATION_PARAM in storage_fields and \
-            storage_fields[storage_cls.LOCATION_PARAM]:
-        orig_location = storage_fields[storage_cls.LOCATION_PARAM]
-
-        if client.is_url(orig_location):
-            uri = urlparse(orig_location)
-            path = Path(uri.path).resolve()
-            location = urlunparse(
-                (uri.scheme, uri.netloc, str(path), uri.params, uri.query, uri.fragment))
-        else:
-            path = Path(orig_location)
-            location = orig_location
-
-        storage_fields[storage_cls.LOCATION_PARAM] = str(location)
-
-    return WildlandObject.from_fields(storage_fields, client, WildlandObject.Type.STORAGE,
-        local_owners=client.config.get('local-owners'))
-
-
-def _get_storage_fields_from_template(template: StorageTemplate, container: Container,
-        local_dir: Optional[str]) -> Dict:
+def _ensure_backend_location_exists(backend: StorageBackend) -> None:
+    path = backend.location
+    if path is None:
+        return
     try:
-        storage_fields = template.get_storage_fields(container, local_dir)
-    except ValueError as ex:
-        click.echo(f'Failed to create storage from storage template: {ex}')
-        raise ex
-
-    return container.fill_storage_fields(storage_fields)
+        with backend:
+            backend.mkdir(PurePosixPath(path))
+            click.echo(f'Created base path: {path}')
+    except Exception as ex:
+        click.echo(f'WARN: Could not create base path {path} in a writable storage '
+                   f'[{backend.backend_id}]. {ex}')
 
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',

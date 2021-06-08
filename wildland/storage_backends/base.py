@@ -262,6 +262,15 @@ class StorageBackend(metaclass=abc.ABCMeta):
         str_repr = f"{self.TYPE!r}(" + ", ".join(array_repr) + ")"
         return str_repr
 
+    @property
+    def location(self):
+        """
+        Returns location of the storage backend or `None` if it is not defined.
+        """
+        if self.LOCATION_PARAM is None:
+            return None
+        return self.params.get(self.LOCATION_PARAM)
+
     @classmethod
     def cli_options(cls) -> List[click.Option]:
         """

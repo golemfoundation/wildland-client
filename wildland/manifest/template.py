@@ -28,14 +28,19 @@ import re
 import uuid
 from typing import List, Optional, Union
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import yaml
 from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
 
+from wildland.wildland_object.wildland_object import WildlandObject
 from wildland import container
 from .manifest import Manifest
+from ..client import Client
 from ..utils import load_yaml
 from ..exc import WildlandError
+from ..storage import Storage
+from ..storage_backends.base import StorageBackend
 
 logger = logging.getLogger('wl-template')
 
@@ -107,7 +112,35 @@ class StorageTemplate:
         data['owner'] = cont.owner
         data['container-path'] = str(cont.paths[0])
         data['backend-id'] = str(uuid.uuid4())
-        return data
+        return cont.fill_storage_fields(data)
+
+    def get_storage(self, client: Client, cont: container.Container, local_dir: Optional[str]) \
+            -> Storage:
+        """
+        Return Storage object corresponding to this storage template.
+        """
+        storage_fields = self.get_storage_fields(cont, local_dir)
+        if 'type' not in storage_fields:
+            raise WildlandError('Type of the storage missing in given template.')
+        storage_type = storage_fields['type']
+        storage_cls = StorageBackend.types()[storage_type]
+
+        if storage_cls.LOCATION_PARAM and storage_cls.LOCATION_PARAM in storage_fields and \
+                storage_fields[storage_cls.LOCATION_PARAM]:
+            orig_location = storage_fields[storage_cls.LOCATION_PARAM]
+
+            if client.is_url(orig_location):
+                uri = urlparse(orig_location)
+                path = Path(uri.path).resolve()
+                location = urlunparse(
+                    (uri.scheme, uri.netloc, str(path), uri.params, uri.query, uri.fragment))
+            else:
+                location = orig_location
+
+            storage_fields[storage_cls.LOCATION_PARAM] = str(location)
+
+        return WildlandObject.from_fields(storage_fields, client, WildlandObject.Type.STORAGE,
+            local_owners=client.config.get('local-owners'))
 
 
 class TemplateFile:
