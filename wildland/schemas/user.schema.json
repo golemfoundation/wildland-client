@@ -26,7 +26,7 @@
                     { "$ref": "/schemas/types.json#encrypted" }
                 ]
             },
-            "description": "list of container URLs (for finding this user's manifests); can also contain inline containers"
+            "description": "list of manifests catalogs (for finding this user's manifests); can contain either links or inline containers"
         }
     },
     "additionalProperties": false
