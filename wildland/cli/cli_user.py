@@ -146,7 +146,7 @@ def list_(obj: ContextObj):
     default_owner = obj.client.config.get('@default-owner')
     default_override = (default_user != obj.client.config.get('@default', use_override=False))
 
-    for user in obj.client.load_all(WildlandObject.Type.USER):
+    for user, bridge_paths in obj.client.load_users_with_bridge_paths(only_default_user=True):
         path_string = str(user.local_path)
         if user.owner == default_user:
             path_string += ' (@default)'
@@ -161,8 +161,13 @@ def list_(obj: ContextObj):
         else:
             click.echo('  only public key available')
 
+        if not bridge_paths:
+            click.echo('   no bridges to user available')
+        else:
+            for bridge_path in bridge_paths:
+                click.echo(f'   bridge path: {bridge_path}')
         for user_path in user.paths:
-            click.echo(f'   path: {user_path}')
+            click.echo(f'   user path: {user_path}')
         for user_container in user.get_catalog_descriptions():
             click.echo(f'   container: {user_container}')
         click.echo()

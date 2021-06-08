@@ -252,12 +252,12 @@ def unpublish(obj: ContextObj, cont):
     Publisher(obj.client, container).unpublish_container()
 
 
-def _container_info(client, container):
+def _container_info(container, users_and_bridge_paths):
     click.echo(container.local_path)
     try:
-        user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-        if user.paths:
-            user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
+        if container.owner in users_and_bridge_paths:
+            user_desc = ' (' + ', '.join(
+                [str(p) for p in users_and_bridge_paths[container.owner]]) + ')'
         else:
             user_desc = ''
     except ManifestError:
@@ -276,9 +276,13 @@ def list_(obj: ContextObj):
     """
     Display known containers.
     """
+    users_and_bridge_paths = {}
+    for user, bridge_paths in obj.client.load_users_with_bridge_paths(only_default_user=True):
+        if bridge_paths:
+            users_and_bridge_paths[user.owner] = bridge_paths
 
     for container in obj.client.load_all(WildlandObject.Type.CONTAINER):
-        _container_info(obj.client, container)
+        _container_info(container, users_and_bridge_paths)
 
 
 @container_.command(short_help='show container summary')
@@ -288,10 +292,14 @@ def info(obj: ContextObj, name):
     """
     Show information about single container.
     """
+    users_and_bridge_paths = {}
+    for user, bridge_paths in obj.client.load_users_with_bridge_paths(only_default_user=True):
+        if bridge_paths:
+            users_and_bridge_paths[user.owner] = bridge_paths
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
 
-    _container_info(obj.client, container)
+    _container_info(container, users_and_bridge_paths)
 
 
 @container_.command('delete', short_help='delete a container', alias=['rm'])

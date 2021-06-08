@@ -572,6 +572,24 @@ class Client:
                 else:
                     yield obj_
 
+    def load_users_with_bridge_paths(self, only_default_user: bool = False) -> \
+            Iterable[Tuple[User, Optional[List[PurePosixPath]]]]:
+        """
+        Helper method to return users with paths from bridges leading to those users.
+        """
+        bridge_paths: Dict[str, List[PurePosixPath]] = {}
+        default_user = self.config.get('@default')
+
+        for bridge in self.load_all(WildlandObject.Type.BRIDGE):
+            if only_default_user and bridge.owner != default_user:
+                continue
+            if bridge.user_id not in bridge_paths:
+                bridge_paths[bridge.user_id] = []
+            bridge_paths[bridge.user_id].extend(bridge.paths)
+
+        for user in self.load_all(WildlandObject.Type.USER):
+            yield user, bridge_paths.get(user.owner)
+
     def _generate_bridge_paths_recursive(self, path_prefix: List[PurePosixPath],
                                          last_user: str,
                                          target_user: str,

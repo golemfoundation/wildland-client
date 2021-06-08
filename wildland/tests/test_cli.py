@@ -135,20 +135,27 @@ def test_user_create_additional_keys(cli, base_dir):
 def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa',
         '--path', '/users/Foo', '--path', '/users/Bar')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+    cli('bridge', 'create', '--ref-user', 'User2',
+                            '--ref-user-path', '/users/other',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/User2.user.yaml'),
+                            'Bridge')
     ok = [
         str(base_dir / 'users/User1.user.yaml') + ' (@default) (@default-owner)',
         '  owner: 0xaaa',
         '  private and public keys available',
-        '   path: /users/Foo',
-        '   path: /users/Bar',
+        '   no bridges to user available',
+        '   user path: /users/Foo',
+        '   user path: /users/Bar',
         '',
         str(base_dir / 'users/User2.user.yaml'),
         '  owner: 0xbbb',
         '  private and public keys available',
-        '   path: /users/User2',
+        '   bridge path: /users/other',
+        '   user path: /users/User2',
         ''
     ]
-    cli('user', 'create', 'User2', '--key', '0xbbb')
     result = cli('user', 'list', capture=True)
     assert result.splitlines() == ok
     result = cli('users', 'list', capture=True)
@@ -1667,6 +1674,22 @@ def test_container_list(cli, base_dir):
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
     assert '  path: /PATH' in out_lines
     result = cli('containers', 'list', capture=True)
+    out_lines = result.splitlines()
+    assert str(base_dir / 'containers/Container.container.yaml') in out_lines
+    assert '  path: /PATH' in out_lines
+
+
+def test_container_info(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+    cli('bridge', 'create', '--ref-user', 'User2',
+                            '--ref-user-path', '/users/other',
+                            '--ref-user-location',
+                            'file://%s' % (base_dir / 'users/User2.user.yaml'),
+                            'Bridge')
+    cli('container', 'create', 'Container', '--user', 'User2', '--path', '/PATH')
+    result = cli('container', 'info', 'Container', capture=True)
+    assert '/users/other' in result
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
     assert '  path: /PATH' in out_lines
