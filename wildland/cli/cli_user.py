@@ -293,14 +293,16 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
             file_data = Path(path).read_bytes()
             file_name = Path(path).stem
             file_url = obj.client.local_url(Path(path).absolute())
-        else:
+        elif obj.client.is_url(path):
             try:
                 file_data = obj.client.read_from_url(path, use_aliases=True)
             except FileNotFoundError as fnf:
-                raise CliError('File was not found') from fnf
+                raise CliError(f'File {path} not found') from fnf
 
             file_name = _remove_suffix(path.split('/')[-1], '.yaml')
             file_url = path
+        else:
+            raise CliError(f'File {path} not found')
 
     # load user pubkeys
     Manifest.verify_and_load_pubkeys(file_data, obj.session.sig)
