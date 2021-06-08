@@ -446,10 +446,10 @@ class DriveClient:
                 errno.EACCES, f"No permissions to remove entry [{path}]"
             ) from e
 
+
 class EntryNotFoundError(Exception):
     """Exception raised if given path does not return any entry from Google Drive"""
-    pass
+
 
 class InvalidIdentifierError(Exception):
     """Exception raised if Parent node identifier is invalid or undefined."""
-    pass
