@@ -52,10 +52,10 @@ wl c create --owner User work-wildland --title "my work on wildland" --category 
 wl c create --owner User1 work --title "generalstuff" --category /stuff --storage-template simple
 
 # bridges
-wl bridge create --owner User --ref-user User1 --ref-user-location \
+wl bridge create --owner User --target-user User1 --target-user-location \
   file://$HOME/.config/wildland/users/User1.user.yaml qubes_share
-wl bridge create --owner User --ref-user User --ref-user-location \
-  file://$HOME/.config/wildland/users/User.user.yaml --ref-user-path /forests/User self_bridge
+wl bridge create --owner User --target-user User --target-user-location \
+  file://$HOME/.config/wildland/users/User.user.yaml --path /forests/User self_bridge
 
 ## forest
 wl forest create User simple

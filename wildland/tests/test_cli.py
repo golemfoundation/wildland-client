@@ -136,9 +136,9 @@ def test_user_list(cli, base_dir):
     cli('user', 'create', 'User1', '--key', '0xaaa',
         '--path', '/users/Foo', '--path', '/users/Bar')
     cli('user', 'create', 'User2', '--key', '0xbbb')
-    cli('bridge', 'create', '--ref-user', 'User2',
-                            '--ref-user-path', '/users/other',
-                            '--ref-user-location',
+    cli('bridge', 'create', '--target-user', 'User2',
+                            '--path', '/users/other',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/User2.user.yaml'),
                             'Bridge')
     ok = [
@@ -1696,9 +1696,9 @@ def test_container_list(cli, base_dir):
 def test_container_info(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
-    cli('bridge', 'create', '--ref-user', 'User2',
-                            '--ref-user-path', '/users/other',
-                            '--ref-user-location',
+    cli('bridge', 'create', '--target-user', 'User2',
+                            '--path', '/users/other',
+                            '--target-user-location',
                             'file://%s' % (base_dir / 'users/User2.user.yaml'),
                             'Bridge')
     cli('container', 'create', 'Container', '--user', 'User2', '--path', '/PATH')
