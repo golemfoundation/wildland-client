@@ -42,7 +42,7 @@ Google Drive based read/write storage backend for Wildland containers.
 
 ![OAuth Client ID](./assets/9.png)
 
-11. In final screen, Google will show your Client ID and give an option to download application credentials as in JSON format, this is what we are looking for. Press `DOWNLOAD` to have it. We don’t need Client ID itself.
+11. On the final screen, Google will show your Client ID and give an option to download application credentials in JSON format - this is what we are looking for. Press `DOWNLOAD` to download the credentials; we don’t need Client ID itself.
 
 ![Download application credentials](./assets/10.png)
 
