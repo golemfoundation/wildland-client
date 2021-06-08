@@ -70,7 +70,7 @@
             "items": {
                 "type": "string"
             },
-            "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl mount'"
+            "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl c mount'"
         },
 
         "default-remote-for-container": {
