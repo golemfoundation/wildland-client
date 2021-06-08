@@ -53,6 +53,7 @@ pytest:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
+    - export PYTEST_ADDOPTS="--color=yes"
     - ./ci/ci-pytest
   artifacts:
     paths:
