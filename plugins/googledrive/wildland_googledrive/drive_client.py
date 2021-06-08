@@ -447,9 +447,9 @@ class DriveClient:
             ) from e
 
 
-class EntryNotFoundError(Exception):
+class EntryNotFoundError(FileNotFoundError):
     """Exception raised if given path does not return any entry from Google Drive"""
 
 
-class InvalidIdentifierError(Exception):
+class InvalidIdentifierError(ValueError):
     """Exception raised if Parent node identifier is invalid or undefined."""
