@@ -77,7 +77,7 @@ This is an example of what you will find in downloaded file.
 }
 ```
 
-12. After downloading the file, Press `OK`, this will return back you to project credentials page, select `OAuth consent screen` from side menu, under `Publishing status` section, press `PUBLISH APP` button, We’re done here.
+12. After downloading the file, Press `OK` - this will return you to project credentials page - and then select `OAuth consent screen` from side menu, under `Publishing status` section. Press `PUBLISH APP` button - we’re done here.
 ![PUBLISH APP](./assets/11.png)
 
 ### Creating Google Drive storage
