@@ -390,6 +390,9 @@ class _PublisherCache:
         Cache path.
         """
         to_add = self.client.dirs[WildlandObject.Type.CONTAINER] / path
+        if not to_add.exists():
+            # we tried to add a file that's not actually in the containers/ dir
+            return
         if self._is_invalid(ignore=to_add):
             self._update()
         cache = self._load()
@@ -401,6 +404,9 @@ class _PublisherCache:
         Remove path from cache.
         """
         to_remove = self.client.dirs[WildlandObject.Type.CONTAINER] / path
+        if not to_remove.exists():
+            # we tried to remove a file that's not actually in the containers/ dir
+            return
         if self._is_invalid(ignore=to_remove):
             self._update()
         cache = self._load()
@@ -422,7 +428,7 @@ class _PublisherCache:
             return True
 
         manifests = list(self.file.parent.glob('*.yaml'))
-        if ignore:
+        if ignore and ignore in manifests:
             manifests.remove(ignore)
         if not manifests:
             return False
