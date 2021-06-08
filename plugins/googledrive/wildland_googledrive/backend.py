@@ -165,7 +165,7 @@ class DriveStorageBackend(
                     ["--credentials"],
                     metavar="CREDENTIALS",
                     required=True,
-                    help="Google Drive Client Congifuration Object",
+                    help="Google Drive Client Configuration Object",
                 ),
                 click.Option(
                     ["--skip-interaction"],
