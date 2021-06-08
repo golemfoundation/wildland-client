@@ -16,11 +16,11 @@ Google Drive based read/write storage backend for Wildland containers.
 
 ![Go to APIs overview](./assets/3.png)
 
-4.Click `ENABLE APIS AND SERVICES`
+4. Click `ENABLE APIS AND SERVICES`
 
 ![ENABLE APIS AND SERVICES](./assets/4.png)
 
-5.Search for `Google Drive API` and select it and press `Enable`
+5. Search for `Google Drive API` and select it and press `Enable`
 
 ![Google Drive API](./assets/5.png)
 
@@ -61,36 +61,21 @@ This is an example of what you will find in downloaded file.
 }
 ```
 
-(Formatted version for readability)
-
-```json
-{
-  "installed": {
-    "client_id": "{CLIENT_ID}.apps.googleusercontent.com",
-    "project_id": "{PROJECT_ID}",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_secret": "{CLIENT_SECRET}",
-    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"]
-  }
-}
-```
-
 12. After downloading the file, Press `OK` - this will return you to project credentials page - and then select `OAuth consent screen` from side menu, under `Publishing status` section. Press `PUBLISH APP` button - we’re done here.
+
 ![PUBLISH APP](./assets/11.png)
 
 ### Creating Google Drive storage
 
 ```bash
-wl storage create googledrive --inline --container YOUR_CONTAINER_NAME --credentials 'CONTENT_OF_CLIENT_CONFIG_JSON_IN_BETWEEN_SINGLE_QUOTE'
+wl storage create googledrive --inline --container ContainerName --credentials 'CONTENT_OF_CLIENT_CONFIG_JSON_IN_BETWEEN_SINGLE_QUOTES'
 ```
 
 ### Mounting
 
 ```bash
 wl start
-wl c mount YOUR_CONTAINER_NAME
+wl c mount ContainerName
 ```
 
 ### Google Drive documentation

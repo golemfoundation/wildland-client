@@ -194,7 +194,7 @@ class DriveClient:
                 entry_id = node_item.identifier
 
             if not entry_id:
-                raise Exception("Source path is not exist: {}".format(move_from))
+                raise EntryNotFoundError("Source path is not exist: {}".format(move_from))
             src_cursor_id = entry_id
 
         # if paths are the same just update the name
@@ -224,7 +224,7 @@ class DriveClient:
                 entry_id = node_item.identifier
 
             if not entry_id and item != move_to.name:
-                raise Exception("Destination path is not exist: {}".format(move_to))
+                raise EntryNotFoundError("Destination path is not exist: {}".format(move_to))
             if entry_id:
                 dst_cursor_id = entry_id
 
@@ -331,7 +331,7 @@ class DriveClient:
                 continue
 
             if not parent_id:
-                raise Exception("Parent ID not found in cache tree")
+                raise InvalidIdentifierError("Parent ID is not found in cache tree")
 
             node_item = self._retrieve_from_cache_tree(path_item, parent_id)
 
@@ -343,7 +343,7 @@ class DriveClient:
             entries = self._retrieve_entries(query)
 
             if not entries:
-                raise Exception(f"Invalid path: {path}")
+                raise EntryNotFoundError(f"Entries not found for given path: {path}")
 
             parent_id = entries[0].get("id", None)
 
@@ -434,7 +434,7 @@ class DriveClient:
                 folder_id = node_item.identifier
 
             if not folder_id:
-                raise Exception("Given path not exist: {}".format(path))
+                raise EntryNotFoundError("Given path not exist: {}".format(path))
 
             parent_id = folder_id
 
@@ -445,3 +445,11 @@ class DriveClient:
             raise PermissionError(
                 errno.EACCES, f"No permissions to remove entry [{path}]"
             ) from e
+
+class EntryNotFoundError(Exception):
+    """Exception raised if given path does not return any entry from Google Drive"""
+    pass
+
+class InvalidIdentifierError(Exception):
+    """Exception raised if Parent node identifier is invalid or undefined."""
+    pass
