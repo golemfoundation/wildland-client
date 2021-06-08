@@ -15,7 +15,9 @@ Synopsis
 Description
 ===========
 
-These are commands to manage forests.
+These are commands to manage forests. A user's forest is located through their manifests catalog and
+consists of all the subcontainers of the containers in their manifests catalog (and, recursively,
+all the subcontainers of them etc.).
 
 Commands
 ========
@@ -35,7 +37,7 @@ Arguments:
 
 Description
 
-This command creates an container in user's manifest catalog for the Forest
+This command creates an container in user's manifest catalog for the Forest.
 The storage template *must* contain at least one read-write storage.
 
 After the container is created, the following steps take place:

@@ -107,7 +107,7 @@ to manifests and Wildland urls to Wildland objects.
 For users, will import the user and create an appropriate bridge manifest referencing the user.
 In the process of bridge creation, the client will attempt to mount the imported user's
 manifests catalog containers (if any) and find the imported user's manifest file in `/users/`
-directory within that manifests catalog. If successful, it will create a link obj ct to that file
+directories within those containers. If successful, it will create a link object to that file
 and store is in the bridge manifest. Otherwise it will use the url or path that was passed as an
 argument to this command.
 

@@ -179,9 +179,10 @@ The mounted container will be available under the following paths:
 - `/.users/0xccc...:/docs/projectX` and `/.users/0xccc...:/timeline/2021-01-02`
 - `/people/UserB:/people/UserC:/docs/projectX` and `/people/UserB:/people/UserC:/timeline/2021-01-02`
 
-The second point is built from bridges from UserA to UserC. If there are
-multiple possible bridges, all paths will be considered, but cycles will be
-avoided.
+The second point is built from bridges from UserA to UserC.
+
+In some cases, there might be multiple possible bridges or multiple containers in users' manifests
+catalogs. In both circumstances all paths will be considered, but cycles will be avoided.
 
 .. option:: -r, --remount
 
@@ -237,7 +238,7 @@ avoided.
 
       wl c mount `:/forests/User:*:`
 
-   But we also support mounting of the manifests catalog container, i.e. one that holds the manifests for the
+   But we also support mounting of the manifests catalog containers, i.e. those that hold the manifests for the
    forest, using the following syntax:
 
       wl c mount :/forests/User:
@@ -326,7 +327,8 @@ Stop the current mount-watch daemon.
 :command:`wl container publish <container>`
 -------------------------------------------
 
-Publish a container manifest into user's manifests catalog.
+Publish a container manifest into user's manifests catalog (first container from the catalog
+that provides read-write storage will be used).
 
 .. program:: wl-container-unpublish
 .. _wl-container-unpublish:
