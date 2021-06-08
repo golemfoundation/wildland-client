@@ -244,6 +244,16 @@ def test_read_container_traverse(client):
     assert PurePosixPath('/other/path') in container.paths
 
 
+def test_read_container_local_wildcard(client):
+    search = Search(client, WildlandPath.from_str(':*:'),
+                    aliases={'default': '0xaaa'})
+    containers = list(search.read_container())
+    assert len(containers) == 2
+    containers_path = [c.paths for c in containers]
+    assert PurePosixPath('/path') in containers_path[0]
+    assert PurePosixPath('/other/path') in containers_path[1]
+
+
 def test_read_container_unsigned(base_dir, client):
     (base_dir / 'containers/Container2.container.yaml').unlink()
 
@@ -379,6 +389,9 @@ def setup_pattern(request, base_dir, cli):
         shutil.copyfile(
             base_dir / 'containers/Container3.container.yaml',
             base_dir / 'storage1/manifests/.uuid/0000000000-0000-0000-3333-000000000000.yaml')
+    # prevent loading them directly from config dir
+    os.unlink(base_dir / 'containers/Container2.container.yaml')
+    os.unlink(base_dir / 'containers/Container3.container.yaml')
 
 
 def test_read_container_traverse_pattern(setup_pattern, base_dir):
@@ -402,10 +415,10 @@ def test_read_container_wildcard(setup_pattern, base_dir):
     search = Search(client, WildlandPath.from_str(':/path:*:'),
         aliases={'default': '0xaaa'})
     containers = list(search.read_container())
-    assert len(containers) == 2
+    assert len(containers) == 3
     paths = sorted([p for p in c.paths if '/path' in str(p)]
                    for c in containers)
-    assert paths == [[PurePosixPath('/path1')], [PurePosixPath('/path2')]]
+    assert paths == [[PurePosixPath('/path')], [PurePosixPath('/path1')], [PurePosixPath('/path2')]]
 
 
 ## Manifests with wildland paths

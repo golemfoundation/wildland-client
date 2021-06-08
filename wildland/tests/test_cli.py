@@ -1937,6 +1937,9 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     cli('container', 'mount', ':*:')
 
     command = control_client.calls['mount']['items']
+    # exclude catalog
+    command = [c for c in command
+               if '/CATALOG' not in c['paths']]
     assert len(command) == 2
     paths_backend1 = command[0]['paths']
     paths_backend2 = command[1]['paths']
@@ -3794,18 +3797,28 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     entry_uuid = get_container_uuid_from_uuid_path(entry_uuid_path)
     entry_backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
+    # deterministically derived from 0xaaa key id
+    bridge_placeholder_uuid = '7262381c-6b06-5398-864f-afb4f63f24d8'
+
     with open(base_dir / 'containers/mycapsule.container.yaml') as f:
         documents = list(load_yaml_all(f))
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
-    all_paths = command[0]['paths'] + command[1]['paths']
+    # 3 containers + 3 pseudomanifests
+    assert len(command) == 6
+    print(command)
+    all_paths = command[0]['paths'] + command[1]['paths'] + command[2]['paths']
     expected_paths = {f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
                       f'/.users/0xaaa:/.backends/{entry_uuid}/{entry_backend_id}',
+                      f'/.users/0xaaa:/.backends/{bridge_placeholder_uuid}/'
+                       f'{bridge_placeholder_uuid}',
                       '/.users/0xaaa:/.manifests',
+                      '/.users/0xaaa:',
                       f'/.users/0xaaa:/.uuid/{uuid}',
                       f'/.users/0xaaa:/.uuid/{entry_uuid}',
+                      f'/.users/0xaaa:/.uuid/{bridge_placeholder_uuid}',
                       '/.users/0xaaa:/testing/my_awesome_capsule'}
     assert expected_paths == set(all_paths)
     info = {
@@ -3836,7 +3849,7 @@ def test_forest_mount_warning(monkeypatch, cli, tmp_path, base_dir, control_clie
         '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
         '--path', '/forests/Alice', 'self_bridge')
 
-    cli('container', 'create', 'unpublished')
+    cli('container', 'create', 'unpublished', '--template', 'rw')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'rw')
     cli('container', 'publish', 'mycapsule')

@@ -357,6 +357,20 @@ Fields:
 
 .. schema:: bridge.schema.json
 
+Bridge manifest itself can be mounted too, similar to a container. When
+mounted, it containes a single file ``WILDLAND-FOREST.txt`` with a short info.
+This mainly serves as a placeholder for the actual forest - to clearly see what
+forests are reachable via exising bridges.
+
+Technically, mounting a bridge is implemented as a container deterministically
+generated from a Bridge manifest. This container has:
+
+ - ``owner`` - same as the _target_ user
+ - ``paths`` - ``/`` (to appear at the root level of the forest), and
+   ``/.uuid/...`` with a deterministically generated UUID, based on a target user ID
+ - ``backends`` - a single storage backend of type ``static``, with just
+   ``WILDLAND-FOREST.txt`` file
+
 Links
 -----
 

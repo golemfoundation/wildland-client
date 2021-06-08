@@ -188,7 +188,7 @@ def test_books_titles_dir_tree(cli, base_dir):
         else:
             full_path.mkdir(parents=True)
 
-    cli('start', '--default-user', 'User')
+    cli('start', '--default-user', 'User', '--skip-forest-mount')
     cli('container', 'mount', 'Container')
 
     mnt_dir = base_dir / 'wildland'

@@ -383,7 +383,8 @@ class Search:
         """
 
         for container in self.local_containers:
-            if (container.owner == owner and
+            if container.owner == owner and (
+                    str(part) == '*' or
                     part in container.expanded_paths):
 
                 logger.debug('%s: local container: %s', part,
@@ -398,7 +399,7 @@ class Search:
                 )
 
         for bridge in self.local_bridges:
-            if bridge.owner == owner and part in bridge.paths:
+            if bridge.owner == owner and (str(part) == '*' or part in bridge.paths):
                 logger.debug('%s: local bridge manifest: %s', part,
                             bridge.local_path)
                 yield from self._bridge_step(
