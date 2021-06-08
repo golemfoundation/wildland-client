@@ -121,6 +121,24 @@ howto-sharing-test:
   script:
     - ./ci/howto-sharing-and-access-control
 
+howto-forest-creation-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE_HOWTO
+  script:
+    - ./ci/howto-forest-creation
+
+howto-group-users-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE_HOWTO
+  script:
+    - ./ci/howto-group-users
+
+howto-encryption-backend-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE_HOWTO
+  script:
+    - ./ci/howto-encryption-backend
+
 smoke-test:
   stage: test
   image: docker/compose:latest

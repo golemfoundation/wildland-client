@@ -52,6 +52,8 @@ bold=$(tput bold 2>/dev/null ||:)
 
 USERID_PCRE="0x[0-9a-f]{64}"
 UUID_PCRE="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+PUBKEY_PCRE="[0-9A-Za-z+\/]+"
+ENCRYPTED_PCRE="[0-9A-Za-z+\/=]+"
 
 # run the command, collect its output and, if $expected is set, compare with
 # $expected variable content; clear $expected afterwards, to avoid confusion
@@ -79,7 +81,7 @@ run() {
     if [ "${expected_pcre-x}" != x ]; then
         expected_pcre=${expected_pcre//
 /\\n}
-        if ! grep -Pzo -- "$expected_pcre" <(printf '%s' "$actual"); then
+        if ! grep -q -Pzo -- "$expected_pcre" <(printf '%s' "$actual"); then
             printf '%s\n\n' "$actual"
             printf '%s-> OUTPUT DOES NOT MATCH%s\n' "$red$bold" "$norm"
             if [ "$DEBUG" = 1 ]; then

@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# See ci/howto-test-lib.bash for docs about the "test framework"
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage
+sudo /etc/init.d/apache2 start
+
+run wl user create bob
+bob_userid=$(get_userid bob)
+
+expected="Created: /home/user/.config/wildland/containers/s3-photos.container.yaml"
+run wl container create s3-photos
+
+expected_pcre="object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+backends:
+  storage: \[\]
+title: null
+categories: \[\]
+version: '1'"
+run wl container dump s3-photos
+
+# fixme: use s3 instead of local
+expected_pcre="Using container: /home/user/.config/wildland/containers/s3-photos.container.yaml \(/.uuid/$UUID_PCRE\)
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/s3-photos.container.yaml"
+#run wl storage create s3 --container s3-photos
+run wl storage create local --container s3-photos --location /home/user/storage_s3
+
+
+expected="Created: /home/user/.config/wildland/containers/greece-2019-07.container.yaml"
+run wl container create greece-2019-07 \
+  --path /photos \
+  --path /persons/tim \
+  --path /persons/janet \
+  --path /persons/luke
+
+expected_pcre="Using container: /home/user/.config/wildland/containers/greece-2019-07.container.yaml \(/.uuid/$UUID_PCRE\)
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/greece-2019-07.container.yaml"
+run wl storage create encrypted \
+  --container greece-2019-07 \
+  --reference-container-url wildland::/.uuid/0fb3bc88-87a6-44d8-be27-33e18bf143f2: \
+  --engine gocryptfs
+
+# WIP
+#wl start
+#wl container mount greece-2019-07

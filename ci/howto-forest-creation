@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# See ci/howto-test-lib.bash for docs about the "test framework"
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage
+sudo /etc/init.d/apache2 start
+
+run wl user create bob
+bob_userid=$(get_userid bob)
+
+wl start
+
+# fixme: use s3 instead of local
+#wl storage-template create local --s3-url s3://<bucket-name> --manifest-pattern "/{path}.yaml" --access-key <redacted> --secret-key <redacted> --access bob demo-s3
+expected="Storage template [demo-s3] created in /home/user/.config/wildland/templates/demo-s3.template.jinja"
+run wl storage-template create local --location /home/user/storage_s3 --manifest-pattern "/{path}.yaml" demo-s3
+
+expected_pcre="Created base path: /home/user/storage_s3/.manifests/$UUID_PCRE
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/bob-forest-catalog.container.yaml
+Saved: /home/user/.config/wildland/users/bob.user.yaml"
+run wl forest create bob demo-s3
+
+expected_pcre="/home/user/storage_s3/.manifests/$UUID_PCRE
+├── .manifests.yaml
+├── .uuid/
+│   └── $UUID_PCRE.yaml
+└── forest-owner.yaml
+
+1 directory, 3 files"
+run tree -aF /home/user/storage_s3/.manifests/*
+
+expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml
+publishing container /.uuid/$UUID_PCRE..."
+run wl container create hello-world --path /hello/world
+
+wl storage create static --file "Hello.md=Hello World!" --container hello-world
+expected_pcre="/home/user/storage_s3/.manifests/$UUID_PCRE
+├── .manifests.yaml
+├── .uuid/
+│   ├── $UUID_PCRE.yaml
+│   └── $UUID_PCRE.yaml
+├── forest-owner.yaml
+└── hello/
+    └── world.yaml
+
+2 directories, 5 files"
+run tree -aF /home/user/storage_s3/.manifests/*
+
+wl c mount wildland:"$bob_userid:/hello/world":
+
+expected="/home/user/wildland
+└── hello
+    └── world
+        └── Hello.md
+
+2 directories, 1 file"
+run tree ~/wildland
+
+expected="Hello World!"
+run cat ~/wildland/hello/world/Hello.md

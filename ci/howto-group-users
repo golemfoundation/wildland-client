@@ -1,0 +1,128 @@
+#!/bin/bash
+
+# See ci/howto-test-lib.bash for docs about the "test framework"
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage
+sudo /etc/init.d/apache2 start
+
+mkdir -p ~/Downloads/
+
+
+######################
+### Create yatima user
+######################
+run wl user create yatima
+cp ~/.config/wildland/users/yatima.user.yaml ~/Downloads
+yatima_userid=$(get_userid yatima)
+
+
+###########################
+### Switch user to inoshiro
+###########################
+switch_user inoshiro
+
+
+########################
+### Create inoshiro user
+########################
+run wl user create inoshiro
+cp ~/.config/wildland/users/inoshiro.user.yaml ~/Downloads
+inoshiro_userid=$(get_userid inoshiro)
+
+
+#########################
+### Switch user to office
+#########################
+switch_user office
+run wl user create office
+cp ~/.config/wildland/users/office.user.yaml ~/Downloads/
+office_userid=$(get_userid office)
+
+
+expected="Created: /home/user/.config/wildland/users/yatima.user.yaml
+Created: /home/user/.config/wildland/bridges/yatima.bridge.yaml"
+run wl user import ~/Downloads/yatima.user.yaml
+
+
+expected="Created: /home/user/.config/wildland/users/inoshiro.user.yaml
+Created: /home/user/.config/wildland/bridges/inoshiro.bridge.yaml"
+run wl user import ~/Downloads/inoshiro.user.yaml
+
+
+expected_pcre="Pubkeys found in \[yatima\]:
+  $PUBKEY_PCRE
+Pubkeys found in \[inoshiro\]:
+  $PUBKEY_PCRE
+Saved: /home/user/.config/wildland/users/office.user.yaml"
+run wl user modify add-pubkey --user yatima --user inoshiro office
+
+
+expected_pcre="object: user
+owner: '$USERID_PCRE'
+paths:
+- /users/office
+manifests-catalog: \[\]
+pubkeys:
+- $PUBKEY_PCRE
+- $PUBKEY_PCRE
+- $PUBKEY_PCRE
+version: '1'"
+run wl user dump office
+
+
+wl c create --access office access-test
+expected_pcre="signature: \|
+  $USERID_PCRE:$ENCRYPTED_PCRE
+---
+encrypted:
+  encrypted-data: $ENCRYPTED_PCRE
+  encrypted-keys:
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE"
+run cat ~/.config/wildland/containers/access-test.container.yaml
+cp ~/.config/wildland/containers/access-test.container.yaml ~/Downloads/
+cp ~/.config/wildland/users/office.user.yaml ~/Downloads/
+
+#########################
+### Switch user to yatima
+#########################
+switch_user yatima
+
+
+expected="Created: /home/user/.config/wildland/users/office.user.yaml
+Created: /home/user/.config/wildland/bridges/office.bridge.yaml"
+run wl user import ~/Downloads/office.user.yaml
+
+
+expected_pcre="object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+backends:
+  storage: \[\]
+title: null
+categories: \[\]
+version: '1'
+access:
+- user: '$USERID_PCRE'"
+run wl dump ~/Downloads/access-test.container.yaml
+
+wl start
+
+expected="Saving: /home/user/Downloads/access-test.container.yaml"
+run wl sign -i ~/Downloads/access-test.container.yaml
+
+
+expected_pcre="signature: \|
+  $USERID_PCRE:$ENCRYPTED_PCRE
+---
+encrypted:
+  encrypted-data: $ENCRYPTED_PCRE
+  encrypted-keys:
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE"
+run cat ~/Downloads/access-test.container.yaml
