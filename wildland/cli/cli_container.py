@@ -52,7 +52,7 @@ from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fi
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
-from ..manifest.manifest import ManifestError, Manifest
+from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..remounter import Remounter
@@ -194,6 +194,7 @@ def create(obj: ContextObj, owner, path, name, update_user, access, no_publish,
         try:
             owner = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
             if owner.has_catalog:
+                click.echo(f'publishing container {container.uuid_path}...')
                 publisher = Publisher(obj.client, container)
                 publisher.publish_container()
         except WildlandError as ex:
@@ -236,6 +237,7 @@ def publish(obj: ContextObj, cont):
     """
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
+    click.echo(f'publishing container {container.uuid_path}...')
     Publisher(obj.client, container).publish_container()
 
 
@@ -249,6 +251,7 @@ def unpublish(obj: ContextObj, cont):
     """
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
+    click.echo(f'unpublishing container {container.uuid_path}...')
     Publisher(obj.client, container).unpublish_container()
 
 
@@ -373,6 +376,7 @@ def delete(obj: ContextObj, name, force, cascade, no_unpublish):
     # unpublish
     if not no_unpublish:
         try:
+            click.echo(f'unpublishing container {container.uuid_path}...')
             Publisher(obj.client, container).unpublish_container()
         except WildlandError:
             # not published
@@ -409,6 +413,7 @@ def _republish(ctx, params):
 
     if publish:
         try:
+            click.echo(f're-publishing container {container.uuid_path}...')
             Publisher(ctx.obj.client, container).republish_container()
         except WildlandError as ex:
             raise WildlandError(f"Failed to republish container: {ex}") from ex
@@ -1220,6 +1225,7 @@ def edit(ctx: click.Context, path, publish, editor, remount):
     container = _resolve_container(ctx, path, base_edit, editor=editor, remount=remount)
 
     if publish:
+        click.echo(f're-publishing container {container.uuid_path}...')
         Publisher(ctx.obj.client, container).republish_container()
 
 
@@ -1231,9 +1237,7 @@ def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
             WildlandObject.Type.CONTAINER, path, client.config.get('@default'))
 
         with tempfile.NamedTemporaryFile(suffix='.tmp.container.yaml') as f:
-            manifest = Manifest.from_fields(container.to_manifest_fields(inline=True))
-            manifest.encrypt_and_sign(client.session.sig)
-            f.write(manifest.to_bytes())
+            f.write(container.manifest.to_bytes())
             f.flush()
 
             ctx.invoke(callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
