@@ -364,7 +364,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
 
                     return storage_candidate, file_candidate
 
-                except WildlandError as ex:
+                except (FileNotFoundError, WildlandError) as ex:
                     logger.debug('Could not read user manifest. Exception: %s', ex)
 
     return None
