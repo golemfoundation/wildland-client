@@ -1,0 +1,16 @@
+FROM wildland-client-ci
+
+USER root
+RUN apt-get -qy --fix-missing --force-yes update
+RUN yes | apt-get install -y --fix-missing --force-yes \
+  openssh-server \
+  sshfs \
+  sudo
+RUN usermod -G sudo user
+RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
+RUN ssh-keygen -A
+RUN mkdir -p /run/sshd
+USER user
+RUN mkdir /home/user/.ssh
+RUN ssh-keygen -t rsa -f /home/user/.ssh/id_rsa -N '' < /dev/zero
+RUN cp /home/user/.ssh/id_rsa.pub /home/user/.ssh/authorized_keys
