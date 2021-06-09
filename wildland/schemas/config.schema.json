@@ -30,6 +30,10 @@
             "$ref": "/schemas/types.json#abs-path",
             "description": "Path to control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"
         },
+        "alt-bridge-separator": {
+            "type": "boolean",
+            "description": "Use alternative bridge path separator in FUSE, instead of a colon"
+        },
 
         "dummy": {
             "type": "boolean",

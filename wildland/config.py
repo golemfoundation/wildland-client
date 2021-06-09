@@ -208,6 +208,7 @@ class Config:
             'mount-dir': home_dir / 'wildland',
             'template-dir': base_dir / 'templates',
             'socket-path': Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock',
+            'alt-bridge-separator': False,
             'dummy': False,
             '@default': None,
             '@default-owner': None,

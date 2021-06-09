@@ -1894,6 +1894,79 @@ def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
     ]
 
 
+def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client):
+    with open(base_dir / 'config.yaml', 'a') as config:
+        config.write('alt-bridge-separator: true\n')
+
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'Other', '--key', '0xbbb')
+    cli('bridge', 'create', '--target-user', 'Other',
+                            '--path', '/users/other',
+                            '--path', '/people\uFF1A/other',
+                            '--target-user-location',
+                            'file://%s' % (base_dir / 'users/Other.user.yaml'),
+                            'br-other')
+    cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH',
+        '--path', '/other\uFF1A/path',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents_container = list(load_yaml_all(f))
+
+    uuid_path = documents_container[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    assert documents_container[1]['paths'][1] == '/PATH'
+
+    backend_id = documents_container[1]['backends']['storage'][0]['backend-id']
+
+    # add manifest catalog entry container
+    with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
+        documents = list(yaml.safe_load_all(f))
+        documents[1]['manifests-catalog'].append({
+            'paths': ['/.uuid/1111-2222-3333-4444'],
+            'object': 'container',
+            'version': Manifest.CURRENT_VERSION,
+            'owner': '0xbbb',
+            'backends': {'storage': [{
+                'type': 'local',
+                'location': str(base_dir / 'containers'),
+                'manifest-pattern': {
+                    'type': 'glob',
+                    'path': '/*.yaml',
+                }
+            }]}
+        })
+        f.seek(0)
+        f.write('signature: |\n  dummy.0xbbb\n---\n')
+        f.write(yaml.safe_dump(documents[1]))
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'wildland::/users/other:/PATH:')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+    assert sorted(command[0]['paths']) == [
+        f'/.users/0xbbb\uFF1A/.backends/{uuid}/{backend_id}',
+        f'/.users/0xbbb\uFF1A/.uuid/{uuid}',
+        '/.users/0xbbb\uFF1A/PATH',
+        '/.users/0xbbb\uFF1A/other_/path',
+        f'/people_/other\uFF1A/.backends/{uuid}/{backend_id}',
+        f'/people_/other\uFF1A/.uuid/{uuid}',
+        '/people_/other\uFF1A/PATH',
+        '/people_/other\uFF1A/other_/path',
+        f'/users/other\uFF1A/.backends/{uuid}/{backend_id}',
+        f'/users/other\uFF1A/.uuid/{uuid}',
+        '/users/other\uFF1A/PATH',
+        '/users/other\uFF1A/other_/path',
+    ]
+
+
 def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client):
     catalog_dir = base_dir / 'catalog'
     catalog_dir.mkdir()

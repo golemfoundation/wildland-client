@@ -103,7 +103,9 @@ class Client:
 
         mount_dir = Path(self.config.get('mount-dir'))
         socket_path = Path(self.config.get('socket-path'))
-        self.fs_client = WildlandFSClient(mount_dir, socket_path)
+        bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
+        self.fs_client = WildlandFSClient(mount_dir, socket_path,
+                                          bridge_separator=bridge_separator)
 
         try:
             fuse_status = self.fs_client.run_control_command('status')

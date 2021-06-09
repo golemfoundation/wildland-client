@@ -78,9 +78,10 @@ class WildlandFSClient:
     A class to communicate with Wildland filesystem over the .control API.
     """
 
-    def __init__(self, mount_dir: Path, socket_path: Path):
+    def __init__(self, mount_dir: Path, socket_path: Path, bridge_separator: str = ':'):
         self.mount_dir = mount_dir
         self.socket_path = socket_path
+        self.bridge_separator = bridge_separator
 
         self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
         self.path_tree: Optional[PathTree] = None
@@ -639,10 +640,11 @@ class WildlandFSClient:
         paths = self.get_paths()
 
         if container:
-            pattern = fr'^/.users/{container.owner}:' \
+            pattern = fr'^/.users/{container.owner}{self.bridge_separator}' \
                       fr'/.backends/{container.uuid}/[0-9a-z-]+$'
         else:
-            pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/[0-9a-z-]+$'
+            pattern = fr'^/.users/[0-9a-z-]+{self.bridge_separator}' \
+                      r'/.backends/[0-9a-z-]+/[0-9a-z-]+$'
 
         path_regex = re.compile(pattern)
 
@@ -727,8 +729,7 @@ class WildlandFSClient:
             'remount': remount,
         }
 
-    @staticmethod
-    def join_bridge_paths_for_mount(bridges: Iterable[PurePosixPath], path: PurePosixPath)\
+    def join_bridge_paths_for_mount(self, bridges: Iterable[PurePosixPath], path: PurePosixPath)\
             -> PurePosixPath:
         """
         Construct a full mount paths given bridge paths and a container path. This function joins
@@ -741,8 +742,8 @@ class WildlandFSClient:
         """
 
         return PurePosixPath(
-            ':'.join(
-                str(p).replace(':', '_')
+            self.bridge_separator.join(
+                str(p).replace(self.bridge_separator, '_')
                 for p in itertools.chain(bridges, [path])
             )
         )
@@ -814,7 +815,7 @@ class WildlandFSClient:
         """
         Prepend an absolute path with owner namespace.
         """
-        return self.get_user_path(owner + ":") / path.relative_to('/')
+        return self.get_user_path(owner + self.bridge_separator) / path.relative_to('/')
 
     def watch(self, patterns: Iterable[str], with_initial=False) \
             -> Iterator[List[WatchEvent]]:
