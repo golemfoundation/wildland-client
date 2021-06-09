@@ -25,6 +25,7 @@
 Wildland command-line interface.
 """
 
+import re
 import os
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional
@@ -281,37 +282,29 @@ def _print_container_shortened_paths(paths: List[PurePosixPath], categories: Lis
     """
     def _is_relevant_path(path: PurePosixPath):
         path_str = str(path)
-        if any(path_str.startswith(c) for c in ('/.users/', '/.backends/', '/.uuid/')):
+        prefixes = ('/.users/', '/.backends/', '/.uuid/')
+        if any(re.match("(^|.*:)" + c, path_str) for c in prefixes):
             return False
-        return all(not path_str.startswith(str(c)) for c in categories)
+        return not any(re.match("(^|.*:)" + str(c), path_str) for c in categories)
 
-    _echo_indented_status_info('paths:', 2)
-
-    for path in filter(_is_relevant_path, paths):
-        _echo_indented_status_info(str(path), 4)
+    relevant_paths = list(filter(_is_relevant_path, paths))
+    if relevant_paths:
+        _echo_indented_status_info('paths:', 2)
+        for path in relevant_paths:
+            _echo_indented_status_info(str(path), 4)
 
 
 def _print_container_categories(categories: List[PurePosixPath]) -> None:
-    _echo_indented_status_info('categories:', 2)
-
-    for category in categories:
-        _echo_indented_status_info(str(category), 4)
+    if categories:
+        _echo_indented_status_info('categories:', 2)
+        for category in categories:
+            _echo_indented_status_info(str(category), 4)
 
 
 def _print_container_title(title: Optional[str]) -> None:
-    if not title:
-        return
-
-    _echo_indented_status_info('title:', 2)
-    _echo_indented_status_info(title, 4)
-
-
-@main.command(short_help='renamed to "start"')
-def mount() -> None:
-    """
-    Renamed to "start" command.
-    """
-    raise CliError('The "wl mount" command has been renamed to "wl start"')
+    if title:
+        _echo_indented_status_info('title:', 2)
+        _echo_indented_status_info(title, 4)
 
 
 @main.command(short_help='unmount Wildland filesystem')
