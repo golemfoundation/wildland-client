@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Marta Marczykowska-Górecka <marmarta@invisiblethingslab.com>,
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,6 +17,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 """
 General Wildland utility functions.
 """

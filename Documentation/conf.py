@@ -178,7 +178,7 @@ man_pages = [
     ('manpages/wl', 'wl', 'Wildland command-line interface', [author], 1),
     ('manpages/wl-container', 'wl-container', 'Container management', [author], 1),
     ('manpages/wl-storage', 'wl-storage', 'Storage management', [author], 1),
-    ('manpages/wl-storage-template', 'wl-storage-template', 'Storage template management', [author], 1),
+    ('manpages/wl-template', 'wl-template', 'Storage template management', [author], 1),
     ('manpages/wl-user', 'wl-user', 'Wildland user management', [author], 1),
     ('manpages/wl-forest', 'wl-forest', 'Wildland forest management', [author], 1),
     ('manpages/wl-bridge', 'wl-bridge', 'Bridge manifest management', [author], 1),
@@ -191,8 +191,6 @@ man_pages = [
 
     ('manpages/wl-start', 'wl-start', 'Mount the whole Wildland FUSE filesystem', [author], 1),
     ('manpages/wl-stop', 'wl-stop', 'Unmount the whole Wildland FUSE filesystem', [author], 1),
-    ('manpages/wl-mount', 'wl-mount',
-     'Mount the whole Wildland FUSE filesystem (renamed to start))', [author], 1),
 
     ('manpages/wl-status', 'wl-status', 'Display all mounted containers', [author], 1),
 

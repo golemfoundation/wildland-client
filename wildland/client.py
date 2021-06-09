@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Paweł Marczewski <pawel@invisiblethingslab.com>,
 #                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
@@ -16,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=too-many-lines
 
@@ -99,7 +103,9 @@ class Client:
 
         mount_dir = Path(self.config.get('mount-dir'))
         socket_path = Path(self.config.get('socket-path'))
-        self.fs_client = WildlandFSClient(mount_dir, socket_path)
+        bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
+        self.fs_client = WildlandFSClient(mount_dir, socket_path,
+                                          bridge_separator=bridge_separator)
 
         try:
             fuse_status = self.fs_client.run_control_command('status')
@@ -280,6 +286,8 @@ class Client:
         :param container_path: if object is STORAGE, will be passed to it as container_path. Ignored
         otherwise.
         """
+        if 'encrypted' in dictionary.keys():
+            raise WildlandError('Cannot decrypt manifest: decryption key unavailable')
         if dictionary.get('object', None) == 'link':
             link = self.load_link_object(dictionary, expected_owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
@@ -565,6 +573,24 @@ class Client:
                                    object_type.value, path, e)
                 else:
                     yield obj_
+
+    def load_users_with_bridge_paths(self, only_default_user: bool = False) -> \
+            Iterable[Tuple[User, Optional[List[PurePosixPath]]]]:
+        """
+        Helper method to return users with paths from bridges leading to those users.
+        """
+        bridge_paths: Dict[str, List[PurePosixPath]] = {}
+        default_user = self.config.get('@default')
+
+        for bridge in self.load_all(WildlandObject.Type.BRIDGE):
+            if only_default_user and bridge.owner != default_user:
+                continue
+            if bridge.user_id not in bridge_paths:
+                bridge_paths[bridge.user_id] = []
+            bridge_paths[bridge.user_id].extend(bridge.paths)
+
+        for user in self.load_all(WildlandObject.Type.USER):
+            yield user, bridge_paths.get(user.owner)
 
     def _generate_bridge_paths_recursive(self, path_prefix: List[PurePosixPath],
                                          last_user: str,

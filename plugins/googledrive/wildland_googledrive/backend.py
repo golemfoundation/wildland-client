@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2021 Golem Foundation,
+# Copyright (C) 2021 Golem Foundation
+#
+# Authors:
 #                    Muhammed Tanrikulu <muhammed@wildland.io>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,21 +17,25 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 """
 Google Drive storage backend
 """
+import errno
 import logging
 import json
 import stat
 
 from datetime import datetime
-from pathlib import PurePosixPath
+from pathlib import PosixPath, PurePosixPath
 from typing import cast, Callable, Iterable, Optional, Tuple
 
 import click
 
 from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.errors import HttpError
 from treelib import Tree
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile
@@ -99,63 +105,82 @@ class DriveFile(FullBufferedFile):
         return len(data)
 
 
-class DriveStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
+class DriveStorageBackend(
+    FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend
+):
     """
     Google Drive storage supporting both read and write operations.
     """
 
-    SCHEMA = Schema({
-        "title": "Google Drive storage manifest",
-        "type": "object",
-        "required": ["credentials"],
-        "properties": {
-            "credentials": {
-                "type": "object",
-                "required": [
-                    "token",
-                    "refresh_token",
-                    "token_uri",
-                    "client_id",
-                    "client_secret",
-                    "scopes",
-                ],
+    SCHEMA = Schema(
+        {
+            "title": "Google Drive storage manifest",
+            "type": "object",
+            "required": ["credentials"],
+            "properties": {
+                "location": {
+                    "$ref": "/schemas/types.json#abs-path",
+                    "description": "Absolute POSIX path acting as a root directory in user's google drive",  # pylint: disable=line-too-long
+                },
+                "credentials": {
+                    "type": "object",
+                    "required": [
+                        "token",
+                        "refresh_token",
+                        "token_uri",
+                        "client_id",
+                        "client_secret",
+                        "scopes",
+                    ],
+                },
+                "manifest-pattern": {
+                    "oneOf": [
+                        {"$ref": "/schemas/types.json#pattern-glob"},
+                        {"$ref": "/schemas/types.json#pattern-list"},
+                    ]
+                },
             },
-            "manifest-pattern": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#pattern-glob"},
-                    {"$ref": "/schemas/types.json#pattern-list"},
-                ]
-            },
-        },
-    })
+        }
+    )
     TYPE = "googledrive"
+    LOCATION_PARAM = "location"
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
         drive_access_credentials = self.params.get("credentials")
         self.cache_tree = Tree()
         self.client = DriveClient(drive_access_credentials, self.cache_tree)
+        self.root = PosixPath(self.params.get("location", "/")).resolve()
         self.logger = logging.getLogger("Google Drive Logger")
 
     @classmethod
     def cli_options(cls):
         opts = super(DriveStorageBackend, cls).cli_options()
-        opts.extend([
-            click.Option(
-                ["--credentials"],
-                metavar="CREDENTIALS",
-                required=True,
-                help="Google Drive Client Congifuration Object",
-            ),
-            click.Option(
-                ["--skip-interaction"],
-                default=False,
-                is_flag=True,
-                required=False,
-                help="Pass pre-generated refresh token as credential"
-                "and pass this flag to skip interaction",
-            ),
-        ])
+        opts.extend(
+            [
+                click.Option(
+                    ["--location"],
+                    metavar="PATH",
+                    required=False,
+                    default="/",
+                    help="Absolute path to root directory in your Google Drive account.",
+                ),
+                click.Option(
+                    ["--credentials"],
+                    metavar="CREDENTIALS",
+                    required=True,
+                    help="Google Drive Client Configuration Object",
+                ),
+                click.Option(
+                    ["--skip-interaction"],
+                    default=False,
+                    is_flag=True,
+                    required=False,
+                    help="Pass pre-generated refresh token as credential"
+                    "and pass this flag to skip interaction",
+                ),
+            ]
+        )
         return opts
 
     @classmethod
@@ -170,7 +195,7 @@ class DriveStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, S
             credentials = json.loads(credentials.to_json())
 
         result = super(DriveStorageBackend, cls).cli_create(data)
-        result.update({"credentials": credentials})
+        result.update({"location": data["location"], "credentials": credentials})
         return result
 
     @staticmethod
@@ -185,8 +210,10 @@ class DriveStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, S
         return DriveFileAttr.from_file_metadata(metadata)
 
     def mount(self) -> None:
-        root_folder = self.client.connect()
-        self.cache_tree.create_node("root", root_folder["id"])
+        root_folder = self.client.connect(self.root)
+        self.cache_tree.create_node(
+            root_folder["name"], root_folder["id"], data=FOLDER_MIMETYPE
+        )
 
     def unmount(self) -> None:
         self.client.disconnect()
@@ -198,9 +225,18 @@ class DriveStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, S
             yield metadata.get("name"), attr
 
     def open(self, path: PurePosixPath, _flags: int) -> File:
-        metadata = self.client.get_metadata(path)
-        attr = self._get_attr_from_metadata(metadata)
-        return DriveFile(self.client, path, attr, self.clear_cache)
+        try:
+            metadata = self.client.get_metadata(path)
+            attr = self._get_attr_from_metadata(metadata)
+            return DriveFile(self.client, path, attr, self.clear_cache)
+        except HttpError as e:
+            if e.resp.status == "404":
+                raise FileNotFoundError(errno.ENOENT, str(path)) from e
+            if e.resp.status == "403":
+                raise PermissionError(
+                    errno.EACCES, f"No permissions to read file [{path}]"
+                ) from e
+            raise e
 
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
         metadata = self.client.upload_empty_file(path)
@@ -254,7 +290,13 @@ class DriveStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, S
         Map current dir file/folder items into cache tree
         """
         current_node = self.cache_tree.get_node(metadata["id"])
-        if not current_node:
-            self.cache_tree.create_node(
-                metadata["name"], metadata["id"], parent=metadata["parents"][0]
-            )
+        try:
+            if not current_node:
+                self.cache_tree.create_node(
+                    metadata["name"],
+                    metadata["id"],
+                    parent=metadata["parents"][0],
+                    data=metadata["mimeType"],
+                )
+        except Exception as error:
+            raise Exception(f"Cache tree error: {error}") from error

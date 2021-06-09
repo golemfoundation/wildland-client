@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Paweł Marczewski <pawel@invisiblethingslab.com>,
 #                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
@@ -16,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
 
@@ -240,6 +244,16 @@ def test_read_container_traverse(client):
     assert PurePosixPath('/other/path') in container.paths
 
 
+def test_read_container_local_wildcard(client):
+    search = Search(client, WildlandPath.from_str(':*:'),
+                    aliases={'default': '0xaaa'})
+    containers = list(search.read_container())
+    assert len(containers) == 2
+    containers_path = [c.paths for c in containers]
+    assert PurePosixPath('/path') in containers_path[0]
+    assert PurePosixPath('/other/path') in containers_path[1]
+
+
 def test_read_container_unsigned(base_dir, client):
     (base_dir / 'containers/Container2.container.yaml').unlink()
 
@@ -290,8 +304,8 @@ def test_read_file_traverse_user(cli, base_dir, client):
                     base_dir / 'storage1/users/User2.user.yaml')
 
     cli('bridge', 'create', '--owner', 'User',
-        '--ref-user', 'User2',
-        '--ref-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
+        '--target-user', 'User2',
+        '--target-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
         'User2')
 
@@ -327,8 +341,8 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Create bridge manifest
     cli('bridge', 'create', '--owner', 'User',
-        '--ref-user', 'User2',
-        '--ref-user-location', 'file://localhost' + str(user_path),
+        '--target-user', 'User2',
+        '--target-user-location', 'file://localhost' + str(user_path),
         '--file-path', base_dir / 'storage1/users/User2.yaml',
         'User2')
 
@@ -375,6 +389,9 @@ def setup_pattern(request, base_dir, cli):
         shutil.copyfile(
             base_dir / 'containers/Container3.container.yaml',
             base_dir / 'storage1/manifests/.uuid/0000000000-0000-0000-3333-000000000000.yaml')
+    # prevent loading them directly from config dir
+    os.unlink(base_dir / 'containers/Container2.container.yaml')
+    os.unlink(base_dir / 'containers/Container3.container.yaml')
 
 
 def test_read_container_traverse_pattern(setup_pattern, base_dir):
@@ -398,10 +415,10 @@ def test_read_container_wildcard(setup_pattern, base_dir):
     search = Search(client, WildlandPath.from_str(':/path:*:'),
         aliases={'default': '0xaaa'})
     containers = list(search.read_container())
-    assert len(containers) == 2
+    assert len(containers) == 3
     paths = sorted([p for p in c.paths if '/path' in str(p)]
                    for c in containers)
-    assert paths == [[PurePosixPath('/path1')], [PurePosixPath('/path2')]]
+    assert paths == [[PurePosixPath('/path')], [PurePosixPath('/path1')], [PurePosixPath('/path2')]]
 
 
 ## Manifests with wildland paths
@@ -909,14 +926,14 @@ def two_users_catalog(base_dir, cli, control_client):
     )
     (base_dir / 'catalog-known/users').mkdir()
     cli('bridge', 'create', '--owner', 'KnownUser',
-        '--ref-user', 'Dummy2',
-        '--ref-user-path', '/users/User2',
-        '--ref-user-location', f'file://{base_dir}/manifests/user2.yaml',
+        '--target-user', 'Dummy2',
+        '--path', '/users/User2',
+        '--target-user-location', f'file://{base_dir}/manifests/user2.yaml',
         '--file-path', f'{base_dir}/catalog-known/users/User2.yaml')
     cli('bridge', 'create', '--owner', 'KnownUser',
-        '--ref-user', 'Dummy3',
-        '--ref-user-path', '/users/User3',
-        '--ref-user-location', f'file://{base_dir}/manifests/user3.yaml',
+        '--target-user', 'Dummy3',
+        '--path', '/users/User3',
+        '--target-user-location', f'file://{base_dir}/manifests/user3.yaml',
         '--file-path', f'{base_dir}/catalog-known/users/User3.yaml')
 
     # all manifests done; now move them out of standard WL config,

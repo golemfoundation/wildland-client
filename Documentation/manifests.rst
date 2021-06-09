@@ -237,8 +237,15 @@ All the other manifests have to be verified against known users, i.e. their
 
 In order to be loaded, the system has to know a public key for a user. For
 local manifests, that means a corresponding key is in the keys directory
-(``$HOME/.config/wildland/keys``). Otherwise, the key is loaded from a trust
+(``$HOME/.config/wildland/keys``). Otherwise, the key is loaded from a bridge
 manifest.
+
+User manifest serves important role in describing user's forest:
+
+1. It specifies what keys can be used for signing this user's manifests (the
+   ``pubkeys`` field).
+2. It specifies where to look for this user's manifests, in the
+   ``manifests-catalog`` field. See the next section for details.
 
 Example:
 
@@ -350,9 +357,79 @@ Fields:
 
 .. schema:: bridge.schema.json
 
+Bridge manifest itself can be mounted too, similar to a container. When
+mounted, it containes a single file ``WILDLAND-FOREST.txt`` with a short info.
+This mainly serves as a placeholder for the actual forest - to clearly see what
+forests are reachable via exising bridges.
+
+Technically, mounting a bridge is implemented as a container deterministically
+generated from a Bridge manifest. This container has:
+
+ - ``owner`` - same as the _target_ user
+ - ``paths`` - ``/`` (to appear at the root level of the forest), and
+   ``/.uuid/...`` with a deterministically generated UUID, based on a target user ID
+ - ``backends`` - a single storage backend of type ``static``, with just
+   ``WILDLAND-FOREST.txt`` file
+
 Links
 -----
 
 In places in which you want to refer to a certain manifest (currently, in user's manifests catalog
 and bridges), you can also use a 'link' object. A link contains an inline storage manifest (in
 'storage' field) and an absolute path to the manifest file contained within in the 'file' field.
+
+
+Manifests catalog
+-----------------
+
+Manifests catalog is a selected container in user's forest, designated to store
+that user's manifests. Which container(s) serve this role, is selected in the
+User manfest. There can be several manifests catalogs in the User manifest - in
+this case, all of them are consulted when looking for a container(s) (the
+search does not stop on the first match). Note this is different from a single
+manifest catalog with several storage backends - when a container has several
+storage backends, they are expected to represent the same content, and so only
+the first (accessible) storage (of each manifests catalog) is checked.
+
+Manifests catalog specify how other manifests are stored within. The mechanism
+can be different for each storage backend, but in most cases manifests are
+stored as separate files, under file names specified with a
+``manifest-pattern`` field (in the Storage manifest). Typical Container
+manifest serving as a Manifests catalog may look like this:
+
+.. code-block:: yaml
+
+   object: container
+   version: '1'
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+   paths:
+   - /.uuid/d1cd4f43-7c4b-498f-bf1b-2eb92b2daa49
+   - /.manifests
+   backends:
+     storage:
+     - type: http
+       manifest-pattern:
+         path: /{path}.yaml
+         type: glob
+       read-only: true
+       url: https://example.com/my-manifests-catalog
+     - type: webdav
+       manifest-pattern:
+         path: /{path}.yaml
+         type: glob
+       url: https://example.com/dav/my-manifests-catalog
+       credentials:
+         login: login
+         password: password
+
+Note the ``manifest-pattern`` field - in this case, it specifies that manifests
+are stored in a path built from a container path(s), with appended ``.yaml``
+suffix. See `_Subcontainers </subcontainers>` for more details.
+
+The above container has two storage backends defined - the first one (with
+``type: http``) is read-only, the second one is read-write (it doesn't have
+``read-only: true`` flag). This means, the first one (if accessible) will be
+used for container lookups (because it is the first one listed). But when
+saving a manifest into the catalog, WL will use the second (writable) storage
+backend. This setup is especially useful if the read-only access is faster than
+read-write access.

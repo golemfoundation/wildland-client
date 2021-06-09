@@ -179,9 +179,10 @@ The mounted container will be available under the following paths:
 - `/.users/0xccc...:/docs/projectX` and `/.users/0xccc...:/timeline/2021-01-02`
 - `/people/UserB:/people/UserC:/docs/projectX` and `/people/UserB:/people/UserC:/timeline/2021-01-02`
 
-The second point is built from bridges from UserA to UserC. If there are
-multiple possible bridges, all paths will be considered, but cycles will be
-avoided.
+The second point is built from bridges from UserA to UserC.
+
+In some cases, there might be multiple possible bridges or multiple containers in users' manifests
+catalogs. In both circumstances all paths will be considered, but cycles will be avoided.
 
 .. option:: -r, --remount
 
@@ -237,7 +238,7 @@ avoided.
 
       wl c mount `:/forests/User:*:`
 
-   But we also support mounting of the manifests catalog container, i.e. one that holds the manifests for the
+   But we also support mounting of the manifests catalog containers, i.e. those that hold the manifests for the
    forest, using the following syntax:
 
       wl c mount :/forests/User:
@@ -326,7 +327,8 @@ Stop the current mount-watch daemon.
 :command:`wl container publish <container>`
 -------------------------------------------
 
-Publish a container manifest into user's manifests catalog.
+Publish a container manifest into user's manifests catalog (first container from the catalog
+that provides read-write storage will be used).
 
 .. program:: wl-container-unpublish
 .. _wl-container-unpublish:
@@ -338,14 +340,69 @@ Unublish a container manifest from the whole of a user's manifests catalog.
 
 .. _wl-container-sign:
 .. _wl-container-verify:
+
+:command:`wl container {sign|verify} [...]`
+-------------------------------------------
+
+See :ref:`wl sign <wl-sign>` and :ref:`wl verify <wl-verify>` documentation.
+
+
+.. program:: wl-container-edit
 .. _wl-container-edit:
+
+:command:`wl container edit PATH`
+---------------------------------
+
+Edit, sign and republish a container. The command will launch an editor and
+validate the edited file before signing and republishing it.
+
+If an absolute path, container name or file:// URL is passed, the container will be considered
+a local file.
+
+.. option:: --editor <editor>
+
+   Use custom editor instead of the one configured with usual :envvar:`VISUAL`
+   or :envvar:`EDITOR` variables.
+
+.. option:: -r, --remount
+
+   If editing a container, attempt to remount it afterwards. This is the
+   default
+
+.. option:: -n, --no-remount
+
+   If editing a container, do not attempt to remount it afterwards.
+
+.. option:: --publish, -p
+
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
+
+
+.. program:: wl-container-dump
 .. _wl-container-dump:
 
-:command:`wl container {sign|verify|edit} [...]`
-------------------------------------------------------
+:command:`wl container dump PATH`
+---------------------------------
 
-See :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl dump <wl-dump>`
-and :ref:`wl edit <wl-edit>` documentation.
+The command will output manifest contents (without signature and by default decrypted)
+in a machine-readable way.
+
+If an absolute path, container name or file:// URL is passed, the container will be considered
+a local file.
+
+.. option:: -d, --decrypt
+
+   Decrypt any encrypted fields, if possible. This is the default.
+
+.. option:: -n, --no-decrypt
+
+   Do not decrypt any encrypted fields.
+
 
 .. program:: wl-container-sync
 .. _wl-container-sync:
@@ -410,8 +467,8 @@ user manifest. UUIDs and backend-ids are updated, everything else remains the sa
 
 .. _wl-container-modify-add-path:
 
-:command:`wl container modify add-path --path PATH <file> [--no-publish]`
--------------------------------------------------------------------------
+:command:`wl container modify add-path --path PATH <file>`
+----------------------------------------------------------
 
 Add Wildland path to a container |~| manifest given by *<file>*.
 
@@ -419,10 +476,14 @@ Add Wildland path to a container |~| manifest given by *<file>*.
 
    Path to add. Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-del-path:
 
@@ -435,10 +496,14 @@ Remove Wildland path from a container |~| manifest given by *<file>*.
 
    Path to remove. Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-add-access:
 
@@ -451,10 +516,14 @@ Allow an additional user |~| access to manifest given by *<file>*.
 
    User to add access for. Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-del-access:
 
@@ -467,10 +536,14 @@ Revoke user's |~| access to manifest given by *<file>*.
 
    User to revoke access from. Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-add-category:
 
@@ -483,10 +556,14 @@ Add category to a container |~| manifest given by *<file>*.
 
    Category to add. Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-del-category:
 
@@ -499,10 +576,14 @@ Remove category from a container |~| manifest given by *<file>*.
 
    Category to remove. Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-del-storage:
 
@@ -516,10 +597,14 @@ Remove storage(s) from a container |~| manifest given by *<file>*.
    Storages to remove. Can be either the backend_id of a storage or position in
    storage list (starting from 0). Can be repeated.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-set-title:
 
@@ -532,10 +617,14 @@ Set title in a container |~| manifest given by *<file>*.
 
    Title to set.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-set-encrypt-manifest:
 
@@ -544,10 +633,14 @@ Set title in a container |~| manifest given by *<file>*.
 
 Encrypt manifest given by *<file>* so that it's only readable by its owner.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-modify-set-no-encrypt-manifest:
 
@@ -556,10 +649,14 @@ Encrypt manifest given by *<file>* so that it's only readable by its owner.
 
 Stop encrypting manifest given by *<file>*.
 
-.. option:: --no-publish
+.. option:: --publish, -p
 
-   Do not attempt to republish the container after modification. By default, if the container is
-   already published, the modified version of the container manifest will be republished.
+   By default, if the container is already published, the modified version
+   of the container manifest will be republished.
+
+.. option:: --no-publish, -P
+
+   Do not attempt to republish the container after modification.
 
 .. _wl-container-find:
 

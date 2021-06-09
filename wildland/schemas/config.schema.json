@@ -30,6 +30,10 @@
             "$ref": "/schemas/types.json#abs-path",
             "description": "Path to control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"
         },
+        "alt-bridge-separator": {
+            "type": "boolean",
+            "description": "Use alternative bridge path separator in FUSE, instead of a colon"
+        },
 
         "dummy": {
             "type": "boolean",
@@ -70,7 +74,7 @@
             "items": {
                 "type": "string"
             },
-            "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl mount'"
+            "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl c mount'"
         },
 
         "default-remote-for-container": {

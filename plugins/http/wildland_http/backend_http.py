@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Paweł Marczewski <pawel@invisiblethingslab.com>,
 #                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
@@ -16,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 """
 Indexed HTTP storage backend
@@ -145,7 +149,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
         )
 
         # Special handling for 403 Forbidden
-        if resp.status_code == 403:
+        if resp.status_code == 403 or not resp.content:
             raise PermissionError(f'Could not list requested directory [{path}]')
 
         # For all other cases throw a joint HTTPError

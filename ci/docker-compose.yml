@@ -45,3 +45,18 @@ services:
     volumes:
       - ..:/home/user/wildland-client:ro
       - ../artifacts/:/home/user/wildland-client/artifacts:rw
+
+  wildland-client-ci-howto:
+    build:
+      context: ..
+      dockerfile: ./ci/Dockerfile-howto
+    image: wildland-client-ci-howto
+    container_name: wildland-client-ci-howto
+    privileged: true
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    volumes:
+      - ..:/home/user/wildland-client:ro
+      - ../artifacts/:/home/user/wildland-client/artifacts:rw

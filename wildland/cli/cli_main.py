@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Paweł Marczewski <pawel@invisiblethingslab.com>,
 #                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
@@ -16,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 """
 Wildland command-line interface.
@@ -38,7 +42,7 @@ from . import (
     cli_user,
     cli_forest,
     cli_storage,
-    cli_storage_template,
+    cli_template,
     cli_container,
     cli_bridge,
     cli_transfer,
@@ -77,11 +81,19 @@ def main(ctx: click.Context, base_dir, dummy, debug, verbose):
 main.add_command(cli_user.user_)
 main.add_command(cli_forest.forest_)
 main.add_command(cli_storage.storage_)
-main.add_command(cli_storage_template.storage_template)
+main.add_command(cli_template.template)
 main.add_command(cli_container.container_)
 main.add_command(cli_bridge.bridge_)
-main.add_alias(users='user', u='user', storages='storage', s='storage', containers='container',
-               c='container', bridges='bridge', b='bridge')
+main.add_alias(**{'users': 'user',
+                  'u': 'user',
+                  'storages': 'storage',
+                  's': 'storage',
+                  'containers': 'container',
+                  'c': 'container',
+                  'storage-template': 'template',
+                  't': 'template',
+                  'bridges': 'bridge',
+                  'b': 'bridge'})
 
 main.add_command(cli_common.version)
 main.add_command(cli_common.sign)
@@ -156,6 +168,8 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
     if not os.path.exists(obj.mount_dir):
         print(f'Creating: {obj.mount_dir}')
         os.makedirs(obj.mount_dir)
+
+    click.echo(f'Starting Wildland at: {obj.mount_dir}')
 
     if obj.fs_client.is_mounted():
         if remount:
@@ -238,22 +252,15 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
             click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
         click.echo()
 
-@main.command(short_help='renamed to "start"')
-def mount():
-    """
-    Renamed to "start" command.
-    """
-    raise CliError('The "wl mount" command has been renamed to "wl start"')
 
-
-@main.command(short_help='unmount Wildland filesystem', alias=['umount', 'unmount'])
+@main.command(short_help='unmount Wildland filesystem')
 @click.pass_obj
 def stop(obj: ContextObj):
     """
     Unmount the Wildland filesystem.
     """
 
-    click.echo(f'Unmounting: {obj.mount_dir}')
+    click.echo(f'Stoping Wildland at: {obj.mount_dir}')
     try:
         obj.fs_client.unmount()
     except WildlandError as ex:

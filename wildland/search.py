@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Paweł Marczewski <pawel@invisiblethingslab.com>,
 #                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
@@ -16,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public LicenUnkse
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 """
 Utilities for URL resolving and traversing the path
@@ -379,7 +383,8 @@ class Search:
         """
 
         for container in self.local_containers:
-            if (container.owner == owner and
+            if container.owner == owner and (
+                    str(part) == '*' or
                     part in container.expanded_paths):
 
                 logger.debug('%s: local container: %s', part,
@@ -394,7 +399,7 @@ class Search:
                 )
 
         for bridge in self.local_bridges:
-            if bridge.owner == owner and part in bridge.paths:
+            if bridge.owner == owner and (str(part) == '*' or part in bridge.paths):
                 logger.debug('%s: local bridge manifest: %s', part,
                             bridge.local_path)
                 yield from self._bridge_step(
@@ -536,7 +541,8 @@ class Search:
                 user = next_client.load_object_from_dict(WildlandObject.Type.USER, location,
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
-                logger.warning('cannot load linked user manifest: %s. Exception: %s',
+                logger.warning('cannot load bridge to [%s]', bridge.paths[0])
+                logger.debug('cannot load linked user manifest: %s. Exception: %s',
                                location, str(ex))
                 return
         assert isinstance(user, User)

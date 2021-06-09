@@ -1,6 +1,8 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation,
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
 #                    Paweł Marczewski <pawel@invisiblethingslab.com>,
 #                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
@@ -16,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 """
 Bridge manifest object
@@ -24,6 +28,7 @@ Bridge manifest object
 from pathlib import PurePosixPath
 from typing import Optional, List, Iterable, Union
 from copy import deepcopy
+from uuid import UUID, uuid5
 
 from wildland.container import Container
 from wildland.manifest.manifest import Manifest
@@ -31,6 +36,9 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.manifest.schema import Schema
 from wildland.exc import WildlandError
 
+# An arbitrary UUID namespace, used to generate deterministic UUID of a bridge
+# placeholder container. See `Bridge.to_placeholder_container()` below.
+BRIDGE_PLACEHOLDER_UUID_NS = UUID('4a9a69d0-6f32-4ab5-8d4e-c198bf582554')
 
 class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     """
@@ -86,12 +94,13 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         """
         Create a placeholder container that shows how to mount the target user's forest.
         """
-
+        uuid = uuid5(BRIDGE_PLACEHOLDER_UUID_NS, self.user_id)
         return Container(
             owner=self.user_id,
-            paths=[PurePosixPath('/')],
+            paths=[PurePosixPath('/.uuid/' + str(uuid)), PurePosixPath('/')],
             backends=[{
                 'type': 'static',
+                'backend-id': str(uuid),
                 'content': {
                     'WILDLAND-FOREST.txt': \
                         f'This directory holds forest of user {self.user_id}.\n'

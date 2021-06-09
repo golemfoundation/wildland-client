@@ -7,6 +7,8 @@ removed in the future.
 
 The dates are commit dates of introducing the change..
 
+* (2021-06-04) Dropped support for relative paths to user manifests in bridges.
+
 * (2021-05-31) The ``infrastructures`` field in user manifest has been renamed to
   ``manifests-catalog``. For backwards compatibility, both fields are
   permitted when loading a manifest, but only the latter one is used. Also completely
@@ -60,7 +62,3 @@ The dates are commit dates of introducing the change..
 
   Existing manifests with public keys in header are recognized, but display a
   warning, and will not be supported in the future.
-
-* (2020-07-14) The ``wl mount/unmount`` commands have been renamed to
-  ``wl start/stop``, and will be removed. The ``wl mount`` command currently
-  displays an error message.
