@@ -61,3 +61,9 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
 See `COPYING` file for the full license text.
+
+In order to be able to contribute to any Wildland repository, you will need to
+agree to the terms of the `Wildland Contributor Agreement
+<https://docs.wildland.io/contributor-agreement.html>`_. By contributing to any
+such repository, you agree that your contributions will be licensed under the
+GPLv3 License.
