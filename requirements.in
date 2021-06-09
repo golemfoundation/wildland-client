@@ -8,6 +8,7 @@ pynacl
 graphlib-backport; python_version < '3.9'
 
 # Storage
+python-gitlab
 ipfshttpclient
 protobuf
 boto3
