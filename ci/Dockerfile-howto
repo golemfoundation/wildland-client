@@ -16,6 +16,7 @@ RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 # Setup webdav
 
 RUN htpasswd -cb /home/user/test-webdav-passwords user password
+RUN htpasswd -b /home/user/test-webdav-passwords userro passwordro
 RUN sed -i 's/www-data/user/' /etc/apache2/envvars
 COPY ./ci/apache2-webdav-test.conf /etc/apache2/sites-available/test-webdav.conf
 RUN a2enmod dav dav_fs rewrite

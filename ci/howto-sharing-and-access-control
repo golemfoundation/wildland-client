@@ -1,0 +1,294 @@
+#!/bin/bash
+
+# See ci/howto-test-lib.bash for docs about the "test framework"
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage
+sudo /etc/init.d/apache2 start
+
+###################
+### Create bob user
+###################
+run wl user create bob
+mkdir -p ~/Downloads/
+cp ~/.config/wildland/users/bob.user.yaml ~/Downloads
+
+bob_userid=$(get_userid bob)
+
+###############
+### Switch user
+###############
+switch_user alice
+
+#####################
+### Create alice user
+#####################
+
+expected_pcre="Generated key: $USERID_PCRE
+No path specified, using: /users/alice
+Created: /home/user/.config/wildland/users/alice.user.yaml
+Using $USERID_PCRE as @default
+Using $USERID_PCRE as @default-owner
+Adding $USERID_PCRE to local owners"
+run wl user create alice
+
+alice_userid=$(get_userid alice)
+
+expected="Created: /home/user/.config/wildland/users/bob.user.yaml
+Created: /home/user/.config/wildland/bridges/bob.bridge.yaml"
+run wl user im ~/Downloads/bob.user.yaml
+
+expected="Created: /home/user/.config/wildland/containers/mycontainer.container.yaml"
+run wl container create mycontainer
+
+mycontainer_uuid=$(wl container dump mycontainer | grep '/.uuid/' | cut -d / -f 3)
+
+expected="object: container
+owner: '$alice_userid'
+paths:
+- /.uuid/$mycontainer_uuid
+backends:
+  storage: []
+title: null
+categories: []
+version: '1'"
+run wl container dump mycontainer
+
+expected="Error: Secret key not found: $bob_userid"
+expected_fail=1
+run wl container create another-container --owner bob
+
+## Manifests encryption
+
+
+expected_pcre="signature: \|
+  $USERID_PCRE:.*
+---
+encrypted:
+  encrypted-data: .*
+  encrypted-keys:
+  - .*"
+run cat ~/.config/wildland/containers/mycontainer.container.yaml
+
+expected="Saved: /home/user/.config/wildland/containers/mycontainer.container.yaml
+re-publishing container /.uuid/$mycontainer_uuid..."
+run wl container modify set-no-encrypt-manifest mycontainer
+
+expected_pcre="signature: \|
+  $alice_userid:.*
+---
+object: container
+owner: '$alice_userid'
+paths:
+- /.uuid/$mycontainer_uuid
+backends:
+  storage: \[\]
+title: null
+categories: \[\]
+version: '1'
+access:
+- user: '\*'"
+run cat ~/.config/wildland/containers/mycontainer.container.yaml
+
+expected="Created: /home/user/.config/wildland/containers/unencrypted-container.container.yaml"
+run wl container create unencrypted-container --no-encrypt-manifest
+
+expected_pcre="signature: \|
+  $alice_userid:.*
+---
+object: container
+owner: '$alice_userid'
+paths:
+- /.uuid/$UUID_PCRE
+backends:
+  storage: \[\]
+title: null
+categories: \[\]
+version: '1'
+access:
+- user: '\*'"
+run cat ~/.config/wildland/containers/unencrypted-container.container.yaml
+
+expected="Created: /home/user/.config/wildland/containers/alice-and-bob.container.yaml"
+run wl container create alice-and-bob --access bob --path /very/secret
+
+alice_and_bob_uuid=$(wl container dump alice-and-bob | grep '/.uuid/' | cut -d / -f 3)
+
+expected_pcre="Using container: /home/user/.config/wildland/containers/alice-and-bob.container.yaml \(/.uuid/$alice_and_bob_uuid\)
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/alice-and-bob.container.yaml"
+run wl storage create dummy --container alice-and-bob
+
+expected_pcre="signature: \|
+  $alice_userid:.*
+---
+encrypted:
+  encrypted-data: .*
+  encrypted-keys:
+  - .*
+  - .*"
+run cat ~/.config/wildland/containers/alice-and-bob.container.yaml
+
+## Sharing a container
+## (forest creating critical part)
+
+run wl template create webdav mywebdav \
+    --login 'user' \
+    --password 'password' \
+    --url 'http://localhost:8081/'
+
+run wl forest create --access bob alice mywebdav
+
+## Container publishing
+
+expected="publishing container /.uuid/$alice_and_bob_uuid..."
+run wl container publish alice-and-bob
+
+cp ~/.config/wildland/users/alice.user.yaml ~/Downloads
+
+###############
+### Switch user
+###############
+switch_user bob
+
+expected="Created: /home/user/.config/wildland/users/alice.user.yaml
+Created: /home/user/.config/wildland/bridges/alice.bridge.yaml"
+run wl user import --path /forests/alice ~/Downloads/alice.user.yaml
+
+run wl start
+
+expected="Loading containers. Loaded 1...
+
+Mounting 1 container"
+run wl container mount :/forests/alice:/very/secret:
+
+
+## Infrastructure-level control
+
+switch_user caroline
+
+expected_pcre="Generated key: $USERID_PCRE
+No path specified, using: /users/caroline
+Created: /home/user/.config/wildland/users/caroline.user.yaml
+Using $USERID_PCRE as @default
+Using $USERID_PCRE as @default-owner
+Adding $USERID_PCRE to local owners"
+run wl user create caroline
+
+caroline_userid=$(get_userid caroline)
+
+run wl start
+
+# use webdav instead of s3, as it's easier to test locally
+expected="Storage template [carolines-s3] created in /home/user/.config/wildland/templates/carolines-s3.template.jinja"
+run wl template create webdav carolines-s3 \
+    --login 'user' \
+    --password 'password' \
+    --url 'http://localhost:8081/' \
+    --access caroline
+
+expected="Appended to an existing storage template [carolines-s3]"
+run wl template add webdav carolines-s3 \
+    --login 'userro' \
+    --password 'passwordro' \
+    --url 'http://localhost:8081/' \
+  --access '*' \
+  --read-only
+
+expected_pcre="Created base path: /.manifests/$UUID_PCRE
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/caroline-forest-catalog.container.yaml
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/caroline-forest-catalog.container.yaml
+Saved: /home/user/.config/wildland/users/caroline.user.yaml
+Saved: /home/user/.config/wildland/users/caroline.user.yaml"
+run wl forest create --access '*' caroline carolines-s3
+
+
+expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml
+Created base path: /$UUID_PCRE
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
+Adding storage $UUID_PCRE to container.
+Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
+publishing container /.uuid/$UUID_PCRE..."
+run wl container create hello-world \
+  --no-encrypt-manifest \
+  --path /hello/world \
+  --template carolines-s3
+
+expected="Loading containers. Loaded 1...
+
+Mounting 1 container"
+run wl c mount :/hello/world:
+
+run bash -c "echo 'It works!' > ~/wildland/hello/world/Hello-World.md"
+
+expected_pcre="signature: \|
+  $caroline_userid:.*
+---
+object: user
+owner: '$caroline_userid'
+paths:
+- /users/caroline
+manifests-catalog:
+- object: link
+  file: /.manifests.yaml
+  storage:
+    encrypted:
+      encrypted-data: .*
+      encrypted-keys:
+      - .*
+- object: link
+  file: /.manifests.yaml
+  storage:
+    access:
+    - user: '\*'
+    credentials:
+      login: userro
+      password: passwordro
+    read-only: true
+    type: webdav
+    url: http://localhost:8081/.manifests/$UUID_PCRE
+    backend-id: $UUID_PCRE
+    manifest-pattern:
+      type: glob
+      path: /\*.yaml
+pubkeys:
+- .*
+version: '1'"
+run cat ~/.config/wildland/users/caroline.user.yaml
+
+
+cp ~/.config/wildland/users/caroline.user.yaml ~/Downloads/
+
+switch_user daniel
+
+run wl user create daniel
+
+run wl start
+
+expected="Created: /home/user/.config/wildland/users/caroline.user.yaml
+WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
+Created: /home/user/.config/wildland/bridges/caroline.bridge.yaml"
+run wl user import ~/Downloads/caroline.user.yaml \
+  --path /f/caroline
+
+
+expected="User $caroline_userid already exists. Forcing user import.
+Created: /home/user/.config/wildland/users/caroline.user.yaml
+WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
+Loading containers. Loaded 1...Loading containers. Loaded 2...
+
+Mounting 2 containers"
+run wl forest mount :/f/caroline:
+
+cd ~/wildland/f/caroline\:/hello/world/
+
+expected="It works!"
+run cat Hello-World.md
+
+expected="bash: line 1: daniels.md: Permission denied"
+expected_fail=1
+run bash -c "echo 'Can I write here?' > daniels.md"
