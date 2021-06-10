@@ -1,6 +1,6 @@
 
 # Simplistic test framework for Wildland HOWTO
-# 
+#
 # Usage: source this file in the test script, like this:
 #  . ci/howto-test-lib.bash
 #
@@ -23,6 +23,9 @@
 #   and finally the last line"
 #   run wl user dump test
 #
+# Helpful pre-made patterns:
+#  $USERID_PCRE - matches Wildland user ID
+#  $UUID_PCRE - matches any UUID
 
 set -eo pipefail
 
@@ -40,6 +43,9 @@ current_step=0
 red=$(tput setaf 1 2>/dev/null ||:)
 norm=$(tput sgr0 2>/dev/null ||:)
 bold=$(tput bold 2>/dev/null ||:)
+
+USERID_PCRE="0x[0-9a-f]{64}"
+UUID_PCRE="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 # run the command, collect its output and, if $expected is set, compare with
 # $expected variable content; clear $expected afterwards, to avoid confusion
