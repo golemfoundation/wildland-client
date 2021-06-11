@@ -109,32 +109,34 @@ class OptionRequires(click.Option):
               help='category, will be used to generate mount paths')
 @click.option('--title', multiple=False, required=False,
               help='container title')
-@click.option('--update-user/--no-update-user', '-u/-n', default=False,
-              help='Attach the container to the user')
+@click.option('--update-user/--no-update-user', '-u/-n', default=False, show_default=True,
+              help='attach the container to the user')
 @click.option('--storage-template', '--template', multiple=False, required=False,
-              help='Use a storage template to generate storages (see wl storage-template)')
+              help='use a storage template to generate storages (see wl storage-template)')
 @click.option('--local-dir', multiple=False, required=False,
-              help='local directory to be passed to storage templates '
-                   '(requires --storage-template)')
+              help='local directory to be passed to storage template (requires --storage-template)')
 @click.option('--access', multiple=True, required=False,
-              help="allow additional users access to this container manifest")
+              help='allow additional users access to this container manifest')
 @click.option('--no-publish', is_flag=True,
               help='do not publish the container after creation')
 @click.option('--encrypt-manifest/--no-encrypt-manifest', default=True, required=False,
-              help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
-                   "and --access cannot be used.")
+              show_default=True, help='if --no-encrypt, this manifest will not be encrypted and '
+              '--access cannot be used.')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
-def create(obj: ContextObj, owner, path, name, update_user, access, no_publish,
-           title=None, category=None, storage_template=None, local_dir=None, encrypt_manifest=True):
+def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Optional[str],
+        update_user: bool, access: Sequence[str], no_publish: bool, title: Optional[str],
+        category: Sequence[str], storage_template: Optional[str], local_dir: Optional[str],
+        encrypt_manifest: bool):
     """
     Create a new container manifest.
     """
 
-    owner = obj.client.load_object_from_name(WildlandObject.Type.USER, owner or '@default-owner')
-
     if local_dir and not storage_template:
         raise CliError('--local-dir requires --storage-template')
+
+    if access and not encrypt_manifest:
+        raise CliError('--no-encrypt and --access are mutually exclusive')
 
     if category and not title:
         if not name:
@@ -145,55 +147,57 @@ def create(obj: ContextObj, owner, path, name, update_user, access, no_publish,
 
     if storage_template:
         try:
-            tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
-
+            template_dir_path = obj.client.dirs[WildlandObject.Type.TEMPLATE]
+            tpl_manager = TemplateManager(template_dir_path)
             storage_templates = tpl_manager.get_template_file_by_name(storage_template).templates
         except WildlandError as we:
             raise CliError(f'Could not load [{storage_template}] storage template. {we}') from we
 
-    if access and not encrypt_manifest:
-        raise CliError('--no-encrypt and --access are mutually exclusive.')
-
     if access:
-        access = [{'user': obj.client.load_object_from_name(
+        access_list = [{'user': obj.client.load_object_from_name(
             WildlandObject.Type.USER, user).owner} for user in access]
     elif not encrypt_manifest:
-        access = [{'user': '*'}]
+        access_list = [{'user': '*'}]
+    else:
+        access_list = []
+
+    owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER,
+        owner or '@default-owner')
 
     container = Container(
-        owner=owner.owner,
-        paths=[PurePosixPath(p) for p in path] if path else [],
+        owner=owner_user.owner,
+        paths=[PurePosixPath(p) for p in path],
         backends=[],
         client=obj.client,
         title=title,
-        categories=category,
-        access=access
+        categories=[PurePosixPath(c) for c in category],
+        access=access_list
     )
 
-    path = obj.client.save_new_object(WildlandObject.Type.CONTAINER, container, name)
-    click.echo(f'Created: {path}')
+    container_path = obj.client.save_new_object(WildlandObject.Type.CONTAINER, container, name)
+    click.echo(f'Created: {container_path}')
 
     if storage_templates:
         try:
             do_create_storage_from_templates(obj.client, container, storage_templates, local_dir,
                                              no_publish=no_publish)
         except (WildlandError, ValueError) as ex:
-            click.echo(f'Removing container: {path}')
-            path.unlink()
+            click.echo(f'Removing container: {container_path}')
+            container_path.unlink()
             raise WildlandError(f'Failed to create storage from template. {ex}') from ex
 
     if update_user:
-        if not owner.local_path:
+        if not owner_user.local_path:
             raise WildlandError('Cannot update user because the manifest path is unknown')
         click.echo('Attaching container to user')
 
-        owner.add_catalog_entry(str(obj.client.local_url(path)))
-        obj.client.save_object(WildlandObject.Type.USER, owner)
+        owner_user.add_catalog_entry(str(obj.client.local_url(container_path)))
+        obj.client.save_object(WildlandObject.Type.USER, owner_user)
 
     if not no_publish:
         try:
-            owner = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-            if owner.has_catalog:
+            owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+            if owner_user.has_catalog:
                 click.echo(f'publishing container {container.uuid_path}...')
                 publisher = Publisher(obj.client, container)
                 publisher.publish_container()
@@ -683,20 +687,20 @@ def prepare_mount(obj: ContextObj,
 
 
 @container_.command(short_help='mount container')
-@click.option('--remount/--no-remount', '-r/-n', default=True,
+@click.option('--remount/--no-remount', '-r/-n', default=True, show_default=True,
               help='Remount existing container, if found')
 @click.option('--save', '-s', is_flag=True,
               help='Save the container to be mounted at startup')
-@click.option('--import-users/--no-import-users', is_flag=True, default=True,
+@click.option('--import-users/--no-import-users', is_flag=True, default=True, show_default=True,
               help='Import encountered users on the WildLand path to the container(s)')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              help='Do not mount subcontainers of this container.')
-@click.option('--only-subcontainers', '-b', is_flag=True, default=False,
+              show_default=True, help='Do not mount subcontainers of this container.')
+@click.option('--only-subcontainers', '-b', is_flag=True, default=False, show_default=True,
               help='If a container has subcontainers, mount only the subcontainers')
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all containers, including those who '
                    'did not need to be changed')
-@click.option('--manifests-catalog', '-m', is_flag=True, default=False,
+@click.option('--manifests-catalog', '-m', is_flag=True, default=False, show_default=True,
               help='Allow mounting containers from manifest catalogs')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
@@ -806,7 +810,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 @click.option('--path', metavar='PATH',
               help='mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              help='Do not umount subcontainers. Unmounts subcontainers by default.')
+              show_default=True, help='Do not umount subcontainers.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names: Sequence[str]):
@@ -1020,7 +1024,7 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
 @click.option('--source-storage', help='specify source storage. Default: first local storage '
                                        'listed in manifest. Can be specified as backend_id or as '
                                        'storage type (e.g. s3)')
-@click.option('--one-shot', is_flag=True, default=False,
+@click.option('--one-shot', is_flag=True, default=False, show_default=True,
               help='perform only one-time sync, do not start syncing daemon')
 @click.pass_obj
 def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, cont):
@@ -1057,7 +1061,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
         default_remotes[container.uuid] = target_object.backend_id
         obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
     else:
-        target_remote_id = default_remotes.get(container.uuid, None)
+        target_remote_id = default_remotes.get(container.uuid)
         try:
             target_object = [storage for storage in all_storages
                              if target_remote_id == storage.backend_id

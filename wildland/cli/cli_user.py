@@ -275,7 +275,7 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
 
     # TODO: Accepting paths (string) should be deprecated and force using link objects
     if isinstance(path_or_dict, dict):
-        if path_or_dict.get('object', None) != WildlandObject.Type.LINK.value:
+        if path_or_dict.get('object') != WildlandObject.Type.LINK.value:
             raise CliError(f'Dictionary object must be of type {WildlandObject.Type.LINK.value}')
 
         if not manifest_owner:

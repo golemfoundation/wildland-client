@@ -208,7 +208,7 @@ def _boostrap_forest(ctx: click.Context,
 
         catalog_backend = StorageBackend.from_params(catalog_storage.params)
         if isinstance(catalog_backend, FileSubcontainersMixin) and \
-                not catalog_backend.params.get('manifest-pattern', None):
+                not catalog_backend.params.get('manifest-pattern'):
             catalog_backend.params['manifest-pattern'] = catalog_backend.DEFAULT_MANIFEST_PATTERN
 
         # Additionally ensure that they are going to be stored inline and override old storages

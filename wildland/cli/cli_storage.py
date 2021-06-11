@@ -25,10 +25,10 @@
 Storage object
 """
 
-from typing import Type, Union, Tuple, List, Optional, Iterable
+from typing import Iterable, List, Optional, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlparse, urlunparse
 import functools
+import logging
 import uuid
 
 import click
@@ -46,6 +46,8 @@ from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
+
+logger = logging.getLogger('cli-storage')
 
 
 @aliased_group('storage', short_help='storage management')
@@ -77,13 +79,13 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--public-url'], metavar='PUBLICURL',
                      help='Set public base URL'),
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="limit access to this storage to the provided users. "
-                          "Default: same as the container."),
+                     help='limit access to this storage to the provided users. '
+                          'Default: same as the container.'),
         click.Option(['--encrypt-manifest/--no-encrypt-manifest'], default=True,
                      required=False,
-                     help="default: encrypt. if --no-encrypt, this manifest will not be encrypted "
-                          "and --access cannot be used. For inline storage, "
-                          "container manifest might still be encrypted."),
+                     help='default: encrypt. if --no-encrypt, this manifest will not be encrypted '
+                          'and --access cannot be used. For inline storage, '
+                          'container manifest might still be encrypted.'),
         click.Option(['--no-publish'], is_flag=True,
                             help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
@@ -308,12 +310,9 @@ def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path
             click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
 
 
-def do_create_storage_from_templates(
-        client,
-        container,
-        storage_templates: Iterable[StorageTemplate],
-        local_dir,
-        no_publish: bool = False):
+def do_create_storage_from_templates(client: Client, container: Container,
+        storage_templates: Iterable[StorageTemplate], local_dir: Optional[str],
+        no_publish: bool = False) -> None:
     """
     Create storages for a container from a given list of storage templates.
     :param client: Wildland client
@@ -323,71 +322,44 @@ def do_create_storage_from_templates(
         creators
     :param no_publish: should the container not be published after creation
     """
-    to_process: List[Tuple[Storage, Optional[StorageBackend]]] = []
+    to_process: List[Tuple[Storage, StorageBackend]] = []
 
     for template in storage_templates:
         try:
-            storage_fields = template.get_storage_fields(container, local_dir)
+            storage = template.get_storage(client, container, local_dir)
         except ValueError as ex:
             click.echo(f'Failed to create storage from storage template: {ex}')
             raise ex
-        storage_fields = container.fill_storage_fields(storage_fields)
 
-        storage = WildlandObject.from_fields(
-            storage_fields, client, WildlandObject.Type.STORAGE,
-            local_owners=client.config.get('local-owners'))
-
-        storage_type = storage.storage_type
-        storage_cls = StorageBackend.types()[storage_type]
-        backend = None
-
-        if (storage_cls.LOCATION_PARAM and
-            storage_cls.LOCATION_PARAM in storage.params and
-            storage.params[storage_cls.LOCATION_PARAM]):
-
-            # Template-generated paths/uris sanity check
-            orig_location = str(storage.params[storage_cls.LOCATION_PARAM])
-
-            if client.is_url(orig_location):
-                uri = urlparse(orig_location)
-                path = Path(uri.path).resolve()
-                location = urlunparse((uri.scheme, uri.netloc, str(path),
-                                       uri.params, uri.query, uri.fragment))
-            else:
-                path = Path(orig_location)
-                location = orig_location
-
-            storage.params[storage_cls.LOCATION_PARAM] = str(location)
-
-            backend = StorageBackend.from_params(storage.params)
-
-        to_process.append((storage, backend))
+        storage_backend = StorageBackend.from_params(storage.params)
+        to_process.append((storage, storage_backend))
 
     for storage, backend in to_process:
-        # TODO: why is this in practice under the if? This may be solved by factoring the
-        #  above cleanup code into either storage template handling, or Storage class.
-        #  Then, the mkdir could depend on is_writable only.
-        # Ensure that base path actually exists
-        if storage.is_writeable and backend:
-            try:
-                with backend:
-                    backend.mkdir(PurePosixPath(path))
-                    click.echo(f"Created base path: {path}")
-            except Exception as ex:
-                click.echo(f'WARN: Could not create base path {path} in a writable '
-                           f'storage [{backend.backend_id}]. {ex}')
+        if storage.is_writeable:
+            _ensure_backend_location_exists(backend)
 
         click.echo(f'Adding storage {storage.backend_id} to container.')
         client.add_storage_to_container(container=container, storage=storage, inline=True)
         click.echo(f'Saved container {container.local_path}')
 
-        if no_publish:
-            return
-
+    if not no_publish:
         try:
             Publisher(client, container).republish_container()
         except WildlandError as ex:
             raise WildlandError(f"Failed to republish container: {ex}") from ex
+
+
+def _ensure_backend_location_exists(backend: StorageBackend) -> None:
+    path = backend.location
+    if path is None:
+        return
+    try:
+        with backend:
+            backend.mkdir(PurePosixPath(path))
+            click.echo(f'Created base path: {path}')
+    except Exception as ex:
+        click.echo(f'WARN: Could not create base path {path} in a writable storage '
+                   f'[{backend.backend_id}]. {ex}')
 
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',

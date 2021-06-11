@@ -45,7 +45,7 @@ class _StorageCache:
     """
     Helper class representing a cached storage object.
     """
-    def __init__(self, storage, cached_storage):
+    def __init__(self, storage, cached_storage=None):
         self.storage = storage
         self.cached_backend = cached_storage
 
@@ -93,7 +93,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         self.is_manifests_catalog = False
 
         self._uuid_path = self._ensure_uuid()
-        self._storage_cache = [_StorageCache(self.fill_storage_fields(b), None)
+        self._storage_cache = [_StorageCache(self.fill_storage_fields(b))
                                for b in deepcopy(backends)]
 
     @property
@@ -170,10 +170,10 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             paths=[PurePosixPath(p) for p in fields['paths']],
             backends=fields['backends']['storage'],
             client=client,
-            title=fields.get('title', None),
+            title=fields.get('title'),
             categories=[PurePosixPath(p) for p in fields.get('categories', [])],
             manifest=manifest,
-            access=fields.get('access', None)
+            access=fields.get('access')
         )
 
     def to_manifest_fields(self, inline: bool) -> dict:
@@ -183,7 +183,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             if isinstance(cache.storage, str):
                 cleaned_backends.append(cache.storage)
                 continue
-            if isinstance(cache.storage, dict) and cache.storage.get('object', None) == \
+            if isinstance(cache.storage, dict) and cache.storage.get('object') == \
                     WildlandObject.Type.LINK.value:
                 cleaned_backends.append(deepcopy(cache.storage))
                 continue
@@ -252,12 +252,11 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                 if not include_url:
                     continue
             elif isinstance(cache.storage, dict) and \
-                    cache.storage.get('object', None) == WildlandObject.Type.LINK:
+                    cache.storage.get('object') == WildlandObject.Type.LINK:
                 if not include_url:
                     continue
-            else:
-                if not include_inline:
-                    continue
+            elif not include_inline:
+                continue
             yield cache
 
     def load_raw_backends(self, include_inline: bool = True, include_url: bool = True):
@@ -269,7 +268,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         for cache in self._backend_iterator(include_inline, include_url):
             yield deepcopy(cache.storage)
 
-    def load_backends(self, include_inline: bool = True, include_url: bool = True):
+    def load_storages(self, include_inline: bool = True, include_url: bool = True):
         """
         Load and return container storages. Returns Storage objects.
         :param include_inline: should inline storages be included?
@@ -278,27 +277,14 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         assert self.client
         for cache in self._backend_iterator(include_inline, include_url):
             try:
-                backend = cache.get(self.client, self.owner)
-                if 'reference-container' in backend.params:
-                    referenced_storage_and_path = self.client.select_reference_storage(
-                        backend.params['reference-container'], self.owner, backend.trusted)
-                    if referenced_storage_and_path is None:
-                        logging.warning("Can't select reference storage: %s",
-                                        backend.params['reference-container'])
-                        continue
-                    path, backend.params['storage'] = referenced_storage_and_path
-
-                    # This is to avoid circular imports, and the import is neaded because of FUSE
-                    # dependence: https://gitlab.com/wildland/wildland-client/-/issues/419
-                    # pylint: disable=import-outside-toplevel,cyclic-import
-                    from .storage_backends.base import StorageBackend
-                    backend_cls = StorageBackend.types()[backend.storage_type]
-                    if backend_cls.MOUNT_REFERENCE_CONTAINER:
-                        storage_path = str(self.client.fs_client.mount_dir / path.relative_to('/'))
-                        backend.params['storage-path'] = storage_path
+                storage = cache.get(self.client, self.owner)
+                if 'reference-container' in storage.params and 'storage' not in storage.params:
+                    logging.warning("Can't select reference storage: %s",
+                                    storage.params['reference-container'])
+                    continue
             except (ManifestError, WildlandError):
                 continue
-            yield backend
+            yield storage
 
     def is_backend_in_use(self, path_or_id):
         """
@@ -378,17 +364,17 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     return
 
                 if isinstance(cache.storage, dict):
-                    if cache.storage.get('object', None) == 'link':
+                    if cache.storage.get('object') == 'link':
                         link = self.client.load_link_object(cache.storage, self.owner)
                         self.client.save_object(WildlandObject.Type.STORAGE, storage,
                                                 Path(cache.storage['file']).relative_to('/'),
                                                 link.storage_driver)
                         return
                     self._storage_cache[idx] = _StorageCache(self.fill_storage_fields(
-                        storage.to_manifest_fields(inline=True)), None)
+                        storage.to_manifest_fields(inline=True)))
                 else:
                     if new_url:
-                        self._storage_cache[idx] = _StorageCache(new_url, None)
+                        self._storage_cache[idx] = _StorageCache(new_url)
                     elif cache.storage.startswith('file://'):
                         self.client.save_object(
                             WildlandObject.Type.STORAGE, storage,
@@ -399,7 +385,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         else:
             if inline:
                 self._storage_cache.append(_StorageCache(
-                    self.fill_storage_fields(storage.to_manifest_fields(inline=True)), None))
+                    self.fill_storage_fields(storage.to_manifest_fields(inline=True))))
             else:
                 if new_url:
                     new_path = new_url
@@ -409,7 +395,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                         storage_path = self.client.save_new_object(
                             WildlandObject.Type.STORAGE, storage, storage_name)
                     new_path = self.client.local_url(storage_path)
-                self._storage_cache.append(_StorageCache(new_path, None))
+                self._storage_cache.append(_StorageCache(new_path))
 
     def clear_storages(self):
         """Remove all storages"""

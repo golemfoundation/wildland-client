@@ -421,9 +421,9 @@ class SodiumSigContext(SigContext):
         returns public or private signing or encrypting key
         """
         if public:
-            key = self.keys.get(key_id, None)
+            key = self.keys.get(key_id)
         else:
-            key = self.private_keys.get(key_id, None)
+            key = self.private_keys.get(key_id)
 
         if not key and self.use_local_keys:
             file = self.key_dir / f'{key_id}.pub' if public else self.key_dir / f'{key_id}.sec'

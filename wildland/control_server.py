@@ -95,8 +95,8 @@ class ControlRequest:
             assert 'cmd' in request, 'expecting "cmd" key'
 
             return ControlRequest(
-                cmd=request["cmd"],
-                request_id=request.get('id', None),
+                cmd=request['cmd'],
+                request_id=request.get('id'),
                 args=request.get('args', {})
             )
         except AssertionError as e:

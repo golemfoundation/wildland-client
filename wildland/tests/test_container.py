@@ -160,11 +160,11 @@ def test_catalog_cache(cli, client):
 def test_storage_cache(client):
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, "Container1")
 
-    storages = list(container.load_backends())
+    storages = list(container.load_storages())
     assert 'storage1' in storages[0].params['location']
     storages[0].params['location'] = '/test'
 
     # test that we got the same object
-    storages = list(container.load_backends())
+    storages = list(container.load_storages())
     assert 'storage1' not in storages[0].params['location']
     assert storages[0].params['location'] == '/test'
