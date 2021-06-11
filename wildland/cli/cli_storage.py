@@ -359,11 +359,7 @@ def do_create_storage_from_templates(
 
             storage.params[storage_cls.LOCATION_PARAM] = str(location)
 
-            if 'reference-container' in storage.params:
-                click.echo(
-                    f'WARN: Will not attempt to create a directory in a {storage_type} storage')
-            else:
-                backend = StorageBackend.from_params(storage.params)
+            backend = StorageBackend.from_params(storage.params)
 
         to_process.append((storage, backend))
 
