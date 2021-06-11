@@ -115,6 +115,12 @@ howto-quick-start-test:
   script:
     - ./ci/howto-quick-start
 
+howto-sharing-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE_HOWTO
+  script:
+    - ./ci/howto-sharing-and-access-control
+
 smoke-test:
   stage: test
   image: docker/compose:latest
