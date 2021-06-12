@@ -1,5 +1,5 @@
 . /home/user/env/bin/activate
-pip install . plugins/*
+. ci/install-inplace bearnotes
 
 refresh() {
     # TODO: this suppresses errors returned from wlfuse

@@ -1,7 +1,9 @@
+#!/usr/bin/env bash
+
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/gitlab
+. ci/install-inplace gitlab
 
 #setup
 ROOT="$HOME/wildland"

@@ -1,7 +1,9 @@
+#!/usr/bin/env bash
+
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/gitlab-graphql
+. ci/install-inplace gitlab-graphql
 
 # Setup
 ROOT="$HOME/wildland"

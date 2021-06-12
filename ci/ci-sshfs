@@ -14,7 +14,7 @@ ssh -oStrictHostKeyChecking=no 127.0.0.1 echo 1
 mkdir $FILES
 
 . /home/user/env/bin/activate
-pip install . plugins/*
+. ci/install-inplace sshfs
 
 wl user create User
 wl container create sshfs --path "/$MNT_DIR_1"

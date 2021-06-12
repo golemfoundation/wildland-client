@@ -3,7 +3,9 @@
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/s3/
+. ci/install-inplace s3
+
+WL='python3 -m coverage run -p ./wl'
 
 # Setup
 ROOT="$HOME/wildland"
@@ -29,10 +31,10 @@ MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --consol
 
 # Wildland
 
-wl user create s3-user
-wl container create s3-con --path "/$MNT_DIR_1"
-wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
-wl start --container s3-con
+$WL user create s3-user
+$WL container create s3-con --path "/$MNT_DIR_1"
+$WL storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
+$WL start --container s3-con
 
 # Test files
 
@@ -60,13 +62,13 @@ time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/abbott ]]'
 
 # Creating a storage by utilizing a template
 
-./wl template create s3 --access-key 'dmr' --secret-key '/.,/.,/.,'  --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-template
-./wl container create s3-temp-con --path "/$MNT_DIR_2" --template s3-template
-./wl container mount s3-temp-con
+$WL template create s3 --access-key 'dmr' --secret-key '/.,/.,/.,'  --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-template
+$WL container create s3-temp-con --path "/$MNT_DIR_2" --template s3-template
+$WL container mount s3-temp-con
 
 tree "$ROOT"
 
-uuid=$(./wl container dump s3-temp-con | grep '/.uuid/' | cut -d / -f 3 )
+uuid=$($WL container dump s3-temp-con | grep '/.uuid/' | cut -d / -f 3 )
 
 # Creating some files and folders
 mkdir -p "$MINIO_DATA_DIR"/$uuid/subdir

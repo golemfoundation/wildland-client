@@ -1,7 +1,9 @@
+#!/usr/bin/env bash
+
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/git
+. ci/install-inplace git
 
 #setup
 ROOT="$HOME/wildland"

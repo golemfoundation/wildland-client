@@ -1,9 +1,9 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/*
+. ci/install-inplace imap
 
 # Setup
 ROOT="$HOME/wildland"
