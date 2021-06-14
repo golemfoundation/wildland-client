@@ -25,10 +25,9 @@
 Wildland command-line interface.
 """
 
-import re
 import os
 from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional, Union
 
 import click
 
@@ -275,17 +274,20 @@ def _print_container_all_paths(paths: List[PurePosixPath]) -> None:
         _echo_indented_status_info(str(path), 4)
 
 
-def _print_container_shortened_paths(paths: List[PurePosixPath], categories: List[str]) -> None:
+def _print_container_shortened_paths(paths: List[PurePosixPath], categories: List[PurePosixPath]) \
+        -> None:
     """
     Prints mount paths with ``/.users/``, ``/.backends/``, ``/.uuid`` and ``/{category}`` paths
     filtered out (where ``{category}`` is any category from ``categories`` list given as a param).
     """
+    def _any_in_path(path_str: str, iterable: Iterable[Union[PurePosixPath, str]]):
+        return any(path_str.startswith(str(p)) or ':' + str(p) in path_str for p in iterable)
+
     def _is_relevant_path(path: PurePosixPath):
         path_str = str(path)
         prefixes = ('/.users/', '/.backends/', '/.uuid/')
-        if any(re.match("(^|.*:)" + c, path_str) for c in prefixes):
-            return False
-        return not any(re.match("(^|.*:)" + str(c), path_str) for c in categories)
+        return not _any_in_path(path_str, prefixes) and \
+               not _any_in_path(path_str, categories)
 
     relevant_paths = list(filter(_is_relevant_path, paths))
     if relevant_paths:
