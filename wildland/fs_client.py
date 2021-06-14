@@ -312,6 +312,7 @@ class WildlandFSClient:
             'primary': storage.is_primary,  # determines how many mountpoints are generated
             'backend-id': storage.backend_id,
             'owner': storage.owner,
+            'container-path': str(container.paths[0]),
             'version': Manifest.CURRENT_VERSION,
         }
         return Storage(storage.owner, StaticStorageBackend.TYPE, container.uuid_path,
@@ -505,10 +506,21 @@ class WildlandFSClient:
         file such as file's unique hash and storage that is exposing this
         file.
         """
+        if not local_path.is_absolute():
+            logger.warning('An absolute path is expected; [%s] was given', str(local_path))
+            return
+
+        # TODO why it needs to be commented out to make test_file_find pass?
+
+        if not local_path.exists():
+            logger.warning('[%s] does not exist', str(local_path))
+            return
+
         try:
             relpath = local_path.resolve().relative_to(self.mount_dir)
         except ValueError:
-            logger.warning('Given path [%s] is not relative to mountpoint', local_path)
+            logger.warning('Given path [%s] is not in the subpath of [%s]', local_path,
+                self.mount_dir)
             return
 
         if local_path.is_dir():
