@@ -397,6 +397,15 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/s3.rsti
 
+.. program:: wl-template-add-sshfs
+.. _wl-template-add-sshfs:
+
+:command:`wl template add sshfs  [--sshfs-command <cmd>] --host <host> [--path <path>] [--ssh-user <user>] [--ssh-identity <path>|--pwprompt] [-mount-options <OPT1>[,OPT2,OPT3,...]] NAME`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/sshfs.rsti
+
 .. program:: wl-template-add-static
 .. _wl-template-add-static:
 
