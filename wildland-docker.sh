@@ -8,4 +8,4 @@ cd "$localdir/docker"
 docker-compose build
 
 # run wildland-client service
-docker-compose run --service-ports wildland-client
+docker-compose run --service-ports wildland-client "$@"
