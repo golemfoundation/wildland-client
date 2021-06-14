@@ -819,7 +819,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
 
 
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
-        with_subcontainers: bool = True):
+             with_subcontainers: bool = True):
     obj.fs_client.ensure_mounted()
 
     if bool(container_names) + bool(path) != 1:
@@ -828,12 +828,11 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
     storage_ids = []
-    counter = None
+    counter = Counter()
 
     if container_names:
         for container_name in container_names:
-            msg = f"Loading containers (from '{container_name}'): "
-            counter = Counter(msg)
+            counter.message = f"Loading containers (from '{container_name}'): "
             try:
                 container_storage_ids = _collect_storage_ids_by_container_name(
                     obj, container_name, counter, with_subcontainers)
@@ -842,8 +841,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
                 failed = True
                 exc_msg += str(ex) + '\n'
     else:
-        msg = f"Loading containers (from '{path}'): "
-        counter = Counter(msg)
+        counter.message = f"Loading containers (from '{path}'): "
         container_storage_ids = _collect_storage_ids_by_container_path(
             obj, path, counter, with_subcontainers)
         storage_ids.extend(container_storage_ids)
@@ -874,10 +872,7 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
 
             if storage_id is None:
                 assert not is_pseudomanifest
-                # click.echo(f'Not mounted: {mount_path}')
             else:
-                # if not is_pseudomanifest:
-                    # click.echo(f'Will unmount: {mount_path}')
                 storage_ids.append(storage_id)
 
         if with_subcontainers:
