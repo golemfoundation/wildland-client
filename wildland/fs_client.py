@@ -612,9 +612,9 @@ class WildlandFSClient:
             int(ident_str): {
                 'paths': [PurePosixPath(p) for p in storage['paths']],
                 'type': storage['type'],
-                'tag': storage['extra'].get('tag', None),
-                'trusted_owner': storage['extra'].get('trusted_owner', None),
-                'subcontainer_of': storage['extra'].get('subcontainer_of', None),
+                'tag': storage['extra'].get('tag'),
+                'trusted_owner': storage['extra'].get('trusted_owner'),
+                'subcontainer_of': storage['extra'].get('subcontainer_of'),
                 'hidden': storage['extra'].get('hidden', False),
             }
             for ident_str, storage in data.items()

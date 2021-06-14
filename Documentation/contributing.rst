@@ -120,3 +120,17 @@ practices`_, in particular:
 - don't just explain _what_ you've changed, but also _why_.
 
 .. _good practices: https://dhwthompson.com/2019/my-favourite-git-commit
+
+
+License, Contributor Agreement
+------------------------------
+
+The Wildland Client code is licensed under GPLv3 license.
+
+In order to be able to contribute to any Wildland repository, you will need to
+agree to the terms of the `Wildland Contributor Agreement`_.
+By contributing to any such repository, you agree that your contributions will
+be licensed under the `GPLv3 License`_.
+
+.. _GPLv3 License: https://gitlab.com/wildland/wildland-client/-/blob/master/COPYING
+.. _Wildland Contributor Agreement: https://docs.wildland.io/contributor-agreement.html

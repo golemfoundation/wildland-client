@@ -109,7 +109,7 @@ class Client:
 
         try:
             fuse_status = self.fs_client.run_control_command('status')
-            default_user = fuse_status.get('default-user', None)
+            default_user = fuse_status.get('default-user')
             if default_user:
                 self.config.override(override_fields={'@default': default_user})
         except (ConnectionRefusedError, FileNotFoundError):
@@ -176,7 +176,7 @@ class Client:
                     fuse_status = self.fs_client.run_control_command('status')
                 except (ConnectionRefusedError, FileNotFoundError):
                     fuse_status = {}
-                name = fuse_status.get('default-user', None)
+                name = fuse_status.get('default-user')
                 if not name:
                     name = self.config.get('@default')
                 if not name:
@@ -288,7 +288,7 @@ class Client:
         """
         if 'encrypted' in dictionary.keys():
             raise WildlandError('Cannot decrypt manifest: decryption key unavailable')
-        if dictionary.get('object', None) == 'link':
+        if dictionary.get('object') == 'link':
             link = self.load_link_object(dictionary, expected_owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
             if expected_owner and obj.owner != expected_owner:
@@ -390,7 +390,6 @@ class Client:
         :param container_path: if loading a STORAGE object of dict type, this container path
         will be filled in if the dict does not contain it already.
         """
-
         if isinstance(obj, str):
             return self.load_object_from_url(object_type, obj, owner, expected_owner)
 
@@ -798,19 +797,18 @@ class Client:
             i += 1
 
     @staticmethod
-    def all_storages(container: Container, *,
-                     predicate=None) -> Iterator[Storage]:
+    def all_storages(container: Container, *, predicate=None) -> Iterator[Storage]:
         """
         Return (and load on returning) all storages for a given container.
 
         In case of proxy storage, this will also load an reference storage and
         inline the manifest.
         """
-        for storage in container.load_backends():
+        for storage in container.load_storages():
             if not StorageBackend.is_type_supported(storage.storage_type):
                 logging.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
                 continue
-            if predicate is not None and not predicate(storage):
+            if predicate and not predicate(storage):
                 continue
             yield storage
 
@@ -822,8 +820,7 @@ class Client:
         inline the manifest.
         """
         try:
-            return next(
-                self.all_storages(container, predicate=predicate))
+            return next(self.all_storages(container, predicate=predicate))
         except StopIteration as ex:
             raise ManifestError('no supported storage manifest') from ex
 
@@ -831,7 +828,7 @@ class Client:
         """
         Return valid, mountable storages for the given container
         """
-        storages = list(self.all_storages(container, predicate=None))
+        storages = list(self.all_storages(container))
 
         if not storages:
             raise WildlandError('No valid storages found')
@@ -857,11 +854,11 @@ class Client:
             container_url_or_dict: Union[str, Dict],
             owner: str,
             trusted: bool) -> Optional[Tuple[PurePosixPath, Dict]]:
-        '''
-        Select an "reference" storage and default container path based on URL
+        """
+        Select a "reference" storage and default container path based on URL
         or dictionary. This resolves a container specification and then selects
         storage for the container.
-        '''
+        """
 
         # use custom caching that dumps *container_url_or_dict* to yaml,
         # because dict is not hashable (and there is no frozendict in python)

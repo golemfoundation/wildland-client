@@ -127,7 +127,7 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
-        pubkey = kwargs.get('pubkey', None)
+        pubkey = kwargs.get('pubkey')
         if pubkey and pubkey not in fields['pubkeys']:
             fields['pubkeys'].insert(0, pubkey)
 

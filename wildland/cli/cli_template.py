@@ -56,8 +56,8 @@ def _append():
 def _make_create_command(backend: Type[StorageBackend], create: bool):
     params = [
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
-                     help="Limit access to this storage to the provided users. "
-                          "By default the @default owner is used."),
+                     help='Limit access to this storage to the provided users. '
+                          'By default the @default owner is used.'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--public-url'], metavar='URL', required=False,
@@ -119,8 +119,8 @@ def _do_create(
         params['watcher-interval'] = int(watcher_interval)
 
     if access:
-        # We only accept '*' if '*' is the only entry, ie there can't be list of users
-        # alongside with '*' entry
+        # We only accept '*' if '*' is the only entry, ie there can't be list of users alongside
+        # with '*' entry
         if list(access) == ['*']:
             params['access'] = [{'user': '*'}]
         else:
@@ -132,26 +132,25 @@ def _do_create(
             except WildlandError as ex:
                 raise CliError(f'Failed to create storage template: {ex}') from ex
 
+    local_dir_postfix = '{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
+
     if backend.LOCATION_PARAM:
-        params[backend.LOCATION_PARAM] = str(params[backend.LOCATION_PARAM]).rstrip('/') + \
-                                             '{{ local_dir if local_dir is defined else "/" }}' + \
-                                             '/{{ uuid }}'
+        params[backend.LOCATION_PARAM] = \
+            (params[backend.LOCATION_PARAM] or '').rstrip('/') + local_dir_postfix
 
     if public_url:
-        params['public-url'] = public_url.rstrip('/') + \
-                                '{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}'
+        params['public-url'] = public_url.rstrip('/') + local_dir_postfix
 
     # remove default, non-required values
-    for param, value in list(params.items()):
-        if value is None or value == []:
-            del params[param]
+    for param_key in [k for k, v in params.items() if v is None or v == []]:
+        del params[param_key]
 
     path = template_manager.create_storage_template(name, params)
 
     if tpl_exists:
-        click.echo(f"Appended to an existing storage template [{name}]")
+        click.echo(f'Appended to an existing storage template [{name}]')
     else:
-        click.echo(f"Storage template [{name}] created in {path}")
+        click.echo(f'Storage template [{name}] created in {path}')
 
 
 @template.command('list', short_help='list storage templates', alias=['ls'])
@@ -165,11 +164,11 @@ def template_list(obj: ContextObj, show_filenames):
 
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
-    click.echo("Available templates:")
+    click.echo('Available templates:')
     templates = template_manager.available_templates()
 
     if not templates:
-        click.echo("    No templates available.")
+        click.echo('    No templates available.')
     else:
         for tpl in templates:
             if show_filenames:
@@ -190,7 +189,7 @@ def template_del(obj: ContextObj, name: str):
     try:
         template_manager.remove_storage_template(name)
     except FileNotFoundError as fnf:
-        raise CliError(f"Template [{name}] does not exist.") from fnf
+        raise CliError(f'Template [{name}] does not exist.') from fnf
     except WildlandError as ex:
         raise CliError(f'Failed to delete template: {ex}') from ex
 

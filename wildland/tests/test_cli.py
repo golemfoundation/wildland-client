@@ -32,7 +32,7 @@ import shutil
 import subprocess
 import time
 
-from unittest.mock import patch
+from unittest import mock
 
 import pytest
 import yaml
@@ -741,9 +741,9 @@ def test_storage_edit_fail(cli):
         '--container', 'Container')
 
     editor = r'sed -i s,/LOCATION,WRONGLOCATION,g'
-    with patch('click.confirm', return_value=False) as mock:
+    with mock.patch('click.confirm', return_value=False) as m:
         cli('container', 'edit', 'Container', '--editor', editor)
-        mock.assert_called()
+        m.assert_called()
 
 
 def test_storage_set_location(cli, base_dir):
@@ -1267,7 +1267,7 @@ def test_container_set_title(cli, base_dir):
 def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     # Create local forest so that container can be published somewhere
     cli('user', 'create', 'Alice', '--key', '0xaaa')
-    cli('storage-template', 'create', 'local', '--location', base_dir, 'local-catalog',
+    cli('template', 'create', 'local', '--location', base_dir, 'local-catalog',
         '--manifest-pattern', '/{path}.yaml')
     cli('container', 'create', 'Catalog', '--template', 'local-catalog',
         '--update-user', '--no-encrypt-manifest')
@@ -3212,7 +3212,7 @@ def test_cli_storage_template_create(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False
         }]
 
@@ -3227,7 +3227,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False,
             'access': [{'user': '0xaaa'}, {'user': '0xbbb'}]
         }]
@@ -3239,7 +3239,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False,
             'access': [{'user': '*'}]
         }]
@@ -3272,11 +3272,11 @@ def test_appending_to_existing_storage_template(cli, base_dir):
         read_data = load_yaml(f)
         assert read_data == [{
             'type': 'local',
-            'location': '/foo{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False
         }, {
             'type': 'local',
-            'location': '/bar{{ local_dir if local_dir is defined else "/" }}/{{ uuid }}',
+            'location': '/bar{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': True
         }]
 
@@ -3316,6 +3316,178 @@ def test_template_parsing(cli, base_dir):
     assert f'url: https://acme.com{uuid_path}/foobar/a_local_dir/{just_uuid}' in data
     assert 'login: /boo!foo:hoo' in data
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
+
+
+def test_local_storage_template(cli, base_dir):
+    storage_dir = base_dir / 'storage_dir'
+    os.mkdir(storage_dir)
+    cli('template', 'create', 'local', '--location', storage_dir, 'template')
+
+    with open(base_dir / 'templates/template.template.jinja') as f:
+        t1_jinja = load_yaml(f)
+
+    assert len(t1_jinja) == 1
+    assert t1_jinja[0] == {
+        'location': str(storage_dir) + '{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+        'read-only': False,
+        'type': 'local'
+    }
+
+    with pytest.raises(CliError, match='already exists'):
+        cli('template', 'create', 'local', '--location', storage_dir, 'template')
+
+
+def test_delegated_template(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
+        '--container', 'Container', '--inline')
+
+    cli('template', 'create', 'delegate', '--reference-container-url',
+        f'file://{base_dir}/containers/Container.container.yaml', 'delegated_template')
+
+    with open(base_dir / 'templates/delegated_template.template.jinja') as f:
+        template_jinja = load_yaml(f)
+
+    assert len(template_jinja) == 1
+    storage_template = template_jinja[0]
+    assert storage_template == {
+        'read-only': False,
+        'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+        'subdirectory': '{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+        'type': 'delegate'
+    }
+
+    cli('container', 'create', '--storage-template', 'delegated_template', '--no-encrypt-manifest',
+        'delegated_container')
+
+    with open(base_dir / 'containers/delegated_container.container.yaml') as f:
+        delegated_container_manifest = list(load_yaml_all(f))
+    assert len(delegated_container_manifest) == 2
+    assert delegated_container_manifest[0] == {
+        'signature': 'dummy.0xaaa\n'
+    }
+    assert delegated_container_manifest[1] == {
+        'object': 'container',
+        'owner': '0xaaa',
+        'paths': [
+            mock.ANY
+        ],
+        'backends': {
+            'storage': [
+                {
+                    'read-only': False,
+                    'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+                    'subdirectory': mock.ANY,
+                    'type': 'delegate',
+                    'backend-id': mock.ANY,
+                    'storage': {
+                        'location': '/STORAGE',
+                        'backend-id': mock.ANY,
+                        'type': 'local',
+                        'owner': '0xaaa',
+                        'version': '1',
+                        'object': 'storage',
+                        'container-path': mock.ANY,
+                        'is-local-owner': True
+                    }
+                }
+            ]
+        },
+        'title': None,
+        'categories': [
+        ],
+        'version': '1',
+        'access': [
+            {
+                'user': '*'
+            }
+        ]
+    }
+
+
+def test_proxy_storage_template(cli, base_dir):
+    # The purpose of this test is to verify that the storage templates are working correctly for a
+    # storage type (date-proxy) that does not have StorageBackend.LOCATION_PARAM defined
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
+        '--container', 'Container', '--inline')
+
+    cli('template', 'create', 'date-proxy', '--reference-container-url',
+        f'file://{base_dir}/containers/Container.container.yaml', 'dateproxy')
+
+    with open(base_dir / 'templates/dateproxy.template.jinja') as f:
+        template_jinja = load_yaml(f)
+
+    assert len(template_jinja) == 1
+    assert template_jinja[0] == {
+        'read-only': False,
+        'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+        'type': 'date-proxy'
+    }
+
+    cli('container', 'create', '--storage-template', 'dateproxy', '--no-encrypt-manifest',
+        'dateproxy')
+
+    with open(base_dir / 'containers/dateproxy.container.yaml') as f:
+        dateproxy_container_manifest = list(load_yaml_all(f))
+    assert len(dateproxy_container_manifest) == 2
+    assert dateproxy_container_manifest[0] == {
+        'signature': 'dummy.0xaaa\n'
+    }
+    assert dateproxy_container_manifest[1] == {
+        'object': 'container',
+        'owner': '0xaaa',
+        'paths': [
+            mock.ANY
+        ],
+        'backends': {
+            'storage': [
+                {
+                    'read-only': False,
+                    'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+                    'type': 'date-proxy',
+                    'backend-id': mock.ANY,
+                    'storage': {
+                        'location': '/STORAGE',
+                        'backend-id': mock.ANY,
+                        'type': 'local',
+                        'owner': '0xaaa',
+                        'version': '1',
+                        'object': 'storage',
+                        'container-path': mock.ANY,
+                        'is-local-owner': True
+                    }
+                }
+            ]
+        },
+        'title': None,
+        'categories': [
+        ],
+        'version': '1',
+        'access': [
+            {
+                'user': '*'
+            }
+        ]
+    }
+
+
+def test_proxy_storage_malformed_template(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    storage_dir = base_dir / 'storage_dir'
+    os.mkdir(storage_dir)
+
+    location = str(storage_dir) + '{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
+    with open(base_dir / 'templates/template.template.jinja', 'w') as f:
+        # notice that we intentionally skip 'type'
+        f.write(f"""- location: {location}
+  read-only: false
+""")
+
+    with pytest.raises(WildlandError, match='Type of the storage missing in given template'):
+        cli('container', 'create', '--storage-template', 'template', '--no-encrypt-manifest', 'tmp')
 
 
 def test_different_default_user(cli, base_dir):
@@ -4032,6 +4204,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     assert catalog[1]['object'] == 'link'
     assert catalog[1]['storage']['type'] == 'http'
     assert catalog[1]['storage']['url'] == f'file://{uuid_dir}'
+
 
 def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')

@@ -76,7 +76,7 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     obj = WildlandObject.from_manifest(manifest, client, wl_type)
 
     if isinstance(obj, Container):
-        for backend in obj.load_backends(include_url=False):
+        for backend in obj.load_storages(include_url=False):
             backend.validate()
 
 

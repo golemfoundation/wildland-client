@@ -40,34 +40,12 @@ run tree -F ~/wildland/mydirs/
 
 run wl forest mount :/mydirs/ariadne:/forests/pandora:
 
-expected="/home/user/wildland/mydirs/ariadne:/forests/pandora:/
-├── WILDLAND-FOREST.txt
-├── agent/
-├── arch/
-├── backends/
-├── clients/
-├── communication/
-├── docs/
-├── economy/
-├── ecosystem/
-├── events/
-├── home/
-├── hr/
-├── maps/
-├── ops/
-├── persons/
-├── places/
-├── pubkeys/
-├── reports/
-├── resources/
-├── similar_projects/
-├── status/
-├── teams/
-├── timeline/
-├── usecases/
+expected_pcre="(?s)/home/user/wildland/mydirs/ariadne:/forests/pandora:/
+.*├── WILDLAND-FOREST.txt
+.*
 └── ux/
 
-24 directories, 1 file"
+\d* directories, 1 file"
 run tree -F -L 1 ~/wildland/mydirs/ariadne:/forests/pandora:/
 
 ## Creating containers and forests
@@ -119,17 +97,16 @@ run wl container mount :/mydirs/ariadne:/forests/pandora:/docs/Container\ Addres
 # TODO: set Ariadne as @default (wl stop; wl start --default-user ?)
 #run wl c mount :/forests/pandora:/docs/Container\ Addressing:
 
-expected=".
-..
-.manifest.wildland.yaml
-wildland-w2h-0.3.pdf
-wildland-w2h-0.4-pre3.pdf
+expected_pcre="(?s)\.
+\.\.
+\.manifest.wildland.yaml
+.*
 wildland-w2h.pdf"
-run ls -a1  ~/wildland/mydirs/ariadne:/forests/pandora:/docs/W2H\ paper/
+run ls -a1  "/home/user/wildland/mydirs/ariadne:/forests/pandora:/docs/W2H paper/"
 
 expected="Container: wildland:0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe:/.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb:
   Backend id: 5570a6f5-857f-412b-8fa8-b5f6a83ea164"
-run wl c find ~/wildland/mydirs/ariadne:/forests/pandora:/docs/@arch/Container\ Addressing/addressing-v0.8.pdf
+run wl c find "/home/user/wildland/mydirs/ariadne:/forests/pandora:/docs/@arch/Container Addressing/addressing-v0.8.pdf"
 
 # won't work without write access to pandora
 #run wl c edit wildland:<wladdr>

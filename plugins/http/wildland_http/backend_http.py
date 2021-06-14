@@ -30,6 +30,7 @@ from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote
 import logging
+import errno
 from io import BytesIO
 
 import click
@@ -38,7 +39,7 @@ import requests
 
 from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.storage_backends.base import StorageBackend, Attr
-from wildland.storage_backends.buffered import PagedFile
+from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 
@@ -46,9 +47,11 @@ from wildland.manifest.schema import Schema
 logger = logging.getLogger('storage-http')
 
 
-class PagedHttpFile(PagedFile):
+# TODO: Changed to FullBufferedFile due to pre-release hotfix. Requires proper implementation
+# ref. https://gitlab.com/wildland/wildland-client/-/issues/467
+class PagedHttpFile(FullBufferedFile):
     """
-    A read-only paged HTTP file.
+    A read-only fully buffered HTTP file.
     """
 
     def __init__(self,
@@ -59,20 +62,19 @@ class PagedHttpFile(PagedFile):
         self.session = session
         self.url = url
 
-    def read_range(self, length, start) -> bytes:
-        range_header = 'bytes={}-{}'.format(start, start+length-1)
-
+    def read_full(self) -> bytes:
         resp = self.session.request(
             method='GET',
             url=self.url,
             headers={
                 'Accept': '*/*',
-                'Range': range_header
             }
         )
         resp.raise_for_status()
         return resp.content
 
+    def write_full(self, data: bytes) -> int:
+        raise IOError(errno.EROFS, str(self.url))
 
 class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
