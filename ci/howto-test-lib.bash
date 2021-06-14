@@ -132,3 +132,7 @@ switch_user() {
 get_userid() {
     wl user dump "$1" | grep owner| cut -f 2 -d :|tr -d " '"
 }
+
+get_container_uuid() {
+    wl container dump "$1" | grep -oP "\- \/.uuid/\K$UUID_PCRE"
+}

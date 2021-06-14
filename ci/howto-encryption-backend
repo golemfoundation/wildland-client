@@ -7,6 +7,18 @@
 mkdir -p /home/user/storage
 sudo /etc/init.d/apache2 start
 
+pip install . plugins/s3/
+
+# Minio
+
+curl -so /tmp/minio https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x /tmp/minio
+mkdir -p /tmp/minio-data/the-bucket/subdir
+
+MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server /tmp/minio-data &
+
+# Howto
+
 run wl user create bob
 bob_userid=$(get_userid bob)
 
@@ -23,30 +35,28 @@ title: null
 categories: \[\]
 version: '1'"
 run wl container dump s3-photos
+s3_photos_uuid=$(get_container_uuid s3-photos)
 
-# fixme: use s3 instead of local
 expected_pcre="Using container: /home/user/.config/wildland/containers/s3-photos.container.yaml \(/.uuid/$UUID_PCRE\)
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/s3-photos.container.yaml"
-#run wl storage create s3 --container s3-photos
-run wl storage create local --container s3-photos --location /home/user/storage_s3
+run ./wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' \
+  --container s3-photos --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
 
-
-expected="Created: /home/user/.config/wildland/containers/greece-2019-07.container.yaml"
-run wl container create greece-2019-07 \
+expected="Created: /home/user/.config/wildland/containers/greece-vacation.container.yaml"
+run wl container create greece-vacation \
   --path /photos \
   --path /persons/tim \
   --path /persons/janet \
   --path /persons/luke
 
-expected_pcre="Using container: /home/user/.config/wildland/containers/greece-2019-07.container.yaml \(/.uuid/$UUID_PCRE\)
+expected_pcre="Using container: /home/user/.config/wildland/containers/greece-vacation.container.yaml \(/.uuid/$UUID_PCRE\)
 Adding storage $UUID_PCRE to container.
-Saved container /home/user/.config/wildland/containers/greece-2019-07.container.yaml"
+Saved container /home/user/.config/wildland/containers/greece-vacation.container.yaml"
 run wl storage create encrypted \
-  --container greece-2019-07 \
-  --reference-container-url wildland::/.uuid/0fb3bc88-87a6-44d8-be27-33e18bf143f2: \
+  --container greece-vacation \
+  --reference-container-url "wildland::/.uuid/$s3_photos_uuid:" \
   --engine gocryptfs
 
-# WIP
-#wl start
-#wl container mount greece-2019-07
+wl start
+run wl container mount greece-vacation
