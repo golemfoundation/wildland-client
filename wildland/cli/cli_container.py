@@ -776,10 +776,10 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         params.extend(current_params)
 
     if len(params) > 1:
-        click.echo(f'Mounting {len(params)} containers')
+        click.echo(f'Mounting storages for containers:  {len(params)}')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     elif len(params) > 0:
-        click.echo('Mounting 1 container')
+        click.echo('Mounting one storage')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     else:
         click.echo('No containers need (re)mounting')
