@@ -37,6 +37,7 @@ import dataclasses
 import glob
 import re
 
+from .cli.cli_base import CliError
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError
@@ -502,26 +503,19 @@ class WildlandFSClient:
 
     def pathinfo(self, local_path: Path) -> Iterable[FileInfo]:
         """
-        Give a path to a mounted file, return diag information about the
-        file such as file's unique hash and storage that is exposing this
-        file.
+        Given an absolute path to a mounted file, return diagnostic information about the file such
+        as file's unique hash and storage that is exposing this file.
         """
-        if not local_path.is_absolute():
-            logger.warning('An absolute path is expected; [%s] was given', str(local_path))
-            return
-
-        # TODO why it needs to be commented out to make test_file_find pass?
+        assert local_path.is_absolute()
 
         if not local_path.exists():
-            logger.warning('[%s] does not exist', str(local_path))
-            return
+            raise CliError(f'[{local_path}] does not exist')
 
         try:
             relpath = local_path.resolve().relative_to(self.mount_dir)
-        except ValueError:
-            logger.warning('Given path [%s] is not in the subpath of [%s]', local_path,
-                self.mount_dir)
-            return
+        except ValueError as e:
+            raise CliError(f'Given path [{local_path}] is not a subpath of the mountpoint '
+                f'[{self.mount_dir}]') from e
 
         if local_path.is_dir():
             results = self.run_control_command('dirinfo', path=('/' + str(relpath)))

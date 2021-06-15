@@ -1186,11 +1186,13 @@ def duplicate(obj: ContextObj, new_name, cont):
 @click.pass_obj
 def find(obj: ContextObj, path: str):
     """
-    Find container by absolute file or directory path.
+    Find container by absolute or relative file/directory path. If the path is relative, it needs to
+    be relative with respect to the current working directory (not to the Wildland's mountpoint).
     """
+    absolute_path = Path(path).resolve()
     results = set(sorted([
         (fileinfo.backend_id, f'wildland:{fileinfo.storage_owner}:{fileinfo.container_path}:')
-        for fileinfo in obj.fs_client.pathinfo(Path(path))
+        for fileinfo in obj.fs_client.pathinfo(absolute_path)
     ]))
 
     if not results:

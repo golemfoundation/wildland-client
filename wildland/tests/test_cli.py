@@ -3926,7 +3926,7 @@ def test_user_refresh(cli, base_dir, tmpdir):
     assert 'paths:\n- /MEH' in user_data
 
 
-def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir, caplog):
+def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir):
     storage_dir = tmpdir / 'storage'
     os.mkdir(storage_dir)
     (storage_dir / 'file.txt').write('foo')
@@ -3969,18 +3969,14 @@ def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir, cap
 
     control_client.expect('fileinfo', {})
 
-    with pytest.raises(CliError, match='Given path was not found in any storage'):
+    with pytest.raises(CliError, match='/wildland/PATH/not_existing.txt] does not exist'):
         cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt')
 
-    assert 'wildland/PATH/not_existing.txt] does not exist' in caplog.text
-
-    with pytest.raises(CliError, match='Given path was not found in any storage'):
+    with pytest.raises(CliError, match='does not exist'):
         cli('container', 'find', 'relative_path')
 
-    assert 'An absolute path is expected; [relative_path] was given' in caplog.text
 
-
-def test_file_find_with_unmocked_client(cli, base_dir, tmpdir, caplog):
+def test_file_find_with_unmocked_client(cli, base_dir, tmpdir):
     storage_dir = tmpdir / 'storage'
     os.mkdir(storage_dir)
     (storage_dir / 'file.txt').write('foo')
@@ -4020,15 +4016,14 @@ def test_file_find_with_unmocked_client(cli, base_dir, tmpdir, caplog):
         result = cli('container', 'find', f'{base_dir}/{subpath}', capture=True)
         assert result.splitlines() == expected_container_find_output
 
-    with pytest.raises(CliError, match='Given path was not found in any storage'):
-        cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt', capture=True)
+    with pytest.raises(CliError, match='/wildland/PATH/not_existing.txt] does not exist'):
+        cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt')
 
-    assert 'wildland/PATH/not_existing.txt] does not exist' in caplog.text
-
-    with pytest.raises(CliError, match='Given path was not found in any storage'):
+    with pytest.raises(CliError, match='does not exist'):
         cli('container', 'find', 'relative_path')
 
-    assert 'An absolute path is expected; [relative_path] was given' in caplog.text
+    with pytest.raises(CliError, match='is not a subpath of the mountpoint'):
+        cli('container', 'find', str(storage_dir))
 
 
 # Forest
