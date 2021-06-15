@@ -2908,12 +2908,139 @@ def test_status(cli, control_client):
     out_lines = result.splitlines()
     assert '/path1' in out_lines
     assert '  storage: local' in out_lines
+    assert '/path2' in out_lines
+    assert '  storage: s3' in out_lines
+
+
+def test_status_all_paths(cli, control_client):
+    control_client.expect('status', {})
+    control_client.expect('info', {
+        '1': {
+            'paths': ['/path1', '/path1.1'],
+            'type': 'local',
+            'extra': {},
+        },
+        '2': {
+            'paths': ['/path2', '/path2.1'],
+            'type': 's3',
+            'extra': {},
+        },
+    })
+
+    result = cli('status', '--all-paths', capture=True)
+    out_lines = result.splitlines()
+    assert '/path1' in out_lines
+    assert '  storage: local' in out_lines
     assert '    /path1' in out_lines
     assert '    /path1.1' in out_lines
     assert '/path2' in out_lines
     assert '  storage: s3' in out_lines
     assert '    /path2' in out_lines
     assert '    /path2.1' in out_lines
+
+
+def test_status_secondary_storage(cli, control_client):
+
+    def _create_params(paths, storage_type, is_primary, is_hidden):
+        return {
+            'paths': paths,
+            'type': storage_type,
+            'extra': {
+                'primary': is_primary,
+                'title': 'mytitle',
+                'categories': [
+                    '/random01',
+                    '/random02'
+                ],
+                'hidden': is_hidden
+            }
+        }
+
+    control_client.expect('status', {})
+    control_client.expect('info', {
+        '1': _create_params(['/path1', '/path1.1', '/path1.2'], 'local', True, False),
+        '2': _create_params(['/path2', '/path2.1'], 'local', False, False),
+        '3': _create_params(['/path1-pseudomanifest', '/path1.1', '/path1.2'], 'static', True,
+                            True),
+        '4': _create_params(['/path2-pseudomanifest', '/path2.1'], 'static', False, True)
+    })
+
+    result = cli('status', capture=True)
+    assert result == """Mounted containers:
+
+/path1
+  storage: local
+  paths:
+    /path1
+    /path1.1
+    /path1.2
+  categories:
+    /random01
+    /random02
+  title:
+    mytitle
+
+/path2
+  storage: local
+
+"""
+
+    result = cli('status', '--with-pseudomanifests', capture=True)
+    assert result == """Mounted containers:
+
+/path1
+  storage: local
+  paths:
+    /path1
+    /path1.1
+    /path1.2
+  categories:
+    /random01
+    /random02
+  title:
+    mytitle
+
+/path2
+  storage: local
+
+/path1-pseudomanifest
+  storage: static
+
+/path2-pseudomanifest
+  storage: static
+
+"""
+
+    result = cli('status', '--with-pseudomanifests', '--all-paths', capture=True)
+    assert result == """Mounted containers:
+
+/path1
+  storage: local
+  all paths:
+    /path1
+    /path1.1
+    /path1.2
+
+/path2
+  storage: local
+  all paths:
+    /path2
+    /path2.1
+
+/path1-pseudomanifest
+  storage: static
+  all paths:
+    /path1-pseudomanifest
+    /path1.1
+    /path1.2
+
+/path2-pseudomanifest
+  storage: static
+  all paths:
+    /path2-pseudomanifest
+    /path2.1
+
+"""
 
 
 ## Bridge
@@ -3202,7 +3329,7 @@ def test_dump(tmpdir):
     assert 'encrypted' in dump_container
     assert yaml_container['object'] == 'container'
 
-# Storage sets/templates
+# Storage templates
 
 
 def test_cli_storage_template_create(cli, base_dir):

@@ -26,7 +26,8 @@ Wildland command-line interface.
 """
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Dict, Iterable, List, Optional, Union
 
 import click
 
@@ -59,11 +60,11 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
 @aliased_group('wl')
-@click.option('--dummy/--no-dummy', default=False,
+@click.option('--dummy/--no-dummy', default=False, show_default=True,
               help='use dummy signatures')
-@click.option('--base-dir', default=None,
+@click.option('--base-dir', default=None, show_default=True,
               help='base directory for configuration')
-@click.option('--debug/--no-debug', default=False,
+@click.option('--debug/--no-debug', default=False, show_default=True,
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
@@ -223,11 +224,13 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
 @main.command(short_help='display mounted containers')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
-              help='list subcontainers hidden by default')
+              show_default=True, help='list subcontainers hidden by default')
 @click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
-              default=False, help='list containers with pseudomanifests')
+              default=False, show_default=True, help='list containers with pseudomanifests')
+@click.option('--all-paths', '-a', is_flag=True, default=False, show_default=True,
+              help='print all mountpoint paths, including synthetic ones')
 @click.pass_obj
-def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool):
+def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool, all_paths: bool):
     """
     Display all mounted containers.
     """
@@ -236,8 +239,8 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
     click.echo('Mounted containers:')
     click.echo()
 
-    storages = list(obj.fs_client.get_info().values())
-    for storage in storages:
+    mounted_storages = obj.fs_client.get_info().values()
+    for storage in mounted_storages:
         if storage['subcontainer_of'] and not with_subcontainers:
             continue
         if storage['hidden'] and not with_pseudomanifests:
@@ -245,17 +248,70 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
         main_path = storage['paths'][0]
         click.echo(main_path)
         click.echo(f'  storage: {storage["type"]}')
-        click.echo('  paths:')
-        for path in storage['paths']:
-            click.echo(f'    {path}')
+        _print_container_paths(storage, all_paths)
         if storage['subcontainer_of']:
             click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
         click.echo()
 
 
+def _print_container_paths(storage: Dict, all_paths: bool) -> None:
+    if all_paths:
+        _print_container_all_paths(storage['paths'])
+    elif storage['primary'] and storage['type'] != 'static':
+        _print_container_shortened_paths(storage['paths'], storage['categories'])
+        _print_container_categories(storage['categories'])
+        _print_container_title(storage['title'])
+
+
+def _echo_indented_status_info(info: str, indent_size: int=0) -> None:
+    click.echo(' ' * indent_size + info)
+
+
+def _print_container_all_paths(paths: List[PurePosixPath]) -> None:
+    _echo_indented_status_info('all paths:', 2)
+
+    for path in paths:
+        _echo_indented_status_info(str(path), 4)
+
+
+def _print_container_shortened_paths(paths: List[PurePosixPath], categories: List[PurePosixPath]) \
+        -> None:
+    """
+    Prints mount paths with ``/.users/``, ``/.backends/``, ``/.uuid`` and ``/{category}`` paths
+    filtered out (where ``{category}`` is any category from ``categories`` list given as a param).
+    """
+    def _any_in_path(path_str: str, iterable: Iterable[Union[PurePosixPath, str]]):
+        return any(path_str.startswith(str(p)) or ':' + str(p) in path_str for p in iterable)
+
+    def _is_relevant_path(path: PurePosixPath):
+        path_str = str(path)
+        prefixes = ('/.users/', '/.backends/', '/.uuid/')
+        return not _any_in_path(path_str, prefixes) and \
+               not _any_in_path(path_str, categories)
+
+    relevant_paths = list(filter(_is_relevant_path, paths))
+    if relevant_paths:
+        _echo_indented_status_info('paths:', 2)
+        for path in relevant_paths:
+            _echo_indented_status_info(str(path), 4)
+
+
+def _print_container_categories(categories: List[PurePosixPath]) -> None:
+    if categories:
+        _echo_indented_status_info('categories:', 2)
+        for category in categories:
+            _echo_indented_status_info(str(category), 4)
+
+
+def _print_container_title(title: Optional[str]) -> None:
+    if title:
+        _echo_indented_status_info('title:', 2)
+        _echo_indented_status_info(title, 4)
+
+
 @main.command(short_help='unmount Wildland filesystem')
 @click.pass_obj
-def stop(obj: ContextObj):
+def stop(obj: ContextObj) -> None:
     """
     Unmount the Wildland filesystem.
     """
@@ -269,10 +325,9 @@ def stop(obj: ContextObj):
 
 @main.command(short_help='watch for changes')
 @click.option('--with-initial', is_flag=True, help='include initial files')
-@click.argument('patterns', metavar='PATH',
-                nargs=-1, required=True)
+@click.argument('patterns', metavar='PATH', nargs=-1, required=True)
 @click.pass_obj
-def watch(obj: ContextObj, patterns, with_initial):
+def watch(obj: ContextObj, patterns, with_initial) -> None:
     """
     Watch for changes in inside mounted Wildland filesystem.
     """

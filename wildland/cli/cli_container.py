@@ -849,7 +849,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     if not storage_ids:
         raise WildlandError('No containers mounted')
 
-    # dividing by 2 as every container has its hidden respective pseudmanifest storage
+    # dividing by 2 as every container has respective hidden pseudo-manifest
     containers_count_without_submanifests = len(storage_ids) // 2
     click.echo(f'Unmounting {containers_count_without_submanifests} containers')
 

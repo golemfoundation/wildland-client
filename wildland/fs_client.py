@@ -87,7 +87,7 @@ class WildlandFSClient:
         self.path_tree: Optional[PathTree] = None
         self.info_cache: Optional[Dict[int, Dict]] = None
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """
         Clear cached information after changing mount state of the system.
         """
@@ -151,7 +151,7 @@ class WildlandFSClient:
             self.unmount()
             raise
 
-    def unmount(self):
+    def unmount(self) -> None:
         """
         Unmount the Wildland filesystem.
         """
@@ -189,16 +189,15 @@ class WildlandFSClient:
         finally:
             client.disconnect()
 
-    def ensure_mounted(self):
+    def ensure_mounted(self) -> None:
         """
         Check that Wildland is mounted, and raise an exception otherwise.
         """
 
         if not self.is_mounted():
-            raise WildlandFSError(
-                f'Wildland not mounted at {self.mount_dir}')
+            raise WildlandFSError(f'Wildland not mounted at {self.mount_dir}')
 
-    def wait_for_mount(self, timeout=2):
+    def wait_for_mount(self, timeout=2) -> None:
         """
         Wait until Wildland is mounted.
         """
@@ -414,7 +413,8 @@ class WildlandFSClient:
         # first (main) path
         return matching_main_paths and all_paths[0][1:] == all_paths[1][1:], storage_id
 
-    def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount):
+    def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount) \
+            -> List[PurePosixPath]:
         """
         Returns list of mounted paths that are mounted but do not exist in the given container.
         This situation may happen when you want to remount a container that has some storages
@@ -429,13 +429,13 @@ class WildlandFSClient:
 
         return list(set(filtered_mounted_paths) - set(valid_paths))
 
-    def get_container_from_storage_id(self, storage_id: int):
+    def get_container_from_storage_id(self, storage_id: int) -> Container:
         """
-        Reconstruct a *Container* object from paths.
+        Reconstruct a :class:`Container` object from paths.
 
-        This extracts basic metadata from list of paths (uuid, owner etc) and build a Container
-        object that mimic the original one. Some fields cannot be extracted this way
-        (like list of backends) so they will be skipped.
+        This extracts basic metadata from list of paths (uuid, owner etc.) and builds a
+        :class:`Container` object that mimics the original one. Some fields cannot be extracted this
+        way (like list of backends) so they will be skipped.
 
         :param storage_id: storage id
         :return:
@@ -454,7 +454,7 @@ class WildlandFSClient:
             except ValueError:
                 continue
         if owner is None:
-            raise ValueError('cannot determine owner')
+            raise ValueError('cannot determine owner of the container')
         return Container(
             owner=owner,
             paths=container_paths,
@@ -462,8 +462,8 @@ class WildlandFSClient:
             client=None
         )
 
-    def find_all_subcontainers_storage_ids(self, container: Container,
-                                           recursive: bool = True) -> Iterable[int]:
+    def find_all_subcontainers_storage_ids(self, container: Container, recursive: bool = True) \
+            -> Iterable[int]:
         """
         Find storage ID for a given mount path.
         """
@@ -601,10 +601,10 @@ class WildlandFSClient:
 
     def get_info(self) -> Dict[int, Dict]:
         """
-        Read storage info served by FUSE driver.
+        Read storage info served by the FUSE driver.
         """
 
-        if self.info_cache is not None:
+        if self.info_cache:
             return self.info_cache
 
         data = self.run_control_command('info')
@@ -616,13 +616,15 @@ class WildlandFSClient:
                 'trusted_owner': storage['extra'].get('trusted_owner'),
                 'subcontainer_of': storage['extra'].get('subcontainer_of'),
                 'hidden': storage['extra'].get('hidden', False),
-            }
-            for ident_str, storage in data.items()
+                'title': storage['extra'].get('title'),
+                'categories': [PurePosixPath(c) for c in storage['extra'].get('categories', [])],
+                'primary': storage['extra'].get('primary')
+            } for ident_str, storage in data.items()
         }
         return self.info_cache
 
-    def get_unique_storage_paths(self, container: Optional[Container] = None
-            ) -> Iterable[PurePosixPath]:
+    def get_unique_storage_paths(self, container: Optional[Container] = None) \
+            -> Iterable[PurePosixPath]:
         """
         Return list of unique mount paths, i.e.:
 
@@ -749,8 +751,7 @@ class WildlandFSClient:
         )
 
     def get_storage_mount_paths(self, container: Container, storage: Storage,
-                                user_paths: Iterable[Iterable[PurePosixPath]])\
-            -> List[PurePosixPath]:
+            user_paths: Iterable[Iterable[PurePosixPath]]) -> List[PurePosixPath]:
         """
         Return all mount paths (incl. synthetic ones) for the given storage.
 

@@ -18,7 +18,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Storage set management
+Storage templates management
 """
 
 from typing import Type
