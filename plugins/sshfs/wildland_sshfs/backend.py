@@ -56,12 +56,6 @@ class SshFsBackend(LocalProxy):
                 "type": ["string"],
                 "description": "Additional mount options passed directly to sshfs command."
             },
-            "manifest-pattern": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#pattern-glob"},
-                    {"$ref": "/schemas/types.json#pattern-list"},
-                ]
-            },
         }
 })
     TYPE='sshfs'
