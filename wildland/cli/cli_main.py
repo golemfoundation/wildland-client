@@ -172,9 +172,9 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
     click.echo(f'Starting Wildland at: {obj.mount_dir}')
 
-    if obj.fs_client.is_mounted():
+    if obj.fs_client.is_running():
         if remount:
-            obj.fs_client.unmount()
+            obj.fs_client.stop()
         else:
             raise CliError('Already mounted')
 
@@ -203,19 +203,19 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
         to_mount += forest_containers
 
     if not debug:
-        obj.fs_client.mount(single_thread=single_thread, default_user=user)
+        obj.fs_client.start(single_thread=single_thread, default_user=user)
         _do_mount_containers(obj, to_mount)
         return
 
     print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
 
-    p = obj.fs_client.mount(foreground=True, debug=(debug > 1), single_thread=single_thread)
+    p = obj.fs_client.start(foreground=True, debug=(debug > 1), single_thread=single_thread)
     _do_mount_containers(obj, to_mount)
     try:
         p.wait()
     except KeyboardInterrupt:
-        obj.fs_client.unmount()
+        obj.fs_client.stop()
         p.wait()
 
     if p.returncode != 0:
@@ -234,7 +234,12 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
     """
     Display all mounted containers.
     """
-    obj.fs_client.ensure_mounted()
+    try:
+        obj.fs_client.ensure_mounted()
+    except WildlandError as we:
+        # Avoid an unpleasant 'error' message.
+        click.echo(str(we))
+        return
 
     click.echo('Mounted containers:')
     click.echo()
@@ -318,7 +323,7 @@ def stop(obj: ContextObj) -> None:
 
     click.echo(f'Stoping Wildland at: {obj.mount_dir}')
     try:
-        obj.fs_client.unmount()
+        obj.fs_client.stop()
     except WildlandError as ex:
         raise CliError(str(ex)) from ex
 
