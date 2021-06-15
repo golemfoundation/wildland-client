@@ -441,7 +441,10 @@ class _PublisherCache:
 
         cache = set()
         for path, uuid, owner in containers:
-            if uuid and not _InfraChecker.is_published(self.client, owner, uuid):
+            user = self.client.load_object_from_name(WildlandObject.Type.USER, owner)
+            # ensure that a user has a catalog that we can actually publish containers to it
+            if uuid and user.has_catalog and \
+                    not _InfraChecker.is_published(self.client, owner, uuid):
                 cache.add(str(path))
 
         self._save(cache)

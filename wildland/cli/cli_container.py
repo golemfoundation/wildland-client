@@ -244,6 +244,10 @@ def publish(obj: ContextObj, cont):
     Publish a container manifest to a container from manifests catalog.
     """
 
+    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
+    click.echo(f'publishing container {container.uuid_path}...')
+    Publisher(obj.client, container).publish_container()
+
     # check if all containers are published
     not_published = Publisher.list_unpublished_containers(obj.client)
     n_container = len(list(obj.client.dirs[WildlandObject.Type.CONTAINER].glob('*.yaml')))
@@ -252,10 +256,6 @@ def publish(obj: ContextObj, cont):
     if not_published and len(not_published) != n_container:
         click.echo("WARN: Some local containers (or container updates) are not published:\n" +
                    '\n'.join(not_published))
-
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    click.echo(f'publishing container {container.uuid_path}...')
-    Publisher(obj.client, container).publish_container()
 
 
 @container_.command(short_help='unpublish container manifest')
