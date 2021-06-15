@@ -317,6 +317,7 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     file_name = _remove_suffix(file_name, '.' + import_type.value)
 
     # do not import existing users, unless forced
+    user_exists = False
     if import_type == WildlandObject.Type.USER:
         imported_user = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.USER,
                                                      pubkey=manifest.fields['pubkeys'][0])
@@ -327,12 +328,18 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
                     return None, None
 
                 click.echo(f'User {user.owner} already exists. Forcing user import.')
+                user_exists = True
                 file_name = Path(user.local_path).name.rsplit('.', 2)[0]
+                break
 
     # copying the user manifest
     destination = obj.client.new_path(import_type, file_name, skip_numeric_suffix=force)
     destination.write_bytes(file_data)
-    click.echo(f'Created: {str(destination)}')
+    if user_exists:
+        msg = f'Updated: {str(destination)}'
+    else:
+        msg = f'Created: {str(destination)}'
+    click.echo(msg)
 
     return destination, file_url
 
