@@ -456,7 +456,7 @@ def test_container_with_storage_path(base_dir, cli):
 ## Wildcard matching
 
 
-class TestBackend(GeneratedStorageMixin, FileSubcontainersMixin, StorageBackend):
+class BackendTest(GeneratedStorageMixin, FileSubcontainersMixin, StorageBackend):
     """
     A data-driven storage backend for tests.
     """
@@ -477,7 +477,7 @@ class TestBackend(GeneratedStorageMixin, FileSubcontainersMixin, StorageBackend)
 
 def test_glob_simple():
     # pylint: disable=protected-access
-    backend = TestBackend({
+    backend = BackendTest({
         'foo': {
             'bar.yaml': None,
             'baz.yaml': None,
