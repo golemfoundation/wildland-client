@@ -49,7 +49,7 @@ class SshFsBackend(LocalProxy):
             },
             "path": {
                 "$ref": "/schemas/types.json#rel-path",
-                "description": "A POSIX path to the directory on target server that will be "
+                "description": "A POSIX relative path to the directory on target server that will be "
                                "mounted as root.",
             },
             "mount_opts": {
