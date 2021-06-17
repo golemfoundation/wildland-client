@@ -68,9 +68,7 @@ disable=
     invalid-name,
     broad-except,
     design,
-    similarities,
-    unsubscriptable-object
-
+    similarities
 
 [REPORTS]
 
