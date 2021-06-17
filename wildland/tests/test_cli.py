@@ -4053,11 +4053,12 @@ def test_user_refresh(cli, base_dir, tmpdir):
     assert 'paths:\n- /MEH' in user_data
 
 
-def test_file_find(cli, base_dir, control_client, tmpdir):
-    control_client.expect('status', {})
+def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir):
     storage_dir = tmpdir / 'storage'
     os.mkdir(storage_dir)
     (storage_dir / 'file.txt').write('foo')
+
+    control_client.expect('status', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -4085,17 +4086,71 @@ def test_file_find(cli, base_dir, control_client, tmpdir):
         'token': 'bbb'
     })
 
-    result = cli('container', 'find', f'{base_dir}/wildland/PATH/file.txt', capture=True)
+    with mock.patch.object(Path, 'exists') as mocked_path_exists:
+        mocked_path_exists.return_value = True
+        result = cli('container', 'find', f'{base_dir}/wildland/PATH/file.txt', capture=True)
+        assert result.splitlines() == [
+            f'Container: wildland:0xaaa:{uuid_path}:',
+            f'  Backend id: {backend_id}',
+        ]
 
-    assert result.splitlines() == [
+    control_client.expect('fileinfo', {})
+
+    with pytest.raises(CliError, match='/wildland/PATH/not_existing.txt] does not exist'):
+        cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt')
+
+    with pytest.raises(CliError, match='does not exist'):
+        cli('container', 'find', 'relative_path')
+
+
+def test_file_find_with_unmocked_client(cli, base_dir, tmpdir):
+    storage_dir = tmpdir / 'storage'
+    os.mkdir(storage_dir)
+    (storage_dir / 'file.txt').write('foo')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', storage_dir,
+        '--container', 'Container')
+
+    cli('start', '--default-user', 'User')
+    cli('container', 'mount', 'Container')
+
+    assert 'PATH' in os.listdir(base_dir / 'wildland')
+    assert sorted(os.listdir(base_dir / 'wildland/PATH')) == \
+        ['.manifest.wildland.yaml', 'file.txt']
+
+    with open(base_dir / 'wildland/PATH/file.txt') as f:
+        assert f.readlines() == ['foo']
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+    uuid_path  = documents[1]['paths'][0]
+    backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    subpaths_to_test = [
+        'wildland/PATH/file.txt',
+        'wildland/PATH/.manifest.wildland.yaml',
+        'wildland/PATH',
+        'wildland'
+    ]
+    expected_container_find_output = [
         f'Container: wildland:0xaaa:{uuid_path}:',
         f'  Backend id: {backend_id}',
     ]
 
-    control_client.expect('fileinfo', {})
+    for subpath in subpaths_to_test:
+        result = cli('container', 'find', f'{base_dir}/{subpath}', capture=True)
+        assert result.splitlines() == expected_container_find_output
 
-    with pytest.raises(CliError, match='Given path was not found in any storage'):
-        cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt', capture=True)
+    with pytest.raises(CliError, match='/wildland/PATH/not_existing.txt] does not exist'):
+        cli('container', 'find', f'{base_dir}/wildland/PATH/not_existing.txt')
+
+    with pytest.raises(CliError, match='does not exist'):
+        cli('container', 'find', 'relative_path')
+
+    with pytest.raises(CliError, match='is not a subpath of the mountpoint'):
+        cli('container', 'find', str(storage_dir))
 
 
 # Forest

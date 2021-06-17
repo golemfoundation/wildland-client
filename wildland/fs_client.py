@@ -37,6 +37,7 @@ import dataclasses
 import glob
 import re
 
+from .cli.cli_base import CliError
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError
@@ -311,6 +312,7 @@ class WildlandFSClient:
             'primary': storage.is_primary,  # determines how many mountpoints are generated
             'backend-id': storage.backend_id,
             'owner': storage.owner,
+            'container-path': str(container.paths[0]),
             'version': Manifest.CURRENT_VERSION,
         }
         return Storage(storage.owner, StaticStorageBackend.TYPE, container.uuid_path,
@@ -501,15 +503,19 @@ class WildlandFSClient:
 
     def pathinfo(self, local_path: Path) -> Iterable[FileInfo]:
         """
-        Give a path to a mounted file, return diag information about the
-        file such as file's unique hash and storage that is exposing this
-        file.
+        Given an absolute path to a mounted file, return diagnostic information about the file such
+        as file's unique hash and storage that is exposing this file.
         """
+        assert local_path.is_absolute()
+
+        if not local_path.exists():
+            raise CliError(f'[{local_path}] does not exist')
+
         try:
             relpath = local_path.resolve().relative_to(self.mount_dir)
-        except ValueError:
-            logger.warning('Given path [%s] is not relative to mountpoint', local_path)
-            return
+        except ValueError as e:
+            raise CliError(f'Given path [{local_path}] is not a subpath of the mountpoint '
+                f'[{self.mount_dir}]') from e
 
         if local_path.is_dir():
             results = self.run_control_command('dirinfo', path=('/' + str(relpath)))

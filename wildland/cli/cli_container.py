@@ -1181,16 +1181,18 @@ def duplicate(obj: ContextObj, new_name, cont):
     click.echo(f'Created: {path}')
 
 
-@container_.command(short_help='find container by mounted file or directory path')
+@container_.command(short_help='find container by absolute file or directory path')
 @click.argument('path', metavar='PATH')
 @click.pass_obj
-def find(obj: ContextObj, path):
+def find(obj: ContextObj, path: str):
     """
-    Find container by mounted file path.
+    Find container by absolute or relative file/directory path. If the path is relative, it needs to
+    be relative with respect to the current working directory (not to the Wildland's mountpoint).
     """
+    absolute_path = Path(path).resolve()
     results = set(sorted([
         (fileinfo.backend_id, f'wildland:{fileinfo.storage_owner}:{fileinfo.container_path}:')
-        for fileinfo in obj.fs_client.pathinfo(Path(path))
+        for fileinfo in obj.fs_client.pathinfo(absolute_path)
     ]))
 
     if not results:
@@ -1209,7 +1211,7 @@ def find(obj: ContextObj, path):
 @click.pass_context
 def dump(ctx: click.Context, path, decrypt):
     """
-    verify and dump contents of a container
+    Verify and dump contents of a container.
     """
     _resolve_container(ctx, path, base_dump, decrypt=decrypt)
 
@@ -1224,7 +1226,7 @@ def dump(ctx: click.Context, path, decrypt):
 @click.pass_context
 def edit(ctx: click.Context, path, publish, editor, remount):
     """
-    edit container manifest in external tool
+    Edit container manifest in external tool.
     """
     container = _resolve_container(ctx, path, base_edit, editor=editor, remount=remount)
 
