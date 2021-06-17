@@ -37,7 +37,7 @@ from ..conflict import ConflictResolver, Resolved
 from ..storage_backends.base import Attr
 
 
-class TestFS(ConflictResolver):
+class FSTest(ConflictResolver):
     def __init__(self, *storages):
         super().__init__()
         self.storages = storages
@@ -76,7 +76,7 @@ class TestFS(ConflictResolver):
 
 
 def test_simple():
-    fs = TestFS(
+    fs = FSTest(
         (PurePosixPath('/mount1/mount2'), {
             'file1': None,
             'dir1': {
@@ -110,7 +110,7 @@ def test_simple():
 
 
 def test_readdir_separate_storages():
-    fs = TestFS(
+    fs = FSTest(
         (PurePosixPath('/mount1/mount2'), {
             'file1': None,
         }),
@@ -133,7 +133,7 @@ def test_readdir_separate_storages():
 
 
 def test_readdir_merged_storages():
-    fs = TestFS(
+    fs = FSTest(
         (PurePosixPath('/mount1/mount2'), {
             'file0.xyz.jpg': None,
             'file1.txt': None,
@@ -193,7 +193,7 @@ def test_readdir_merged_storages():
 
 
 def test_readdir_file_and_dir():
-    fs = TestFS(
+    fs = FSTest(
         (PurePosixPath('/mount1'), {
             'file1': None,
             'file2': None,
@@ -233,7 +233,7 @@ def test_readdir_file_and_dir():
 
 
 def test_readdir_mounted_subdir():
-    fs = TestFS(
+    fs = FSTest(
         (PurePosixPath('/foo'), {
             'dir1': {},
             'file1': None,
@@ -264,7 +264,7 @@ def test_readdir_mounted_subdir():
 
 
 def test_readdir_merged_writable():
-    fs = TestFS(
+    fs = FSTest(
         (PurePosixPath('/mount1/mount2'), {
             'file1.txt': None,
             'file2': None,
