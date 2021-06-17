@@ -31,6 +31,23 @@ services:
       - ..:/home/user/wildland-client:ro
       - ../artifacts/:/home/user/wildland-client/artifacts:rw
 
+
+  wildland-client-ci-sshfs:
+    build:
+      context: ..
+      dockerfile: ./ci/Dockerfile-sshfs
+    image: wildland-client-ci-sshfs
+    container_name: wildland-client-ci-sshfs
+    privileged: true
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/fuse
+    volumes:
+      - ..:/home/user/wildland-client:ro
+      - ../artifacts/:/home/user/wildland-client/artifacts:rw
+
+
   wildland-client-ci-ipfs:
     build:
       context: ..

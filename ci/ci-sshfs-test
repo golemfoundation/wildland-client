@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+
+set -ex
+
+# Prepare for wildland
+sudo /usr/sbin/sshd
+ssh -oStrictHostKeyChecking=no 127.0.0.1 echo 1
+mkdir $HOME/files
+
+. /home/user/env/bin/activate
+pip install . plugins/*
+
+./wl user create User
+./wl container create sshfs --path /sshfs
+./wl storage create sshfs --container sshfs --host 127.0.0.1 \
+     --path ./files --ssh-user user --ssh-identity $HOME/.ssh/id_rsa
+
+# Test the backend
+./wl start
+./wl container mount sshfs
+
+mkdir ~/files/testdir
+echo 1234 > ~/files/testdir/testfile
+
+time -p chronic tree ~/wildland/
+time -p chronic ls -l ~/wildland/sshfs/testdir
+time -p chronic grep 1234 ~/wildland/sshfs/testdir/testfile
+
+time -p chronic /bin/sh -c 'echo abcd > ~/wildland/sshfs/testdir/test2'
+time -p chronic grep abcd ~/files/testdir/test2

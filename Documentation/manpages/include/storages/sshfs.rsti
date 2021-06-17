@@ -1,0 +1,35 @@
+.. option:: --sshfs-command <cmd>
+
+   Command to use to internally mount an SSHFS filesystem,
+   overriding default `sshfs`. Depending on your system
+   configuration, you may need to provide an absolute path to
+   this command (i.e. `/usr/local/bin/sshfs`).
+
+.. option:: --host <host>
+
+   Provide a hostname or IP address of SSH server to connect to.
+
+.. option:: --path <path>
+
+   Path on SSH server to access.
+
+.. option:: --ssh-user <user>
+
+   Username for authentication with SSH server, overriding local
+   user name.
+
+.. option:: --ssh-identity <path>
+
+   Path to file containing private key which will be used for
+   authentication. The contents of this file is embedded in the
+   manifest.
+
+.. option:: --pwprompt
+
+   When backend is created, prompt user for password used to
+   login to the SSH server. Provided password will be embedded in
+   the manifest and used to authenticate with SSH server.
+
+.. option:: --mount-options <opt1,[opt2[,opt3[,...]]]>
+
+   Additional options that are passed to sshfs command.
