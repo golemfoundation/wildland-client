@@ -224,10 +224,10 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
 @main.command(short_help='display mounted containers')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
-              show_default=True, help='list subcontainers hidden by default')
+              help='list subcontainers hidden by default')
 @click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
-              default=False, show_default=True, help='list containers with pseudomanifests')
-@click.option('--all-paths', '-a', is_flag=True, default=False, show_default=True,
+              default=False, help='list containers with pseudomanifests')
+@click.option('--all-paths', '-a', is_flag=True, default=False,
               help='print all mountpoint paths, including synthetic ones')
 @click.pass_obj
 def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool, all_paths: bool):

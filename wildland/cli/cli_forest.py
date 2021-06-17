@@ -59,7 +59,7 @@ def forest_():
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all forest containers, including those '
                    'who did not need to be changed')
-@click.option('--no-refresh-users', '-n', is_flag=True, default=False, show_default=True,
+@click.option('--no-refresh-users', '-n', is_flag=True, default=False,
               help="Do not refresh remote users when mounting")
 @click.pass_context
 def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refresh_users: bool):
@@ -118,7 +118,7 @@ def unmount(ctx: click.Context, path: str, forest_names):
               help='Name of users to encrypt the container with. Can be used multiple times. '
                    'If not set, the container is unencrypted.')
 @click.option('--manifest-local-dir', metavar='PATH', required=False, multiple=False,
-              show_default=True, default='/.manifests',
+              default='/.manifests',
               help='Set manifests local directory. Must be an absolute path.')
 @click.pass_context
 def create(ctx: click.Context,

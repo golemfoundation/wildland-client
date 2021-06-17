@@ -78,10 +78,10 @@ class AliasedGroup(click.Group):
 
     def command(self, *args, **kwargs):
         if 'alias' not in kwargs:
-            return super().command(*args, **kwargs)
+            return super().command(*args, context_settings={'show_default': True}, **kwargs)
 
         aliases = kwargs.pop('alias')
-        super_decorator = super().command(*args, **kwargs)
+        super_decorator = super().command(*args, context_settings={'show_default': True}, **kwargs)
 
         def decorator(f):
             cmd = super_decorator(f)

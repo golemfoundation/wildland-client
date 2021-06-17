@@ -109,7 +109,7 @@ class OptionRequires(click.Option):
               help='category, will be used to generate mount paths')
 @click.option('--title', multiple=False, required=False,
               help='container title')
-@click.option('--update-user/--no-update-user', '-u/-n', default=False, show_default=True,
+@click.option('--update-user/--no-update-user', '-u/-n', default=False,
               help='attach the container to the user')
 @click.option('--storage-template', '--template', multiple=False, required=False,
               help='use a storage template to generate storages (see wl storage-template)')
@@ -120,7 +120,7 @@ class OptionRequires(click.Option):
 @click.option('--no-publish', is_flag=True,
               help='do not publish the container after creation')
 @click.option('--encrypt-manifest/--no-encrypt-manifest', default=True, required=False,
-              show_default=True, help='if --no-encrypt, this manifest will not be encrypted and '
+              help='if --no-encrypt, this manifest will not be encrypted and '
               '--access cannot be used.')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
@@ -687,20 +687,20 @@ def prepare_mount(obj: ContextObj,
 
 
 @container_.command(short_help='mount container')
-@click.option('--remount/--no-remount', '-r/-n', default=True, show_default=True,
+@click.option('--remount/--no-remount', '-r/-n', default=True,
               help='Remount existing container, if found')
 @click.option('--save', '-s', is_flag=True,
               help='Save the container to be mounted at startup')
-@click.option('--import-users/--no-import-users', is_flag=True, default=True, show_default=True,
+@click.option('--import-users/--no-import-users', is_flag=True, default=True,
               help='Import encountered users on the WildLand path to the container(s)')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              show_default=True, help='Do not mount subcontainers of this container.')
-@click.option('--only-subcontainers', '-b', is_flag=True, default=False, show_default=True,
+              help='Do not mount subcontainers of this container.')
+@click.option('--only-subcontainers', '-b', is_flag=True, default=False,
               help='If a container has subcontainers, mount only the subcontainers')
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all containers, including those who '
                    'did not need to be changed')
-@click.option('--manifests-catalog', '-m', is_flag=True, default=False, show_default=True,
+@click.option('--manifests-catalog', '-m', is_flag=True, default=False,
               help='Allow mounting containers from manifest catalogs')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
@@ -810,7 +810,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 @click.option('--path', metavar='PATH',
               help='mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              show_default=True, help='Do not umount subcontainers.')
+              help='Do not umount subcontainers.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names: Sequence[str]):
@@ -1024,7 +1024,7 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
 @click.option('--source-storage', help='specify source storage. Default: first local storage '
                                        'listed in manifest. Can be specified as backend_id or as '
                                        'storage type (e.g. s3)')
-@click.option('--one-shot', is_flag=True, default=False, show_default=True,
+@click.option('--one-shot', is_flag=True, default=False,
               help='perform only one-time sync, do not start syncing daemon')
 @click.pass_obj
 def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, cont):
