@@ -1482,6 +1482,30 @@ def test_container_publish_unpublish(cli, tmp_path, base_dir):
     assert not tuple(tmp_path.glob('*.yaml'))
 
 
+def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', '--location',
+        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+    cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
+        'my_awesome_capsule', "--category", "/testing", "--template",
+        "rw", '--no-encrypt-manifest')
+    cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Alice',
+        '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
+        '--path', '/forests/Alice', 'self_bridge')
+
+    cli('container', 'create', 'unpublished', '--template', 'rw')
+
+    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
+
+    output = []
+    monkeypatch.setattr('click.echo', output.append)
+    cli('container', 'publish', 'mycapsule')
+    assert any((o.startswith("WARN: Some local containers (or container updates) "
+                             "are not published:") for o in output))
+
+
 def test_container_delete_unpublish(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
@@ -4301,34 +4325,6 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
 
 def test_forest_mount(cli, tmp_path, base_dir, control_client):
     _setup_forest_and_mount(cli, tmp_path, base_dir, control_client)
-
-
-def test_forest_mount_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
-    control_client.expect('status', {})
-
-    cli('user', 'create', 'Alice', '--key', '0xaaa')
-    cli('template', 'create', 'local', '--location',
-        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
-    cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
-        'my_awesome_capsule', "--category", "/testing", "--template",
-        "rw", '--no-encrypt-manifest')
-    cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Alice',
-        '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
-        '--path', '/forests/Alice', 'self_bridge')
-
-    cli('container', 'create', 'unpublished', '--template', 'rw')
-
-    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
-    cli('container', 'publish', 'mycapsule')
-
-    control_client.expect('paths', {})
-    control_client.expect('mount')
-
-    output = []
-    monkeypatch.setattr('click.echo', output.append)
-    cli('forest', 'mount', ':/forests/Alice:')
-    assert any((o.startswith("WARN: Some local containers (or container updates) "
-                             "are not published:") for o in output))
 
 
 def test_forest_unmount(cli, tmp_path, base_dir, control_client):

@@ -255,7 +255,7 @@ def publish(obj: ContextObj, cont):
     # if all containers are unpublished DO NOT print warning
     if not_published and len(not_published) != n_container:
         click.echo("WARN: Some local containers (or container updates) are not published:\n" +
-                   '\n'.join(not_published))
+                   '\n'.join(sorted(not_published)))
 
 
 @container_.command(short_help='unpublish container manifest')
