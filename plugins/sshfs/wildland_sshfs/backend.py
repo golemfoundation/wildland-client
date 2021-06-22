@@ -152,7 +152,6 @@ class SshFsBackend(LocalProxy):
                          default='sshfs',
                          metavar='CMD',
                          required=True,
-                         show_default=True,
                          help='command to mount sshfs filesystem',
                          ),
             click.Option(['--host'],

@@ -2,7 +2,7 @@
 fuse-python>=1.0.0
 jsonschema
 pyyaml
-click
+click>=8.0  # smarter `show_default`: https://github.com/pallets/click/issues/1538
 entrypoints
 pynacl
 graphlib-backport; python_version < '3.9'

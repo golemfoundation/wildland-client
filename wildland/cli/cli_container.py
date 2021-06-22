@@ -694,7 +694,7 @@ def prepare_mount(obj: ContextObj,
 @click.option('--import-users/--no-import-users', is_flag=True, default=True,
               help='Import encountered users on the WildLand path to the container(s)')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              help='Do not mount subcontainers of this container.')
+              help='Mount subcontainers of this container.')
 @click.option('--only-subcontainers', '-b', is_flag=True, default=False,
               help='If a container has subcontainers, mount only the subcontainers')
 @click.option('--list-all', '-l', is_flag=True,

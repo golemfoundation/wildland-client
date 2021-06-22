@@ -279,6 +279,7 @@ def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
     while not new_manifest:
         edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
                               require_save=False)
+        assert edited_s
         data = edited_s.encode()
 
         if original_data == data:

@@ -70,10 +70,10 @@ def _make_create_command(backend: Type[StorageBackend]):
                      required=True,
                      help='Container this storage is for'),
         click.Option(['--trusted'], is_flag=True,
-                     help='Make the storage trusted. Default: false'),
+                     help='Make the storage trusted.'),
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
-                     'manifest, instead of saving it to a file. Default: inline.'),
+                     'manifest, instead of saving it to a file.'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--public-url'], metavar='PUBLICURL',
@@ -83,11 +83,11 @@ def _make_create_command(backend: Type[StorageBackend]):
                           'Default: same as the container.'),
         click.Option(['--encrypt-manifest/--no-encrypt-manifest'], default=True,
                      required=False,
-                     help='default: encrypt. if --no-encrypt, this manifest will not be encrypted '
-                          'and --access cannot be used. For inline storage, '
-                          'container manifest might still be encrypted.'),
+                     help='If --no-encrypt-manifest, this manifest will not be encrypted and '
+                          '--access cannot be used. For inline storage, container manifest might '
+                          'still be encrypted.'),
         click.Option(['--no-publish'], is_flag=True,
-                            help='do not publish the container after creation'),
+                    help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -99,7 +99,8 @@ def _make_create_command(backend: Type[StorageBackend]):
         name=backend.TYPE,
         help=f'Create {backend.TYPE} storage',
         params=params,
-        callback=callback)
+        callback=callback,
+        context_settings={'show_default': True})
     return command
 
 
