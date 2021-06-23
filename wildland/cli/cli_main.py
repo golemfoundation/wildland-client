@@ -147,7 +147,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
 @click.option('--remount', '-r', is_flag=True,
     help='if mounted already, remount')
 @click.option('--debug', '-d', is_flag=True,
-    help='debug mode: run in foreground (repeat for more verbosity)')
+    help='debug mode: run in foreground')
 @click.option('--container', '-c', 'mount_containers', metavar='CONTAINER', multiple=True,
     help='container to mount (can be repeated)')
 @click.option('--single-thread', '-S', is_flag=True,

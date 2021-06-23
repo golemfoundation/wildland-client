@@ -401,7 +401,7 @@ def modify():
     """
 
 
-@modify.resultcallback()
+@modify.result_callback()
 @click.pass_context
 def _republish(ctx, params):
     """
@@ -410,7 +410,7 @@ def _republish(ctx, params):
     If container is already published, any modification should be republish
     unless publish is False.
 
-    Using 'resultcallback' enforce that every 'modify' subcommand have to
+    Using 'result_callback' enforce that every 'modify' subcommand have to
     return (container, publish) to handle republishing.
     """
     container, publish = params
@@ -810,7 +810,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 @click.option('--path', metavar='PATH',
               help='mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
-              help='Do not umount subcontainers.')
+              help='Do not unmount subcontainers.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names: Sequence[str]):
