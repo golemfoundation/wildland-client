@@ -48,7 +48,7 @@ def test_pseudomanifest(cli, base_dir):
     assert storage.storage_type == 'static'
 
     user = client.users['0xaaa']
-    client.fs_client.mount(single_thread=False, default_user=user)
+    client.fs_client.start(single_thread=False, default_user=user)
 
     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
     commands = list(prepare_mount(obj, container, str(container.local_path), user_paths,

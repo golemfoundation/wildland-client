@@ -322,7 +322,7 @@ def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
         f.write(signed_data)
     click.echo(f'Saved: {path}')
 
-    if remount and manifest_type == 'container' and obj.fs_client.is_mounted():
+    if remount and manifest_type == 'container' and obj.fs_client.is_running():
         container = obj.client.load_object_from_file_path(WildlandObject.Type.CONTAINER, path)
         if obj.fs_client.find_primary_storage_id(container) is not None:
             click.echo('Container is mounted, remounting')

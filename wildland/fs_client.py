@@ -90,16 +90,16 @@ class WildlandFSClient:
 
     def clear_cache(self) -> None:
         """
-        Clear cached information after changing mount state of the system.
+        Clear cached information after changing state of the system.
         """
         self.path_cache = None
         self.path_tree = None
         self.info_cache = None
 
-    def mount(self, foreground=False, debug=False, single_thread=False,
+    def start(self, foreground=False, debug=False, single_thread=False,
               default_user=None) -> subprocess.Popen:
         """
-        Mount the Wildland filesystem and wait until it is mounted.
+        Start Wildland and wait until the FUSE daemon is started.
 
         Returns the called process (running in case of foreground=True).
 
@@ -134,7 +134,7 @@ class WildlandFSClient:
         if options:
             cmd += ['-o', ','.join(options)]
 
-        logger.info('running mount command: %s', cmd)
+        logger.info('running start command: %s', cmd)
 
         # Start a new session in order to not propagate SIGINT.
         # pylint: disable=consider-using-with
@@ -149,23 +149,23 @@ class WildlandFSClient:
                 raise WildlandFSError(f'Command failed: {cmd}')
             return proc
         except Exception:
-            self.unmount()
+            self.stop()
             raise
 
-    def unmount(self) -> None:
+    def stop(self) -> None:
         """
-        Unmount the Wildland filesystem.
+        Stop Wildland.
         """
         self.clear_cache()
         cmd = ['umount', str(self.mount_dir)]
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            raise WildlandFSError(f'Failed to unmount: {e}') from e
+            raise WildlandFSError(f'Failed to stop: {e}') from e
 
-    def is_mounted(self) -> bool:
+    def is_running(self) -> bool:
         """
-        Check if Wildland is currently mounted.
+        Check if Wildland is currently running.
         """
 
         client = ControlClient()
@@ -192,24 +192,25 @@ class WildlandFSClient:
 
     def ensure_mounted(self) -> None:
         """
-        Check that Wildland is mounted, and raise an exception otherwise.
+        Check that Wildland is started, and raise an exception otherwise.
         """
 
-        if not self.is_mounted():
-            raise WildlandFSError(f'Wildland not mounted at {self.mount_dir}')
+        if not self.is_running():
+            raise WildlandFSError(
+                f'Wildland daemon not started at {self.mount_dir}. Use wl start.')
 
     def wait_for_mount(self, timeout=2) -> None:
         """
-        Wait until Wildland is mounted.
+        Wait until Wildland is started.
         """
 
         delay = 0.1
         n_tries = int(timeout / delay)
         for _ in range(n_tries):
-            if self.is_mounted():
+            if self.is_running():
                 return
             time.sleep(delay)
-        raise WildlandFSError('Timed out waiting for Wildland to mount')
+        raise WildlandFSError('Timed out waiting for Wildland to start')
 
     def mount_container(self,
                         container: Container,
@@ -542,7 +543,7 @@ class WildlandFSClient:
         conservatively check if all of them would give the same answer.
         """
 
-        if not self.is_mounted():
+        if not self.is_running():
             return None
 
         local_path = local_path.resolve()
