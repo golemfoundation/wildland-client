@@ -27,7 +27,7 @@ Wildland command-line interface.
 
 import os
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Union
 
 import click
 
@@ -60,11 +60,11 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
 @aliased_group('wl')
-@click.option('--dummy/--no-dummy', default=False, show_default=True,
+@click.option('--dummy/--no-dummy', default=False,
               help='use dummy signatures')
-@click.option('--base-dir', default=None, show_default=True,
+@click.option('--base-dir', default=None,
               help='base directory for configuration')
-@click.option('--debug/--no-debug', default=False, show_default=True,
+@click.option('--debug/--no-debug', default=False,
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
@@ -146,20 +146,21 @@ def _do_mount_containers(obj: ContextObj, to_mount):
 @main.command(short_help='mount Wildland filesystem')
 @click.option('--remount', '-r', is_flag=True,
     help='if mounted already, remount')
-@click.option('--debug', '-d', count=True,
-    help='debug mode: run in foreground (repeat for more verbosity)')
+@click.option('--debug', '-d', is_flag=True,
+    help='debug mode: run in foreground')
+@click.option('--container', '-c', 'mount_containers', metavar='CONTAINER', multiple=True,
+    help='container to mount (can be repeated)')
 @click.option('--single-thread', '-S', is_flag=True,
     help='run single-threaded')
-@click.option('--container', '-c', 'mount_containers', metavar='CONTAINER', multiple=True,
-    help='Container to mount (can be repeated)')
 @click.option('--skip-default-containers', '-s', is_flag=True,
     help='skip mounting default-containers from config')
 @click.option('--skip-forest-mount', is_flag=True,
     help='skip mounting forest of default user')
-@click.option('--default-user', help="specify a default user to be used")
+@click.option('--default-user', help='specify a default user to be used')
 @click.pass_obj
-def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
-          skip_default_containers, skip_forest_mount, default_user):
+def start(obj: ContextObj, remount: bool, debug: bool, mount_containers: Sequence[str],
+          single_thread: bool, skip_default_containers: bool, skip_forest_mount: bool,
+          default_user: Optional[str]):
     """
     Mount the Wildland filesystem. The default path is ``~/wildland/``, but
     it can be customized in the configuration file
@@ -191,7 +192,7 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
     except (FileNotFoundError, ManifestError) as e:
         raise CliError(f'User {default_user} not found') from e
 
-    to_mount = []
+    to_mount: List[str] = []
     if mount_containers:
         to_mount += mount_containers
 
@@ -210,7 +211,7 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
     print(f'Mounting in foreground: {obj.mount_dir}')
     print('Press Ctrl-C to unmount')
 
-    p = obj.fs_client.start(foreground=True, debug=(debug > 1), single_thread=single_thread)
+    p = obj.fs_client.start(foreground=True, debug=debug, single_thread=single_thread)
     _do_mount_containers(obj, to_mount)
     try:
         p.wait()
@@ -224,10 +225,10 @@ def start(obj: ContextObj, remount, debug, mount_containers, single_thread,
 
 @main.command(short_help='display mounted containers')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
-              show_default=True, help='list subcontainers hidden by default')
+              help='list subcontainers hidden by default')
 @click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
-              default=False, show_default=True, help='list containers with pseudomanifests')
-@click.option('--all-paths', '-a', is_flag=True, default=False, show_default=True,
+              default=False, help='list containers with pseudomanifests')
+@click.option('--all-paths', '-a', is_flag=True, default=False,
               help='print all mountpoint paths, including synthetic ones')
 @click.pass_obj
 def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool, all_paths: bool):

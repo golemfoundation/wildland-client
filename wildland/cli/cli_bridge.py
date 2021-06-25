@@ -57,9 +57,9 @@ def bridge_():
                    'integrity of the --target-user-location. If omitted, --target-user-location'
                    'will be used to locate user manifest.')
 @click.option('--target-user-location', metavar='URL',
-              help='Path to the user manifest (use file:// for local file). If --target-user is \
-              skipped, the user manifest from this path is considered trusted. If omitted, the '
-                   'user manifest will be located in their manifests catalog')
+              help='Path to the user manifest (use file:// for local file). If --target-user is '
+                   'skipped, the user manifest from this path is considered trusted. If omitted, '
+                   'the user manifest will be located in their manifests catalog.')
 @click.option('--path', 'user_paths', multiple=True,
               help='path(s) for user in owner namespace (omit to take from user manifest)')
 @click.option('--file-path', help='file path to create under')

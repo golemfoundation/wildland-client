@@ -187,11 +187,9 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
                          required=True),
             click.Option(['--folder'], metavar='FOLDER',
                          default='INBOX',
-                         show_default=True,
                          help='root folder to expose'),
             click.Option(['--ssl/--no-ssl'], metavar='SSL',
                          default=True,
-                         show_default=True,
                          help='use encrypted connection')
             ]
 
