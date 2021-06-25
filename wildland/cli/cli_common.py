@@ -24,6 +24,7 @@
 """
 Common commands (sign, edit, ...) for multiple object types
 """
+import copy
 import re
 import subprocess
 import sys
@@ -49,7 +50,7 @@ from ..manifest.schema import SchemaError
 from ..exc import WildlandError
 
 
-def find_manifest_file(client: Client, name, manifest_type) -> Path:
+def find_manifest_file(client: Client, name: str, manifest_type: Optional[str]) -> Path:
     """
     CLI helper: load a manifest by name.
     """
@@ -62,7 +63,7 @@ def find_manifest_file(client: Client, name, manifest_type) -> Path:
     if path:
         return path
 
-    raise click.ClickException(f'Not found: {name}')
+    raise click.ClickException(f'Manifest not found: {name}')
 
 
 def validate_manifest(manifest: Manifest, manifest_type, client: Client):
@@ -244,10 +245,14 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
     help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
+def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bool,
+    **_callback_kwargs: Any) -> bool:
     """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
+
+    Returns True iff the manifest was successfully modified (to be able to
+    determine if it should be republished).
     """
     obj: ContextObj = ctx.obj
 
@@ -284,7 +289,7 @@ def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
 
         if original_data == data:
             click.echo('No changes detected, not saving.')
-            return
+            return False
 
         try:
             manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
@@ -294,7 +299,7 @@ def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
                 continue
             click.echo('Changes not saved.')
-            return
+            return False
 
         if manifest_type is not None:
             try:
@@ -304,7 +309,7 @@ def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
                 if click.confirm('Do you want to edit the manifest again to fix the error?'):
                     continue
                 click.echo('Changes not saved.')
-                return
+                return False
         if manifest_type == 'user':
             # for user manifests, allow loading keys for signing even if the manifest was
             # previously malformed and couldn't be loaded
@@ -334,12 +339,21 @@ def edit(ctx: click.Context, editor, input_file, remount, **_callback_kwargs):
             obj.fs_client.mount_container(
                 container, storages, user_paths, remount=remount)
 
+    return True
+
 
 def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callable[..., dict],
-                    *args, **kwargs):
+                    *args, **kwargs) -> bool:
     """
     Edit manifest (identified by `name`) fields using a specified callback.
-    This module provides three common callbacks: `add_field`, `del_field` and `set_field`.
+    This module provides four common callbacks:
+    - `add_field`,
+    - `del_field`,
+    - `set_field`,
+    - `del_nested_field`.
+
+    Returns True iff the manifest was successfully modified (to be able to
+    determine if it should be republished).
     """
     obj: ContextObj = pass_ctx.obj
 
@@ -355,21 +369,34 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type, obj.client)
 
+    # the manifest is edited by edit_func below
+    orig_manifest = copy.deepcopy(manifest)
     fields = edit_func(manifest.fields, *args, **kwargs)
-    modified = Manifest.from_fields(fields)
+    modified_manifest = Manifest.from_fields(fields)
+
+    orig_manifest_data = yaml.safe_dump(
+        orig_manifest.fields, encoding='utf-8', sort_keys=False)
+    modified_manifest_data = yaml.safe_dump(
+        modified_manifest.fields, encoding='utf-8', sort_keys=False)
+
+    if orig_manifest_data == modified_manifest_data:
+        click.echo('Manifest has not changed.')
+        return False
+
     if manifest_type is not None:
         try:
-            validate_manifest(modified, manifest_type, obj.client)
+            validate_manifest(modified_manifest, manifest_type, obj.client)
         except SchemaError as se:
             raise CliError(f'Invalid manifest: {se}') from se
 
-    modified.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+    modified_manifest.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
 
-    signed_data = modified.to_bytes()
+    signed_data = modified_manifest.to_bytes()
     with open(manifest_path, 'wb') as f:
         f.write(signed_data)
 
     click.echo(f'Saved: {manifest_path}')
+    return True
 
 
 def add_field(fields: dict, field: str, values: List[Any]) -> dict:
@@ -377,8 +404,7 @@ def add_field(fields: dict, field: str, values: List[Any]) -> dict:
     Callback function for `modify_manifest`. Adds values to the specified field.
     Duplicates are ignored.
     """
-    if fields.get(field) is None:
-        fields[field] = []
+    fields.setdefault(field, [])
 
     for value in values:
         if value not in fields[field]:

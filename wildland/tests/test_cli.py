@@ -1457,6 +1457,8 @@ def test_container_publish_unpublish(cli, tmp_path, base_dir):
         '--inline',
         '--manifest-pattern', '/*.yaml')
 
+    assert not tuple(tmp_path.glob('*.yaml'))
+
     cli('container', 'publish', 'Container')
 
     assert len(tuple(tmp_path.glob('*.yaml'))) == 1
@@ -1529,12 +1531,12 @@ def test_container_publish_rewrite(cli, tmp_path):
 
 def test_container_publish_auto(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'InfraContainer', '--path', '/PATH', '--update-user')
-    assert not tuple(tmp_path.glob('*.yaml'))  # no infrastructure yet
+    cli('container', 'create', 'ManifestsCatalog', '--path', '/PATH', '--update-user')
+    assert not tuple(tmp_path.glob('*.yaml'))  # no manifest-catalog yet
 
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
-        '--container', 'InfraContainer',
+        '--container', 'ManifestsCatalog',
         '--inline',
         '--manifest-pattern', '/*.yaml')
 
@@ -1565,14 +1567,52 @@ def test_container_republish_paths(cli, tmp_path):
     assert (tmp_path / 'manifests/PA/TH2.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH3.yaml').exists()
 
-    # --no-publish', modification in progress
+    # --no-publish, modification in progress
     cli('container', 'modify', 'del-path', 'Container', '--path', '/PA/TH2', '--no-publish')
     # auto republishing
     cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH3')
+    # --no-publish
+    cli('container', 'modify', 'del-path', 'Container', '--path', '/PA/TH1', '--no-publish')
+    cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH4', '--no-publish')
 
     assert (tmp_path / 'manifests/PA/TH1.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
     assert (tmp_path / 'manifests/PA/TH3.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH4.yaml').exists()
+
+    # after publishing all of the above container modifications are applied
+    cli('container', 'publish', 'Container')
+
+    assert not (tmp_path / 'manifests/PA/TH1.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH3.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH4.yaml').exists()
+
+
+def test_container_dont_republish_if_not_modified(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH1', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--manifest-pattern', '/*.yaml')
+
+    cli('container', 'publish', 'Container')
+
+    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+
+    result = cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH1', capture=True)
+    out_lines = result.splitlines()
+    assert len(out_lines) == 2
+    assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
+    assert 're-publishing container /.uuid/' in out_lines[1]
+
+    result = cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH1', capture=True)
+    out_lines = result.splitlines()
+    assert len(out_lines) == 2
+    assert out_lines[0] == '/PA/TH1 is already in the manifest'
+    assert out_lines[1] == 'Manifest has not changed.'
 
 
 def test_container_delete(cli, base_dir):

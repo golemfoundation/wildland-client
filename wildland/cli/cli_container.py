@@ -27,7 +27,7 @@ Manage containers
 """
 
 from pathlib import PurePosixPath, Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple, Union
 from itertools import combinations
 import os
 import sys
@@ -47,6 +47,7 @@ from daemon import pidfile
 from progress.counter import Counter
 from xdg import BaseDirectory
 
+from wildland.client import Client
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from .cli_base import aliased_group, ContextObj, CliError
@@ -78,7 +79,7 @@ logger = logging.getLogger('cli_container')
 @aliased_group('container', short_help='container management')
 def container_():
     """
-    Manage containers
+    Manage containers.
     """
 
 
@@ -192,7 +193,7 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
     if update_user:
         if not owner_user.local_path:
             raise WildlandError('Cannot update user because the manifest path is unknown')
-        click.echo('Attaching container to user')
+        click.echo(f'Attaching container to user [{owner_user.owner}]')
 
         owner_user.add_catalog_entry(str(obj.client.local_url(container_path)))
         obj.client.save_object(WildlandObject.Type.USER, owner_user)
@@ -404,9 +405,17 @@ def modify():
     """
 
 
+def _republish_container(client: Client, container: Container) -> None:
+    try:
+        click.echo(f're-publishing container {container.uuid_path}...')
+        Publisher(client, container).republish_container()
+    except WildlandError as ex:
+        raise WildlandError(f"Failed to republish container: {ex}") from ex
+
+
 @modify.result_callback()
 @click.pass_context
-def _republish(ctx, params):
+def _republish_callback(ctx: click.Context, params: Tuple[Container, bool]):
     """
     Republish modified container manifest.
 
@@ -419,11 +428,8 @@ def _republish(ctx, params):
     container, publish = params
 
     if publish:
-        try:
-            click.echo(f're-publishing container {container.uuid_path}...')
-            Publisher(ctx.obj.client, container).republish_container()
-        except WildlandError as ex:
-            raise WildlandError(f"Failed to republish container: {ex}") from ex
+        _republish_container(ctx.obj.client, container)
+
 
 @modify.command(short_help='add path to the manifest')
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
@@ -434,10 +440,10 @@ def add_path(ctx: click.Context, input_file, path, publish):
     """
     Add path to the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=add_field, field='paths', values=path)
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest, edit_func=add_field, field='paths', values=path)
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='remove path from the manifest')
@@ -449,10 +455,10 @@ def del_path(ctx: click.Context, input_file, path, publish):
     """
     Remove path from the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=del_field, field='paths', values=path)
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest, edit_func=del_field, field='paths', values=path)
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='set title in the manifest')
@@ -464,10 +470,10 @@ def set_title(ctx: click.Context, input_file, title, publish):
     """
     Set title in the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=set_field, field='title', value=title)
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest, edit_func=set_field, field='title', value=title)
 
-    return container, publish
+    return container, publish and modified
 
 @modify.command(short_help='add category to the manifest')
 @click.option('--category', metavar='PATH', required=True, multiple=True,
@@ -479,10 +485,10 @@ def add_category(ctx: click.Context, input_file, category, publish):
     """
     Add category to the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=add_field, field='categories', values=category)
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest, edit_func=add_field, field='categories', values=category)
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='remove category from the manifest')
@@ -495,10 +501,10 @@ def del_category(ctx: click.Context, input_file, category, publish):
     """
     Remove category from the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=del_field, field='categories', values=category)
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest, edit_func=del_field, field='categories', values=category)
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='allow additional user(s) access to this encrypted manifest')
@@ -517,10 +523,10 @@ def add_access(ctx: click.Context, input_file, access, publish):
         user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
         processed_access.append({'user': user.owner})
 
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=add_field, field='access', values=processed_access)
+    container, modified = _resolve_container(ctx, input_file, modify_manifest, edit_func=add_field,
+        field='access', values=processed_access)
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='stop additional user(s) from having access to this encrypted manifest')
@@ -539,10 +545,10 @@ def del_access(ctx: click.Context, input_file, access, publish):
         user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
         processed_access.append({'user': user.owner})
 
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=del_field, field='access', values=processed_access)
+    container, modified = _resolve_container(ctx, input_file, modify_manifest, edit_func=del_field,
+        field='access', values=processed_access)
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='do not encrypt this manifest at all')
@@ -553,10 +559,10 @@ def set_no_encrypt_manifest(ctx: click.Context, input_file, publish):
     """
     Set title in the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=set_field, field='access', value=[{'user': '*'}])
+    container, modified = _resolve_container(ctx, input_file, modify_manifest, edit_func=set_field,
+        field='access', value=[{'user': '*'}])
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='encrypt this manifest so that it is accessible only to its owner')
@@ -567,10 +573,10 @@ def set_encrypt_manifest(ctx: click.Context, input_file, publish):
     """
     Set title in the manifest.
     """
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=set_field, field='access', value=[])
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest, edit_func=set_field, field='access', value=[])
 
-    return container, publish
+    return container, publish and modified
 
 
 @modify.command(short_help='remove storage backend from the manifest')
@@ -600,11 +606,10 @@ def del_storage(ctx: click.Context, input_file, storage, publish):
 
     click.echo('Storage indexes to remove: ' + str(idxs_to_delete))
 
-    container = _resolve_container(ctx, input_file, modify_manifest,
-                                   edit_func=del_nested_field, fields=['backends', 'storage'],
-                                   keys=idxs_to_delete)
+    container, modified = _resolve_container(ctx, input_file, modify_manifest,
+        edit_func=del_nested_field, fields=['backends', 'storage'], keys=idxs_to_delete)
 
-    return container, publish
+    return container, publish and modified
 
 
 def prepare_mount(obj: ContextObj,
@@ -1219,18 +1224,21 @@ def dump(ctx: click.Context, path, decrypt):
 @click.option('--publish/--no-publish', '-p/-P', default=True, help='publish edited container')
 @click.argument('path', metavar='FILE or WLPATH')
 @click.pass_context
-def edit(ctx: click.Context, path, publish, editor, remount):
+def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], remount: bool):
     """
     Edit container manifest in external tool.
     """
-    container = _resolve_container(ctx, path, base_edit, editor=editor, remount=remount)
+    container, manifest_modified = _resolve_container(
+        ctx, path, base_edit, editor=editor, remount=remount)
 
-    if publish:
-        click.echo(f're-publishing container {container.uuid_path}...')
-        Publisher(ctx.obj.client, container).republish_container()
+    if publish and manifest_modified:
+        _republish_container(ctx.obj.client, container)
 
 
-def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
+def _resolve_container(ctx: click.Context, path: str,
+    callback: Union[click.core.Command, Callable[..., Any]], **callback_kwargs: Any) \
+        -> Tuple[Container, bool]:
+
     client = ctx.obj.client
 
     if client.is_url(path) and not path.startswith('file:'):
@@ -1241,7 +1249,8 @@ def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
             f.write(container.manifest.to_bytes())
             f.flush()
 
-            ctx.invoke(callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
+            manifest_modified = ctx.invoke(
+                callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
 
             with open(f.name, 'rb') as file:
                 data = file.read()
@@ -1253,7 +1262,12 @@ def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
         if local_path:
             path = str(local_path)
 
-        ctx.invoke(callback, pass_ctx=ctx, input_file=path, **callback_kwargs)
+        manifest_modified = ctx.invoke(callback, pass_ctx=ctx, input_file=path, **callback_kwargs)
+
         container = client.load_object_from_name(WildlandObject.Type.CONTAINER, path)
 
-    return container
+    if callback not in [base_edit, modify_manifest]:
+        assert manifest_modified is None
+        manifest_modified = False
+
+    return container, manifest_modified
