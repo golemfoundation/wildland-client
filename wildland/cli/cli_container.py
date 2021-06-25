@@ -38,10 +38,13 @@ import signal
 import tempfile
 import click
 import daemon
+import progress.counter
 import yaml
+
 
 from click import ClickException
 from daemon import pidfile
+from progress.counter import Counter
 from xdg import BaseDirectory
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -741,28 +744,24 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 
     fails: List[str] = []
 
-    counter = 0
-
     for container_name in container_names:
         current_params: List[Tuple[Container, List[Storage],
                                    List[Iterable[PurePosixPath]], Container]] = []
 
         try:
-            containers = obj.client.load_containers_from(
-                container_name, include_manifests_catalog=manifests_catalog)
-
+            msg = f"Loading containers (from '{container_name}'): "
+            containers = Counter(msg).iter(obj.client.load_containers_from(
+                container_name, include_manifests_catalog=manifests_catalog))
         except WildlandError as ex:
             fails.append(container_name + ':' + str(ex) + '\n')
             continue
 
         try:
             reordered, em_cont, failed = obj.client.ensure_mount_reference_container(containers)
+            click.echo(f"Preparing mount (from '{container_name}')")
             if failed:
                 fails.append(em_cont)
             for container in reordered:
-                counter += 1
-                if not list_all:
-                    print(f"Loading containers. Loaded {counter}...", end='\r')
                 try:
                     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
                     mount_params = prepare_mount(
@@ -776,13 +775,11 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 
         params.extend(current_params)
 
-    if not list_all and params:
-        print('\n')
     if len(params) > 1:
-        click.echo(f'Mounting {len(params)} containers')
+        click.echo(f'Mounting storages for containers:  {len(params)}')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     elif len(params) > 0:
-        click.echo('Mounting 1 container')
+        click.echo('Mounting one storage')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     else:
         click.echo('No containers need (re)mounting')
@@ -822,7 +819,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_name
 
 
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
-        with_subcontainers: bool = True):
+             with_subcontainers: bool = True):
     obj.fs_client.ensure_mounted()
 
     if bool(container_names) + bool(path) != 1:
@@ -831,27 +828,28 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     failed = False
     exc_msg = 'Failed to load some container manifests:\n'
     storage_ids = []
+    counter = Counter()
 
     if container_names:
         for container_name in container_names:
+            counter.message = f"Loading containers (from '{container_name}'): "
             try:
                 container_storage_ids = _collect_storage_ids_by_container_name(
-                    obj, container_name, with_subcontainers)
+                    obj, container_name, counter, with_subcontainers)
                 storage_ids.extend(container_storage_ids)
             except WildlandError as ex:
                 failed = True
                 exc_msg += str(ex) + '\n'
     else:
+        counter.message = f"Loading containers (from '{path}'): "
         container_storage_ids = _collect_storage_ids_by_container_path(
-            obj, path, with_subcontainers)
+            obj, path, counter, with_subcontainers)
         storage_ids.extend(container_storage_ids)
 
     if not storage_ids:
         raise WildlandError('No containers mounted')
 
-    # dividing by 2 as every container has respective hidden pseudo-manifest
-    containers_count_without_submanifests = len(storage_ids) // 2
-    click.echo(f'Unmounting {containers_count_without_submanifests} containers')
+    click.echo(f'Unmounting {counter.index} containers')
 
     for storage_id in storage_ids:
         obj.fs_client.unmount_storage(storage_id)
@@ -861,11 +859,11 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
 
 def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
-        with_subcontainers: bool = True) -> List[int]:
+        counter: progress.counter.Counter, with_subcontainers: bool = True) -> List[int]:
 
     storage_ids = []
-
-    for container in obj.client.load_containers_from(container_name):
+    containers = counter.iter(obj.client.load_containers_from(container_name))
+    for container in containers:
         unique_storage_paths = obj.fs_client.get_unique_storage_paths(container)
 
         for mount_path in unique_storage_paths:
@@ -874,10 +872,7 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
 
             if storage_id is None:
                 assert not is_pseudomanifest
-                click.echo(f'Not mounted: {mount_path}')
             else:
-                if not is_pseudomanifest:
-                    click.echo(f'Will unmount: {mount_path}')
                 storage_ids.append(storage_id)
 
         if with_subcontainers:
@@ -888,12 +883,12 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
 
 
 def _collect_storage_ids_by_container_path(obj: ContextObj, path: str,
-        with_subcontainers: bool = True) -> List[int]:
+        counter: progress.counter.Counter, with_subcontainers: bool = True) -> List[int]:
     """
     Return all storage IDs corresponding to a given mount path.
     """
 
-    storage_ids = obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path))
+    storage_ids = counter.iter(obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path)))
     all_storage_ids = []
 
     for storage_id in storage_ids:

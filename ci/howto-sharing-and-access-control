@@ -158,9 +158,8 @@ run wl user import --path /forests/alice ~/Downloads/alice.user.yaml
 
 run wl start
 
-expected="Loading containers. Loaded 1...
-
-Mounting 1 container"
+expected="Preparing mount (from ':/forests/alice:/very/secret:')
+Mounting one storage"
 run wl container mount :/forests/alice:/very/secret:
 
 
@@ -218,9 +217,8 @@ run wl container create hello-world \
   --path /hello/world \
   --template carolines-s3
 
-expected="Loading containers. Loaded 1...
-
-Mounting 1 container"
+expected="Preparing mount (from ':/hello/world:')
+Mounting one storage"
 run wl c mount :/hello/world:
 
 run bash -c "echo 'It works!' > ~/wildland/hello/world/Hello-World.md"
@@ -279,9 +277,8 @@ run wl user import ~/Downloads/caroline.user.yaml \
 expected="User $caroline_userid already exists. Forcing user import.
 Created: /home/user/.config/wildland/users/caroline.user.yaml
 WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
-Loading containers. Loaded 1...Loading containers. Loaded 2...
-
-Mounting 2 containers"
+Preparing mount (from ':/f/caroline:*:')
+Mounting storages for containers:  2"
 run wl forest mount :/f/caroline:
 
 cd ~/wildland/f/caroline\:/hello/world/

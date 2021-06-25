@@ -6,6 +6,7 @@ click
 entrypoints
 pynacl
 graphlib-backport; python_version < '3.9'
+progress
 
 # Storage
 ipfshttpclient
