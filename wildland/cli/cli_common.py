@@ -369,6 +369,7 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
     if manifest_type is not None:
         validate_manifest(manifest, manifest_type, obj.client)
 
+    # the manifest is edited by edit_func below
     orig_manifest = copy.deepcopy(manifest)
     fields = edit_func(manifest.fields, *args, **kwargs)
     modified_manifest = Manifest.from_fields(fields)

@@ -190,7 +190,7 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
     if update_user:
         if not owner_user.local_path:
             raise WildlandError('Cannot update user because the manifest path is unknown')
-        click.echo('Attaching container to user')
+        click.echo(f'Attaching container to user [{owner_user.owner}]')
 
         owner_user.add_catalog_entry(str(obj.client.local_url(container_path)))
         obj.client.save_object(WildlandObject.Type.USER, owner_user)
