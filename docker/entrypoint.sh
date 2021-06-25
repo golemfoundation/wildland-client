@@ -38,14 +38,24 @@ fi
 cd /home/user
 
 #
-# BEGIN SHELL CONFIGURATION
+# BEGIN BASH AND FISH CONFIGURATION
 #
 
+## BASH
 # remove "(env) " prompt prefix when activating venv
-sed -i 's/(env) //'  /home/user/env/bin/activate.fish
+sed -i 's/(env) //'  /home/user/env/bin/activate
 
 # modify default PATH too if another one wants to
-# open another fish shell in the running container
+# open another shell in the running container
+cat >> /home/user/.bashrc << EOF
+PATH=/home/user/wildland-client:/home/user/wildland-client/docker:$PATH
+
+# it prevents issue when doing fish in fish on venv activation
+if test -z "$VIRTUAL_ENV"; then
+    source /home/user/env/bin/activate
+fi
+EOF
+
 mkdir -p /home/user/.config/fish
 cat >> /home/user/.config/fish/config.fish << EOF
 set -gx PATH /home/user/wildland-client /home/user/wildland-client/docker $PATH
@@ -56,13 +66,36 @@ if test -z "$VIRTUAL_ENV"
 end
 EOF
 
-# minimal screen configuration for FISH as default SHELL
+# minimal screen configuration for default SHELL
 cat > .screenrc << EOF
 shell /bin/bash
 EOF
 
+## FISH
+sed -i 's/(env) //'  /home/user/env/bin/activate.fish
+
+mkdir -p /home/user/.config/fish
+cat >> /home/user/.config/fish/config.fish << EOF
+set -gx PATH /home/user/wildland-client /home/user/wildland-client/docker $PATH
+
+# it prevents issue when doing fish in fish on venv activation
+if test -z "$VIRTUAL_ENV"
+    source /home/user/env/bin/activate.fish
+end
+EOF
+
+#cat > .tmux.conf << EOF
+#set -g default-command /usr/bin/fish
+#set -g default-shell /usr/bin/fish
+#EOF
+
+# minimal screen configuration for FISH as default SHELL
+#cat > .screenrc << EOF
+#shell /usr/bin/fish
+#EOF
+
 #
-# END SHELL CONFIGURATION
+# END CONFIGURATION
 #
 
 ipfs init &> /dev/null
