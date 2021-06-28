@@ -60,15 +60,16 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     def __repr__(self):
         return self.to_str()
 
-    def to_str(self):
+    def to_str(self, include_sensitive=False):
         """
         Return string representation
         """
+        fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = [
-            f"file_path={self.file_path}"
+            f"file_path={fields['file']}"
         ]
-        if self.storage_driver and self.storage_driver.storage_backend:
-            array_repr += [f"storage={self.storage_driver.storage_backend}"]
+        if fields.get('storage_backend', None):
+            array_repr += [f"storage={fields['storage_backend']}"]
         str_repr = "link(" + ", ".join(array_repr) + ")"
         return str_repr
 
@@ -95,6 +96,18 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
             'storage': self.storage_driver.storage_backend.params,
             'file': str(self.file_path)
         }
+
+    def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        """
+        This function provides filtered sensitive and unneeded fields for representation
+        """
+        fields = self.to_manifest_fields(inline=True)
+        if not include_sensitive:
+            del fields['storage']
+        # fixme: we include storage_backend str as non sensitive info
+        if self.storage_driver.storage_backend:
+            fields['storage_backend'] = self.storage_driver.storage_backend
+        return fields
 
     def get_target_file(self) -> bytes:
         """

@@ -40,6 +40,7 @@ from wildland.exc import WildlandError
 # placeholder container. See `Bridge.to_placeholder_container()` below.
 BRIDGE_PLACEHOLDER_UUID_NS = UUID('4a9a69d0-6f32-4ab5-8d4e-c198bf582554')
 
+
 class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     """
     Bridge object: a wrapper for user manifests.
@@ -90,6 +91,16 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         self.SCHEMA.validate(result)
         return result
 
+    def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        """
+        This function provides filtered sensitive and unneeded fields for representation
+        """
+        fields = self.to_manifest_fields(inline=True)
+        if not include_sensitive:
+            # Remove sensitive fields
+            del fields["user"]
+        return fields
+
     def to_placeholder_container(self) -> Container:
         """
         Create a placeholder container that shows how to mount the target user's forest.
@@ -110,8 +121,11 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
             client=self.client
         )
 
+    def __str__(self):
+        return self.to_str()
+
     def __repr__(self):
-        return f'<Bridge: {self.owner}: {", ".join([str(p) for p in self.paths])}>'
+        return self.to_str()
 
     def __eq__(self, other):
         if not isinstance(other, Bridge):
@@ -128,3 +142,15 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
             frozenset(self.paths),
             repr(self.user_location),
         ))
+
+    def to_str(self, include_sensitive=False):
+        """
+        Return string representation
+        """
+        fields = self.to_repr_fields(include_sensitive=include_sensitive)
+        array_repr = [
+            f"owner={fields['owner']!r}",
+            f"paths={[str(p) for p in fields['paths']]}"
+        ]
+        str_repr = "bridge(" + ", ".join(array_repr) + ")"
+        return str_repr
