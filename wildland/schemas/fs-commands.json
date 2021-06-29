@@ -1,5 +1,5 @@
 {
-    "description": "Argument schemas for control commands",
+    "description": "Argument schemas for fs control commands",
     "args": {
         "mount": {
             "type": "object",

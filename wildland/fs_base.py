@@ -101,7 +101,7 @@ class WildlandFSBase:
         self.control_server.register_commands(self)
         self.default_user = None
 
-        command_schemas = Schema.load_dict('commands.json', 'args')
+        command_schemas = Schema.load_dict('fs-commands.json', 'args')
         self.control_server.register_validators({
             cmd: schema.validate for cmd, schema in command_schemas.items()
         })

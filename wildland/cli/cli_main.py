@@ -223,7 +223,7 @@ def start(obj: ContextObj, remount: bool, debug: bool, mount_containers: Sequenc
         raise CliError('FUSE driver exited with failure')
 
 
-@main.command(short_help='display mounted containers')
+@main.command(short_help='display mounted containers and sync jobs')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
               help='list subcontainers hidden by default')
 @click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
@@ -233,31 +233,35 @@ def start(obj: ContextObj, remount: bool, debug: bool, mount_containers: Sequenc
 @click.pass_obj
 def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool, all_paths: bool):
     """
-    Display all mounted containers.
+    Display all mounted containers and sync jobs.
     """
-    try:
-        obj.fs_client.ensure_mounted()
-    except WildlandError as we:
-        # Avoid an unpleasant 'error' message.
-        click.echo(str(we))
-        return
-
-    click.echo('Mounted containers:')
-    click.echo()
-
-    mounted_storages = obj.fs_client.get_info().values()
-    for storage in mounted_storages:
-        if storage['subcontainer_of'] and not with_subcontainers:
-            continue
-        if storage['hidden'] and not with_pseudomanifests:
-            continue
-        main_path = storage['paths'][0]
-        click.echo(main_path)
-        click.echo(f'  storage: {storage["type"]}')
-        _print_container_paths(storage, all_paths)
-        if storage['subcontainer_of']:
-            click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
+    if not obj.fs_client.is_running():
+        click.echo('Wildland is not mounted, use `wl start` to mount it.')
+    else:
+        click.echo('Mounted containers:')
         click.echo()
+
+        mounted_storages = obj.fs_client.get_info().values()
+        for storage in mounted_storages:
+            if storage['subcontainer_of'] and not with_subcontainers:
+                continue
+            if storage['hidden'] and not with_pseudomanifests:
+                continue
+            main_path = storage['paths'][0]
+            click.echo(main_path)
+            click.echo(f'  storage: {storage["type"]}')
+            _print_container_paths(storage, all_paths)
+            if storage['subcontainer_of']:
+                click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
+
+    click.echo()
+    result = obj.client.run_sync_command('status')
+    if len(result) == 0:
+        click.echo('No sync jobs running')
+    else:
+        click.echo('Sync jobs:')
+        for s in result:
+            click.echo(s)
 
 
 def _print_container_paths(storage: Dict, all_paths: bool) -> None:

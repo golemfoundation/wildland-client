@@ -1,21 +1,25 @@
 # pylint: disable=missing-docstring,redefined-outer-name
+import signal
 
-import tempfile
+import os
 import shutil
+import tempfile
+
 from contextlib import suppress
 from pathlib import Path, PurePosixPath
-import os
 from typing import List
 from unittest import mock
 
-import yaml
+import psutil
 import pytest
+import yaml
 
 from .fuse_env import FuseEnv
 from ..cli import cli_main
 from ..search import Search
 
 ## CLI
+
 
 @pytest.fixture
 def base_dir():
@@ -55,9 +59,16 @@ def cli(base_dir, capsys):
             return out
         return None
     yield cli
+
     if os.path.ismount(base_dir / 'wildland'):
         cli('stop')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink()
+
+    syncs = [p for p in psutil.process_iter() if 'wildland.storage_sync.daemon' in p.cmdline()]
+    for p in syncs:
+        p.send_signal(signal.SIGTERM)
+    if len(syncs) > 0:
+        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock').unlink()
 
 
 # TODO examine exception
