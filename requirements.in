@@ -9,6 +9,7 @@ graphlib-backport; python_version < '3.9'
 progress
 
 # Storage
+python-gitlab
 ipfshttpclient
 protobuf
 boto3

@@ -262,6 +262,15 @@ Create encrypted storage for a given container. Please read details below to und
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/bear.rsti
 
+.. program:: wl-storage-create-gitlab
+.. _wl-storage-create-gitlab:
+
+:command:`wl storage create gitlab --container <container> [-u] [--user <user>] [--server-url <url>] --personal-token <personal-token> --projectid <id> [--no-publish] <storage>`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/gitlab.rsti
+
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:

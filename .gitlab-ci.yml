@@ -71,6 +71,12 @@ bear-test:
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-bear-test
+    
+gitlab-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-gitlab-test
 
 imap-test:
   stage: test

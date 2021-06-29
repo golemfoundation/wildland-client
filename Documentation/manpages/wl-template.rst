@@ -180,6 +180,15 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/imap.rsti
 
+.. program:: wl-template-create-gitlab
+.. _wl-template-create-gitlab:
+
+:command:`wl template create gitlab --personal-token <personal-token> NAME`
+---------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/gitlab.rsti
+
 .. program:: wl-template-create-ipfs
 .. _wl-template-create-ipfs:
 
@@ -432,3 +441,12 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/zip-archive.rsti
+
+.. program:: wl-template-add-gitlab
+.. _wl-template-add-gitlab:
+
+:command:`wl template create gitlab --personal-token <personal-token> NAME`
+---------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/gitlab.rsti
