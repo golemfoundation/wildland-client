@@ -121,6 +121,7 @@ backends:
     subdirectory: /addressing
     backend-id: 5570a6f5-857f-412b-8fa8-b5f6a83ea164
     type: delegate
+    object: storage
 title: Container Addressing
 categories:
 - /docs

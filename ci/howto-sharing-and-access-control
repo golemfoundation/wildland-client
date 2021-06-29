@@ -250,6 +250,7 @@ manifests-catalog:
     type: webdav
     url: http://localhost:8081/.manifests/$UUID_PCRE
     backend-id: $UUID_PCRE
+    object: storage
     manifest-pattern:
       type: glob
       path: /\*.yaml

@@ -204,7 +204,6 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             del fields['owner']
             del fields['container-path']
             del fields['version']
-            del fields['object']
 
         if 'is-local-owner' in fields:
             del fields['is-local-owner']

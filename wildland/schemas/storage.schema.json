@@ -6,7 +6,7 @@
         "storage-inline": {
             "title": "Storage manifest (common schema)",
             "type": "object",
-            "required": ["type"],
+            "required": ["type", "object"],
             "properties": {
                 "object": { "const": "storage" },
                 "owner": {

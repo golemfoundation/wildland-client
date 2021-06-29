@@ -249,6 +249,9 @@ class Manifest:
         """
         Update fields obsolete in V1.
         """
+        if 'type' in fields and 'object' not in fields:
+            fields['object'] = 'storage'
+
         if fields.get('type') == 'http-index':
             fields['type'] = 'http'
 
@@ -274,6 +277,13 @@ class Manifest:
             for container in fields['manifests-catalog']:
                 if isinstance(container, dict):
                     cls.update_obsolete(container)
+        if fields.get('object') == 'link':
+            storage = fields.get('storage')
+            if isinstance(storage, dict):
+                cls.update_obsolete(storage)
+        for value in fields.values():
+            if isinstance(value, dict) and value.get('object') == 'link':
+                cls.update_obsolete(value)
 
         return fields
 
