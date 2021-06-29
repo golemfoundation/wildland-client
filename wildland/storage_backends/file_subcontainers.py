@@ -92,7 +92,6 @@ class FileSubcontainersMixin(StorageBackend):
             Iterable[Tuple[PurePosixPath, Link]]:
         """
         List all subcontainers provided by this storage.
-
         """
         manifest_pattern = self.params.get('manifest-pattern', self.DEFAULT_MANIFEST_PATTERN)
 
