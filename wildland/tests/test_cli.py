@@ -1751,11 +1751,11 @@ def test_container_list(cli, base_dir):
     result = cli('container', 'list', capture=True)
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
-    assert '  path: /PATH' in out_lines
+    assert '- /PATH' in out_lines
     result = cli('containers', 'list', capture=True)
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
-    assert '  path: /PATH' in out_lines
+    assert '- /PATH' in out_lines
 
 
 def test_container_info(cli, base_dir):
@@ -1771,7 +1771,7 @@ def test_container_info(cli, base_dir):
     assert '/users/other' in result
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
-    assert '  path: /PATH' in out_lines
+    assert '- /PATH' in out_lines
 
 
 def test_container_info_cache(cli, base_dir):
