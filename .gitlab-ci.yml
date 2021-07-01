@@ -78,6 +78,12 @@ gitlab-test:
   script:
     - ./ci/ci-gitlab-test
 
+gitlab-graphql-test:
+    stage: test
+    image: $CONTAINER_TEST_IMAGE
+    script:
+      - ./ci/ci-gitlab-graphql-test
+
 imap-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE_IMAP
