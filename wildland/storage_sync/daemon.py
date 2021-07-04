@@ -24,6 +24,7 @@
 Wildland sync daemon.
 """
 import logging
+import signal
 import threading
 import time
 
@@ -148,8 +149,8 @@ class SyncDaemon:
     Daemon for processing storage sync requests.
     """
 
-    def __init__(self, base_dir: Optional[str], socket_path: Optional[str],
-                 log_path: Optional[str]):
+    def __init__(self, base_dir: Optional[str] = None, socket_path: Optional[str] = None,
+                 log_path: Optional[str] = None):
         self.lock = Lock()
         self.jobs: Dict[str, SyncJob] = dict()
         self.log_path = log_path
@@ -302,11 +303,24 @@ class SyncDaemon:
 
         return ret
 
+    # pylint: disable=unused-argument
+    def stop(self, signalnum, frame):
+        """
+        Stop all sync jobs and exit.
+        """
+        logger.info('stopping')
+        with self.lock:
+            for job in self.jobs.values():
+                job.stop()
+        self.control_server.stop()
+
     def main(self):
         """
         Main server loop.
         """
         self.init_logging()
+        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
         self.control_server.start(self.socket_path)
 
     def init_logging(self):

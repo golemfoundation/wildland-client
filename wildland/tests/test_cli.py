@@ -3100,6 +3100,41 @@ def test_status_secondary_storage(cli, control_client):
 """)
 
 
+# pylint: disable=unused-argument
+def test_status_sync(base_dir, sync, cli):
+    base_data_dir = base_dir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+
+    result = cli('status', capture=True)
+    assert 'No sync jobs running' in result
+
+    cli('user', 'create', 'User')
+    cli('container', 'create', '--owner', 'User', '--path', '/cont', 'Cont')
+    cli('storage', 'create', 'local', '--container', 'Cont', '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', 'Cont', '--location', storage2_data)
+    cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    result = cli('status', capture=True)
+    pattern = r"^Cont: RUNNING 'local'.*? <-> 'local-cached'.*?$"
+    assert len(re.findall(pattern, result, re.MULTILINE)) == 1
+    cli('container', 'stop-sync', 'Cont')
+
+    # conflict
+    with open(storage1_data / 'x', 'w') as f:
+        f.write('a')
+    with open(storage2_data / 'x', 'w') as f:
+        f.write('b')
+    cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    result = cli('status', capture=True)
+    pattern = r"^   Conflict detected on x in storages .+? and .+?$"
+    assert len(re.findall(pattern, result, re.MULTILINE)) == 1
+    cli('container', 'stop-sync', 'Cont')
+
+
 ## Bridge
 
 
@@ -3141,7 +3176,8 @@ def wl_call_output(base_config_dir, *args):
 # container-sync
 
 
-def test_cli_container_sync(base_dir, cli, cleanup):
+# pylint: disable=unused-argument
+def test_cli_container_sync(base_dir, sync, cli, cleanup):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -3171,7 +3207,8 @@ def test_cli_container_sync(base_dir, cli, cleanup):
         assert file.read() == 'test data'
 
 
-def test_cli_container_sync_oneshot(base_dir, cli):
+# pylint: disable=unused-argument
+def test_cli_container_sync_oneshot(base_dir, sync, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -3205,7 +3242,8 @@ def test_cli_container_sync_oneshot(base_dir, cli):
     assert not (storage2_data / 'testfile2').exists()
 
 
-def test_cli_container_sync_tg_remote(base_dir, cli, cleanup):
+# pylint: disable=unused-argument
+def test_cli_container_sync_tg_remote(base_dir, sync, cli, cleanup):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
