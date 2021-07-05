@@ -217,6 +217,9 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                 if isinstance(storage, str):
                     filtered_storages.append(storage)
                 else:
+                    if 'encrypted' in storage:
+                        filtered_storages.append('encrypted')
+                        continue
                     filtered_storage_obj = WildlandObject.from_fields(
                         self.fill_storage_fields(storage), self.client)
                     if filtered_storage_obj:
