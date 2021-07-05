@@ -3572,6 +3572,7 @@ def test_delegated_template(cli, base_dir):
                     'subdirectory': mock.ANY,
                     'type': 'delegate',
                     'backend-id': mock.ANY,
+                    'object': 'storage',
                     'storage': {
                         'location': '/STORAGE',
                         'backend-id': mock.ANY,
@@ -3640,6 +3641,7 @@ def test_proxy_storage_template(cli, base_dir):
                     'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
                     'type': 'date-proxy',
                     'backend-id': mock.ANY,
+                    'object': 'storage',
                     'storage': {
                         'location': '/STORAGE',
                         'backend-id': mock.ANY,

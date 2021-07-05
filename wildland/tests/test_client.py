@@ -141,7 +141,7 @@ def test_add_storage_link(client, owner, tmpdir):
 
     container._storage_cache.append(_StorageCache({
         'storage': {'type': 'local', 'location': str(target_dir), 'owner': owner,
-                    'backend-id': 'test'},
+                    'object': 'storage', 'backend-id': 'test'},
         'file': '/s.storage.yaml',
         'object': 'link'
     }, None))

@@ -56,7 +56,8 @@ def container_backends():
         'backends': {
             'storage': [
                 {'type': 'local',
-                 'location': '/path'
+                 'location': '/path',
+                 'object': 'storage'
                  }
             ]
         }
