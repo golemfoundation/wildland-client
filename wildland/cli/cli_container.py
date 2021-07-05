@@ -248,6 +248,15 @@ def publish(obj: ContextObj, cont):
     click.echo(f'publishing container {container.uuid_path}...')
     Publisher(obj.client, container).publish_container()
 
+    # check if all containers are published
+    not_published = Publisher.list_unpublished_containers(obj.client)
+    n_container = len(list(obj.client.dirs[WildlandObject.Type.CONTAINER].glob('*.yaml')))
+
+    # if all containers are unpublished DO NOT print warning
+    if not_published and len(not_published) != n_container:
+        click.echo("WARN: Some local containers (or container updates) are not published:\n" +
+                   '\n'.join(sorted(not_published)))
+
 
 @container_.command(short_help='unpublish container manifest')
 @click.argument('cont', metavar='CONTAINER')
@@ -729,16 +738,6 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
            list_all: bool = True, manifests_catalog: bool = False) -> None:
-
-    # if we want to mount all containers, check if all are published
-    if any((str(c).endswith(':*:') for c in container_names)):
-        not_published = Publisher.list_unpublished_containers(obj.client)
-        n_container = len(list(obj.client.dirs[WildlandObject.Type.CONTAINER].glob('*.yaml')))
-
-        # if all containers are unpublished DO NOT print warning
-        if not_published and len(not_published) != n_container:
-            click.echo("WARN: Some local containers (or container updates) are not published:\n" +
-                       '\n'.join(not_published))
 
     obj.fs_client.ensure_mounted()
 
