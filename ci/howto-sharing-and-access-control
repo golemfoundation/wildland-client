@@ -275,7 +275,7 @@ run wl user import ~/Downloads/caroline.user.yaml \
 
 
 expected="User $caroline_userid already exists. Forcing user import.
-Created: /home/user/.config/wildland/users/caroline.user.yaml
+Updated: /home/user/.config/wildland/users/caroline.user.yaml
 WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
 Preparing mount (from ':/f/caroline:*:')
 Mounting storages for containers:  2"
