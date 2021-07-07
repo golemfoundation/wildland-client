@@ -3393,6 +3393,36 @@ def test_dump(tmpdir):
     assert 'encrypted' in dump_container
     assert yaml_container['object'] == 'container'
 
+
+def test_nonexistent_wlpath(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    with pytest.raises(subprocess.CalledProcessError) as exception_info:
+        wl_call_output(base_config_dir, 'container', 'dump', ':/abc:/def:').decode()
+    assert 'Error: Container not found for path: :/abc:/def:' \
+        in exception_info.value.stdout.decode()
+
+
+def test_nonexistent_container_under_existing_bridge(cli, base_dir, tmpdir):
+    test_user_data = _create_user_manifest('0xbbb')
+    user_destination = tmpdir / 'Bob.user.yaml'
+    user_destination.write(test_user_data)
+
+    test_bridge_data = _create_bridge_manifest(
+        '0xbbb', f"file://localhost{str(user_destination)}", '0xbbb')
+
+    bridge_destination = tmpdir / 'BobBridge.bridge.yaml'
+    bridge_destination.write(test_bridge_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+    cli('user', 'import', str(bridge_destination))
+
+    with pytest.raises(subprocess.CalledProcessError) as exception_info:
+        wl_call_output(base_dir, 'container', 'dump', ':/forests/0xbbb-IMPORT:').decode()
+
+    assert 'Error: Manifest for the given path [:/forests/0xbbb-IMPORT:] was not found' \
+        in exception_info.value.stdout.decode()
+
+
 # Storage templates
 
 

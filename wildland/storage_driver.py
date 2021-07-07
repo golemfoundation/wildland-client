@@ -102,9 +102,9 @@ class StorageDriver:
                     raise NotADirectoryError(errno.ENOTDIR, path)
 
     def read_file(self, relpath) -> bytes:
-        '''
+        """
         Read a file from StorageBackend, using FUSE commands.
-        '''
+        """
 
         obj = self.storage_backend.open(relpath, os.O_RDONLY)
         try:

@@ -990,7 +990,11 @@ class Client:
 
         if WildlandPath.match(url):
             search = self._wl_url_to_search(url, use_aliases=use_aliases)
-            return search.read_file()
+            try:
+                file_bytes = search.read_file()
+            except FileNotFoundError as e:
+                raise WildlandError(f'File [{url}] does not exist') from e
+            return file_bytes
 
         if url.startswith('file:'):
             local_path = self.parse_file_url(url, owner or self.config.get('@default'))

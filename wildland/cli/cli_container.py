@@ -1208,7 +1208,7 @@ def find(obj: ContextObj, path: str):
 @click.option('--decrypt/--no-decrypt', '-d/-n', default=True, help='decrypt manifest')
 @click.argument('path', metavar='FILE or WLPATH')
 @click.pass_context
-def dump(ctx: click.Context, path, decrypt):
+def dump(ctx: click.Context, path: str, decrypt: bool):
     """
     Verify and dump contents of a container.
     """
@@ -1238,11 +1238,13 @@ def _resolve_container(ctx: click.Context, path: str,
     callback: Union[click.core.Command, Callable[..., Any]], **callback_kwargs: Any) \
         -> Tuple[Container, bool]:
 
-    client = ctx.obj.client
+    client: Client = ctx.obj.client
 
     if client.is_url(path) and not path.startswith('file:'):
         container = client.load_object_from_url(
             WildlandObject.Type.CONTAINER, path, client.config.get('@default'))
+        if container.manifest is None:
+            raise WildlandError(f'Manifest for the given path [{path}] was not found')
 
         with tempfile.NamedTemporaryFile(suffix='.tmp.container.yaml') as f:
             f.write(container.manifest.to_bytes())
