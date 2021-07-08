@@ -38,6 +38,7 @@ from click.exceptions import UsageError
 import pytest
 import yaml
 
+from .test_sync import wait_for_file
 from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
 from ..cli.cli_container import _resolve_container
@@ -1853,18 +1854,12 @@ def _sync_check(dir1, dir2):
     with open(dir1 / 'file1', 'w') as f:
         f.write('test data 1')
 
-    time.sleep(1)
-    assert (dir2 / 'file1').exists()
-    with open(dir2 / 'file1') as file:
-        assert file.read() == 'test data 1'
+    assert wait_for_file(dir2 / 'file1', 'test data 1')
 
     with open(dir2 / 'file2', 'w') as f:
         f.write('test data 2')
 
-    time.sleep(1)
-    assert (dir1 / 'file2').exists()
-    with open(dir1 / 'file2') as file:
-        assert file.read() == 'test data 2'
+    assert wait_for_file(dir1 / 'file2', 'test data 2')
 
     # if paths contain mount directory then files may be gone already
     _safe_delete(dir1 / 'file1')
