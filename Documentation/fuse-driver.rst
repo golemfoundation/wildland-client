@@ -112,7 +112,7 @@ Commands
 Here is a list of supported commands, with their arguments.
 
 The commands are currently implemented in ``wildland/fs_base.py``. The
-arguments are validated, see ``wildland/schemas/commands.json``.
+arguments are validated, see ``wildland/schemas/fs-commands.json``.
 
 * ``paths`` - return paths and corresponding storages, by number::
 
@@ -121,16 +121,16 @@ arguments are validated, see ``wildland/schemas/commands.json``.
         "/container2": [2, 3],
       }
 
-  .. schema:: commands.json args paths
+  .. schema:: fs-commands.json args paths
 
 
 * ``info`` - return detailed storage information for each storage
 
-  .. schema:: commands.json args info
+  .. schema:: fs-commands.json args info
 
 * ``mount`` - mount storages
 
-  .. schema:: commands.json args mount
+  .. schema:: fs-commands.json args mount
 
   Example ``items`` array::
 
@@ -147,20 +147,20 @@ arguments are validated, see ``wildland/schemas/commands.json``.
 
 * ``unmount``- unmount a storage by number
 
-  .. schema:: commands.json args unmount
+  .. schema:: fs-commands.json args unmount
 
 
 * ``clear-cache`` - clear cache for a storage by number. This invalidates the
   cached data in storage. (The cache is currently very short-lived, so this
   endpoint is useful mostly for testing).
 
-  .. schema:: commands.json args clear-cache
+  .. schema:: fs-commands.json args clear-cache
 
 * ``breakpoint`` - drop into debugger (``pdb``). This is enabled
   when the driver is running in foreground, and in single-thread mode
   (``wl start -d -S``).
 
-  .. schema:: commands.json args breakpoint
+  .. schema:: fs-commands.json args breakpoint
 
   Be careful - while in debugger, access to the Wildland filesystem will be
   blocked, which may freeze other programs.
@@ -169,7 +169,7 @@ arguments are validated, see ``wildland/schemas/commands.json``.
   The pattern is a glob-style pattern, such as ``*/container.yaml``. It has to
   be relative and is interpreted in the context of the storage.
 
-  .. schema:: commands.json args add-watch
+  .. schema:: fs-commands.json args add-watch
 
   The result is an integer watch ID.
 

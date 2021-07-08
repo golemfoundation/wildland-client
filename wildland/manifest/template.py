@@ -85,6 +85,7 @@ class StorageTemplate:
         if isinstance(source_data, dict):
             source_data = yaml.dump(source_data)
 
+        assert isinstance(source_data, str)  # satisfy mypy
         self.template = Template(source=source_data, undefined=StrictUndefined)
         self.template.environment.filters['regex_replace'] = regex_replace
         self.template.environment.tests['regex_contains'] = regex_contains

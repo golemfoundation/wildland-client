@@ -32,9 +32,12 @@ import functools
 import glob
 import logging
 import os
+import sys
+import time
 from graphlib import TopologicalSorter
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
+from subprocess import Popen
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union, Any
 from urllib.parse import urlparse, quote
 
 import yaml
@@ -42,6 +45,7 @@ import requests
 
 from wildland.bridge import Bridge
 from wildland.wildland_object.wildland_object import WildlandObject
+from .control_client import ControlClient
 from .user import User
 from .container import Container, ContainerStub
 from .link import Link
@@ -102,10 +106,14 @@ class Client:
             d.mkdir(exist_ok=True, parents=True)
 
         mount_dir = Path(self.config.get('mount-dir'))
-        socket_path = Path(self.config.get('socket-path'))
         bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
-        self.fs_client = WildlandFSClient(mount_dir, socket_path,
+        fs_socket_path = Path(self.config.get('fs-socket-path'))
+        self.fs_client = WildlandFSClient(mount_dir, fs_socket_path,
                                           bridge_separator=bridge_separator)
+
+        # we only connect to sync daemon if needed
+        self._sync_client: Optional[ControlClient] = None
+        self.base_dir = base_dir
 
         try:
             fuse_status = self.fs_client.run_control_command('status')
@@ -135,6 +143,43 @@ class Client:
 
         if load:
             self.recognize_users_and_bridges()
+
+    def connect_sync_daemon(self):
+        """
+        Connect to the sync daemon. Starts the daemon if not running.
+        """
+        delay = 0.1
+        daemon_started = False
+        sync_socket_path = Path(self.config.get('sync-socket-path'))
+        self._sync_client = ControlClient()
+        for _ in range(20):
+            try:
+                self._sync_client.connect(sync_socket_path)
+                return
+            except (ConnectionRefusedError, FileNotFoundError):
+                if not daemon_started:
+                    self.start_sync_daemon()
+                    daemon_started = True
+            time.sleep(delay)
+        raise WildlandError('Timed out waiting for sync daemon')
+
+    def start_sync_daemon(self):
+        """
+        Start the sync daemon.
+        """
+        cmd = [sys.executable, '-m', 'wildland.storage_sync.daemon']
+        if self.base_dir:
+            cmd.extend(['--base-dir', str(self.base_dir)])
+        Popen(cmd)
+
+    def run_sync_command(self, name, **kwargs) -> Any:
+        """
+        Run sync command (through the sync daemon).
+        """
+        if not self._sync_client:
+            self.connect_sync_daemon()
+        assert self._sync_client is not None
+        return self._sync_client.run_command(name, **kwargs)
 
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         """
@@ -624,10 +669,10 @@ class Client:
                     )
 
     def ensure_mount_reference_container(self, containers) -> Tuple[List[Container], str, bool]:
-        '''
+        """
         Ensure that for any storage with MOUNT_REFERENCE_CONTAINER corresponding
         reference_container appears in sequence before the referencer.
-        '''
+        """
 
         dependency_graph: Dict[Container, Set[Container]] = dict()
         exc_msg = ""

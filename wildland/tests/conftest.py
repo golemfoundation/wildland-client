@@ -1,21 +1,28 @@
 # pylint: disable=missing-docstring,redefined-outer-name
+import signal
 
-import tempfile
-import shutil
-from contextlib import suppress
-from pathlib import Path, PurePosixPath
 import os
+import shutil
+import tempfile
+
+from contextlib import suppress
+from multiprocessing import Process
+from pathlib import Path, PurePosixPath
 from typing import List
 from unittest import mock
 
-import yaml
+import psutil
 import pytest
+import yaml
 
 from .fuse_env import FuseEnv
 from ..cli import cli_main
 from ..search import Search
 
+from ..storage_sync.daemon import SyncDaemon
+
 ## CLI
+
 
 @pytest.fixture
 def base_dir():
@@ -32,6 +39,22 @@ def base_dir():
     finally:
         shutil.rmtree(base_dir)
         Search.clear_cache()
+
+
+def _sync_daemon(base_dir):
+    server = SyncDaemon(base_dir)
+    server.main()
+
+
+@pytest.fixture
+def sync(base_dir):
+    # this is so we can easily get coverage data from the sync daemon
+    try:
+        daemon = Process(target=_sync_daemon, args=(base_dir,))
+        daemon.start()
+    finally:
+        daemon.terminate()
+        daemon.join()
 
 
 @pytest.fixture
@@ -55,9 +78,16 @@ def cli(base_dir, capsys):
             return out
         return None
     yield cli
+
     if os.path.ismount(base_dir / 'wildland'):
         cli('stop')
-        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink()
+        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink(missing_ok=True)
+
+    syncs = [p for p in psutil.process_iter() if 'wildland.storage_sync.daemon' in p.cmdline()]
+    for p in syncs:
+        p.send_signal(signal.SIGTERM)
+    if len(syncs) > 0:
+        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock').unlink(missing_ok=True)
 
 
 # TODO examine exception

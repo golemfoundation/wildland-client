@@ -32,7 +32,6 @@ from itertools import combinations
 import os
 import sys
 import logging
-import threading
 import re
 import signal
 import tempfile
@@ -61,7 +60,6 @@ from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
-from ..hashdb import HashDb
 from ..log import init_logging
 
 try:
@@ -440,6 +438,7 @@ def _republish_callback(ctx: click.Context, params: Tuple[Container, bool]):
         _republish_container(ctx.obj.client, container)
 
 
+
 @modify.command(short_help='add path to the manifest')
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
 @click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
@@ -483,6 +482,7 @@ def set_title(ctx: click.Context, input_file, title, publish):
         ctx, input_file, modify_manifest, edit_func=set_field, field='title', value=title)
 
     return container, publish and modified
+
 
 @modify.command(short_help='add category to the manifest')
 @click.option('--category', metavar='PATH', required=True, multiple=True,
@@ -995,26 +995,6 @@ def add_mount_watch(obj: ContextObj, container_names):
     mount_watch(obj, container_names)
 
 
-def syncer_pidfile_for_container(container: Container) -> Path:
-    """
-    Helper function that returns a pidfile for a given container's sync process.
-    """
-    container_id = container.uuid
-    return Path(BaseDirectory.get_runtime_dir()) / f'wildland-sync-{container_id}.pid'
-
-
-def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
-    """
-    Helper function to find a storage by listed id or type.
-    """
-    try:
-        return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
-    except IndexError:
-        # pylint: disable=raise-missing-from
-        raise WildlandError(f'Storage {id_or_type} not found.')
-
-
 @container_.command('sync', short_help='start syncing a container')
 @click.argument('cont', metavar='CONTAINER')
 @click.option('--target-storage', help='specify target storage. Default: first non-local storage'
@@ -1031,84 +1011,13 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
     Keep the given container in sync across the local storage and selected remote storage
     (by default the first listed in manifest).
     """
-
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-
-    sync_pidfile = syncer_pidfile_for_container(container)
-
-    if os.path.exists(sync_pidfile):
-        raise ClickException("Sync process for this container is already running; use "
-                             "stop-sync to stop it.")
-
-    all_storages = list(obj.client.all_storages(container))
-
+    kwargs = {'container': cont, 'continuous': not one_shot, 'unidirectional': False}
     if source_storage:
-        source_object = _get_storage_by_id_or_type(source_storage, all_storages)
-    else:
-        try:
-            source_object = [storage for storage in all_storages
-                                  if obj.client.is_local_storage(storage.params['type'])][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No local storage backend found')
-
-    source_backend = StorageBackend.from_params(source_object.params)
-    default_remotes = obj.client.config.get('default-remote-for-container')
-
+        kwargs['source'] = source_storage
     if target_storage:
-        target_object = _get_storage_by_id_or_type(target_storage, all_storages)
-        default_remotes[container.uuid] = target_object.backend_id
-        obj.client.config.update_and_save({'default-remote-for-container': default_remotes})
-    else:
-        target_remote_id = default_remotes.get(container.uuid)
-        try:
-            target_object = [storage for storage in all_storages
-                             if target_remote_id == storage.backend_id
-                             or (not target_remote_id and
-                                 not obj.client.is_local_storage(storage.params['type']))][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise CliError('No remote storage backend found: specify --target-storage.')
-
-    target_backend = StorageBackend.from_params(target_object.params)
-    click.echo(f'Using remote backend {target_backend.backend_id} '
-               f'of type {target_backend.TYPE}')
-
-    # Store information about container/backend mappings
-    hash_db = HashDb(obj.client.config.base_dir)
-    hash_db.update_storages_for_containers(container.uuid,
-                                           [source_backend, target_backend])
-
-    if container.local_path:
-        container_path = PurePosixPath(container.local_path)
-        container_name = container_path.name.replace(''.join(container_path.suffixes), '')
-    else:
-        container_name = cont
-
-    source_backend.set_config_dir(obj.client.config.base_dir)
-    target_backend.set_config_dir(obj.client.config.base_dir)
-    syncer = BaseSyncer.from_storages(source_storage=source_backend,
-                                      target_storage=target_backend,
-                                      log_prefix=f'Container: {container_name}',
-                                      one_shot=one_shot, continuous=not one_shot,
-                                      unidirectional=False, can_require_mount=False)
-
-    if one_shot:
-        syncer.one_shot_sync()
-        return
-
-    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(sync_pidfile),
-                              stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
-        init_logging(False, f'/tmp/wl-sync-{container.uuid}.log')
-        try:
-            syncer.start_sync()
-        except FileNotFoundError as e:
-            click.echo(f"Storage root not found! Details: {e}")
-            return
-        try:
-            threading.Event().wait()
-        except KeyboardInterrupt:
-            syncer.stop_sync()
+        kwargs['target'] = target_storage
+    response = obj.client.run_sync_command('start', **kwargs)
+    click.echo(response)
 
 
 @container_.command('stop-sync', short_help='stop syncing a container')
@@ -1116,14 +1025,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
 @click.pass_obj
 def stop_syncing_container(obj: ContextObj, cont):
     """
-    Keep the given container in sync across storages.
+    Stop sync process for the given container.
     """
-
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-
-    sync_pidfile = syncer_pidfile_for_container(container)
-
-    terminate_daemon(sync_pidfile, "Sync for this container is not running.")
+    response = obj.client.run_sync_command('stop', container=cont)
+    click.echo(response)
 
 
 @container_.command('list-conflicts', short_help='list detected file conflicts across storages')

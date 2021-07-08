@@ -3030,7 +3030,7 @@ def test_status_secondary_storage(cli, control_client):
     })
 
     result = cli('status', capture=True)
-    assert result == """Mounted containers:
+    assert result.startswith("""Mounted containers:
 
 /path1
   storage: local
@@ -3043,14 +3043,13 @@ def test_status_secondary_storage(cli, control_client):
     /random02
   title:
     mytitle
-
 /path2
   storage: local
 
-"""
+""")
 
     result = cli('status', '--with-pseudomanifests', capture=True)
-    assert result == """Mounted containers:
+    assert result.startswith("""Mounted containers:
 
 /path1
   storage: local
@@ -3063,20 +3062,17 @@ def test_status_secondary_storage(cli, control_client):
     /random02
   title:
     mytitle
-
 /path2
   storage: local
-
 /path1-pseudomanifest
   storage: static
-
 /path2-pseudomanifest
   storage: static
 
-"""
+""")
 
     result = cli('status', '--with-pseudomanifests', '--all-paths', capture=True)
-    assert result == """Mounted containers:
+    assert result.startswith("""Mounted containers:
 
 /path1
   storage: local
@@ -3084,27 +3080,59 @@ def test_status_secondary_storage(cli, control_client):
     /path1
     /path1.1
     /path1.2
-
 /path2
   storage: local
   all paths:
     /path2
     /path2.1
-
 /path1-pseudomanifest
   storage: static
   all paths:
     /path1-pseudomanifest
     /path1.1
     /path1.2
-
 /path2-pseudomanifest
   storage: static
   all paths:
     /path2-pseudomanifest
     /path2.1
 
-"""
+""")
+
+
+# pylint: disable=unused-argument
+def test_status_sync(base_dir, sync, cli):
+    base_data_dir = base_dir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+
+    result = cli('status', capture=True)
+    assert 'No sync jobs running' in result
+
+    cli('user', 'create', 'User')
+    cli('container', 'create', '--owner', 'User', '--path', '/cont', 'Cont')
+    cli('storage', 'create', 'local', '--container', 'Cont', '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', 'Cont', '--location', storage2_data)
+    cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    result = cli('status', capture=True)
+    pattern = r"^Cont: RUNNING 'local'.*? <-> 'local-cached'.*?$"
+    assert len(re.findall(pattern, result, re.MULTILINE)) == 1
+    cli('container', 'stop-sync', 'Cont')
+
+    # conflict
+    with open(storage1_data / 'x', 'w') as f:
+        f.write('a')
+    with open(storage2_data / 'x', 'w') as f:
+        f.write('b')
+    cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    result = cli('status', capture=True)
+    pattern = r"^   Conflict detected on x in storages .+? and .+?$"
+    assert len(re.findall(pattern, result, re.MULTILINE)) == 1
+    cli('container', 'stop-sync', 'Cont')
 
 
 ## Bridge
@@ -3148,28 +3176,24 @@ def wl_call_output(base_config_dir, *args):
 # container-sync
 
 
-def test_cli_container_sync(tmpdir, cleanup):
-    base_config_dir = tmpdir / '.wildland'
-    base_data_dir = tmpdir / 'wldata'
+# pylint: disable=unused-argument
+def test_cli_container_sync(base_dir, sync, cli, cleanup):
+    base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
 
-    os.mkdir(base_config_dir)
     os.mkdir(base_data_dir)
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
 
-    cleanup(lambda: wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer'))
+    cleanup(lambda: cli('container', 'stop-sync', 'AliceContainer'))
 
-    wl_call(base_config_dir, 'user', 'create', 'Alice')
-    wl_call(base_config_dir, 'container', 'create',
-            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
-    wl_call(base_config_dir, 'storage', 'create', 'local',
-            '--container', 'AliceContainer', '--location', storage1_data)
-    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
-            '--container', 'AliceContainer', '--location', storage2_data)
-    wl_call(base_config_dir, 'container', 'sync', '--target-storage', 'local-cached',
-            'AliceContainer')
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
+    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+        '--location', storage2_data)
+    cli('container', 'sync', '--target-storage', 'local-cached', 'AliceContainer')
 
     time.sleep(1)
 
@@ -3183,30 +3207,26 @@ def test_cli_container_sync(tmpdir, cleanup):
         assert file.read() == 'test data'
 
 
-def test_cli_container_sync_oneshot(tmpdir):
-    base_config_dir = tmpdir / '.wildland'
-    base_data_dir = tmpdir / 'wldata'
+# pylint: disable=unused-argument
+def test_cli_container_sync_oneshot(base_dir, sync, cli):
+    base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
 
-    os.mkdir(base_config_dir)
     os.mkdir(base_data_dir)
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
 
-    wl_call(base_config_dir, 'user', 'create', 'Alice')
-    wl_call(base_config_dir, 'container', 'create',
-            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
-    wl_call(base_config_dir, 'storage', 'create', 'local',
-            '--container', 'AliceContainer', '--location', storage1_data)
-    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
-            '--container', 'AliceContainer', '--location', storage2_data)
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
+    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+        '--location', storage2_data)
 
     with open(storage1_data / 'testfile', 'w') as f:
         f.write("test data")
 
-    wl_call(base_config_dir, 'container', 'sync', '--target-storage', 'local-cached', '--one-shot',
-            'AliceContainer')
+    cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot', 'AliceContainer')
 
     time.sleep(1)
 
@@ -3222,32 +3242,29 @@ def test_cli_container_sync_oneshot(tmpdir):
     assert not (storage2_data / 'testfile2').exists()
 
 
-def test_cli_container_sync_tg_remote(tmpdir, cleanup):
-    base_config_dir = tmpdir / '.wildland'
-    base_data_dir = tmpdir / 'wldata'
+# pylint: disable=unused-argument
+def test_cli_container_sync_tg_remote(base_dir, sync, cli, cleanup):
+    base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
     storage3_data = base_data_dir / 'storage3'
 
-    os.mkdir(base_config_dir)
     os.mkdir(base_data_dir)
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
     os.mkdir(storage3_data)
 
-    cleanup(lambda: wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer'))
+    cleanup(lambda: cli('container', 'stop-sync', 'AliceContainer'))
 
-    wl_call(base_config_dir, 'user', 'create', 'Alice')
-    wl_call(base_config_dir, 'container', 'create',
-            '--owner', 'Alice', '--path', '/Alice', 'AliceContainer', '--no-encrypt-manifest')
-    wl_call(base_config_dir, 'storage', 'create', 'local',
-            '--container', 'AliceContainer', '--location', storage1_data)
-    wl_call(base_config_dir, 'storage', 'create', 'local-cached',
-            '--container', 'AliceContainer', '--location', storage2_data)
-    wl_call(base_config_dir, 'storage', 'create', 'local-dir-cached',
-            '--container', 'AliceContainer', '--location', storage3_data)
-    wl_call(base_config_dir, 'container', 'sync', '--target-storage', 'local-dir-cached',
-            'AliceContainer')
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+        '--location', storage2_data)
+    cli('storage', 'create', 'local-dir-cached', '--container', 'AliceContainer',
+        '--location', storage3_data)
+    cli('container', 'sync', '--target-storage', 'local-dir-cached', 'AliceContainer')
 
     time.sleep(1)
 
@@ -3261,7 +3278,7 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     with open(storage3_data / 'testfile') as file:
         assert file.read() == 'test data'
 
-    with open(base_config_dir / 'containers/AliceContainer.container.yaml') as f:
+    with open(base_dir / 'containers/AliceContainer.container.yaml') as f:
         cont_data = f.read().split('\n', 4)[-1]
         cont_yaml = load_yaml(cont_data)
 
@@ -3269,15 +3286,15 @@ def test_cli_container_sync_tg_remote(tmpdir, cleanup):
     assert cont_yaml['backends']['storage'][2]['type'] == 'local-dir-cached'
     backend_id = cont_yaml['backends']['storage'][2]['backend-id']
 
-    with open(base_config_dir / 'config.yaml') as f:
+    with open(base_dir / 'config.yaml') as f:
         data = f.read()
 
     config = load_yaml(data)
     default_storage = config["default-remote-for-container"]
     assert default_storage[container_id] == backend_id
 
-    wl_call(base_config_dir, 'container', 'stop-sync', 'AliceContainer')
-    wl_call(base_config_dir, 'container', 'sync', 'AliceContainer')
+    cli('container', 'stop-sync', 'AliceContainer')
+    cli('container', 'sync', 'AliceContainer')
 
     time.sleep(1)
 

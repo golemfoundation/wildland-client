@@ -36,6 +36,10 @@ storage to another):
 
     wl container sync --target-storage <backend_id or storage_type> --source-storage <backend_id or storage_type> --one-shot <container-name>
 
+Currently running sync jobs (and conflicts found) can be shown by::
+
+    wl status
+
 Development
 -----------
 
@@ -77,3 +81,20 @@ entrypoint (see `setuptools` package) and inherit the `wildland.storage_sync.bas
 
   * if ONE_SHOT == True, they must support one_shot_sync
   * if CONTINUOUS == True, they must support start_sync, stop_sync and is_running methods.
+
+
+Sync daemon
+-----------
+
+All sync jobs are run by the dedicated sync daemon (see `wildland.storage_sync.daemon`). This
+daemon is built upon the `wildland.control_server.ControlServer` class, and works in a similar way
+to the FUSE driver (see :doc:`FS driver </fuse-driver>`). It exposes a control interface over a Unix
+socket and accepts JSON-encoded commands according to the schema defined in
+``wildland/schemas/sync-commands.json``.
+
+Command-line options:
+
+* ``-b, --base-dir=DIR``: base directory for Wildland configuration.
+* ``-l, --log-path=PATH``: log to a file (`-` means stderr), default: /tmp/wl-sync.log
+* ``-s, --socket-path=PATH``: listen on a given socket path, default is specified in the Wildland
+  config (`sync-socket-path` value).
