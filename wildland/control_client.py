@@ -43,6 +43,12 @@ class ControlClientError(WildlandError):
     """
 
 
+class ControlClientUnableToConnectError(ControlClientError):
+    """
+    An error thrown whenever there is a problem to connect with the control server.
+    """
+
+
 class ControlClient:
     """
     A client for ControlServer.
@@ -60,7 +66,11 @@ class ControlClient:
         """
 
         self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.conn.connect(str(path))
+        try:
+            self.conn.connect(str(path))
+        except OSError as e:
+            raise ControlClientUnableToConnectError from e
+
         self.conn_file = self.conn.makefile()
 
     def disconnect(self):

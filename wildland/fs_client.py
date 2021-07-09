@@ -41,7 +41,7 @@ from .cli.cli_base import CliError
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError
-from .control_client import ControlClient
+from .control_client import ControlClient, ControlClientUnableToConnectError
 from .entity.fileinfo import FileInfo
 from .manifest.manifest import Manifest
 from .storage_backends.static import StaticStorageBackend
@@ -171,7 +171,7 @@ class WildlandFSClient:
         client = ControlClient()
         try:
             client.connect(self.socket_path)
-        except IOError:
+        except ControlClientUnableToConnectError:
             return False
         client.disconnect()
         return True

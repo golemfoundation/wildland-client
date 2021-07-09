@@ -47,6 +47,7 @@ from progress.counter import Counter
 from xdg import BaseDirectory
 
 from wildland.client import Client
+from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from .cli_base import aliased_group, ContextObj, CliError
@@ -368,8 +369,7 @@ def delete(obj: ContextObj, name, force, cascade, no_unpublish):
 
             for storage_id in obj.fs_client.find_all_subcontainers_storage_ids(container):
                 obj.fs_client.unmount_storage(storage_id)
-
-    except FileNotFoundError:
+    except ControlClientUnableToConnectError:
         pass
 
     has_local = False

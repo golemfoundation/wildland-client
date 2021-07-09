@@ -44,6 +44,7 @@ import yaml
 import requests
 
 from wildland.bridge import Bridge
+from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
 from .control_client import ControlClient
 from .user import User
@@ -120,7 +121,7 @@ class Client:
             default_user = fuse_status.get('default-user')
             if default_user:
                 self.config.override(override_fields={'@default': default_user})
-        except (ConnectionRefusedError, FileNotFoundError):
+        except ControlClientUnableToConnectError:
             pass
 
         #: save (import) users encountered while traversing WL paths
@@ -156,7 +157,7 @@ class Client:
             try:
                 self._sync_client.connect(sync_socket_path)
                 return
-            except (ConnectionRefusedError, FileNotFoundError):
+            except ControlClientUnableToConnectError:
                 if not daemon_started:
                     self.start_sync_daemon()
                     daemon_started = True
