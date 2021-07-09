@@ -252,7 +252,7 @@ class ControlServer:
         self.commands: Dict[str, Callable] = {}
         self.validators: Optional[Dict[str, Callable]] = None
 
-    def register_commands(self, obj):
+    def register_commands(self, obj) -> None:
         """
         Register object methods decorated with @control_command.
         """
@@ -263,7 +263,7 @@ class ControlServer:
             if name is not None:
                 self.commands[name] = val
 
-    def register_validators(self, validators: Dict[str, Callable]):
+    def register_validators(self, validators: Dict[str, Callable]) -> None:
         """
         Register a dictionary of schemas to be checked. For a command ``cmd``
         with arguments ``args``, the server will call
@@ -290,7 +290,7 @@ class ControlServer:
             target=self._serve_forever)
         self.server_thread.start()
 
-    def _serve_forever(self):
+    def _serve_forever(self) -> None:
         assert self.socket_server
         logger.debug('serve_forever')
         try:
@@ -298,7 +298,7 @@ class ControlServer:
         except Exception:
             logger.exception('error in server main thread')
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Shut down the server, closing existing connections.
         """
@@ -315,7 +315,7 @@ class ControlServer:
             self.server_thread.join()
 
         # Close connection for all threads and wait for them
-        for thread in self.socket_server._threads:  # pylint: disable=protected-access
+        for thread in self.socket_server._threads:  # type: ignore # pylint: disable=protected-access
             if thread.ident is None:
                 # Not started yet
                 continue

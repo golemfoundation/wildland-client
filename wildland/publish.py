@@ -224,9 +224,10 @@ class _InfraChecker:
                 continue
 
         if not ok:
-            raise WildlandError(
-                'Cannot find any container suitable as publishing platform:'
-                + ''.join(f'\n- {i}' for i in rejected))
+            err_msg = 'Cannot find any container suitable as publishing platform'
+            if rejected:
+                err_msg += ': ' + ''.join(f'\n- {i}' for i in rejected)
+            raise WildlandError(err_msg)
 
 
 class _StoragePublisher:

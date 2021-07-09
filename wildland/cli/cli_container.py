@@ -330,7 +330,7 @@ def info(obj: ContextObj, name):
 @click.option('--no-unpublish', '-n', is_flag=True,
               help='do not attempt to unpublish the container before deleting it')
 @click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, cascade, no_unpublish):
+def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish: bool):
     """
     Delete a container.
     """

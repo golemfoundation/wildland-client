@@ -60,7 +60,7 @@ class ControlClient:
         self.pending_events = []
         self.id_counter = 1
 
-    def connect(self, path: Path):
+    def connect(self, path: Path) -> None:
         """
         Connect to a server listening under a given socket path.
         """
@@ -73,7 +73,7 @@ class ControlClient:
 
         self.conn_file = self.conn.makefile()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """
         Disconnect from server.
         """
