@@ -767,8 +767,7 @@ def _create_cache(client: Client, container: Container, template_name: str,
     base_name = template_name + '.' + container.uuid
     cache_path = client.new_path(WildlandObject.Type.STORAGE, base_name,
                                  skip_numeric_suffix=True, base_dir=client.cache_dir)
-    client.save_new_object(WildlandObject.Type.STORAGE, cache, template_name, cache_path,
-                           encrypt=False)
+    client.save_new_object(WildlandObject.Type.STORAGE, cache, template_name, cache_path)
     if verbose:
         click.echo(f'Created cache: {cache_path} with path: {path}')
     return cache
@@ -836,7 +835,7 @@ def delete_cache(obj: ContextObj, name):
 @click.pass_obj
 def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: bool,
           import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
-          manifests_catalog: bool, with_cache) -> None:
+          manifests_catalog: bool, with_cache: str) -> None:
     """
     Mount a container given by name or path to its manifest. Repeat the argument to mount
     multiple containers.

@@ -768,8 +768,7 @@ class Client:
 
     def save_object(self, object_type: WildlandObject.Type,
                     obj, path: Optional[Path] = None,
-                    storage_driver: Optional[StorageDriver] = None,
-                    encrypt: bool = True) -> Path:
+                    storage_driver: Optional[StorageDriver] = None) -> Path:
         """
         Save an existing Wildland object and return the path it was saved to.
         :param obj: Object to be saved
@@ -777,14 +776,13 @@ class Client:
         :param path: (optional), path to save the object to; if omitted, object's local_path will be
         used.
         :param storage_driver: if the object should be written to a given StorageDriver
-        :param encrypt: encrypts the manifest if true (default)
         """
         path = path or obj.local_path
         assert path is not None
         if object_type == WildlandObject.Type.USER:
             data = self.session.dump_user(obj, path)
         else:
-            data = self.session.dump_object(obj, path, encrypt=encrypt)
+            data = self.session.dump_object(obj, path)
 
         if storage_driver:
             with storage_driver:
@@ -800,7 +798,7 @@ class Client:
         return path
 
     def save_new_object(self, object_type: WildlandObject.Type, object_, name: Optional[str] = None,
-                        path: Optional[Path] = None, encrypt: bool = True):
+                        path: Optional[Path] = None):
         """
         Save a new object in appropriate directory. Use the name as a hint for file
         name.
@@ -816,7 +814,7 @@ class Client:
 
             path = self.new_path(object_type, name or object_type.value)
 
-        return self.save_object(object_type, object_, path=path, encrypt=encrypt)
+        return self.save_object(object_type, object_, path=path)
 
     def new_path(self, manifest_type: WildlandObject.Type, name: str,
                  skip_numeric_suffix: bool = False, base_dir: Path = None) -> Path:

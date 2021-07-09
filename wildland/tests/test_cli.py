@@ -1914,8 +1914,10 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
         assert cache_manifest.exists()
         with open(cache_manifest) as f:
             doc = list(load_yaml_all(f))
-            cache_id = doc[1]['backend-id']
-            owner = doc[1]['owner']
+            # parse dummy encryption
+            doc = list(load_yaml_all(doc[1]['encrypted']['encrypted-data']))
+            cache_id = doc[0]['backend-id']
+            owner = doc[0]['owner']
 
         backends = os.listdir(user_mount_path / '.backends' / uuid)
         backends = list(filter(lambda x: not x.endswith('pseudomanifest'), backends))
