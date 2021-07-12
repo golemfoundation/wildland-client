@@ -359,16 +359,19 @@ class WildlandFSClient:
 
     def find_all_storage_ids_by_path(self, path: PurePosixPath) -> List[int]:
         """
-        Find all storage IDs for a given mount path. This method is similar to
-        :meth:`WildlandFSClient.find_storage_id_by_path` but instead of returning just one (first)
-        storage ID, it returns all of them. This method is useful when unmounting a storage by given
-        path.
+        Find all storage IDs for a given mount path (either absolute or relative with respect to the
+        mount directory). This method is similar to :meth:`WildlandFSClient.find_storage_id_by_path`
+        but instead of returning just one (first) storage ID, it returns all of them. This method is
+        useful when unmounting a storage by given path.
 
         Note that this method returns at least 2 storage IDs if called with ``path`` corresponding
         to primary storage: one for pseudomanifest storage (which is also mounted in primary path)
         and one for the underlying storage.
         """
         paths = self.get_paths()
+        if path.is_relative_to(self.mount_dir):
+            path = path.relative_to(self.mount_dir)
+        path = PurePosixPath('/') / path
         return paths.get(path, [])
 
     def get_primary_unique_mount_path_from_storage_id(self, storage_id: int) -> PurePosixPath:

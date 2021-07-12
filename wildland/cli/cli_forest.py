@@ -52,7 +52,7 @@ def forest_():
     """
 
 
-@forest_.command(short_help='Mount Wildland Forest')
+@forest_.command(short_help='Mount Wildland Forest', alias=['umount'])
 @click.argument('forest_names', nargs=-1, required=True)
 @click.option('--save', '-s', is_flag=True,
               help='Save the forest containers to be mounted at startup')

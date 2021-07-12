@@ -305,8 +305,8 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
-:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] <container>`
----------------------------------------------------------------------------------------------------
+:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] [--save] <container>`
+------------------------------------------------------------------------------------------------------------
 
 .. option:: --path <path>
 
@@ -314,12 +314,25 @@ Stop the current mount-watch daemon.
 
 .. option:: -w, --with-subcontainers
 
-    Unmount the subcontainers of those containers. Subcontainers are unmounted recursively (i.e. if
-    any subcontainer provides own set of subcontainers, unmount those too). This is the default.
+   Unmount the subcontainers of those containers. Subcontainers are unmounted recursively (i.e. if
+   any subcontainer provides own set of subcontainers, unmount those too). This is the default.
 
 .. option:: -W, --without-subcontainers
 
    Do not unmount the subcontainers of those containers.
+
+.. option:: -s, --save
+
+   Undo ``wl container mount --save <container>``. ``<container>`` must be specified exactly the
+   same as when running ``wl container mount --save <container>``.
+
+   For example, if you run::
+
+      wl c mount --save '~/mnt/.manifests/.uuid/*'
+
+   then it will not work::
+
+      wl c unmount --save '~/mnt/.manifests/.uuid/*.yaml'
 
 .. program:: wl-container-publish
 .. _wl-container-publish:

@@ -725,8 +725,8 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
           import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
           manifests_catalog: bool) -> None:
     """
-    Mount a container given by name or path to manifest. Repeat the argument to
-    mount multiple containers.
+    Mount a container given by name or path to container's manifest. Repeat the argument to mount
+    multiple containers.
 
     The Wildland system has to be mounted first, see ``wl start``.
     """
@@ -745,7 +745,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         obj.client.auto_import_users = True
 
     params: List[Tuple[Container, List[Storage], List[Iterable[PurePosixPath]], Container]] = []
-
+    successfully_loaded_container_names: List[str] = []
     fails: List[str] = []
 
     for container_name in container_names:
@@ -777,7 +777,9 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         except WildlandError as ex:
             fails.append(f'Failed to load all containers from {container_name}:{str(ex)}')
 
-        params.extend(current_params)
+        if current_params:
+            successfully_loaded_container_names.append(container_name)
+            params.extend(current_params)
 
     if len(params) > 1:
         click.echo(f'Mounting storages for containers:  {len(params)}')
@@ -792,7 +794,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         default_containers = obj.client.config.get('default-containers')
         default_containers_set = set(default_containers)
         new_default_containers = default_containers.copy()
-        for container_name in container_names:
+        for container_name in successfully_loaded_container_names:
             if container_name in default_containers_set:
                 click.echo(f'Already in default-containers: {container_name}')
                 continue
@@ -802,6 +804,9 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         if len(new_default_containers) > len(default_containers):
             obj.client.config.update_and_save(
                 {'default-containers': new_default_containers})
+        if len(new_default_containers) > len(default_containers_set):
+            fails.append('default-containers in your config file has duplicates. '
+                         'Consider removing them.')
 
     if fails:
         raise WildlandError('\n'.join(fails))
@@ -809,32 +814,40 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
-              help='mount path to search for')
+              help='Mount path to search for')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
               help='Do not unmount subcontainers.')
+@click.option('--save', '-s', 'undo_save', is_flag=True, default=False,
+              help='Undo mount --save option')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
-def unmount(obj: ContextObj, path: str, with_subcontainers: bool, container_names: Sequence[str]):
+def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: bool,
+            container_names: Sequence[str]) -> None:
     """
-    Unmount a container. You can either specify the container manifest, or
-    identify the container by one of its path (using ``--path``).
+    Unmount a container given by name, path to container's manifest or by one of its path (using
+    ``--path``). Repeat the argument to unmount multiple containers.
     """
-    _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers)
+    _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers,
+             undo_save=undo_save)
 
 
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
-             with_subcontainers: bool = True):
+             with_subcontainers: bool = True, undo_save: bool = False) -> None:
     obj.fs_client.ensure_mounted()
 
     if bool(container_names) + bool(path) != 1:
         raise click.UsageError('Specify either container or --path')
 
-    failed = False
-    exc_msg = 'Failed to load some container manifests:\n'
+    if undo_save and path:
+        raise click.UsageError('Specify either --save or --path')
+
+    fails: List[str] = []
     storage_ids = []
     counter = Counter()
 
     if container_names:
+        fails.append('Failed to load some container manifests:')
+
         for container_name in container_names:
             counter.message = f"Loading containers (from '{container_name}'): "
             try:
@@ -842,13 +855,32 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
                     obj, container_name, counter, with_subcontainers)
                 storage_ids.extend(container_storage_ids)
             except WildlandError as ex:
-                failed = True
-                exc_msg += str(ex) + '\n'
+                fails.append(str(ex))
+            else:
+                fails.pop()
     else:
         counter.message = f"Loading containers (from '{path}'): "
         container_storage_ids = _collect_storage_ids_by_container_path(
-            obj, path, counter, with_subcontainers)
+            obj, PurePosixPath(path), counter, with_subcontainers)
         storage_ids.extend(container_storage_ids)
+
+    if undo_save:
+        default_containers = obj.client.config.get('default-containers')
+        default_containers_set = set(default_containers)
+        if len(default_containers) > len(default_containers_set):
+            fails.append('default-containers in your config file has duplicates. '
+                         'Consider removing them.')
+        new_default_containers = default_containers.copy()
+        for container_name in container_names:
+            if container_name not in default_containers_set:
+                click.echo(f'Not in default-containers: {container_name}')
+                continue
+            click.echo(f'Removing from default-containers: {container_name}')
+            default_containers_set.remove(container_name)
+            new_default_containers[:] = [c for c in new_default_containers if c != container_name]
+        if len(new_default_containers) < len(default_containers):
+            obj.client.config.update_and_save(
+                {'default-containers': new_default_containers})
 
     if not storage_ids:
         raise WildlandError('No containers mounted')
@@ -858,8 +890,8 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     for storage_id in storage_ids:
         obj.fs_client.unmount_storage(storage_id)
 
-    if failed:
-        raise WildlandError(exc_msg)
+    if fails:
+        raise WildlandError('\n'.join(fails))
 
 
 def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
@@ -886,13 +918,14 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
     return storage_ids
 
 
-def _collect_storage_ids_by_container_path(obj: ContextObj, path: str,
+def _collect_storage_ids_by_container_path(obj: ContextObj, path: PurePosixPath,
         counter: progress.counter.Counter, with_subcontainers: bool = True) -> List[int]:
     """
-    Return all storage IDs corresponding to a given mount path.
+    Return all storage IDs corresponding to a given mount path. Path can be either absolute or
+    relative with respect to the mount directory.
     """
 
-    storage_ids = counter.iter(obj.fs_client.find_all_storage_ids_by_path(PurePosixPath(path)))
+    storage_ids = counter.iter(obj.fs_client.find_all_storage_ids_by_path(path))
     all_storage_ids = []
 
     for storage_id in storage_ids:
