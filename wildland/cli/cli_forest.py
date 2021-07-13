@@ -149,14 +149,14 @@ def create(ctx: click.Context,
          storage from Forest manifests container
 
     """
-    _boostrap_forest(ctx,
+    _bootstrap_forest(ctx,
                      user,
                      storage_template,
                      manifest_local_dir,
                      access)
 
 
-def _boostrap_forest(ctx: click.Context,
+def _bootstrap_forest(ctx: click.Context,
                      user: str,
                      manifest_storage_template_name: str,
                      manifest_local_dir: str = '/',
@@ -229,7 +229,7 @@ def _boostrap_forest(ctx: click.Context,
         manifests_backend = StorageBackend.from_params(manifests_storage.params)
 
         # Provision manifest storage with container from manifest catalog
-        _boostrap_manifest(manifests_backend, catalog_container.local_path,
+        _bootstrap_manifest(manifests_backend, catalog_container.local_path,
                            Path('.manifests.yaml'))
 
         for storage in obj.client.all_storages(container=catalog_container):
@@ -254,7 +254,7 @@ def _boostrap_forest(ctx: click.Context,
         # Refresh user's manifests catalog
         obj.client.recognize_users_and_bridges()
 
-        _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
+        _bootstrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
         Publisher(obj.client, catalog_container).publish_container()
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
@@ -289,7 +289,7 @@ def _create_container(obj: ContextObj,
     return container
 
 
-def _boostrap_manifest(backend: StorageBackend, manifest_path: Path, file_path: Path):
+def _bootstrap_manifest(backend: StorageBackend, manifest_path: Path, file_path: Path):
     with backend:
         with backend.create(PurePosixPath(file_path), os.O_CREAT | os.O_WRONLY) as manifest_obj:
             data = manifest_path.read_bytes()

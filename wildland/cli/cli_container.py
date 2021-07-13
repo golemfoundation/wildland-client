@@ -814,11 +814,11 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 
 @container_.command(short_help='unmount container', alias=['umount'])
 @click.option('--path', metavar='PATH',
-              help='Mount path to search for')
+              help='Mount path to search for.')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
               help='Do not unmount subcontainers.')
 @click.option('--save', '-s', 'undo_save', is_flag=True, default=False,
-              help='Undo mount --save option')
+              help='Undo mount --save option.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: bool,
