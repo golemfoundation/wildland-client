@@ -4,7 +4,7 @@ set -ex
 
 refresh() {
     # TODO: this suppresses errors returned from wlfuse
-    echo '{"cmd": "clear-cache"}' | nc -NU $WL_CTRL_SOCK >/dev/null
+    echo '{"cmd": "clear-cache"}' | nc $NCOPTS $WL_CTRL_SOCK >/dev/null
 }
 
 # Benchmark:
