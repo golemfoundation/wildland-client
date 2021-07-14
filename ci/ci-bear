@@ -4,7 +4,7 @@ set -ex
 
 refresh() {
     # TODO: this suppresses errors returned from wlfuse
-    echo '{"cmd": "clear-cache"}' | nc $NCOPTS $WL_CTRL_SOCK >/dev/null
+    echo '{"cmd": "clear-cache"}' | nc "$NCOPTS" "$WL_CTRL_SOCK" >/dev/null
 }
 
 # Benchmark:
@@ -13,7 +13,7 @@ refresh() {
 
 # Mount all containers
 refresh
-time -p chronic ./wl container mount --with-subcontainers BearDB
+time -p chronic "$WL_CLI" container mount --with-subcontainers BearDB
 
 # List contents of macro-container
 refresh
