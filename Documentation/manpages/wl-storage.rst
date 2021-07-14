@@ -280,6 +280,15 @@ Create encrypted storage for a given container. Please read details below to und
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/gitlab-graphql.rsti
 
+.. program:: wl-storage-create-git
+.. _wl-storage-create-git:
+
+:command:`wl storage create git --container <container> [-u] [--user <user>] --url <url> [--username <username>] [--password <password>] [--no-publish] <storage>`
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/git.rsti
+
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:
