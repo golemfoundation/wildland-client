@@ -1,0 +1,2 @@
+. /home/user/env/bin/activate
+pip install . plugins/*
