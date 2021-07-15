@@ -70,7 +70,7 @@ bear-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/wildand-test-runner.sh ./ci/ci-bear
+    - /bin/sh ./ci/wildand-test-runner.sh ./ci/ci-bear
 
 imap-test:
   stage: test
