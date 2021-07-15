@@ -1,3 +1,8 @@
 . /home/user/env/bin/activate
 pip install . plugins/*
-export NCOPTS="-NU"
+
+refresh() {
+    # TODO: this suppresses errors returned from wlfuse
+    echo '{"cmd": "clear-cache"}' | nc "$WL_CTRL_SOCK" >/dev/null
+}
+

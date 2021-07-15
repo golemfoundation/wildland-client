@@ -5,5 +5,4 @@ for f in ${testname}-setup-*; do
 	. $f
     fi
 done
-
 . $testname
