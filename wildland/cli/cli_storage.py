@@ -178,7 +178,8 @@ def _do_create(
         return
 
     try:
-        Publisher(obj.client, container).republish_container()
+        user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+        Publisher(obj.client, user).republish_container(container)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
@@ -345,7 +346,8 @@ def do_create_storage_from_templates(client: Client, container: Container,
 
     if not no_publish:
         try:
-            Publisher(client, container).republish_container()
+            user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+            Publisher(client, user).republish_container(container)
         except WildlandError as ex:
             raise WildlandError(f"Failed to republish container: {ex}") from ex
 

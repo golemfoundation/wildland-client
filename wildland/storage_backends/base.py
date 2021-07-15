@@ -184,7 +184,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
                                             Some backends (eg. dateproxy) don't specify any
                                             locations as they are merely proxying actual backends.
-                                            In those cases this costant should be omitted.
+                                            In those cases this constant should be omitted.
 
                                             Examples:
                                             - `location` for `local` storage as it points to a
