@@ -53,6 +53,7 @@ from wildland.exc import WildlandError
 
 logger = logging.getLogger('storage-s3')
 
+
 class S3FileAttr(Attr):
     """
     File attributes, include S3 E-Tag
@@ -85,12 +86,14 @@ class S3File(FullBufferedFile):
     A buffered S3 file.
     """
 
-    def __init__(self, client, bucket, key, content_type, attr, clear_cache_callback):
-        super().__init__(attr, clear_cache_callback)
+    def __init__(self, client, bucket, key, content_type, attr, update_cache, cache_lock):
+        super().__init__(attr, None)
         self.client = client
         self.bucket = bucket
         self.key = key
         self.content_type = content_type
+        self._update_cache = update_cache
+        self._cache_lock = cache_lock
 
     def read_full(self) -> bytes:
         response = self.client.get_object(
@@ -108,6 +111,18 @@ class S3File(FullBufferedFile):
             Body=BytesIO(data),
             ContentType=self.content_type)
         return len(data)
+
+    def clear_cache(self):
+        """
+        Get the file info and update a single cache record instead of invalidating the entire cache.
+        """
+        response = self.client.get_object(
+            Bucket=self.bucket,
+            Key=self.key,
+        )
+        attr = S3FileAttr.from_s3_object(response)
+        with self._cache_lock:
+            self._update_cache(self.key, attr)
 
 
 class PagedS3File(PagedFile):
@@ -374,7 +389,6 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
             res_obj.file_bytes = response['Body'].read()
             yield res_path, res_obj
 
-
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:
         """
@@ -398,7 +412,7 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 content_type = self.get_content_type(path)
                 return S3File(
                     self.client, self.bucket, self.key(path),
-                    content_type, attr, self.clear_cache)
+                    content_type, attr, self._update_cache, self.cache_lock)
 
             return PagedS3File(self.client, self.bucket, self.key(path), attr)
         except botocore.exceptions.ClientError as e:
@@ -416,11 +430,14 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
             Bucket=self.bucket,
             Key=self.key(path),
             ContentType=content_type)
+
         attr = Attr.file(size=0, timestamp=int(time.time()))
-        self.clear_cache()
+        with self.cache_lock:
+            self._update_cache(path, attr)
+
         self._update_index(path.parent)
         return S3File(self.client, self.bucket, self.key(path),
-                      content_type, attr, self.clear_cache)
+                      content_type, attr, self._update_cache, self.cache_lock)
 
     def unlink(self, path: PurePosixPath):
         if self.with_index and path.name == self.INDEX_NAME:
@@ -429,7 +446,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         self.client.delete_object(
             Bucket=self.bucket,
             Key=self.key(path))
-        self.clear_cache()
+        with self.cache_lock:
+            self._update_cache(path, None)
         self._update_index(path.parent)
 
     def mkdir(self, path: PurePosixPath, _mode: int = 0o777):
@@ -440,7 +458,12 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         self.client.put_object(
             Bucket=self.bucket,
             Key=self.key(path, is_dir=True))
-        self.clear_cache()
+
+        attr = Attr.dir()
+        with self.cache_lock:
+            # self.getattr_cache[path] = Attr.dir()
+            # self.readdir_cache.setdefault(path, set())
+            self._update_cache(path, attr)
         self._update_index(path)
         self._update_index(path.parent)
 
@@ -452,7 +475,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         self.client.delete_object(
             Bucket=self.bucket,
             Key=self.key(path, is_dir=True))
-        self.clear_cache()
+        with self.cache_lock:
+            self._update_cache(path, None)
         self._remove_index(path)
         self._update_index(path.parent)
 
@@ -469,7 +493,6 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         """
         self._rename(move_from, move_to)
 
-        self.clear_cache()
         self._update_index(move_from.parent)
         self._update_index(move_to.parent)
 
@@ -510,7 +533,10 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
             Bucket=self.bucket,
             Key=self.key(path),
             ContentType=self.get_content_type(path))
-        self.clear_cache()
+
+        attr = Attr.file(size=0, timestamp=int(time.time()))
+        with self.cache_lock:
+            self._update_cache(path, attr)
 
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         attr = self.getattr(path)

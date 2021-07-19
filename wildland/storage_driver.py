@@ -16,7 +16,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public LicenUnkse
+# You should have received a copy of the GNU General Public Licence
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -72,8 +72,7 @@ class StorageDriver:
             obj = self.storage_backend.open(relpath, os.O_WRONLY)
             self.storage_backend.ftruncate(relpath, 0, obj)
         else:
-            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY,
-                0o644)
+            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY, 0o644)
 
         try:
             self.storage_backend.write(relpath, data, 0, obj)
@@ -102,9 +101,9 @@ class StorageDriver:
                     raise NotADirectoryError(errno.ENOTDIR, path)
 
     def read_file(self, relpath) -> bytes:
-        '''
+        """
         Read a file from StorageBackend, using FUSE commands.
-        '''
+        """
 
         obj = self.storage_backend.open(relpath, os.O_RDONLY)
         try:
