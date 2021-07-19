@@ -87,7 +87,7 @@ class S3File(FullBufferedFile):
     """
 
     def __init__(self, client, bucket, key, content_type, attr, update_cache, cache_lock):
-        super().__init__(attr, None)
+        super().__init__(attr, self.__clear_cache)
         self.client = client
         self.bucket = bucket
         self.key = key
@@ -112,7 +112,7 @@ class S3File(FullBufferedFile):
             ContentType=self.content_type)
         return len(data)
 
-    def clear_cache(self):
+    def __clear_cache(self):
         """
         Get the file info and update a single cache record instead of invalidating the entire cache.
         """
