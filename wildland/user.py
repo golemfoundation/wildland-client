@@ -42,11 +42,11 @@ logger = logging.getLogger('user')
 
 class _CatalogCache:
     """Helper object to manage catalog cache"""
-    def __init__(self, manifest, cached_object):
+    def __init__(self, manifest: Union[str, dict], cached_object=None):
         self.manifest = manifest
         self.cached_object = cached_object
 
-    def get(self, client, owner):
+    def get(self, client, owner: str):
         """
         Retrieve a cached container object or construct it if needed (for construction it needs
         client and owner).
@@ -90,7 +90,7 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         self.owner = owner
         self.paths = paths
 
-        self._manifests_catalog = [_CatalogCache(manifest, None) for manifest in manifests_catalog]
+        self._manifests_catalog = [_CatalogCache(manifest) for manifest in manifests_catalog]
 
         self.pubkeys = pubkeys
         self.manifest = manifest
@@ -163,7 +163,7 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
 
     def add_catalog_entry(self, path: str):
         """Add a path to a container to user's manifests catalog."""
-        self._manifests_catalog.append(_CatalogCache(path, None))
+        self._manifests_catalog.append(_CatalogCache(path))
 
     @property
     def primary_pubkey(self):

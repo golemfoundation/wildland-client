@@ -10,6 +10,7 @@ sudo /etc/init.d/apache2 start
 ###################
 ### Create bob user
 ###################
+new_user='bob'  # to nicely print cmd prompt before first switch_user
 run wl user create bob
 mkdir -p ~/Downloads/
 cp ~/.config/wildland/users/bob.user.yaml ~/Downloads
@@ -195,8 +196,8 @@ run wl template add webdav carolines-s3 \
     --login 'userro' \
     --password 'passwordro' \
     --url 'http://localhost:8081/' \
-  --access '*' \
-  --read-only
+    --access '*' \
+    --read-only
 
 expected_pcre="Created base path: http://localhost:8081/.manifests/$UUID_PCRE
 Adding storage $UUID_PCRE to container.

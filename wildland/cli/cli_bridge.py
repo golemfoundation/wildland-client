@@ -175,7 +175,7 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
-    Optionally override bridge paths with paths provided via --paths.
+    Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
 
