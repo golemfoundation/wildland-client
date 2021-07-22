@@ -306,7 +306,7 @@ class _StoragePublisher:
         storage_relpaths = {}
         old_relpaths_to_remove = set()
 
-        with StorageDriver.from_storage(self.catalog_storage) as driver:
+        with StorageDriver.from_storage(self.catalog_storage, bulk_writing=True) as driver:
             # replace old relative URLs with new, better URLs
             for backend in self.container.load_storages(include_inline=False):
                 relpath = self._get_relpath_for_storage_manifest(backend.backend_id)

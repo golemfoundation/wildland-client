@@ -34,27 +34,38 @@ class StorageDriver:
     :class:`wildland.storage_backends.base.StorageBackend`
     """
 
-    def __init__(self, storage_backend, storage=None):
+    def __init__(self, storage_backend, storage=None, bulk_writing=False):
         self.storage_backend = storage_backend
         self.storage = storage
+        self.bulk_writing: bool = bulk_writing
 
     @classmethod
-    def from_storage(cls, storage) -> 'StorageDriver':
+    def from_storage(cls, storage, bulk_writing: bool = False) -> 'StorageDriver':
         """
-        Create :class:`StorageDriver` from
-        :class:`wildland.storage.Storage`
+        Create :class:`StorageDriver` from :class:`wildland.storage.Storage`
+
+        @param storage: :class:`wildland.storage.Storage`
+        @param bulk_writing: if True, writing can be cached so reading what we are writing/updating
+                             is undefined (files can be updated or not).
+                             Reading untouched files works as usual.
         """
         # This is to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import
         from wildland.storage_backends.base import StorageBackend
-        return cls(StorageBackend.from_params(storage.params, deduplicate=True), storage=storage)
+        return cls(StorageBackend.from_params(storage.params, deduplicate=True),
+                   storage=storage,
+                   bulk_writing=bulk_writing)
 
     def __enter__(self):
         self.storage_backend.request_mount()
+        if self.bulk_writing:
+            self.storage_backend.start_bulk_writing()
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.storage_backend.request_unmount()
+        if self.bulk_writing:
+            self.storage_backend.stop_bulk_writing()
 
     def write_file(self, relpath, data):
         """

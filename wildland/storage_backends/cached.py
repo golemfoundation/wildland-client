@@ -25,7 +25,7 @@
 Cached storage
 """
 
-from typing import Dict, List, Tuple, Iterable, Set
+from typing import Dict, List, Tuple, Iterable, Set, Optional
 import time
 from pathlib import PurePosixPath
 import errno
@@ -86,7 +86,7 @@ class CachedStorageMixin:
 
         self.expiry = time.time() + self.CACHE_TIMEOUT
 
-    def _update_cache(self, path, attr):
+    def _update_cache(self, path: PurePosixPath, attr: Optional[Attr]) -> None:
         if attr is None:
             self.getattr_cache.pop(path, None)
             self.readdir_cache.pop(path, None)

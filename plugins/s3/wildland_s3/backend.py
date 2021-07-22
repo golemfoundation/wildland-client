@@ -120,9 +120,10 @@ class S3File(FullBufferedFile):
             Bucket=self.bucket,
             Key=self.key,
         )
+        path = PurePosixPath(self.key)
         attr = S3FileAttr.from_s3_object(response)
         with self._cache_lock:
-            self._update_cache(self.key, attr)
+            self._update_cache(path, attr)
 
 
 class PagedS3File(PagedFile):
@@ -548,6 +549,13 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
             return attr.etag
 
         return None
+
+    def start_bulk_writing(self) -> None:
+        self.refresh()
+        self.expiry = float('inf')
+
+    def stop_bulk_writing(self) -> None:
+        self.clear_cache()
 
     def _remove_index(self, path):
         if self.read_only or not self.with_index:
