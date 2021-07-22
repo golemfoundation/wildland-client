@@ -50,6 +50,13 @@ class ManifestError(WildlandError):
     """
 
 
+class ManifestDecryptionKeyUnavailableError(ManifestError):
+    """Error thrown when accessign encrypted Wildland manifest."""
+
+    def __init__(self):
+        super().__init__('Cannot decrypt manifest: decryption key unavailable')
+
+
 class Manifest:
     """
     Represents a loaded manifest.

@@ -568,7 +568,7 @@ class Search:
             previous=step,
         )
 
-        for container in user.load_catalog():
+        for container in user.load_catalog(warn_about_encrypted_manifests=False):
             if container.owner != user.owner:
                 logger.warning('Unexpected owner for %s: %s (expected %s)',
                                container, container.owner, user.owner)

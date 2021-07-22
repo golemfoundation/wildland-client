@@ -25,7 +25,7 @@
 Manage users
 """
 from copy import deepcopy
-from typing import Tuple, Optional, Union, List, Dict
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
 import logging
 import binascii
@@ -358,7 +358,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
     at that manifest in the storage
 
     """
-    for container in user.load_catalog():
+    for container in user.load_catalog(warn_about_encrypted_manifests=False):
         all_storages = obj.client.all_storages(container=container)
 
         for storage_candidate in all_storages:
@@ -457,8 +457,7 @@ def _do_process_imported_manifest(
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
 
-
-def import_manifest(obj: ContextObj, path_or_url: str, paths: Tuple[str],
+def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                     wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
                     only_first: bool):
     """
@@ -476,14 +475,15 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Tuple[str],
     if not default_user:
         raise CliError('Cannot import user or bridge without a --bridge-owner or a default user.')
 
+    posix_paths = [PurePosixPath(p) for p in paths]
+
     if wl_obj_type == WildlandObject.Type.USER:
         copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
         if not copied_manifest_path or not manifest_url:
             return
         try:
             _do_process_imported_manifest(
-                obj, copied_manifest_path, manifest_url,
-                [PurePosixPath(p) for p in paths], default_user)
+                obj, copied_manifest_path, manifest_url, posix_paths, default_user)
         except Exception as ex:
             click.echo(
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
@@ -516,7 +516,7 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Tuple[str],
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=(paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
+                    paths=(posix_paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')

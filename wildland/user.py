@@ -32,7 +32,7 @@ from copy import deepcopy
 import logging
 
 from wildland.wildland_object.wildland_object import WildlandObject
-from .manifest.manifest import Manifest
+from .manifest.manifest import Manifest, ManifestDecryptionKeyUnavailableError
 from .manifest.schema import Schema
 from .exc import WildlandError
 
@@ -60,10 +60,11 @@ class _CatalogCache:
                 # search.py
                 logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
                 raise ex
+            except ManifestDecryptionKeyUnavailableError as ex:
+                raise ex
             except Exception as ex:  # pylint: disable=broad-except
                 # All other errors should not cause WL to completely give up, and we cannot
                 # anticipate all possible kinds of error
-                logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
                 raise WildlandError(f'Cannot load manifests catalog entry: {str(ex)}') from ex
         return self.cached_object
 
@@ -144,16 +145,38 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         """Checks if user has a manifest catalog defined"""
         return bool(self._manifests_catalog)
 
-    def load_catalog(self):
+    def load_catalog(self, warn_about_encrypted_manifests: bool = True):
         """Load and cache all of user's manifests catalog."""
         assert self.client
+        total_containers = 0
+        undecryptable_containers = 0
+        unknown_failure_containers = 0
+
         for cached_object in self._manifests_catalog:
+            total_containers += 1
+
             try:
                 container = cached_object.get(self.client, self.owner)
-            except WildlandError:
+            except ManifestDecryptionKeyUnavailableError as e:
+                undecryptable_containers += 1
+                if warn_about_encrypted_manifests:
+                    logger.warning('User %s: cannot load manifests catalog entry: %s', self.owner,
+                                    str(e))
                 continue
+            except WildlandError as e:
+                unknown_failure_containers += 1
+                continue
+
             if container:
                 yield container
+
+        total_failures = undecryptable_containers + unknown_failure_containers
+
+        if total_failures and total_containers == total_failures:
+            logger.warning('User %s: failed to load all %d of the manifests catalog containers. '
+                           '%d due to lack of decryption key and %d due to unknown errors)',
+                           self.owner, total_failures, undecryptable_containers,
+                           unknown_failure_containers)
 
     def get_catalog_descriptions(self):
         """Provide a human-readable descriptions of user's manifests catalog without loading

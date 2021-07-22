@@ -273,7 +273,6 @@ run wl user create daniel
 run wl start
 
 expected="Created: /home/user/.config/wildland/users/caroline.user.yaml
-WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
 Created: /home/user/.config/wildland/bridges/caroline.bridge.yaml"
 run wl user import ~/Downloads/caroline.user.yaml \
   --path /f/caroline
@@ -281,7 +280,6 @@ run wl user import ~/Downloads/caroline.user.yaml \
 
 expected="User $caroline_userid already exists. Forcing user import.
 Updated: /home/user/.config/wildland/users/caroline.user.yaml
-WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
 Preparing mount (from ':/f/caroline:*:')
 Mounting storages for containers:  2"
 run wl forest mount :/f/caroline:
