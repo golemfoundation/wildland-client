@@ -136,13 +136,26 @@ Create a |~| new container manifest.
 .. program:: wl-container-create-cache
 .. _wl-container-create-cache:
 
-:command:`wl container create-cache [--template <template_name>] <container>`
+:command:`wl container create-cache --template <template_name> <container>`
 -----------------------------------------------------------------------------
 
-Create a local cache storage for the container from a template.
+Create a cache storage for the container from a template. This is used to speed up accessing
+slow remote storages like s3. The template should usually be the default local storage one
+(`wl template create local --location /path/to/cache/root template_name`).
 
-The cache storage becomes container's primary storage when mounted. Old primary storage is kept
-in sync with the cache.
+On the first container mount, old primary storage's content (usually a slow remote one) is copied
+to the cache storage. From then on the cache storage becomes container's primary storage
+when the container is mounted. Old primary storage is kept in sync with the cache when mounted.
+
+Cache storage is created based on the template provided. Because the purpose of the cache storage
+is to be fast, it's best to use a local storage template unless some specific setup is needed.
+When using a default local storage template as outlined above, the cache storage directory
+is `/path/to/cache/root/container_uuid`.
+
+Cache manifests are stored in `<Wildland config root>/cache` directory and are storage manifests.
+Wildland storage commands can be used to display or manually edit them. They have file names
+in the form of `cache_template_name.container_uuid.storage.yaml`.
+
 
 .. option:: -t, --template <template_name>
 
@@ -255,9 +268,7 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
 .. option:: -c, --with-cache <template_name>
 
    Create a local cache storage for the container from a template.
-
-   The cache storage becomes container's primary storage when mounted. Old primary storage is kept
-   in sync with the cache.
+   See :ref:`wl container create-cache <wl-container-create-cache>`.
 
 .. option:: -l, --list-all
 

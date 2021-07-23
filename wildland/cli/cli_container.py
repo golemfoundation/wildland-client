@@ -639,10 +639,32 @@ def _do_sync(client: Client, container: str, source: str, target: str, one_shot:
     return client.run_sync_command('start', **kwargs)
 
 
+def wl_path_for_container(client: Client, container: Container,
+                          user_paths: Iterable[Iterable[PurePosixPath]]) -> str:
+    """
+    Return user-friendly WL path for the container.
+    """
+    ret = client.bridge_separator
+
+    for bridges in user_paths:
+        for path in bridges:
+            ret += str(path) + client.bridge_separator
+
+    # add non-default owner if needed
+    if ret == client.bridge_separator and container.owner != client.config.get('@default-owner'):
+        ret = container.owner + client.bridge_separator
+
+    if len(container.paths) > 1:  # UUID path is always first, we want another one if possible
+        ret += str(container.paths[1]) + client.bridge_separator
+    else:
+        ret += str(container.paths[0]) + client.bridge_separator
+
+    return ret
+
+
 def prepare_mount(obj: ContextObj,
                   container: Container,
                   container_name: str,
-                  cname: Optional[str],
                   user_paths: Iterable[Iterable[PurePosixPath]],
                   remount: bool,
                   with_subcontainers: bool,
@@ -656,7 +678,6 @@ def prepare_mount(obj: ContextObj,
     :param obj: command context from click
     :param container: container object to mount
     :param container_name: container name - used for diagnostic messages (if verbose=True)
-    :param cname: container name used for cache sync
     :param user_paths: paths of the container owner - ['/'] for default user
     :param remount: should remount?
     :param with_subcontainers: should include subcontainers?
@@ -676,17 +697,17 @@ def prepare_mount(obj: ContextObj,
 
     primary: Storage = storages[0]  # get_storages_to_mount() ensures this
     if 'cache' in primary.params:
-        assert cname
         if verbose:
             click.echo(f'Using cache at: {primary.params["location"]}')
         src = storages[1].backend_id  # [1] is the non-cache (old primary)
-        # TODO: store that the initial sync was done somewhere (cache manifest?)
-        if len(os.listdir(primary.params['location'])) == 0:
+        cname = wl_path_for_container(obj.client, container, user_paths)
+        if primary.params['fresh']:
             # perform sync from remote to cache before doing anything to avoid inconsistencies
-            _do_sync(obj.client, cname, src, primary.backend_id, one_shot=True,
-                     unidir=True)
+            _do_sync(obj.client, cname, src, primary.backend_id, one_shot=True, unidir=True)
+            primary.params['fresh'] = False
+            obj.client.save_object(WildlandObject.Type.STORAGE, primary)
         # start bidirectional sync TODO: this should be the only call, we should wait for
-        # the initial sync being finished in the background (smart sync daemon?)
+        # the initial sync being finished in the background (see issue #550)
         _do_sync(obj.client, cname, src, primary.backend_id, one_shot=False, unidir=False)
 
     if not subcontainers or not only_subcontainers:
@@ -737,7 +758,6 @@ def prepare_mount(obj: ContextObj,
                 if isinstance(subcontainer, Container):
                     yield from prepare_mount(obj, subcontainer,
                                              f'{container_name}:{subcontainer.paths[0]}',
-                                             None,
                                              user_paths, remount, with_subcontainers, container,
                                              verbose, only_subcontainers)
 
@@ -759,7 +779,9 @@ def _create_cache(client: Client, container: Container, template_name: str,
     cache = WildlandObject.from_fields(storage_fields, client, WildlandObject.Type.STORAGE,
                                        local_owners=client.config.get('local-owners'))
 
-    cache.params['is-local-owner'] = True  # allow mounting in a local path
+    # these params are not in the Storage schema because they're cache-specific
+    cache.params['fresh'] = True  # not synced with the original storage yet
+    cache.params['original-owner'] = container.owner
     backend = StorageBackend.from_params(cache.params)
     path = backend.location
     with backend:
@@ -788,7 +810,7 @@ def _delete_cache(client: Client, container: Container) -> bool:
 
 @container_.command(short_help='create cache storage for the container')
 @click.argument('name', metavar='CONTAINER')
-@click.option('--template', '-t', metavar='TEMPLATE',
+@click.option('--template', '-t', metavar='TEMPLATE', required=True,
               help='Use the specified storage template to create a new cache storage '
                    '(becomes primary storage for the container while mounted)')
 @click.pass_obj
@@ -880,11 +902,12 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
             for container in reordered:
                 if with_cache:
                     _create_cache(obj.client, container, with_cache, list_all)
+                    obj.client.load_caches()
 
                 try:
                     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
                     mount_params = prepare_mount(
-                        obj, container, str(container), container_name, user_paths,
+                        obj, container, str(container), user_paths,
                         remount, with_subcontainers, None, list_all, only_subcontainers)
                     current_params.extend(mount_params)
                 except WildlandError as ex:

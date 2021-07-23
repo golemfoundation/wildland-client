@@ -38,7 +38,7 @@ from click.exceptions import UsageError
 import pytest
 import yaml
 
-from .test_sync import wait_for_file
+from .test_sync import wait_for_file, wait_for_deletion, make_file
 from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
 from ..cli.cli_container import _resolve_container
@@ -1774,9 +1774,18 @@ def test_container_info(cli, base_dir):
     assert '  path: /PATH' in out_lines
 
 
+def test_container_info_cache(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    name, _, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
+    cli('container', 'create-cache', '--template', 't1', name)
+    result = cli('container', 'info', name, capture=True)
+    pattern = f"^  cache: type: local backend_id: .*? location: {cache_dir}$"
+    assert len(re.findall(pattern, result, re.MULTILINE)) == 1
+
+
 def test_container_cli_cache(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    name, uuid, _, cache_dir = _cache_setup(cli, base_dir, ['c1'], 'User')[0]
+    name, uuid, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
 
     cli('container', 'create-cache', '--template', 't1', name)
 
@@ -1851,21 +1860,23 @@ def _sync_check(dir1, dir2):
     """
     Make sure both dirs content is mirrored.
     """
-    with open(dir1 / 'file1', 'w') as f:
-        f.write('test data 1')
+    make_file(dir1 / 'file1', 'test data 1')
 
     assert wait_for_file(dir2 / 'file1', 'test data 1')
 
-    with open(dir2 / 'file2', 'w') as f:
-        f.write('test data 2')
+    make_file(dir2 / 'file2', 'test data 2')
 
     assert wait_for_file(dir1 / 'file2', 'test data 2')
 
     # if paths contain mount directory then files may be gone already
     _safe_delete(dir1 / 'file1')
+    wait_for_deletion(dir1 / 'file1')
     _safe_delete(dir1 / 'file2')
+    wait_for_deletion(dir1 / 'file2')
     _safe_delete(dir2 / 'file1')
+    wait_for_deletion(dir2 / 'file1')
     _safe_delete(dir2 / 'file2')
+    wait_for_deletion(dir2 / 'file2')
 
 
 def _cache_setup(cli, base_dir, container_names, user_name, subcont_path: str = None):
@@ -1928,7 +1939,6 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
         assert owner == config['@default-owner']
 
         _sync_check(storage_dir, cache_dir)
-        _sync_check(storage_dir, user_mount_path / container_name)
 
         cli('container', 'unmount', container_name)
         cli_fail('container', 'stop-sync', container_name)  # sync should stop after unmount
@@ -1953,7 +1963,8 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
         cli('container', 'unmount', container_name)
 
 
-def test_container_mount_with_cache(cli, cli_fail, base_dir):
+# pylint: disable=unused-argument
+def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -1961,7 +1972,8 @@ def test_container_mount_with_cache(cli, cli_fail, base_dir):
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
 
 
-def test_container_mount_with_cache_other_user(cli, cli_fail, base_dir):
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User1', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
     data = _cache_setup(cli, base_dir, ['c1'], 'User2')
@@ -1969,7 +1981,8 @@ def test_container_mount_with_cache_other_user(cli, cli_fail, base_dir):
     _cache_test(cli, cli_fail, base_dir, data, '0xbbb')
 
 
-def test_container_mount_with_cache_multiple(cli, cli_fail, base_dir):
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1', 'c2']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -1977,7 +1990,8 @@ def test_container_mount_with_cache_multiple(cli, cli_fail, base_dir):
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
 
 
-def test_container_mount_with_cache_subcontainers(cli, base_dir):
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_subcontainers(base_dir, sync, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['Container'], 'User', '/sub.yaml')
 
@@ -2007,12 +2021,7 @@ backends:
     cli('start')
     cli('container', 'mount', '--with-subcontainers', container_name, '--with-cache', 't1')
     _sync_check(storage_dir, cache_dir)
-    _sync_check(base_dir / 'wildland' / container_name, cache_dir)
-    _sync_check(base_dir / 'wildland' / container_name, storage_dir)
-    _sync_check(base_dir / 'wildland' / container_name / 'subdir', cache_dir / 'subdir')
-    # FIXME: the checks below fail when run after these above, but succeed if run on their own...
-    # _sync_check(base_dir / 'wildland' / container_name / 'subdir', storage_dir / 'subdir')
-    # _sync_check(cache_dir / 'subdir', storage_dir / 'subdir')
+    _sync_check(cache_dir / 'subdir', storage_dir / 'subdir')
 
 
 def test_container_mount_with_bridges(cli, base_dir, control_client):

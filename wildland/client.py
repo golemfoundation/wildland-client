@@ -110,10 +110,10 @@ class Client:
         self.cache_dir.mkdir(exist_ok=True, parents=True)
 
         mount_dir = Path(self.config.get('mount-dir'))
-        bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
+        self.bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
         fs_socket_path = Path(self.config.get('fs-socket-path'))
         self.fs_client = WildlandFSClient(mount_dir, fs_socket_path,
-                                          bridge_separator=bridge_separator)
+                                          bridge_separator=self.bridge_separator)
 
         # we only connect to sync daemon if needed
         self._sync_client: Optional[ControlClient] = None
@@ -147,6 +147,17 @@ class Client:
 
         if load:
             self.recognize_users_and_bridges()
+            self.caches: List[Storage] = []
+            self.load_caches()
+
+    def load_caches(self):
+        """
+        Load local cache storages from manifests to memory for fast access.
+        """
+        self.caches.clear()
+        for cache in self.load_all(WildlandObject.Type.STORAGE, decrypt=True,
+                                   base_dir=self.cache_dir, quiet=True):
+            self.caches.append(cache)
 
     def connect_sync_daemon(self):
         """
@@ -845,11 +856,9 @@ class Client:
         """
         Return cache storage for the given container.
         """
-        for cache in self.load_all(WildlandObject.Type.STORAGE, decrypt=True,
-                                   base_dir=self.cache_dir, quiet=True):
-            # TODO: owner should be compared as well, but caches are owned by @default-owner
-            # store original owner in cache manifest?
-            if cache.container_path == container.uuid_path:
+        for cache in self.caches:
+            if cache.container_path == container.uuid_path and \
+                    cache.params['original-owner'] == container.owner:
                 return cache
         return None
 
