@@ -3258,7 +3258,7 @@ def test_status_sync(base_dir, sync, cli):
     cli('storage', 'create', 'local-cached', '--container', 'Cont', '--location', storage2_data)
     cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
     result = cli('status', capture=True)
-    pattern = r"^Cont: RUNNING 'local'.*? <-> 'local-cached'.*?$"
+    pattern = r"^Cont RUNNING 'local'.*? <-> 'local-cached'.*?$"
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
     cli('container', 'stop-sync', 'Cont')
 

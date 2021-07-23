@@ -312,7 +312,8 @@ class ControlServer:
         # server is not inside serve_forever() loop
         if self.server_thread.is_alive():
             self.socket_server.shutdown()
-            self.server_thread.join()
+            if self.server_thread:
+                self.server_thread.join()
 
         # Close connection for all threads and wait for them
         for thread in self.socket_server._threads:  # type: ignore # pylint: disable=protected-access
