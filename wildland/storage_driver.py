@@ -46,8 +46,7 @@ class StorageDriver:
 
         @param storage: :class:`wildland.storage.Storage`
         @param bulk_writing: if True, writing can be cached so reading what we are writing/updating
-                             is undefined (files can be updated or not).
-                             Reading untouched files works as usual.
+        is undefined (files can be updated or not). Reading untouched files works as usual.
         """
         # This is to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import
