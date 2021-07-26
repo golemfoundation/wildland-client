@@ -519,6 +519,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 Key=self.key(move_to),
                 CopySource=f"{self.bucket}/{self.key(move_from)}",
             )
+            with self.cache_lock:
+                self._update_cache(move_to, self.getattr(move_from))
             self.unlink(move_from)
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:
