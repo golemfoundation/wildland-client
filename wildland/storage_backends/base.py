@@ -49,7 +49,7 @@ from ..hashdb import HashDb, HashCache
 from ..link import Link
 from ..container import ContainerStub, Container
 if TYPE_CHECKING:
-    from ..client import Client # pylint: disable=cyclic-import
+    import wildland.client  # pylint: disable=cyclic-import
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
@@ -628,7 +628,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def add_child(self, client: Client, container: Container):
+    def add_child(self, client: wildland.client.Client, container: Container):
         """
         Add subcontainer to this storage.
 
@@ -636,7 +636,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def remove_child(self, client: Client, container: Container):
+    def remove_child(self, client: wildland.client.Client, container: Container):
         """
         Remove subcontainer from this storage.
         """
