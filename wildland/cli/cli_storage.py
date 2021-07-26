@@ -25,7 +25,7 @@
 Storage object
 """
 
-from typing import Iterable, List, Optional, Tuple, Type, Union
+from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
 import logging
@@ -74,7 +74,7 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file.'),
-        click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
+        click.Option(['--watcher-interval'], metavar='SECONDS', required=False, type=int,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--public-url'], metavar='PUBLICURL',
                      help='Set public base URL'),
@@ -87,7 +87,7 @@ def _make_create_command(backend: Type[StorageBackend]):
                           '--access cannot be used. For inline storage, container manifest might '
                           'still be encrypted.'),
         click.Option(['--no-publish'], is_flag=True,
-                    help='do not publish the container after creation'),
+                     help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -104,7 +104,7 @@ def _make_create_command(backend: Type[StorageBackend]):
     return command
 
 
-def _add_create_commands(group):
+def _add_create_commands(group: click.core.Group):
     for backend in get_storage_backends().values():
         try:
             command = _make_create_command(backend)
@@ -115,25 +115,25 @@ def _add_create_commands(group):
 
 def _do_create(
         backend: Type[StorageBackend],
-        name,
-        container,
-        trusted,
-        inline,
-        watcher_interval,
-        public_url,
-        access,
-        encrypt_manifest,
-        no_publish,
+        name: Optional[str],
+        container: str,
+        trusted: bool,
+        inline: bool,
+        watcher_interval: Optional[int],
+        public_url: Optional[str],
+        access: Sequence[str],
+        encrypt_manifest: bool,
+        no_publish: bool,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
 
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
-    if not container.local_path:
+    container_obj = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
+    if not container_obj.local_path:
         raise WildlandError('Need a local container')
 
-    container_mount_path = container.paths[0]
-    click.echo(f'Using container: {container.local_path} ({container_mount_path})')
+    container_mount_path = container_obj.paths[0]
+    click.echo(f'Using container: {container_obj.local_path} ({container_mount_path})')
 
     params = backend.cli_create(data)
 
@@ -143,42 +143,42 @@ def _do_create(
             del params[param]
 
     if watcher_interval:
-        params['watcher-interval'] = int(watcher_interval)
+        params['watcher-interval'] = watcher_interval
 
     params['backend-id'] = str(uuid.uuid4())
     if public_url is not None:
         params['public-url'] = public_url
 
+    access_users = None
+
     if not encrypt_manifest:
-        access = [{'user': '*'}]
+        access_users = [{'user': '*'}]
     elif access:
-        access = [{'user': obj.client.load_object_from_name(
+        access_users = [{'user': obj.client.load_object_from_name(
             WildlandObject.Type.USER, user).owner} for user in access]
-    else:
-        if container.access:
-            access = container.access
-        else:
-            access = None
+    elif container_obj.access:
+        access_users = container_obj.access
+
 
     storage = Storage(
         storage_type=backend.TYPE,
-        owner=container.owner,
+        owner=container_obj.owner,
         container_path=container_mount_path,
         params=params,
         client=obj.client,
         trusted=params.get('trusted', trusted),
-        access=access
+        access=access_users
     )
     storage.validate()
     click.echo(f'Adding storage {storage.backend_id} to container.')
-    obj.client.add_storage_to_container(container, storage, inline, name)
-    click.echo(f'Saved container {container.local_path}')
+    obj.client.add_storage_to_container(container_obj, storage, inline, name)
+    click.echo(f'Saved container {container_obj.local_path}')
 
     if no_publish:
         return
 
     try:
-        Publisher(obj.client, container).republish_container()
+        Publisher(obj.client, container_obj).republish_container()
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
@@ -215,7 +215,7 @@ def list_(obj: ContextObj):
 @click.option('--container', metavar='CONTAINER',
               help='remove reference from specific containers')
 @click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, no_cascade, container):
+def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container: Optional[str]):
     """
     Delete a storage.
     """
@@ -406,10 +406,10 @@ def modify():
 
 
 @modify.command(short_help='set location in the manifest')
-@click.argument('input_file', metavar='FILE')
 @click.option('--location', metavar='PATH', required=True, help='Location to set')
+@click.argument('input_file', metavar='FILE')
 @click.pass_context
-def set_location(ctx: click.Context, input_file, location):
+def set_location(ctx: click.Context, input_file: str, location: str):
     """
     Set location in the manifest.
     """
@@ -421,7 +421,7 @@ def set_location(ctx: click.Context, input_file, location):
               help='Users to add access for')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_access(ctx: click.Context, input_file, access):
+def add_access(ctx: click.Context, input_file: str, access: Sequence[str]):
     """
     Add category to the manifest.
     """
@@ -429,8 +429,8 @@ def add_access(ctx: click.Context, input_file, access):
 
     try:
         for user in access:
-            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-            processed_access.append({'user': user.owner})
+            user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
+            processed_access.append({'user': user_obj.owner})
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex
 
@@ -442,7 +442,7 @@ def add_access(ctx: click.Context, input_file, access):
               help='Users whose access should be revoked')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def del_access(ctx: click.Context, input_file, access):
+def del_access(ctx: click.Context, input_file: str, access: Sequence[str]):
     """
     Remove category from the manifest.
     """
@@ -450,8 +450,8 @@ def del_access(ctx: click.Context, input_file, access):
 
     try:
         for user in access:
-            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-            processed_access.append({'user': user.owner})
+            user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
+            processed_access.append({'user': user_obj.owner})
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex
 
