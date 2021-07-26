@@ -36,17 +36,20 @@ import stat
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union
 from uuid import UUID
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union, TYPE_CHECKING
 
 import click
 import yaml
 
+if TYPE_CHECKING:
+    # pylint: disable=cyclic-import
+    from ..client import Client
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
-from ..container import ContainerStub
+from ..container import ContainerStub, Container
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
@@ -618,6 +621,26 @@ class StorageBackend(metaclass=abc.ABCMeta):
             yield full_path, file_obj_atr
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
+
+    def has_child(self, container_uuid_path: PurePosixPath) -> bool:
+        """
+        Check if the given container is subcontainer of this storage.
+        """
+        raise OptionalError()
+
+    def add_child(self, client: 'Client', container: Container):
+        """
+        Add subcontainer to this storage.
+
+        If container is already a subcontainer it will be overwrite.
+        """
+        raise OptionalError()
+
+    def remove_child(self, client: 'Client', container: Container):
+        """
+        Remove subcontainer from this storage.
+        """
+        raise OptionalError()
 
     def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]]:

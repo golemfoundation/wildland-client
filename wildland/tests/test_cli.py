@@ -1544,7 +1544,6 @@ def test_container_publish_rewrite(cli, tmp_path):
     with open(m1) as file1:
         with open(m2) as file2:
             for line in itertools.chain(file1, file2):
-                print(line)
                 if re.fullmatch(
                         r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}yaml',
                         line.strip()):
@@ -1630,7 +1629,7 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 're-publishing container /.uuid/' in out_lines[1]
+    assert 'Re-publishing container /.uuid/' in out_lines[1]
 
     result = cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
@@ -4301,7 +4300,6 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
 
     # 3 containers + 3 pseudomanifests
     assert len(command) == 6
-    print(command)
     all_paths = command[0]['paths'] + command[1]['paths'] + command[2]['paths']
     expected_paths = {f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
                       f'/.users/0xaaa:/.backends/{entry_uuid}/{entry_backend_id}',

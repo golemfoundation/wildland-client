@@ -117,6 +117,16 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         return self.primary
 
+    @property
+    def is_catalog(self) -> bool:
+        """
+        Check if storage handles subcontainers.
+
+        At the moment only simple file-based backends with manifest-pattern: glob are supported.
+        """
+        return 'manifest-pattern' in self.params \
+               and self.params['manifest-pattern']['type'] == 'glob'
+
     def get_mount_path(self, container: Container) -> PurePosixPath:
         # pylint: disable=unused-argument
         """

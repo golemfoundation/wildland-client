@@ -62,7 +62,7 @@ def forest_():
 @click.option('--no-refresh-users', '-n', is_flag=True, default=False,
               help="Do not refresh remote users when mounting")
 @click.pass_context
-def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refresh_users: bool):
+def mount(ctx: click.Context, forest_names, save: bool, list_all: bool, no_refresh_users: bool):
     """
     Mount a forest given by name or path to manifest. Repeat the argument to
     mount multiple forests.
@@ -192,14 +192,14 @@ def _boostrap_forest(ctx: click.Context,
 
     try:
         catalog_container = _create_container(obj, forest_owner, [Path('/.manifests')],
-                                            f'{user}-forest-catalog', access_list,
-                                            storage_templates, manifest_local_dir)
+                                              f'{user}-forest-catalog', access_list,
+                                              storage_templates, manifest_local_dir)
 
         assert catalog_container.local_path is not None
         assert forest_owner.local_path is not None
 
         catalog_storage = obj.client.select_storage(container=catalog_container,
-                                                  predicate=lambda x: x.is_writeable)
+                                                    predicate=lambda x: x.is_writeable)
 
         # If a writeable catalog storage doesn't have manifest_pattern defined,
         # forcibly set manifest pattern for all storages in this container.
@@ -255,8 +255,8 @@ def _boostrap_forest(ctx: click.Context,
         obj.client.recognize_users_and_bridges()
 
         _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
-        user = obj.client.load_object_from_name(WildlandObject.Type.USER, catalog_container.owner)
-        Publisher(obj.client, user).publish_container(catalog_container)
+        owner = obj.client.load_object_from_name(WildlandObject.Type.USER, catalog_container.owner)
+        Publisher(obj.client, owner).publish_container(catalog_container)
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:

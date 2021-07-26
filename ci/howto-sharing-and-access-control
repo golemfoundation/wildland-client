@@ -72,7 +72,7 @@ encrypted:
 run cat ~/.config/wildland/containers/mycontainer.container.yaml
 
 expected="Saved: /home/user/.config/wildland/containers/mycontainer.container.yaml
-re-publishing container /.uuid/$mycontainer_uuid..."
+Re-publishing container /.uuid/$mycontainer_uuid..."
 run wl container modify set-no-encrypt-manifest mycontainer
 
 expected_pcre="signature: \|
@@ -142,7 +142,7 @@ run wl forest create --access bob alice mywebdav
 
 ## Container publishing
 
-expected="publishing container /.uuid/$alice_and_bob_uuid...
+expected="Publishing container /.uuid/$alice_and_bob_uuid...
 WARN: Some local containers (or container updates) are not published:
 /home/user/.config/wildland/containers/mycontainer.container.yaml
 /home/user/.config/wildland/containers/unencrypted-container.container.yaml"
@@ -214,7 +214,7 @@ Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
-publishing container /.uuid/$UUID_PCRE..."
+Publishing container /.uuid/$UUID_PCRE..."
 run wl container create hello-world \
   --no-encrypt-manifest \
   --path /hello/world \
