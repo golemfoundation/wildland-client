@@ -462,8 +462,6 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
 
         attr = Attr.dir()
         with self.cache_lock:
-            # self.getattr_cache[path] = Attr.dir()
-            # self.readdir_cache.setdefault(path, set())
             self._update_cache(path, attr)
         self._update_index(path)
         self._update_index(path.parent)
@@ -520,7 +518,7 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
                 CopySource=f"{self.bucket}/{self.key(move_from)}",
             )
             with self.cache_lock:
-                self._update_cache(move_to, self.getattr(move_from))
+                self._update_cache(move_to, self.getattr_cache[move_from])
             self.unlink(move_from)
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:
