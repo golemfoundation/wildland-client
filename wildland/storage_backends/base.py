@@ -43,13 +43,13 @@ from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union, TYPE
 import click
 import yaml
 
+import wildland
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
 from ..container import ContainerStub, Container
 
-import wildland
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
 
