@@ -189,6 +189,15 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/gitlab.rsti
 
+.. program:: wl-template-create-gitlab-graphql
+.. _wl-template-create-gitlab-graphql:
+
+:command:`wl template create gitlab-graphql --personal-token <personal-token> NAME`
+-----------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/gitlab-graphql.rsti
+
 .. program:: wl-template-create-ipfs
 .. _wl-template-create-ipfs:
 
@@ -450,3 +459,12 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/gitlab.rsti
+
+.. program:: wl-template-add-gitlab-graphql
+.. _wl-template-add-gitlab-graphql:
+
+:command:`wl template add gitlab-graphql --personal-token <personal-token> NAME`
+-----------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/gitlab-graphql.rsti

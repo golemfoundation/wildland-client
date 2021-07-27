@@ -271,6 +271,15 @@ Create encrypted storage for a given container. Please read details below to und
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/gitlab.rsti
 
+.. program:: wl-storage-create-gitlab-graphql
+.. _wl-storage-create-gitlab-graphql:
+
+:command:`wl storage create gitlab-graphql --container <container> [-u] [--user <user>] --personal-token <personal-token> --project-path <path> [--no-publish] <storage>`
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/gitlab-graphql.rsti
+
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:
