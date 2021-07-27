@@ -167,8 +167,11 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         #labels
         if issue.labels:
             for label in issue.labels:
-                paths.append(PurePosixPath('/labels') /
-                       PurePosixPath(label))
+                to_append = PurePosixPath('/labels')
+                l = label.split('::')
+                for part in l:
+                    to_append = to_append / PurePosixPath(part)
+                paths.append(to_append)
 
         #project_name
         paths.append(PurePosixPath('/projects') /
