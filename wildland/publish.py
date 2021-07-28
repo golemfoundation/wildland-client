@@ -70,7 +70,7 @@ class Publisher:
         """
         Publish the container manifest to user catalog.
         """
-        # get any user catalog storage
+        # get first available user catalog storage
         catalog_storage = next(Publisher.get_catalog_storages(self.client, self.user))
         catalog_storage.add_child(self.client, container)
         self.cache.remove(container)
@@ -143,12 +143,6 @@ class Publisher:
                     continue
 
                 for storage_candidate in all_storages:
-                    if not storage_candidate.is_catalog:
-                        rejected.append(
-                            f'storage {storage_candidate.params["backend-id"]} of '
-                            f'container {container_candidate.uuid} '
-                            'is not a catalog storage (does not have manifest_pattern)')
-                        continue
 
                     if not storage_candidate.is_writeable:
                         rejected.append(
@@ -161,9 +155,16 @@ class Publisher:
                     # Failure in attempt to mount the backend should try the next storage from the
                     # container and if still not mounted, move to the next container
                     try:
-                        with StorageDriver.from_storage(storage_candidate) as _driver:
+                        with StorageDriver.from_storage(storage_candidate) as driver:
+                            if not driver.storage_backend.is_super_storage:
+                                rejected.append(
+                                    f'storage {storage_candidate.params["backend-id"]} of '
+                                    f'container {container_candidate.uuid} '
+                                    'is not a catalog storage (does not have manifest_pattern)')
+                                continue
+
                             ok = True
-                            yield _driver.storage_backend
+                            yield driver.storage_backend
 
                             # yield at most a single storage for a container
                             break

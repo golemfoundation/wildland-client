@@ -624,6 +624,13 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
+    @property
+    def is_super_storage(self) -> bool:
+        """
+        Check if storage handles subcontainers.
+        """
+        return False
+
     def has_child(self, container_uuid_path: PurePosixPath) -> bool:
         """
         Check if the given container is subcontainer of this storage.
@@ -634,13 +641,15 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         Add subcontainer to this storage.
 
-        If container is already a subcontainer it will be overwrite.
+        If given container is already a child of this storage, subcontainer info will be updated.
         """
         raise OptionalError()
 
     def remove_child(self, client: wildland.client.Client, container: Container):
         """
         Remove subcontainer from this storage.
+
+        If given subcontainer is not a child of that storage, nothing happens.
         """
         raise OptionalError()
 

@@ -93,6 +93,16 @@ class FileSubcontainersMixin(StorageBackend):
                 }
         return result
 
+    @property
+    def is_super_storage(self) -> bool:
+        """
+        Check if storage handles subcontainers.
+
+        At the moment only simple file-based backends with manifest-pattern: glob are supported.
+        """
+        return 'manifest-pattern' in self.params \
+               and self.params['manifest-pattern']['type'] == 'glob'
+
     def has_child(self, container_uuid_path: PurePosixPath) -> bool:
         """
         Check if the given container is subcontainer of this storage.
@@ -100,11 +110,7 @@ class FileSubcontainersMixin(StorageBackend):
         container_manifest = next(self._get_relpaths(container_uuid_path))
 
         with StorageDriver(self) as driver:
-            try:
-                driver.read_file(container_manifest)
-                return True
-            except FileNotFoundError:
-                return False
+            return driver.file_exists(container_manifest)
 
     def _get_relpaths(self, container_uuid_path: PurePosixPath,
                       container_expanded_paths: Optional[Iterable[PurePosixPath]] = None) -> \
@@ -121,12 +127,16 @@ class FileSubcontainersMixin(StorageBackend):
     def add_child(self, client: Client, container: Container):
         """
         Add subcontainer to this storage.
+
+        If given subcontainer is already a child of this storage, subcontainer info will be updated.
         """
         self._update_child(client, container, just_remove=False)
 
     def remove_child(self, client: Client, container: Container):
         """
         Remove subcontainer from this storage.
+
+        If given subcontainer is not a child of that storage, nothing happens.
         """
         self._update_child(client, container, just_remove=True)
 

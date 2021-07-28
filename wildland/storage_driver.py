@@ -26,6 +26,7 @@ Convenience module to directly access storage data.
 
 import errno
 import os
+from pathlib import PurePosixPath
 
 
 class StorageDriver:
@@ -112,3 +113,14 @@ class StorageDriver:
             return self.storage_backend.read(relpath, st.size, 0, obj)
         finally:
             self.storage_backend.release(relpath, 0, obj)
+
+    def file_exists(self, relpath: PurePosixPath) -> bool:
+        """
+        Check if file exists.
+        """
+        try:
+            self.storage_backend.getattr(relpath)
+        except FileNotFoundError:
+            return False
+        else:
+            return True
