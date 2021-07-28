@@ -3165,12 +3165,12 @@ def test_bridge_create(cli, base_dir):
 
 # Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
 
-def wl_call(base_config_dir, *args):
-    subprocess.check_call(['./wl', '--base-dir', base_config_dir, *args])
+def wl_call(base_config_dir, *args, **kwargs):
+    subprocess.check_call(['./wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
-def wl_call_output(base_config_dir, *args):
-    return subprocess.check_output(['./wl', '--base-dir', base_config_dir, *args])
+def wl_call_output(base_config_dir, *args, **kwargs):
+    return subprocess.check_output(['./wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 # container-sync
@@ -4532,7 +4532,7 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
 def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
-    # First storage is not read-only, the second storage takes precedence with its custom template
+    # First storage is read-only, the second storage takes precedence with its custom template
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         '--read-only', 'forest-tpl')
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
@@ -4554,7 +4554,7 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
 def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
-    # First storage is not read-only and it has manifest pattern,
+    # First storage is read-only and it has manifest pattern,
     # the second storage takes precedence with the default manifest pattern
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', '--read-only', 'forest-tpl')
@@ -4577,7 +4577,7 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
 def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
 
-    # First storage is not read-only and it has manifest pattern,
+    # First storage is read-only and it has manifest pattern,
     # the second storage takes precedence with the default manifest pattern
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', '--read-only', 'forest-tpl')
@@ -4621,6 +4621,52 @@ def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
     assert data['user']['object'] == 'link'
     assert data['user']['file'] == '/forest-owner.yaml'
     assert data['user']['storage']['type'] == 'local'
+
+
+def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    base_data_dir = tmpdir / 'wldata'
+    storage_data = base_data_dir / 'storage'
+    shared_user_manifests = base_data_dir / 'shared'
+
+    os.mkdir(base_config_dir)
+    os.mkdir(base_data_dir)
+    os.mkdir(storage_data)
+    os.mkdir(shared_user_manifests)
+
+    alice_output = wl_call_output(base_config_dir, 'user', 'create', 'Alice')
+    alice_key = alice_output.decode().splitlines()[0].split(' ')[2]
+
+    wl_call(base_config_dir, 'template', 'create', 'local', '--location', storage_data, '--access',
+            'Alice', 'forest-template')
+    wl_call(base_config_dir, 'template', 'add', 'webdav',
+        '--url', 'http://foo-location.com',
+        '--login', 'foo-login',
+        '--password', 'foo-password', 'forest-template')
+
+    wl_call(base_config_dir, 'forest', 'create', '--access', '*', 'Alice', 'forest-template')
+
+    shutil.copy(Path(f'{base_config_dir}/users/Alice.user.yaml'),
+                Path(f'{shared_user_manifests}/Alice.yaml'))
+
+    wl_call(base_config_dir, 'user', 'delete', 'Alice', '--cascade')
+
+    # We need to manually remove Alice's keys (see: TODO issue #531)
+    Path(f'{base_config_dir}/keys/{alice_key}.sec').unlink()
+
+    wl_call(base_config_dir, 'user', 'create', 'Bob')
+
+    output = wl_call_output(base_config_dir, 'user', 'import',
+                            f'{shared_user_manifests}/Alice.yaml',
+                            stderr=subprocess.STDOUT)
+
+    lines = output.decode().splitlines()
+    assert lines == [
+        f'Created: {base_config_dir}/users/Alice.user.yaml',
+        f'WARNING:user:User {alice_key}: failed to load all 2 of the manifests catalog containers. '
+         '1 due to lack of decryption key and 1 due to unknown errors)',
+        f'Created: {base_config_dir}/bridges/Alice.bridge.yaml'
+    ]
 
 
 ## Storage params sanity test
