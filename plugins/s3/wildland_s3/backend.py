@@ -27,7 +27,7 @@ S3 storage backend
 
 from pathlib import PurePosixPath
 from io import BytesIO
-from typing import Iterable, List, Optional, Set, Tuple
+from typing import Iterable, List, Optional, Set, Tuple, Callable
 import mimetypes
 import logging
 from urllib.parse import urlparse
@@ -86,7 +86,14 @@ class S3File(FullBufferedFile):
     A buffered S3 file.
     """
 
-    def __init__(self, client, bucket, key, content_type, attr, update_cache, cache_lock):
+    def __init__(self,
+                 client,
+                 bucket: bytes,
+                 key: str,
+                 content_type: str,
+                 attr: Attr,
+                 update_cache: Callable[[PurePosixPath, Attr], None],
+                 cache_lock: threading.Lock):
         super().__init__(attr, self.__clear_cache)
         self.client = client
         self.bucket = bucket
