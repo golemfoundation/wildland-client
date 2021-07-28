@@ -28,7 +28,7 @@ wl container create gitlab-container --path /gitlab
 ```
 You can then create storage that will be associated with said macro-container:
 ```
-wl storage create gitlab-graphql --container gitlab-container \ 
+wl storage create gitlab-graphql --container gitlab-container \
                                  --personal-token <token> \
                                  [--project-path <projectpath>]
 ```
