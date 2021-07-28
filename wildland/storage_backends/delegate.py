@@ -106,10 +106,11 @@ class DelegateProxyStorageBackend(StorageBackend):
         self.reference.request_mount()
         # Check if referenced subdirectory actually exists
         try:
-            if self.reference.getattr(self.subdirectory):
+            if self.reference.getattr(self._path(PurePosixPath('.'))):
                 return
-        except FileNotFoundError:
-            raise WildlandError(f'delegate container refers to nonexistent location {self.subdirectory}')
+        except FileNotFoundError as err:
+            raise WildlandError('delegate container refers to nonexistent location'
+                                f' {self.subdirectory} of {self.reference}') from err
 
     def unmount(self):
         self.reference.request_unmount()
