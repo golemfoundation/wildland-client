@@ -1,4 +1,6 @@
-# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines,unused-import
+
+from wildland.tests.conftest import cli, base_dir
 
 
 def test_container_publish_to_s3(monkeypatch, cli):
