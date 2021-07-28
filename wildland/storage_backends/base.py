@@ -625,7 +625,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
                 yield from self.walk(full_path)
 
     @property
-    def is_super_storage(self) -> bool:
+    def supports_publish(self) -> bool:
         """
         Check if storage handles subcontainers.
         """

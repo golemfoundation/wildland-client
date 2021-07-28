@@ -156,7 +156,7 @@ class Publisher:
                     # container and if still not mounted, move to the next container
                     try:
                         with StorageDriver.from_storage(storage_candidate) as driver:
-                            if not driver.storage_backend.is_super_storage:
+                            if not driver.storage_backend.supports_publish:
                                 rejected.append(
                                     f'storage {storage_candidate.params["backend-id"]} of '
                                     f'container {container_candidate.uuid} '

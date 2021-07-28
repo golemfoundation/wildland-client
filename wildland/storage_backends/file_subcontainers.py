@@ -94,7 +94,7 @@ class FileSubcontainersMixin(StorageBackend):
         return result
 
     @property
-    def is_super_storage(self) -> bool:
+    def supports_publish(self) -> bool:
         """
         Check if storage handles subcontainers.
 
