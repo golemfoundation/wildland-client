@@ -173,6 +173,9 @@ class TemplateFile:
         with self.file_path.open() as f:
             return [StorageTemplate(source_data=data) for data in load_yaml(f)]
 
+    def __lt__(self, other):
+        return str(self) < str(other)
+
     def __str__(self):
         file_name = self.file_path.name
 
