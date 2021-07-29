@@ -57,6 +57,7 @@ from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
 from .fs_client import WildlandFSClient
 from .config import Config
+from .envprovider import EnvProvider
 from .exc import WildlandError
 from .search import Search
 from .storage_driver import StorageDriver
@@ -91,7 +92,7 @@ class Client:
         :param config_kwargs: Override select config options
         """
         if config is None:
-            config = Config.load(base_dir)
+            config = EnvProvider.shared().load_config({'base_dir': base_dir})
             config.override(**config_kwargs)
         self.config = config
 
