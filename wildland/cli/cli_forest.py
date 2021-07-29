@@ -255,8 +255,11 @@ def _boostrap_forest(ctx: click.Context,
         obj.client.recognize_users_and_bridges()
 
         _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
-        owner = obj.client.load_object_from_name(WildlandObject.Type.USER, catalog_container.owner)
-        Publisher(obj.client, owner).publish_container(catalog_container)
+
+        # Reload forest_owner to load the manifests-catalog info
+        forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
+        Publisher(obj.client, forest_owner).publish_container(catalog_container)
+
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:
