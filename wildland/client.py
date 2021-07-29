@@ -217,13 +217,7 @@ class Client:
         if object_type == WildlandObject.Type.USER:
             # aliases
             if name == '@default':
-                try:
-                    fuse_status = self.fs_client.run_control_command('status')
-                except (ConnectionRefusedError, FileNotFoundError):
-                    fuse_status = {}
-                name = fuse_status.get('default-user')
-                if not name:
-                    name = self.config.get('@default')
+                name = self.config.get('@default')
                 if not name:
                     raise WildlandError('user not specified and @default not set')
 

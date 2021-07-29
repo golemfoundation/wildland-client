@@ -170,7 +170,7 @@ def template_list(obj: ContextObj, show_filenames):
     if not templates:
         click.echo('    No templates available.')
     else:
-        for tpl in templates:
+        for tpl in sorted(templates):
             if show_filenames:
                 click.echo(f"    {tpl} [{template_manager.get_file_path(str(tpl))}]")
             else:
