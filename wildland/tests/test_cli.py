@@ -2400,6 +2400,8 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
         config = load_yaml(f)
     assert config['default-containers'] == ['Container']
 
+    # Get UUID and backend ID
+
     with open(base_dir / 'containers/Container.container.yaml') as f:
         documents = list(load_yaml_all(f))
 
@@ -2423,7 +2425,7 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
         }
     })
 
-    cli('container', 'umount', '--save', 'Container')
+    cli('container', 'umount', '--undo-save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
         config = load_yaml(f)
@@ -2432,12 +2434,77 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
     assert control_client.calls['unmount']['storage_id'] == 102
 
 
+def test_container_umount_undo_save_by_container_names(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = []
+    number_of_containers = 10
+
+    for i in range(number_of_containers):
+        container_name = f'Container{i}'
+        container_names.append(container_name)
+        cli('container', 'create', container_name, '--path', f'/PATH{i}', '--no-encrypt-manifest')
+        cli('storage', 'create', 'local', 'Storage', '--location', f'/PATH{i}',
+            '--container', container_name)
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', '--save', *container_names)
+
+    with open(base_dir / 'config.yaml') as f:
+        config = load_yaml(f)
+    assert config['default-containers'] == container_names
+
+    # Get UUID and backend ID
+
+    paths_dict: dict[str, list[int]] = {}
+    info_dict: dict[str, dict] = {}
+    storage_id = 101
+
+    for i in range(number_of_containers):
+        with open(base_dir / f'containers/Container{i}.container.yaml') as f:
+            documents = list(load_yaml_all(f))
+
+        uuid_path = documents[1]['paths'][0]
+        uuid = get_container_uuid_from_uuid_path(uuid_path)
+        backend_id = documents[1]['backends']['storage'][0]['backend-id']
+        paths_dict |= {
+            f'/.users/0xaaa:/.uuid/{uuid}': [storage_id],
+            f'/.users/0xaaa:/.backends/{uuid}/{backend_id}': [storage_id + 1],
+            f'/.uuid/{uuid}': [storage_id + 2],
+            f'/.backends/{uuid}/{backend_id}': [storage_id + 3],
+            f'/PATH{i}': [storage_id + 4],
+        }
+        info_dict |= {
+            str(storage_id + 4): {
+                'paths': [f'/PATH{i}'],
+                'type': 'local',
+                'extra': {},
+            }
+        }
+        storage_id += 5
+
+    control_client.expect('paths', paths_dict)
+    control_client.expect('unmount')
+    control_client.expect('info', info_dict)
+
+    cli('container', 'umount', '--undo-save', *container_names)
+
+    with open(base_dir / 'config.yaml') as f:
+        config = load_yaml(f)
+    assert config['default-containers'] == []
+
+    assert control_client.calls['unmount']['storage_id'] == 102 + (number_of_containers - 1) * 5
+
+
 def test_container_umount_undo_save_by_container_mountpath(cli):
     cli('user', 'create', 'User')
     cli('start')
 
-    with pytest.raises(UsageError, match='Specify either --save or --path'):
-        cli('container', 'umount', '--save', '--path', './some/container_mountdir')
+    with pytest.raises(UsageError, match='Specify either --undo-save or --path'):
+        cli('container', 'umount', '--undo-save', '--path', './some/container_mountdir')
 
 
 def test_container_umount_save_non_existing(cli, base_dir, control_client):
@@ -2459,8 +2526,10 @@ def test_container_umount_save_non_existing(cli, base_dir, control_client):
     )
 
     for c in container_names:
-        with pytest.raises(WildlandError, match='No containers mounted'):
-            cli('container', 'umount', '--save', c[0])
+        expected_errmsg = 'Failed to load some container manifests:\n' \
+                          f'No container found matching pattern: {c[0]}'
+        with pytest.raises(WildlandError, match=expected_errmsg):
+            cli('container', 'umount', '--undo-save', c[0])
 
         with open(base_dir / 'config.yaml') as f:
             config_yaml = load_yaml(f)

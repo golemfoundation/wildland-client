@@ -662,24 +662,23 @@ class Client:
                         bridges_map
                     )
 
-    def ensure_mount_reference_container(self, containers) -> Tuple[List[Container], str, bool]:
+    def ensure_mount_reference_container(self, containers: Iterator[Container]) -> \
+            Tuple[List[Container], str]:
         """
-        Ensure that for any storage with MOUNT_REFERENCE_CONTAINER corresponding
-        reference_container appears in sequence before the referencer.
+        Ensure that for any storage with ``MOUNT_REFERENCE_CONTAINER`` corresponding
+        ``reference_container`` appears in sequence before the referencer.
         """
 
         dependency_graph: Dict[Container, Set[Container]] = dict()
         exc_msg = ""
-        failed = False
         containers_to_process = []
         try:
             for c in containers:
                 containers_to_process.append(c)
         except WildlandError as ex:
-            failed = True
             exc_msg += str(ex) + '\n'
 
-        def open_node(container):
+        def open_node(container: Container):
             for storage in self.all_storages(container):
                 if 'reference-container' not in storage.params:
                     continue
@@ -705,7 +704,6 @@ class Client:
             try:
                 open_node(container)
             except WildlandError as ex:
-                failed = True
                 exc_msg += str(ex) + '\n'
 
         ts = TopologicalSorter(dependency_graph)
@@ -717,7 +715,7 @@ class Client:
                 continue
             final_order.append(i)
         final_order = dependencies_first + final_order
-        return (final_order, exc_msg, failed)
+        return final_order, exc_msg
 
     @functools.lru_cache
     def get_bridge_paths_for_user(self, user: Union[User, str], owner: Optional[User] = None) \

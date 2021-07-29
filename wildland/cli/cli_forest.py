@@ -52,7 +52,7 @@ def forest_():
     """
 
 
-@forest_.command(short_help='Mount Wildland Forest', alias=['umount'])
+@forest_.command(short_help='Mount Wildland Forest')
 @click.argument('forest_names', nargs=-1, required=True)
 @click.option('--save', '-s', is_flag=True,
               help='Save the forest containers to be mounted at startup')
@@ -88,7 +88,7 @@ def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refres
     mount_container(obj, forests, save=save, list_all=list_all)
 
 
-@forest_.command(short_help='Unmount Wildland Forest')
+@forest_.command(short_help='Unmount Wildland Forest', alias=['umount'])
 @click.option('--path', metavar='PATH', help='mount path to search for')
 @click.argument('forest_names', nargs=-1, required=True)
 @click.pass_context

@@ -305,8 +305,8 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
-:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] [--save] <container>`
-------------------------------------------------------------------------------------------------------------
+:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] [--undo-save] <container>`
+-----------------------------------------------------------------------------------------------------------------
 
 .. option:: --path <path>
 
@@ -321,7 +321,7 @@ Stop the current mount-watch daemon.
 
    Do not unmount the subcontainers of those containers.
 
-.. option:: -s, --save
+.. option:: -u, --undo-save
 
    Undo ``wl container mount --save <container>``. ``<container>`` must be specified exactly the
    same as when running ``wl container mount --save <container>``.
@@ -332,7 +332,10 @@ Stop the current mount-watch daemon.
 
    then it will not work::
 
-      wl c unmount --save '~/mnt/.manifests/.uuid/*.yaml'
+      wl c unmount --undo-save '~/mnt/.manifests/.uuid/*.yaml'
+
+   Also make sure to quote ``~/mnt/.manifests/.uuid/*.yaml`` unless you want it to be expanded by
+   your shell instead of Wildland itself.
 
 .. program:: wl-container-publish
 .. _wl-container-publish:
