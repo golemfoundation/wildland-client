@@ -154,11 +154,9 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
         # for user manifests, allow loading keys for signing even if the manifest was
         # previously malformed and couldn't be loaded
         obj.client.session.sig.use_local_keys = True
-    try:
-        manifest.encrypt_and_sign(obj.client.session.sig,
-                                  only_use_primary_key=(manifest_type == 'user'))
-    except SigError as e:
-        raise click.ClickException(f'Error signing manifest: {e}')
+
+    manifest.encrypt_and_sign(obj.client.session.sig,
+                              only_use_primary_key=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
 
     if in_place:

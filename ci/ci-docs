@@ -1,7 +1,57 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
-set -ex
+set -e
 
+# Make sure every plugin has README which is comprehensive enough
+
+MIN_README_LINES=5
+MIN_README_WORDS=20
+MIN_README_BYTES=150
+
+assert_readme_comprehensive_enough() {
+    local readme_path=$1
+    local actual_number=$2
+    local min_number=$3
+    local err_msg=$4
+
+    if [ "$actual_number" -le "$min_number" ]
+    then
+        echo "ERROR: $readme_path has $actual_number $err_msg ($min_number is minimum)" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+assert_readmes_comprehensive_enough() {
+    for plugin_path in ./plugins/*
+    do
+        readmes=( $(compgen -G "$plugin_path/README*") )
+        readmes_count=${#readmes[@]}
+        if [ "$readmes_count" -eq 0 ]
+        then
+            echo "ERROR: Missing README for plugin $plugin_path" >&2
+            errout=1
+        elif [ "$readmes_count" -gt 1 ]
+        then
+            echo "ERROR: $readmes_count READMEs found in $plugin_path instead of just one" >&2
+            errout=1
+        else
+            readme_path=${readmes[0]}
+            read lines words bytes <<< $(wc < "$readme_path")
+            assert_readme_comprehensive_enough "$readme_path" $lines $MIN_README_LINES "line[s]" || errout=1
+            assert_readme_comprehensive_enough "$readme_path" $words $MIN_README_WORDS "word[s]" || errout=1
+            assert_readme_comprehensive_enough "$readme_path" $bytes $MIN_README_BYTES "byte[s]" || errout=1
+        fi
+    done
+
+    if [ -n "$errout" ]
+    then
+        exit 1
+    fi
+}
+
+assert_readmes_comprehensive_enough
 /home/user/env/bin/pip install . plugins/*
 make -C Documentation/ \
     SPHINXBUILD=/home/user/env/bin/sphinx-build \
