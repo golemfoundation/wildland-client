@@ -26,6 +26,8 @@ rely on this rather than assuming a specific OS on its own.
 """
 import platform
 
+from typing import Optional
+
 from .wlenv import WLEnv
 from .mac.env import MacEnv
 
@@ -34,7 +36,7 @@ class EnvProvider:
     Provider class for platform specific environment data.
     """
 
-    __instance: WLEnv = None
+    __instance: Optional[WLEnv] = None
 
     @staticmethod
     def shared():
