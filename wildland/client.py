@@ -52,7 +52,7 @@ from .link import Link
 from .storage import Storage
 from .wlpath import WildlandPath, PathError
 from .manifest.sig import DummySigContext, SodiumSigContext, SigContext
-from .manifest.manifest import ManifestError, Manifest
+from .manifest.manifest import ManifestDecryptionKeyUnavailableError, ManifestError, Manifest
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
 from .fs_client import WildlandFSClient
@@ -326,7 +326,7 @@ class Client:
         otherwise.
         """
         if 'encrypted' in dictionary.keys():
-            raise WildlandError('Cannot decrypt manifest: decryption key unavailable')
+            raise ManifestDecryptionKeyUnavailableError()
         if dictionary.get('object') == 'link':
             link = self.load_link_object(dictionary, expected_owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
