@@ -1,13 +1,23 @@
+"""
+Mac/Darwin implementation of Config
+"""
 from ..config import Config
 
 
 class MacConfig(Config):
+    """
+    A Config specialization for Darwin OS
+    """
 
     __instance = None
 
     @staticmethod
     def shared():
-        if MacConfig.__instance == None:
+        """
+        Return (instantiate if neccessary) a singleton
+        configuration object.
+        """
+        if MacConfig.__instance is None:
             MacConfig.__instance = MacConfig()
         return MacConfig.__instance
 
