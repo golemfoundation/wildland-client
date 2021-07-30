@@ -70,13 +70,14 @@ bear-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-bear-test
-    
+    - ./ci/wildland-test-runner.sh ./ci/ci-bear
+
 gitlab-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-gitlab-test
+ 
 
 gitlab-graphql-test:
     stage: test
