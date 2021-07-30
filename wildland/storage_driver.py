@@ -62,9 +62,9 @@ class StorageDriver:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        self.storage_backend.request_unmount()
         if self.bulk_writing:
             self.storage_backend.stop_bulk_writing()
+        self.storage_backend.request_unmount()
 
     def write_file(self, relpath, data):
         """
