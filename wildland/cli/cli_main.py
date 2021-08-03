@@ -119,7 +119,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
     for name in to_mount:
         click.echo(f'Resolving containers: {name}')
         containers = obj.client.load_containers_from(name)
-        reordered, _, _ = obj.client.ensure_mount_reference_container(containers)
+        reordered, _ = obj.client.ensure_mount_reference_container(containers)
         for container in reordered:
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
             try:
