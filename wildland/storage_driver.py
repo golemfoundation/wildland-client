@@ -67,6 +67,26 @@ class StorageDriver:
             self.storage_backend.stop_bulk_writing()
         self.storage_backend.request_unmount()
 
+    def __str__(self):
+        return self.to_str()
+
+    def __repr__(self):
+        return self.to_str()
+
+    def to_str(self, include_sensitive=False):
+        """
+        Return string representation
+        """
+        array_repr = [
+            f"backend={self.storage_backend}",
+        ]
+        if self.storage:
+            array_repr += [
+                f"storage={self.storage.to_str(include_sensitive)}"
+            ]
+        str_repr = "storage_driver(" + ", ".join(array_repr) + ")"
+        return str_repr
+
     def write_file(self, relpath, data):
         """
         Write a file to StorageBackend, using FUSE commands. Returns ``(StorageBackend, relpath)``.
