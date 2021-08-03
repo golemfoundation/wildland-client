@@ -68,8 +68,10 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         array_repr = [
             f"file_path={fields['file']}"
         ]
+        if fields.get('storage', None):
+            array_repr += [f"storage={fields['storage']}"]
         if fields.get('storage_backend', None):
-            array_repr += [f"storage={fields['storage_backend']}"]
+            array_repr += [f"storage_backend={fields['storage_backend']}"]
         str_repr = "link(" + ", ".join(array_repr) + ")"
         return str_repr
 
@@ -104,9 +106,9 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         fields = self.to_manifest_fields(inline=True)
         if not include_sensitive:
             del fields['storage']
-        # fixme: we include storage_backend str as non sensitive info
         if self.storage_driver.storage_backend:
-            fields['storage_backend'] = self.storage_driver.storage_backend
+            fields['storage_backend'] = \
+                self.storage_driver.storage_backend.to_str(include_sensitive)
         return fields
 
     def get_target_file(self) -> bytes:
