@@ -25,7 +25,6 @@ Wildland storage backend exposing GitLab issues
 """
 
 # pylint: disable=no-member
-import logging
 import stat
 from typing import List, Tuple
 from functools import partial
@@ -40,9 +39,11 @@ from wildland.storage_backends.base import StorageBackend, Attr, File
 from wildland.manifest.schema import Schema
 from wildland.storage_backends.generated import GeneratedStorageMixin, FuncDirEntry, \
                                                 FileEntry, StaticFile
+from wildland.log import get_logger
 from .gitlab_client import GitlabClient, CompactIssue
 
-logger = logging.getLogger('GitlabBackend')
+logger = get_logger('GitlabBackend')
+
 
 class GitlabFileEntry(FileEntry):
     """

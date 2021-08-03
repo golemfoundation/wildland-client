@@ -29,16 +29,16 @@ from pathlib import PurePosixPath, Path
 import uuid
 from typing import Optional, List, Union, Any, Dict
 import itertools
-import logging
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
 from .wlpath import WildlandPath
 from .exc import WildlandError
+from .log import get_logger
 
 
-logger = logging.getLogger('user')
+logger = get_logger('user')
 
 
 class _StorageCache:
@@ -299,7 +299,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             try:
                 storage = cache.get(self.client, self.owner)
                 if 'reference-container' in storage.params and 'storage' not in storage.params:
-                    logging.warning("Can't select reference storage: %s",
+                    logger.warning("Can't select reference storage: %s",
                                     storage.params['reference-container'])
                     continue
             except (ManifestError, WildlandError):

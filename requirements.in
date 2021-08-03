@@ -7,7 +7,7 @@ click>=8.0  # smarter `show_default`: https://github.com/pallets/click/issues/15
 entrypoints
 pynacl
 graphlib-backport; python_version < '3.9'
-progress
+progressbar2
 
 # Storage
 

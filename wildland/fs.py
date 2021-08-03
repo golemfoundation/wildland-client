@@ -25,7 +25,6 @@
 Wildland Filesystem
 """
 
-import logging
 import os
 import re
 from pathlib import Path
@@ -37,9 +36,10 @@ from .fs_base import WildlandFSBase, Timespec
 from .fuse_utils import debug_handler
 from .log import init_logging
 from .control_server import ControlHandler
+from .log import get_logger
 
 fuse.fuse_python_api = 0, 2
-logger = logging.getLogger('fuse')
+logger = get_logger('fuse')
 
 
 @dataclass

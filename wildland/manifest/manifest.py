@@ -27,7 +27,6 @@ Classes for handling signed Wildland manifests
 
 from typing import Tuple, Optional, Dict
 import re
-import logging
 from pathlib import Path
 
 import yaml
@@ -36,9 +35,9 @@ from .schema import Schema
 from .sig import SigContext, SigError
 from ..utils import load_yaml
 from ..exc import WildlandError
+from ..log import get_logger
 
-
-logger = logging.getLogger('manifest')
+logger = get_logger('manifest')
 
 HEADER_SEPARATOR = b'\n---\n'
 HEADER_SEPARATOR_EMPTY = b'---\n'

@@ -24,10 +24,8 @@
 gitlab_client fetches the information necessary for exposing the issues
 in the backend.
 """
-
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
-import logging
 from typing import List, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
@@ -35,7 +33,10 @@ from datetime import datetime
 import requests
 import gitlab
 
-logger = logging.getLogger('GitlabClient')
+from wildland.log import get_logger
+
+logger = get_logger('GitlabClient')
+
 
 @dataclass(frozen=True)
 class CompactIssue:

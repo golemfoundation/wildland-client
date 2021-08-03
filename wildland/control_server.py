@@ -26,7 +26,6 @@ Socket server for controlling Wildland FS.
 """
 import os
 from pathlib import Path
-import logging
 import threading
 from socketserver import ThreadingMixIn, UnixStreamServer, BaseRequestHandler
 from contextlib import closing
@@ -35,8 +34,9 @@ from typing import Callable, Dict, Optional
 import socket
 
 from .exc import WildlandError
+from .log import get_logger
 
-logger = logging.getLogger('control-server')
+logger = get_logger('control-server')
 
 
 class ControlRequestError(WildlandError):

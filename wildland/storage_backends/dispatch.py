@@ -26,10 +26,12 @@ Dispatch for built-in and added storage types.
 """
 
 from typing import Dict, Type
-import logging
 import entrypoints
 
 from .base import StorageBackend
+from ..log import get_logger
+
+logger = get_logger("storate-backends-dispatch")
 
 
 def load_backends() -> Dict[str, Type[StorageBackend]]:
@@ -39,7 +41,7 @@ def load_backends() -> Dict[str, Type[StorageBackend]]:
 
     result = {}
     for ep in entrypoints.get_group_all('wildland.storage_backends'):
-        logging.debug('storage: %s', ep)
+        logger.debug('storage: %s', ep)
         cls: Type[StorageBackend] = ep.load()
         result[cls.TYPE] = cls
 

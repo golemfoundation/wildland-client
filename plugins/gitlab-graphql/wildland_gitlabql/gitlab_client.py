@@ -27,14 +27,16 @@ initial version of the GitLab backend
 
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=line-too-long
-import logging
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
 import requests
 
-logger = logging.getLogger('GitlabClient')
+from wildland.log import get_logger
+
+logger = get_logger('GitlabClient')
+
 
 @dataclass(frozen=True)
 class CompactIssue:

@@ -27,7 +27,6 @@ A cached version of local storage.
 
 from typing import Iterable, Tuple, Optional
 from pathlib import Path, PurePosixPath
-import logging
 import os
 import errno
 import time
@@ -39,8 +38,9 @@ from .buffered import FullBufferedFile, PagedFile, File
 from .base import StorageBackend, Attr, verify_local_access
 from .local import LocalStorageWatcher
 from ..manifest.schema import Schema
+from ..log import get_logger
 
-logger = logging.getLogger('local-cached')
+logger = get_logger('local-cached')
 
 
 class LocalCachedFile(FullBufferedFile):

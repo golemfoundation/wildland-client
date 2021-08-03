@@ -29,7 +29,7 @@ from pathlib import PurePosixPath
 from io import BytesIO
 from typing import Iterable, List, Optional, Set, Tuple, Callable
 import mimetypes
-import logging
+
 from urllib.parse import urlparse
 import os
 import errno
@@ -49,9 +49,11 @@ from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
 from wildland.exc import WildlandError
+from wildland.log import get_logger
 
 
-logger = logging.getLogger('storage-s3')
+logger = get_logger('storage-s3')
+
 
 
 class S3FileAttr(Attr):

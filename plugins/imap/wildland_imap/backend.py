@@ -23,7 +23,6 @@
 """
 Wildland storage backend exposing read only IMAP mailbox
 """
-import logging
 from functools import partial
 from pathlib import PurePosixPath
 from typing import Iterable, List, Set, Tuple
@@ -37,10 +36,12 @@ from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
 from wildland.container import ContainerStub
+from wildland.log import get_logger
 from .ImapClient import ImapClient, MessageEnvelopeData, \
     MessagePart
 
-logger = logging.getLogger('storage-imap')
+logger = get_logger('storage-imap')
+
 
 class ImapStorageWatcher(SimpleStorageWatcher):
     """
@@ -54,6 +55,7 @@ class ImapStorageWatcher(SimpleStorageWatcher):
 
     def get_token(self):
         return self.client.refresh_if_needed()
+
 
 class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     """

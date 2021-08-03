@@ -28,13 +28,13 @@ Client class for the control server
 from pathlib import Path
 import socket
 import json
-import logging
 from typing import Dict, Iterator, List, Optional
 
 from .exc import WildlandError
 from .control_server import ControlRequest
+from .log import get_logger
 
-logger = logging.getLogger('control-server')
+logger = get_logger('control-server')
 
 
 class ControlClientError(WildlandError):

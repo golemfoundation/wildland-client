@@ -29,7 +29,6 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from datetime import datetime
 import errno
-import logging
 
 import click
 
@@ -38,9 +37,10 @@ from .cached import CachedStorageMixin
 from .buffered import FullBufferedFile
 from .base import StorageBackend, Attr, verify_local_access, StorageError
 from .watch import SimpleStorageWatcher
+from ..log import get_logger
 
 
-logger = logging.getLogger('zip-archive')
+logger = get_logger('zip-archive')
 
 
 class ZipArchiveFile(FullBufferedFile):

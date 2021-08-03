@@ -24,7 +24,6 @@ Storage syncing.
 """
 
 import threading
-import logging
 import hashlib
 import os
 from typing import List, Dict, Iterable, Optional
@@ -35,10 +34,11 @@ from wildland.storage import StorageBackend
 from wildland.storage_backends.watch import FileEvent, StorageWatcher
 from wildland.storage_backends.base import OptionalError, HashMismatchError
 from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict, SyncerStatus
+from wildland.log import get_logger
 
 BLOCK_SIZE = 1024 ** 2
 
-logger = logging.getLogger('sync')
+logger = get_logger('sync')
 
 
 class NaiveSyncer(BaseSyncer):

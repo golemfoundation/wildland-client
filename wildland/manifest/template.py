@@ -23,7 +23,6 @@
 Templates for manifests.
 """
 
-import logging
 import re
 import uuid
 from typing import List, Optional, Union
@@ -41,8 +40,9 @@ from ..utils import load_yaml
 from ..exc import WildlandError
 from ..storage import Storage
 from ..storage_backends.base import StorageBackend
+from ..log import get_logger
 
-logger = logging.getLogger('wl-template')
+logger = get_logger('wl-template')
 
 TEMPLATE_SUFFIX = '.template.jinja'
 
