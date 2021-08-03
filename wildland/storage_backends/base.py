@@ -25,6 +25,7 @@
 Abstract classes for storage
 """
 
+from __future__ import annotations
 import abc
 import hashlib
 import itertools
@@ -36,17 +37,21 @@ import stat
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union
 from uuid import UUID
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union, TYPE_CHECKING
 
 import click
 import yaml
 
+import wildland
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
-from ..container import ContainerStub
+from ..container import ContainerStub, Container
+
+if TYPE_CHECKING:
+    import wildland.client  # pylint: disable=cyclic-import
 
 BLOCK_SIZE = 1024 ** 2
 logger = logging.getLogger('storage')
@@ -184,7 +189,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
                                             Some backends (eg. dateproxy) don't specify any
                                             locations as they are merely proxying actual backends.
-                                            In those cases this costant should be omitted.
+                                            In those cases this constant should be omitted.
 
                                             Examples:
                                             - `location` for `local` storage as it points to a
@@ -618,6 +623,35 @@ class StorageBackend(metaclass=abc.ABCMeta):
             yield full_path, file_obj_atr
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
+
+    @property
+    def supports_publish(self) -> bool:
+        """
+        Check if storage handles subcontainers.
+        """
+        return False
+
+    def has_child(self, container_uuid_path: PurePosixPath) -> bool:
+        """
+        Check if the given container is subcontainer of this storage.
+        """
+        raise OptionalError()
+
+    def add_child(self, client: wildland.client.Client, container: Container):
+        """
+        Add subcontainer to this storage.
+
+        If given container is already a child of this storage, subcontainer info will be updated.
+        """
+        raise OptionalError()
+
+    def remove_child(self, client: wildland.client.Client, container: Container):
+        """
+        Remove subcontainer from this storage.
+
+        If given subcontainer is not a child of that storage, nothing happens.
+        """
+        raise OptionalError()
 
     def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]]:

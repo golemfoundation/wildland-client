@@ -201,9 +201,9 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
         try:
             owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
             if owner_user.has_catalog:
-                click.echo(f'publishing container {container.uuid_path}...')
-                publisher = Publisher(obj.client, container)
-                publisher.publish_container()
+                click.echo(f'Publishing container {container.uuid_path}...')
+                publisher = Publisher(obj.client, owner_user)
+                publisher.publish_container(container)
         except WildlandError as ex:
             raise WildlandError(f"Failed to publish container: {ex}") from ex
 
@@ -244,8 +244,9 @@ def publish(obj: ContextObj, cont):
     """
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    click.echo(f'publishing container {container.uuid_path}...')
-    Publisher(obj.client, container).publish_container()
+    click.echo(f'Publishing container {container.uuid_path}...')
+    user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+    Publisher(obj.client, user).publish_container(container)
 
     # check if all containers are published
     not_published = Publisher.list_unpublished_containers(obj.client)
@@ -267,8 +268,9 @@ def unpublish(obj: ContextObj, cont):
     """
 
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    click.echo(f'unpublishing container {container.uuid_path}...')
-    Publisher(obj.client, container).unpublish_container()
+    user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+    click.echo(f'Unpublishing container {container.uuid_path}...')
+    Publisher(obj.client, user).unpublish_container(container)
 
 
 def _container_info(container, users_and_bridge_paths):
@@ -391,8 +393,9 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
     # unpublish
     if not no_unpublish:
         try:
-            click.echo(f'unpublishing container {container.uuid_path}...')
-            Publisher(obj.client, container).unpublish_container()
+            click.echo(f'Unpublishing container {container.uuid_path}...')
+            user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+            Publisher(obj.client, user).unpublish_container(container)
         except WildlandError:
             # not published
             pass
@@ -414,8 +417,9 @@ def modify():
 
 def _republish_container(client: Client, container: Container) -> None:
     try:
-        click.echo(f're-publishing container {container.uuid_path}...')
-        Publisher(client, container).republish_container()
+        click.echo(f'Re-publishing container {container.uuid_path}...')
+        user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+        Publisher(client, user).republish_container(container)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
