@@ -29,6 +29,7 @@ from __future__ import annotations
 import abc
 import hashlib
 import itertools
+import json
 import logging
 import os
 import pathlib
@@ -41,7 +42,6 @@ from uuid import UUID
 from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union, TYPE_CHECKING
 
 import click
-import yaml
 
 import wildland
 from ..manifest.schema import Schema
@@ -313,8 +313,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
 
         hasher = hashlib.md5()
-        params_for_hash = dict((k, v) for (k, v) in params.items() if k != 'storage')
-        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+        params_for_hash = dict((k, str(v)) for (k, v) in params.items() if k != 'storage')
+        hasher.update(json.dumps(params_for_hash, sort_keys=True).encode('utf-8'))
 
         return str(UUID(hasher.hexdigest()))
 
