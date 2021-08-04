@@ -428,7 +428,7 @@ class Search:
 
         with storage_backend:
             try:
-                children_iter = storage_backend.get_children(part)
+                children_iter = storage_backend.get_children(step.client, part)
             except NotImplementedError:
                 logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
                             storage.params["type"], part)

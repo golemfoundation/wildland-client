@@ -109,6 +109,16 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/categorization.rsti
 
+.. program:: wl-template-create-transpose
+.. _wl-template-create-transpose:
+
+:command:`wl template create transpose --reference-container-url <url> NAME`
+-----------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/transpose.rsti
+
+
 .. program:: wl-template-create-date-proxy
 .. _wl-template-create-date-proxy:
 
@@ -307,6 +317,15 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/categorization.rsti
+
+.. program:: wl-template-add-transpose
+.. _wl-template-add-transpose:
+
+:command:`wl template add transpose --reference-container-url <url> NAME`
+--------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/transpose.rsti
 
 .. program:: wl-template-add-date-proxy
 .. _wl-template-add-date-proxy:

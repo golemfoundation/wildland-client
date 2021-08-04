@@ -653,7 +653,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client: wildland.client.Client = None,
+                     query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]]:
         """
         List all subcontainers provided by this storage.

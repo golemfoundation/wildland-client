@@ -196,6 +196,15 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/categorization.rsti
 
+.. program:: wl-storage-create-transpose
+.. _wl-storage-create-transpose:
+
+:command:`wl storage create transpose --container <container> [-u] [--user <user>] --reference-container-url <url> --rules <rules> --conflict <conflict> [--no-publish] <storage>`
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/transpose.rsti
+
 .. program:: wl-storage-create-googledrive
 .. _wl-storage-create-googledrive:
 

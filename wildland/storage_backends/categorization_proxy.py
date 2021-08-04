@@ -141,7 +141,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
     def open(self, path: PurePosixPath, flags: int) -> File:
         return self.inner.open(path, flags)
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dir_path = PurePosixPath('')
