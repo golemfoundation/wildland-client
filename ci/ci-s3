@@ -49,5 +49,3 @@ time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/im_new ]]'
 time -p chronic /bin/bash -c '$(rm ~/wildland/s3/abbott)'
 
 time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/abbott ]]'
-
-
