@@ -24,7 +24,8 @@
 """
 Generated storage - for auto-generated file lists
 """
-
+import os
+from itertools import chain
 from pathlib import PurePosixPath
 import abc
 import errno
@@ -34,6 +35,7 @@ import time
 import threading
 
 from .base import File, Attr
+from ..manifest.manifest import Manifest
 
 
 class Entry(metaclass=abc.ABCMeta):
@@ -99,11 +101,11 @@ class FuncDirEntry(DirEntry):
     """
     Shortcut for creating function-based directories.
 
-        def get_entries():
-            yield FuncFileEntry('foo.txt', lambda: b'foo')
-            yield FuncFileEntry('bar.txt', lambda: b'bar')
-
-    d = DirEntry('dir', get_entries)
+    >>> def get_entries():
+    ...     yield FuncFileEntry('foo.txt', lambda: b'foo')
+    ...     yield FuncFileEntry('bar.txt', lambda: b'bar')
+    ...
+    >>> d = FuncDirEntry('dir', get_entries)
     """
 
     def __init__(self, name: str,
@@ -235,18 +237,185 @@ class StaticFileEntry(FileEntry):
         return StaticFile(self.data, self.attr)
 
 
+def cli(*args):
+    from ..cli import cli_main
+    cmdline = ['--base-dir', os.environ['WL_BASE_DIR'], *args]
+    # Convert Path to str
+    cmdline = [str(arg) for arg in cmdline]
+    try:
+        cli_main.main.main(args=cmdline, prog_name='wl')
+    except SystemExit as e:
+        if e.code not in [None, 0]:
+            if hasattr(e, '__context__'):
+                assert isinstance(e.__context__, Exception)
+                raise e.__context__
+
+
+class PseudomanifestFile(File):
+    """
+    File for storing pseudomanifests. Only accepts selected modifications.
+    """
+
+    def __init__(self, data: bytes, attr: Attr):
+        self.data = data
+        self.cache: Optional[bytearray] = bytearray()
+        self.cache[:] = data
+        self.attr = attr
+        self.attr.size = len(data)
+
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
+        if length is None:
+            length = self.attr.size - offset
+
+        return bytes(self.cache)[offset:offset+length]
+
+    def release(self, flags):
+        pass
+
+    def fgetattr(self):
+        return self.attr
+
+    def write(self, data: bytes, offset: int) -> int:
+        self.cache[offset:offset + len(data)] = data
+
+        try:
+            new = Manifest.from_unsigned_bytes(self.cache)
+            new.skip_verification()
+            old = Manifest.from_unsigned_bytes(self.data)
+            old.skip_verification()
+        except Exception as e:
+            message = \
+                '\n# All following changes to the manifest' \
+                '\n# was rejected due to encountered errors:' \
+                '\n# ' + data.decode().replace('\n', '\n# ') + \
+                '\n# ' + str(e).replace('\n', '\n# ')
+            self.data[len(self.data) - 1:] = message.encode()
+            raise IOError()
+        else:
+            error_messages = ""
+            # PATHS
+
+            new_paths = new.fields['paths']
+            old_paths = old.fields['paths']
+
+            to_add = [path for path in new_paths if path not in old_paths]
+            paths = list(chain.from_iterable(('--path', path) for path in to_add))
+            if paths:
+                try:
+                    cli('container', 'modify', 'add-path', 'Container', *paths)
+                    old_paths.extend(to_add)
+                except Exception as e:
+                    error_messages += '\n' + str(e)
+
+            to_remove = [path for path in old_paths if path not in new_paths]
+            paths = list(chain.from_iterable(('--path', path) for path in to_remove))
+            if paths:
+                try:
+                    cli('container', 'modify', 'del-path', 'Container', *paths)
+                    for path in to_remove:
+                        old_paths.remove(path)
+                except Exception as e:
+                    error_messages += '\n' + str(e)
+
+            # CATS
+
+            new_cat = new.fields['categories']
+            old_cat = old.fields['categories']
+
+            to_add = [cat for cat in new_cat if cat not in old_cat]
+            categories = list(chain.from_iterable(('--category', cat) for cat in to_add))
+            if categories:
+                try:
+                    cli('container', 'modify', 'add-category', 'Container', *categories)
+                    old_cat.extend(to_add)
+                except Exception as e:
+                    error_messages += '\n' + str(e)
+
+            to_remove = [cat for cat in old_cat if cat not in new_cat]
+            categories = list(chain.from_iterable(('--category', cat) for cat in to_remove))
+            if categories:
+                try:
+                    cli('container', 'modify', 'del-category', 'Container', *categories)
+                    for path in to_remove:
+                        old_cat.remove(path)
+                except Exception as e:
+                    error_messages += '\n' + str(e)
+
+            # TITLE
+
+            new_title = new.fields.get('title')
+            old_title = old.fields.get('title')
+            if new_title != old_title:
+                if new_title is None:
+                    new_title = "'null'"
+                try:
+                    cli('container', 'modify', 'set-title', 'Container', '--title', new_title)
+                    old.fields['title'] = new.fields['title']
+                except Exception as e:
+                    error_messages += '\n' + str(e)
+
+            new_other_fields = {key: value for key, value in new.fields.items()
+                                if key not in ('paths', 'categories', 'title')}
+            old_other_fields = {key: value for key, value in old.fields.items()
+                                if key not in ('paths', 'categories', 'title')}
+
+            if new_other_fields != old_other_fields:
+                error_messages += "Pseudomanifest error: Modifying fields except:" \
+                                  "\n 'paths', 'categories', 'title' are not permitted."
+
+            self.data[:] = old.copy_to_unsigned().original_data
+            if error_messages:
+                message = \
+                    '\n# Some changes to the following manifest' \
+                    '\n# was rejected due to encountered errors:' \
+                    '\n# ' + data.decode().replace('\n', '\n# ') + \
+                    '\n# ' + error_messages.replace('\n', '\n# ')
+                self.data[len(self.data) - 1:] = message.encode()
+                raise IOError()
+
+        return len(data)
+
+    def ftruncate(self, length: int) -> None:
+        self.cache = bytearray()
+
+
+class PseudomanifestFileEntry(FileEntry):
+    """
+    Shortcut for creating pseudomanifest files.
+    """
+    def __init__(self,
+                 name: str,
+                 data: bytes,
+                 timestamp: int = 0):
+        super().__init__(name)
+        self.data = bytearray(data)
+        self.attr = Attr(
+            size=len(self.data),
+            timestamp=timestamp,
+            mode=stat.S_IFREG | 0o666
+        )
+
+    def getattr(self) -> Attr:
+        return self.attr
+
+    def open(self, flags: int) -> File:
+        return PseudomanifestFile(self.data, self.attr)
+
+
 class FuncFileEntry(FileEntry):
     """
     Shortcut for creating function-based files.
 
-        def read_foo():
-            return 'hello from foo'
-
-        def write_bar(data: bytes):
-            logging.info('bar: %s', data)
-
-        f1 = FileEntry('foo', on_read=read_foo)
-        f2 = FileEntry('bar', on_write=write_bar)
+    >>> import logging
+    >>>
+    >>> def read_foo():
+    ...     return 'hello from foo'
+    ...
+    >>> def write_bar(data: bytes):
+    ...     logging.info('bar: %s', data)
+    ...
+    >>> f1 = FileEntry('foo', on_read=read_foo)
+    >>> f2 = FileEntry('bar', on_write=write_bar)
     """
 
     def __init__(self, name: str,
@@ -285,23 +454,27 @@ class GeneratedStorageMixin:
 
     A simple usage is to implement callbacks:
 
-        class MyStorage(GeneratedStorageMixin, StorageBackend):
-            def get_root(self):
-                return FuncDirEntry('.', self._root)
-
-            def _root(self):
-                for i in range(10):
-                    yield FuncDirEntry(f'dir-{i}', partial(self._dir, i))
-
-            def _dir(self, i):
-                yield FuncFileEntry('readme.txt', partial(self._readme, i))
-                yield FuncFileEntry(f'{i}.txt', partial(self._file, i))
-
-            def _readme(self, i):
-                return f'This is readme.txt for {i}'
-
-            def _file(self, i):
-                return f'This is {i}.txt'
+    >>> from wildland.storage_backends.base import StorageBackend
+    >>> from functools import partial
+    >>>
+    >>> class MyStorage(GeneratedStorageMixin, StorageBackend):
+    ...     def get_root(self):
+    ...         return FuncDirEntry('.', self._root)
+    ...
+    ...     def _root(self):
+    ...         for i in range(10):
+    ...             yield FuncDirEntry(f'dir-{i}', partial(self._dir, i))
+    ...
+    ...     def _dir(self, i):
+    ...         yield FuncFileEntry('readme.txt', partial(self._readme, i))
+    ...         yield FuncFileEntry(f'{i}.txt', partial(self._file, i))
+    ...
+    ...     def _readme(self, i):
+    ...         return f'This is readme.txt for {i}'
+    ...
+    ...     def _file(self, i):
+    ...         return f'This is {i}.txt'
+    ...
     """
 
     # TODO cache
