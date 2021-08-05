@@ -24,7 +24,7 @@
 """
 Socket server for controlling Wildland FS.
 """
-
+import os
 from pathlib import Path
 import logging
 import threading
@@ -288,6 +288,11 @@ class ControlServer:
         self.server_thread = threading.Thread(
             name='control-server',
             target=self._serve_forever)
+        try:
+            os.chmod(socket_path, 0o600)
+        except OSError as e:
+            logger.critical('failed to set socket permission')
+            raise ControlRequestError from e
         self.server_thread.start()
 
     def _serve_forever(self) -> None:
