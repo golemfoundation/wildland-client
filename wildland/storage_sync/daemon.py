@@ -25,10 +25,7 @@ Wildland sync daemon.
 """
 import logging
 import signal
-import sys
 import threading
-import time
-import traceback
 
 from pathlib import Path, PurePosixPath
 from threading import Lock
@@ -124,10 +121,8 @@ class SyncJob:
         try:
             job.syncer.start_sync()
             job.stop_event.wait()
-        except FileNotFoundError as ex:
-            job.error = f'Error: storage root not found! Details: {ex}'
         except Exception as ex:
-            logger.error(''.join(traceback.format_exception(*sys.exc_info())))
+            logger.exception('Exception:')
             job.error = f'Error: {ex}'
         finally:
             job.syncer.stop_sync()
@@ -324,8 +319,8 @@ class SyncDaemon:
         self.control_server.start(self.socket_path)
         # main thread exiting seems to cause weird errors in the S3 plugin in other threads
         # (see issue #517)
-        while True:
-            time.sleep(1)
+        assert self.control_server.server_thread
+        self.control_server.server_thread.join()
 
     def init_logging(self):
         """
