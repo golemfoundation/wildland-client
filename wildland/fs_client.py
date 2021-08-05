@@ -44,7 +44,7 @@ from .exc import WildlandError
 from .control_client import ControlClient
 from .entity.fileinfo import FileInfo
 from .manifest.manifest import Manifest
-from .storage_backends.static import StaticStorageBackend
+from .storage_backends.pseudomanifest import PseudomanifestStorageBackend
 
 logger = logging.getLogger('fs_client')
 
@@ -266,7 +266,8 @@ class WildlandFSClient:
             unique_path_only: bool = False) -> List[Dict]:
 
         pseudomanifest_commands = self._get_commands_for_mount_containers(
-            params, remount, unique_path_only, True, self._generate_pseudomanifest_storage)
+            params, remount, unique_path_only, True, self._generate_pseudomanifest_storage,
+            pseudomanifest=True)
 
         return pseudomanifest_commands
 
@@ -276,19 +277,19 @@ class WildlandFSClient:
             remount: bool,
             unique_path_only: bool,
             is_hidden: bool,
-            storage_generator: Callable[[Container, Storage], Storage]) -> List[Dict]:
+            storage_generator: Callable[[Container, Storage], Storage],
+            pseudomanifest: bool = False) -> List[Dict]:
 
         return [
             self.get_command_for_mount_container(
                 container, storage_generator(container, storage), user_paths, remount=remount,
                 subcontainer_of=subcontainer_of, unique_path_only=unique_path_only,
-                is_hidden=is_hidden)
+                is_hidden=is_hidden, pseudomanifest=pseudomanifest)
             for container, storages, user_paths, subcontainer_of in params
             for storage in storages
         ]
 
-    @staticmethod
-    def _generate_pseudomanifest_storage(container: Container, storage: Storage) -> Storage:
+    def _generate_pseudomanifest_storage(self, container: Container, storage: Storage) -> Storage:
         """
         Create pseudomanifest storage out of storage params and paths.
         """
@@ -306,7 +307,7 @@ class WildlandFSClient:
         pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
 
         static_params = {
-            'type': 'static',
+            'type': 'pseudomanifest',
             'content': {
                 '.manifest.wildland.yaml': pseudomanifest_content
             },
@@ -314,9 +315,9 @@ class WildlandFSClient:
             'backend-id': storage.backend_id,
             'owner': storage.owner,
             'container-path': str(container.paths[0]),
-            'version': Manifest.CURRENT_VERSION,
+            'version': Manifest.CURRENT_VERSION
         }
-        return Storage(storage.owner, StaticStorageBackend.TYPE, container.uuid_path,
+        return Storage(storage.owner, PseudomanifestStorageBackend.TYPE, container.uuid_path,
                        trusted=True, params=static_params, client=container.client)
 
     def unmount_storage(self, storage_id: int) -> None:
@@ -693,7 +694,8 @@ class WildlandFSClient:
                                         subcontainer_of: Optional[Container],
                                         unique_path_only: bool = False,
                                         remount: bool = False,
-                                        is_hidden: bool = False) -> Dict:
+                                        is_hidden: bool = False,
+                                        pseudomanifest: bool = False) -> Dict:
         """
         Prepare parameters for the control client to mount a container.
 
@@ -716,6 +718,9 @@ class WildlandFSClient:
             trusted_owner = storage.owner
         else:
             trusted_owner = None
+
+        if pseudomanifest:
+            mount_paths = [path / '.manifest.wildland.yaml' for path in mount_paths]
 
         if is_hidden:
             old_main_path = mount_paths[0]

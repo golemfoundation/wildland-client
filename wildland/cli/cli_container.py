@@ -438,7 +438,6 @@ def _republish_callback(ctx: click.Context, params: Tuple[Container, bool]):
         _republish_container(ctx.obj.client, container)
 
 
-
 @modify.command(short_help='add path to the manifest')
 @click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
 @click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')

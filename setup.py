@@ -14,6 +14,8 @@ setup(
              'wildland.storage_backends.local_cached:LocalDirectoryCachedStorageBackend'),
             'dummy = wildland.storage_backends.dummy:DummyStorageBackend',
             'static = wildland.storage_backends.static:StaticStorageBackend',
+            ('pseudomanifest = '
+             'wildland.storage_backends.pseudomanifest:PseudomanifestStorageBackend'),
             'date_proxy = wildland.storage_backends.date_proxy:DateProxyStorageBackend',
             'encrypted = wildland.storage_backends.encrypted:EncryptedStorageBackend',
             'delegate = wildland.storage_backends.delegate:DelegateProxyStorageBackend',
