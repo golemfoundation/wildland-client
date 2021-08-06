@@ -845,8 +845,8 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     ]
     assert command[0]['paths'] == backend3_paths
     assert command[1]['paths'] == [
-        backend3_paths[0] + '-pseudomanifest',
-        backend3_paths[1]
+        backend3_paths[0] + '-pseudomanifest/.manifest.wildland.yaml',
+        backend3_paths[1] + '/.manifest.wildland.yaml'
     ]
 
 
@@ -943,8 +943,11 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
     expected_paths_pseudomanifest = \
         expected_paths_backend[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}-pseudomanifest'] + \
+        [f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}-pseudomanifest'] +\
         expected_paths_backend[2:]
+    expected_paths_pseudomanifest = \
+        [path + '/.manifest.wildland.yaml' for path in expected_paths_pseudomanifest]
+
     assert sorted(command[1]['paths']) == expected_paths_pseudomanifest
 
 
@@ -2364,11 +2367,14 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     command = control_client.calls['mount']['items']
     # exclude catalog
     command = [c for c in command
-               if '/CATALOG' not in c['paths']]
+               if '/CATALOG' not in c['paths']
+                  and '/CATALOG/.manifest.wildland.yaml' not in c['paths']]
     assert len(command) == 2
     paths_backend1 = command[0]['paths']
+    paths_backend1 = [paths_backend1[0] + '-pseudomanifest'] + paths_backend1[1:]
+    paths_backend1 = [path + '/.manifest.wildland.yaml' for path in paths_backend1]
     paths_backend2 = command[1]['paths']
-    assert [paths_backend1[0] + '-pseudomanifest'] + paths_backend1[1:] == paths_backend2
+    assert paths_backend1 == paths_backend2
 
 
 def test_container_mount_with_import(cli, base_dir, control_client):
@@ -2651,15 +2657,23 @@ def test_container_mount_glob(cli, base_dir, control_client):
     ]
     assert sorted(command[1]['paths']) == paths_backend2
 
-    assert sorted(command[2]['paths']) == \
+    pseudomanifest_backend_paths = \
         paths_backend1[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] + \
-        paths_backend1[2:]
+        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] \
+        + paths_backend1[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
 
-    assert sorted(command[3]['paths']) == \
+    assert sorted(command[2]['paths']) == pseudomanifest_backend_paths
+
+    pseudomanifest_backend_paths_2 = \
         paths_backend2[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id2}-pseudomanifest'] + \
-        paths_backend2[2:]
+        [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id2}-pseudomanifest'] \
+        + paths_backend2[2:]
+    pseudomanifest_backend_paths_2 = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths_2]
+
+    assert sorted(command[3]['paths']) == pseudomanifest_backend_paths_2
 
 
 def test_container_umount_undo_save_by_container_name(cli, base_dir, control_client):
@@ -3007,21 +3021,29 @@ backends:
     ]
     assert sorted(command[1]['paths']) == paths_backend2
 
-    assert sorted(command[2]['paths']) == \
+    pseudomanifest_backend_paths = \
         paths_backend1[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] + \
-        paths_backend1[2:]
+        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] \
+        + paths_backend1[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
+
+    assert sorted(command[2]['paths']) == pseudomanifest_backend_paths
 
     assert command[2]['storage']['owner'] == '0xaaa'
-    assert command[2]['storage']['type'] == 'static'
+    assert command[2]['storage']['type'] == 'pseudomanifest'
 
-    assert sorted(command[3]['paths']) == \
+    pseudomanifest_backend_paths_2 = \
         paths_backend2[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}-pseudomanifest'] + \
         paths_backend2[2:]
+    pseudomanifest_backend_paths_2 = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths_2]
+
+    assert sorted(command[3]['paths']) == pseudomanifest_backend_paths_2
 
     assert command[3]['storage']['owner'] == '0xaaa'
-    assert command[3]['storage']['type'] == 'static'
+    assert command[3]['storage']['type'] == 'pseudomanifest'
 
 
 def test_container_mount_errors(cli, base_dir, control_client, tmp_path):
@@ -3079,9 +3101,9 @@ backends:
     assert command[0]['storage']['type'] == 'delegate'
 
     assert command[1]['storage']['owner'] == '0xaaa'
-    assert command[1]['storage']['type'] == 'static'
+    assert command[1]['storage']['type'] == 'pseudomanifest'
 
-    assert command[0]['paths'] == [
+    paths = [
         '/.users/0xaaa:/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
         '/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
         '/.users/0xaaa:/.uuid/0000-1111-2222-3333-4444',
@@ -3089,14 +3111,13 @@ backends:
         '/.users/0xaaa:/container-99',
         '/container-99'
     ]
-    assert command[1]['paths'] == [
-        '/.users/0xaaa:/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444-pseudomanifest',
-        '/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
-        '/.users/0xaaa:/.uuid/0000-1111-2222-3333-4444',
-        '/.uuid/0000-1111-2222-3333-4444',
-        '/.users/0xaaa:/container-99',
-        '/container-99'
-    ]
+
+    assert command[0]['paths'] == paths
+
+    paths[0] = paths[0] + "-pseudomanifest"
+    pseudomanifest_paths = \
+        [path + '/.manifest.wildland.yaml' for path in paths]
+    assert command[1]['paths'] == pseudomanifest_paths
 
 
 def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):
@@ -3156,11 +3177,15 @@ backends:
     assert sorted(command[0]['paths']) == backend_paths
 
     assert command[1]['storage']['owner'] == '0xaaa'
-    assert command[1]['storage']['type'] == 'static'
-    assert sorted(command[1]['paths']) == \
-        backend_paths[:1] + \
+    assert command[1]['storage']['type'] == 'pseudomanifest'
+
+    pseudomanifest_backend_paths = backend_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}-pseudomanifest'] + \
         backend_paths[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
+
+    assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
 def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path, base_dir):
@@ -3208,12 +3233,16 @@ backends:
     assert sorted(command[0]['paths']) == backend_paths
 
     assert command[1]['storage']['owner'] == '0xaaa'
-    assert command[1]['storage']['type'] == 'static'
+    assert command[1]['storage']['type'] == 'pseudomanifest'
 
-    assert sorted(command[1]['paths']) == \
-        backend_paths[:1] + \
+    pseudomanifest_backend_paths = backend_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid}/{backend_id}-pseudomanifest'] + \
         backend_paths[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
+
+    assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
+
 
 
 def test_container_mount_container_without_storage(cli, control_client):
@@ -4515,22 +4544,26 @@ def test_only_subcontainers(cli, base_dir, control_client):
     assert sorted(command[0]['paths']) == parent_paths
     assert sorted(command[1]['paths']) == child_paths
 
-    assert command[2]['storage']['type'] == 'static'
+    assert command[2]['storage']['type'] == 'pseudomanifest'
     assert command[2]['extra']['hidden'] is True
 
     pseudomanifest_parent_paths = \
         parent_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid_parent}/{backend_id_parent}-pseudomanifest'] + \
         parent_paths[2:]
+    pseudomanifest_parent_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_parent_paths]
     assert sorted(command[2]['paths']) == pseudomanifest_parent_paths
 
-    assert command[3]['storage']['type'] == 'static'
+    assert command[3]['storage']['type'] == 'pseudomanifest'
     assert command[3]['extra']['hidden'] is True
 
     pseudomanifest_child_paths = \
         child_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid_child}/{backend_id_child}-pseudomanifest'] + \
         child_paths[2:]
+    pseudomanifest_child_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_child_paths]
     assert sorted(command[3]['paths']) == pseudomanifest_child_paths
 
     control_client.expect('info', {

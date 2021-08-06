@@ -850,7 +850,7 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             {
                 'paths': [
                     f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-                        f'{DUMMY_BACKEND_UUID0}-pseudomanifest',
+                    f'{DUMMY_BACKEND_UUID0}-pseudomanifest/.manifest.wildland.yaml',
                 ],
                 'remount': False,
                 'storage': mock.ANY,
@@ -868,7 +868,7 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             {
                 'paths': [
                     f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-                        f'{DUMMY_BACKEND_UUID1}-pseudomanifest',
+                    f'{DUMMY_BACKEND_UUID1}-pseudomanifest/.manifest.wildland.yaml',
                 ],
                 'remount': False,
                 'storage': mock.ANY,
@@ -887,7 +887,7 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
             {
                 'paths': [
                     f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-                        f'{DUMMY_BACKEND_UUID1}-pseudomanifest',
+                    f'{DUMMY_BACKEND_UUID1}-pseudomanifest/.manifest.wildland.yaml',
                 ],
                 'remount': False,
                 'storage': mock.ANY,
