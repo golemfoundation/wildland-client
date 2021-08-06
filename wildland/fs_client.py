@@ -253,7 +253,7 @@ class WildlandFSClient:
             remount: bool = False,
             unique_path_only: bool = False) -> List[Dict]:
 
-        identity_storage_generator = lambda _, storage : storage
+        identity_storage_generator = lambda _, storage: storage
         commands = self._get_commands_for_mount_containers(
             params, remount, unique_path_only, False, identity_storage_generator)
 
@@ -266,30 +266,31 @@ class WildlandFSClient:
             unique_path_only: bool = False) -> List[Dict]:
 
         pseudomanifest_commands = self._get_commands_for_mount_containers(
-            params, remount, unique_path_only, True, self._generate_pseudomanifest_storage,
-            pseudomanifest=True)
+            params, remount, unique_path_only, True, self._generate_pseudomanifest_storage)
 
         return pseudomanifest_commands
 
-    def _get_commands_for_mount_containers(self,
-            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
-                                   Optional[Container]]],
-            remount: bool,
-            unique_path_only: bool,
-            is_hidden: bool,
-            storage_generator: Callable[[Container, Storage], Storage],
-            pseudomanifest: bool = False) -> List[Dict]:
+    def _get_commands_for_mount_containers(
+        self,
+        params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
+                               Optional[Container]]],
+        remount: bool,
+        unique_path_only: bool,
+        is_hidden: bool,
+        storage_generator: Callable[[Container, Storage], Storage]
+                                           ) -> List[Dict]:
 
         return [
             self.get_command_for_mount_container(
                 container, storage_generator(container, storage), user_paths, remount=remount,
                 subcontainer_of=subcontainer_of, unique_path_only=unique_path_only,
-                is_hidden=is_hidden, pseudomanifest=pseudomanifest)
+                is_hidden=is_hidden)
             for container, storages, user_paths, subcontainer_of in params
             for storage in storages
         ]
 
-    def _generate_pseudomanifest_storage(self, container: Container, storage: Storage) -> Storage:
+    @staticmethod
+    def _generate_pseudomanifest_storage(container: Container, storage: Storage) -> Storage:
         """
         Create pseudomanifest storage out of storage params and paths.
         """
@@ -306,11 +307,16 @@ class WildlandFSClient:
         storage_manifest = Manifest.from_fields(pseudo_manifest_params)
         pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
 
+        # Only local containers can be modified by editing pseudomanifest.
+        if container.local_path:
+            container_name = str(container.local_path.name)[:-len('.container.yaml')]
+        else:
+            container_name = ''
+
         static_params = {
             'type': 'pseudomanifest',
-            'content': {
-                '.manifest.wildland.yaml': pseudomanifest_content
-            },
+            'content': pseudomanifest_content,
+            'container-name': container_name,
             'primary': storage.is_primary,  # determines how many mountpoints are generated
             'backend-id': storage.backend_id,
             'owner': storage.owner,
@@ -719,13 +725,11 @@ class WildlandFSClient:
         else:
             trusted_owner = None
 
-        if pseudomanifest:
-            mount_paths = [path / '.manifest.wildland.yaml' for path in mount_paths]
-
         if is_hidden:
             old_main_path = mount_paths[0]
             new_main_path = old_main_path.parent / (old_main_path.name + '-pseudomanifest')
             mount_paths[0] = new_main_path
+            mount_paths = [path / '.manifest.wildland.yaml' for path in mount_paths]
 
         return {
             'paths': [str(p) for p in mount_paths],
