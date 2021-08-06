@@ -22,9 +22,9 @@
 
 # pylint: disable=missing-docstring
 
-import pytest
-from pathlib import Path
 import os
+from pathlib import Path
+import pytest
 
 from ..client import Client
 from ..cli.cli_base import ContextObj
@@ -142,9 +142,14 @@ def test_pseudomanifest_edit_path(cli, base_dir, tmp_path):
         content = f.read()
         assert "- /NEW" in content
         assert "paths:\\n- /.uuid/" in content
+    with open(pseudomanifest_path, "r") as f:
+        assert "- /NEW" in content
+        assert "paths:\\n- /.uuid/" in content
 
     pseudomanifest_replace(pseudomanifest_path, "- /NEW\n", "")
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
+        assert "- /NEW" not in f.read()
+    with open(pseudomanifest_path, "r") as f:
         assert "- /NEW" not in f.read()
 
 
@@ -156,9 +161,13 @@ def test_pseudomanifest_edit_category(cli, base_dir, tmp_path):
     pseudomanifest_replace(pseudomanifest_path, "categories: []", "categories:\n- /cat")
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
         assert "- /cat" in f.read()
+    with open(pseudomanifest_path, "r") as f:
+        assert "- /cat" in f.read()
 
     pseudomanifest_replace(pseudomanifest_path, "categories:\n- /cat", "categories: []")
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
+        assert "categories: []" in f.read()
+    with open(pseudomanifest_path, "r") as f:
         assert "categories: []" in f.read()
 
 
@@ -210,6 +219,11 @@ def test_pseudomanifest_edit_user(cli, base_dir, tmp_path):
 
     with open(pseudomanifest_path, 'r') as f:
         assert "rejected due to encountered errors" in f.read()
+
+    # clear error messages
+    pseudomanifest_replace(pseudomanifest_path, "", "")
+    with open(pseudomanifest_path, 'r') as f:
+        assert "rejected due to encountered errors" not in f.read()
 
 
 def test_pseudomanifest_truncate(cli, base_dir, tmp_path):
