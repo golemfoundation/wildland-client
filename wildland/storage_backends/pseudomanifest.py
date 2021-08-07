@@ -68,15 +68,7 @@ class PseudomanifestFile(File):
 
         return bytes(self.cache)[offset:offset+length]
 
-    def release(self, flags):
-        pass
-
-    def fgetattr(self):
-        return self.attr
-
-    def write(self, data: bytes, offset: int) -> int:
-        self.cache[offset:offset + len(data)] = data
-
+    def flush(self) -> None:
         try:
             new = Manifest.from_unsigned_bytes(self.cache)
             new.skip_verification()
@@ -84,9 +76,9 @@ class PseudomanifestFile(File):
             old.skip_verification()
         except Exception as e:
             message = \
-                '\n# All following changes to the manifest' \
+                '\n\n# All following changes to the manifest' \
                 '\n# was rejected due to encountered errors:' \
-                '\n# ' + data.decode().replace('\n', '\n# ') + \
+                '\n#\n# ' + self.cache.decode().replace('\n', '\n# ') + \
                 '\n# ' + str(e).replace('\n', '\n# ')
             self.data[len(self.data) - 1:] = message.encode()
             raise IOError() from e
@@ -122,12 +114,22 @@ class PseudomanifestFile(File):
             self.data[:] = old.copy_to_unsigned().original_data
             if error_messages:
                 message = \
-                    '\n# Some changes to the following manifest' \
+                    '\n\n# Some changes to the following manifest' \
                     '\n# was rejected due to encountered errors:' \
-                    '\n# ' + data.decode().replace('\n', '\n# ') + \
+                    '\n#\n# ' + self.cache.decode().replace('\n', '\n# ') + \
                     '\n# ' + error_messages.replace('\n', '\n# ')
                 self.data[len(self.data) - 1:] = message.encode()
                 raise IOError()
+
+    def release(self, flags):
+        pass
+
+    def fgetattr(self):
+        return self.attr
+
+    def write(self, data: bytes, offset: int) -> int:
+        self.cache[offset:offset + len(data)] = data
+        self.attr.size = len(self.cache)
 
         return len(data)
 
@@ -174,7 +176,8 @@ class PseudomanifestFile(File):
         return ""
 
     def ftruncate(self, length: int) -> None:
-        self.cache = bytearray()
+        self.cache = self.cache[:length]
+        self.attr.size = 0
 
 
 class PseudomanifestStorageBackend(StorageBackend):
