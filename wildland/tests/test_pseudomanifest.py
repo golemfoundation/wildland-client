@@ -113,7 +113,7 @@ def pseudomanifest_replace(pseudomanifest_path, to_replace, new):
         pseudomanifest_content = f.read()
         new_pseudomanifest_content = pseudomanifest_content.replace(
             to_replace, new)
-        f.truncate()
+        f.truncate(0)
         f.write(new_pseudomanifest_content)
 
 
@@ -226,7 +226,7 @@ def test_pseudomanifest_edit_user(cli, base_dir, tmp_path):
         assert "rejected due to encountered errors" not in f.read()
 
 
-def test_pseudomanifest_truncate(cli, base_dir, tmp_path):
+def test_pseudomanifest_whitespaces(cli, base_dir, tmp_path):
     mount_dir = mount(cli, base_dir, tmp_path)
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
@@ -235,7 +235,8 @@ def test_pseudomanifest_truncate(cli, base_dir, tmp_path):
         old_content = f.read()
 
     with open(pseudomanifest_path, 'r+') as f:
-        f.truncate()
+        f.read()
+        f.write("    ")
 
     with open(pseudomanifest_path, 'r') as f:
         assert old_content == f.read()
