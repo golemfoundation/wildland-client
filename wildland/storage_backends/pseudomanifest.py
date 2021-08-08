@@ -64,7 +64,7 @@ class PseudomanifestFile(File):
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         if length is None:
-            length = self.attr.size - offset
+            length = len(self.cache) - offset
 
         return bytes(self.cache)[offset:offset+length]
 
@@ -125,11 +125,11 @@ class PseudomanifestFile(File):
         pass
 
     def fgetattr(self):
+        self.attr.size = len(self.cache)
         return self.attr
 
     def write(self, data: bytes, offset: int) -> int:
         self.cache[offset:offset + len(data)] = data
-        self.attr.size = len(self.cache)
 
         return len(data)
 
@@ -177,7 +177,6 @@ class PseudomanifestFile(File):
 
     def ftruncate(self, length: int) -> None:
         self.cache = self.cache[:length]
-        self.attr.size = 0
 
 
 class PseudomanifestStorageBackend(StorageBackend):
