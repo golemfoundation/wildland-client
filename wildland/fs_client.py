@@ -705,8 +705,7 @@ class WildlandFSClient:
                                         subcontainer_of: Optional[Container],
                                         unique_path_only: bool = False,
                                         remount: bool = False,
-                                        is_hidden: bool = False,
-                                        pseudomanifest: bool = False) -> Dict:
+                                        is_hidden: bool = False) -> Dict:
         """
         Prepare parameters for the control client to mount a container.
 
