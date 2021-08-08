@@ -25,7 +25,7 @@
 Manage users
 """
 from copy import deepcopy
-from typing import Tuple, Optional, Union, List, Dict
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
 import logging
 import binascii
@@ -265,8 +265,8 @@ def _remove_suffix(s: str, suffix: str) -> str:
 def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
                         force: bool = False) -> Tuple[Optional[Path], Optional[str]]:
     """
-    Takes a manifest as pointed towards by path (can be local file path, url, wildland url),
-    imports its public keys, copies the manifest itself.
+    Takes a user or bridge manifest as pointed towards by path (can be local file path, url,
+    wildland url), imports its public keys, copies the manifest itself.
     :param obj: ContextObj
     :param path: (potentially ambiguous) path to manifest to be imported
     :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
@@ -358,7 +358,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
     at that manifest in the storage
 
     """
-    for container in user.load_catalog():
+    for container in user.load_catalog(warn_about_encrypted_manifests=False):
         all_storages = obj.client.all_storages(container=container)
 
         for storage_candidate in all_storages:
@@ -382,7 +382,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
 def _sanitize_imported_paths(paths: List[PurePosixPath], owner: str) -> List[PurePosixPath]:
     """
     Accept a list of imported paths (either from a user or a bridge manifest) and return only
-    the first one with sanitised (safe) path.
+    the first one with sanitized (safe) path.
     """
     if not paths:
         raise CliError('No paths found to sanitize')
@@ -438,7 +438,7 @@ def _do_process_imported_manifest(
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
-        bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name, None)
+        bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name)
         click.echo(f'Created: {bridge_path}')
     else:
         bridge = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.BRIDGE)
@@ -457,12 +457,13 @@ def _do_process_imported_manifest(
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
 
-
-def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_owner, only_first):
+def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
+                    wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
+                    only_first: bool):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
-    Optionally override bridge paths with paths provided via --paths.
+    Optionally override bridge paths with paths provided via --path.
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
@@ -474,14 +475,15 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
     if not default_user:
         raise CliError('Cannot import user or bridge without a --bridge-owner or a default user.')
 
+    posix_paths = [PurePosixPath(p) for p in paths]
+
     if wl_obj_type == WildlandObject.Type.USER:
         copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
         if not copied_manifest_path or not manifest_url:
             return
         try:
             _do_process_imported_manifest(
-                obj, copied_manifest_path, manifest_url,
-                [PurePosixPath(p) for p in paths], default_user)
+                obj, copied_manifest_path, manifest_url, posix_paths, default_user)
         except Exception as ex:
             click.echo(
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
@@ -514,7 +516,7 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=(paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
+                    paths=(posix_paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')
@@ -544,11 +546,12 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
               help="import only first encountered bridge "
                    "(ignored in all cases except WL container paths)")
 @click.argument('path-or-url')
-def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
+def user_import(obj: ContextObj, path_or_url: str, paths: Tuple[str], bridge_owner: Optional[str],
+                only_first: bool):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
-    Optionally override bridge paths with paths provided via --paths.
+    Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
     # TODO: remove imported keys and manifests on failure: requires some thought about how to

@@ -1,0 +1,5 @@
+refresh() {
+    # TODO: this suppresses errors returned from wlfuse
+    echo '{"cmd": "clear-cache"}' | /usr/bin/nc -U -w 1 "$WL_CTRL_SOCK" >/dev/null || true
+}
+

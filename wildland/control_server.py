@@ -31,7 +31,7 @@ import threading
 from socketserver import ThreadingMixIn, UnixStreamServer, BaseRequestHandler
 from contextlib import closing
 import json
-from typing import Dict, Callable
+from typing import Callable, Dict, Optional
 import socket
 
 from .exc import WildlandError
@@ -246,12 +246,13 @@ class ControlServer:
     """
 
     def __init__(self):
-        self.socket_server = None
-        self.server_thread = None
-        self.commands = {}
-        self.validators = None
+        self.socket_path: Optional[Path] = None
+        self.socket_server: Optional[SocketServer] = None
+        self.server_thread: Optional[threading.Thread] = None
+        self.commands: Dict[str, Callable] = {}
+        self.validators: Optional[Dict[str, Callable]] = None
 
-    def register_commands(self, obj):
+    def register_commands(self, obj) -> None:
         """
         Register object methods decorated with @control_command.
         """
@@ -262,7 +263,7 @@ class ControlServer:
             if name is not None:
                 self.commands[name] = val
 
-    def register_validators(self, validators: Dict[str, Callable]):
+    def register_validators(self, validators: Dict[str, Callable]) -> None:
         """
         Register a dictionary of schemas to be checked. For a command ``cmd``
         with arguments ``args``, the server will call
@@ -271,15 +272,15 @@ class ControlServer:
 
         self.validators = validators
 
-    def start(self, path: Path):
+    def start(self, socket_path: Path) -> None:
         """
         Start listening on a provided path.
         """
 
-        logger.info('starting server at %s', path)
-        if path.exists():
-            path.unlink()
-        self.socket_server = SocketServer(str(path), ControlHandler)
+        self.socket_path = socket_path
+        logger.info('starting server at %s', socket_path)
+        socket_path.unlink(missing_ok=True)
+        self.socket_server = SocketServer(str(socket_path), ControlHandler)
         # pylint: disable=attribute-defined-outside-init
         self.socket_server.commands = self.commands  # type: ignore
         self.socket_server.validators = self.validators  # type: ignore
@@ -289,7 +290,7 @@ class ControlServer:
             target=self._serve_forever)
         self.server_thread.start()
 
-    def _serve_forever(self):
+    def _serve_forever(self) -> None:
         assert self.socket_server
         logger.debug('serve_forever')
         try:
@@ -297,11 +298,12 @@ class ControlServer:
         except Exception:
             logger.exception('error in server main thread')
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Shut down the server, closing existing connections.
         """
 
+        assert self.socket_path
         assert self.socket_server
         assert self.server_thread
 
@@ -313,7 +315,7 @@ class ControlServer:
             self.server_thread.join()
 
         # Close connection for all threads and wait for them
-        for thread in self.socket_server._threads:  # pylint: disable=protected-access
+        for thread in self.socket_server._threads:  # type: ignore # pylint: disable=protected-access
             if thread.ident is None:
                 # Not started yet
                 continue
@@ -330,5 +332,8 @@ class ControlServer:
                     pass
             thread.join()
 
+        self.socket_path.unlink(missing_ok=True)
+
+        self.socket_path = None
         self.socket_server = None
         self.server_thread = None

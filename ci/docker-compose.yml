@@ -31,7 +31,6 @@ services:
       - ..:/home/user/wildland-client:ro
       - ../artifacts/:/home/user/wildland-client/artifacts:rw
 
-
   wildland-client-ci-sshfs:
     build:
       context: ..
@@ -46,7 +45,6 @@ services:
     volumes:
       - ..:/home/user/wildland-client:ro
       - ../artifacts/:/home/user/wildland-client/artifacts:rw
-
 
   wildland-client-ci-ipfs:
     build:

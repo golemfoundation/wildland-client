@@ -53,7 +53,7 @@ class WildlandPath:
     - owner (optional): owner determining the first container's namespace, if omitted @default
       will be used
     - hint (optional, requires owner): hint to the location of first container's namespace;
-      takes the form of protocol[address], for example https{demo.wildland.io/demo.user.yaml}
+      takes the form of protocol{address}, for example https{demo.wildland.io/demo.user.yaml}
     - parts: intermediate parts, identifying bridges or containers on the path
     - file_path (optional): path to file in the last container
     """

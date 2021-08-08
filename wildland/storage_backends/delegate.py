@@ -28,11 +28,14 @@ Delegate proxy backend
 from typing import Iterable, Optional, Tuple
 from pathlib import PurePosixPath
 
+import logging
 import click
 
 from .base import StorageBackend, File, Attr
+from ..exc import WildlandError
 from ..manifest.schema import Schema
 
+logger = logging.getLogger('delegate')
 
 class DelegateProxyStorageBackend(StorageBackend):
     """
@@ -101,6 +104,13 @@ class DelegateProxyStorageBackend(StorageBackend):
 
     def mount(self):
         self.reference.request_mount()
+        # Check if referenced subdirectory actually exists
+        try:
+            if self.reference.getattr(self._path(PurePosixPath('.'))):
+                return
+        except FileNotFoundError as err:
+            raise WildlandError('delegate container refers to nonexistent location'
+                                f' {self.subdirectory} of {self.reference}') from err
 
     def unmount(self):
         self.reference.request_unmount()

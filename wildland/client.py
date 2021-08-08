@@ -32,23 +32,28 @@ import functools
 import glob
 import logging
 import os
+import sys
+import time
 from graphlib import TopologicalSorter
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
+from subprocess import Popen
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union, Any
 from urllib.parse import urlparse, quote
 
 import yaml
 import requests
 
 from wildland.bridge import Bridge
+from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
+from .control_client import ControlClient
 from .user import User
 from .container import Container, ContainerStub
 from .link import Link
 from .storage import Storage
 from .wlpath import WildlandPath, PathError
 from .manifest.sig import DummySigContext, SodiumSigContext, SigContext
-from .manifest.manifest import ManifestError, Manifest
+from .manifest.manifest import ManifestDecryptionKeyUnavailableError, ManifestError, Manifest
 from .session import Session
 from .storage_backends.base import StorageBackend, verify_local_access
 from .fs_client import WildlandFSClient
@@ -102,17 +107,21 @@ class Client:
             d.mkdir(exist_ok=True, parents=True)
 
         mount_dir = Path(self.config.get('mount-dir'))
-        socket_path = Path(self.config.get('socket-path'))
         bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
-        self.fs_client = WildlandFSClient(mount_dir, socket_path,
+        fs_socket_path = Path(self.config.get('fs-socket-path'))
+        self.fs_client = WildlandFSClient(mount_dir, fs_socket_path,
                                           bridge_separator=bridge_separator)
+
+        # we only connect to sync daemon if needed
+        self._sync_client: Optional[ControlClient] = None
+        self.base_dir = base_dir
 
         try:
             fuse_status = self.fs_client.run_control_command('status')
             default_user = fuse_status.get('default-user')
             if default_user:
                 self.config.override(override_fields={'@default': default_user})
-        except (ConnectionRefusedError, FileNotFoundError):
+        except ControlClientUnableToConnectError:
             pass
 
         #: save (import) users encountered while traversing WL paths
@@ -135,6 +144,43 @@ class Client:
 
         if load:
             self.recognize_users_and_bridges()
+
+    def connect_sync_daemon(self):
+        """
+        Connect to the sync daemon. Starts the daemon if not running.
+        """
+        delay = 0.1
+        daemon_started = False
+        sync_socket_path = Path(self.config.get('sync-socket-path'))
+        self._sync_client = ControlClient()
+        for _ in range(20):
+            try:
+                self._sync_client.connect(sync_socket_path)
+                return
+            except ControlClientUnableToConnectError:
+                if not daemon_started:
+                    self.start_sync_daemon()
+                    daemon_started = True
+            time.sleep(delay)
+        raise WildlandError('Timed out waiting for sync daemon')
+
+    def start_sync_daemon(self):
+        """
+        Start the sync daemon.
+        """
+        cmd = [sys.executable, '-m', 'wildland.storage_sync.daemon']
+        if self.base_dir:
+            cmd.extend(['--base-dir', str(self.base_dir)])
+        Popen(cmd)
+
+    def run_sync_command(self, name, **kwargs) -> Any:
+        """
+        Run sync command (through the sync daemon).
+        """
+        if not self._sync_client:
+            self.connect_sync_daemon()
+        assert self._sync_client is not None
+        return self._sync_client.run_command(name, **kwargs)
 
     def sub_client_with_key(self, pubkey: str) -> Tuple['Client', str]:
         """
@@ -172,13 +218,7 @@ class Client:
         if object_type == WildlandObject.Type.USER:
             # aliases
             if name == '@default':
-                try:
-                    fuse_status = self.fs_client.run_control_command('status')
-                except (ConnectionRefusedError, FileNotFoundError):
-                    fuse_status = {}
-                name = fuse_status.get('default-user')
-                if not name:
-                    name = self.config.get('@default')
+                name = self.config.get('@default')
                 if not name:
                     raise WildlandError('user not specified and @default not set')
 
@@ -287,7 +327,7 @@ class Client:
         otherwise.
         """
         if 'encrypted' in dictionary.keys():
-            raise WildlandError('Cannot decrypt manifest: decryption key unavailable')
+            raise ManifestDecryptionKeyUnavailableError()
         if dictionary.get('object') == 'link':
             link = self.load_link_object(dictionary, expected_owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
@@ -623,24 +663,23 @@ class Client:
                         bridges_map
                     )
 
-    def ensure_mount_reference_container(self, containers) -> Tuple[List[Container], str, bool]:
-        '''
-        Ensure that for any storage with MOUNT_REFERENCE_CONTAINER corresponding
-        reference_container appears in sequence before the referencer.
-        '''
+    def ensure_mount_reference_container(self, containers: Iterator[Container]) -> \
+            Tuple[List[Container], str]:
+        """
+        Ensure that for any storage with ``MOUNT_REFERENCE_CONTAINER`` corresponding
+        ``reference_container`` appears in sequence before the referencer.
+        """
 
         dependency_graph: Dict[Container, Set[Container]] = dict()
         exc_msg = ""
-        failed = False
         containers_to_process = []
         try:
             for c in containers:
                 containers_to_process.append(c)
         except WildlandError as ex:
-            failed = True
             exc_msg += str(ex) + '\n'
 
-        def open_node(container):
+        def open_node(container: Container):
             for storage in self.all_storages(container):
                 if 'reference-container' not in storage.params:
                     continue
@@ -666,7 +705,6 @@ class Client:
             try:
                 open_node(container)
             except WildlandError as ex:
-                failed = True
                 exc_msg += str(ex) + '\n'
 
         ts = TopologicalSorter(dependency_graph)
@@ -678,7 +716,7 @@ class Client:
                 continue
             final_order.append(i)
         final_order = dependencies_first + final_order
-        return (final_order, exc_msg, failed)
+        return final_order, exc_msg
 
     @functools.lru_cache
     def get_bridge_paths_for_user(self, user: Union[User, str], owner: Optional[User] = None) \
@@ -990,7 +1028,11 @@ class Client:
 
         if WildlandPath.match(url):
             search = self._wl_url_to_search(url, use_aliases=use_aliases)
-            return search.read_file()
+            try:
+                file_bytes = search.read_file()
+            except FileNotFoundError as e:
+                raise WildlandError(f'File [{url}] does not exist') from e
+            return file_bytes
 
         if url.startswith('file:'):
             local_path = self.parse_file_url(url, owner or self.config.get('@default'))

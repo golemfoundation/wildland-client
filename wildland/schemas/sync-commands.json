@@ -1,0 +1,50 @@
+{
+    "description": "Argument schemas for sync control commands",
+    "args": {
+        "start": {
+            "description": "Start syncing two storages, or perform a one-shot sync",
+            "type": "object",
+            "required": ["container", "continuous", "unidirectional"],
+            "additionalProperties": false,
+            "properties": {
+                "container": {
+                    "type": "string",
+                    "description": "container name"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "source backend UUID or type"
+                },
+                "target": {
+                    "type": "string",
+                    "description": "target backend UUID or type"
+                },
+                "continuous": {
+                    "type": "boolean",
+                    "description": "whether to sync until stopped"
+                },
+                "unidirectional": {
+                    "type": "boolean",
+                    "description": "perform one-way sync if true, two-way if false"
+                }
+            }
+        },
+        "stop": {
+            "description": "Stop the sync job for a container",
+            "type": "object",
+            "required": ["container"],
+            "additionalProperties": false,
+            "properties": {
+                "container": {
+                    "type": "string",
+                    "description": "container name"
+                }
+            }
+        },
+        "status": {
+            "description": "Return a list of currently running sync jobs and their status",
+            "type": "object",
+            "additionalProperties": false
+        }
+    }
+}

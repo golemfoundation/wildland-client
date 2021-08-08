@@ -67,3 +67,9 @@ RUN /home/user/env/bin/pip install -r requirements.txt
 
 RUN mkdir -p /tmp/docker-user-runtime
 ENV XDG_RUNTIME_DIR /tmp/docker-user-runtime
+ENV WL_CLI ./wl
+ENV WL_CTRL_SOCK /tmp/docker-user-runtime/wlfuse.sock
+ENV WL_CONFIG_DIR /home/user/.config/wildland
+ENV WL_MOUNT_POINT /home/user/wildland
+ENV WL_START_CMD "./wl start"
+ENV WL_STOP_CMD "./wl stop"

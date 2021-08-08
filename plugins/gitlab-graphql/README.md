@@ -28,12 +28,12 @@ wl container create gitlab-container --path /gitlab
 ```
 You can then create storage that will be associated with said macro-container:
 ```
-wl storage create gitlab --container gitlab-container \
-                         --personal-token <token> \
-                         [--projectid <projectid>]
+wl storage create gitlab-graphql --container gitlab-container \
+                                 --personal-token <token> \
+                                 [--project-path <projectpath>]
 ```
 `--personal-token` parameter specifies your Personal Access Token generated in the previous steps.
-`--projectid` is optional; when provided, only the issues associated with the project will be accessed. Otherwise, all issues associated with all projects that the user is a member of will be exposed.
+`--project-path` is optional; when provided, only the issues associated with the project will be accessed. Otherwise, all issues associated with all projects that the user is a member of will be exposed.
 
 ### Mounting
 

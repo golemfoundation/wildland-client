@@ -26,9 +26,13 @@
             "$ref": "/schemas/types.json#abs-path",
             "description": "FUSE mount path (default: $HOME/wildland)"
         },
-        "socket-path": {
+        "fs-socket-path": {
             "$ref": "/schemas/types.json#abs-path",
-            "description": "Path to control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"
+            "description": "Path to FUSE control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"
+        },
+        "sync-socket-path": {
+            "$ref": "/schemas/types.json#abs-path",
+            "description": "Path to sync daemon control socket (default: $XDG_RUNTIME_DIR/wlsync.sock)"
         },
         "alt-bridge-separator": {
             "type": "boolean",

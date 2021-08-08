@@ -1,0 +1,8 @@
+. /home/user/env/bin/activate
+pip install . plugins/*
+
+refresh() {
+    # TODO: this suppresses errors returned from wlfuse
+    echo '{"cmd": "clear-cache"}' | nc -UN "$WL_CTRL_SOCK" >/dev/null
+}
+
