@@ -71,4 +71,4 @@ def test_container_publish_to_s3(monkeypatch, cli):
 
     cli('container', 'publish', 'Container')
 
-    assert Client.COUNTER == 1
+    assert Client.COUNTER == 3
