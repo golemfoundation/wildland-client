@@ -32,6 +32,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Union
 import click
 
 from wildland.exc import WildlandError
+from wildland.manifest.template import TemplateManager
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
     aliased_group,
@@ -262,6 +263,21 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
         click.echo('Sync jobs:')
         for s in result:
             click.echo(s)
+
+
+@main.command(short_help='set the specified storage template as default for container '
+                         'cache storages')
+@click.argument('template_name', metavar='TEMPLATE', required=True)
+@click.pass_obj
+def set_default_cache(obj: ContextObj, template_name: str):
+    """
+    Set the specified storage template as default for container cache storages.
+    """
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
+    if not template_manager.get_file_path(template_name).exists():
+        raise WildlandError(f'Template {template_name} does not exist')
+    obj.client.config.update_and_save({'default-cache-template': template_name})
+    click.echo(f'Set template {template_name} as default for container cache storages')
 
 
 def _print_container_paths(storage: Dict, all_paths: bool) -> None:

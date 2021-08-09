@@ -66,6 +66,8 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
                      help='Set public base URL.'),
         click.Option(['--read-only'], metavar='BOOL', is_flag=True,
                      help='Mark storage as read-only.'),
+        click.Option(['--default-cache'], metavar='BOOL', is_flag=True,
+                     help='Mark template as default for container caches'),
         click.Argument(['name'], metavar='NAME', required=True),
     ]
 
@@ -97,6 +99,7 @@ def _do_create(
         watcher_interval: Optional[int],
         public_url: Optional[str],
         read_only: bool,
+        default_cache: bool,
         access: Sequence[str],
         **data):
 
@@ -112,6 +115,9 @@ def _do_create(
     if not tpl_exists and not create:
         raise CliError(f'Template {name} does not exist. Use [wl template create] '
                        'command to create a new template.')
+
+    if default_cache and read_only:
+        raise CliError('Cache storage cannot be read-only.')
 
     params = backend.cli_create(data)
     params['type'] = backend.TYPE
@@ -153,6 +159,9 @@ def _do_create(
         click.echo(f'Appended to an existing storage template [{name}]')
     else:
         click.echo(f'Storage template [{name}] created in {path}')
+
+    if default_cache:
+        obj.client.config.update_and_save({'default-cache-template': name})
 
 
 @template.command('list', short_help='list storage templates', alias=['ls'])

@@ -24,6 +24,7 @@ Storage syncing.
 """
 # pylint: disable=no-self-use
 import abc
+from enum import Enum
 from typing import Optional, Iterable, Dict, Type, List
 from pathlib import Path
 from wildland.storage import StorageBackend
@@ -71,6 +72,19 @@ class SyncConflict(SyncError):
 
         return sorted([self.backend1_id, self.backend2_id]) ==\
             sorted([other.backend1_id, other.backend2_id])
+
+
+class SyncerStatus(Enum):
+    """
+    Current status of a syncer.
+    """
+    STOPPED = 1  # no sync running
+    RUNNING = 2  # continuous sync running with pending events (storages are not synced)
+    SYNCED = 3  # continuous sync running with no pending events (storages are synced)
+    ONE_SHOT = 4  # one-shot sync running
+
+    def __str__(self):
+        return str(self.name)
 
 
 class BaseSyncer(metaclass=abc.ABCMeta):
@@ -131,24 +145,22 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         """
         raise OptionalError
 
-    def is_running(self) -> bool:
+    def status(self) -> SyncerStatus:
         """
-        Are the syncing watchers (or other processes required) running?
-        This has to be implemented if CONTINUOUS == True
+        Current status of the syncer.
         """
-        raise OptionalError
-
-    def is_synced(self):
-        """
-        Are the backends currently in sync?
-        This may not be implemented by a given syncer.
-        """
-        raise OptionalError
+        raise NotImplementedError
 
     @abc.abstractmethod
     def iter_errors(self) -> Iterable[SyncError]:
         """
         Iterate over discovered syncer errors.
+        """
+
+    @abc.abstractmethod
+    def iter_conflicts(self) -> Iterable[SyncConflict]:
+        """
+        Iterate over discovered sync conflicts.
         """
 
     @classmethod

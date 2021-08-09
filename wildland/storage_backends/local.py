@@ -144,7 +144,7 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
             location_path = relative_to / location_path
         location_path = location_path.resolve()
         if not location_path.is_dir():
-            logger.warning('LocalStorage root does not exist: %s', location_path)
+            logger.info('LocalStorage root does not exist: %s', location_path)
         self.root = location_path
 
     @classmethod

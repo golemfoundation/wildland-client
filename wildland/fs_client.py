@@ -455,6 +455,8 @@ class WildlandFSClient:
                 # this raises ValueError for not matching paths
                 users_path = path.relative_to('/.users')
                 owner = users_path.parts[0]
+                if owner.endswith(self.bridge_separator):
+                    owner = owner[:-1]
                 container_paths.append(PurePosixPath('/').joinpath(
                     *users_path.parts[1:]))
             except ValueError:

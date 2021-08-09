@@ -85,6 +85,11 @@
             "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl c mount'"
         },
 
+        "default-cache-template": {
+            "type": "string",
+            "description": "Default template for container cache storages"
+        },
+
         "default-remote-for-container": {
             "type": "object",
             "description": "A dictionary of default remote storage for each container",

@@ -154,7 +154,7 @@ is `/path/to/cache/root/container_uuid`.
 
 Cache manifests are stored in `<Wildland config root>/cache` directory and are storage manifests.
 Wildland storage commands can be used to display or manually edit them. They have file names
-in the form of `cache_template_name.container_uuid.storage.yaml`.
+in the form of `owner_id.container_uuid.storage.yaml`.
 
 
 .. option:: -t, --template <template_name>
@@ -265,9 +265,15 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
    If container contains any subcontainers then mount just the subcontainers and skip mounting
    the container's storage itself.
 
-.. option:: -c, --with-cache <template_name>
+.. option:: -c, --with-cache
 
-   Create a local cache storage for the container from a template.
+   Create and use a cache storage for the container using the default cache template
+   (see :ref:`wl set-default-cache <wl-set-default-cache>`).
+   See :ref:`wl container create-cache <wl-container-create-cache>` for details about caches.
+
+.. option:: --cache-template <template_name>
+
+   Create and use a cache storage for the container from the given template.
    See :ref:`wl container create-cache <wl-container-create-cache>`.
 
 .. option:: -l, --list-all

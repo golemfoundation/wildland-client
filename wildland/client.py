@@ -157,6 +157,7 @@ class Client:
         self.caches.clear()
         for cache in self.load_all(WildlandObject.Type.STORAGE, decrypt=True,
                                    base_dir=self.cache_dir, quiet=True):
+            cache.params['is-local-owner'] = True
             self.caches.append(cache)
 
     def connect_sync_daemon(self):
@@ -916,8 +917,6 @@ class Client:
         cache = self.cache_storage(container)
         if cache:
             cache.promote_to_primary()
-            cache.params['cache'] = True
-            # TODO: what about caches that are not a 'local' storage?
             cache.params['is-local-owner'] = True
             storages.insert(0, cache)
             storages[1].primary = False

@@ -25,9 +25,9 @@
 """
 Manage containers
 """
+from itertools import combinations
 from pathlib import PurePosixPath, Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple, Union
-from itertools import combinations
 import os
 import sys
 import logging
@@ -48,7 +48,6 @@ from xdg import BaseDirectory
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
-from wildland.storage_sync.base import SyncConflict, BaseSyncer
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_field, del_field, \
     set_field, del_nested_field, find_manifest_file, dump as base_dump
@@ -61,6 +60,7 @@ from ..publish import Publisher
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging
+from ..storage_sync.base import BaseSyncer, SyncConflict
 
 try:
     RUNTIME_DIR = Path(BaseDirectory.get_runtime_dir())
@@ -289,9 +289,12 @@ def _container_info(client, container, users_and_bridge_paths):
         click.echo(f'  storage: {storage_path}')
     cache = client.cache_storage(container)
     if cache:
-        result = f'type: {cache.params["type"]} backend_id: {cache.params["backend-id"]}'
-        if cache.params['type'] in ['local', 'local-cached', 'local-dir-cached']:
-            result += f' location: {cache.params["location"]}'
+        storage_type = cache.params['type']
+        result = f'type: {storage_type} backend_id: {cache.params["backend-id"]}'
+        storage_cls = StorageBackend.types()[storage_type]
+        if storage_cls.LOCATION_PARAM and storage_cls.LOCATION_PARAM in cache.params and \
+                cache.params[storage_cls.LOCATION_PARAM]:
+            result += f' location: {cache.params[storage_cls.LOCATION_PARAM]}'
         click.echo(f'  cache: {result}')
     click.echo()
 
@@ -640,26 +643,46 @@ def _do_sync(client: Client, container: str, source: str, target: str, one_shot:
 
 
 def wl_path_for_container(client: Client, container: Container,
-                          user_paths: Iterable[Iterable[PurePosixPath]]) -> str:
+                          user_paths: Optional[Iterable[Iterable[PurePosixPath]]] = None) -> str:
     """
     Return user-friendly WL path for the container.
     """
     ret = client.bridge_separator
 
-    for bridges in user_paths:
-        for path in bridges:
+    if user_paths:
+        # take some set of bridges to the user
+        for path in list(user_paths)[0]:
             ret += str(path) + client.bridge_separator
 
     # add non-default owner if needed
     if ret == client.bridge_separator and container.owner != client.config.get('@default-owner'):
         ret = container.owner + client.bridge_separator
 
-    if len(container.paths) > 1:  # UUID path is always first, we want another one if possible
-        ret += str(container.paths[1]) + client.bridge_separator
-    else:
-        ret += str(container.paths[0]) + client.bridge_separator
+    # UUID path is always first, we want a more friendly one if possible
+    # reverse sort puts paths like '/.uuid/' or '/.backends/' last
+    paths = container.paths
+    paths.sort(reverse=True)
+    ret += str(paths[0]) + client.bridge_separator
 
     return ret
+
+
+def _cache_sync(client: Client, container: Container, storages: List[Storage], verbose: bool,
+                user_paths: Iterable[Iterable[PurePosixPath]]):
+    """
+    Start sync between cache storage and old primary storage.
+    """
+    primary: Storage = storages[0]  # get_storages_to_mount() ensures this
+    if 'cache' in primary.params:
+        if verbose:
+            click.echo(f'Using cache at: {primary.params["location"]}')
+        src = storages[1].backend_id  # [1] is the non-cache (old primary)
+        cname = wl_path_for_container(client, container, user_paths)
+        status = client.run_sync_command('container-status', container=cname)
+        if not status:  # sync not running for this container
+            # start bidirectional sync (this also performs an initial one-shot sync)
+            # this happens in the background, user can see sync status/progress using `wl sync`
+            _do_sync(client, cname, src, primary.backend_id, one_shot=False, unidir=False)
 
 
 def prepare_mount(obj: ContextObj,
@@ -695,21 +718,6 @@ def prepare_mount(obj: ContextObj,
 
     storages = obj.client.get_storages_to_mount(container)
 
-    primary: Storage = storages[0]  # get_storages_to_mount() ensures this
-    if 'cache' in primary.params:
-        if verbose:
-            click.echo(f'Using cache at: {primary.params["location"]}')
-        src = storages[1].backend_id  # [1] is the non-cache (old primary)
-        cname = wl_path_for_container(obj.client, container, user_paths)
-        if primary.params['fresh']:
-            # perform sync from remote to cache before doing anything to avoid inconsistencies
-            _do_sync(obj.client, cname, src, primary.backend_id, one_shot=True, unidir=True)
-            primary.params['fresh'] = False
-            obj.client.save_object(WildlandObject.Type.STORAGE, primary)
-        # start bidirectional sync TODO: this should be the only call, we should wait for
-        # the initial sync being finished in the background (see issue #550)
-        _do_sync(obj.client, cname, src, primary.backend_id, one_shot=False, unidir=False)
-
     if not subcontainers or not only_subcontainers:
         storages = obj.client.get_storages_to_mount(container)
         primary_storage_id = obj.fs_client.find_primary_storage_id(container)
@@ -717,6 +725,7 @@ def prepare_mount(obj: ContextObj,
         if primary_storage_id is None:
             if verbose:
                 click.echo(f'new: {container_name}')
+            _cache_sync(obj.client, container, storages, verbose, user_paths)
             yield (container, storages, user_paths, subcontainer_of)
         elif remount:
             storages_to_remount = []
@@ -740,6 +749,7 @@ def prepare_mount(obj: ContextObj,
                     if verbose:
                         click.echo(f'not changed: {storage.backend_id}')
 
+            _cache_sync(obj.client, container, storages, verbose, user_paths)
             yield (container, storages_to_remount, user_paths, subcontainer_of)
         else:
             raise WildlandError(f'Already mounted: {container.local_path}')
@@ -780,18 +790,19 @@ def _create_cache(client: Client, container: Container, template_name: str,
                                        local_owners=client.config.get('local-owners'))
 
     # these params are not in the Storage schema because they're cache-specific
-    cache.params['fresh'] = True  # not synced with the original storage yet
+    cache.params['cache'] = True
     cache.params['original-owner'] = container.owner
+
     backend = StorageBackend.from_params(cache.params)
-    path = backend.location
+    location = backend.location
     with backend:
-        backend.mkdir(PurePosixPath(path))
-    base_name = template_name + '.' + container.uuid
+        backend.mkdir(PurePosixPath(''))
+    base_name = container.owner + '.' + container.uuid
     cache_path = client.new_path(WildlandObject.Type.STORAGE, base_name,
                                  skip_numeric_suffix=True, base_dir=client.cache_dir)
     client.save_new_object(WildlandObject.Type.STORAGE, cache, template_name, cache_path)
     if verbose:
-        click.echo(f'Created cache: {cache_path} with path: {path}')
+        click.echo(f'Created cache: {cache_path} with location: {location}')
     return cache
 
 
@@ -845,9 +856,13 @@ def delete_cache(obj: ContextObj, name):
               help='Mount subcontainers of this container.')
 @click.option('--only-subcontainers', '-b', is_flag=True, default=False,
               help='If a container has subcontainers, mount only the subcontainers')
-@click.option('--with-cache', '-c', metavar='TEMPLATE',
-              help='Use the specified storage template to create a new cache storage '
-                   '(becomes primary storage for the container while mounted)')
+@click.option('--with-cache', '-c', is_flag=True, default=False,
+              help='Use the default cache storage template to create and use a new cache storage '
+                   '(becomes primary storage for the container while mounted, synced with '
+                   'the old primary). '
+                   'Cache template to use can be overriden using the --cache-template option.')
+@click.option('--cache-template', metavar='TEMPLATE',
+              help='Use specified storage template to create and use a new cache storage')
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all containers, including those who '
                    'did not need to be changed')
@@ -857,21 +872,28 @@ def delete_cache(obj: ContextObj, name):
 @click.pass_obj
 def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: bool,
           import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
-          manifests_catalog: bool, with_cache: str) -> None:
+          manifests_catalog: bool, with_cache: bool, cache_template: str) -> None:
     """
     Mount a container given by name or path to its manifest. Repeat the argument to mount
     multiple containers.
 
     The Wildland system has to be mounted first, see ``wl start``.
     """
-    _mount(obj, container_names, remount, save, import_users,
-           with_subcontainers, only_subcontainers, list_all, manifests_catalog, with_cache)
+    if with_cache and not cache_template:
+        cache_template = obj.client.config.get('default-cache-template')
+        if not cache_template:
+            raise WildlandError('Default cache template not set, set one with '
+                                '`wl set-default-cache` or use --cache-template option')
+
+    _mount(obj, container_names, remount, save, import_users, with_subcontainers,
+           only_subcontainers, list_all, manifests_catalog, cache_template)
 
 
 def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
-           list_all: bool = True, manifests_catalog: bool = False, with_cache: str = None):
+           list_all: bool = True, manifests_catalog: bool = False,
+           cache_template: str = None) -> None:
 
     obj.fs_client.ensure_mounted()
 
@@ -890,32 +912,20 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         containers = Counter(msg).iter(obj.client.load_containers_from(
             container_name, include_manifests_catalog=manifests_catalog))
 
-        try:
-            reordered, exc_msg = obj.client.ensure_mount_reference_container(containers)
-            click.echo(f"Preparing mount (from '{container_name}')")
-            if exc_msg:
-                fails.append(exc_msg)
+        reordered, exc_msg = obj.client.ensure_mount_reference_container(containers)
+        click.echo(f"Preparing mount (from '{container_name}')")
 
-            if not reordered:
-                continue  # container_name doesn't exist
+        if exc_msg:
+            fails.append(exc_msg)
 
-            for container in reordered:
-                if with_cache:
-                    _create_cache(obj.client, container, with_cache, list_all)
-                    obj.client.load_caches()
-
-                try:
-                    user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-                    mount_params = prepare_mount(
-                        obj, container, str(container), user_paths,
-                        remount, with_subcontainers, None, list_all, only_subcontainers)
-                    current_params.extend(mount_params)
-                except WildlandError as ex:
-                    fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
-        except WildlandError as ex:
-            fails.append(f'Failed to load all containers from {container_name}:{str(ex)}')
+        if not reordered:
+            continue  # container_name doesn't exist
 
         for container in reordered:
+            if cache_template:
+                _create_cache(obj.client, container, cache_template, list_all)
+                obj.client.load_caches()
+
             try:
                 user_paths = obj.client.get_bridge_paths_for_user(container.owner)
                 mount_params = prepare_mount(
@@ -1001,7 +1011,8 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
             'saved and unsaved')
 
     fails: List[str] = []
-    storage_ids = []
+    all_storage_ids = []
+    all_cache_ids = []
     counter = Counter()
 
     if container_names:
@@ -1009,9 +1020,10 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
             counter.message = f"Loading containers (from '{container_name}'): "
 
             try:
-                container_storage_ids = _collect_storage_ids_by_container_name(
+                storage_ids, cache_ids = _collect_storage_ids_by_container_name(
                     obj, container_name, counter, with_subcontainers)
-                storage_ids.extend(container_storage_ids)
+                all_storage_ids.extend(storage_ids)
+                all_cache_ids.extend(cache_ids)
             except WildlandError as ex:
                 fails.append(str(ex))
 
@@ -1019,9 +1031,10 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
             fails = ['Failed to load some container manifests:'] + fails
     else:
         counter.message = f"Loading containers (from '{path}'): "
-        container_storage_ids = _collect_storage_ids_by_container_path(
+        storage_ids, cache_ids = _collect_storage_ids_by_container_path(
             obj, PurePosixPath(path), counter, with_subcontainers)
-        storage_ids.extend(container_storage_ids)
+        all_storage_ids.extend(storage_ids)
+        all_cache_ids.extend(cache_ids)
 
     if undo_save:
         default_containers = obj.client.config.get('default-containers')
@@ -1044,10 +1057,17 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
         if len(new_default_containers) < len(default_containers):
             obj.client.config.update_and_save({'default-containers': new_default_containers})
 
-    if storage_ids:
+    if all_storage_ids or all_cache_ids:
         click.echo(f'Unmounting {counter.index} containers')
-        for storage_id in storage_ids:
+        for storage_id in all_storage_ids:
             obj.fs_client.unmount_storage(storage_id)
+
+        for storage_id in all_cache_ids:
+            container = obj.fs_client.get_container_from_storage_id(storage_id)
+            wl_path = wl_path_for_container(obj.client, container)
+            obj.client.run_sync_command('stop', container=wl_path)
+            obj.fs_client.unmount_storage(storage_id)
+
     elif not undo_save:
         raise WildlandError('No containers mounted')
 
@@ -1065,13 +1085,19 @@ def _mount_path_to_backend_id(path: PurePosixPath) -> Optional[str]:
 
 
 def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
-        counter: progress.counter.Counter, with_subcontainers: bool = True) -> List[int]:
+        counter: progress.counter.Counter, with_subcontainers: bool = True) \
+        -> tuple[List[int], List[int]]:
+    """
+    Returns a tuple with a list of normal storages and a list of cache storages.
+    """
 
     storage_ids = []
+    cache_ids = []
     containers = counter.iter(obj.client.load_containers_from(container_name))
     for container in containers:
         unique_storage_paths = obj.fs_client.get_unique_storage_paths(container)
 
+        cache = obj.client.cache_storage(container)
         for mount_path in unique_storage_paths:
             storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
             is_pseudomanifest = _is_pseudomanifest_primary_mount_path(mount_path)
@@ -1079,33 +1105,45 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
             if storage_id is None:
                 assert not is_pseudomanifest
             else:
-                storage_ids.append(storage_id)
-
-                # stop sync if this is cache storage
-                cache = obj.client.cache_storage(container)
                 backend_id = _mount_path_to_backend_id(mount_path)
                 if cache and cache.params['backend-id'] == backend_id:
-                    obj.client.run_sync_command('stop', container=container_name)
+                    cache_ids.append(storage_id)
+                else:
+                    storage_ids.append(storage_id)
 
         if with_subcontainers:
-            storage_ids.extend(
-                obj.fs_client.find_all_subcontainers_storage_ids(container))
+            sub_ids = obj.fs_client.find_all_subcontainers_storage_ids(container)
+            cache = obj.client.cache_storage(container)
+            for storage_id in sub_ids:
+                if cache and cache.params['backend-id'] == storage_id:
+                    cache_ids.append(storage_id)
+                else:
+                    storage_ids.append(storage_id)
 
-    return storage_ids
+    return storage_ids, cache_ids
 
 
 def _collect_storage_ids_by_container_path(obj: ContextObj, path: PurePosixPath,
-        counter: progress.counter.Counter, with_subcontainers: bool = True) -> List[int]:
+        counter: progress.counter.Counter, with_subcontainers: bool = True) \
+        -> tuple[List[int], List[int]]:
     """
-    Return all storage IDs corresponding to a given mount path. Path can be either absolute or
-    relative with respect to the mount directory.
+    Return all storage IDs corresponding to a given mount path (tuple with normal storages and
+    cache storages). Path can be either absolute or relative with respect to the mount directory.
     """
 
-    storage_ids = counter.iter(obj.fs_client.find_all_storage_ids_by_path(path))
-    all_storage_ids = []
+    all_storage_ids = counter.iter(obj.fs_client.find_all_storage_ids_by_path(path))
+    storage_ids = []
+    cache_ids = []
 
-    for storage_id in storage_ids:
-        all_storage_ids.append(storage_id)
+    for storage_id in all_storage_ids:
+        container = obj.fs_client.get_container_from_storage_id(storage_id)
+        cache = obj.client.cache_storage(container)
+        mount_path = obj.fs_client.get_primary_unique_mount_path_from_storage_id(storage_id)
+        backend_id = _mount_path_to_backend_id(mount_path)
+        if cache and cache.params['backend-id'] == backend_id:
+            cache_ids.append(storage_id)
+        else:
+            storage_ids.append(storage_id)
 
         if _is_pseudomanifest_storage_id(obj, storage_id):
             logger.debug('Ignoring unmounting solely pseudomanifest path (storage ID = %d)',
@@ -1113,11 +1151,10 @@ def _collect_storage_ids_by_container_path(obj: ContextObj, path: PurePosixPath,
             continue
 
         if with_subcontainers:
-            container = obj.fs_client.get_container_from_storage_id(storage_id)
             subcontainer_storage_ids = obj.fs_client.find_all_subcontainers_storage_ids(container)
-            all_storage_ids.extend(subcontainer_storage_ids)
+            storage_ids.extend(subcontainer_storage_ids)
 
-    return all_storage_ids
+    return storage_ids, cache_ids
 
 
 def _is_pseudomanifest_storage_id(obj: ContextObj, storage_id: int) -> bool:

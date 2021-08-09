@@ -219,6 +219,7 @@ class Config:
             'local-owners': [],
             'default-containers': [],
             'default-remote-for-container': {},
+            'default-cache-template': None,
         }
 
     @staticmethod
