@@ -25,7 +25,7 @@
 Cached storage
 """
 
-from typing import Dict, List, Tuple, Iterable, Set
+from typing import Dict, List, Tuple, Iterable, Set, Optional
 import time
 from pathlib import PurePosixPath
 import errno
@@ -50,7 +50,7 @@ class CachedStorageMixin:
 
     def __init__(self, *args, **kwargs):
         # Silence mypy: https://github.com/python/mypy/issues/5887
-        super().__init__(*args, **kwargs) # type: ignore
+        super().__init__(*args, **kwargs)  # type: ignore
 
         self.info: List[Tuple[PurePosixPath, Attr]] = []
         self.getattr_cache: Dict[PurePosixPath, Attr] = {}
@@ -82,19 +82,27 @@ class CachedStorageMixin:
 
         self.info = list(self.info_all())
         for path, attr in self.info:
-            self.getattr_cache[path] = attr
-
-            if attr.is_dir():
-                self.readdir_cache.setdefault(path, set())
-
-            # Add all intermediate directories, in case info_all()
-            # didn't include them.
-            for i in range(len(path.parts)):
-                self.readdir_cache.setdefault(
-                    PurePosixPath(*path.parts[:i]), set()).add(
-                    path.parts[i])
+            self._update_cache(path, attr)
 
         self.expiry = time.time() + self.CACHE_TIMEOUT
+
+    def _update_cache(self, path: PurePosixPath, attr: Optional[Attr]) -> None:
+        if attr is None:
+            self.getattr_cache.pop(path, None)
+            self.readdir_cache.pop(path, None)
+            return
+
+        self.getattr_cache[path] = attr
+
+        if attr.is_dir():
+            self.readdir_cache.setdefault(path, set())
+
+        # Add all intermediate directories, in case info_all()
+        # didn't include them.
+        for i in range(len(path.parts)):
+            self.readdir_cache.setdefault(
+                PurePosixPath(*path.parts[:i]), set()).add(
+                path.parts[i])
 
     def _update(self):
         if self.expiry < time.time():

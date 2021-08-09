@@ -16,7 +16,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public LicenUnkse
+# You should have received a copy of the GNU General Public Licence
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -35,26 +35,36 @@ class StorageDriver:
     :class:`wildland.storage_backends.base.StorageBackend`
     """
 
-    def __init__(self, storage_backend, storage=None):
+    def __init__(self, storage_backend, storage=None, bulk_writing=False):
         self.storage_backend = storage_backend
         self.storage = storage
+        self.bulk_writing: bool = bulk_writing
 
     @classmethod
-    def from_storage(cls, storage) -> 'StorageDriver':
+    def from_storage(cls, storage, bulk_writing: bool = False) -> 'StorageDriver':
         """
-        Create :class:`StorageDriver` from
-        :class:`wildland.storage.Storage`
+        Create :class:`StorageDriver` from :class:`wildland.storage.Storage`
+
+        @param storage: :class:`wildland.storage.Storage`
+        @param bulk_writing: if True, writing can be cached so reading what we are writing/updating
+        is undefined (files can be updated or not). Reading untouched files works as usual.
         """
         # This is to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import
         from wildland.storage_backends.base import StorageBackend
-        return cls(StorageBackend.from_params(storage.params, deduplicate=True), storage=storage)
+        return cls(StorageBackend.from_params(storage.params, deduplicate=True),
+                   storage=storage,
+                   bulk_writing=bulk_writing)
 
     def __enter__(self):
         self.storage_backend.request_mount()
+        if self.bulk_writing:
+            self.storage_backend.start_bulk_writing()
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
+        if self.bulk_writing:
+            self.storage_backend.stop_bulk_writing()
         self.storage_backend.request_unmount()
 
     def write_file(self, relpath, data):
@@ -73,8 +83,7 @@ class StorageDriver:
             obj = self.storage_backend.open(relpath, os.O_WRONLY)
             self.storage_backend.ftruncate(relpath, 0, obj)
         else:
-            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY,
-                0o644)
+            obj = self.storage_backend.create(relpath, os.O_CREAT | os.O_WRONLY, 0o644)
 
         try:
             self.storage_backend.write(relpath, data, 0, obj)

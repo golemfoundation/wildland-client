@@ -165,7 +165,7 @@ class FileSubcontainersMixin(StorageBackend):
 
         container_relpaths = list(self._get_relpaths(container.uuid_path, container.expanded_paths))
 
-        with StorageDriver(self) as driver:
+        with StorageDriver(self, bulk_writing=True) as driver:
             storage_relpaths = self._replace_old_relative_urls(container)
             old_relpaths_to_remove = self._fetch_from_uuid_path(
                 client, driver, container_relpaths[0], container.uuid)

@@ -4974,6 +4974,7 @@ def test_storage_s3_params(cli, base_dir):
     assert storage['manifest-pattern']['type'] == 'glob'
     assert storage['manifest-pattern']['path'] == '/*.yaml'
 
+
 def test_storage_http_params(cli, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--no-encrypt-manifest')

@@ -742,6 +742,21 @@ class StorageBackend(metaclass=abc.ABCMeta):
         return pathlib.PurePosixPath(
             url[len(self.params['public-url']):].lstrip('/'))
 
+    def start_bulk_writing(self) -> None:
+        """
+        Indicates that we want to do many writing/creation operation.
+        Writing may be cached (or just invisible in local cache) so from now on reading what we are
+        writing/updating is undefined (files may or may not be updated).
+        Reading untouched files should works as usual.
+        """
+
+    def stop_bulk_writing(self) -> None:
+        """
+        Indicates that we end up bulk writing.
+        This method should accomplish cached writing operations (like the flush method).
+        The cache should be (possibly) invalidated if applicable.
+        """
+
 
 def _inner_proxy(method_name):
     def method(self, *args, **kwargs):
