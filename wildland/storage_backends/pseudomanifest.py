@@ -54,10 +54,10 @@ class PseudomanifestFile(File):
     as a comment.
     """
 
-    def __init__(self, container_name: str, data: bytes, attr: Attr):
+    def __init__(self, container_name: str, data: bytearray, attr: Attr):
         self.container_name = container_name
         self.data = data
-        self.cache: Optional[bytearray] = bytearray()
+        self.cache: bytearray = bytearray()
         self.cache[:] = data
         self.attr = attr
         self.attr.size = len(data)
@@ -66,13 +66,13 @@ class PseudomanifestFile(File):
         if length is None:
             length = len(self.cache) - offset
 
-        return bytes(self.cache)[offset:offset+length]
+        return bytes(self.cache[offset:offset+length])
 
     def flush(self) -> None:
         try:
-            new = Manifest.from_unsigned_bytes(self.cache)
+            new = Manifest.from_unsigned_bytes(bytes(self.cache))
             new.skip_verification()
-            old = Manifest.from_unsigned_bytes(self.data)
+            old = Manifest.from_unsigned_bytes(bytes(self.data))
             old.skip_verification()
         except Exception as e:
             message = \
@@ -199,7 +199,7 @@ class PseudomanifestStorageBackend(StorageBackend):
     })
     TYPE = 'pseudomanifest'
 
-    def __init__(self, *, params: Optional[Dict[str, Any]] = None, **kwds):
+    def __init__(self, *, params: Dict[str, Any], **kwds):
         super().__init__(params=params, **kwds)
         self.read_only = False
 
