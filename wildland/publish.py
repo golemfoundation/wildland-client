@@ -31,11 +31,12 @@ from typing import Optional, Generator, List, Set, Tuple
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .client import Client
+from .storage_backends.base import StorageBackend
+from .user import User
 from .container import Container
 from .exc import WildlandError
 from .manifest.manifest import ManifestError, Manifest
 from .storage_driver import StorageDriver
-from .storage import Storage
 
 logger = logging.getLogger('publish')
 
@@ -51,126 +52,89 @@ class Publisher:
 
     """
     A behavior for publishing and unpublishing manifests
-
-    >>> Publisher(client, container1).publish_manifest()
-    >>> Publisher(client, container2).unpublish_manifest()
+    >>> user: User; client: Client; container: Container
+    >>> publisher = Publisher(client, user)
+    >>> publisher.publish_container(container)
+    >>> publisher.republish_container(container)
+    >>> publisher.unpublish_container(container)
     """
-    def __init__(self, client: Client, container: Container,
-                 catalog_entry: Optional[Container] = None):
+    def __init__(self, client: Client, user: User, catalog_entry: Optional[Container] = None):
         self.client = client
-        self.container = container
+        self.user = user
+        self.cache = _UnpublishedContainersCache(self.client)
 
         if catalog_entry is not None:
-            raise NotImplementedError(
-                'choosing catalog entry is not supported')
+            raise NotImplementedError('choosing catalog entry is not supported')
 
-        self.container_uuid_path = self.container.uuid_path
+    def publish_container(self, container: Container) -> None:
+        """
+        Publish the container manifest to user catalog.
+        """
+        # get first available user catalog storage
+        catalog_storage = next(Publisher.get_catalog_storages(self.client, self.user))
+        catalog_storage.add_child(self.client, container)
+        self.cache.remove(container)
 
-    def publish_container(self) -> None:
+    def unpublish_container(self, container: Container) -> None:
         """
-        Publish the manifest
+        Unpublish the manifest from user catalog.
         """
-        infra_storage = next(_InfraChecker.get_storages_for_publish(
-            self.client, self.container.owner))
-        _StoragePublisher(self, infra_storage).publish_container()
-        if self.container.local_path:
-            _PublisherCache(self.client).remove(self.container.local_path)
+        for catalog_storage in Publisher.get_catalog_storages(self.client, self.user):
+            catalog_storage.remove_child(self.client, container)
+        self.cache.add(container)
 
-    def unpublish_container(self) -> None:
-        """
-        Unpublish the manifest
-        """
-        for storage in _InfraChecker.get_storages_for_publish(self.client, self.container.owner):
-            _StoragePublisher(self, storage).unpublish_container()
-        if self.container.local_path:
-            _PublisherCache(self.client).add(self.container.local_path)
-
-    def republish_container(self) -> None:
+    def republish_container(self, container: Container) -> None:
         """
         If the manifest is already published, republish it in the same manifest catalog.
         """
         published = []
         try:
-            for storage in _InfraChecker.get_storages_for_publish(
-                    self.client, self.container.owner):
-                if _InfraChecker.is_published_in_storage(storage, self.container_uuid_path):
-                    published.append(storage)
+            for catalog_storage in Publisher.get_catalog_storages(self.client, self.user):
+                if catalog_storage.has_child(container.uuid_path):
+                    published.append(catalog_storage)
         except WildlandError:
             pass
 
-        for storage in published:
-            _StoragePublisher(self, storage).publish_container()
+        for catalog_storage in published:
+            catalog_storage.add_child(self.client, container)
 
-        if published and self.container.local_path:
-            _PublisherCache(self.client).remove(self.container.local_path)
+        if published:
+            self.cache.remove(container)
 
     @staticmethod
     def list_unpublished_containers(client) -> List[str]:
         """
         Return list of unpublished containers for given client.
         """
-        not_published = list(_PublisherCache(client).load_cache())
+        not_published = list(_UnpublishedContainersCache(client).load_cache())
         return not_published
-
-
-class _InfraChecker:
-    """
-    Helper class: checking which container has been published and finding
-    suitable storages to publish the container manifest.
-
-    Group of static methods used in Publisher and _PublisherCache.
-    """
 
     @staticmethod
     def is_published(client: Client, owner: str, container_uuid_path: PurePosixPath) -> bool:
         """
         Check if the container is published in any storage.
         """
+        user = client.load_object_from_name(WildlandObject.Type.USER, owner)
         try:
-            for storage in _InfraChecker.get_storages_for_publish(client, owner):
-                if _InfraChecker.is_published_in_storage(storage, container_uuid_path):
+            for storage in Publisher.get_catalog_storages(client, user):
+                if storage.has_child(container_uuid_path):
                     return True
         except WildlandError:
             pass
         return False
 
     @staticmethod
-    def is_published_in_storage(infra_storage: Storage,
-                                container_uuid_path: PurePosixPath) -> bool:
-        """
-        Check if the container is published in given manifest catalog storage.
-        """
-        assert infra_storage.params['manifest-pattern']['type'] == 'glob'
-        pattern = infra_storage.params['manifest-pattern']['path']
-
-        path_pattern = pattern.replace('*', container_uuid_path.name)
-
-        container_relpath = PurePosixPath(
-            path_pattern.replace('{path}', str(container_uuid_path.relative_to('/')))
-        ).relative_to('/')
-
-        with StorageDriver.from_storage(infra_storage) as driver:
-            try:
-                driver.read_file(container_relpath)
-                return True
-            except FileNotFoundError:
-                return False
-
-    @staticmethod
-    def get_storages_for_publish(client: Client, container_owner: str
-                                 ) -> Generator[Storage, None, None]:
+    def get_catalog_storages(client: Client, owner: User) -> Generator[StorageBackend, None, None]:
         """
         Iterate over all suitable storages to publish container manifest.
         """
-        owner = client.load_object_from_name(WildlandObject.Type.USER, container_owner)
 
         ok = False
         rejected = []
 
         for container_candidate in owner.load_catalog():
             try:
-                all_storages = list(
-                    client.all_storages(container=container_candidate))
+                all_storages = list(client.all_storages(container=container_candidate))
 
                 if not all_storages:
                     rejected.append(
@@ -179,13 +143,6 @@ class _InfraChecker:
                     continue
 
                 for storage_candidate in all_storages:
-                    if 'manifest-pattern' not in storage_candidate.params or \
-                            storage_candidate.params['manifest-pattern']['type'] != 'glob':
-                        rejected.append(
-                            f'storage {storage_candidate.params["backend-id"]} of '
-                            f'container {container_candidate.uuid} '
-                            'does not have manifest_pattern')
-                        continue
 
                     if not storage_candidate.is_writeable:
                         rejected.append(
@@ -198,9 +155,16 @@ class _InfraChecker:
                     # Failure in attempt to mount the backend should try the next storage from the
                     # container and if still not mounted, move to the next container
                     try:
-                        with StorageDriver.from_storage(storage_candidate) as _driver:
+                        with StorageDriver.from_storage(storage_candidate) as driver:
+                            if not driver.storage_backend.supports_publish:
+                                rejected.append(
+                                    f'storage {storage_candidate.params["backend-id"]} of '
+                                    f'container {container_candidate.uuid} '
+                                    'is not a catalog storage (does not have manifest_pattern)')
+                                continue
+
                             ok = True
-                            yield storage_candidate
+                            yield driver.storage_backend
 
                             # yield at most a single storage for a container
                             break
@@ -224,147 +188,13 @@ class _InfraChecker:
                 continue
 
         if not ok:
-            raise WildlandError(
-                'Cannot find any container suitable as publishing platform:'
-                + ''.join(f'\n- {i}' for i in rejected))
+            err_msg = 'Cannot find any container suitable as publishing platform'
+            if rejected:
+                err_msg += ': ' + ''.join(f'\n- {i}' for i in rejected)
+            raise WildlandError(err_msg)
 
 
-class _StoragePublisher:
-    """
-    Helper class: publish/unpublish for a single storage
-
-    This is because publishing is done to single storage, but unpublish should
-    be attempted from all viable manifests catalog entries to avoid a situation when user
-    commands an unpublish, we find no manifests in some container and report to
-    user that there no manifests, which would obviously be wrong.
-    """
-
-    def __init__(self, publisher: Publisher, catalog_storage: Storage):
-        self.client = publisher.client
-        self.container = publisher.container
-        self.container_uuid_path = publisher.container_uuid_path
-
-        # TODO this requires a more subtle manifest-pattern rewrite including more types
-        # of writeable and publishable-to storages
-        self.catalog_storage = catalog_storage
-        assert self.catalog_storage.params['manifest-pattern']['type'] == 'glob'
-        self.pattern = self.catalog_storage.params['manifest-pattern']['path']
-
-    def _get_relpath_for_storage_manifest(self, backend_id):
-        # we publish only a single manifest for a storage, under `/.uuid/` path
-        container_manifest = next(
-            self._get_relpaths_for_container_manifests(self.container))
-        return container_manifest.with_name(
-            container_manifest.name.removesuffix('.yaml')
-            + f'.{backend_id}.yaml'
-        )
-
-    def _get_relpaths_for_container_manifests(self, container):
-        path_pattern = self.pattern.replace('*', container.uuid)
-
-        # always return /.uuid/ path first
-        yield PurePosixPath(
-            path_pattern.replace('{path}', str(self.container_uuid_path.relative_to('/')))
-        ).relative_to('/')
-
-        if '{path}' in path_pattern:
-            for path in container.expanded_paths:
-                if path == self.container_uuid_path:
-                    continue
-                yield PurePosixPath(path_pattern.replace(
-                    '{path}', str(path.relative_to('/')))).relative_to('/')
-
-    def unpublish_container(self) -> None:
-        """
-        Unpublish a container from a container owner.
-        """
-        self.publish_container(just_unpublish=True)
-
-    def publish_container(self, just_unpublish: bool = False) -> None:
-        """
-        Publish a container to a container owner by the same user.
-        """
-        # Marczykowski-Górecki's Algorithm:
-        # 1) choose manifests catalog entry from container owner
-        #    - if the container was published earlier, the same entry
-        #      should be chosen; this will make sense when user will be able to
-        #      choose to which catalog entry the container should be published
-        # 2) generate all new relpaths for the container and storages
-        # 3) try to fetch container from new relpaths; check if the file
-        #    contains the same container; if yes, generate relpaths for old
-        #    paths
-        # 4) remove old copies of manifest for container and storages (only
-        #    those that won't be overwritten later)
-        # 5) post new storage manifests
-        # 6) post new container manifests starting with /.uuid/ one
-        #
-        # For unpublishing, instead of 4), 5) and 6), all manifests are removed
-        # from relpaths and no new manifests are published.
-
-        container_relpaths = list(
-            self._get_relpaths_for_container_manifests(self.container))
-        storage_relpaths = {}
-        old_relpaths_to_remove = set()
-
-        with StorageDriver.from_storage(self.catalog_storage) as driver:
-            # replace old relative URLs with new, better URLs
-            for backend in self.container.load_storages(include_inline=False):
-                relpath = self._get_relpath_for_storage_manifest(backend.backend_id)
-                assert relpath not in storage_relpaths
-                storage_relpaths[relpath] = backend
-                self.container.add_storage_from_obj(
-                    backend, inline=False, new_url=driver.storage_backend.get_url_for_path(relpath))
-
-            # fetch from /.uuid path
-            try:
-                old_container_manifest_data = driver.read_file(container_relpaths[0])
-            except FileNotFoundError:
-                pass
-            else:
-                old_container = self.client.load_object_from_bytes(
-                    WildlandObject.Type.CONTAINER, old_container_manifest_data)
-                assert isinstance(old_container, Container)
-
-                if not old_container.uuid == self.container.uuid:
-                    # we just downloaded this file from container_relpaths[0], so
-                    # things are very wrong here
-                    raise WildlandError(
-                        f'old version of container manifest at storage '
-                        f'{driver.storage.params["backend-id"]} has serious '
-                        f'problems; please remove it manually')
-
-                old_relpaths_to_remove.update(set(
-                    self._get_relpaths_for_container_manifests(old_container)))
-                for url in old_container.load_raw_backends(include_inline=False):
-                    old_relpaths_to_remove.add(
-                        driver.storage_backend.get_path_for_url(url))
-
-            if just_unpublish:
-                old_relpaths_to_remove.update(container_relpaths)
-                old_relpaths_to_remove.update(storage_relpaths)
-            else:
-                old_relpaths_to_remove.difference_update(container_relpaths)
-                old_relpaths_to_remove.difference_update(storage_relpaths)
-
-            # remove /.uuid path last, if present (bool sorts False < True)
-            for relpath in sorted(old_relpaths_to_remove,
-                                  key=(lambda path: path.parts[:2] == ('/', '.uuid'))):
-                try:
-                    driver.remove_file(relpath)
-                except FileNotFoundError:
-                    pass
-
-            if not just_unpublish:
-                for relpath, storage in storage_relpaths.items():
-                    driver.makedirs(relpath.parent)
-                    driver.write_file(relpath, self.client.session.dump_object(storage))
-
-                for relpath in container_relpaths:
-                    driver.makedirs(relpath.parent)
-                    driver.write_file(relpath, self.client.session.dump_object(self.container))
-
-
-class _PublisherCache:
+class _UnpublishedContainersCache:
     """
     Helper class: caching paths of unpublished containers in '.unpublished' file.
 
@@ -385,33 +215,42 @@ class _PublisherCache:
             self._update()
         return self._load()
 
-    def add(self, path: Path) -> None:
+    def add(self, container: Container) -> None:
         """
-        Cache path.
+        Cache container local path (if exist).
         """
-        to_add = self.client.dirs[WildlandObject.Type.CONTAINER] / path
-        if not to_add.exists():
-            # we tried to add a file that's not actually in the containers/ dir
+        to_add = self._get_changed(container)
+        if not to_add:
             return
-        if self._is_invalid(ignore=to_add):
-            self._update()
         cache = self._load()
         cache.add(str(to_add))
         self._save(cache)
 
-    def remove(self, path: Path) -> None:
+    def remove(self, container: Container) -> None:
         """
-        Remove path from cache.
+        Remove container local path (if exist) from cache.
         """
-        to_remove = self.client.dirs[WildlandObject.Type.CONTAINER] / path
-        if not to_remove.exists():
-            # we tried to remove a file that's not actually in the containers/ dir
+        to_remove = self._get_changed(container)
+        if not to_remove:
             return
-        if self._is_invalid(ignore=to_remove):
-            self._update()
         cache = self._load()
         cache.discard(str(to_remove))
         self._save(cache)
+
+    def _get_changed(self, container: Container) -> Optional[Path]:
+        path = container.local_path
+        if not path:
+            return None
+
+        changed = self.client.dirs[WildlandObject.Type.CONTAINER] / path
+        if not changed.exists():
+            # we tried to modify a file that's not actually in the containers/ dir
+            return None
+
+        if self._is_invalid(ignore=changed):
+            self._update()
+
+        return changed
 
     def _load(self) -> Set[str]:
         with open(self.file, 'r') as f:
@@ -444,7 +283,7 @@ class _PublisherCache:
             user = self.client.load_object_from_name(WildlandObject.Type.USER, owner)
             # ensure that a user has a catalog that we can actually publish containers to it
             if uuid and user.has_catalog and \
-                    not _InfraChecker.is_published(self.client, owner, uuid):
+                    not Publisher.is_published(self.client, owner, uuid):
                 cache.add(str(path))
 
         self._save(cache)

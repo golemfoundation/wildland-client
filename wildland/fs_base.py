@@ -171,6 +171,7 @@ class WildlandFSBase:
 
     @control_command('mount')
     def control_mount(self, _handler, items):
+        collected_errors = list()
         for params in items:
             paths = [PurePosixPath(p) for p in params['paths']]
             assert len(paths) > 0
@@ -179,10 +180,16 @@ class WildlandFSBase:
             extra_params = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
-            storage.request_mount()
-            with self.mount_lock:
-                self._mount_storage(paths, storage, extra_params, remount)
+            try:
+                storage.request_mount()
+                with self.mount_lock:
+                    self._mount_storage(paths, storage, extra_params, remount)
+            except Exception as e:
+                logger.exception('backend %s not mounted due to exception', storage.backend_id)
+                collected_errors.append(e)
 
+        if collected_errors:
+            raise WildlandError(collected_errors)
     @control_command('unmount')
     def control_unmount(self, _handler, storage_id: int):
         if storage_id not in self.storages:

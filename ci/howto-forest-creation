@@ -54,7 +54,7 @@ expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 run tree -aF /tmp/minio-data/the-bucket/.manifests/*
 
 expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml
-publishing container /.uuid/$UUID_PCRE..."
+Publishing container /.uuid/$UUID_PCRE..."
 run wl container create hello-world --path /hello/world
 
 wl storage create static --file "Hello.md=Hello World!" --container hello-world
