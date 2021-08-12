@@ -20,7 +20,7 @@ MNT_PATH_2="$ROOT/$MNT_DIR_2"
 
 ./wl user create dropbox-user
 ./wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" dropbox-test-container
-./wl storage create dropbox --container dropbox-test-container --inline --token "$1"
+./wl storage create dropbox --container dropbox-test-container --inline --app-key "$1" --refresh-token "$2"
 ./wl start --container dropbox-test-container
 
 # Create temporary timestamped test directory

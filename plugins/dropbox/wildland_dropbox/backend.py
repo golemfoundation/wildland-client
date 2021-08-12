@@ -26,10 +26,13 @@ Dropbox storage backend
 import errno
 import logging
 import stat
+
 from pathlib import PurePosixPath, PosixPath
 from typing import Iterable, Tuple, Optional, Callable
 
 import click
+
+from dropbox import DropboxOAuth2FlowNoRedirect
 from dropbox.files import FileMetadata, FolderMetadata, Metadata
 from dropbox.exceptions import ApiError
 from wildland.storage_backends.base import StorageBackend, Attr
@@ -107,16 +110,19 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
     SCHEMA = Schema({
         "title": "Dropbox storage manifest",
         "type": "object",
-        "required": ["token"],
+        "required": ["app-key"],
         "properties": {
             "location": {
                 "$ref": "/schemas/types.json#abs-path",
                 "description": "Absolute POSIX path acting as a root directory in user's dropbox"
             },
-            "token": {
+            "app-key": {
                 "type": ["string"],
-                "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
-                               "Console.",
+                "description": "Dropbox App Key.",
+            },
+            "refresh-token": {
+                "type": ["string"],
+                "description": "Dropbox OAuth 2.0 refresh token.",
             },
             "manifest-pattern": {
                 "oneOf": [
@@ -131,8 +137,9 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
-        dropbox_access_token = self.params['token']
-        self.client = DropboxClient(dropbox_access_token)
+        dropbox_app_key = self.params['app-key']
+        dropbox_refresh_token = self.params['refresh-token']
+        self.client = DropboxClient(dropbox_app_key, dropbox_refresh_token)
         self.root = PosixPath(self.params.get('location', '/')).resolve()
 
     @classmethod
@@ -143,18 +150,44 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
                 ['--location'], metavar='PATH', required=False, default='/',
                 help='Absolute path to root directory in your Dropbox account.'),
             click.Option(
-                ['--token'], metavar='ACCESS_TOKEN', required=True,
-                help='Dropbox OAuth 2.0 access token. You can generate it in Dropbox App Console.')
+                ["--app-key"],
+                metavar="STRING",
+                required=True,
+                help="Dropbox App Key",
+            ),
+            click.Option(
+                ["--refresh-token"],
+                metavar="STRING",
+                required=False,
+                help="Dropbox OAuth 2.0 refresh token",
+            )
         ])
         return opts
 
     @classmethod
     def cli_create(cls, data):
+        app_key = data["app_key"]
+        refresh_token = data.get("refresh_token", None)
+        if not refresh_token:
+            auth_flow = DropboxOAuth2FlowNoRedirect(
+                app_key, use_pkce=True, token_access_type='offline')
+
+            authorize_url = auth_flow.start()
+            msg = f"""
+1. Go to: {authorize_url}
+2. Click \"Allow\" (you might have to log in first).
+3. Copy the authorization code."""
+            print(msg)
+            auth_code = input("4. Enter the authorization code here: ").strip()
+
+            oauth_result = auth_flow.finish(auth_code)
+            refresh_token = oauth_result.refresh_token
+
         result = super(DropboxStorageBackend, cls).cli_create(data)
         result.update({
-            'location': data['location'],
-            'token': data['token'],
-        })
+            "location": data["location"],
+            "app-key":  app_key,
+            "refresh-token": refresh_token})
         return result
 
     @staticmethod

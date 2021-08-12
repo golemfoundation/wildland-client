@@ -114,7 +114,7 @@ dropbox-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-dropbox $DROPBOX_TEST_ACCESS_TOKEN
+    - ./ci/ci-dropbox "$DROPBOX_TEST_APP_KEY" "$DROPBOX_TEST_REFRESH_TOKEN"
 
 googledrive-test:
   stage: test

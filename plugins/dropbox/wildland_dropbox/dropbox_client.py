@@ -49,35 +49,49 @@ class DropboxClient:
     Dropbox client exposing relevant Dropbox API for Dropbox plugin.
     """
 
-    def __init__(self, access_token: str):
-        self.access_token = access_token
+    def __init__(self, app_key, refresh_token):
+        self.app_key = app_key
+        self.refresh_token = refresh_token
         self.connection: Optional[Dropbox] = None
 
     def connect(self) -> None:
         """
         Create an object that routes all the Dropbox API requests to the Dropbox API endpoint.
         """
-        self.connection = Dropbox(self.access_token)
+        self.connection = Dropbox(
+            oauth2_refresh_token=self.refresh_token,
+            app_key=self.app_key
+        )
 
     def disconnect(self) -> None:
         """
         Gracefully terminate the connection with Dropbox endpoint and free related resources.
         """
-        assert self.connection
-        self.connection.close()
+        if self.connection:
+            self.connection.close()
         self.connection = None
+
+    def get_connection(self):
+        """
+        Return Dropbox connection and refresh it if necessary
+        """
+        if self.connection:
+            self.connection.check_and_refresh_access_token()
+        else:
+            self.connect()
+            assert self.connection
+        return self.connection
 
     def list_folder(self, path: PurePosixPath) -> List[Metadata]:
         """
         List content of the given directory.
         """
-        assert self.connection
         try:
             path_str = self._convert_to_dropbox_path(path)
-            listing = self.connection.files_list_folder(path_str)
+            listing = self.get_connection().files_list_folder(path_str)
             entries: list[Metadata] = listing.entries
             while listing.has_more:
-                listing = self.connection.files_list_folder_continue(listing.cursor)
+                listing = self.get_connection().files_list_folder_continue(listing.cursor)
                 entries.extend(listing.entries)
             return entries
         except (AuthError, BadInputError) as e:
@@ -88,10 +102,9 @@ class DropboxClient:
         """
         Get content of the given file.
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
-            _, response = self.connection.files_download(path_str)
+            _, response = self.get_connection().files_download(path_str)
         except (AuthError, BadInputError) as e:
             raise PermissionError(errno.EACCES, f'No permissions to read files [{path_str}]') from e
         return response.content
@@ -110,9 +123,8 @@ class DropboxClient:
         return self._unlink(path_str)
 
     def _unlink(self, path: str):
-        assert self.connection
         try:
-            return self.connection.files_delete_v2(path)
+            return self.get_connection().files_delete_v2(path)
         except (AuthError, BadInputError) as e:
             raise PermissionError(
                 errno.EACCES,
@@ -122,10 +134,9 @@ class DropboxClient:
         """
         Create given directory. In case of a conflict don't allow Dropbox to autorename.
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
-            return self.connection.files_create_folder_v2(path_str, autorename=False)
+            return self.get_connection().files_create_folder_v2(path_str, autorename=False)
         except (AuthError, BadInputError) as e:
             raise PermissionError(errno.EACCES,
                                   f'No permissions to create directories [{path_str}]') from e
@@ -154,12 +165,11 @@ class DropboxClient:
         more network traffic (unless cached) to check if a file exists. It could also introduce a
         race condition.
         """
-        assert self.connection
 
         logger.debug('Renaming [%s] to [%s]', move_from_path, move_to_path)
 
         try:
-            return self.connection.files_move(move_from_path, move_to_path)
+            return self.get_connection().files_move(move_from_path, move_to_path)
         except (AuthError, BadInputError) as e:
             raise PermissionError(
                 errno.EACCES,
@@ -229,9 +239,8 @@ class DropboxClient:
         """
         Get file/directory metadata. This is kind of a superset of getattr().
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
-        return self.connection.files_get_metadata(path_str)
+        return self.get_connection().files_get_metadata(path_str)
 
     def upload_file(self, data: bytes, path: PurePosixPath) -> FileMetadata:
         """
@@ -251,15 +260,13 @@ class DropboxClient:
             raise PermissionError(errno.EACCES, f'No permissions to write file [{path}]') from e
 
     def _upload_small_file(self, data: bytes, path: str) -> FileMetadata:
-        assert self.connection
-        return self.connection.files_upload(data, path, mode=WriteMode.overwrite)
+        return self.get_connection().files_upload(data, path, mode=WriteMode.overwrite)
 
     def _upload_large_file(self, data: bytes, path: str) -> FileMetadata:
-        assert self.connection
         CHUNK_SIZE = 10 * 1024 * 1024  # 10 MiB
         offset = CHUNK_SIZE
         file_size = len(data)
-        upload_session = self.connection.files_upload_session_start(
+        upload_session = self.get_connection().files_upload_session_start(
             data[:offset],
             close=offset>=file_size)
         cursor = UploadSessionCursor(session_id=upload_session.session_id, offset=offset)
@@ -267,12 +274,12 @@ class DropboxClient:
 
         while offset < file_size:
             if file_size - offset <= CHUNK_SIZE:
-                self.connection.files_upload_session_finish(
+                self.get_connection().files_upload_session_finish(
                     data[offset:offset + CHUNK_SIZE],
                     cursor,
                     commit)
             else:
-                self.connection.files_upload_session_append_v2(
+                self.get_connection().files_upload_session_append_v2(
                     data[offset:offset + CHUNK_SIZE],
                     cursor,
                     close=False)
