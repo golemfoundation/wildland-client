@@ -307,16 +307,9 @@ class WildlandFSClient:
         storage_manifest = Manifest.from_fields(pseudo_manifest_params)
         pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
 
-        # Only local containers can be modified by editing pseudomanifest.
-        if container.local_path:
-            container_name = str(container.local_path.name)[:-len('.container.yaml')]
-        else:
-            container_name = ''
-
         static_params = {
             'type': 'pseudomanifest',
             'content': pseudomanifest_content,
-            'container-name': container_name,
             'primary': storage.is_primary,  # determines how many mountpoints are generated
             'backend-id': storage.backend_id,
             'owner': storage.owner,
