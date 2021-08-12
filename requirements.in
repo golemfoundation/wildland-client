@@ -48,3 +48,4 @@ pyinstrument
 
 sphinx
 sphinx-autodoc-typehints
+colorama
