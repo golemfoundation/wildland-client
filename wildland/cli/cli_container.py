@@ -1299,18 +1299,30 @@ def _resolve_container(ctx: click.Context, path: str,
         if container.manifest is None:
             raise WildlandError(f'Manifest for the given path [{path}] was not found')
 
-        with tempfile.NamedTemporaryFile(suffix='.tmp.container.yaml') as f:
-            f.write(container.manifest.to_bytes())
-            f.flush()
+        if container.local_path:
+            # modify local manifest
+            manifest_modified = ctx.invoke(callback, pass_ctx=ctx, input_file=container.local_path,
+                                           **callback_kwargs)
+            container = client.load_object_from_name(
+                WildlandObject.Type.CONTAINER, str(container.local_path))
+        else:
+            # download, modify and save manifest
+            with tempfile.NamedTemporaryFile(suffix='.tmp.container.yaml') as f:
+                f.write(container.manifest.to_bytes())
+                f.flush()
 
-            manifest_modified = ctx.invoke(
-                callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
+                manifest_modified = ctx.invoke(
+                    callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
 
-            with open(f.name, 'rb') as file:
-                data = file.read()
+                with open(f.name, 'rb') as file:
+                    data = file.read()
 
-            container = client.load_object_from_bytes(WildlandObject.Type.CONTAINER, data)
+                container = client.load_object_from_bytes(WildlandObject.Type.CONTAINER, data)
+
+                path = client.save_new_object(WildlandObject.Type.CONTAINER, container)
+                click.echo(f'Created: {path}')
     else:
+        # modify local manifest
         local_path = client.find_local_manifest(WildlandObject.Type.CONTAINER, path)
 
         if local_path:
