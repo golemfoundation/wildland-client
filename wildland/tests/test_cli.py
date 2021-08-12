@@ -41,10 +41,12 @@ import yaml
 from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
 from ..cli.cli_container import _resolve_container
+from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, Manifest
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..utils import load_yaml, load_yaml_all
+from ..wildland_object.wildland_object import WildlandObject
 
 
 def modify_file(path, pattern, replacement):
@@ -1210,6 +1212,9 @@ def test_container_add_path(cli, cli_fail, base_dir):
     cli('container', 'modify', 'add-path', 'Container.container', '--path', '/xyz')
     assert '/xyz' in manifest_path.read_text()
 
+    cli('container', 'modify', 'add-path', ':/PATH:', '--path', '/cba')
+    assert '/cba' in manifest_path.read_text()
+
     # duplicates should be ignored
     cli('container', 'modify', 'add-path', 'Container', '--path', '/xyz')
     data = manifest_path.read_text()
@@ -1231,8 +1236,16 @@ def test_container_del_path(cli, base_dir):
 
     manifest_path = base_dir / 'containers/Container.container.yaml'
     cli('container', 'modify', 'add-path', 'Container', '--path', '/abc')
+    assert '/abc' in manifest_path.read_text()
 
     cli('container', 'modify', 'del-path', 'Container', '--path', '/abc')
+    assert '/abc' not in manifest_path.read_text()
+
+    # WL path
+    cli('container', 'modify', 'add-path', ':/PATH:', '--path', '/abc')
+    assert '/abc' in manifest_path.read_text()
+
+    cli('container', 'modify', 'del-path', ':/PATH:', '--path', '/abc')
     assert '/abc' not in manifest_path.read_text()
 
     # non-existent paths should be ignored
@@ -1266,6 +1279,11 @@ def test_container_set_title(cli, base_dir):
     with open(manifest_path) as f:
         data = f.read()
     assert 'title: another thing' in data
+
+    cli('container', 'modify', 'set-title', ':/PATH:', '--title', 'one more time')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'one more time' in data
 
 
 def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
@@ -1302,7 +1320,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
             super().__init__()
             self.visited = False
 
-        def startswith(self, _str):
+        def startswith(self, _str, **_kwargs):
             if _str == 'file:' and not self.visited:
                 self.visited = True
                 return False
@@ -1323,6 +1341,13 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
         data = f.read()
     assert 'title: another thing' in data
 
+    # Check if downloaded manifest has updated title
+    client = Client(base_dir)
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
+    with open(base_dir / f"containers/{container.uuid}.container.yaml") as f:
+        data = f.read()
+    assert 'title: another thing' in data
+
 
 def test_container_add_category(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1339,6 +1364,11 @@ def test_container_add_category(cli, cli_fail, base_dir):
     with open(manifest_path) as f:
         data = f.read()
     assert '- /xyz' in data
+
+    cli('container', 'modify', 'add-category', ':/PATH:', '--category', '/cba')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /cba' in data
 
     # duplicates should be ignored
     cli('container', 'modify', 'add-category', 'Container', '--category', '/xyz')
@@ -1369,6 +1399,14 @@ def test_container_del_category(cli, base_dir):
     with open(manifest_path) as f:
         data = f.read()
     assert '- /abc' not in data
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+    cli('container', 'modify', 'add-category', ':/PATH:', '--category', '/cba')
+
+    cli('container', 'modify', 'del-category', ':/PATH:', '--category', '/cba')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /cba' not in data
 
     # non-existent paths should be ignored
     cli('container', 'modify', 'del-category', 'Container.container', '--category', '/xyz')
@@ -1401,7 +1439,8 @@ def test_container_modify_access(cli, base_dir):
     data = yaml.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 2
 
-    cli('container', 'modify', 'del-access', 'Container', '--access', 'User2')
+    # works with container name and wl path
+    cli('container', 'modify', 'del-access', ':/PATH:', '--access', 'User2')
     base_data = manifest_path.read_text().split('\n', 3)[-1]
     data = yaml.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 1
@@ -1595,12 +1634,12 @@ def test_container_republish_paths(cli, tmp_path):
     assert not (tmp_path / 'manifests/PA/TH3.yaml').exists()
 
     # --no-publish, modification in progress
-    cli('container', 'modify', 'del-path', 'Container', '--path', '/PA/TH2', '--no-publish')
+    cli('container', 'modify', 'del-path', ':/PA/TH1:', '--path', '/PA/TH2', '--no-publish')
     # auto republishing
-    cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH3')
+    cli('container', 'modify', 'add-path', ':/PA/TH1:', '--path', '/PA/TH3')
     # --no-publish
-    cli('container', 'modify', 'del-path', 'Container', '--path', '/PA/TH1', '--no-publish')
-    cli('container', 'modify', 'add-path', 'Container', '--path', '/PA/TH4', '--no-publish')
+    cli('container', 'modify', 'del-path', ':/PA/TH1:', '--path', '/PA/TH1', '--no-publish')
+    cli('container', 'modify', 'add-path', ':/PA/TH1:', '--path', '/PA/TH4', '--no-publish')
 
     assert (tmp_path / 'manifests/PA/TH1.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
@@ -1608,7 +1647,7 @@ def test_container_republish_paths(cli, tmp_path):
     assert not (tmp_path / 'manifests/PA/TH4.yaml').exists()
 
     # after publishing all of the above container modifications are applied
-    cli('container', 'publish', 'Container')
+    cli('container', 'publish', ':/PA/TH3:')
 
     assert not (tmp_path / 'manifests/PA/TH1.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
