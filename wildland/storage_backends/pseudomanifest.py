@@ -54,13 +54,15 @@ class PseudomanifestFile(File):
     as a comment.
     """
 
-    def __init__(self, container_name: str, data: bytearray, attr: Attr):
-        self.container_name = container_name
+    def __init__(self, data: bytearray, attr: Attr):
         self.data = data
+        manifest = Manifest.from_unsigned_bytes(bytes(self.data))
+        manifest.skip_verification()
+        uuid_path = manifest.fields['paths'][0]
+        self.container_identifier = f':{uuid_path}:'
         self.cache: bytearray = bytearray()
         self.cache[:] = data
         self.attr = attr
-        self.attr.size = len(data)
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         if length is None:
@@ -98,7 +100,7 @@ class PseudomanifestFile(File):
                     new_title = "'null'"
                 try:
                     _cli('container', 'modify',
-                         'set-title', self.container_name, '--title', new_title)
+                         'set-title', self.container_identifier, '--title', new_title)
                     old.fields['title'] = new.fields['title']
                 except Exception as e:
                     error_messages += '\n' + str(e)
@@ -160,7 +162,7 @@ class PseudomanifestFile(File):
         args = list(chain.from_iterable((f'--{field}', f) for f in to_modify))
         if args:
             try:
-                _cli('container', 'modify', f'{mod}-{field}', self.container_name, *args)
+                _cli('container', 'modify', f'{mod}-{field}', self.container_identifier, *args)
 
                 if mod == 'add':
                     old_fields.extend(to_modify)
@@ -185,15 +187,11 @@ class PseudomanifestStorageBackend(StorageBackend):
     """
     SCHEMA = Schema({
         "type": "object",
-        "required": ["content", "container-name"],
+        "required": ["content"],
         "properties": {
             "content": {
                 "type": "object",
                 "description": "Pseudomanifest file content."
-            },
-            "container-name": {
-                "type": "string",
-                "description": "Container name."
             }
         }
     })
@@ -202,11 +200,6 @@ class PseudomanifestStorageBackend(StorageBackend):
     def __init__(self, *, params: Dict[str, Any], **kwds):
         super().__init__(params=params, **kwds)
         self.read_only = False
-
-        # Name is required to modify the container.
-        self.container_name = params['container-name']
-        if self.container_name == '':
-            self.read_only = True
 
         data = params['content']
         if isinstance(data, str):
@@ -223,7 +216,7 @@ class PseudomanifestStorageBackend(StorageBackend):
         """
         open() for generated pseudomanifest storage
         """
-        return PseudomanifestFile(self.container_name, self.data, self.attr)
+        return PseudomanifestFile(self.data, self.attr)
 
     def getattr(self, path: PurePosixPath) -> Attr:
         """
