@@ -80,7 +80,16 @@ access:
 '''
 
 
-def mount(cli, base_dir, tmp_path):
+def pseudomanifest_replace(pseudomanifest_path, to_replace, new):
+    with open(pseudomanifest_path, 'r+') as f:
+        pseudomanifest_content = f.read()
+        new_pseudomanifest_content = pseudomanifest_content.replace(
+            to_replace, new)
+        f.truncate(0)
+        f.write(new_pseudomanifest_content)
+
+
+def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage',
@@ -105,20 +114,7 @@ def mount(cli, base_dir, tmp_path):
                                   verbose=False, only_subcontainers=False))
     obj.fs_client.mount_multiple_containers(commands)
 
-    return obj.fs_client.mount_dir
-
-
-def pseudomanifest_replace(pseudomanifest_path, to_replace, new):
-    with open(pseudomanifest_path, 'r+') as f:
-        pseudomanifest_content = f.read()
-        new_pseudomanifest_content = pseudomanifest_content.replace(
-            to_replace, new)
-        f.truncate(0)
-        f.write(new_pseudomanifest_content)
-
-
-def test_pseudomanifest_editable(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
+    mount_dir = obj.fs_client.mount_dir
 
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     assert sorted(os.listdir(mounted_path)) == ['.manifest.wildland.yaml'], \
@@ -131,9 +127,8 @@ def test_pseudomanifest_editable(cli, base_dir, tmp_path):
     with open(pseudomanifest_path, 'r+'):
         pass
 
+    # edit path
 
-def test_pseudomanifest_edit_path(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
@@ -143,8 +138,9 @@ def test_pseudomanifest_edit_path(cli, base_dir, tmp_path):
         assert "- /NEW" in content
         assert "paths:\\n- /.uuid/" in content
     with open(pseudomanifest_path, "r") as f:
+        content = f.read()
         assert "- /NEW" in content
-        assert "paths:\\n- /.uuid/" in content
+        assert "paths:\n- /.uuid/" in content
 
     pseudomanifest_replace(pseudomanifest_path, "- /NEW\n", "")
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
@@ -152,9 +148,8 @@ def test_pseudomanifest_edit_path(cli, base_dir, tmp_path):
     with open(pseudomanifest_path, "r") as f:
         assert "- /NEW" not in f.read()
 
+    # edit category
 
-def test_pseudomanifest_edit_category(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
@@ -170,9 +165,8 @@ def test_pseudomanifest_edit_category(cli, base_dir, tmp_path):
     with open(pseudomanifest_path, "r") as f:
         assert "categories: []" in f.read()
 
+    # edit category goes wrong
 
-def test_pseudomanifest_edit_category_goes_wrong(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
@@ -189,8 +183,7 @@ def test_pseudomanifest_edit_category_goes_wrong(cli, base_dir, tmp_path):
         assert "rejected due to encountered errors" in f.read()
 
 
-def test_pseudomanifest_edit_set_title(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
+    # set title
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
@@ -202,9 +195,8 @@ def test_pseudomanifest_edit_set_title(cli, base_dir, tmp_path):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert "title: 'null'" in f.read()
 
+    # edit user
 
-def test_pseudomanifest_edit_user(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
@@ -225,9 +217,8 @@ def test_pseudomanifest_edit_user(cli, base_dir, tmp_path):
     with open(pseudomanifest_path, 'r') as f:
         assert "rejected due to encountered errors" not in f.read()
 
+    # whitespaces
 
-def test_pseudomanifest_whitespaces(cli, base_dir, tmp_path):
-    mount_dir = mount(cli, base_dir, tmp_path)
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
     pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
