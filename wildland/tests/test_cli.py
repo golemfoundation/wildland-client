@@ -1710,7 +1710,6 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
 
     result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
-    print(out_lines)
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
     assert 'Re-publishing container /.uuid/' in out_lines[1]
