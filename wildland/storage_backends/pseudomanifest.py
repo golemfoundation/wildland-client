@@ -23,9 +23,10 @@ import os
 import stat
 from itertools import chain
 from pathlib import PurePosixPath
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 from .base import StorageBackend, File, Attr
+from .buffered import FullBufferedFile
 from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
 
@@ -45,7 +46,7 @@ def _cli(*args):
                 raise e.__context__
 
 
-class PseudomanifestFile(File):
+class PseudomanifestFile(FullBufferedFile):
     """
     File for storing single pseudomanifest file.
 
@@ -55,24 +56,19 @@ class PseudomanifestFile(File):
     """
 
     def __init__(self, data: bytearray, attr: Attr):
+        super().__init__(attr)
         self.data = data
         manifest = Manifest.from_unsigned_bytes(bytes(self.data))
         manifest.skip_verification()
         uuid_path = manifest.fields['paths'][0]
         self.container_identifier = f':{uuid_path}:'
-        self.cache: bytearray = bytearray()
-        self.cache[:] = data
-        self.attr = attr
 
-    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
-        if length is None:
-            length = len(self.cache) - offset
+    def read_full(self) -> bytes:
+        return self.data
 
-        return bytes(self.cache[offset:offset+length])
-
-    def flush(self) -> None:
+    def write_full(self, data: bytes) -> int:
         try:
-            new = Manifest.from_unsigned_bytes(bytes(self.cache))
+            new = Manifest.from_unsigned_bytes(bytes(data))
             new.skip_verification()
             old = Manifest.from_unsigned_bytes(bytes(self.data))
             old.skip_verification()
@@ -80,7 +76,7 @@ class PseudomanifestFile(File):
             message = \
                 '\n\n# All following changes to the manifest' \
                 '\n# was rejected due to encountered errors:' \
-                '\n#\n# ' + self.cache.decode().replace('\n', '\n# ') + \
+                '\n#\n# ' + data.decode().replace('\n', '\n# ') + \
                 '\n# ' + str(e).replace('\n', '\n# ')
             self.data[len(self.data) - 1:] = message.encode()
             raise IOError() from e
@@ -118,20 +114,10 @@ class PseudomanifestFile(File):
                 message = \
                     '\n\n# Some changes to the following manifest' \
                     '\n# was rejected due to encountered errors:' \
-                    '\n#\n# ' + self.cache.decode().replace('\n', '\n# ') + \
+                    '\n#\n# ' + data.decode().replace('\n', '\n# ') + \
                     '\n# ' + error_messages.replace('\n', '\n# ')
                 self.data[len(self.data) - 1:] = message.encode()
                 raise IOError()
-
-    def release(self, flags):
-        pass
-
-    def fgetattr(self):
-        self.attr.size = len(self.cache)
-        return self.attr
-
-    def write(self, data: bytes, offset: int) -> int:
-        self.cache[offset:offset + len(data)] = data
 
         return len(data)
 
@@ -176,9 +162,6 @@ class PseudomanifestFile(File):
                 return '\n' + str(e)
 
         return ""
-
-    def ftruncate(self, length: int) -> None:
-        self.cache = self.cache[:length]
 
 
 class PseudomanifestStorageBackend(StorageBackend):
