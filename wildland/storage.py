@@ -203,16 +203,16 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         This function provides filtered sensitive and unneeded fields for representation
         """
-        fields = self.to_manifest_fields(inline=True)
+        nonsensitive_storage_fields = ["owner", "type", "version", "backend-id"]
+
+        fields = {}
+        manifest_fields = self.to_manifest_fields(inline=True)
         if not include_sensitive:
-            # Remove sensitive fields
-            fields.pop("container-path", None)
-            fields.pop("trusted", None)
-            fields.pop("manifest", None)
-            fields.pop("public-url", None)
-            fields.pop("local-path", None)
-            fields.pop("access", None)
-            fields.pop("manifest-pattern", None)
+            for field in nonsensitive_storage_fields:
+                if manifest_fields.get(field, None):
+                    fields[field] = manifest_fields[field]
+        else:
+            fields = manifest_fields
         return fields
 
     def copy(self, old_uuid, new_uuid):
