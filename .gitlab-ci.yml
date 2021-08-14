@@ -77,7 +77,12 @@ gitlab-test:
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-gitlab-test
- 
+
+git-test:
+    stage: test
+    image: $CONTAINER_TEST_IMAGE
+    script:
+        - ./ci/ci-git-test
 
 gitlab-graphql-test:
     stage: test

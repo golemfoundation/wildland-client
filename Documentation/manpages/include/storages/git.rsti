@@ -1,0 +1,14 @@
+.. option:: --url <url>
+
+   The git URL leading to the repository which is to be exposed;
+   Should follow the 'http[s]://host.xz[:port]/path/to/repo.git' format.
+
+.. option:: --username <username>
+
+    The git username used for authorization purposes. Paired with the
+    personal token (passed as the --password parameter) can be used to skip
+    the default authorization via the command line
+    
+.. option:: --password <password>
+
+    The git password/personal token.
