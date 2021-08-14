@@ -213,7 +213,7 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         """
         This function provides filtered sensitive and unneeded fields for representation
         """
-        fields = self.to_manifest_fields(inline=True)
+        fields = self.to_manifest_fields(inline=False)
         if not include_sensitive:
             # Remove sensitive fields
             del fields["manifests-catalog"]

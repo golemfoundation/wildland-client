@@ -96,7 +96,8 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         """
         This function provides filtered sensitive and unneeded fields for representation
         """
-        fields = self.to_manifest_fields(inline=True)
+        # TODO: wildland/wildland-client/issues#563
+        fields = self.to_manifest_fields(inline=False)
         if not include_sensitive:
             if isinstance(fields["owner"], dict):
                 fields["owner"].pop("storage", None)
