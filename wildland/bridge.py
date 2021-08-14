@@ -97,6 +97,9 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         This function provides filtered sensitive and unneeded fields for representation
         """
         fields = self.to_manifest_fields(inline=True)
+        if not include_sensitive:
+            if isinstance(fields["owner"], dict):
+                fields["owner"].pop("storage", None)
         return fields
 
     def to_placeholder_container(self) -> Container:
@@ -146,9 +149,15 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         Return string representation
         """
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
-        array_repr = [
-            f"owner={fields['owner']!r}",
-            f"paths={[str(p) for p in fields['paths']]}"
-        ]
+        array_repr = []
+        if isinstance(fields["owner"], str):
+            array_repr += [f"owner={fields['owner']!r}"]
+        elif isinstance(fields["owner"], dict):
+            link_array_repr = []
+            for key, val in fields["owner"].items():
+                link_array_repr += [f"{key}={val!r}"]
+            link_str_repr = "link(" + ", ".join(link_array_repr) + ")"
+            array_repr += [f"owner={link_str_repr}"]
+        array_repr += [f"paths={[str(p) for p in fields['paths']]}"]
         str_repr = "bridge(" + ", ".join(array_repr) + ")"
         return str_repr
