@@ -70,8 +70,6 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         ]
         if fields.get('storage', None):
             array_repr += [f"storage={fields['storage']}"]
-        if fields.get('storage_backend', None):
-            array_repr += [f"storage_backend={fields['storage_backend']}"]
         str_repr = "link(" + ", ".join(array_repr) + ")"
         return str_repr
 
@@ -106,8 +104,8 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         fields = self.to_manifest_fields(inline=True)
         if not include_sensitive:
             del fields['storage']
-        if self.storage_driver.storage_backend:
-            fields['storage_backend'] = \
+        elif self.storage_driver.storage_backend:
+            fields['storage'] = \
                 self.storage_driver.storage_backend.to_str(include_sensitive)
         return fields
 

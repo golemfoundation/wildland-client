@@ -96,9 +96,6 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         This function provides filtered sensitive and unneeded fields for representation
         """
         fields = self.to_manifest_fields(inline=True)
-        if not include_sensitive:
-            # Remove sensitive fields
-            del fields["user"]
         return fields
 
     def to_placeholder_container(self) -> Container:
