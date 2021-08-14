@@ -92,6 +92,7 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         return result
 
     def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        # pylint: disable=unused-argument
         """
         This function provides filtered sensitive and unneeded fields for representation
         """
