@@ -33,7 +33,7 @@ from itertools import combinations, product
 import pytest
 
 from wildland.storage_sync.naive_sync import NaiveSyncer, BLOCK_SIZE
-from wildland.storage_sync.base import SyncConflict, BaseSyncer
+from wildland.storage_sync.base import SyncConflict, BaseSyncer, SyncerStatus
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.zip_archive import ZipArchiveStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
@@ -659,6 +659,12 @@ def test_find_syncer(tmpdir):
         def iter_errors(self):
             pass
 
+        def iter_conflicts(self):
+            pass
+
+        def status(self) -> SyncerStatus:
+            return SyncerStatus.STOPPED
+
     class TestSyncer2(BaseSyncer):
         SYNCER_NAME = "test2"
         SOURCE_TYPES = ["type1"]
@@ -670,6 +676,12 @@ def test_find_syncer(tmpdir):
 
         def iter_errors(self):
             pass
+
+        def iter_conflicts(self):
+            pass
+
+        def status(self) -> SyncerStatus:
+            return SyncerStatus.STOPPED
 
     BaseSyncer._types['test1'] = TestSyncer1
     BaseSyncer._types['test2'] = TestSyncer2

@@ -15,3 +15,7 @@
 .. option:: --read-only
 
    Mark storage as read-only.
+
+.. option:: --default-cache
+
+   Mark template as default for container caches

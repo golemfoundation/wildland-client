@@ -10,6 +10,10 @@
             "$ref": "/schemas/types.json#abs-path",
             "description": "path to storage manifests (default: $HOME/.config/wildland/storage)"
         },
+        "cache-dir": {
+            "$ref": "/schemas/types.json#abs-path",
+            "description": "path to cache storage manifests (default: $HOME/.config/wildland/cache)"
+        },
         "container-dir": {
             "$ref": "/schemas/types.json#abs-path",
             "description": "path to container manifests (default: $HOME/.config/wildland/users)"
@@ -79,6 +83,11 @@
                 "type": "string"
             },
             "description": "list of container names/paths to mount at startup ('wl start'); in the same syntax as 'wl c mount'"
+        },
+
+        "default-cache-template": {
+            "type": "string",
+            "description": "Default template for container cache storages"
         },
 
         "default-remote-for-container": {

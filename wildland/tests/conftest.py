@@ -52,6 +52,9 @@ def sync(base_dir):
     try:
         daemon = Process(target=_sync_daemon, args=(base_dir,))
         daemon.start()
+        # if we don't yield anything here this whole function is executed immediately,
+        # and the sync daemon is prematurely killed
+        yield daemon
     finally:
         daemon.terminate()
         daemon.join()

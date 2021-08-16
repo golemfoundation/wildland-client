@@ -52,8 +52,8 @@ def test_pseudomanifest(cli, base_dir):
 
     user_paths = obj.client.get_bridge_paths_for_user(container.owner)
     commands = list(prepare_mount(obj, container, str(container.local_path), user_paths,
-        remount=False, with_subcontainers=True, subcontainer_of=None, verbose=False,
-        only_subcontainers=False))
+                                  remount=False, with_subcontainers=True, subcontainer_of=None,
+                                  verbose=False, only_subcontainers=False))
     obj.fs_client.mount_multiple_containers(commands)
 
     mounted_path = obj.fs_client.mount_dir / Path('/PATH').relative_to('/')

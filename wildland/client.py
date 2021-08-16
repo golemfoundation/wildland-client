@@ -106,11 +106,14 @@ class Client:
         for d in self.dirs.values():
             d.mkdir(exist_ok=True, parents=True)
 
+        self.cache_dir = Path(self.config.get('cache-dir'))
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+
         mount_dir = Path(self.config.get('mount-dir'))
-        bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
+        self.bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
         fs_socket_path = Path(self.config.get('fs-socket-path'))
         self.fs_client = WildlandFSClient(mount_dir, fs_socket_path,
-                                          bridge_separator=bridge_separator)
+                                          bridge_separator=self.bridge_separator)
 
         # we only connect to sync daemon if needed
         self._sync_client: Optional[ControlClient] = None
@@ -144,6 +147,18 @@ class Client:
 
         if load:
             self.recognize_users_and_bridges()
+            self.caches: List[Storage] = []
+            self.load_caches()
+
+    def load_caches(self):
+        """
+        Load local cache storages from manifests to memory for fast access.
+        """
+        self.caches.clear()
+        for cache in self.load_all(WildlandObject.Type.STORAGE, decrypt=True,
+                                   base_dir=self.cache_dir, quiet=True):
+            cache.params['is-local-owner'] = True
+            self.caches.append(cache)
 
     def connect_sync_daemon(self):
         """
@@ -590,7 +605,8 @@ class Client:
         container.add_storage_from_obj(storage, inline, storage_name)
         self.save_object(WildlandObject.Type.CONTAINER, container)
 
-    def load_all(self, object_type: WildlandObject.Type, decrypt: bool = True):
+    def load_all(self, object_type: WildlandObject.Type, decrypt: bool = True,
+                 base_dir: Path = None, quiet: bool = False):
         """
         Load object manifests from the appropriate directory.
         """
@@ -603,13 +619,15 @@ class Client:
         else:
             client = self
 
-        if self.dirs[object_type].exists():
-            for path in sorted(self.dirs[object_type].glob('*.yaml')):
+        base_dir = base_dir or self.dirs[object_type]
+        if base_dir.exists():
+            for path in sorted(base_dir.glob('*.yaml')):
                 try:
                     obj_ = client.load_object_from_file_path(object_type, path, decrypt=decrypt)
                 except WildlandError as e:
-                    logger.warning('error loading %s manifest: %s: %s',
-                                   object_type.value, path, e)
+                    if not quiet:
+                        logger.warning('error loading %s manifest: %s: %s',
+                                       object_type.value, path, e)
                 else:
                     yield obj_
 
@@ -811,7 +829,7 @@ class Client:
         return self.save_object(object_type, object_, path=path)
 
     def new_path(self, manifest_type: WildlandObject.Type, name: str,
-                 skip_numeric_suffix: bool = False) -> Path:
+                 skip_numeric_suffix: bool = False, base_dir: Path = None) -> Path:
         """
         Create a path in Wildland base_dir to save a new object of type manifest_type and name
         name. It follows Wildland conventions.
@@ -819,9 +837,10 @@ class Client:
         :param name: name of the object
         :param skip_numeric_suffix: should the path be extended with .1 etc. numeric suffix if
         first inferred path already exists
+        :param base_dir: override base directory if present
         :return: Path
         """
-        base_dir = self.dirs[manifest_type]
+        base_dir = base_dir or self.dirs[manifest_type]
 
         if not base_dir.exists():
             base_dir.mkdir(parents=True)
@@ -834,12 +853,22 @@ class Client:
                 return path
             i += 1
 
+    def cache_storage(self, container: Container) -> Optional[Storage]:
+        """
+        Return cache storage for the given container.
+        """
+        for cache in self.caches:
+            if cache.container_path == container.uuid_path and \
+                    cache.params['original-owner'] == container.owner:
+                return cache
+        return None
+
     @staticmethod
     def all_storages(container: Container, *, predicate=None) -> Iterator[Storage]:
         """
         Return (and load on returning) all storages for a given container.
 
-        In case of proxy storage, this will also load an reference storage and
+        In case of proxy storage, this will also load a reference storage and
         inline the manifest.
         """
         for storage in container.load_storages():
@@ -862,7 +891,7 @@ class Client:
         except StopIteration as ex:
             raise ManifestError('no supported storage manifest') from ex
 
-    def get_storages_to_mount(self, container: Container) -> Iterable[Storage]:
+    def get_storages_to_mount(self, container: Container) -> List[Storage]:
         """
         Return valid, mountable storages for the given container
         """
@@ -883,7 +912,14 @@ class Client:
             storages[0].promote_to_primary()
         else:
             # Make sure the primary storage is first
-            storages = sorted(storages, key=lambda s: s.is_primary)
+            storages = sorted(storages, key=lambda s: not s.is_primary)
+
+        cache = self.cache_storage(container)
+        if cache:
+            cache.promote_to_primary()
+            cache.params['is-local-owner'] = True
+            storages.insert(0, cache)
+            storages[1].primary = False
 
         return storages
 

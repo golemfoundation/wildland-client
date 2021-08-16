@@ -35,6 +35,7 @@ import click
 
 from wildland.client import Client
 from wildland.config import Config
+from wildland.container import Container
 from wildland.exc import WildlandError
 from wildland.hashdb import HashDb
 from wildland.log import init_logging
@@ -42,7 +43,7 @@ from wildland.control_server import ControlServer, control_command
 from wildland.manifest.schema import Schema
 from wildland.storage import Storage
 from wildland.storage_backends.base import StorageBackend, OptionalError
-from wildland.storage_sync.base import BaseSyncer
+from wildland.storage_sync.base import BaseSyncer, SyncerStatus
 from wildland.wildland_object.wildland_object import WildlandObject
 
 logger = logging.getLogger('sync-daemon')
@@ -79,38 +80,33 @@ class SyncJob:
         self.stop_event.set()
         self.thread.join()
 
+    def syncer_status(self) -> SyncerStatus:
+        """
+        Status of this sync job as SyncerStatus.
+        """
+        return self.syncer.status()
+
     def status(self) -> str:
         """
-        Status of this sync job.
+        Status of this sync job as human-readable string.
         """
-        try:
-            if self.syncer.is_running():
-                running = 'RUNNING '
-            else:
-                running = 'IDLE '
-        except OptionalError:
-            running = ' '
 
-        ret = f'{self.container_name} {running}{str(self.source)} ' \
+        ret = f'{self.container_name} {self.syncer.status()} {str(self.source)} ' \
               f'{"->" if self.unidirectional else "<->"} {str(self.target)}'
         if not self.continuous:
             ret += ' [one-shot]'
 
         try:
-            if self.syncer.is_synced():
-                ret += ' [SYNCED]'
-            else:
-                ret += ' [NOT SYNCED]'
+            conflict = list(self.syncer.iter_conflicts())
+            if len(conflict) > 0:
+                for e in conflict:
+                    ret += f'\n   {e}'
         except OptionalError:
             pass
 
-        errors = list(self.syncer.iter_errors())
-        if len(errors) > 0:
-            for e in errors:
-                ret += f'\n   {e}'
-
         if self.error:
             ret += f'\n   [!] {self.error}'
+
         return ret
 
     @staticmethod
@@ -165,6 +161,11 @@ class SyncDaemon:
             cmd: schema.validate for cmd, schema in command_schemas.items()
         })
 
+    @staticmethod
+    def _sync_id(container: Container) -> str:
+        # this might also be derived from source and target storages
+        return container.owner + '|' + container.uuid
+
     def start_sync(self, container_name: str, continuous: bool, unidirectional: bool,
                    source: Optional[str] = None, target: Optional[str] = None) -> str:
         """
@@ -183,6 +184,9 @@ class SyncDaemon:
         container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
 
         all_storages = list(client.all_storages(container))
+        cache = client.cache_storage(container)
+        if cache:
+            all_storages.append(cache)
 
         if source:
             source_storage = _get_storage_by_id_or_type(source, all_storages)
@@ -215,7 +219,7 @@ class SyncDaemon:
 
         target_backend = StorageBackend.from_params(target_storage.params)
 
-        sync_id = container.uuid  # this might also be derived from source and target storages
+        sync_id = self._sync_id(container)
         with self.lock:
             if sync_id in self.jobs.keys():
                 raise WildlandError("Sync process for this container is already running; use "
@@ -264,9 +268,10 @@ class SyncDaemon:
         container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
         with self.lock:
             try:
-                sync_thread = self.jobs[container.uuid]
+                sync_id = self._sync_id(container)
+                sync_thread = self.jobs[sync_id]
                 sync_thread.stop()
-                self.jobs.pop(container.uuid)
+                self.jobs.pop(sync_id)
             except KeyError:
                 # pylint: disable=raise-missing-from
                 raise WildlandError(f'Sync for container {container_name} is not running')
@@ -296,6 +301,26 @@ class SyncDaemon:
             ret = [x.status() for x in self.jobs.values()]
 
         return ret
+
+    @control_command('container-status')
+    def control_container_status(self, _handler, container: str) -> Optional[int]:
+        """
+        Return status of a syncer for the given container.
+        """
+        client = Client(base_dir=self.base_dir)
+        cont = client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
+        sync_id = self._sync_id(cont)
+        if sync_id in self.jobs.keys():
+            return self.jobs[sync_id].syncer_status().value
+
+        return None
+
+    @control_command('shutdown')
+    def control_shutdown(self, _handler):
+        """
+        Stops all sync jobs and shuts down the daemon.
+        """
+        self.stop(0, None)
 
     # pylint: disable=unused-argument
     def stop(self, signalnum, frame):

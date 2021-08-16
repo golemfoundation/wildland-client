@@ -12,6 +12,8 @@ Synopsis
 | :command:`wl container info NAME`
 | :command:`wl container delete [--force] [--cascade] NAME`
 | :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-template <storage_template>]`
+| :command:`wl container create-cache --template <template_name> <container>`
+| :command:`wl container delete-cache <container>`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
@@ -131,6 +133,44 @@ Create a |~| new container manifest.
    infrastructure defined in the user manifest, the container is published.
 
 
+.. program:: wl-container-create-cache
+.. _wl-container-create-cache:
+
+:command:`wl container create-cache --template <template_name> <container>`
+-----------------------------------------------------------------------------
+
+Create a cache storage for the container from a template. This is used to speed up accessing
+slow remote storages like s3. The template should usually be the default local storage one
+(`wl template create local --location /path/to/cache/root template_name`).
+
+On the first container mount, old primary storage's content (usually a slow remote one) is copied
+to the cache storage. From then on the cache storage becomes container's primary storage
+when the container is mounted. Old primary storage is kept in sync with the cache when mounted.
+
+Cache storage is created based on the template provided. Because the purpose of the cache storage
+is to be fast, it's best to use a local storage template unless some specific setup is needed.
+When using a default local storage template as outlined above, the cache storage directory
+is `/path/to/cache/root/container_uuid`.
+
+Cache manifests are stored in `<Wildland config root>/cache` directory and are storage manifests.
+Wildland storage commands can be used to display or manually edit them. They have file names
+in the form of `owner_id.container_uuid.storage.yaml`.
+
+
+.. option:: -t, --template <template_name>
+
+   Name of the storage template to use.
+
+
+.. program:: wl-container-delete-cache
+.. _wl-container-delete-cache:
+
+:command:`wl container delete-cache <container>`
+------------------------------------------------
+
+Deletes cache storage associated with the container.
+
+
 .. program:: wl-container-update
 .. _wl-container-update:
 
@@ -224,6 +264,17 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
 
    If container contains any subcontainers then mount just the subcontainers and skip mounting
    the container's storage itself.
+
+.. option:: -c, --with-cache
+
+   Create and use a cache storage for the container using the default cache template
+   (see :ref:`wl set-default-cache <wl-set-default-cache>`).
+   See :ref:`wl container create-cache <wl-container-create-cache>` for details about caches.
+
+.. option:: --cache-template <template_name>
+
+   Create and use a cache storage for the container from the given template.
+   See :ref:`wl container create-cache <wl-container-create-cache>`.
 
 .. option:: -l, --list-all
 

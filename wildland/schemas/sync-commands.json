@@ -41,6 +41,23 @@
                 }
             }
         },
+        "container-status": {
+            "description": "Return status of a syncer for a container",
+            "type": "object",
+            "required": ["container"],
+            "additionalProperties": false,
+            "properties": {
+                "container": {
+                    "type": "string",
+                    "description": "container name"
+                }
+            }
+        },
+        "shutdown": {
+            "description": "Stop all sync jobs and shut down the daemon",
+            "type": "object",
+            "additionalProperties": false
+        },
         "status": {
             "description": "Return a list of currently running sync jobs and their status",
             "type": "object",

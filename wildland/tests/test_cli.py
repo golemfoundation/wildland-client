@@ -38,6 +38,7 @@ from click.exceptions import UsageError
 import pytest
 import yaml
 
+from .test_sync import wait_for_file, wait_for_deletion, make_file
 from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_field
 from ..cli.cli_container import _resolve_container
@@ -1773,6 +1774,33 @@ def test_container_info(cli, base_dir):
     assert '  path: /PATH' in out_lines
 
 
+def test_container_info_cache(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    name, _, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
+    cli('container', 'create-cache', '--template', 't1', name)
+    result = cli('container', 'info', name, capture=True)
+    pattern = f"^  cache: type: local backend_id: .*? location: {cache_dir}$"
+    assert len(re.findall(pattern, result, re.MULTILINE)) == 1
+
+
+def test_container_cli_cache(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    name, uuid, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
+
+    cli('container', 'create-cache', '--template', 't1', name)
+
+    cache_path = base_dir / 'cache' / f'0xaaa.{uuid}.storage.yaml'
+    assert cache_path.exists()
+    with open(cache_path) as cache:
+        lines = cache.read()
+        assert f'container-path: /.uuid/{uuid}' in lines
+    assert cache_dir.exists()
+
+    cli('container', 'delete-cache', name)
+    assert not cache_path.exists()
+    assert cache_dir.exists()  # we don't want actual cache contents deleted
+
+
 def test_container_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -1819,6 +1847,226 @@ def test_container_mount(cli, base_dir, control_client):
         '/.users/0xaaa:/PATH',
     ]
     assert command[0]['extra']['trusted_owner'] is None
+
+
+def _safe_delete(path):
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def _sync_check(dir1, dir2):
+    """
+    Make sure both dirs content is mirrored.
+    """
+    make_file(dir1 / 'file1', 'test data 1')
+
+    assert wait_for_file(dir2 / 'file1', 'test data 1')
+
+    make_file(dir2 / 'file2', 'test data 2')
+
+    assert wait_for_file(dir1 / 'file2', 'test data 2')
+
+    # if paths contain mount directory then files may be gone already
+    _safe_delete(dir1 / 'file1')
+    wait_for_deletion(dir1 / 'file1')
+    _safe_delete(dir1 / 'file2')
+    wait_for_deletion(dir1 / 'file2')
+    _safe_delete(dir2 / 'file1')
+    wait_for_deletion(dir2 / 'file1')
+    _safe_delete(dir2 / 'file2')
+    wait_for_deletion(dir2 / 'file2')
+
+
+def _cache_setup(cli, base_dir, container_names, user_name, subcont_path: str = None,
+                 set_default: bool = True):
+    base_data_dir = base_dir / 'wldata'
+    base_storage_dir = base_data_dir / 'storage'
+    template_dir = base_data_dir / 'template'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(base_storage_dir)
+    os.mkdir(template_dir)
+
+    if set_default:
+        cli('storage-template', 'create', 'local', '--location', template_dir, 't1',
+            '--default-cache')
+    else:
+        cli('storage-template', 'create', 'local', '--location', template_dir, 't1')
+
+    data = []
+    for name in container_names:
+        cli('container', 'create', name, '--path', f'/{name}', '--no-encrypt-manifest',
+            '--user', user_name)
+        storage_dir = base_storage_dir / name
+        os.mkdir(storage_dir)
+        if subcont_path:
+            cli('storage', 'create', 'local', name, '--container', name,
+                '--location', storage_dir, '--subcontainer-manifest', subcont_path)
+        else:
+            cli('storage', 'create', 'local', name, '--container', name,
+                '--location', storage_dir)
+
+        with open(base_dir / f'containers/{name}.container.yaml') as f:
+            documents = list(load_yaml_all(f))
+
+        uuid_path = documents[1]['paths'][0]
+        uuid = get_container_uuid_from_uuid_path(uuid_path)
+        cache_dir = template_dir / uuid
+        data.append((name, uuid, storage_dir, cache_dir))
+
+    return data
+
+
+def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
+    container_names = [x[0] for x in container_data]
+    args = ['container', 'mount', '--with-subcontainers', '--with-cache'] + container_names
+    cli(*args)
+    user_mount_path = base_dir / 'wildland' / '.users' / f'{user_key}:'
+
+    for container_name, uuid, storage_dir, cache_dir in container_data:
+        cache_manifest = base_dir / 'cache' / f'{user_key}.{uuid}.storage.yaml'
+        assert cache_manifest.exists()
+        with open(cache_manifest) as f:
+            doc = list(load_yaml_all(f))
+            # parse dummy encryption
+            doc = list(load_yaml_all(doc[1]['encrypted']['encrypted-data']))
+            cache_id = doc[0]['backend-id']
+            owner = doc[0]['owner']
+
+        backends = os.listdir(user_mount_path / '.backends' / uuid)
+        backends = list(filter(lambda x: not x.endswith('pseudomanifest'), backends))
+        assert len(backends) == 2
+        assert cache_id in backends
+
+        with open(base_dir / 'config.yaml') as f:
+            config = load_yaml(f)
+        assert owner == config['@default-owner']
+
+        _sync_check(storage_dir, cache_dir)
+
+        cli('container', 'unmount', container_name)
+        cli_fail('container', 'stop-sync', container_name)  # sync should stop after unmount
+
+    # should use cache now even without explicit option
+    args = ['container', 'mount', '--with-subcontainers'] + container_names
+    cli(*args)
+    for container_name, uuid, storage_dir, cache_dir in container_data:
+        _sync_check(storage_dir, cache_dir)
+        cli('container', 'unmount', container_name)
+
+    # should have no cache after deletion
+    for container_name, uuid, storage_dir, cache_dir in container_data:
+        cli('container', 'delete-cache', container_name)
+        cli('container', 'mount', '--with-subcontainers', container_name)
+        backends = os.listdir(user_mount_path / '.backends' / uuid)
+        backends = list(filter(lambda x: not x.endswith('pseudomanifest'), backends))
+        assert len(backends) == 1
+        assert cache_id not in backends
+        cache_manifest = base_dir / 'cache' / f'{user_key}.{uuid}.storage.yaml'
+        assert not cache_manifest.exists()
+        cli('container', 'unmount', container_name)
+
+
+# pylint: disable=unused-argument
+def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = ['c1']
+    data = _cache_setup(cli, base_dir, container_names, 'User')
+    cli('start', '--skip-forest-mount')
+    _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
+
+
+def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = ['c1']
+    data = _cache_setup(cli, base_dir, container_names, 'User', set_default=False)
+    cli('start', '--skip-forest-mount')
+    cli_fail('container', 'mount', '--with-cache', 'c1')  # no default cache template set
+    cli('set-default-cache', 't1')
+    _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
+
+
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
+    cli('user', 'create', 'User1', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+    data = _cache_setup(cli, base_dir, ['c1'], 'User2')
+    cli('start', '--skip-forest-mount')
+    _cache_test(cli, cli_fail, base_dir, data, '0xbbb')
+
+
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = ['c1', 'c2']
+    data = _cache_setup(cli, base_dir, container_names, 'User')
+    cli('start', '--skip-forest-mount')
+    _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
+
+
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_subcontainers(base_dir, sync, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    data = _cache_setup(cli, base_dir, ['Container'], 'User', '/sub.yaml')
+
+    sub_uuid = '0000-1111-2222-3333-4444'
+    sub_backend_id = '5555-6666-7777-8888-9999'
+
+    container_name, uuid, storage_dir, cache_dir = data[0]
+    os.mkdir(storage_dir / 'subdir')
+
+    with open(storage_dir / 'sub.yaml', 'w') as f:
+        f.write(f"""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - /.uuid/{sub_uuid}
+ - /subcontainer
+object: container
+backends:
+  storage:
+    - type: delegate
+      backend-id: {sub_backend_id}
+      reference-container: 'wildland:@default:/.uuid/{uuid}:'
+      subdirectory: '/subdir'
+    """)
+
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', '--with-subcontainers', container_name, '--with-cache')
+    _sync_check(storage_dir, cache_dir)
+    _sync_check(cache_dir / 'subdir', storage_dir / 'subdir')
+
+
+# pylint: disable=unused-argument
+def test_container_unmount_path_with_cache(base_dir, sync, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    data = _cache_setup(cli, base_dir, ['c1'], 'User')
+    container_name, _, _, _ = data[0]
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', container_name, '--with-cache')
+    cli('container', 'unmount', '--path', f'/{container_name}')
+    # make sure cache sync is stopped and path is unmounted
+    result = cli('status', capture=True)
+    assert 'No sync jobs running' in result
+    assert f'/{container_name}' not in result
+
+
+# pylint: disable=unused-argument
+def test_container_mount_mount_unmount_with_cache(base_dir, sync, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    data = _cache_setup(cli, base_dir, ['c1'], 'User')
+    container_name, _, _, _ = data[0]
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', container_name, '--with-cache')
+    cli('container', 'mount', container_name)
+    cli('container', 'unmount', container_name)
+    # make sure cache sync is stopped and path is unmounted
+    result = cli('status', capture=True)
+    assert 'No sync jobs running' in result
+    assert f'/{container_name}' not in result
 
 
 def test_container_mount_with_bridges(cli, base_dir, control_client):
@@ -2986,12 +3234,12 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
 
     control_client.expect('info', {
         '101': {
-            'paths': ['/PATH'],
+            'paths': ['/PATH', '/.users/0xaaa:/PATH'],
             'type': 'local',
             'extra': {},
         },
         '102': {
-            'paths': ['/PATH2'],
+            'paths': ['/PATH2', '/.users/0xaaa:/PATH2'],
             'type': 'local',
             'extra': {},
         },
@@ -3256,9 +3504,11 @@ def test_status_sync(base_dir, sync, cli):
     cli('container', 'create', '--owner', 'User', '--path', '/cont', 'Cont')
     cli('storage', 'create', 'local', '--container', 'Cont', '--location', storage1_data)
     cli('storage', 'create', 'local-cached', '--container', 'Cont', '--location', storage2_data)
+    cli('start', '--skip-forest-mount')
     cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    time.sleep(1)
     result = cli('status', capture=True)
-    pattern = r"^Cont RUNNING 'local'.*? <-> 'local-cached'.*?$"
+    pattern = r"^Cont SYNCED 'local'.*? <-> 'local-cached'.*?$"
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
     cli('container', 'stop-sync', 'Cont')
 
@@ -3268,10 +3518,10 @@ def test_status_sync(base_dir, sync, cli):
     with open(storage2_data / 'x', 'w') as f:
         f.write('b')
     cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    time.sleep(1)
     result = cli('status', capture=True)
     pattern = r"^   Conflict detected on x in storages .+? and .+?$"
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
-    cli('container', 'stop-sync', 'Cont')
 
 
 ## Bridge
@@ -3316,7 +3566,7 @@ def wl_call_output(base_config_dir, *args, **kwargs):
 
 
 # pylint: disable=unused-argument
-def test_cli_container_sync(base_dir, sync, cli, cleanup):
+def test_cli_container_sync(base_dir, sync, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -3324,8 +3574,6 @@ def test_cli_container_sync(base_dir, sync, cli, cleanup):
     os.mkdir(base_data_dir)
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
-
-    cleanup(lambda: cli('container', 'stop-sync', 'AliceContainer'))
 
     cli('user', 'create', 'Alice')
     cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
@@ -3382,7 +3630,7 @@ def test_cli_container_sync_oneshot(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_cli_container_sync_tg_remote(base_dir, sync, cli, cleanup):
+def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -3392,8 +3640,6 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli, cleanup):
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
     os.mkdir(storage3_data)
-
-    cleanup(lambda: cli('container', 'stop-sync', 'AliceContainer'))
 
     cli('user', 'create', 'Alice')
     cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer',
@@ -3592,6 +3838,14 @@ def test_cli_storage_template_create(cli, base_dir):
             'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False
         }]
+
+
+def test_cli_storage_template_create_cache(cli, base_dir):
+    cli('template', 'create', 'local', '--location', '/foo', '--default-cache', 't1')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+    assert "default-cache-template: t1" in config
 
 
 def test_cli_storage_template_create_custom_access(cli, base_dir):
@@ -5006,3 +5260,12 @@ def test_wl_help(cli):
 def test_wl_version(cli):
     result = cli('--version', capture=True)
     assert 'version' in result
+
+
+def test_set_default_cache(cli, base_dir):
+    cli('template', 'create', 'local', '--location', '/foo', 't1')
+    cli('set-default-cache', 't1')
+
+    with open(base_dir / 'config.yaml') as f:
+        config = f.read()
+    assert "default-cache-template: t1" in config

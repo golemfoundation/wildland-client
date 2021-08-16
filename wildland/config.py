@@ -202,6 +202,7 @@ class Config:
         return {
             'user-dir': base_dir / 'users',
             'storage-dir': base_dir / 'storage',
+            'cache-dir': base_dir / 'cache',
             'container-dir': base_dir / 'containers',
             'bridge-dir': base_dir / 'bridges',
             'key-dir': base_dir / 'keys',
@@ -218,6 +219,7 @@ class Config:
             'local-owners': [],
             'default-containers': [],
             'default-remote-for-container': {},
+            'default-cache-template': None,
         }
 
     @staticmethod

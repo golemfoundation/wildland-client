@@ -194,6 +194,9 @@ man_pages = [
 
     ('manpages/wl-status', 'wl-status', 'Display all mounted containers', [author], 1),
 
+    ('manpages/wl-set-default-cache', 'wl-set-default-cache', 'Set default cache template',
+     [author], 1),
+
     ('manpages/wl-get', 'wl-get', 'Get a file from wildland', [author], 1),
     ('manpages/wl-put', 'wl-put', 'Put a file into wildland', [author], 1),
 
