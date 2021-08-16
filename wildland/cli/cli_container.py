@@ -913,7 +913,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
             container_name, include_manifests_catalog=manifests_catalog))
 
         reordered, exc_msg = obj.client.ensure_mount_reference_container(containers)
-        msg = f"Preparing mount (from '{container_name}')"
+        msg = f"Preparing mount (from '{container_name}'): "
 
         if exc_msg:
             fails.append(exc_msg)
