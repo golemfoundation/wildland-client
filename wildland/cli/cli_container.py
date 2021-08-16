@@ -913,7 +913,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
             container_name, include_manifests_catalog=manifests_catalog))
 
         reordered, exc_msg = obj.client.ensure_mount_reference_container(containers)
-        click.echo(f"Preparing mount (from '{container_name}')")
+        msg = f"Preparing mount (from '{container_name}')"
 
         if exc_msg:
             fails.append(exc_msg)
@@ -924,16 +924,19 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         for container in reordered:
             if cache_template:
                 _create_cache(obj.client, container, cache_template, list_all)
-                obj.client.load_caches()
+        obj.client.load_caches()
 
-            try:
-                user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-                mount_params = prepare_mount(
-                    obj, container, str(container), user_paths,
-                    remount, with_subcontainers, None, list_all, only_subcontainers)
-                current_params.extend(mount_params)
-            except WildlandError as ex:
-                fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
+        with Counter(msg, max=len(reordered)) as ctr:
+            for container in reordered:
+                try:
+                    user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+                    ctr.next()
+                    mount_params = prepare_mount(
+                        obj, container, str(container), user_paths,
+                        remount, with_subcontainers, None, list_all, only_subcontainers)
+                    current_params.extend(mount_params)
+                except WildlandError as ex:
+                    fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
 
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)
