@@ -31,6 +31,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Union
 
 import click
 
+from wildland.control_client import ControlClientError
 from wildland.exc import WildlandError
 from wildland.manifest.template import TemplateManager
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -347,6 +348,11 @@ def stop(obj: ContextObj) -> None:
         obj.fs_client.stop()
     except WildlandError as ex:
         raise CliError(str(ex)) from ex
+
+    try:
+        obj.client.run_sync_command('shutdown')
+    except ControlClientError:
+        pass  # we don't expect a response
 
 
 @main.command(short_help='watch for changes')

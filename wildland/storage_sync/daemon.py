@@ -315,6 +315,13 @@ class SyncDaemon:
 
         return None
 
+    @control_command('shutdown')
+    def control_shutdown(self, _handler):
+        """
+        Stops all sync jobs and shuts down the daemon.
+        """
+        self.stop(0, None)
+
     # pylint: disable=unused-argument
     def stop(self, signalnum, frame):
         """

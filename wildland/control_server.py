@@ -206,7 +206,10 @@ class ControlHandler(BaseRequestHandler):
         if request and request.id:
             response['id'] = request.id
 
-        self._send_message(response)
+        try:
+            self._send_message(response)
+        except Exception:
+            logger.exception('error when sending response')
 
 
 class SocketServer(ThreadingMixIn, UnixStreamServer):

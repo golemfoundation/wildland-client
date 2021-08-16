@@ -53,6 +53,11 @@
                 }
             }
         },
+        "shutdown": {
+            "description": "Stop all sync jobs and shut down the daemon",
+            "type": "object",
+            "additionalProperties": false
+        },
         "status": {
             "description": "Return a list of currently running sync jobs and their status",
             "type": "object",
