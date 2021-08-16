@@ -162,8 +162,7 @@ run wl user import --path /forests/alice ~/Downloads/alice.user.yaml
 
 run wl start
 
-expected="Preparing mount (from ':/forests/alice:/very/secret:')
-Mounting one storage"
+expected="Mounting one storage"
 run wl container mount :/forests/alice:/very/secret:
 
 
@@ -221,8 +220,7 @@ run wl container create hello-world \
   --path /hello/world \
   --template carolines-s3
 
-expected="Preparing mount (from ':/hello/world:')
-Mounting one storage"
+expected="Mounting one storage"
 run wl c mount :/hello/world:
 
 run bash -c "echo 'It works!' > ~/wildland/hello/world/Hello-World.md"
@@ -280,7 +278,6 @@ run wl user import ~/Downloads/caroline.user.yaml \
 
 expected="User $caroline_userid already exists. Forcing user import.
 Updated: /home/user/.config/wildland/users/caroline.user.yaml
-Preparing mount (from ':/f/caroline:*:')
 Mounting storages for containers:  2"
 run wl forest mount :/f/caroline:
 
