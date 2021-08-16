@@ -3630,7 +3630,7 @@ def test_cli_container_sync_oneshot(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_cli_container_sync_tg_remote(base_dir, sync, cli, cleanup):
+def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -3640,8 +3640,6 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli, cleanup):
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
     os.mkdir(storage3_data)
-
-    cleanup(lambda: cli('container', 'stop-sync', 'AliceContainer'))
 
     cli('user', 'create', 'Alice')
     cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer',
