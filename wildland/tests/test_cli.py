@@ -1779,7 +1779,7 @@ def test_container_info_cache(cli, base_dir):
     name, _, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
     cli('container', 'create-cache', '--template', 't1', name)
     result = cli('container', 'info', name, capture=True)
-    pattern = f"^  cache: type: local backend_id: .*? location: {cache_dir}$"
+    pattern = f"\ncache:\n  type: local\n  backend_id: .*?\n  location: {cache_dir}\n\n"
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
 
 
