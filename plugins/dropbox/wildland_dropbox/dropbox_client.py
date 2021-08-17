@@ -49,19 +49,26 @@ class DropboxClient:
     Dropbox client exposing relevant Dropbox API for Dropbox plugin.
     """
 
-    def __init__(self, app_key, refresh_token):
+    def __init__(self, token=None, app_key=None, refresh_token=None):
+        self.token = token
         self.app_key = app_key
         self.refresh_token = refresh_token
         self.connection: Optional[Dropbox] = None
+
+        if not token and not app_key and not refresh_token:
+            raise ValueError("Please provide access token or App Key with refresh token")
 
     def connect(self) -> None:
         """
         Create an object that routes all the Dropbox API requests to the Dropbox API endpoint.
         """
-        self.connection = Dropbox(
-            oauth2_refresh_token=self.refresh_token,
-            app_key=self.app_key
-        )
+        if self.token:
+            self.connection = Dropbox(oauth2_access_token=self.token)
+        else:
+            self.connection = Dropbox(
+                oauth2_refresh_token=self.refresh_token,
+                app_key=self.app_key
+            )
 
     def disconnect(self) -> None:
         """
@@ -76,7 +83,8 @@ class DropboxClient:
         Return Dropbox connection and refresh it if necessary
         """
         if self.connection:
-            self.connection.check_and_refresh_access_token()
+            if self.refresh_token:
+                self.connection.check_and_refresh_access_token()
         else:
             self.connect()
             assert self.connection

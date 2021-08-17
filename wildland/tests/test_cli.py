@@ -4818,6 +4818,43 @@ def test_storage_dropbox_params(cli, base_dir):
         '--inline',
         '--subcontainer-manifest', '/sub.yaml',
         '--location', '/foo-location',
+        '--token', 'foo-token')
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['location'] == '/foo-location'
+    assert storage['token'] == 'foo-token'
+    assert storage['manifest-pattern']['type'] == 'list'
+    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+
+    cli('container', 'create', 'Container2', '--no-encrypt-manifest')
+    cli('storage', 'create', 'dropbox',
+        '--container', 'Container2',
+        '--inline',
+        '--manifest-pattern', '/*.yaml',
+        '--location', '/foo-location',
+        '--token', 'foo-token')
+
+    with open(base_dir / 'containers/Container2.container.yaml') as f:
+        documents = list(yaml.safe_load_all(f))
+        storage = documents[1]['backends']['storage'][0]
+
+    assert storage['location'] == '/foo-location'
+    assert storage['token'] == 'foo-token'
+    assert storage['manifest-pattern']['type'] == 'glob'
+    assert storage['manifest-pattern']['path'] == '/*.yaml'
+
+
+def test_storage_dropbox_params_with_refresh_token(cli, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--no-encrypt-manifest')
+    cli('storage', 'create', 'dropbox',
+        '--container', 'Container',
+        '--inline',
+        '--subcontainer-manifest', '/sub.yaml',
+        '--location', '/foo-location',
         '--app-key', 'foo-app-key',
         '--refresh-token', 'foo-token')
 

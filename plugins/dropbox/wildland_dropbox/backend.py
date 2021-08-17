@@ -40,6 +40,7 @@ from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.manifest.schema import Schema
+from wildland.cli.cli_base import CliError
 from .dropbox_client import DropboxClient
 
 logger = logging.getLogger('storage-dropbox')
@@ -110,11 +111,25 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
     SCHEMA = Schema({
         "title": "Dropbox storage manifest",
         "type": "object",
-        "required": ["app-key"],
+        "oneOf": [
+            {
+                "type": "object",
+                "required": ["token"]
+            },
+            {
+                "type": "object",
+                "required": ["app-key"]
+            }
+        ],
         "properties": {
             "location": {
                 "$ref": "/schemas/types.json#abs-path",
                 "description": "Absolute POSIX path acting as a root directory in user's dropbox"
+            },
+            "token": {
+                "type": ["string"],
+                "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
+                               "Console.",
             },
             "app-key": {
                 "type": ["string"],
@@ -137,9 +152,10 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
-        dropbox_app_key = self.params['app-key']
-        dropbox_refresh_token = self.params['refresh-token']
-        self.client = DropboxClient(dropbox_app_key, dropbox_refresh_token)
+        dropbox_token = self.params.get('token', None)
+        dropbox_app_key = self.params.get('app-key', None)
+        dropbox_refresh_token = self.params.get('refresh-token', None)
+        self.client = DropboxClient(dropbox_token, dropbox_app_key, dropbox_refresh_token)
         self.root = PosixPath(self.params.get('location', '/')).resolve()
 
     @classmethod
@@ -150,9 +166,15 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
                 ['--location'], metavar='PATH', required=False, default='/',
                 help='Absolute path to root directory in your Dropbox account.'),
             click.Option(
+                ["--token"],
+                metavar="STRING",
+                required=False,
+                help="Dropbox OAuth 2.0 access token",
+            ),
+            click.Option(
                 ["--app-key"],
                 metavar="STRING",
-                required=True,
+                required=False,
                 help="Dropbox App Key",
             ),
             click.Option(
@@ -166,9 +188,14 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
 
     @classmethod
     def cli_create(cls, data):
-        app_key = data["app_key"]
+        token = data.get("token", None)
+        app_key = data.get("app_key", None)
         refresh_token = data.get("refresh_token", None)
-        if not refresh_token:
+
+        if token and app_key:
+            raise CliError('--token and --app-key are mutually exclusive')
+
+        if app_key and not refresh_token:
             auth_flow = DropboxOAuth2FlowNoRedirect(
                 app_key, use_pkce=True, token_access_type='offline')
 
@@ -184,10 +211,11 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
             refresh_token = oauth_result.refresh_token
 
         result = super(DropboxStorageBackend, cls).cli_create(data)
-        result.update({
-            "location": data["location"],
-            "app-key":  app_key,
-            "refresh-token": refresh_token})
+        result.update({"location": data["location"]})
+        if token:
+            result.update({"token": token})
+        if app_key:
+            result.update({"app-key":  app_key, "refresh-token": refresh_token})
         return result
 
     @staticmethod
