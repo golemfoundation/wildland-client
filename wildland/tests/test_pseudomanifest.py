@@ -27,8 +27,6 @@ from pathlib import Path
 import pytest
 
 from ..client import Client
-from ..cli.cli_base import ContextObj
-from ..cli.cli_container import prepare_mount
 from ..wildland_object.wildland_object import WildlandObject
 
 
@@ -38,26 +36,13 @@ def test_pseudomanifest_create(cli, base_dir):
     cli('storage', 'create', 'static', 'Storage',
         '--file', 'foo.txt=foo content',
         '--container', 'Container', '--no-inline', '--no-encrypt-manifest')
+    cli('start', '--default-user', 'User')
+    cli('container', 'mount', 'Container')
 
     client = Client(base_dir)
-
-    obj = ContextObj(client)
-    obj.fs_client = client.fs_client
-
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
-    storage = client.select_storage(container)
-    assert storage.storage_type == 'static'
+    mounted_path = client.fs_client.mount_dir / Path('/PATH').relative_to('/')
 
-    user = client.users['0xaaa']
-    client.fs_client.start(single_thread=False, default_user=user)
-
-    user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-    commands = list(prepare_mount(obj, container, str(container.local_path), user_paths,
-                                  remount=False, with_subcontainers=True, subcontainer_of=None,
-                                  verbose=False, only_subcontainers=False))
-    obj.fs_client.mount_multiple_containers(commands)
-
-    mounted_path = obj.fs_client.mount_dir / Path('/PATH').relative_to('/')
     assert sorted(os.listdir(mounted_path)) == ['.manifest.wildland.yaml', 'foo.txt']
 
     assert os.listdir(mounted_path) == ['.manifest.wildland.yaml', 'foo.txt'], \
@@ -97,26 +82,13 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         '--container', 'Container',
         '--inline',
         '--no-encrypt-manifest')
+    cli('start', '--default-user', 'User')
+    cli('container', 'mount', 'Container')
 
     client = Client(base_dir)
-
-    obj = ContextObj(client)
-    obj.fs_client = client.fs_client
-
-    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
-
-    user = client.users['0xaaa']
-    client.fs_client.start(single_thread=False, default_user=user)
-
-    user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-    commands = list(prepare_mount(obj, container, str(container.local_path), user_paths,
-                                  remount=False, with_subcontainers=True, subcontainer_of=None,
-                                  verbose=False, only_subcontainers=False))
-    obj.fs_client.mount_multiple_containers(commands)
-
-    mount_dir = obj.fs_client.mount_dir
-
+    mount_dir = client.fs_client.mount_dir
     mounted_path = mount_dir / Path('/PATH').relative_to('/')
+
     assert sorted(os.listdir(mounted_path)) == ['.manifest.wildland.yaml'], \
         "plaintext dir should contain pseudomanifest only!"
 
@@ -128,9 +100,6 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         pass
 
     # edit path
-
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
     pseudomanifest_replace(pseudomanifest_path, "paths:\n", "paths:\n- /NEW\n")
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
@@ -150,9 +119,6 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
 
     # edit category
 
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
-
     pseudomanifest_replace(pseudomanifest_path, "categories: []", "categories:\n- /cat")
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
         assert "- /cat" in f.read()
@@ -167,9 +133,6 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
 
     # edit category goes wrong
 
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
-
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
 
@@ -182,12 +145,9 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(pseudomanifest_path, 'r') as f:
         assert "rejected due to encountered errors" in f.read()
 
-
     # set title
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
-    pseudomanifest_replace(pseudomanifest_path, "title: 'null'", "title: title")
+    pseudomanifest_replace(pseudomanifest_path, "title: 'null'", "title: 'title'")
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert "title: title" in f.read()
 
@@ -196,9 +156,6 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         assert "title: 'null'" in f.read()
 
     # edit user
-
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
@@ -218,9 +175,6 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         assert "rejected due to encountered errors" not in f.read()
 
     # whitespaces
-
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
 
     with open(pseudomanifest_path, 'r') as f:
         old_content = f.read()

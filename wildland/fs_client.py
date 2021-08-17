@@ -79,7 +79,14 @@ class WildlandFSClient:
     A class to communicate with Wildland filesystem over the .control API.
     """
 
-    def __init__(self, mount_dir: Path, socket_path: Path, bridge_separator: str = ':'):
+    def __init__(
+            self,
+            base_dir: Optional[PurePosixPath],
+            mount_dir: Path,
+            socket_path: Path,
+            bridge_separator: str = ':'
+    ):
+        self.base_dir = base_dir
         self.mount_dir = mount_dir
         self.socket_path = socket_path
         self.bridge_separator = bridge_separator
@@ -289,8 +296,7 @@ class WildlandFSClient:
             for storage in storages
         ]
 
-    @staticmethod
-    def _generate_pseudomanifest_storage(container: Container, storage: Storage) -> Storage:
+    def _generate_pseudomanifest_storage(self, container: Container, storage: Storage) -> Storage:
         """
         Create pseudomanifest storage out of storage params and paths.
         """
@@ -307,9 +313,10 @@ class WildlandFSClient:
         storage_manifest = Manifest.from_fields(pseudo_manifest_params)
         pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
 
-        static_params = {
+        params = {
             'type': 'pseudomanifest',
             'content': pseudomanifest_content,
+            'base-dir': str(self.base_dir),
             'primary': storage.is_primary,  # determines how many mountpoints are generated
             'backend-id': storage.backend_id,
             'owner': storage.owner,
@@ -317,7 +324,7 @@ class WildlandFSClient:
             'version': Manifest.CURRENT_VERSION
         }
         return Storage(storage.owner, PseudomanifestStorageBackend.TYPE, container.uuid_path,
-                       trusted=True, params=static_params, client=container.client)
+                       trusted=True, params=params, client=container.client)
 
     def unmount_storage(self, storage_id: int) -> None:
         """
