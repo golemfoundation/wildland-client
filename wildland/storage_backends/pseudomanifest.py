@@ -1,6 +1,6 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation
+# Copyright (C) 2021 Golem Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,31 +19,15 @@
 
 """Pseudomanifest storage, handles .manifest.wildland.yaml files"""
 
-import os
 import stat
 from itertools import chain
 from pathlib import PurePosixPath
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from .base import StorageBackend, File, Attr
 from .buffered import FullBufferedFile
 from ..manifest.manifest import Manifest
 from ..manifest.schema import Schema
-
-
-def _cli(*args):
-    # pylint: disable=import-outside-toplevel,cyclic-import
-    from ..cli import cli_main
-    cmdline = ['--base-dir', os.environ['WL_BASE_DIR'], *args]
-    # Convert Path to str
-    cmdline = [str(arg) for arg in cmdline]
-    try:
-        cli_main.main.main(args=cmdline, prog_name='wl')
-    except SystemExit as e:
-        if e.code not in [None, 0]:
-            if hasattr(e, '__context__'):
-                assert isinstance(e.__context__, Exception)
-                raise e.__context__
 
 
 class PseudomanifestFile(FullBufferedFile):
@@ -55,13 +39,14 @@ class PseudomanifestFile(FullBufferedFile):
     as a comment.
     """
 
-    def __init__(self, data: bytearray, attr: Attr):
+    def __init__(self, base_dir: Optional[str], data: bytearray, attr: Attr):
         super().__init__(attr)
+        self.base_dir = base_dir
         self.data = data
         manifest = Manifest.from_unsigned_bytes(bytes(self.data))
         manifest.skip_verification()
         uuid_path = manifest.fields['paths'][0]
-        self.container_identifier = f':{uuid_path}:'
+        self.container_wl_path = f':{uuid_path}:'
 
     def read_full(self) -> bytes:
         return self.data
@@ -77,7 +62,8 @@ class PseudomanifestFile(FullBufferedFile):
                 '\n\n# All following changes to the manifest' \
                 '\n# was rejected due to encountered errors:' \
                 '\n#\n# ' + data.decode().replace('\n', '\n# ') + \
-                '\n# ' + str(e).replace('\n', '\n# ')
+                '\n# ' + str(e).replace('\n', '\n# ') + \
+                '\n'
             self.data[len(self.data) - 1:] = message.encode()
             raise IOError() from e
         else:
@@ -89,15 +75,15 @@ class PseudomanifestFile(FullBufferedFile):
             error_messages += self._add('category', new, old)
             error_messages += self._del('category', new, old)
 
-            new_title = new.fields.get('title')
-            old_title = old.fields.get('title')
+            new_title = new.fields.get('title', None)
+            old_title = old.fields.get('title', None)
             if new_title != old_title:
                 if new_title is None:
-                    new_title = "'null'"
+                    new_title = "null"
                 try:
-                    _cli('container', 'modify',
-                         'set-title', self.container_identifier, '--title', new_title)
-                    old.fields['title'] = new.fields['title']
+                    _cli(self.base_dir, 'container', 'modify',
+                         'set-title', self.container_wl_path, '--title', new_title)
+                    old.fields['title'] = new_title
                 except Exception as e:
                     error_messages += '\n' + str(e)
 
@@ -107,7 +93,7 @@ class PseudomanifestFile(FullBufferedFile):
                                 if key not in ('paths', 'categories', 'title')}
             if new_other_fields != old_other_fields:
                 error_messages += "Pseudomanifest error: Modifying fields except:" \
-                                  "\n 'paths', 'categories', 'title' are forbidden."
+                                  "\n 'paths', 'categories', 'title' are not supported."
 
             self.data[:] = old.copy_to_unsigned().original_data
             if error_messages:
@@ -115,7 +101,8 @@ class PseudomanifestFile(FullBufferedFile):
                     '\n\n# Some changes to the following manifest' \
                     '\n# was rejected due to encountered errors:' \
                     '\n#\n# ' + data.decode().replace('\n', '\n# ') + \
-                    '\n# ' + error_messages.replace('\n', '\n# ')
+                    '\n# ' + error_messages.replace('\n', '\n# ') + \
+                    '\n'
                 self.data[len(self.data) - 1:] = message.encode()
                 raise IOError()
 
@@ -148,7 +135,8 @@ class PseudomanifestFile(FullBufferedFile):
         args = list(chain.from_iterable((f'--{field}', f) for f in to_modify))
         if args:
             try:
-                _cli('container', 'modify', f'{mod}-{field}', self.container_identifier, *args)
+                _cli(self.base_dir, 'container', 'modify', f'{mod}-{field}',
+                     self.container_wl_path, *args)
 
                 if mod == 'add':
                     old_fields.extend(to_modify)
@@ -189,6 +177,10 @@ class PseudomanifestStorageBackend(StorageBackend):
             data = data.encode()
         self.data = bytearray(data)
 
+        self.base_dir = params.get('base-dir', None)
+        if self.base_dir == 'None':
+            self.base_dir = None
+
         self.attr = Attr(
             size=len(self.data),
             timestamp=0,
@@ -199,10 +191,28 @@ class PseudomanifestStorageBackend(StorageBackend):
         """
         open() for generated pseudomanifest storage
         """
-        return PseudomanifestFile(self.data, self.attr)
+        return PseudomanifestFile(self.base_dir, self.data, self.attr)
 
     def getattr(self, path: PurePosixPath) -> Attr:
         """
         getattr() for generated pseudomanifest storage
         """
         return self.attr
+
+    # def truncate(self, path: PurePosixPath, length: int) -> None:
+    #     pass
+
+
+def _cli(base_dir, *args):
+    # pylint: disable=import-outside-toplevel,cyclic-import
+    from ..cli import cli_main
+    cmdline = ['--base-dir', base_dir, *args] if base_dir else args
+    # Convert Path to str
+    cmdline = [str(arg) for arg in cmdline]
+    try:
+        cli_main.main.main(args=cmdline, prog_name='wl')
+    except SystemExit as e:
+        if e.code not in [None, 0]:
+            if hasattr(e, '__context__'):
+                assert isinstance(e.__context__, Exception)
+                raise e.__context__
