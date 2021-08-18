@@ -129,15 +129,21 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
             "token": {
                 "type": ["string"],
                 "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
-                               "Console.",
+                               "Console. Deprecated and will be replaced in favor of App Key and"
+                               "refresh token.",
             },
             "app-key": {
                 "type": ["string"],
-                "description": "Dropbox App Key.",
+                "description": "Dropbox App Key. You can obtain it in Dropbox App Console.",
             },
             "refresh-token": {
                 "type": ["string"],
-                "description": "Dropbox OAuth 2.0 refresh token.",
+                "description": "Dropbox OAuth 2.0 refresh token. "
+                               "You can generate it using the following "
+                               "https://www.dropbox.com/developers/documentation/http/documentation"
+                               "at '/oauth2/token' endpoint section. "
+                               "Please note that this is optional as the procedure is performed "
+                               "when a container is created.",
             },
             "manifest-pattern": {
                 "oneOf": [
@@ -169,19 +175,26 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
                 ["--token"],
                 metavar="STRING",
                 required=False,
-                help="Dropbox OAuth 2.0 access token",
+                help="Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
+                     "Console. Deprecated and will be replaced in favor of App Key and"
+                     "refresh token.",
             ),
             click.Option(
                 ["--app-key"],
                 metavar="STRING",
                 required=False,
-                help="Dropbox App Key",
+                help="Dropbox App Key. You can obtain it in Dropbox App Console.",
             ),
             click.Option(
                 ["--refresh-token"],
                 metavar="STRING",
                 required=False,
-                help="Dropbox OAuth 2.0 refresh token",
+                help="Dropbox OAuth 2.0 refresh token. "
+                     "You can generate it using the following "
+                     "https://www.dropbox.com/developers/documentation/http/documentation"
+                     "at '/oauth2/token' endpoint section. "
+                     "Please note that this is optional as the procedure is performed "
+                     "when a container is created.",
             )
         ])
         return opts
