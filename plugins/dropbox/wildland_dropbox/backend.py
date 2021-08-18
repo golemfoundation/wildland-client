@@ -218,10 +218,20 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
 2. Click \"Allow\" (you might have to log in first).
 3. Copy the authorization code."""
             print(msg)
-            auth_code = input("4. Enter the authorization code here: ").strip()
 
-            oauth_result = auth_flow.finish(auth_code)
-            refresh_token = oauth_result.refresh_token
+            err_msg = "Cannot get refresh token"
+            for i in range(0, 3):
+                try:
+                    auth_code = click.prompt("4. Enter the authorization code here")
+                    oauth_result = auth_flow.finish(auth_code.strip())
+                    refresh_token = oauth_result.refresh_token
+                except Exception as e:
+                    if i != 2 and click.confirm("Do you want to retry?"):
+                        continue
+                    err_msg = f"Cannot get refresh token: {str(e)}"
+                break
+            if not refresh_token:
+                raise ValueError(err_msg)
 
         result = super(DropboxStorageBackend, cls).cli_create(data)
         result.update({"location": data["location"]})
