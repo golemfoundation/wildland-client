@@ -155,6 +155,11 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert "title: 'null'" in f.read()
 
+    # edit uuid
+
+    with pytest.raises(OSError, match='Invalid argument'):
+        pseudomanifest_replace(pseudomanifest_path, "/.uuid/", "/")
+
     # edit user
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
@@ -168,6 +173,15 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
 
     with open(pseudomanifest_path, 'r') as f:
         assert "rejected due to encountered errors" in f.read()
+
+    with pytest.raises(OSError, match='Invalid argument'):
+        pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xccc")
+
+    # check if only latest error messages are available
+    with open(pseudomanifest_path, 'r') as f:
+        content = f.read()
+        assert "0xbbb" not in content
+        assert "0xccc" in content
 
     # clear error messages
     pseudomanifest_replace(pseudomanifest_path, "", "")
@@ -185,3 +199,68 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
 
     with open(pseudomanifest_path, 'r') as f:
         assert old_content == f.read()
+
+    # many changes at once
+
+    uuid_path = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container').uuid_path
+
+    pseudomanifest_content = \
+f'''object: container
+owner: '0xaaa'
+paths:
+- {uuid_path}
+- /PATH
+- /NEW
+title: new_title
+categories:
+- /cat1
+version: '1'
+access:
+- user: '*'
+'''
+
+    with open(pseudomanifest_path, 'r+') as f:
+        f.truncate(0)
+        f.write(pseudomanifest_content)
+
+    with open(pseudomanifest_path, 'r') as f:
+        assert f.read() == pseudomanifest_content
+
+    new_content = \
+f'''object: container
+owner: '0xaaa'
+paths:
+- {uuid_path}
+- /PATH
+- /PATH
+- /Ano/ther
+title: other_title
+categories:
+- /cat2
+- /cat2
+version: '1'
+access:
+- user: '*'
+'''
+
+    expexted_content = \
+f'''object: container
+owner: '0xaaa'
+paths:
+- {uuid_path}
+- /PATH
+- /Ano/ther
+title: other_title
+categories:
+- /cat2
+version: '1'
+access:
+- user: '*'
+'''
+
+    with open(pseudomanifest_path, 'r+') as f:
+        f.truncate(0)
+        f.write(new_content)
+
+    with open(pseudomanifest_path, 'r') as f:
+        assert f.read() == expexted_content
