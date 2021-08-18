@@ -45,8 +45,8 @@ class PseudomanifestFile(FullBufferedFile):
         self.data = data
         manifest = Manifest.from_unsigned_bytes(bytes(self.data))
         manifest.skip_verification()
-        uuid_path = manifest.fields['paths'][0]
-        self.container_wl_path = f':{uuid_path}:'
+        self.uuid_path = manifest.fields['paths'][0]
+        self.container_wl_path = f':{self.uuid_path}:'
 
     def read_full(self) -> bytes:
         return self.data
@@ -58,10 +58,12 @@ class PseudomanifestFile(FullBufferedFile):
             old = Manifest.from_unsigned_bytes(bytes(self.data))
             old.skip_verification()
         except Exception as e:
+            str_data = data.decode()
+            data_without_comments = str_data[:str_data.find('#')]
             message = \
                 '\n\n# All following changes to the manifest' \
                 '\n# was rejected due to encountered errors:' \
-                '\n#\n# ' + data.decode().replace('\n', '\n# ') + \
+                '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
                 '\n# ' + str(e).replace('\n', '\n# ') + \
                 '\n'
             self.data[len(self.data) - 1:] = message.encode()
@@ -92,15 +94,17 @@ class PseudomanifestFile(FullBufferedFile):
             old_other_fields = {key: value for key, value in old.fields.items()
                                 if key not in ('paths', 'categories', 'title')}
             if new_other_fields != old_other_fields:
-                error_messages += "Pseudomanifest error: Modifying fields except:" \
+                error_messages += "\n Pseudomanifest error: Modifying fields except:" \
                                   "\n 'paths', 'categories', 'title' are not supported."
 
             self.data[:] = old.copy_to_unsigned().original_data
             if error_messages:
+                str_data = data.decode()
+                data_without_comments = str_data[:str_data.find('#')]
                 message = \
                     '\n\n# Some changes to the following manifest' \
                     '\n# was rejected due to encountered errors:' \
-                    '\n#\n# ' + data.decode().replace('\n', '\n# ') + \
+                    '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
                     '\n# ' + error_messages.replace('\n', '\n# ') + \
                     '\n'
                 self.data[len(self.data) - 1:] = message.encode()
@@ -115,6 +119,8 @@ class PseudomanifestFile(FullBufferedFile):
         return self._modify('del', field, new, old)
 
     def _modify(self, mod: str, field: str, new: Manifest, old: Manifest) -> str:
+        error_message = ''
+
         if field == 'path':
             fields = 'paths'
         elif field == 'category':
@@ -126,9 +132,14 @@ class PseudomanifestFile(FullBufferedFile):
         old_fields = old.fields[fields]
 
         if mod == 'add':
-            to_modify = [f for f in new_fields if f not in old_fields]
+            to_modify = {f for f in new_fields if f not in old_fields}
         elif mod == 'del':
-            to_modify = [f for f in old_fields if f not in new_fields]
+            to_modify = {f for f in old_fields if f not in new_fields}
+            try:
+                to_modify.remove(self.uuid_path)
+                error_message += "\n Pseudomanifest error: uuid path cannot be removed."
+            except KeyError:
+                pass
         else:
             raise ValueError()
 
@@ -147,9 +158,10 @@ class PseudomanifestFile(FullBufferedFile):
                     raise ValueError()
 
             except Exception as e:
-                return '\n' + str(e)
+                error_message += '\n' + str(e)
+                return error_message
 
-        return ""
+        return error_message
 
 
 class PseudomanifestStorageBackend(StorageBackend):
