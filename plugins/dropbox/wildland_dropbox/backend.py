@@ -143,7 +143,7 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
                                "https://www.dropbox.com/developers/documentation/http/documentation"
                                "at '/oauth2/token' endpoint section. "
                                "Please note that this is optional as the procedure is performed "
-                               "when a container is created.",
+                               "when a storage is created.",
             },
             "manifest-pattern": {
                 "oneOf": [
