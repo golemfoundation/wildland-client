@@ -630,12 +630,30 @@ def modify(ctx: click.Context,
     """
     Command for modifying user manifests.
     """
+    _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                  add_pubkey, add_pubkey_user, del_pubkey)
+
+    pubkeys = _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey)
+
+    to_add = {'paths': add_path, 'manifests-catalog': add_catalog_entry, 'pubkeys': pubkeys}
+    to_del = {'paths': del_path, 'manifests-catalog': del_catalog_entry, 'pubkeys': del_pubkey}
+
+    modify_manifest(ctx, input_file,
+                    edit_funcs=[add_fields, del_fields],
+                    to_add=to_add,
+                    to_del=to_del)
+
+
+def _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                  add_pubkey, add_pubkey_user, del_pubkey):
     check_if_any_options(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
                          add_pubkey, add_pubkey_user, del_pubkey)
     check_options_conflict("path", add_path, del_path)
     check_options_conflict("catalog_entry", add_catalog_entry, del_catalog_entry)
     check_options_conflict("pubkey", add_pubkey, del_pubkey)
 
+
+def _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey):
     pubkeys = set(add_pubkey)
 
     conflicts = ""
@@ -664,9 +682,4 @@ def modify(ctx: click.Context,
         if not ctx.obj.session.sig.is_valid_pubkey(key):
             raise CliError(f'Given pubkey [{key}] is not a valid pubkey')
 
-    to_add = {'paths': add_path, 'manifests-catalog': add_catalog_entry, 'pubkeys': pubkeys}
-    to_del = {'paths': del_path, 'manifests-catalog': del_catalog_entry, 'pubkeys': del_pubkey}
-    modify_manifest(ctx, input_file,
-                    edit_funcs=[add_fields, del_fields],
-                    to_add=to_add,
-                    to_del=to_del)
+    return pubkeys
