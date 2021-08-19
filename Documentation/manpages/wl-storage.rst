@@ -13,7 +13,7 @@ Synopsis
 | :command:`wl storage create <type> --container <container> [-u|-n] [--user <user>] [<type-specific-options>] <storage>`
 | :command:`wl storage {sign|verify|edit} [...]`
 | :command:`wl storage create-from-template --storage-template <storage_template> <container>`
-| :command:`wl storage modify {set-location} [...] <file>`
+| :command:`wl storage modify [--location <path>] [--add-access <user>] [--del-access <user>] <file>`
 
 Description
 ===========
@@ -325,36 +325,20 @@ Create storages for a given container based on the storage template provided.
 .. program:: wl-storage-modify
 .. _wl-storage-modify:
 
-.. _wl-storage-modify-set-location:
+:command:`wl storage modify [--location <path>] [--add-access <user>] [--del-access <user>] <file>`
+---------------------------------------------------------------------------------------------------
 
-:command:`wl storage modify set-location --location PATH <file>`
-----------------------------------------------------------------
-
-Set location in a storage |~| manifest given by *<file>*.
+Modify a storage |~| manifest given by *<file>*.
 
 .. option:: --location
 
    Path to directory containing the backend.
 
-.. _wl-storage-modify-add-access:
-
-:command:`wl storage modify add-access --access USER <file>`
-------------------------------------------------------------
-
-Allow an additional user |~| access to manifest given by *<file>*.
-
-.. option:: --access
+.. option:: --add-access
 
    User to add access for. Can be repeated.
 
-.. _wl-storage-modify-del-access:
-
-:command:`wl storage modify del-acccess --access USER <file>`
--------------------------------------------------------------
-
-Revoke user's |~| access to manifest given by *<file>*.
-
-.. option:: --access
+.. option:: --del-access
 
    User to revoke access from. Can be repeated.
 
