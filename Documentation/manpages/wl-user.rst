@@ -12,7 +12,7 @@ Synopsis
 | :command:`wl user create <name> --key <key>`
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
-| :command:`wl user modify {add-path|del-path|add-pubkey|del-pubkey|add-catalog-entry|del-catalog-entry} [...] <file>`
+| :command:`wl user modify [...] <file>`
 
 Description
 ===========
@@ -141,74 +141,36 @@ Unless USER name is provided, the command will iterate over all bridges.
 .. program:: wl-user-modify
 .. _wl-user-modify:
 
-.. _wl-user-modify-add-path:
+:command:`wl user modify [--add-path <path>] [--del-path <path>] [--add-pubkey <pubkey>] [--add-pubkey-user <user>] [--del-pubkey <pubkey>] [--add-catalog-entry <path>] [--del-catalog-entry <path>] <file>`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-:command:`wl user modify add-path --path PATH <file>`
------------------------------------------------------
+Modify a user |~| manifest given by *<file>*.
 
-Add Wildland path to a user |~| manifest given by *<file>*.
-
-.. option:: --path
+.. option:: --add-path
 
    Path to add. Can be repeated.
 
-.. _wl-user-modify-del-path:
-
-:command:`wl user modify del-path --path PATH <file>`
------------------------------------------------------
-
-Remove Wildland path from a user |~| manifest given by *<file>*.
-
-.. option:: --path
+.. option:: --del-path
 
    Path to remove. Can be repeated.
 
-.. _wl-user-modify-add-pubkey:
-
-:command:`wl user modify add-pubkey [--pubkey PUBKEY] [--user USER] <file>`
----------------------------------------------------------------------------
-
-Add public key to a user |~| manifest given by *<file>*.
-Either one pubkey or user is required.
-
-.. option:: --pubkey
+.. option:: --add-pubkey
 
    Public key to add (the same format as in the public key file). Can be repeated.
 
-.. option:: --user
+.. option:: --add-pubkey-user
 
    User whose public key to add. Can be repeated.
 
-.. _wl-user-modify-del-pubkey:
-
-:command:`wl user modify del-pubkey --pubkey PUBKEY <file>`
------------------------------------------------------------
-
-Remove public key from a user |~| manifest given by *<file>*.
-
-.. option:: --pubkey
+.. option:: --del-pubkey
 
    Public key to remove (the same format as in the public key file). Can be repeated.
 
-.. _wl-user-modify-add-catalog-entry:
-
-:command:`wl user modify add-catalog-entry --path path <file>`
---------------------------------------------------------------
-
-Add uri to a user |~| manifest's catalog given by *<file>*.
-
-.. option:: --path
+.. option:: --add-catalog-entry
 
    Container uri to add. Can be repeated.
 
-.. _wl-user-modify-del-catalog-entry:
-
-:command:`wl user modify del-catalog-entry --path path <file>`
---------------------------------------------------------------
-
-Remove uri from a user |~| manifests catalog given by *<file>*.
-
-.. option:: --path
+.. option:: --del-catalog-entry
 
    Container uri to remove. Can be repeated.
 
