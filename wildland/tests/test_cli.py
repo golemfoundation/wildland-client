@@ -3651,17 +3651,14 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
         '--location', storage3_data)
     cli('container', 'sync', '--target-storage', 'local-dir-cached', 'AliceContainer')
 
-    time.sleep(1)
+    path1a = Path(storage1_data / 'testfile')
+    path2a = Path(storage2_data / 'testfile')
+    path3a = Path(storage3_data / 'testfile')
+    data1 = 'test data'
 
-    with open(storage1_data / 'testfile', 'w') as f:
-        f.write("test data")
-
-    time.sleep(1)
-
-    assert (storage3_data / 'testfile').exists()
-    assert not (storage2_data / 'testfile').exists()
-    with open(storage3_data / 'testfile') as file:
-        assert file.read() == 'test data'
+    make_file(path1a, data1)
+    wait_for_file(path3a, data1)
+    assert not path2a.exists()
 
     with open(base_dir / 'containers/AliceContainer.container.yaml') as f:
         cont_data = f.read().split('\n', 4)[-1]
@@ -3681,17 +3678,14 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     cli('container', 'stop-sync', 'AliceContainer')
     cli('container', 'sync', 'AliceContainer')
 
-    time.sleep(1)
+    path1b = Path(storage1_data / 'testfile2')
+    path2b = Path(storage2_data / 'testfile2')
+    path3b = Path(storage3_data / 'testfile2')
+    data2 = 'get value from config'
 
-    with open(storage1_data / 'testfile2', 'w') as f:
-        f.write("get value from config")
-
-    time.sleep(1)
-
-    assert (storage3_data / 'testfile2').exists()
-    assert not (storage2_data / 'testfile2').exists()
-    with open(storage3_data / 'testfile2') as file:
-        assert file.read() == "get value from config"
+    make_file(path1b, data2)
+    wait_for_file(path3b, data2)
+    assert not path2b.exists()
 
 
 def test_container_list_conflicts(tmpdir):

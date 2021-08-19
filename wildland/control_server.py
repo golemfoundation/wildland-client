@@ -339,7 +339,8 @@ class ControlServer:
                 except OSError:
                     # already shut down
                     pass
-            thread.join()
+            if threading.current_thread() != thread:
+                thread.join()
 
         self.socket_path.unlink(missing_ok=True)
 

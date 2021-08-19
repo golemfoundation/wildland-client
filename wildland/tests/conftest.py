@@ -11,7 +11,6 @@ from pathlib import Path, PurePosixPath
 from typing import List
 from unittest import mock
 
-import psutil
 import pytest
 import yaml
 
@@ -49,15 +48,17 @@ def _sync_daemon(base_dir):
 @pytest.fixture
 def sync(base_dir):
     # this is so we can easily get coverage data from the sync daemon
-    try:
-        daemon = Process(target=_sync_daemon, args=(base_dir,))
-        daemon.start()
-        # if we don't yield anything here this whole function is executed immediately,
-        # and the sync daemon is prematurely killed
-        yield daemon
-    finally:
-        daemon.terminate()
-        daemon.join()
+    daemon = Process(target=_sync_daemon, args=(base_dir,))
+    daemon.start()
+    # if we don't yield anything here this whole function is executed immediately,
+    # and the sync daemon is prematurely killed
+    yield daemon
+
+    assert daemon.pid
+    os.kill(daemon.pid, signal.SIGINT)
+    daemon.join()
+    socket_path = Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock'
+    socket_path.unlink(missing_ok=True)
 
 
 @pytest.fixture
@@ -85,12 +86,6 @@ def cli(base_dir, capsys):
     if os.path.ismount(base_dir / 'wildland'):
         cli('stop')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink(missing_ok=True)
-
-    syncs = [p for p in psutil.process_iter() if 'wildland.storage_sync.daemon' in p.cmdline()]
-    for p in syncs:
-        p.send_signal(signal.SIGTERM)
-    if len(syncs) > 0:
-        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock').unlink(missing_ok=True)
 
 
 # TODO examine exception
