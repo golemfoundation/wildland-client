@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Any, Optional
+from typing import Callable, List, Any, Optional, Dict, Tuple
 
 import click
 import yaml
@@ -340,8 +340,8 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
     return True
 
 
-def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callable[..., dict],
-                    *args, **kwargs) -> bool:
+def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
+                    *args, by_value=True, **kwargs) -> bool:
     """
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides four common callbacks:
@@ -355,8 +355,7 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
     """
     obj: ContextObj = pass_ctx.obj
 
-    manifest_type = (pass_ctx.parent.parent.command.name
-                        if pass_ctx.parent and pass_ctx.parent.parent else None)
+    manifest_type = pass_ctx.parent.command.name if pass_ctx.parent else None
     if manifest_type == 'main':
         manifest_type = None
 
@@ -369,7 +368,10 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
 
     # the manifest is edited by edit_func below
     orig_manifest = copy.deepcopy(manifest)
-    fields = edit_func(manifest.fields, *args, **kwargs)
+    fields = manifest.fields
+    kwargs['by_value'] = by_value
+    for edit_func in edit_funcs:
+        fields = edit_func(fields, *args, **kwargs)
     modified_manifest = Manifest.from_fields(fields)
 
     orig_manifest_data = yaml.safe_dump(
@@ -397,97 +399,125 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
     return True
 
 
-def add_field(fields: dict, field: str, values: List[Any]) -> dict:
+def add_fields(fields: dict, to_add: Dict[str, List[Any]], **_kwargs) -> dict:
     """
     Callback function for `modify_manifest`. Adds values to the specified field.
     Duplicates are ignored.
     """
-    fields.setdefault(field, [])
+    for field, values in to_add.items():
+        fields.setdefault(field, [])
 
-    for value in values:
-        if value not in fields[field]:
-            fields[field].append(value)
-        else:
-            click.echo(f'{value} is already in the manifest')
-            continue
+        for value in values:
+            if value not in fields[field]:
+                fields[field].append(value)
+            else:
+                click.echo(f'{value} is already in the manifest')
+                continue
 
     return fields
 
 
-# pylint: disable=dangerous-default-value
-def del_nested_field(manifest_fields: dict, fields: List[str],
-                     values: List[Any] = [], keys: List[Any] = []) -> dict:
+def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
+                      **_kwagrs) -> dict:
     """
     Callback function for `modify_manifest` which is a wrapper for del_field callback
-    for nested fields (e.g. ['backends', 'storage'])
+    for nested fields (e.g. ('backends', 'storage'))
     """
-    field = fields.pop(0)
+    for fs, keys in to_del_nested.items():
+        subfields = fields
+        for field in fs[:-1]:
+            subfields = subfields.get(field)
+            if not isinstance(subfields, dict):
+                raise CliError(
+                    f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
 
-    if not fields:
-        return del_field(manifest_fields, field, values, keys)
+        del_fields(subfields, {fs[-1]: keys}, by_value=False)
 
-    next_obj = manifest_fields.get(field)
-
-    if isinstance(next_obj, dict):
-        manifest_fields[field] = del_nested_field(next_obj, fields, values, keys)
-    else:
-        click.echo(f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
-
-    return manifest_fields
+    return fields
 
 
-def del_field(fields: dict, field: str, values: List[Any] = [], keys: List[Any] = []) -> dict:
+def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool, **_kwargs) -> dict:
     """
     Callback function for `modify_manifest`. Removes values from a list or a set either by values
     or keys. Non-existent values or keys are ignored.
     """
-    if values and keys:
-        click.echo('You may not simultanously remove both by key and by value. Choose only one.')
-        return fields
+    for field, values_or_key in to_del.items():
+        if by_value:
+            keys = []
+            values = values_or_key
+        else:
+            keys = values_or_key
+            values = []
 
-    obj = fields.get(field)
+        obj = fields.get(field)
 
-    # We handle lists and sets differently.
+        # We handle lists and sets differently.
+        if isinstance(obj, list):
+            # Remove by value
+            for value in values:
+                if value in obj:
+                    obj.remove(value)
+                else:
+                    click.echo(f'{value} is not in the manifest')
+                    continue
 
-    if isinstance(obj, list):
-        # Remove by value
-        for value in values:
-            if value in obj:
-                obj.remove(value)
-            else:
-                click.echo(f'{value} is not in the manifest')
-                continue
-
-        # If remove by keys in a list, thus by indexes, they must be reversed so
-        # that we don't remove elements by indexes changing and moving upwards
-        for idx in sorted(keys, reverse=True):
-            try:
-                del obj[idx]
-            except IndexError:
-                click.echo(f'Given index [{idx}] does not exist. Skipped.')
-    elif isinstance(obj, dict):
-        for key in keys:
-            try:
-                del obj[key]
-            except KeyError:
-                click.echo(f'Given key [{key}] does not exist. Skipped.')
-
-        for value in values:
-            for key, item in obj.copy().items():
-                if value == item:
+            # If remove by keys in a list, thus by indexes, they must be reversed so
+            # that we don't remove elements by indexes changing and moving upwards
+            for idx in sorted(keys, reverse=True):
+                try:
+                    del obj[idx]
+                except IndexError:
+                    click.echo(f'Given index [{idx}] does not exist. Skipped.')
+        elif isinstance(obj, dict):
+            for key in keys:
+                try:
                     del obj[key]
-    else:
-        click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
-                    'Nothing is deleted.')
-        return fields
+                except KeyError:
+                    click.echo(f'Given key [{key}] does not exist. Skipped.')
+
+            for value in values:
+                for key, item in obj.copy().items():
+                    if value == item:
+                        del obj[key]
+        else:
+            click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
+                        'Nothing is deleted.')
+            return fields
 
     return fields
 
 
-def set_field(fields: dict, field: str, value: str) -> dict:
+def set_fields(fields: dict, to_set: Dict[str, str], **_kwargs) -> dict:
     """
     Callback function for `modify_manifest`. Sets value of the specified field.
     """
-    fields[field] = value
+    fields.update(to_set)
 
     return fields
+
+
+def check_if_any_options(ctx: click.Context, *args):
+    """
+    Raise CliError if all options are empty.
+    """
+    if not any(args):
+        raise CliError('no option specified.'
+                       f"\nTry 'wl {ctx.parent.command.name} modify --help' for help.")
+
+
+def check_options_conflict(option_name: str, add_option: List[str], del_option: List[str]):
+    """
+    Checks whether we want to add and remove a given fields at the same time.
+
+    Raise CliError when it finds conflict.
+
+    @param option_name: e.g., 'path', 'category'
+    @param add_option: values to add
+    @param del_option: values to del
+    """
+    conflicts = set(add_option).intersection(del_option)
+    if conflicts:
+        message = "options conflict:"
+        for c in conflicts:
+            message += f'\n  --add-{option_name} {c} and --del-{option_name} {c}'
+        raise CliError(message)

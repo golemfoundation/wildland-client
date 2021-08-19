@@ -36,7 +36,8 @@ import click
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
-from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
+from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
+    dump, check_if_any_options, check_options_conflict
 from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager, StorageTemplate
@@ -400,61 +401,38 @@ storage_.add_command(dump)
 _add_create_commands(create)
 
 
-@storage_.group(short_help='modify storage manifest')
-def modify():
-    """
-    Commands for modifying storage manifests.
-    """
-
-
-@modify.command(short_help='set location in the manifest')
-@click.option('--location', metavar='PATH', required=True, help='Location to set')
+@storage_.command(short_help='modify storage manifest')
+@click.option('--location', metavar='PATH', help='location to set')
+@click.option('--add-access', metavar='PATH', multiple=True, help='users to add access for')
+@click.option('--del-access', metavar='PATH', multiple=True, help='users to remove access for')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def set_location(ctx: click.Context, input_file: str, location: str):
+def modify(ctx: click.Context,
+           location, add_access, del_access, input_file
+           ):
     """
-    Set location in the manifest.
+    Command for modifying storage manifests.
     """
-    modify_manifest(ctx, input_file, set_field, 'location', location)
-
-
-@modify.command(short_help='allow additional user(s) access to this encrypted manifest')
-@click.option('--access', metavar='PATH', required=True, multiple=True,
-              help='Users to add access for')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_access(ctx: click.Context, input_file: str, access: Sequence[str]):
-    """
-    Add category to the manifest.
-    """
-    processed_access = []
+    check_if_any_options(ctx, location, add_access, del_access)
+    check_options_conflict("access", add_access, del_access)
 
     try:
-        for user in access:
-            user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-            processed_access.append({'user': user_obj.owner})
+        add_access_owners = [
+            {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+            for user in add_access]
+        del_access_owners = [
+            {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+            for user in del_access]
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex
 
-    modify_manifest(ctx, input_file, add_field, 'access', processed_access)
-
-
-@modify.command(short_help='stop additional user(s) from having access to this encrypted manifest')
-@click.option('--access', metavar='PATH', required=True, multiple=True,
-              help='Users whose access should be revoked')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_access(ctx: click.Context, input_file: str, access: Sequence[str]):
-    """
-    Remove category from the manifest.
-    """
-    processed_access = []
-
-    try:
-        for user in access:
-            user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-            processed_access.append({'user': user_obj.owner})
-    except WildlandError as ex:
-        raise CliError(f'Cannot modify access: {ex}') from ex
-
-    modify_manifest(ctx, input_file, del_field, 'access', processed_access)
+    to_add = {'access': add_access_owners}
+    to_del = {'access': del_access_owners}
+    to_set = {}
+    if location:
+        to_set['location'] = location
+    modify_manifest(ctx, input_file,
+                    edit_funcs=[add_fields, del_fields, set_fields],
+                    to_add=to_add,
+                    to_del=to_del,
+                    to_set=to_set)
