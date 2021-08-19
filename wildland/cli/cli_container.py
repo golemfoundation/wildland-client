@@ -448,6 +448,45 @@ def modify(ctx: click.Context,
     If container is already published, any modification should be republish
     unless publish is False.
     """
+    _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
+                  del_access, encrypt_manifest, no_encrypt_manifest, del_storage)
+
+    add_access_owners = [
+        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+        for user in add_access]
+    to_add = {'paths': add_path, 'categories': add_category, 'access': add_access_owners}
+
+    del_access_owners = [
+        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+        for user in del_access]
+    to_del = {'paths': del_path, 'categories': del_category, 'access': del_access_owners}
+
+    to_del_nested = _get_storages_idx_to_del(ctx, del_storage, input_file)
+
+    to_set = {}
+    if title:
+        to_set['title'] = title
+    if encrypt_manifest:
+        to_set['access'] = []
+    if no_encrypt_manifest:
+        to_set['access'] = [{'user': '*'}]
+
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest,
+        remount=remount,
+        edit_funcs=[add_fields, del_fields, set_fields, del_nested_fields],
+        to_add=to_add,
+        to_del=to_del,
+        to_set=to_set,
+        to_del_nested=to_del_nested
+    )
+
+    if publish and modified:
+        _republish_container(ctx.obj.client, container)
+
+
+def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
+                  del_access, encrypt_manifest, no_encrypt_manifest, del_storage):
     check_if_any_options(ctx, add_path, del_path, add_category, del_category, title, add_access,
                          del_access, encrypt_manifest, no_encrypt_manifest, del_storage)
     check_options_conflict("path", add_path, del_path)
@@ -462,13 +501,8 @@ def modify(ctx: click.Context,
         raise CliError('Error: options conflict:'
                        '\n  --encrypt-manifest and --no-encrypt-manifest')
 
-    add_access_owners = [
-        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
-        for user in add_access]
-    del_access_owners = [
-        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
-        for user in del_access]
 
+def _get_storages_idx_to_del(ctx, del_storage, input_file):
     to_del_nested = {}
     if del_storage:
         idxs_to_delete = []
@@ -486,27 +520,7 @@ def modify(ctx: click.Context,
         click.echo('Storage indexes to remove: ' + str(idxs_to_delete))
         to_del_nested[('backends', 'storage')] = idxs_to_delete
 
-    to_add = {'paths': add_path, 'categories': add_category, 'access': add_access_owners}
-    to_del = {'paths': del_path, 'categories': del_category, 'access': del_access_owners}
-    to_set = {}
-    if title:
-        to_set['title'] = title
-    if encrypt_manifest:
-        to_set['access'] = []
-    if no_encrypt_manifest:
-        to_set['access'] = [{'user': '*'}]
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest,
-        remount=remount,
-        edit_funcs=[add_fields, del_fields, set_fields, del_nested_fields],
-        to_add=to_add,
-        to_del=to_del,
-        to_set=to_set,
-        to_del_nested=to_del_nested
-    )
-
-    if publish and modified:
-        _republish_container(ctx.obj.client, container)
+    return to_del_nested
 
 
 def _republish_container(client: Client, container: Container) -> None:
