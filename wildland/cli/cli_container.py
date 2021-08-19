@@ -456,7 +456,7 @@ def modify(ctx: click.Context,
 
     if (encrypt_manifest or no_encrypt_manifest) and (add_access or del_access):
         raise CliError(
-            'using --encrypt-manifest or --no-encrypt-manifest' 
+            'using --encrypt-manifest or --no-encrypt-manifest'
             'AND --add-access or --del-access is ambiguous.')
     if encrypt_manifest and no_encrypt_manifest:
         raise CliError('Error: options conflict:'
@@ -497,6 +497,7 @@ def modify(ctx: click.Context,
         to_set['access'] = [{'user': '*'}]
     container, modified = _resolve_container(
         ctx, input_file, modify_manifest,
+        remount=remount,
         edit_funcs=[add_fields, del_fields, set_fields, del_nested_fields],
         to_add=to_add,
         to_del=to_del,
