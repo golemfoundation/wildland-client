@@ -104,6 +104,7 @@ def setup(base_dir, cli, control_client):
 
     patch_uuid.stop()
 
+
 @pytest.fixture
 def client(setup, base_dir):
     # pylint: disable=unused-argument
@@ -230,7 +231,7 @@ def test_single_path(cli, client, control_client, base_dir):
     control_client.queue_event(TerminateRemounter())
 
     def modify_container():
-        cli('container', 'modify', '--add-path', '/new/path', 'Container1')
+        cli('container', 'modify', '--no-remount', '--add-path', '/new/path', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
                     base_dir / 'wildland/.manifests/Container1.yaml')
 
@@ -381,7 +382,7 @@ def test_add_remove_storage(cli, client, control_client, base_dir):
                     base_dir / 'wildland/.manifests/Container1.yaml')
 
     def del_storage():
-        cli('container', 'modify', '--del-storage', '1',
+        cli('container', 'modify', '--no-remount', '--del-storage', '1',
             'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
                     base_dir / 'wildland/.manifests/Container1.yaml')
@@ -429,7 +430,7 @@ def test_modify_storage(cli, client, control_client, base_dir):
 
     def modify_storage():
         """modify one storage parameters (location)"""
-        cli('container', 'modify', '--del-storage', '1', 'Container1')
+        cli('container', 'modify', '--no-remount', '--del-storage', '1', 'Container1')
         with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage3'),
                 '--container', 'Container1')
@@ -438,7 +439,7 @@ def test_modify_storage(cli, client, control_client, base_dir):
 
     def switch_primary():
         """change storages order without changing anything else"""
-        cli('container', 'modify', '--del-storage', '0', 'Container1')
+        cli('container', 'modify', '--no-remount', '--del-storage', '0', 'Container1')
         with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID0):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage1'),
                 '--container', 'Container1')

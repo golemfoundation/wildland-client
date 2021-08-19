@@ -380,12 +380,6 @@ def test_user_del_path(cli, base_dir):
     # cli_fail('user', 'modify', 'del-path', 'User', '--path', 'abc')
 
 
-def test_modify_user_no_arguments(cli, cli_fail):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-
-    cli_fail('user', 'modify', 'User')
-
-
 def test_user_add_pubkey(cli, base_dir, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
@@ -456,6 +450,15 @@ def test_user_del_pubkey(cli, base_dir):
 
     # FIXME: invalid path
     #cli_fail('user', 'modify', 'User', '--del-path', 'abc')
+
+
+def test_user_del_pubkey_conflict(cli, cli_fail):
+    cli('user', 'create', 'UserA', '--key', '0xaaa')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    pubkey_b = 'key.0xbbb'
+
+    cli_fail('user', 'modify', 'UserA', '--add-user-pubkey', 'UserB', '--del-pubkey', pubkey_b)
+
 
 # Test CLI common methods (units)
 
@@ -1026,7 +1029,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
     assert command == []
 
 
-## Container
+# Container
 
 
 def test_container_create(cli, base_dir):
@@ -1184,6 +1187,31 @@ def test_container_edit_encryption(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
     assert '"FAILURE"' not in data
+
+
+def test_container_modify_remount(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH', '--container', 'Container')
+    cli('start')
+    cli('container', 'mount', 'Container')
+    mount_path = base_dir / 'wildland'
+    assert (mount_path / 'PATH').exists()
+
+    cli('container', 'modify', '--add-path', '/AUTO_REMOUNTING', 'Container')
+    assert (mount_path / 'AUTO_REMOUNTING').exists()
+
+    cli('container', 'modify', '--no-remount', '--add-path', '/NEED_REMOUNTING', 'Container')
+    assert not (mount_path / 'NEED_REMOUNTING').exists()
+
+    cli('container', 'modify', '--add-category', '/remounted_cat', '--title', 'TITLE', 'Container')
+    assert (mount_path / 'remounted_cat' / 'TITLE').exists()
+
+    cli('container', 'modify', '--no-remount', '--add-category', '/not_remounted_cat', 'Container')
+    assert not (mount_path / 'not_remounted_cat').exists()
+
+    cli('container', 'modify', '--title', 'NEW', 'Container')
+    assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
 
 
 def test_container_add_path(cli, cli_fail, base_dir):
@@ -1409,6 +1437,27 @@ def test_container_create_update_user(cli, base_dir):
         data = f.read()
 
     assert 'containers/Container.container.yaml' in data
+
+
+def test_container_multi_modification(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+
+    cli('container', 'modify', '--add-path', '/NEW', '--del-path', '/PATH',
+        '--add-category', '/cat', '--no-encrypt-manifest', 'Container')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /NEW' in data
+    assert '- /PATH' not in data
+    assert '- /cat' in data
+    assert "- user: '*'" in data
+
+    cli_fail('container', 'modify', '--no-encrypt-manifest', '--encrypt-manifest', 'Container')
+    cli_fail('container', 'modify', '--encrypt-manifest', '--add-access', 'User', 'Container')
+    cli_fail('container', 'modify', '--add-category', '/c', '--del-category', '/c', 'Container')
 
 
 def test_container_create_no_path(cli, base_dir):
@@ -3328,7 +3377,19 @@ def test_container_wrong_signer(cli, base_dir):
             '--container', 'Container')
 
 
-## Status
+def test_modify_no_arguments(cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    cli_fail('user', 'modify', 'User')
+    cli_fail('container', 'modify', 'Container')
+    cli_fail('storage', 'modify', 'Storage')
+
+
+# Status
 
 
 def test_status(cli, control_client):
@@ -3515,7 +3576,7 @@ def test_status_sync(base_dir, sync, cli):
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
 
 
-## Bridge
+# Bridge
 
 
 def test_bridge_create(cli, base_dir):

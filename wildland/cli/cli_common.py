@@ -327,21 +327,28 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
     click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_running():
-        container = obj.client.load_object_from_file_path(WildlandObject.Type.CONTAINER, path)
-        if obj.fs_client.find_primary_storage_id(container) is not None:
-            click.echo('Container is mounted, remounting')
-
-            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            storages = obj.client.get_storages_to_mount(container)
-
-            obj.fs_client.mount_container(
-                container, storages, user_paths, remount=remount)
+        path = find_manifest_file(obj.client, input_file, provided_manifest_type)
+        remount_container(obj, path)
 
     return True
 
 
+def remount_container(ctx_obj: ContextObj, path: Path):
+    """
+    Remount container given by path.
+    """
+    container = ctx_obj.client.load_object_from_file_path(WildlandObject.Type.CONTAINER, path)
+    if ctx_obj.fs_client.find_primary_storage_id(container) is not None:
+        click.echo('Container is mounted, remounting')
+
+        user_paths = ctx_obj.client.get_bridge_paths_for_user(container.owner)
+        storages = ctx_obj.client.get_storages_to_mount(container)
+
+        ctx_obj.fs_client.mount_container(container, storages, user_paths, remount=True)
+
+
 def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
-                    *args, by_value=True, **kwargs) -> bool:
+                    *, remount: bool = True, by_value: bool = True, **kwargs) -> bool:
     """
     Edit manifest (identified by `name`) fields using a specified callback.
     This module provides four common callbacks:
@@ -371,7 +378,7 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
     fields = manifest.fields
     kwargs['by_value'] = by_value
     for edit_func in edit_funcs:
-        fields = edit_func(fields, *args, **kwargs)
+        fields = edit_func(fields, **kwargs)
     modified_manifest = Manifest.from_fields(fields)
 
     orig_manifest_data = yaml.safe_dump(
@@ -396,6 +403,11 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
         f.write(signed_data)
 
     click.echo(f'Saved: {manifest_path}')
+
+    if remount and manifest_type == 'container' and obj.fs_client.is_running():
+        path = find_manifest_file(obj.client, input_file, 'container')
+        remount_container(obj, path)
+
     return True
 
 
