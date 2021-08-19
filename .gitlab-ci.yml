@@ -107,6 +107,12 @@ s3-test:
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-s3
+    
+transpose-test:
+    stage: test
+    image: $CONTAINER_TEST_IMAGE
+    script:
+      - ./ci/ci-transpose-test
 
 encrypted-test:
   stage: test
