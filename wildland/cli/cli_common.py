@@ -438,8 +438,10 @@ def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
     for fs, keys in to_del_nested.items():
         subfields = fields
         for field in fs[:-1]:
-            subfields = subfields.get(field)
-            if not isinstance(subfields, dict):
+            sf = subfields.get(field)
+            if isinstance(sf, dict):
+                subfields = sf
+            else:
                 raise CliError(
                     f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
 
@@ -512,9 +514,11 @@ def check_if_any_options(ctx: click.Context, *args):
     """
     Raise CliError if all options are empty.
     """
+    help_message = ""
+    if ctx.parent:
+        help_message += f"\nTry 'wl {ctx.parent.command.name} modify --help' for help."
     if not any(args):
-        raise CliError('no option specified.'
-                       f"\nTry 'wl {ctx.parent.command.name} modify --help' for help.")
+        raise CliError('no option specified.' + help_message)
 
 
 def check_options_conflict(option_name: str, add_option: List[str], del_option: List[str]):
