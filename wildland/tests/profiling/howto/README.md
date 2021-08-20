@@ -187,7 +187,7 @@ $ runsnake ./artifacts/profiler_results/_mount/test_books_titles_dir_tree/wildla
 To make sure that each commit merged into Wildland's `master` branch doesn't degrade performance, a
 tool was implemented that creates a diff-tree between two `pyinstrument` JSON output files and
 displays the difference between the statistics for the respective functions. One of the files
-corresponds to the profiling of the `origin / master` branch and the other to the branch that is
+corresponds to the profiling of the `origin/master` branch and the other to the branch that is
 intended to be merged into `origin/master`. If the performance drops by more than the specified
 threshold, the test will fail.
 

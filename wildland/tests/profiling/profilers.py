@@ -9,6 +9,9 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Tuple, Union
 
+import cProfile
+import pstats
+
 
 class WildlandProfiler(metaclass=abc.ABCMeta):
     """
@@ -111,18 +114,12 @@ class WildlandCProfiler(WildlandProfiler):
     def _run_profiler(
         self, artifacts_dir: Path, print_stats: bool, func: Callable, *args, **kwargs
     ) -> Any:
-        # pylint: disable=import-outside-toplevel
-        import cProfile
-
         prof = cProfile.Profile()
         retval = prof.runcall(func, *args, **kwargs)
         report_path = self._generate_report_path(artifacts_dir, func)
         prof.dump_stats(report_path)
 
         if print_stats:
-            # pylint: disable=import-outside-toplevel
-            import pstats
-
             stats = pstats.Stats(str(report_path))
 
             if self.strip_dirs:
