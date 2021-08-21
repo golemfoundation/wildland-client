@@ -667,12 +667,10 @@ def _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_p
 
         pubkey_conflicts = set(del_pubkey).intersection(user_obj.pubkeys)
         if pubkey_conflicts:
-            if len(pubkey_conflicts) == 1:
-                conflicts += f'Error: {name} user pubkey has conflict with --del-pubkey:'
-            else:
-                conflicts += f'Error: {name} user pubkeys have conflict with --del-pubkey:'
+            conflicts += 'Error: options conflict:'
             for c in pubkey_conflicts:
-                conflicts += f'  {c}'
+                conflicts += f'\n  --add-pubkey-user {name} and --del-pubkey {c}' \
+                             f'\n    User {name} has a pubkey {c}'
 
         pubkeys.update(user_obj.pubkeys)
     if conflicts:
