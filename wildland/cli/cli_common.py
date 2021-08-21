@@ -110,10 +110,8 @@ def version():
 
 
 @click.command(short_help='manifest signing tool')
-@click.option('-o', 'output_file', metavar='FILE',
-    help='output file (default is stdout)')
-@click.option('-i', 'in_place', is_flag=True,
-    help='modify the file in place')
+@click.option('-o', 'output_file', metavar='FILE', help='output file (default is stdout)')
+@click.option('-i', 'in_place', is_flag=True, help='modify the file in place')
 @click.argument('input_file', metavar='FILE', required=False)
 @click.pass_context
 def sign(ctx: click.Context, input_file, output_file, in_place):
@@ -205,7 +203,7 @@ def verify(ctx: click.Context, input_file):
 
 @click.command(short_help='verify and dump contents of specified file')
 @click.option('--decrypt/--no-decrypt', '-d/-n', default=True,
-    help='decrypt manifest (if applicable)')
+              help='decrypt manifest (if applicable)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
@@ -237,14 +235,12 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
 
 
 @click.command(short_help='edit manifest in external tool')
-@click.option('--editor', metavar='EDITOR',
-    help='custom editor')
-@click.option('--remount/--no-remount', '-r/-n', default=True,
-    help='remount mounted container')
+@click.option('--editor', metavar='EDITOR', help='custom editor')
+@click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bool,
-    **_callback_kwargs: Any) -> bool:
+         **_callback_kwargs: Any) -> bool:
     """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
@@ -348,16 +344,21 @@ def remount_container(ctx_obj: ContextObj, path: Path):
 
 
 def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
-                    *, remount: bool = True, by_value: bool = True, **kwargs) -> bool:
+                    *, remount: bool = True, **kwargs) -> bool:
     """
     Edit manifest (identified by `name`) fields using a specified callback.
+
+    @param pass_ctx: click context
+    @param input_file: manifest file name
+    @param edit_funcs: callbacks function to modify manifest.
     This module provides four common callbacks:
     - `add_field`,
     - `del_field`,
     - `set_field`,
     - `del_nested_field`.
-
-    Returns True iff the manifest was successfully modified (to be able to
+    @param remount: default True: modified manifest is remounted
+    @param kwargs: params for callbacks
+    @return: Returns True iff the manifest was successfully modified (to be able to
     determine if it should be republished).
     """
     obj: ContextObj = pass_ctx.obj
@@ -376,7 +377,6 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
     # the manifest is edited by edit_func below
     orig_manifest = copy.deepcopy(manifest)
     fields = manifest.fields
-    kwargs['by_value'] = by_value
     for edit_func in edit_funcs:
         fields = edit_func(fields, **kwargs)
     modified_manifest = Manifest.from_fields(fields)
@@ -433,9 +433,17 @@ def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
                       **_kwagrs) -> dict:
     """
     Callback function for `modify_manifest` which is a wrapper for del_field callback
-    for nested fields (e.g. ('backends', 'storage'))
+    for nested fields.
+
+    >>> del_nested_fields(fields, {('backends', 'storage'): [0, 1, 2]})
+    is equivalent of:
+    >>> del fields['backends']['storage'][0]
+    ... del fields['backends']['storage'][1]
+    ... del fields['backends']['storage'][2]
     """
     for fs, keys in to_del_nested.items():
+
+        # Going deeper into nested fields down to the last field (dict).
         subfields = fields
         for field in fs[:-1]:
             sf = subfields.get(field)
@@ -445,12 +453,14 @@ def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
                 raise CliError(
                     f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
 
+        # Removing keys from the inner dict
         del_fields(subfields, {fs[-1]: keys}, by_value=False)
 
     return fields
 
 
-def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool, **_kwargs) -> dict:
+def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool = True, **_kwargs) \
+        -> dict:
     """
     Callback function for `modify_manifest`. Removes values from a list or a set either by values
     or keys. Non-existent values or keys are ignored.
@@ -465,40 +475,29 @@ def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool, **_kw
 
         obj = fields.get(field)
 
-        # We handle lists and sets differently.
         if isinstance(obj, list):
-            # Remove by value
-            for value in values:
-                if value in obj:
-                    obj.remove(value)
-                else:
-                    click.echo(f'{value} is not in the manifest')
-                    continue
-
-            # If remove by keys in a list, thus by indexes, they must be reversed so
-            # that we don't remove elements by indexes changing and moving upwards
-            for idx in sorted(keys, reverse=True):
-                try:
-                    del obj[idx]
-                except IndexError:
-                    click.echo(f'Given index [{idx}] does not exist. Skipped.')
+            obj = dict(zip(range(len(obj)), obj))
+            new_dict = _del_keys_and_values_from_dict(obj, keys, values)
+            fields[field] = list(new_dict.values())
         elif isinstance(obj, dict):
-            for key in keys:
-                try:
-                    del obj[key]
-                except KeyError:
-                    click.echo(f'Given key [{key}] does not exist. Skipped.')
-
-            for value in values:
-                for key, item in obj.copy().items():
-                    if value == item:
-                        del obj[key]
+            fields[field] = _del_keys_and_values_from_dict(obj, keys, values)
         else:
             click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
-                        'Nothing is deleted.')
-            return fields
+                       'Nothing is deleted.')
 
     return fields
+
+
+def _del_keys_and_values_from_dict(dictionary: Dict[Any, Any], keys: Any, values: Any):
+    skipped_positions = [key for key in keys if key not in dictionary]
+    if skipped_positions:
+        click.echo(f'Given positions {skipped_positions} do not exist. Skipped.')
+
+    skipped_values = [v for v in values if v not in dictionary.values()]
+    if skipped_values:
+        click.echo(f'{skipped_values} are not in the manifest. Skipped.')
+
+    return {k: v for k, v in dictionary.items() if k not in keys and v not in values}
 
 
 def set_fields(fields: dict, to_set: Dict[str, str], **_kwargs) -> dict:
@@ -523,7 +522,7 @@ def check_if_any_options(ctx: click.Context, *args):
 
 def check_options_conflict(option_name: str, add_option: List[str], del_option: List[str]):
     """
-    Checks whether we want to add and remove a given fields at the same time.
+    Checks whether we want to add and remove the same field at the same time.
 
     Raise CliError when it finds conflict.
 
