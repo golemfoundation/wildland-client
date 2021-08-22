@@ -16,11 +16,19 @@ MNT_DIR_2="dropbox-mnt-2"
 MNT_PATH_1="$ROOT/$MNT_DIR_1"
 MNT_PATH_2="$ROOT/$MNT_DIR_2"
 
+ACCESS_TOKEN="$1"
+APP_KEY="$2"
+REFRESH_TOKEN="$3"
+
 # Wildland
 
 ./wl user create dropbox-user
 ./wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" dropbox-test-container
-./wl storage create dropbox --container dropbox-test-container --inline --token "$1"
+if [ -n "$ACCESS_TOKEN" ]; then
+    ./wl storage create dropbox --container dropbox-test-container --inline --token "$ACCESS_TOKEN"
+else
+    ./wl storage create dropbox --container dropbox-test-container --inline --app-key "$APP_KEY" --refresh-token "$REFRESH_TOKEN"
+fi
 ./wl start --container dropbox-test-container
 
 # Create temporary timestamped test directory

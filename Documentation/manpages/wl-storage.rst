@@ -181,8 +181,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-dropbox
 .. _wl-storage-create-dropbox:
 
-:command:`wl storage create dropbox --container <container> [-u] [--user <user>] --token <access_token> [--no-publish]`
------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create dropbox --container <container> [-u] [--user <user>] --token <access_token> --app-key <app_key> [--refresh-token <refresh_token>] [--no-publish]`
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/dropbox.rsti

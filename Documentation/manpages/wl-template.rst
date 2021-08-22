@@ -130,8 +130,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-create-dropbox
 .. _wl-template-create-dropbox:
 
-:command:`wl template create dropbox --token <access_token> NAME`
--------------------------------------------------------------------------
+:command:`wl template create dropbox --token <access_token> --app-key <app_key> [--refresh-token <refresh_token>] NAME`
+-----------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/dropbox.rsti
@@ -329,8 +329,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-add-dropbox
 .. _wl-template-add-dropbox:
 
-:command:`wl template add dropbox --token <access_token> NAME`
-----------------------------------------------------------------------
+:command:`wl template add dropbox --token <access_token> --app-key <app_key> [--refresh-token <refresh_token>] NAME`
+--------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/dropbox.rsti

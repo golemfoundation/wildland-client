@@ -114,12 +114,19 @@ encrypted-test:
   script:
     - ./ci/ci-encrypted
 
+dropbox-test-legacy:
+  allow_failure: true
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-dropbox "$DROPBOX_TEST_ACCESS_TOKEN"
+
 dropbox-test:
   allow_failure: true
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-dropbox $DROPBOX_TEST_ACCESS_TOKEN
+    - ./ci/ci-dropbox "" "$DROPBOX_TEST_APP_KEY" "$DROPBOX_TEST_REFRESH_TOKEN"
 
 googledrive-test:
   stage: test
