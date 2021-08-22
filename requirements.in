@@ -1,4 +1,5 @@
 # Core
+
 fuse-python>=1.0.0
 jsonschema
 pyyaml
@@ -9,6 +10,7 @@ graphlib-backport; python_version < '3.9'
 progress
 
 # Storage
+
 python-gitlab
 ipfshttpclient
 protobuf
@@ -31,6 +33,7 @@ httplib2shim
 treelib
 
 # Development / testing
+
 pip-tools
 psutil
 pytest
@@ -39,7 +42,10 @@ pylint
 mypy
 python-lorem
 yq
+pyinstrument
 
 # Documentation
+
 sphinx
 sphinx-autodoc-typehints
+colorama

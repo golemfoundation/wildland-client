@@ -61,6 +61,7 @@ from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging
 from ..storage_sync.base import BaseSyncer, SyncConflict
+from ..tests.profiling.profilers import profile
 
 try:
     RUNTIME_DIR = Path(BaseDirectory.get_runtime_dir())
@@ -889,6 +890,7 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
            only_subcontainers, list_all, manifests_catalog, cache_template)
 
 
+@profile()
 def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
