@@ -99,8 +99,8 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         # TODO: wildland/wildland-client/issues#563
         fields = self.to_manifest_fields(inline=False)
         if not include_sensitive:
-            if isinstance(fields["owner"], dict):
-                fields["owner"].pop("storage", None)
+            if isinstance(fields["user"], dict):
+                fields["user"].pop("storage", None)
         return fields
 
     def to_placeholder_container(self) -> Container:
@@ -151,14 +151,14 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         """
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = []
-        if isinstance(fields["owner"], str):
-            array_repr += [f"owner={fields['owner']!r}"]
-        elif isinstance(fields["owner"], dict):
+        if isinstance(fields["user"], str):
+            array_repr += [f"user={fields['user']!r}"]
+        elif isinstance(fields["user"], dict):
             link_array_repr = []
-            for key, val in fields["owner"].items():
+            for key, val in fields["user"].items():
                 link_array_repr += [f"{key}={val!r}"]
             link_str_repr = "link(" + ", ".join(link_array_repr) + ")"
-            array_repr += [f"owner={link_str_repr}"]
+            array_repr += [f"user={link_str_repr}"]
         array_repr += [f"paths={[str(p) for p in fields['paths']]}"]
         str_repr = "bridge(" + ", ".join(array_repr) + ")"
         return str_repr
