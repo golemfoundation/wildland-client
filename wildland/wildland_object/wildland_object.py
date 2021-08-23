@@ -27,6 +27,7 @@ import enum
 import typing
 from wildland.manifest.schema import Schema
 from wildland.manifest.manifest import Manifest, ManifestError
+from .publishable import Publishable
 
 
 class WildlandObject(abc.ABC):
@@ -94,12 +95,9 @@ class WildlandObject(abc.ABC):
     def parse_fields(cls, fields: dict, client,
                      manifest: typing.Optional[Manifest] = None, **kwargs):
         """
-        Initialize a WildlandObject from a dict of fields. Will verify if the dict fits
-        a schema, if object_type supports a schema.
+        Initialize a WildlandObject from a dict of fields.
         :param fields: dict of fields
         :param client: Wildland Client object, used to load any needed supplementary objects
-        :param object_type: WildlandObject.Type; if loads an unexpected type, will raise an
-        error
         :param manifest: if the object is constructed from manifest, pass this manifest here
         :param kwargs: any additional keyword arguments, may be used by WL object inits.
         :return: an instanced WildlandObject
@@ -137,6 +135,15 @@ class WildlandObject(abc.ABC):
         """
 
     @property
+    def type(self):
+        """
+        Returns Wildland Object Type
+        """
+        class_to_type = {v: k for k, v in self._subclasses.items()}
+
+        return class_to_type[self.__class__]
+
+    @property
     def local_path(self):
         """
         Local file path of the object.
@@ -144,3 +151,9 @@ class WildlandObject(abc.ABC):
         if self.manifest:
             return self.manifest.local_path
         return None
+
+
+class PublishableWildlandObject(WildlandObject, Publishable):
+    """
+    Wildland Object that implements Publishable interface
+    """

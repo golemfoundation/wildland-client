@@ -38,7 +38,7 @@ from wildland.storage import Storage
 from wildland.storage_backends.base import StorageBackend
 from wildland.exc import WildlandError
 from wildland.storage_driver import StorageDriver
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 
 
 class FileSubcontainersMixin(StorageBackend):
@@ -113,45 +113,46 @@ class FileSubcontainersMixin(StorageBackend):
         """
         return 'manifest-pattern' in self.params
 
-    def has_child(self, container_uuid_path: PurePosixPath) -> bool:
+    def has_child(self, wl_object_uuid_path: PurePosixPath) -> bool:
         """
         Check if the given container is subcontainer of this storage.
         """
-        container_manifest = next(self._get_relpaths(container_uuid_path))
+        wl_object_manifest = next(self._get_relpaths(wl_object_uuid_path))
 
         with StorageDriver(self) as driver:
-            return driver.file_exists(container_manifest)
+            return driver.file_exists(wl_object_manifest)
 
-    def _get_relpaths(self, container_uuid_path: PurePosixPath,
-                      container_expanded_paths: Optional[Iterable[PurePosixPath]] = None) -> \
+    def _get_relpaths(self, wl_object_uuid_path: PurePosixPath,
+                      wl_object_expanded_paths: Optional[Iterable[PurePosixPath]] = None) -> \
             Iterator[PurePosixPath]:
         pattern = self.params['manifest-pattern']['path']
 
         path_pattern = pattern.replace('*', container_uuid_path.name)\
             .replace('{object-type}', 'container')
 
-        paths = container_expanded_paths or (container_uuid_path,)
+        paths = wl_object_expanded_paths or (wl_object_uuid_path,)
         for path in paths:
             yield PurePosixPath(path_pattern.replace(
                 '{path}', str(path.relative_to('/')))).relative_to('/')
 
-    def add_child(self, client: Client, container: Container):
+    def add_child(self, client: Client, wl_object: PublishableWildlandObject):
         """
-        Add subcontainer to this storage.
+        Add Wildland object manifest to this storage.
 
         If given subcontainer is already a child of this storage, subcontainer info will be updated.
         """
-        self._update_child(client, container, just_remove=False)
+        self._update_child(client, wl_object, just_remove=False)
 
-    def remove_child(self, client: Client, container: Container):
+    def remove_child(self, client: Client, wl_object: PublishableWildlandObject):
         """
-        Remove subcontainer from this storage.
+        Remove Wildland object manifest from this storage.
 
         If given subcontainer is not a child of that storage, nothing happens.
         """
-        self._update_child(client, container, just_remove=True)
+        self._update_child(client, wl_object, just_remove=True)
 
-    def _update_child(self, client: Client, container: Container, just_remove: bool):
+    def _update_child(self, client: Client, wl_object: PublishableWildlandObject,
+                      just_remove: bool):
         # Marczykowski-Górecki's Algorithm:
         # 1) choose manifests catalog entry from container owner
         #    - if the container was published earlier, the same entry
@@ -174,22 +175,30 @@ class FileSubcontainersMixin(StorageBackend):
         else:
             update = set.difference_update
 
-        container_relpaths = list(self._get_relpaths(container.uuid_path, container.expanded_paths))
+        manifest_relpaths = list(
+            self._get_relpaths(
+                wl_object.get_primary_publish_path(),
+                wl_object.get_additional_publish_paths()
+            )
+        )
 
         with StorageDriver(self, bulk_writing=True) as driver:
-            storage_relpaths = self._replace_old_relative_urls(container)
+            storage_relpaths = {}
             old_relpaths_to_remove = self._fetch_from_uuid_path(
-                client, driver, container_relpaths[0], container.uuid)
+                client, driver, manifest_relpaths[0], wl_object.get_unique_publish_id())
 
-            update(old_relpaths_to_remove, container_relpaths)
-            update(old_relpaths_to_remove, storage_relpaths)
+            update(old_relpaths_to_remove, manifest_relpaths)
+
+            if wl_object.type == WildlandObject.Type.CONTAINER:
+                storage_relpaths = self._replace_containers_old_relative_urls(wl_object)
+                update(old_relpaths_to_remove, storage_relpaths)
 
             self._remove_old_paths(driver, old_relpaths_to_remove)
             if not just_remove:
                 self._create_new_paths(
-                    client, driver, storage_relpaths, container_relpaths, container)
+                    client, driver, storage_relpaths, manifest_relpaths, wl_object)
 
-    def _replace_old_relative_urls(self, container: Container) -> \
+    def _replace_containers_old_relative_urls(self, container: Container) -> \
             Dict[PurePosixPath, Storage]:
         storage_relpaths = {}
         for backend in container.load_storages(include_inline=False):
@@ -213,25 +222,30 @@ class FileSubcontainersMixin(StorageBackend):
             Set[PurePosixPath]:
         old_relpaths_to_remove = set()
         try:
-            old_container_manifest_data = driver.read_file(uuid_path)
+            old_object_manifest_data = driver.read_file(uuid_path)
         except FileNotFoundError:
             pass
         else:
-            old_container = client.load_object_from_bytes(
-                WildlandObject.Type.CONTAINER, old_container_manifest_data)
-            assert isinstance(old_container, Container)
+            old_object = client.load_object_from_bytes(None, old_object_manifest_data)
 
-            if not old_container.uuid == uuid:
-                # we just downloaded this file from container_relpaths[0], so
+            if not old_object.get_unique_publish_id() == uuid:
+                # we just downloaded this file from manifest's primary uuid path, so
                 # things are very wrong here
                 raise WildlandError(
-                    f'old version of container manifest at storage '
+                    f'old version of object manifest at storage '
                     f'{driver.storage.params["backend-id"]} has serious '
                     f'problems; please remove it manually')
 
             old_relpaths_to_remove.update(set(
-                self._get_relpaths(old_container.uuid_path, old_container.expanded_paths)))
-        return old_relpaths_to_remove
+                self._get_relpaths(
+                    old_object.get_primary_publish_path(),
+                    old_object.get_publish_paths()
+                )
+            ))
+
+            if old_object.type == WildlandObject.Type.CONTAINER:
+                for url in old_object.load_raw_backends(include_inline=False):
+                    old_relpaths_to_remove.add(self.get_path_for_url(url))
 
     @staticmethod
     def _remove_old_paths(driver: StorageDriver, old_relpaths_to_remove: Set[PurePosixPath]):
@@ -247,15 +261,15 @@ class FileSubcontainersMixin(StorageBackend):
     def _create_new_paths(client: Client,
                           driver: StorageDriver,
                           storage_relpaths: Dict[PurePosixPath, Storage],
-                          container_relpaths: List[PurePosixPath],
-                          container: Container):
+                          wl_object_relpaths: List[PurePosixPath],
+                          wl_object: PublishableWildlandObject):
         for relpath, storage in storage_relpaths.items():
             driver.makedirs(relpath.parent)
             driver.write_file(relpath, client.session.dump_object(storage))
 
-        for relpath in container_relpaths:
+        for relpath in wl_object_relpaths:
             driver.makedirs(relpath.parent)
-            driver.write_file(relpath, client.session.dump_object(container))
+            driver.write_file(relpath, client.session.dump_object(wl_object))
 
     def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:

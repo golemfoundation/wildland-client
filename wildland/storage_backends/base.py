@@ -40,12 +40,14 @@ from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union, TYPE
 import click
 
 import wildland
+from wildland.wildland_object.wildland_object import PublishableWildlandObject
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
-from ..container import ContainerStub, Container
+from ..container import ContainerStub
 from ..log import get_logger
+
 
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
@@ -638,25 +640,25 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         return False
 
-    def has_child(self, container_uuid_path: PurePosixPath) -> bool:
+    def has_child(self, wl_object_uuid_path: PurePosixPath) -> bool:
         """
-        Check if the given container is subcontainer of this storage.
-        """
-        raise OptionalError()
-
-    def add_child(self, client: wildland.client.Client, container: Container):
-        """
-        Add subcontainer to this storage.
-
-        If given container is already a child of this storage, subcontainer info will be updated.
+        Check if the given Wildland Object is a subcontainer of this storage.
         """
         raise OptionalError()
 
-    def remove_child(self, client: wildland.client.Client, container: Container):
+    def add_child(self, client: wildland.client.Client, wl_object: PublishableWildlandObject):
         """
-        Remove subcontainer from this storage.
+        Add a Wildland Object to this storage.
 
-        If given subcontainer is not a child of that storage, nothing happens.
+        If given object is already a child of this storage, subcontainer info will be updated.
+        """
+        raise OptionalError()
+
+    def remove_child(self, client: wildland.client.Client, wl_object: PublishableWildlandObject):
+        """
+        Remove a Wildland Object from this storage.
+
+        If given object is not a child of that storage, nothing happens.
         """
         raise OptionalError()
 

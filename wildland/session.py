@@ -26,14 +26,12 @@ Session class
 """
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
-from wildland.bridge import Bridge
+from wildland.wildland_object.wildland_object import PublishableWildlandObject
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.sig import SigContext
 from .user import User
-from .container import Container
-from .storage import Storage
 
 
 class Session:
@@ -63,7 +61,7 @@ class Session:
         user.manifest = manifest
         return manifest.to_bytes()
 
-    def dump_object(self, obj: Union[Bridge, Storage, Container],
+    def dump_object(self, obj: PublishableWildlandObject,
                     path: Optional[Path] = None) -> bytes:
         """
         Create a signed manifest out of a Bridge/Container/Storage object; if the object was created

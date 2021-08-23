@@ -271,7 +271,7 @@ def _bootstrap_forest(ctx: click.Context,
 
         # Reload forest_owner to load the manifests-catalog info
         forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-        Publisher(obj.client, forest_owner).publish_container(catalog_container)
+        Publisher(obj.client, forest_owner).publish(catalog_container)
 
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex

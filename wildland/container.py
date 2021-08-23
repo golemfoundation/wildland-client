@@ -30,13 +30,12 @@ import uuid
 from typing import Optional, List, Union, Any, Dict
 import itertools
 
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
 from .wlpath import WildlandPath
 from .exc import WildlandError
 from .log import get_logger
-
 
 logger = get_logger('user')
 
@@ -45,6 +44,7 @@ class _StorageCache:
     """
     Helper class representing a cached storage object.
     """
+
     def __init__(self, storage, cached_storage=None):
         self.storage = storage
         self.cached_backend = cached_storage
@@ -63,7 +63,7 @@ class _StorageCache:
         return self.storage == other.storage
 
 
-class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
+class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINER):
     """Wildland container"""
     SCHEMA = Schema('container')
 
@@ -123,6 +123,15 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         path = PurePosixPath('/.uuid/') / str(uuid.uuid4())
         self.paths.insert(0, path)
         return path
+
+    def get_unique_publish_id(self) -> str:
+        return self.uuid
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        return self.uuid_path
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return self.expanded_paths
 
     def __str__(self):
         return self.to_str()
@@ -248,7 +257,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         return fields
 
     @property
-    def expanded_paths(self):
+    def expanded_paths(self) -> List[PurePosixPath]:
         """
         Paths expanded by the set of paths generated from title and categories (if provided).
 
@@ -478,6 +487,7 @@ class ContainerStub:
     Helper Wildland Object, representing a subcontainer that has not yet been completely filled
     with data from parent container.
     """
+
     def __init__(self, fields: dict):
         self.fields = fields
 

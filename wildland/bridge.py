@@ -32,7 +32,7 @@ from uuid import UUID, uuid5
 
 from wildland.container import Container
 from wildland.manifest.manifest import Manifest
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from wildland.manifest.schema import Schema
 from wildland.exc import WildlandError
 
@@ -41,7 +41,7 @@ from wildland.exc import WildlandError
 BRIDGE_PLACEHOLDER_UUID_NS = UUID('4a9a69d0-6f32-4ab5-8d4e-c198bf582554')
 
 
-class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
+class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     """
     Bridge object: a wrapper for user manifests.
     """
