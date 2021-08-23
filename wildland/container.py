@@ -223,7 +223,8 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     filtered_storage_obj = WildlandObject.from_fields(
                         self.fill_storage_fields(storage), self.client)
                     if filtered_storage_obj:
-                        filtered_storages.append(filtered_storage_obj.to_repr_fields())
+                        filtered_storages.append(filtered_storage_obj.to_repr_fields(
+                            include_sensitive=False))
             fields["backends"]["storage"] = filtered_storages
         return fields
 
