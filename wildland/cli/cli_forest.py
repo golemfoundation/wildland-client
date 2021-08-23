@@ -38,7 +38,7 @@ from ..publish import Publisher
 from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageTemplate
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import modify_manifest, add_field
+from .cli_common import modify_manifest, add_fields
 from .cli_container import _mount as mount_container
 from .cli_container import _unmount as unmount_container
 from .cli_user import refresh_users
@@ -248,8 +248,8 @@ def _bootstrap_forest(ctx: click.Context,
 
             link_obj['storage'] = fields
 
-            modify_manifest(ctx, str(forest_owner.local_path), add_field,
-                            'manifests-catalog', [link_obj])
+            modify_manifest(ctx, str(forest_owner.local_path), edit_funcs=[add_fields],
+                            to_add={'manifests-catalog': [link_obj]})
 
         # Refresh user's manifests catalog
         obj.client.recognize_users_and_bridges()

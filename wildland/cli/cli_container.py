@@ -49,8 +49,9 @@ from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_field, del_field, \
-    set_field, del_nested_field, find_manifest_file, dump as base_dump
+from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
+    set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
+    check_if_any_options
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -419,11 +420,108 @@ container_.add_command(sign)
 container_.add_command(verify)
 
 
-@container_.group(short_help='modify container manifest')
-def modify():
+@container_.command(short_help='modify container manifest')
+@click.option('--add-path', metavar='PATH', multiple=True, help='path to add')
+@click.option('--del-path', metavar='PATH', multiple=True, help='path to remove')
+@click.option('--add-category', metavar='PATH', multiple=True, help='category to add')
+@click.option('--del-category', metavar='PATH', multiple=True, help='category to remove')
+@click.option('--title', metavar='TEXT', help='title to set')
+@click.option('--add-access', metavar='PATH', multiple=True, help='users to add access for')
+@click.option('--del-access', metavar='PATH', multiple=True, help='users to remove access for')
+@click.option('--encrypt-manifest', is_flag=True,
+              help='encrypt this manifest so that it is accessible only to its owner')
+@click.option('--no-encrypt-manifest', is_flag=True, help='or do not encrypt this manifest at all')
+@click.option('--del-storage', metavar='TEXT', multiple=True,
+              help='Storage to remove. Can be either the backend_id of a storage or position in '
+                   'storage list (starting from 0)')
+@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
+@click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
+@click.argument('input_file', metavar='FILE')
+@click.pass_context
+def modify(ctx: click.Context,
+           add_path, del_path, add_category, del_category, title, add_access, del_access,
+           encrypt_manifest, no_encrypt_manifest, del_storage,
+           publish, remount, input_file
+           ):
     """
-    Commands for modifying container manifests.
+    Command for modifying container manifests.
+
+    If container is already published, any modification should be republish
+    unless publish is False.
     """
+    _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
+                  del_access, encrypt_manifest, no_encrypt_manifest, del_storage)
+
+    add_access_owners = [
+        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+        for user in add_access]
+    to_add = {'paths': add_path, 'categories': add_category, 'access': add_access_owners}
+
+    del_access_owners = [
+        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+        for user in del_access]
+    to_del = {'paths': del_path, 'categories': del_category, 'access': del_access_owners}
+
+    to_del_nested = _get_storages_idx_to_del(ctx, del_storage, input_file)
+
+    to_set = {}
+    if title:
+        to_set['title'] = title
+    if encrypt_manifest:
+        to_set['access'] = []
+    if no_encrypt_manifest:
+        to_set['access'] = [{'user': '*'}]
+
+    container, modified = _resolve_container(
+        ctx, input_file, modify_manifest,
+        remount=remount,
+        edit_funcs=[add_fields, del_fields, set_fields, del_nested_fields],
+        to_add=to_add,
+        to_del=to_del,
+        to_set=to_set,
+        to_del_nested=to_del_nested
+    )
+
+    if publish and modified:
+        _republish_container(ctx.obj.client, container)
+
+
+def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
+                  del_access, encrypt_manifest, no_encrypt_manifest, del_storage):
+    check_if_any_options(ctx, add_path, del_path, add_category, del_category, title, add_access,
+                         del_access, encrypt_manifest, no_encrypt_manifest, del_storage)
+    check_options_conflict("path", add_path, del_path)
+    check_options_conflict("category", add_category, del_category)
+    check_options_conflict("access", add_access, del_access)
+
+    if (encrypt_manifest or no_encrypt_manifest) and (add_access or del_access):
+        raise CliError(
+            'using --encrypt-manifest or --no-encrypt-manifest'
+            'AND --add-access or --del-access is ambiguous.')
+    if encrypt_manifest and no_encrypt_manifest:
+        raise CliError('Error: options conflict:'
+                       '\n  --encrypt-manifest and --no-encrypt-manifest')
+
+
+def _get_storages_idx_to_del(ctx, del_storage, input_file):
+    to_del_nested = {}
+    if del_storage:
+        idxs_to_delete = []
+        container_manifest = find_manifest_file(
+            ctx.obj.client, input_file, 'container').read_bytes()
+        container_yaml = list(yaml.safe_load_all(container_manifest))[1]
+        storages_obj = container_yaml.get('backends', {}).get('storage', {})
+        for s in del_storage:
+            if s.isnumeric():
+                idxs_to_delete.append(int(s))
+            else:
+                for idx, obj_storage in enumerate(storages_obj):
+                    if obj_storage['backend-id'] == s:
+                        idxs_to_delete.append(idx)
+        click.echo('Storage indexes to remove: ' + str(idxs_to_delete))
+        to_del_nested[('backends', 'storage')] = idxs_to_delete
+
+    return to_del_nested
 
 
 def _republish_container(client: Client, container: Container) -> None:
@@ -433,207 +531,6 @@ def _republish_container(client: Client, container: Container) -> None:
         Publisher(client, user).republish_container(container)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
-
-
-@modify.result_callback()
-@click.pass_context
-def _republish_callback(ctx: click.Context, params: Tuple[Container, bool]):
-    """
-    Republish modified container manifest.
-
-    If container is already published, any modification should be republish
-    unless publish is False.
-
-    Using 'result_callback' enforce that every 'modify' subcommand have to
-    return (container, publish) to handle republishing.
-    """
-    container, publish = params
-
-    if publish:
-        _republish_container(ctx.obj.client, container)
-
-
-
-@modify.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_path(ctx: click.Context, input_file, path, publish):
-    """
-    Add path to the manifest.
-    """
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest, edit_func=add_field, field='paths', values=path)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='remove path from the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_path(ctx: click.Context, input_file, path, publish):
-    """
-    Remove path from the manifest.
-    """
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest, edit_func=del_field, field='paths', values=path)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='set title in the manifest')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.option('--title', metavar='TEXT', required=True, help='Title to set')
-@click.pass_context
-def set_title(ctx: click.Context, input_file, title, publish):
-    """
-    Set title in the manifest.
-    """
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest, edit_func=set_field, field='title', value=title)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='add category to the manifest')
-@click.option('--category', metavar='PATH', required=True, multiple=True,
-              help='Category to add')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_category(ctx: click.Context, input_file, category, publish):
-    """
-    Add category to the manifest.
-    """
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest, edit_func=add_field, field='categories', values=category)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='remove category from the manifest')
-@click.option('--category', metavar='PATH', required=True, multiple=True,
-              help='Category to remove')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_category(ctx: click.Context, input_file, category, publish):
-    """
-    Remove category from the manifest.
-    """
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest, edit_func=del_field, field='categories', values=category)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='allow additional user(s) access to this encrypted manifest')
-@click.option('--access', metavar='PATH', required=True, multiple=True,
-              help='Users to add access for')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_access(ctx: click.Context, input_file, access, publish):
-    """
-    Allow an additional user access to this manifest.
-    """
-    processed_access = []
-
-    for user in access:
-        user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-        processed_access.append({'user': user.owner})
-
-    container, modified = _resolve_container(ctx, input_file, modify_manifest, edit_func=add_field,
-        field='access', values=processed_access)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='stop additional user(s) from having access to this encrypted manifest')
-@click.option('--access', metavar='PATH', required=True, multiple=True,
-              help='Users whose access should be revoked')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_access(ctx: click.Context, input_file, access, publish):
-    """
-    Remove category from the manifest.
-    """
-    processed_access = []
-
-    for user in access:
-        user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-        processed_access.append({'user': user.owner})
-
-    container, modified = _resolve_container(ctx, input_file, modify_manifest, edit_func=del_field,
-        field='access', values=processed_access)
-
-    return container, publish and modified
-
-
-@modify.command(short_help='do not encrypt this manifest at all')
-@click.argument('input_file', metavar='FILE')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.pass_context
-def set_no_encrypt_manifest(ctx: click.Context, input_file, publish):
-    """
-    Set title in the manifest.
-    """
-    container, modified = _resolve_container(ctx, input_file, modify_manifest, edit_func=set_field,
-        field='access', value=[{'user': '*'}])
-
-    return container, publish and modified
-
-
-@modify.command(short_help='encrypt this manifest so that it is accessible only to its owner')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def set_encrypt_manifest(ctx: click.Context, input_file, publish):
-    """
-    Set title in the manifest.
-    """
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest, edit_func=set_field, field='access', value=[])
-
-    return container, publish and modified
-
-
-@modify.command(short_help='remove storage backend from the manifest')
-@click.option('--storage', metavar='TEXT', required=True, multiple=True,
-              help='Storage to remove. Can be either the backend_id of a storage or position in '
-                   'storage list (starting from 0)')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_storage(ctx: click.Context, input_file, storage, publish):
-    """
-    Remove category from the manifest.
-    """
-    container_manifest = find_manifest_file(ctx.obj.client, input_file, 'container').read_bytes()
-    container_yaml = list(yaml.safe_load_all(container_manifest))[1]
-    storages_obj = container_yaml.get('backends', {}).get('storage', {})
-
-    idxs_to_delete = []
-
-    for s in storage:
-        if s.isnumeric():
-            idxs_to_delete.append(int(s))
-        else:
-            for idx, obj_storage in enumerate(storages_obj):
-                if obj_storage['backend-id'] == s:
-                    idxs_to_delete.append(idx)
-
-    click.echo('Storage indexes to remove: ' + str(idxs_to_delete))
-
-    container, modified = _resolve_container(ctx, input_file, modify_manifest,
-        edit_func=del_nested_field, fields=['backends', 'storage'], keys=idxs_to_delete)
-
-    return container, publish and modified
 
 
 def _do_sync(client: Client, container: str, source: str, target: str, one_shot: bool,
