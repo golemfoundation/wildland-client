@@ -185,6 +185,7 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
             for storage_id in list(self.storages):
                 self._unmount_storage(storage_id)
 
+
 def main():
     # pylint: disable=missing-docstring
     server = WildlandFS()

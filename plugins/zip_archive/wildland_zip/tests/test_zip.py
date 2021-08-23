@@ -21,7 +21,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,unused-import
 
 
 from pathlib import Path
@@ -30,6 +30,19 @@ import uuid
 import zipfile
 
 import pytest
+from wildland.tests.fuse_env import FuseEnv
+import wildland.fs
+from wildland.tests.conftest import base_dir
+
+
+@pytest.fixture
+def env():
+    env = FuseEnv()
+    try:
+        env.mount(wildland.fs.main)
+        yield env
+    finally:
+        env.destroy()
 
 
 @pytest.fixture

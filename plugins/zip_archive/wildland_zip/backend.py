@@ -33,11 +33,11 @@ import logging
 
 import click
 
-from ..manifest.schema import Schema
-from .cached import CachedStorageMixin
-from .buffered import FullBufferedFile
-from .base import StorageBackend, Attr, verify_local_access, StorageError
-from .watch import SimpleStorageWatcher
+from wildland.manifest.schema import Schema
+from wildland.storage_backends.cached import CachedStorageMixin
+from wildland.storage_backends.buffered import FullBufferedFile
+from wildland.storage_backends.base import StorageBackend, Attr, verify_local_access, StorageError
+from wildland.storage_backends.watch import SimpleStorageWatcher
 
 
 logger = logging.getLogger('zip-archive')

@@ -76,6 +76,7 @@ class PagedHttpFile(FullBufferedFile):
     def write_full(self, data: bytes) -> int:
         raise IOError(errno.EROFS, str(self.url))
 
+
 class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     A read-only HTTP storage that gets its information from directory listings.
