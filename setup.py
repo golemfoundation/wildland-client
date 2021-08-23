@@ -17,9 +17,9 @@ setup(
             'date_proxy = wildland.storage_backends.date_proxy:DateProxyStorageBackend',
             'encrypted = wildland.storage_backends.encrypted:EncryptedStorageBackend',
             'delegate = wildland.storage_backends.delegate:DelegateProxyStorageBackend',
-            'zip_archive = wildland.storage_backends.zip_archive:ZipArchiveStorageBackend',
             ('categorization_proxy = '
              'wildland.storage_backends.categorization_proxy:CategorizationProxyStorageBackend'),
+            'http = wildland.storage_backends.http:HttpStorageBackend',
         ],
         'wildland.storage_sync': [
             'naive = wildland.storage_sync.naive_sync:NaiveSyncer'
