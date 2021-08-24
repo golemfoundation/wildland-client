@@ -1791,11 +1791,11 @@ def test_container_list(cli, base_dir):
     result = cli('container', 'list', capture=True)
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
-    assert '  path: /PATH' in out_lines
+    assert '- /PATH' in out_lines
     result = cli('containers', 'list', capture=True)
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
-    assert '  path: /PATH' in out_lines
+    assert '- /PATH' in out_lines
 
 
 def test_container_info(cli, base_dir):
@@ -1811,7 +1811,7 @@ def test_container_info(cli, base_dir):
     assert '/users/other' in result
     out_lines = result.splitlines()
     assert str(base_dir / 'containers/Container.container.yaml') in out_lines
-    assert '  path: /PATH' in out_lines
+    assert '- /PATH' in out_lines
 
 
 def test_container_info_cache(cli, base_dir):
@@ -1819,7 +1819,7 @@ def test_container_info_cache(cli, base_dir):
     name, _, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
     cli('container', 'create-cache', '--template', 't1', name)
     result = cli('container', 'info', name, capture=True)
-    pattern = f"^  cache: type: local backend_id: .*? location: {cache_dir}$"
+    pattern = f"\ncache:\n  type: local\n  backend_id: .*?\n  location: {cache_dir}\n\n"
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
 
 

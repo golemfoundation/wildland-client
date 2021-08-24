@@ -275,30 +275,33 @@ def unpublish(obj: ContextObj, cont):
 
 
 def _container_info(client, container, users_and_bridge_paths):
-    click.echo(container.local_path)
+    container_fields = container.to_repr_fields(include_sensitive=False)
+    bridge_paths = []
     try:
-        if container.owner in users_and_bridge_paths:
-            user_desc = ' (' + ', '.join(
-                [str(p) for p in users_and_bridge_paths[container.owner]]) + ')'
-        else:
-            user_desc = ''
+        if container_fields['owner'] in users_and_bridge_paths:
+            bridge_paths = [str(p) for p in users_and_bridge_paths[container_fields['owner']]]
     except ManifestError:
-        user_desc = ''
-    click.echo(f'  owner: {container.owner}' + user_desc)
-    for container_path in container.expanded_paths:
-        click.echo(f'  path: {container_path}')
-    for storage_path in container.get_backends_description():
-        click.echo(f'  storage: {storage_path}')
+        pass
+    if bridge_paths:
+        container_fields['bridge-paths-to-owner'] = bridge_paths
+
     cache = client.cache_storage(container)
     if cache:
         storage_type = cache.params['type']
-        result = f'type: {storage_type} backend_id: {cache.params["backend-id"]}'
+        result = {
+            "type": storage_type,
+            "backend_id": cache.params["backend-id"],
+        }
         storage_cls = StorageBackend.types()[storage_type]
         if storage_cls.LOCATION_PARAM and storage_cls.LOCATION_PARAM in cache.params and \
                 cache.params[storage_cls.LOCATION_PARAM]:
-            result += f' location: {cache.params[storage_cls.LOCATION_PARAM]}'
-        click.echo(f'  cache: {result}')
-    click.echo()
+            result.update({"location": cache.params[storage_cls.LOCATION_PARAM]})
+        container_fields["cache"] = result
+
+    click.echo("### Sensitive fields are hidden ###")
+    click.echo(container.local_path)
+    data = yaml.dump(container_fields, encoding='utf-8', sort_keys=False)
+    click.echo(data.decode())
 
 
 @container_.command('list', short_help='list containers', alias=['ls'])

@@ -225,13 +225,12 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
 
     if decrypt:
         manifest = Manifest.from_file(path, obj.client.session.sig)
-        print(yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False).decode())
-
+        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     else:
         data = path.read_bytes()
         if HEADER_SEPARATOR in data:
             _, data = split_header(data)
-        print(data.decode())
+    print(data.decode())
 
 
 @click.command(short_help='edit manifest in external tool')
