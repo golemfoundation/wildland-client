@@ -142,7 +142,7 @@ run wl forest create --access bob --owner alice mywebdav
 
 ## Container publishing
 
-expected_pcre="(?s)Publishing container /.uuid/$alice_and_bob_uuid...
+expected_pcre="(?s)Publishing container: [/.uuid/$alice_and_bob_uuid]
 .*
 /home/user/.config/wildland/containers/mycontainer.container.yaml
 .*"
@@ -216,7 +216,7 @@ Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
-Publishing container /.uuid/$UUID_PCRE..."
+Publishing container: \[/.uuid/$UUID_PCRE\]"
 run wl container create hello-world \
   --no-encrypt-manifest \
   --path /hello/world \

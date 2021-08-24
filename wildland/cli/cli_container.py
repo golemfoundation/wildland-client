@@ -224,7 +224,7 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
         try:
             owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
             if owner_user.has_catalog:
-                click.echo(f'Publishing container {container.get_primary_publish_path()}...')
+                click.echo(f'Publishing container: [{container.get_primary_publish_path()}]')
                 publisher = Publisher(obj.client, owner_user)
                 publisher.publish(container)
         except WildlandError as ex:
@@ -443,7 +443,7 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
     # unpublish
     if not no_unpublish:
         try:
-            click.echo(f'Unpublishing container {container.get_primary_publish_path()}...')
+            click.echo(f'Unpublishing container: [{container.get_primary_publish_path()}]')
             user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
             Publisher(obj.client, user).unpublish(container)
         except WildlandError:

@@ -1,6 +1,6 @@
 # Wildland Project
 #
-# Copyright (C) 2020 Golem Foundation
+# Copyright (C) 2021 Golem Foundation
 #
 # Authors:
 #                    Marta Marczykowska-Górecka <marmarta@invisiblethingslab.com>
@@ -21,8 +21,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-StorageBackend mixin providing support for file-based subcontainers (both via glob patterns
-and a file list.
+StorageBackend mixin providing support for file-based Publishable Wildland Objects (both via
+glob patterns and a file list).
 """
 
 import re
@@ -41,14 +41,14 @@ from wildland.storage_driver import StorageDriver
 from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 
 
-class FileSubcontainersMixin(StorageBackend):
+class ContainerChildrenMixin(StorageBackend):
     """
     A backend storage mixin providing support for pattern-manifest types of glob and list.
 
     glob type is a UNIX-style expression for listing all manifest files that fit a given pattern.
-    list type is an array that holds a list of relative paths to the subcontainers
-    manifests within the storage itself. The paths are relative to the storage's root (i.e. ``path``
-    for Local storage backend).
+    list type is an array that holds a list of relative paths to child objects manifests within
+    the storage itself. The paths are relative to the storage's root (i.e. ``path`` for Local
+    storage backend).
 
     When adding this mixin, you should append the following snippet to the backend's ``SCHEMA``::
     "manifest-pattern": {
@@ -64,10 +64,10 @@ class FileSubcontainersMixin(StorageBackend):
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
-        result = super(FileSubcontainersMixin, cls).cli_options()
+        result = super(ContainerChildrenMixin, cls).cli_options()
         result.append(
             click.Option(['--subcontainer-manifest'], metavar='PATH', multiple=True,
-                         help='Relative path to a subcontainer manifest (can be repeated), '
+                         help='Relative path to a child manifest (can be repeated), '
                               'cannot be used together with manifest-pattern'))
         result.append(
             click.Option(['--manifest-pattern'], metavar='GLOB',
@@ -77,7 +77,7 @@ class FileSubcontainersMixin(StorageBackend):
 
     @classmethod
     def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        result = super(FileSubcontainersMixin, cls).cli_create(data)
+        result = super(ContainerChildrenMixin, cls).cli_create(data)
         if data.get('subcontainer_manifest'):
             if data.get('manifest_pattern'):
                 raise WildlandError('--subcontainer-manifest and --manifest-pattern '
@@ -96,7 +96,7 @@ class FileSubcontainersMixin(StorageBackend):
     @property
     def supports_publish(self) -> bool:
         """
-        Check if storage handles subcontainers.
+        Check if storage handles child manifests.
 
         At the moment only simple file-based backends with manifest-pattern: glob are supported.
         """
@@ -115,7 +115,7 @@ class FileSubcontainersMixin(StorageBackend):
 
     def has_child(self, wl_object_uuid_path: PurePosixPath) -> bool:
         """
-        Check if the given container is subcontainer of this storage.
+        Check if the given container is child of this storage.
         """
         wl_object_manifest = next(self._get_relpaths(wl_object_uuid_path))
 
@@ -139,7 +139,7 @@ class FileSubcontainersMixin(StorageBackend):
         """
         Add Wildland object manifest to this storage.
 
-        If given subcontainer is already a child of this storage, subcontainer info will be updated.
+        If the given object is already a child of this storage, update it.
         """
         self._update_child(client, wl_object, just_remove=False)
 
@@ -147,25 +147,26 @@ class FileSubcontainersMixin(StorageBackend):
         """
         Remove Wildland object manifest from this storage.
 
-        If given subcontainer is not a child of that storage, nothing happens.
+        If the given object is already a child of this storage, nothing happens.
         """
         self._update_child(client, wl_object, just_remove=True)
 
     def _update_child(self, client: Client, wl_object: PublishableWildlandObject,
                       just_remove: bool):
         # Marczykowski-Górecki's Algorithm:
-        # 1) choose manifests catalog entry from container owner
-        #    - if the container was published earlier, the same entry
-        #      should be chosen; this will make sense when user will be able to
-        #      choose to which catalog entry the container should be published
-        # 2) generate all new relpaths for the container and storages
-        # 3) try to fetch container from new relpaths; check if the file
-        #    contains the same container; if yes, generate relpaths for old
+        # 1) choose manifests catalog entry from object's owner
+        #    - if the wildland object was published earlier, the same entry
+        #      should be chosen; this will make sense when user is be able to
+        #      choose to which catalog entry the wl object should be published
+        # 2) generate all new relpaths for the wl object (and potentially
+        #    container storages)
+        # 3) try to fetch previous wl object from new relpaths and check if the file
+        #    contains the same wl object; if yes, generate relpaths for old
         #    paths
-        # 4) remove old copies of manifest for container and storages (only
-        #    those that won't be overwritten later)
-        # 5) post new storage manifests
-        # 6) post new container manifests starting with /.uuid/ one
+        # 4) remove old copies of manifest for wl object (and storages if the
+        #    object is a container) but only those that won't be overwritten later
+        # 5) post new storage manifests (if wl object is a container)
+        # 6) post new wl object manifests, starting with the /.uuid/ one
         #
         # For unpublishing, instead of 4), 5) and 6), all manifests are removed
         # from relpaths and no new manifests are published.
@@ -178,7 +179,7 @@ class FileSubcontainersMixin(StorageBackend):
         manifest_relpaths = list(
             self._get_relpaths(
                 wl_object.get_primary_publish_path(),
-                wl_object.get_additional_publish_paths()
+                wl_object.get_publish_paths()
             )
         )
 
@@ -190,6 +191,9 @@ class FileSubcontainersMixin(StorageBackend):
             update(old_relpaths_to_remove, manifest_relpaths)
 
             if wl_object.type == WildlandObject.Type.CONTAINER:
+                # Container is an exception as it directly relates to publishable Storage
+                # objects. (assert below is for mypy's sake)
+                assert isinstance(wl_object, Container)
                 storage_relpaths = self._replace_containers_old_relative_urls(wl_object)
                 update(old_relpaths_to_remove, storage_relpaths)
 
@@ -244,6 +248,9 @@ class FileSubcontainersMixin(StorageBackend):
             ))
 
             if old_object.type == WildlandObject.Type.CONTAINER:
+                # Container is an exception as it directly relates to publishable Storage
+                # objects. (assert below is for mypy's sake)
+                assert isinstance(old_object, Container)
                 for url in old_object.load_raw_backends(include_inline=False):
                     old_relpaths_to_remove.add(self.get_path_for_url(url))
 
@@ -274,27 +281,27 @@ class FileSubcontainersMixin(StorageBackend):
     def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
         """
-        List all subcontainers provided by this storage.
+        List all child objects provided by this storage.
         """
         manifest_pattern = self.params.get('manifest-pattern', self.DEFAULT_MANIFEST_PATTERN)
 
         if manifest_pattern['type'] == 'list':
-            for subcontainer_path in manifest_pattern['paths']:
+            for child_path in manifest_pattern['paths']:
                 try:
-                    attr = self.getattr(PurePosixPath(subcontainer_path).relative_to('/'))
+                    attr = self.getattr(PurePosixPath(child_path).relative_to('/'))
                 except FileNotFoundError:
                     continue
                 if not attr.is_dir():
-                    subcontainer_link = Link(file_path=subcontainer_path, storage_backend=self)
-                    yield PurePosixPath(subcontainer_path), subcontainer_link
+                    child_object_link = Link(file_path=child_path, storage_backend=self)
+                    yield PurePosixPath(child_path), child_object_link
         elif manifest_pattern['type'] == 'glob':
             path = self._parse_glob_pattern(query_path)
 
             for file_path in self._find_manifest_files(PurePosixPath('.'),
                                                        path.relative_to(PurePosixPath('/'))):
-                subcontainer_link = Link(file_path=PurePosixPath('/') / file_path,
+                child_object_link = Link(file_path=PurePosixPath('/') / file_path,
                                          storage_backend=self)
-                yield file_path, subcontainer_link
+                yield file_path, child_object_link
 
     def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath)\
             -> Iterable[PurePosixPath]:

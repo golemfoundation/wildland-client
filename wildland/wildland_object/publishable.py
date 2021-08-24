@@ -48,5 +48,6 @@ class Publishable(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_publish_paths(self) -> List[PurePosixPath]:
         """
-        Return additionals paths where the manifest is going to be published
+        Return all paths where the manifest is going to be published (that shall always return
+        primary publish path, among others)
         """

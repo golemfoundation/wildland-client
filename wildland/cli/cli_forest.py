@@ -31,7 +31,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..storage import StorageBackend
-from ..storage_backends.file_subcontainers import FileSubcontainersMixin
+from ..storage_backends.container_children import ContainerChildrenMixin
 from ..user import User
 from ..utils import YAMLParserError
 from ..publish import Publisher
@@ -225,7 +225,7 @@ def _bootstrap_forest(ctx: click.Context,
         # manifest-patterns
 
         catalog_backend = StorageBackend.from_params(catalog_storage.params)
-        if isinstance(catalog_backend, FileSubcontainersMixin) and \
+        if isinstance(catalog_backend, ContainerChildrenMixin) and \
                 not catalog_backend.params.get('manifest-pattern'):
             catalog_backend.params['manifest-pattern'] = catalog_backend.DEFAULT_MANIFEST_PATTERN
 

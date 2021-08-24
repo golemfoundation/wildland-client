@@ -38,7 +38,7 @@ import progressbar
 import wildland.log
 
 from wildland import __version__
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .cli_base import ContextObj, CliError
 from ..client import Client
 from ..container import Container
@@ -54,6 +54,7 @@ from ..exc import WildlandError
 from ..utils import yaml_parser
 from ..storage import Storage
 from ..user import User
+from ..publish import Publisher
 
 
 def wrap_output(func):
@@ -385,6 +386,94 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
         remount_container(obj, path)
 
     return True
+
+
+@click.command(short_help='publish a manifest')
+@click.argument('file', metavar='NAME or PATH')
+@click.pass_context
+def publish(ctx: click.Context, file):
+    """
+    Publish Wildland Object manifest to a publishable storage from manifests catalog.
+    """
+    wl_object = _get_publishable_object_from_file(ctx, file)
+    assert isinstance(wl_object.manifest, Manifest)
+    user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+
+    try:
+        wl_object.manifest.encrypt_and_sign(
+            ctx.obj.client.session.sig,
+            only_use_primary_key=(wl_object.type == WildlandObject.Type.USER)
+        )
+    except WildlandError:
+        # Resigning is not mandatory, but desirable
+        pass
+
+    click.echo(f'Publishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
+    Publisher(ctx.obj.client, user).publish(wl_object)
+
+    # check if all objects are published
+    not_published = Publisher.list_unpublished_objects(ctx.obj.client, wl_object.type)
+    n_objects = len(list(ctx.obj.client.dirs[wl_object.type].glob('*.yaml')))
+
+    # if all objects of the given type are unpublished DO NOT print warning
+    if not_published and len(not_published) != n_objects:
+        click.echo(f'WARN: Some local {wl_object.type.value}s (or {wl_object.type.value} updates) '
+                   'are not published:\n' +
+                   '\n'.join(sorted(not_published)))
+
+
+@click.command(short_help='unpublish a manifest')
+@click.argument('file', metavar='NAME or PATH')
+@click.pass_context
+def unpublish(ctx: click.Context, file):
+    """
+    Unpublish Wildland Object manifest from all matchin manifest catalogs.
+    """
+    wl_object = _get_publishable_object_from_file(ctx, file)
+    assert isinstance(wl_object.manifest, Manifest)
+    user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+
+    click.echo(f'Unpublishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
+    Publisher(ctx.obj.client, user).unpublish(wl_object)
+
+
+def republish_object(client: Client, wl_object: PublishableWildlandObject):
+    """
+    Republishes wildland object
+    This method is to be used by cli_* components but not as a command itself.
+    """
+    obj_type = wl_object.type.value
+
+    try:
+        assert isinstance(wl_object.manifest, Manifest)
+        user = client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+        click.echo(f'Re-publishing {obj_type}: [{wl_object.get_primary_publish_path()}]')
+        Publisher(client, user).republish(wl_object)
+    except WildlandError as ex:
+        raise WildlandError(f"Failed to republish {obj_type}: {ex}") from ex
+
+
+def _get_publishable_object_from_file(ctx: click.Context, file) -> PublishableWildlandObject:
+    obj: ContextObj = ctx.obj
+
+    manifest_type = _get_expected_manifest_type(ctx)
+    manifest_path = find_manifest_file(obj.client, file, manifest_type)
+
+    manifest = Manifest.from_file(manifest_path, obj.client.session.sig)
+    manifest_type = manifest.fields['object']  # In case publish was called via wl publish <f>
+
+    wl_object = obj.client.load_object_from_name(
+        WildlandObject.Type(manifest_type),
+        str(manifest_path)
+    )
+
+    if not isinstance(wl_object, PublishableWildlandObject):
+        raise CliError(f'{manifest_type} is not a publishable object')
+
+    if not isinstance(wl_object.manifest, Manifest):
+        raise CliError('Publishable Wildland Object must have a manifest')
+
+    return wl_object
 
 
 def remount_container(ctx_obj: ContextObj, path: Path):

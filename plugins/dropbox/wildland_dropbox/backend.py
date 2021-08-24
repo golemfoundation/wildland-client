@@ -37,7 +37,7 @@ from dropbox.exceptions import ApiError
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
-from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
+from wildland.storage_backends.container_children import ContainerChildrenMixin
 from wildland.manifest.schema import Schema
 from wildland.cli.cli_base import CliError
 from wildland.log import get_logger
@@ -103,7 +103,7 @@ class DropboxFile(FullBufferedFile):
         return len(data)
 
 
-class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
+class DropboxStorageBackend(ContainerChildrenMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     Dropbox storage supporting both read and write operations.
     """

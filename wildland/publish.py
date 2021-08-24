@@ -22,7 +22,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Stuff related to publishing and unpublishing containers.
+Stuff related to publishing and unpublishing wildland objects.
 """
 
 from pathlib import Path, PurePosixPath
@@ -43,10 +43,10 @@ logger = get_logger('publish')
 
 class Publisher:
     # Between two publish operations, things might have changed:
-    # - different container paths,
-    # - different set of storages.
+    # - different wildland object paths,
+    # - different set of storages (for Container object).
     # Things that (we assume) didn't change:
-    # - container uuid,
+    # - wildland object's primary (ie. uuid) path,
     # - manifest-pattern,
     # - public-url.
 
@@ -54,18 +54,23 @@ class Publisher:
     A behavior for publishing and unpublishing manifests
     >>> user: User; client: Client; wl_object: PublishableWildlandObject
     >>> publisher = Publisher(client, user)
-    >>> publisher.publish_container(container)
-    >>> publisher.republish_container(container)
-    >>> publisher.unpublish_container(container)
+    >>> publisher.publish(wl_object)
+    >>> publisher.republish(wl_object)
+    >>> publisher.unpublish(wl_object)
     """
 
     def __init__(self, client: Client, user: User, catalog_entry: Optional[Container] = None):
         self.client = client
         self.user = user
-        self.cache = _UnpublishedWildlandObjectCache(self.client)
 
         if catalog_entry is not None:
             raise NotImplementedError('choosing catalog entry is not supported')
+
+    def _cache(self, obj_type: WildlandObject.Type):
+        """
+        Return wl object cache instance based on object type
+        """
+        return _UnpublishedWildlandObjectCache(self.client, obj_type)
 
     def publish(self, wl_object: PublishableWildlandObject) -> None:
         """
@@ -74,7 +79,7 @@ class Publisher:
         # get first available user catalog storage
         catalog_storage = next(Publisher.get_catalog_storages(self.client, self.user))
         catalog_storage.add_child(self.client, wl_object)
-        self.cache.remove(wl_object)
+        self._cache(wl_object.type).remove(wl_object)
 
     def unpublish(self, wl_object: PublishableWildlandObject) -> None:
         """
@@ -82,7 +87,7 @@ class Publisher:
         """
         for catalog_storage in Publisher.get_catalog_storages(self.client, self.user):
             catalog_storage.remove_child(self.client, wl_object)
-        self.cache.add(wl_object)
+        self._cache(wl_object.type).add(wl_object)
 
     def republish(self, wl_object: PublishableWildlandObject) -> None:
         """
@@ -100,20 +105,24 @@ class Publisher:
             catalog_storage.add_child(self.client, wl_object)
 
         if published:
-            self.cache.remove(wl_object)
+            self._cache(wl_object.type).remove(wl_object)
 
     @staticmethod
-    def list_unpublished_containers(client) -> List[str]:
+    def list_unpublished_objects(client: Client, obj_type: WildlandObject.Type) -> List[str]:
         """
-        Return list of unpublished containers for given client.
+        Return list of unpublished wl objects of a given type
         """
-        not_published = list(_UnpublishedWildlandObjectCache(client).load_cache())
+        not_published = list(_UnpublishedWildlandObjectCache(
+            client,
+            obj_type
+        ).load_cache())
+
         return not_published
 
     @staticmethod
     def is_published(client: Client, owner: str, uuid_path: PurePosixPath) -> bool:
         """
-        Check if the container is published in any storage.
+        Check if the wildland object is published in any storage.
         """
         user = client.load_object_from_name(WildlandObject.Type.USER, owner)
         try:
@@ -197,16 +206,17 @@ class Publisher:
 
 class _UnpublishedWildlandObjectCache:
     """
-    Helper class: caching paths of unpublished containers in '.unpublished' file.
+    Helper class: caching paths of unpublished wildland objects in '.unpublished' file.
 
-    To avoid loading all containers and checking where are published every
-    time during mounting. Caching unpublished containers seems better than
-    published ones since containers are publishing by default.
+    To avoid loading all wildland objects and checking where are published every
+    time during mounting. Caching unpublished wildland objects seems better than
+    published ones since publishable wildland objects are published by default.
     """
 
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, obj_type: WildlandObject.Type):
         self.client = client
-        self.file: Path = client.dirs[WildlandObject.Type.CONTAINER] / '.unpublished'
+        self.obj_type = obj_type
+        self.file: Path = client.dirs[obj_type] / '.unpublished'
 
     def load_cache(self) -> Set[str]:
         """
@@ -218,7 +228,7 @@ class _UnpublishedWildlandObjectCache:
 
     def add(self, wl_object: PublishableWildlandObject) -> None:
         """
-        Cache container local path (if exist).
+        Cache wildland object's local path (if exist).
         """
         to_add = self._get_changed(wl_object)
         if not to_add:
@@ -229,7 +239,7 @@ class _UnpublishedWildlandObjectCache:
 
     def remove(self, wl_object: PublishableWildlandObject) -> None:
         """
-        Remove container local path (if exist) from cache.
+        Remove wildland object's local path (if exist) from cache.
         """
         to_remove = self._get_changed(wl_object)
         if not to_remove:
@@ -243,9 +253,9 @@ class _UnpublishedWildlandObjectCache:
         if not path:
             return None
 
-        changed = self.client.dirs[WildlandObject.Type.CONTAINER] / path
+        changed = self.client.dirs[self.obj_type] / path
         if not changed.exists():
-            # we tried to modify a file that's not actually in the containers/ dir
+            # we tried to modify a file that's not actually in the local dir
             return None
 
         if self._is_invalid(ignore=changed):
@@ -277,39 +287,34 @@ class _UnpublishedWildlandObjectCache:
         return self.file.stat().st_mtime < newest.stat().st_mtime
 
     def _update(self) -> None:
-        containers = self._load_all_containers_info()
+        wl_objects = self._load_all_object_manifests()
 
         cache = set()
-        for path, uuid, owner in containers:
+        for path, publish_path, owner in wl_objects:
             user = self.client.load_object_from_name(WildlandObject.Type.USER, owner)
-            # ensure that a user has a catalog that we can actually publish containers to it
-            if uuid and user.has_catalog and \
-                    not Publisher.is_published(self.client, owner, uuid):
+            # ensure that a user has a catalog where we can actually publish the objects
+            if publish_path and user.has_catalog and \
+                    not Publisher.is_published(self.client, owner, publish_path):
                 cache.add(str(path))
 
         self._save(cache)
 
-    def _load_all_containers_info(self) \
+    def _load_all_object_manifests(self) \
             -> Generator[Tuple[Path, Optional[PurePosixPath], str], None, None]:
         for path in sorted(self.file.parent.glob('*.yaml')):
             try:
-                data = path.read_bytes()
-                manifest = Manifest.from_bytes(data, self.client.session.sig,
-                                               allow_only_primary_key=False,
-                                               trusted_owner=None, decrypt=True)
+                wl_object = self.client.load_object_from_name(
+                    self.obj_type,
+                    str(path)
+                )
 
-                for c_path in manifest.fields['paths']:
-                    pure_path = PurePosixPath(c_path)
-                    if pure_path.parent == PurePosixPath('/.uuid/'):
-                        uuid: Optional[PurePosixPath] = pure_path
-                        break
-                else:
-                    uuid = None
+                assert isinstance(wl_object, PublishableWildlandObject)
 
-                owner = manifest.fields['owner']
+                publish_path = wl_object.get_primary_publish_path()
+                owner = wl_object.manifest.owner
 
             except WildlandError as e:
                 logger.warning('error loading %s manifest: %s: %s',
-                               WildlandObject.Type.CONTAINER.value, path, e)
+                               self.obj_type.value, path, e)
             else:
-                yield path, uuid, owner
+                yield path, publish_path, owner
