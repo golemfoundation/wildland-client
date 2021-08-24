@@ -1,10 +1,9 @@
+artifacts/
 __pycache__
 .mypy_cache
 htmlcov
 env/
 *.egg-info
 build/
-artifacts/
-.mypy_cache
 .pytest_cache
 /*.log

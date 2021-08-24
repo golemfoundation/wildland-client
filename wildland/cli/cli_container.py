@@ -109,6 +109,7 @@ class OptionRequires(click.Option):
     """
     Helper class to provide conditional required for click.Option
     """
+
     def __init__(self, *args, **kwargs):
         try:
             self.required_opt = kwargs.pop('requires')
@@ -122,7 +123,7 @@ class OptionRequires(click.Option):
         if self.name in opts and self.required_opt not in opts:
             raise click.UsageError("option --{} requires --{}".format(
                 self.name, self.required_opt))
-        self.prompt = None # type: ignore
+        self.prompt = None  # type: ignore
         return super().handle_parse_result(ctx, opts, args)
 
 
@@ -151,9 +152,9 @@ class OptionRequires(click.Option):
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
 def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Optional[str],
-        update_user: bool, access: Sequence[str], no_publish: bool, title: Optional[str],
-        category: Sequence[str], storage_template: Optional[str], local_dir: Optional[str],
-        encrypt_manifest: bool):
+           update_user: bool, access: Sequence[str], no_publish: bool, title: Optional[str],
+           category: Sequence[str], storage_template: Optional[str], local_dir: Optional[str],
+           encrypt_manifest: bool):
     """
     Create a new container manifest.
     """
@@ -188,7 +189,7 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
         access_list = []
 
     owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER,
-        owner or '@default-owner')
+                                                  owner or '@default-owner')
 
     container = Container(
         owner=owner_user.owner,
@@ -911,7 +912,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 
         if len(new_default_containers) > len(default_containers_set):
             click.echo(f'default-containers in your config file {client.config.path} has '
-                        'duplicates. Consider removing them.')
+                       'duplicates. Consider removing them.')
 
     if fails:
         raise WildlandError('\n'.join(fails))
@@ -953,7 +954,8 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
         raise click.UsageError('Specify either container or --path')
 
     if undo_save and path:
-        raise click.UsageError('Specify either --undo-save or --path. Cannot unsave a container '
+        raise click.UsageError(
+            'Specify either --undo-save or --path. Cannot unsave a container '
             'specified by --path. Only containers specified by name or path to manifest can be '
             'saved and unsaved')
 
@@ -1044,9 +1046,10 @@ def _mount_path_to_backend_id(path: PurePosixPath) -> Optional[str]:
     return None
 
 
-def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
-       callback_iter_func=iter, with_subcontainers: bool = True) \
-        -> tuple[List[int], List[int]]:
+def _collect_storage_ids_by_container_name(
+            obj: ContextObj, container_name: str,
+            callback_iter_func=iter, with_subcontainers: bool = True,
+        ) -> tuple[List[int], List[int]]:
     """
     Returns a tuple with a list of normal storages and a list of cache storages.
     """
@@ -1083,9 +1086,10 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
     return storage_ids, cache_ids
 
 
-def _collect_storage_ids_by_container_path(obj: ContextObj, path: PurePosixPath,
-        callback_iter_func=iter, with_subcontainers: bool = True) \
-        -> tuple[List[int], List[int]]:
+def _collect_storage_ids_by_container_path(
+            obj: ContextObj, path: PurePosixPath,
+            callback_iter_func=iter, with_subcontainers: bool = True
+        ) -> tuple[List[int], List[int]]:
     """
     Return all storage IDs corresponding to a given mount path (tuple with normal storages and
     cache storages). Path can be either absolute or relative with respect to the mount directory.
@@ -1341,10 +1345,8 @@ def dump(ctx: click.Context, path: str, decrypt: bool):
 
 
 @container_.command(short_help='edit container manifest in external tool')
-@click.option('--editor', metavar='EDITOR',
-    help='custom editor')
-@click.option('--remount/--no-remount', '-r/-n', default=True,
-    help='remount mounted container')
+@click.option('--editor', metavar='EDITOR', help='custom editor')
+@click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
 @click.option('--publish/--no-publish', '-p/-P', default=True, help='publish edited container')
 @click.argument('path', metavar='FILE or WLPATH')
 @click.pass_context

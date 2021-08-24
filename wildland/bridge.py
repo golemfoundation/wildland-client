@@ -115,7 +115,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                 'type': 'static',
                 'backend-id': str(uuid),
                 'content': {
-                    'WILDLAND-FOREST.txt': \
+                    'WILDLAND-FOREST.txt':
                         f'This directory holds forest of user {self.user_id}.\n'
                         f'Use \'wl forest mount\' command to get access to it.\n',
                 }
