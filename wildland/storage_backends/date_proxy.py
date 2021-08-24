@@ -83,7 +83,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     def cli_options(cls):
         return [
             click.Option(['--reference-container-url'], metavar='URL',
-                          help='URL for inner container manifest',
+                         help='URL for inner container manifest',
                          required=True),
         ]
 
@@ -130,7 +130,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         yield from self._info_all_walk(PurePosixPath('.'))
 
     def _info_all_walk(self, dir_path: PurePosixPath) -> \
-        Iterable[Tuple[PurePosixPath, Attr]]:
+            Iterable[Tuple[PurePosixPath, Attr]]:
 
         for name in self.inner.readdir(dir_path):
             path = dir_path / name

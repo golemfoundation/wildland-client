@@ -163,7 +163,7 @@ class DirectoryCachedStorageMixin:
 
     def __init__(self, *args, **kwargs):
         # Silence mypy: https://github.com/python/mypy/issues/5887
-        super().__init__(*args, **kwargs) # type: ignore
+        super().__init__(*args, **kwargs)  # type: ignore
 
         self.getattr_cache: Dict[PurePosixPath, Attr] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}
