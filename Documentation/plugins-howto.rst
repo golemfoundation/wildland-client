@@ -70,7 +70,6 @@ following is the list of the methods you typically need to implement:
 
     Typically you should not inherit directly from :class:`~wildland.storage_backends.base.File` as
     there are classes built on it to optimize read/writes by utilizing buffering. See:
-    :class:`~wildland.storage_backends.zip_archive.FullBufferedFile` and
     :class:`~wildland.storage_backends.buffered.PagedFile`.
 
 * :meth:`~wildland.storage_backends.base.StorageBackend.getattr` - Gets attributes of the given
@@ -107,9 +106,6 @@ storage primitives.
 * :class:`~wildland.storage_backends.delegate.DelegateProxyStorageBackend` - Proxy storage that
   exposes a subdirectory of another container.
 
-* :class:`~wildland.storage_backends.encrypted.EncryptedStorageBackend` - Proxy storage that
-  encrypts data and stores it in another container.
-
 * :class:`~wildland.storage_backends.dummy.DummyStorageBackend` - Dummy storage.
 
 * :class:`~wildland.storage_backends.local_cached.LocalCachedStorageBackend` - Cached storage that
@@ -120,9 +116,6 @@ storage primitives.
   :class:`~wildland.storage_backends.local_cached.LocalDirectoryCachedStorageBackend.info_dir()`.
 
 * :class:`~wildland.storage_backends.local.LocalStorageBackend` - Local, file-based storage.
-
-* :class:`~wildland.storage_backends.zip_archive.ZipArchiveStorageBackend` - Read-only ZIP archive
-  storage.
 
 .. _FUSE: https://www.kernel.org/doc/Documentation/filesystems/fuse.txt
 .. _low-level interface: https://man7.org/linux/man-pages/man4/fuse.4.html
@@ -197,8 +190,8 @@ following classes, working with inner storage in very different ways.
   clean example, accesses inner storage directly.
 * :class:`~wildland.storage_backends.date_proxy.DateProxyStorageBackend` - manipulates paths
   to create a `timeline` view of container contents.
-* :class:`~wildland.storage_backends.encrypted.EncryptedStorageBackend` - utilizes access to
-  inner storage directly and via FUSE.
+* :class:`~plugins.encrypted.wildland_encrypted.backend.EncryptedStorageBackend` - utilizes access
+  to inner storage directly and via FUSE.
 
 When working with inner backend, consider what could the worst case look like. One example -
 `encrypted` backend attempts to write down a configuration file for `gocryptfs` and does not

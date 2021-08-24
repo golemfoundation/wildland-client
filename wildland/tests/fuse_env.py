@@ -86,12 +86,12 @@ class FuseEnv:
             self.proc_stop = proc.join
         else:
             # pylint: disable=consider-using-with
-            proc = subprocess.Popen([
+            subproc = subprocess.Popen([
                 ENTRY_POINT, self.mnt_dir,
                 '-f', '-d',
                 '-o', ','.join(options),
             ], cwd=PROJECT_PATH)
-            self.proc_stop = proc.wait
+            self.proc_stop = subproc.wait
         try:
             self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.wait_for_mount(self.conn)
