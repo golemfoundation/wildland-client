@@ -33,9 +33,9 @@ from typing import Iterable, Iterator, List, Set, Tuple, FrozenSet
 
 import click
 
-from .base import StorageBackend, File, Attr
-from ..manifest.schema import Schema
-from ..container import ContainerStub
+from wildland.storage_backends.base import StorageBackend, File, Attr
+from wildland.manifest.schema import Schema
+from wildland.container import ContainerStub
 
 logger = logging.getLogger('categorization-proxy')
 
@@ -71,7 +71,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
                     {"$ref": "/schemas/types.json#url"},
                     {"$ref": "/schemas/container.schema.json"}
                 ],
-                "description": ("Container to be used, either as URL or as an inlined manifest"),
+                "description": "Container to be used, either as URL or as an inlined manifest",
             },
             "with-unclassified-category": {
                 "type": "boolean",
@@ -175,11 +175,11 @@ class CategorizationProxyStorageBackend(StorageBackend):
         return set(self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), False))
 
     def _get_categories_to_subcontainer_map_recursive(
-        self,
-        dir_path: PurePosixPath,
-        open_category: str,
-        closed_categories: Set[str],
-        category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
+            self,
+            dir_path: PurePosixPath,
+            open_category: str,
+            closed_categories: Set[str],
+            category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree, collect and return all of the metainformation needed to
         create subcontainers based on the tags embedded in directory names.

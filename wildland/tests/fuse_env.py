@@ -161,7 +161,7 @@ class FuseEnv:
         self.conn = None
         subprocess.run(['fusermount', '-u', self.mnt_dir], check=False)
         self.proc_stop()
-        self.proc = False
+        self.proc_stop = None
         self.mounted = False
 
     def destroy(self):

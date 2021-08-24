@@ -1,4 +1,4 @@
-# Zip plugin
+# Zip archive plugin
 
 Zip archive storage backend for Wildland client.
 
