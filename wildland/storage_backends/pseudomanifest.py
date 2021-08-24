@@ -22,7 +22,7 @@
 import stat
 from itertools import chain
 from pathlib import PurePosixPath
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from .base import StorageBackend, File, Attr
 from .buffered import FullBufferedFile
@@ -52,42 +52,31 @@ class PseudomanifestFile(FullBufferedFile):
         return self.data
 
     def write_full(self, data: bytes) -> int:
+        error_messages = ""
         try:
             new = Manifest.from_unsigned_bytes(bytes(data))
             new.skip_verification()
             old = Manifest.from_unsigned_bytes(bytes(self.data))
             old.skip_verification()
         except Exception as e:
-            str_data = data.decode()
-            data_without_comments = str_data[:str_data.find('#')]
-            message = \
-                '\n\n# All following changes to the manifest' \
-                '\n# was rejected due to encountered errors:' \
-                '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
-                '\n# ' + str(e).replace('\n', '\n# ') + \
-                '\n'
-            self.data[len(self.data) - 1:] = message.encode()
-            raise IOError() from e
+            error_messages += '\n' + str(e)
         else:
-            error_messages = ""
+            args = []
+            try:
+                args += self._add('path', new, old)
+                args += self._del('path', new, old)
 
-            error_messages += self._add('path', new, old)
-            error_messages += self._del('path', new, old)
-
-            error_messages += self._add('category', new, old)
-            error_messages += self._del('category', new, old)
+                args += self._add('category', new, old)
+                args += self._del('category', new, old)
+            except Exception as e:
+                error_messages += '\n' + str(e)
 
             new_title = new.fields.get('title', None)
             old_title = old.fields.get('title', None)
             if new_title != old_title:
                 if new_title is None:
                     new_title = "null"
-                try:
-                    _cli(self.base_dir, 'container', 'modify',
-                         'set-title', self.container_wl_path, '--title', new_title)
-                    old.fields['title'] = new_title
-                except Exception as e:
-                    error_messages += '\n' + str(e)
+                args += ("--title", new_title)
 
             new_other_fields = {key: value for key, value in new.fields.items()
                                 if key not in ('paths', 'categories', 'title')}
@@ -97,30 +86,36 @@ class PseudomanifestFile(FullBufferedFile):
                 error_messages += "\n Pseudomanifest error: Modifying fields except:" \
                                   "\n 'paths', 'categories', 'title' are not supported."
 
-            self.data[:] = old.copy_to_unsigned().original_data
-            if error_messages:
-                str_data = data.decode()
-                data_without_comments = str_data[:str_data.find('#')]
-                message = \
-                    '\n\n# Some changes to the following manifest' \
-                    '\n# was rejected due to encountered errors:' \
-                    '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
-                    '\n# ' + error_messages.replace('\n', '\n# ') + \
-                    '\n'
-                self.data[len(self.data) - 1:] = message.encode()
-                raise IOError()
+            if not error_messages and args:
+                try:
+                    _cli(self.base_dir, 'container', 'modify', self.container_wl_path, *args)
+
+                except Exception as e:
+                    error_messages += '\n' + str(e)
+
+        if error_messages:
+            str_data = data.decode()
+            data_without_comments = str_data[:str_data.find('#')]
+            message = \
+                '\n\n# Changes to the following manifest' \
+                '\n# was rejected due to encountered errors:' \
+                '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
+                '\n# ' + error_messages.replace('\n', '\n# ') + \
+                '\n'
+            str_data = self.data.decode()
+            data_without_comments = str_data[:str_data.find('\n\n#')]
+            self.data[:] = data_without_comments.encode() + message.encode()
+            raise IOError()
 
         return len(data)
 
-    def _add(self, field: str, new: Manifest, old: Manifest) -> str:
+    def _add(self, field: str, new: Manifest, old: Manifest) -> List[str]:
         return self._modify('add', field, new, old)
 
-    def _del(self, field: str, new: Manifest, old: Manifest) -> str:
+    def _del(self, field: str, new: Manifest, old: Manifest) -> List[str]:
         return self._modify('del', field, new, old)
 
-    def _modify(self, mod: str, field: str, new: Manifest, old: Manifest) -> str:
-        error_message = ''
-
+    def _modify(self, mod: str, field: str, new: Manifest, old: Manifest) -> List[str]:
         if field == 'path':
             fields = 'paths'
         elif field == 'category':
@@ -137,31 +132,13 @@ class PseudomanifestFile(FullBufferedFile):
             to_modify = {f for f in old_fields if f not in new_fields}
             try:
                 to_modify.remove(self.uuid_path)
-                error_message += "\n Pseudomanifest error: uuid path cannot be removed."
+                raise ValueError("\n Pseudomanifest error: uuid path cannot be removed.")
             except KeyError:
                 pass
         else:
             raise ValueError()
 
-        args = list(chain.from_iterable((f'--{field}', f) for f in to_modify))
-        if args:
-            try:
-                _cli(self.base_dir, 'container', 'modify', f'{mod}-{field}',
-                     self.container_wl_path, *args)
-
-                if mod == 'add':
-                    old_fields.extend(to_modify)
-                elif mod == 'del':
-                    for f in to_modify:
-                        old_fields.remove(f)
-                else:
-                    raise ValueError()
-
-            except Exception as e:
-                error_message += '\n' + str(e)
-                return error_message
-
-        return error_message
+        return list(chain.from_iterable((f'--{mod}-{field}', f) for f in to_modify))
 
 
 class PseudomanifestStorageBackend(StorageBackend):
@@ -210,9 +187,6 @@ class PseudomanifestStorageBackend(StorageBackend):
         getattr() for generated pseudomanifest storage
         """
         return self.attr
-
-    # def truncate(self, path: PurePosixPath, length: int) -> None:
-    #     pass
 
 
 def _cli(base_dir, *args):
