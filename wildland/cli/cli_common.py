@@ -55,7 +55,9 @@ from ..utils import yaml_parser
 from ..storage import Storage
 from ..user import User
 from ..publish import Publisher
+from ..log import get_logger
 
+logger = get_logger('cli-common')
 
 def wrap_output(func):
     """
@@ -399,15 +401,6 @@ def publish(ctx: click.Context, file):
     assert isinstance(wl_object.manifest, Manifest)
     user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
 
-    try:
-        wl_object.manifest.encrypt_and_sign(
-            ctx.obj.client.session.sig,
-            only_use_primary_key=(wl_object.type == WildlandObject.Type.USER)
-        )
-    except WildlandError:
-        # Resigning is not mandatory, but desirable
-        pass
-
     click.echo(f'Publishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
     Publisher(ctx.obj.client, user).publish(wl_object)
 
@@ -417,9 +410,8 @@ def publish(ctx: click.Context, file):
 
     # if all objects of the given type are unpublished DO NOT print warning
     if not_published and len(not_published) != n_objects:
-        click.echo(f'WARN: Some local {wl_object.type.value}s (or {wl_object.type.value} updates) '
-                   'are not published:\n' +
-                   '\n'.join(sorted(not_published)))
+        logger.warning("Some local {wl_object.type.value}s (or {wl_object.type.value} updates) "
+                       "are not published:\n%s", '\n'.join(sorted(not_published)))
 
 
 @click.command(short_help='unpublish a manifest')

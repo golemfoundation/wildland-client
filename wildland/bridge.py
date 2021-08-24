@@ -61,9 +61,47 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         self.user_location = deepcopy(user_location)
         self.user_pubkey = user_pubkey
         self.user_id = user_id
-        self.paths: List[PurePosixPath] = list(paths)
         self.manifest = manifest
         self.client = client
+        self.paths: List[PurePosixPath] = []
+
+        if paths:
+            self.paths = list(paths)
+        else:
+            self.paths = [self._create_safe_bridge_path()]
+
+    def get_unique_publish_id(self) -> str:
+        return f'{self.user_id}.bridge'
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        return PurePosixPath('/.uuid/') / self.get_unique_publish_id()
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return [self.get_primary_publish_path()] + self.paths.copy()
+
+    def _create_safe_bridge_path(self) -> PurePosixPath:
+        """
+        Creates safe (ie. obscure) bridge path which will not conflict with other potentially
+        existing, user-defined paths which could cause mailicious forest to be mounted without
+        user's awareness.
+        """
+        try:
+            user = self.client.get_user_by_id(self.user_id)
+            file_path = user.manifest.local_path
+
+            if file_path and file_path.suffixes[-2:] == ['.user', '.yaml']:
+                # Friendly name for newly imported user manifest will be 0xaaaa which is expected as
+                # the path is supposed to be safe. For existing user manifest with _really_ friendly
+                # names (ie. manually created by a user) this will still be a safe path.
+                friendly_name = file_path.name.removesuffix('.user.yaml')
+            else:
+                # If cannot recognize user yaml format, do not attempt to figure out friendly name
+                friendly_name = self.user_id
+        except WildlandError:
+            # If user was not imported yet, do not try to figure out friendly name
+            friendly_name = self.user_id
+
+        return PurePosixPath('/forests') / friendly_name
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):

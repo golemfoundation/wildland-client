@@ -48,7 +48,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options, wrap_output
+    check_if_any_options, wrap_output, publish, unpublish, republish_object
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -259,44 +259,6 @@ def update(obj: ContextObj, storage, cont):
     obj.client.save_object(WildlandObject.Type.CONTAINER, container)
 
 
-@container_.command(short_help='publish container manifest')
-@click.argument('cont', metavar='CONTAINER')
-@click.pass_obj
-def publish(obj: ContextObj, cont):
-    """
-    Publish a container manifest to a container from manifests catalog.
-    """
-
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    click.echo(f'Publishing container {container.get_primary_publish_path()}...')
-    user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-    Publisher(obj.client, user).publish(container)
-
-    # check if all containers are published
-    not_published = Publisher.list_unpublished_containers(obj.client)
-    n_container = len(list(obj.client.dirs[WildlandObject.Type.CONTAINER].glob('*.container.yaml')))
-
-    # if all containers are unpublished DO NOT print warning
-    if not_published and len(not_published) != n_container:
-        logger.warning("Some local containers (or container updates) are not published:\n%s",
-                       '\n'.join(sorted(not_published)))
-
-
-@container_.command(short_help='unpublish container manifest')
-@click.argument('cont', metavar='CONTAINER')
-@click.pass_obj
-def unpublish(obj: ContextObj, cont):
-    """
-    Attempt to unpublish a container manifest under a given wildland path
-    from all containers in manifests catalogs.
-    """
-
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-    click.echo(f'Unpublishing container {container.get_primary_publish_path()}...')
-    Publisher(obj.client, user).unpublish(container)
-
-
 def _container_info(client, container, users_and_bridge_paths):
     container_fields = container.to_repr_fields(include_sensitive=False)
     bridge_paths = []
@@ -457,7 +419,8 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
 
 container_.add_command(sign)
 container_.add_command(verify)
-
+container_.add_command(publish)
+container_.add_command(unpublish)
 
 @container_.command(short_help='modify container manifest')
 @click.option('--add-path', metavar='PATH', multiple=True, help='path to add')
@@ -523,7 +486,7 @@ def modify(ctx: click.Context,
     )
 
     if publish and modified:
-        _republish_container(ctx.obj.client, container)
+        republish_object(ctx.obj.client, container)
 
 
 def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
@@ -564,14 +527,18 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
     return to_del_nested
 
 
-def _republish_container(client: Client, container: Container) -> None:
-    try:
-        user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-        if user.has_catalog:
-            click.echo(f'Re-publishing container {container.get_primary_publish_path()}...')
-            Publisher(client, user).republish(container)
-    except WildlandError as ex:
-        raise WildlandError(f"Failed to republish container: {ex}") from ex
+def sync_id(container: Container) -> str:
+    """
+    Return unique sync job ID for a container.
+    """
+    return container.owner + '|' + container.uuid
+
+
+def _do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
+             one_shot: bool, unidir: bool) -> str:
+    kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
+              'unidirectional': unidir, 'source': source, 'target': target}
+    return client.run_sync_command('start', **kwargs)
 
 
 def wl_path_for_container(client: Client, container: Container,
@@ -1358,7 +1325,7 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
         ctx, path, base_edit, editor=editor, remount=remount)
 
     if publish and manifest_modified:
-        _republish_container(ctx.obj.client, container)
+        republish_object(ctx.obj.client, container)
 
 
 def _resolve_container(

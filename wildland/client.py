@@ -870,6 +870,15 @@ class Client:
 
         return set()
 
+    def get_user_by_id(self, fingerprint) -> User:
+        """
+        Returns User Wildland Object by given fingerprint (ie. 0xaaa)
+        """
+        if fingerprint not in self.users:
+            raise WildlandError(f'User [{fingerprint}] was not found')
+
+        return self.users[fingerprint]
+
     def save_object(self, object_type: WildlandObject.Type,
                     obj, path: Optional[Path] = None,
                     storage_driver: Optional[StorageDriver] = None) -> Path:

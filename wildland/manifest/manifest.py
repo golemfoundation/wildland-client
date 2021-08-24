@@ -75,7 +75,10 @@ class Manifest:
         # Accessible as 'fields' only if there is a header.
         self._fields = fields
 
-        self.owner = fields.get('owner')
+        self.owner = fields.get('owner', '')
+
+        if not self.owner:
+            raise WildlandError('Data manifest must have an owner.')
 
         # Original data that has been signed.
         self._original_data = original_data

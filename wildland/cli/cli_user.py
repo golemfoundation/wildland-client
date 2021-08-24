@@ -406,24 +406,6 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
     return None
 
 
-def _sanitize_imported_paths(paths: List[PurePosixPath], owner: str) -> List[PurePosixPath]:
-    """
-    Accept a list of imported paths (either from a user or a bridge manifest) and return only
-    the first one with sanitized (safe) path.
-    """
-    if not paths:
-        raise CliError('No paths found to sanitize')
-
-    path = paths[0]
-
-    if path.is_relative_to('/'):
-        path = path.relative_to('/')
-
-    safe_path = f'/forests/{owner}-' + '_'.join(path.parts)
-
-    return [PurePosixPath(safe_path)]
-
-
 def _do_process_imported_manifest(
         obj: ContextObj, copied_manifest_path: Path, user_manifest_location: str,
         paths: List[PurePosixPath], default_user: str):
@@ -460,7 +442,7 @@ def _do_process_imported_manifest(
             user_location=user_location,
             user_pubkey=user.primary_pubkey,
             user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
-            paths=(paths if paths else _sanitize_imported_paths(user.paths, user.owner)),
+            paths=paths,
             client=obj.client
         )
 
@@ -470,16 +452,12 @@ def _do_process_imported_manifest(
     else:
         bridge = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.BRIDGE)
 
-        original_bridge_owner = bridge.owner
-
         # adjust imported bridge
         if default_user:
             bridge.owner = default_user
 
         if paths:
             bridge.paths = list(paths)
-        else:
-            bridge.paths = _sanitize_imported_paths(bridge.paths, original_bridge_owner)
 
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
@@ -544,7 +522,7 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=(posix_paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
+                    paths=posix_paths,
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')

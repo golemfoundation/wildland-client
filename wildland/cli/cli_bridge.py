@@ -35,7 +35,7 @@ from wildland.bridge import Bridge
 from wildland.link import Link
 from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit, dump
+from .cli_common import sign, verify, edit, dump, publish, unpublish
 from .cli_user import import_manifest, find_user_manifest_within_catalog
 from ..log import get_logger
 
@@ -185,3 +185,5 @@ bridge_.add_command(sign)
 bridge_.add_command(verify)
 bridge_.add_command(edit)
 bridge_.add_command(dump)
+bridge_.add_command(publish)
+bridge_.add_command(unpublish)
