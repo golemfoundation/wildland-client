@@ -151,6 +151,10 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert "title: title" in f.read()
 
+    # clear error messages
+    with open(pseudomanifest_path, 'r') as f:
+        assert "rejected due to encountered errors" not in f.read()
+
     pseudomanifest_replace(pseudomanifest_path, "title: title", "title: 'null'")
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert "title: 'null'" in f.read()
@@ -182,11 +186,6 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         content = f.read()
         assert "0xbbb" not in content
         assert "0xccc" in content
-
-    # clear error messages
-    pseudomanifest_replace(pseudomanifest_path, "", "")
-    with open(pseudomanifest_path, 'r') as f:
-        assert "rejected due to encountered errors" not in f.read()
 
     # whitespaces
 
