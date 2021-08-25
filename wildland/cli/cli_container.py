@@ -1268,7 +1268,7 @@ def dump(ctx: click.Context, path: str, decrypt: bool):
     """
     Verify and dump contents of a container.
     """
-    _resolve_container(ctx, path, base_dump, decrypt=decrypt)
+    _resolve_container(ctx, path, base_dump, decrypt=decrypt, save_manifest=False)
 
 
 @container_.command(short_help='edit container manifest in external tool')
@@ -1290,9 +1290,13 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
         _republish_container(ctx.obj.client, container)
 
 
-def _resolve_container(ctx: click.Context, path: str,
-    callback: Union[click.core.Command, Callable[..., Any]], **callback_kwargs: Any) \
-        -> Tuple[Container, bool]:
+def _resolve_container(
+        ctx: click.Context,
+        path: str,
+        callback: Union[click.core.Command, Callable[..., Any]],
+        save_manifest: bool = True,
+        **callback_kwargs: Any
+        ) -> Tuple[Container, bool]:
 
     client: Client = ctx.obj.client
 
@@ -1309,7 +1313,7 @@ def _resolve_container(ctx: click.Context, path: str,
             container = client.load_object_from_name(
                 WildlandObject.Type.CONTAINER, str(container.local_path))
         else:
-            # download, modify and save manifest
+            # download, modify and optionally save manifest
             with tempfile.NamedTemporaryFile(suffix='.tmp.container.yaml') as f:
                 f.write(container.manifest.to_bytes())
                 f.flush()
@@ -1322,8 +1326,9 @@ def _resolve_container(ctx: click.Context, path: str,
 
                 container = client.load_object_from_bytes(WildlandObject.Type.CONTAINER, data)
 
-                path = client.save_new_object(WildlandObject.Type.CONTAINER, container)
-                click.echo(f'Created: {path}')
+                if save_manifest:
+                    path = client.save_new_object(WildlandObject.Type.CONTAINER, container)
+                    click.echo(f'Created: {path}')
     else:
         # modify local manifest
         local_path = client.find_local_manifest(WildlandObject.Type.CONTAINER, path)
