@@ -76,23 +76,13 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         Return string representation
         """
-        array_repr = [
-            f"owner={self.owner!r}",
-            f"storage_type={self.storage_type!r}",
-            f"backend_id={self.backend_id}",
-        ]
-        if include_sensitive:
-            array_repr += [
-                f"container_path={self.container_path!r}",
-                f"trusted={self.trusted!r}",
-                f"manifest={self.manifest!r}"
-            ]
-            if self.public_url:
-                array_repr += [f"public_url={self.public_url!r}"]
-            if self.local_path:
-                array_repr += [f"local_path={self.local_path!r}"]
-            if self.access:
-                array_repr += [f"access={self.access!r}"]
+        fields = self.to_repr_fields(include_sensitive=include_sensitive)
+        array_repr = []
+        for field in ['owner', 'storage-type', 'backend-id', 'container-path', 'trusted',
+                      'container-path', 'public-url', 'local-path', 'access', 'location',
+                      'read-only']:
+            if fields.get(field, None):
+                array_repr += [f"{field}={fields[field]!r}"]
         str_repr = "storage(" + ", ".join(array_repr) + ")"
         return str_repr
 
@@ -207,6 +197,22 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
         if 'is-local-owner' in fields:
             del fields['is-local-owner']
+        return fields
+
+    def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        """
+        This function provides filtered sensitive and unneeded fields for representation
+        """
+        nonsensitive_storage_fields = ["owner", "type", "version", "backend-id"]
+
+        fields = {}
+        manifest_fields = self.to_manifest_fields(inline=True)
+        if not include_sensitive:
+            for field in nonsensitive_storage_fields:
+                if manifest_fields.get(field, None):
+                    fields[field] = manifest_fields[field]
+        else:
+            fields = manifest_fields
         return fields
 
     def copy(self, old_uuid, new_uuid):

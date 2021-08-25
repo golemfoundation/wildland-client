@@ -115,13 +115,14 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
     def __repr__(self):
         return self.to_str()
 
-    def to_str(self):
+    def to_str(self, include_sensitive=False):
         """
         Return string representation
         """
+        fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = [
-            f"owner={self.owner}",
-            f"paths={[str(p) for p in self.paths]}"
+            f"owner={fields['owner']}",
+            f"paths={[str(p) for p in fields['paths']]}"
         ]
         str_repr = "user(" + ", ".join(array_repr) + ")"
         return str_repr
@@ -207,6 +208,16 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
             }
         self.SCHEMA.validate(result)
         return result
+
+    def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        """
+        This function provides filtered sensitive and unneeded fields for representation
+        """
+        fields = self.to_manifest_fields(inline=False)
+        if not include_sensitive:
+            # Remove sensitive fields
+            del fields["manifests-catalog"]
+        return fields
 
     def add_user_keys(self, sig_context, add_primary=True):
         """

@@ -904,7 +904,7 @@ def two_users_catalog(base_dir, cli, control_client):
     )
     entry_path = (base_dir / 'manifests/dummy2-catalog.yaml')
     entry_path.write_text(manifest)
-    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{entry_path}', 'Dummy2')
+    cli('user', 'modify', 'Dummy2', '--add-catalog-entry', f'file://{entry_path}')
 
     manifest = container_with_files(
         'Dummy3', 'dummy3-catalog', ['/.catalog', '/.uuid/00000000-3333-0000-0000-000000000000'],
@@ -915,7 +915,7 @@ def two_users_catalog(base_dir, cli, control_client):
     )
     entry_path = (base_dir / 'manifests/dummy3-catalog.yaml')
     entry_path.write_text(manifest)
-    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{entry_path}', 'Dummy3')
+    cli('user', 'modify', 'Dummy3', '--add-catalog-entry', f'file://{entry_path}')
 
     # and finally bridges
     container_with_files(

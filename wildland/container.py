@@ -143,23 +143,18 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         """
         Return string representation
         """
-        array_repr = [
-            f"owner={self.owner!r}",
-            f"paths={[str(p) for p in self.paths]}"
-        ]
-        if self.local_path:
-            array_repr += [f"local_path={self.local_path!r}"]
-        if include_sensitive:
-            array_repr += [
-                f"backends={[cache.storage for cache in self._storage_cache]!r}",
-                f"manifest={self.manifest!r}"
-            ]
-        if self.title:
-            array_repr += [f"title={self.title!r}"]
-        if self.categories:
-            array_repr += [f"categories={self.categories!r}"]
-        if self.access:
-            array_repr += [f"access={self.access!r}"]
+        fields = self.to_repr_fields(include_sensitive=include_sensitive)
+        array_repr: List[str] = []
+        for field in ['owner', 'paths', 'local-path', 'backends', 'title', 'categories', 'access']:
+            if fields.get(field, None):
+                if field == 'paths':
+                    array_repr += [f"paths={[str(p) for p in fields['paths']]}"]
+                elif field == 'backends' and fields['backends'].get('storage', None):
+                    array_repr += [
+                        f"backends={fields['backends']['storage']}"
+                    ]
+                else:
+                    array_repr += [f"{field}={fields[field]!r}"]
         str_repr = "container(" + ", ".join(array_repr) + ")"
         return str_repr
 
@@ -202,10 +197,35 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
             "backends": {'storage': cleaned_backends},
             "title": self.title,
             "categories": [str(cat) for cat in self.categories],
-            "version": Manifest.CURRENT_VERSION}
+            "version": Manifest.CURRENT_VERSION
+        }
         if self.access:
             fields['access'] = self.access
         self.SCHEMA.validate(fields)
+        return fields
+
+    def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        """
+        This function provides filtered sensitive and unneeded fields for representation
+        """
+        fields = self.to_manifest_fields(inline=True)
+        if not include_sensitive:
+            # Remove sensitive fields
+            # for backends, we only keep some useful info
+            filtered_storages = []
+            for storage in fields["backends"]["storage"]:
+                if isinstance(storage, str):
+                    filtered_storages.append(storage)
+                else:
+                    if 'encrypted' in storage:
+                        filtered_storages.append('encrypted')
+                        continue
+                    filtered_storage_obj = WildlandObject.from_fields(
+                        self.fill_storage_fields(storage), self.client)
+                    if filtered_storage_obj:
+                        filtered_storages.append(filtered_storage_obj.to_repr_fields(
+                            include_sensitive=False))
+            fields["backends"]["storage"] = filtered_storages
         return fields
 
     @property

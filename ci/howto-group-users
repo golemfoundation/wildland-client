@@ -56,7 +56,7 @@ expected_pcre="Pubkeys found in \[yatima\]:
 Pubkeys found in \[inoshiro\]:
   $PUBKEY_PCRE
 Saved: /home/user/.config/wildland/users/office.user.yaml"
-run wl user modify add-pubkey --user yatima --user inoshiro office
+run wl user modify --add-pubkey-user yatima --add-pubkey-user inoshiro office
 
 
 expected_pcre="object: user

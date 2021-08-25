@@ -37,7 +37,8 @@ from ..user import User
 
 from .cli_base import aliased_group, ContextObj, CliError
 from ..wlpath import WILDLAND_URL_PREFIX
-from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, dump
+from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
+    check_if_any_options, check_options_conflict
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
@@ -610,76 +611,53 @@ user_.add_command(edit)
 user_.add_command(dump)
 
 
-@user_.group(short_help='modify user manifest')
-def modify():
-    """
-    Commands for modifying user manifests.
-    """
-
-
-@modify.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
+@user_.command(short_help='modify user manifest')
+@click.option('--add-path', metavar='PATH', multiple=True, help='path to add')
+@click.option('--del-path', metavar='PATH', multiple=True, help='path to remove')
+@click.option('--add-catalog-entry', metavar='PATH', multiple=True, help='container path to add')
+@click.option('--del-catalog-entry', metavar='PATH', multiple=True, help='container path to remove')
+@click.option('--add-pubkey', metavar='PUBKEY', multiple=True, help='raw public keys to append')
+@click.option('--add-pubkey-user', metavar='USER', multiple=True,
+              help='user whose public keys should be appended to FILE')
+@click.option('--del-pubkey', metavar='PUBKEY', multiple=True, help='public key to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_path(ctx: click.Context, input_file, path):
+def modify(ctx: click.Context,
+           add_path, del_path, add_catalog_entry, del_catalog_entry,
+           add_pubkey, add_pubkey_user, del_pubkey,
+           input_file
+           ):
     """
-    Add path to the manifest.
+    Command for modifying user manifests.
     """
-    modify_manifest(ctx, input_file, add_field, 'paths', path)
+    _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                  add_pubkey, add_pubkey_user, del_pubkey)
+
+    pubkeys = _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey)
+
+    to_add = {'paths': add_path, 'manifests-catalog': add_catalog_entry, 'pubkeys': pubkeys}
+    to_del = {'paths': del_path, 'manifests-catalog': del_catalog_entry, 'pubkeys': del_pubkey}
+
+    modify_manifest(ctx, input_file,
+                    edit_funcs=[add_fields, del_fields],
+                    to_add=to_add,
+                    to_del=to_del)
 
 
-@modify.command(short_help='remove path from the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_path(ctx: click.Context, input_file, path):
-    """
-    Remove path from the manifest.
-    """
-    modify_manifest(ctx, input_file, del_field, 'paths', path)
+def _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                  add_pubkey, add_pubkey_user, del_pubkey):
+    check_if_any_options(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                         add_pubkey, add_pubkey_user, del_pubkey)
+    check_options_conflict("path", add_path, del_path)
+    check_options_conflict("catalog_entry", add_catalog_entry, del_catalog_entry)
+    check_options_conflict("pubkey", add_pubkey, del_pubkey)
 
 
-@modify.command(short_help='add entry to manifests-catalog')
-@click.option('--path', metavar='PATH', required=True, multiple=True,
-              help='Container path to add')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_catalog_entry(ctx: click.Context, input_file, path):
-    """
-    Add path to the manifest.
-    """
-    modify_manifest(ctx, input_file, add_field, 'manifests-catalog', path)
+def _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey):
+    pubkeys = set(add_pubkey)
 
-
-@modify.command(short_help="remove an entry from manifest's manifest catalog")
-@click.option('--path', metavar='PATH', required=True, multiple=True,
-              help='Container path to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_catalog_entry(ctx: click.Context, input_file, path):
-    """
-    Add path to the manifest.
-    """
-    modify_manifest(ctx, input_file, del_field, 'manifests-catalog', path)
-
-
-@modify.command(short_help='add public key(s) to the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=False, multiple=True,
-              help='Raw public keys to append')
-@click.option('--user', metavar='USER', required=False, multiple=True,
-              help='Users whose public keys should be appended to FILE')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_pubkey(ctx: click.Context, input_file, pubkey, user):
-    """
-    Add public key to the manifest.
-    """
-    if not pubkey and not user:
-        raise CliError('You must provide at least one --user or --pubkey.')
-
-    pubkeys = set(pubkey)
-
-    for name in user:
+    conflicts = ""
+    for name in add_pubkey_user:
         user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, name)
 
         click.echo(f'Pubkeys found in [{name}]:')
@@ -687,22 +665,19 @@ def add_pubkey(ctx: click.Context, input_file, pubkey, user):
         for key in user_obj.pubkeys:
             click.echo(f'  {key}')
 
+        pubkey_conflicts = set(del_pubkey).intersection(user_obj.pubkeys)
+        if pubkey_conflicts:
+            conflicts += 'Error: options conflict:'
+            for c in pubkey_conflicts:
+                conflicts += f'\n  --add-pubkey-user {name} and --del-pubkey {c}' \
+                             f'\n    User {name} has a pubkey {c}'
+
         pubkeys.update(user_obj.pubkeys)
+    if conflicts:
+        raise CliError(conflicts)
 
     for key in pubkeys:
         if not ctx.obj.session.sig.is_valid_pubkey(key):
             raise CliError(f'Given pubkey [{key}] is not a valid pubkey')
 
-    modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkeys)
-
-
-@modify.command(short_help='remove public key from the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True,
-              help='Public key to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_pubkey(ctx: click.Context, input_file, pubkey):
-    """
-    Remove public key from the manifest.
-    """
-    modify_manifest(ctx, input_file, del_field, 'pubkeys', pubkey)
+    return pubkeys
