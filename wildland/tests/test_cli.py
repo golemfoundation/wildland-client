@@ -2012,7 +2012,7 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
 # pylint: disable=unused-argument
 def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    container_names = ['c1']
+    container_names = ['cache']
     data = _cache_setup(cli, base_dir, container_names, 'User')
     cli('start', '--skip-forest-mount')
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
@@ -2020,10 +2020,11 @@ def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
 
 def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    container_names = ['c1']
+    container_names = ['cache_nodefault']
     data = _cache_setup(cli, base_dir, container_names, 'User', set_default=False)
     cli('start', '--skip-forest-mount')
-    cli_fail('container', 'mount', '--with-cache', 'c1')  # no default cache template set
+    # no default cache template set
+    cli_fail('container', 'mount', '--with-cache', 'cache_nodefault')
     cli('set-default-cache', 't1')
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
 
@@ -2032,7 +2033,7 @@ def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
 def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User1', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
-    data = _cache_setup(cli, base_dir, ['c1'], 'User2')
+    data = _cache_setup(cli, base_dir, ['cache_other_user'], 'User2')
     cli('start', '--skip-forest-mount')
     _cache_test(cli, cli_fail, base_dir, data, '0xbbb')
 
@@ -2040,7 +2041,7 @@ def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
 # pylint: disable=unused-argument
 def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    container_names = ['c1', 'c2']
+    container_names = ['cache_1_multiple', 'cache_2_multiple']
     data = _cache_setup(cli, base_dir, container_names, 'User')
     cli('start', '--skip-forest-mount')
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
@@ -2049,7 +2050,7 @@ def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
 # pylint: disable=unused-argument
 def test_container_mount_with_cache_subcontainers(base_dir, sync, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    data = _cache_setup(cli, base_dir, ['Container'], 'User', '/sub.yaml')
+    data = _cache_setup(cli, base_dir, ['cache_subcont'], 'User', '/sub.yaml')
 
     sub_uuid = '0000-1111-2222-3333-4444'
     sub_backend_id = '5555-6666-7777-8888-9999'
@@ -2077,13 +2078,14 @@ backends:
     cli('start', '--skip-forest-mount')
     cli('container', 'mount', '--with-subcontainers', container_name, '--with-cache')
     _sync_check(storage_dir, cache_dir)
+    wait_for_file(cache_dir / 'subdir')
     _sync_check(cache_dir / 'subdir', storage_dir / 'subdir')
 
 
 # pylint: disable=unused-argument
 def test_container_unmount_path_with_cache(base_dir, sync, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    data = _cache_setup(cli, base_dir, ['c1'], 'User')
+    data = _cache_setup(cli, base_dir, ['cache_unmount_path'], 'User')
     container_name, _, _, _ = data[0]
     cli('start', '--skip-forest-mount')
     cli('container', 'mount', container_name, '--with-cache')
@@ -2097,7 +2099,7 @@ def test_container_unmount_path_with_cache(base_dir, sync, cli):
 # pylint: disable=unused-argument
 def test_container_mount_mount_unmount_with_cache(base_dir, sync, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    data = _cache_setup(cli, base_dir, ['c1'], 'User')
+    data = _cache_setup(cli, base_dir, ['cache_double_mount'], 'User')
     container_name, _, _, _ = data[0]
     cli('start', '--skip-forest-mount')
     cli('container', 'mount', container_name, '--with-cache')
@@ -3552,24 +3554,26 @@ def test_status_sync(base_dir, sync, cli):
     result = cli('status', capture=True)
     assert 'No sync jobs running' in result
 
+    container_name = 'status_sync'
     cli('user', 'create', 'User')
-    cli('container', 'create', '--owner', 'User', '--path', '/cont', 'Cont')
-    cli('storage', 'create', 'local', '--container', 'Cont', '--location', storage1_data)
-    cli('storage', 'create', 'local-cached', '--container', 'Cont', '--location', storage2_data)
+    cli('container', 'create', '--owner', 'User', '--path', '/cont', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
+        '--location', storage2_data)
     cli('start', '--skip-forest-mount')
-    cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    cli('container', 'sync', '--target-storage', 'local-cached', container_name)
     time.sleep(1)
     result = cli('status', capture=True)
-    pattern = r"^Cont SYNCED 'local'.*? <-> 'local-cached'.*?$"
+    pattern = f"^{container_name} SYNCED 'local'.*? <-> 'local-cached'.*?$"
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
-    cli('container', 'stop-sync', 'Cont')
+    cli('container', 'stop-sync', container_name)
 
     # conflict
     with open(storage1_data / 'x', 'w') as f:
         f.write('a')
     with open(storage2_data / 'x', 'w') as f:
         f.write('b')
-    cli('container', 'sync', '--target-storage', 'local-cached', 'Cont')
+    cli('container', 'sync', '--target-storage', 'local-cached', container_name)
     time.sleep(1)
     result = cli('status', capture=True)
     pattern = r"^   Conflict detected on x in storages .+? and .+?$"
@@ -3627,23 +3631,16 @@ def test_cli_container_sync(base_dir, sync, cli):
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
 
+    container_name = 'sync'
     cli('user', 'create', 'Alice')
-    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
-    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
-    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
         '--location', storage2_data)
-    cli('container', 'sync', '--target-storage', 'local-cached', 'AliceContainer')
+    cli('container', 'sync', '--target-storage', 'local-cached', container_name)
 
-    time.sleep(1)
-
-    with open(storage1_data / 'testfile', 'w') as f:
-        f.write("test data")
-
-    time.sleep(1)
-
-    assert (storage2_data / 'testfile').exists()
-    with open(storage2_data / 'testfile') as file:
-        assert file.read() == 'test data'
+    make_file(storage1_data / 'testfile', 'test data')
+    wait_for_file(storage2_data / 'testfile', 'test data')
 
 
 # pylint: disable=unused-argument
@@ -3656,29 +3653,22 @@ def test_cli_container_sync_oneshot(base_dir, sync, cli):
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
 
+    container_name = 'sync_oneshot'
     cli('user', 'create', 'Alice')
-    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
-    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
-    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
         '--location', storage2_data)
 
-    with open(storage1_data / 'testfile', 'w') as f:
-        f.write("test data")
+    make_file(storage1_data / 'testfile', 'test data')
 
-    cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot', 'AliceContainer')
+    cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot', container_name)
 
-    time.sleep(1)
+    wait_for_file(storage2_data / 'testfile', 'test data')
 
-    assert (storage2_data / 'testfile').exists()
-    with open(storage2_data / 'testfile') as file:
-        assert file.read() == 'test data'
+    make_file(storage1_data / 'testfile2', 'test data2')
 
-    with open(storage1_data / 'testfile2', 'w') as f:
-        f.write("test data2")
-
-    time.sleep(1)
-
-    assert not (storage2_data / 'testfile2').exists()
+    assert not wait_for_file(storage2_data / 'testfile2', timeout=3)
 
 
 # pylint: disable=unused-argument
@@ -3693,15 +3683,16 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     os.mkdir(storage2_data)
     os.mkdir(storage3_data)
 
+    container_name = 'sync_tg_remote'
     cli('user', 'create', 'Alice')
-    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer',
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name,
         '--no-encrypt-manifest')
-    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
-    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
         '--location', storage2_data)
-    cli('storage', 'create', 'local-dir-cached', '--container', 'AliceContainer',
+    cli('storage', 'create', 'local-dir-cached', '--container', container_name,
         '--location', storage3_data)
-    cli('container', 'sync', '--target-storage', 'local-dir-cached', 'AliceContainer')
+    cli('container', 'sync', '--target-storage', 'local-dir-cached', container_name)
 
     path1a = Path(storage1_data / 'testfile')
     path2a = Path(storage2_data / 'testfile')
@@ -3712,7 +3703,7 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     wait_for_file(path3a, data1)
     assert not path2a.exists()
 
-    with open(base_dir / 'containers/AliceContainer.container.yaml') as f:
+    with open(base_dir / f'containers/{container_name}.container.yaml') as f:
         cont_data = f.read().split('\n', 4)[-1]
         cont_yaml = load_yaml(cont_data)
 
@@ -3727,8 +3718,8 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     default_storage = config["default-remote-for-container"]
     assert default_storage[container_id] == backend_id
 
-    cli('container', 'stop-sync', 'AliceContainer')
-    cli('container', 'sync', 'AliceContainer')
+    cli('container', 'stop-sync', container_name)
+    cli('container', 'sync', container_name)
 
     path1b = Path(storage1_data / 'testfile2')
     path2b = Path(storage2_data / 'testfile2')

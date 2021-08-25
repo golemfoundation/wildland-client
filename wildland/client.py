@@ -164,7 +164,7 @@ class Client:
         """
         Connect to the sync daemon. Starts the daemon if not running.
         """
-        delay = 0.1
+        delay = 0.5
         daemon_started = False
         sync_socket_path = Path(self.config.get('sync-socket-path'))
         self._sync_client = ControlClient()
@@ -186,6 +186,7 @@ class Client:
         cmd = [sys.executable, '-m', 'wildland.storage_sync.daemon']
         if self.base_dir:
             cmd.extend(['--base-dir', str(self.base_dir)])
+        logger.debug('starting sync daemon: %s', cmd)
         Popen(cmd)
 
     def run_sync_command(self, name, **kwargs) -> Any:

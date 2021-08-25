@@ -42,6 +42,8 @@ from ..storage_backends.base import StorageBackend
 from .test_zip import make_zip
 from ..log import init_logging
 
+MAX_TIMEOUT = 10
+
 init_logging()
 
 
@@ -99,7 +101,7 @@ def make_syncer(storage1: StorageBackend, storage2: StorageBackend) -> BaseSynce
     return BaseSyncer.from_storages(storage1, storage2, 'test: ', False, False, True, False)
 
 
-def wait_for_file(path: Path, contents=None, timeout=10) -> bool:
+def wait_for_file(path: Path, contents=None, timeout=MAX_TIMEOUT) -> bool:
     counter = 0
     while counter < timeout:
         if path.exists():
@@ -113,7 +115,7 @@ def wait_for_file(path: Path, contents=None, timeout=10) -> bool:
     return False
 
 
-def wait_for_dir(path: Path, timeout=10) -> bool:
+def wait_for_dir(path: Path, timeout=MAX_TIMEOUT) -> bool:
     counter = 0
     while counter < timeout:
         if path.exists() and path.is_dir():
@@ -123,7 +125,7 @@ def wait_for_dir(path: Path, timeout=10) -> bool:
     return False
 
 
-def wait_for_deletion(path: Path, timeout=10) -> bool:
+def wait_for_deletion(path: Path, timeout=MAX_TIMEOUT) -> bool:
     counter = 0
     while counter < timeout:
         if not path.exists():
