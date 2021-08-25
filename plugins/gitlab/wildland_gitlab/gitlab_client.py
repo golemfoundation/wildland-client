@@ -54,6 +54,7 @@ class CompactIssue:
     ident: int
     issue_size: int
 
+
 class GitlabClient:
     """
     Client implementation;
@@ -130,17 +131,17 @@ class GitlabClient:
             else:
                 size = 0
 
-            update = datetime.fromisoformat(issue.attributes['updated_at'].replace('Z','+00:00'))
+            update = datetime.fromisoformat(issue.attributes['updated_at'].replace('Z', '+00:00'))
             name = project_names.get(issue.attributes['project_id'])
-            to_return.append(CompactIssue(milestone_title = m_title,
-                                          project_id = issue.attributes['project_id'],
-                                          project_name = name,
-                                          title = issue.attributes['title'],
-                                          iid = issue.attributes['iid'],
-                                          updated_at = update,
-                                          labels = issue.attributes['labels'],
-                                          ident = issue.attributes['id'],
-                                          issue_size = size))
+            to_return.append(CompactIssue(milestone_title=m_title,
+                                          project_id=issue.attributes['project_id'],
+                                          project_name=name,
+                                          title=issue.attributes['title'],
+                                          iid=issue.attributes['iid'],
+                                          updated_at=update,
+                                          labels=issue.attributes['labels'],
+                                          ident=issue.attributes['id'],
+                                          issue_size=size))
 
         return to_return
 
