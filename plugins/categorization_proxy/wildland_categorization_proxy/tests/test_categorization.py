@@ -24,13 +24,15 @@
 Unit tests for the categorization proxy
 """
 
-# pylint: disable=missing-docstring,redefined-outer-name,consider-using-with,unused-import
+# pylint: disable=missing-docstring,redefined-outer-name,consider-using-with
 
 import os
 
 from wildland.tests.helpers import treewalk
 
-from wildland.tests.conftest import cli, base_dir
+# Pylint does not recognize imported pytest fixtures as used.
+# It cannot be moved to the local conftest.py because import from one conftest.py to another fails.
+from wildland.tests.conftest import cli, base_dir  # pylint: disable=unused-import
 
 from ..backend import CategorizationProxyStorageBackend
 
