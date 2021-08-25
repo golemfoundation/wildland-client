@@ -21,7 +21,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name,unused-import
+# pylint: disable=missing-docstring,redefined-outer-name
 
 
 from pathlib import Path
@@ -32,7 +32,9 @@ import zipfile
 import pytest
 from wildland.tests.fuse_env import FuseEnv
 import wildland.fs
-from wildland.tests.conftest import base_dir
+# Pylint does not recognize imported pytest fixtures as used.
+# It cannot be moved to the local conftest.py because import from one conftest.py to another fails.
+from wildland.tests.conftest import base_dir  # pylint: disable=unused-import
 
 
 @pytest.fixture

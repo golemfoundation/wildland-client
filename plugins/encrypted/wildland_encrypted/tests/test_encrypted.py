@@ -20,7 +20,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name,consider-using-with,unused-import
+# pylint: disable=missing-docstring,redefined-outer-name,consider-using-with
 from pathlib import Path
 import os
 import time
@@ -36,7 +36,9 @@ from wildland.client import Client
 from wildland.cli.cli_base import ContextObj
 from wildland.cli.cli_main import _do_mount_containers
 
-from wildland.tests.conftest import cli, base_dir
+# Pylint does not recognize imported pytest fixtures as used.
+# It cannot be moved to the local conftest.py because import from one conftest.py to another fails.
+from wildland.tests.conftest import cli, base_dir  # pylint: disable=unused-import
 from ..backend import EncFS, GoCryptFS, generate_password
 
 
