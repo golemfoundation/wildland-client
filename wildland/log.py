@@ -46,7 +46,7 @@ class ConsoleFormatter(logging.Formatter):
 
     def __init__(self, fmt, *args, **kwargs):
         fmt = ('{grey}%(asctime)s '
-               '{green}[%(threadName)s] '
+               '{green}[%(process)d/%(threadName)s] '
                '{cyan}[%(name)s] '
                '$COLOR%(message)s'
                '{reset}')
@@ -83,7 +83,8 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         'formatters': {
             'default': {
                 'class': 'logging.Formatter',
-                'format': '%(asctime)s [%(threadName)s] %(levelname)s [%(name)s] %(message)s',
+                'format': '%(asctime)s [%(process)d/%(threadName)s] %(levelname)s [%(name)s] '
+                          '%(message)s',
             },
             'console': {
                 'class': 'wildland.log.ConsoleFormatter',
