@@ -63,10 +63,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         "required": ["reference-container"],
         "properties": {
             "reference-container": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#url"},
-                    {"$ref": "/schemas/container.schema.json"}
-                ],
+                "$ref": "/schemas/types.json#reference-container",
                 "description": ("Container to be used, either as URL "
                                 "or as an inlined manifest"),
             },
