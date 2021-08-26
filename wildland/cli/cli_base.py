@@ -29,9 +29,11 @@ import collections
 import sys
 import traceback
 from pathlib import Path
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Optional, IO, Any
+from gettext import gettext
 
 import click
+from click.exceptions import get_text_stderr
 
 from ..exc import WildlandError
 
@@ -40,6 +42,19 @@ class CliError(WildlandError, click.ClickException):
     """
     User error during CLI command execution
     """
+    def show(self, file: Optional[IO] = None) -> None:
+        if file is None:
+            file = get_text_stderr()
+
+        click.secho(
+            gettext("Error: {message}").format(message=self.format_message()), file=file, fg="red")
+
+
+def cli_warn(message: Optional[Any] = None):
+    """
+    Printing user warning during CLI command execution
+    """
+    click.secho(f"Warning: {message}", fg="yellow")
 
 # pylint: disable=no-self-use
 
@@ -66,7 +81,7 @@ class AliasedGroup(click.Group):
         try:
             return self.main(*args, **kwargs)
         except Exception as exc:
-            click.echo(f'Error: {exc}')
+            click.secho(f'Error: {exc}', fg="red")
             if self.debug is True:
                 traceback.print_exception(*sys.exc_info())
 
@@ -148,7 +163,7 @@ class AliasedGroup(click.Group):
         if is_alias:
             name = self.aliases[name]
 
-        click.echo(f'Understood {cmd_name!r} as {name!r}')
+        cli_warn(f'Understood {cmd_name!r} as {name!r}')
         return super().get_command(ctx, name)
 
     def format_commands(self, ctx, formatter):

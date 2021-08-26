@@ -36,7 +36,7 @@ import yaml
 
 from wildland import __version__
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import ContextObj, CliError
+from .cli_base import ContextObj, CliError, cli_warn
 from ..client import Client
 from ..container import Container
 from ..manifest.sig import SigError
@@ -288,7 +288,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
             manifest.skip_verification()
         except (ManifestError, WildlandError) as e:
-            click.echo(f'Manifest parse error: {e}')
+            click.secho(f'Manifest parse error: {e}', fg="red")
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
                 continue
             click.echo('Changes not saved.')
@@ -298,7 +298,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             try:
                 validate_manifest(manifest, manifest_type, obj.client)
             except (SchemaError, ManifestError, WildlandError) as e:
-                click.echo(f'Manifest validation error: {e}')
+                click.secho(f'Manifest validation error: {e}', fg="red")
                 if click.confirm('Do you want to edit the manifest again to fix the error?'):
                     continue
                 click.echo('Changes not saved.')
@@ -481,7 +481,7 @@ def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool = True
         elif isinstance(obj, dict):
             fields[field] = _del_keys_and_values_from_dict(obj, keys, values)
         else:
-            click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
+            cli_warn(f'Given field [{field}] is neither list, dict or does not exist. '
                        'Nothing is deleted.')
 
     return fields
@@ -490,11 +490,11 @@ def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool = True
 def _del_keys_and_values_from_dict(dictionary: Dict[Any, Any], keys: Any, values: Any):
     skipped_positions = [key for key in keys if key not in dictionary]
     if skipped_positions:
-        click.echo(f'Given positions {skipped_positions} do not exist. Skipped.')
+        cli_warn(f'Given positions {skipped_positions} do not exist. Skipped.')
 
     skipped_values = [v for v in values if v not in dictionary.values()]
     if skipped_values:
-        click.echo(f'{skipped_values} are not in the manifest. Skipped.')
+        cli_warn(f'{skipped_values} are not in the manifest. Skipped.')
 
     return {k: v for k, v in dictionary.items() if k not in keys and v not in values}
 

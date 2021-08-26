@@ -1541,9 +1541,10 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
     cli('forest', 'create', '--access', '*', 'Alice', 'rw')
 
     output = []
-    monkeypatch.setattr('click.echo', output.append)
+    monkeypatch.setattr('wildland.cli.cli_container.cli_warn', output.append)
     cli('container', 'publish', 'mycapsule')
-    assert any((o.startswith("WARN: Some local containers (or container updates) "
+    print(list(output))
+    assert any((o.startswith("Some local containers (or container updates) "
                              "are not published:") for o in output))
 
 

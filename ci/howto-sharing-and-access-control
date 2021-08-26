@@ -144,7 +144,7 @@ run wl forest create --access bob alice mywebdav
 ## Container publishing
 
 expected="Publishing container /.uuid/$alice_and_bob_uuid...
-WARN: Some local containers (or container updates) are not published:
+Warning: Some local containers (or container updates) are not published:
 /home/user/.config/wildland/containers/mycontainer.container.yaml
 /home/user/.config/wildland/containers/unencrypted-container.container.yaml"
 run wl container publish alice-and-bob

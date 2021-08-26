@@ -48,7 +48,7 @@ from xdg import BaseDirectory
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import aliased_group, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj, CliError, cli_warn
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
     check_if_any_options
@@ -255,7 +255,7 @@ def publish(obj: ContextObj, cont):
 
     # if all containers are unpublished DO NOT print warning
     if not_published and len(not_published) != n_container:
-        click.echo("WARN: Some local containers (or container updates) are not published:\n" +
+        cli_warn("Some local containers (or container updates) are not published:\n" +
                    '\n'.join(sorted(not_published)))
 
 
@@ -298,7 +298,7 @@ def _container_info(client, container, users_and_bridge_paths):
             result.update({"location": cache.params[storage_cls.LOCATION_PARAM]})
         container_fields["cache"] = result
 
-    click.echo("### Sensitive fields are hidden ###")
+    cli_warn("Sensitive fields are hidden.")
     click.echo(container.local_path)
     data = yaml.dump(container_fields, encoding='utf-8', sort_keys=False)
     click.echo(data.decode())
@@ -355,7 +355,7 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
         container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
     except ManifestError as ex:
         if force:
-            click.echo(f'Failed to load manifest: {ex}')
+            cli_warn(f'Failed to load manifest: {ex}')
             try:
                 path = obj.client.find_local_manifest(WildlandObject.Type.CONTAINER, name)
                 if path:
@@ -365,14 +365,14 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
                 # already removed
                 pass
             if cascade:
-                click.echo('Unable to cascade remove: manifest failed to load.')
+                cli_warn('Unable to cascade remove: manifest failed to load.')
             return
-        click.echo(f'Failed to load manifest, cannot delete: {ex}')
+        cli_warn(f'Failed to load manifest, cannot delete: {ex}')
         click.echo('Use --force to force deletion.')
         return
 
     if not container.local_path:
-        raise WildlandError('Can only delete a local manifest')
+        raise CliError('Can only delete a local manifest')
 
     # unmount if mounted
     try:
@@ -502,7 +502,7 @@ def _option_check(ctx, add_path, del_path, add_category, del_category, title, ad
             'using --encrypt-manifest or --no-encrypt-manifest'
             'AND --add-access or --del-access is ambiguous.')
     if encrypt_manifest and no_encrypt_manifest:
-        raise CliError('Error: options conflict:'
+        raise CliError('options conflict:'
                        '\n  --encrypt-manifest and --no-encrypt-manifest')
 
 

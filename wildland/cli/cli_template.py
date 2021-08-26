@@ -179,7 +179,7 @@ def template_list(obj: ContextObj, show_filenames: bool):
     templates = template_manager.available_templates()
 
     if not templates:
-        click.echo('    No templates available.')
+        click.echo('No templates available.')
     else:
         for tpl in sorted(templates):
             if show_filenames:

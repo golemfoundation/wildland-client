@@ -75,8 +75,7 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         try:
             owner, pubkey = obj.session.sig.load_key(key)
         except SigError as ex:
-            click.echo(f'Failed to use provided key: {ex}')
-            return
+            raise CliError(f'Failed to use provided key:\n  {ex}') from ex
         click.echo(f'Using key: {owner}')
     else:
         owner, pubkey = obj.session.sig.generate()
@@ -103,24 +102,23 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         manifests_catalog=[],
         client=obj.client
     )
+    error_on_save = False
     try:
-        error_on_save = False
         path = obj.client.save_new_object(WildlandObject.Type.USER, user, name)
     except binascii.Error as ex:
         # Separate error to provide some sort of readable feedback
         # raised by SigContext.fingerprint through base64.b64decode
-        click.echo(f'Failed to create user due to incorrect key provided (provide public '
-                   f'key, not path to key file): {ex}')
         error_on_save = True
+        raise CliError(f'Failed to create user due to incorrect key provided (provide public '
+                       f'key, not path to key file): {ex}') from ex
     except SchemaError as ex:
-        click.echo(f'Failed to create user: {ex}')
         error_on_save = True
-
-    if error_on_save:
-        if not key:
-            # remove generated keys that will not be used due to failure at creating user
-            obj.session.sig.remove_key(owner)
-        return
+        raise CliError(f'Failed to create user: {ex}') from ex
+    finally:
+        if error_on_save:
+            if not key:
+                # remove generated keys that will not be used due to failure at creating user
+                obj.session.sig.remove_key(owner)
 
     user.add_user_keys(obj.session.sig)
 
@@ -602,7 +600,7 @@ def refresh_users(obj: ContextObj, user_list: Optional[List[User]] = None):
         try:
             _do_import_manifest(obj, location, owner, force=True)
         except WildlandError as ex:
-            click.echo(f"Error while refreshing bridge: {ex}")
+            click.secho(f"Error while refreshing bridge: {ex}", fg="red")
 
 
 user_.add_command(sign)

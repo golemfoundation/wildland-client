@@ -38,7 +38,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
     aliased_group,
     CliError,
-    ContextObj,
+    ContextObj, cli_warn,
 )
 from . import (
     cli_common,
@@ -142,7 +142,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         failed.append(f'Failed to mount: {e}')
 
     if failed:
-        click.echo('Non-critical error(s) occurred:\n' + "\n".join(failed))
+        cli_warn('Non-critical error(s) occurred:\n' + "\n".join(failed))
 
 
 @main.command(short_help='mount Wildland filesystem')
