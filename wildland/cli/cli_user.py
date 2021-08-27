@@ -37,7 +37,7 @@ from ..user import User
 from .cli_base import aliased_group, ContextObj, CliError
 from ..wlpath import WILDLAND_URL_PREFIX
 from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
-    check_if_any_options, check_options_conflict
+    check_if_any_options, check_options_conflict, publish, unpublish
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
@@ -614,6 +614,8 @@ user_.add_command(sign)
 user_.add_command(verify)
 user_.add_command(edit)
 user_.add_command(dump)
+user_.add_command(publish)
+user_.add_command(unpublish)
 
 
 @user_.command(short_help='modify user manifest')

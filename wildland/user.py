@@ -29,7 +29,7 @@ from pathlib import PurePosixPath
 from typing import List, Optional, Union, Dict, Any
 from copy import deepcopy
 
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .manifest.manifest import Manifest, ManifestDecryptionKeyUnavailableError
 from .manifest.schema import Schema
 from .exc import WildlandError
@@ -41,6 +41,7 @@ logger = get_logger('user')
 
 class _CatalogCache:
     """Helper object to manage catalog cache"""
+
     def __init__(self, manifest: Union[str, dict], cached_object=None):
         self.manifest = manifest
         self.cached_object = cached_object
@@ -84,7 +85,7 @@ class _CatalogCache:
         return self.manifest == other.manifest
 
 
-class User(WildlandObject, obj_type=WildlandObject.Type.USER):
+class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
     """
     A data transfer object representing Wildland user.
     Can be converted from/to a self-signed user manifest.
@@ -108,6 +109,18 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         self.pubkeys = pubkeys
         self.manifest = manifest
         self.client = client
+
+    def get_unique_publish_id(self) -> str:
+        return f'{self.owner}.user'
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        # The publish *path* for a user is not relying on unique_publish_id because every forest
+        # may have only one owner by design. Also, user manifest is not meant to be published
+        # to any forest but it's own due to a fact that user manifest cannot have a different owner.
+        return PurePosixPath('/forest-owner')
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return [self.get_primary_publish_path()]
 
     def __eq__(self, other):
         if not isinstance(other, User):
