@@ -29,7 +29,7 @@ from pathlib import PurePosixPath
 from typing import Dict, Any, Optional, List
 from copy import deepcopy
 
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .log import get_logger
 from .exc import WildlandError
 from .storage_backends.base import StorageBackend
@@ -40,7 +40,7 @@ from .container import Container
 logger = get_logger('storage')
 
 
-class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
+class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
     """
     A data transfer object representing Wildland storage.
     """
@@ -88,6 +88,15 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
                 array_repr += [f"{field}={fields[field]!r}"]
         str_repr = "storage(" + ", ".join(array_repr) + ")"
         return str_repr
+
+    def get_unique_publish_id(self) -> str:
+        return self.backend_id
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        return PurePosixPath('/.uuid/') / self.backend_id
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return [self.get_primary_publish_path()]
 
     @property
     def backend_id(self):

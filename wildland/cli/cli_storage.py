@@ -36,7 +36,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
-    dump, check_if_any_options, check_options_conflict
+    dump, check_if_any_options, check_options_conflict, publish, unpublish
 from ..container import Container
 from ..storage import Storage, _get_storage_by_id_or_type
 from ..manifest.template import TemplateManager, StorageTemplate
@@ -452,6 +452,8 @@ storage_.add_command(sign)
 storage_.add_command(verify)
 storage_.add_command(edit)
 storage_.add_command(dump)
+storage_.add_command(publish)
+storage_.add_command(unpublish)
 
 _add_create_commands(create)
 
