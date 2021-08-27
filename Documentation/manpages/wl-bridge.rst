@@ -13,6 +13,8 @@ Synopsis
 | :command:`wl bridge edit`
 | :command:`wl bridge sign`
 | :command:`wl bridge verify`
+| :command:`wl bridge publish <bridge>`
+| :command:`wl bridge unpublish <bridge>`
 
 Description
 ===========
@@ -107,3 +109,20 @@ For Wildland object path, will import all referenced bridges and their reference
 
     Import only the first encountered bridge manifest. Ignored except for WL container paths.
     Particularly useful if --path is used.
+
+.. program:: wl-bridge-publish
+.. _wl-bridge-publish:
+
+:command:`wl bridge publish <bridge>`
+-------------------------------------
+
+Publish a bridge manifest into user's manifests catalog (first container from the catalog
+that provides read-write storage will be used).
+
+.. program:: wl-bridge-unpublish
+.. _wl-bridge-unpublish:
+
+:command:`wl bridge unpublish <bridge>`
+---------------------------------------
+
+Unublish a bridge manifest from the whole of a user's manifests catalog.

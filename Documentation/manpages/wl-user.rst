@@ -13,6 +13,8 @@ Synopsis
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
 | :command:`wl user modify [...] <file>`
+| :command:`wl user publish <user>`
+| :command:`wl user unpublish <user>`
 
 Description
 ===========
@@ -182,3 +184,19 @@ Modify a user |~| manifest given by *<file>*.
 
    Container uri to remove. Can be repeated.
 
+.. program:: wl-user-publish
+.. _wl-user-publish:
+
+:command:`wl user publish <user>`
+---------------------------------
+
+Publish a user manifest into user's manifests catalog (first container from the catalog
+that provides read-write storage will be used).
+
+.. program:: wl-user-unpublish
+.. _wl-user-unpublish:
+
+:command:`wl user unpublish <user>`
+-----------------------------------
+
+Unublish a user manifest from the whole of a user's manifests catalog.

@@ -14,6 +14,8 @@ Synopsis
 | :command:`wl storage {sign|verify|edit} [...]`
 | :command:`wl storage create-from-template --storage-template <storage_template> <container>`
 | :command:`wl storage modify [--location <path>] [--add-access <user>] [--del-access <user>] <file>`
+| :command:`wl storage publish <storage>`
+| :command:`wl storage unpublish <storage>`
 
 Description
 ===========
@@ -351,3 +353,19 @@ Modify a storage |~| manifest given by *<file>*.
 
    User to revoke access from. Can be repeated.
 
+.. program:: wl-storage-publish
+.. _wl-storage-publish:
+
+:command:`wl storage publish <storage>`
+---------------------------------------
+
+Publish a storage manifest into user's manifests catalog (first container from the catalog
+that provides read-write storage will be used).
+
+.. program:: wl-storage-unpublish
+.. _wl-storage-unpublish:
+
+:command:`wl storage unpublish <storage>`
+-----------------------------------------
+
+Unublish a storage manifest from the whole of a user's manifests catalog.

@@ -60,6 +60,8 @@ Subcommands
 :ref:`wl-verify <wl-verify>`
 :ref:`wl-edit <wl-edit>`
 :ref:`wl-dump <wl-dump>`
+:ref:`wl-publish <wl-publish>`
+:ref:`wl-unpublish <wl-unpublish>`
 
 :ref:`wl-start <wl-start>`
 :ref:`wl-stop <wl-stop>`
