@@ -126,7 +126,7 @@ class Publisher:
         """
         user = client.load_object_from_name(WildlandObject.Type.USER, owner)
         try:
-            for storage in Publisher.get_catalog_storages(client, user):
+            for storage in Publisher.get_catalog_storages(client, user, writable_only=False):
                 if storage.has_child(uuid_path):
                     return True
         except WildlandError:
@@ -134,7 +134,8 @@ class Publisher:
         return False
 
     @staticmethod
-    def get_catalog_storages(client: Client, owner: User) -> Generator[StorageBackend, None, None]:
+    def get_catalog_storages(client: Client, owner: User, writable_only: bool = True) \
+            -> Generator[StorageBackend, None, None]:
         """
         Iterate over all suitable storages to publish a Wildland Object manifest.
         """
@@ -154,7 +155,7 @@ class Publisher:
 
                 for storage_candidate in all_storages:
 
-                    if not storage_candidate.is_writeable:
+                    if writable_only and not storage_candidate.is_writeable:
                         rejected.append(
                             f'storage {storage_candidate.params["backend-id"]} of '
                             f'container {container_candidate.uuid} '
@@ -309,6 +310,7 @@ class _UnpublishedWildlandObjectCache:
                 )
 
                 assert isinstance(wl_object, PublishableWildlandObject)
+                assert isinstance(wl_object.manifest, Manifest)
 
                 publish_path = wl_object.get_primary_publish_path()
                 owner = wl_object.manifest.owner
