@@ -255,7 +255,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
 
     manifest_type = ctx.parent.command.name if ctx.parent else None
     if manifest_type == 'edit':  # e.g., container edit
-        manifest_type = ctx.parent.parent.command.name if ctx.parent.parent else None
+        manifest_type = ctx.parent.parent.command.name if ctx.parent and ctx.parent.parent else None
     if manifest_type == 'wl':
         manifest_type = None
 
