@@ -34,6 +34,9 @@ import time
 import threading
 
 from .base import File, Attr
+from ..log import get_logger
+
+logger = get_logger('storage-generated')
 
 
 class Entry(metaclass=abc.ABCMeta):
@@ -243,7 +246,7 @@ class FuncFileEntry(FileEntry):
             return 'hello from foo'
 
         def write_bar(data: bytes):
-            logging.info('bar: %s', data)
+            logger.info('bar: %s', data)
 
         f1 = FileEntry('foo', on_read=read_foo)
         f2 = FileEntry('bar', on_write=write_bar)

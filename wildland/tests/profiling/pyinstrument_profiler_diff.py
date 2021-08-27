@@ -26,7 +26,6 @@ Performance profiler diff tool for comparing Pyinstrument profiler outputs
 """
 
 import argparse
-import logging
 import json
 
 from collections import deque
@@ -34,6 +33,7 @@ from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
+from wildland.log import get_logger
 
 from .profiler_diff import (
     BaseFunctionProfilerStats,
@@ -43,8 +43,7 @@ from .profiler_diff import (
     percentage_diff
 )
 
-
-logger = logging.getLogger('pyinstrument-profile-diff')
+logger = get_logger('pyinstrument-profile-diff')
 
 
 @dataclass
