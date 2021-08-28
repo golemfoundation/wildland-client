@@ -103,10 +103,39 @@ def cleanup():
     for f in cleanup_functions:
         f()
 
+
 def test_version(base_dir):
     output = wl_call_output(base_dir, 'version').decode().strip('\n')
     version_regex = r'[0-9]+\.[0-9]+\.[0-9]+( \(commit [0-9a-f]+\))?$'
     assert re.match(version_regex, output) is not None
+
+
+def test_edit(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+    cli('storage', 'create', 'local', 'Standalone', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    user_path = base_dir / 'users/User.user.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
+    storage_path = base_dir / 'storage/Standalone.storage.yaml'
+
+    editor = r'sed -i s,PATH,NEW,g'
+
+    cli('edit', user_path, '--editor', editor)
+    cli('edit', container_path, '--editor', editor)
+    cli('edit', storage_path, '--editor', editor)
+
+    editor = r'sed -i s,NEW,WEN,g'
+
+    cli_fail('container', 'edit', user_path, '--editor', editor)
+    cli_fail('container', 'edit', storage_path, '--editor', editor)
+    cli_fail('storage', 'edit', container_path, '--editor', editor)
+    cli_fail('storage', 'edit', user_path, '--editor', editor)
+    cli_fail('user', 'edit', storage_path, '--editor', editor)
+    cli_fail('user', 'edit', container_path, '--editor', editor)
 
 
 # Users

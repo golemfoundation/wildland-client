@@ -253,19 +253,31 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
         raise CliError('This command supports only an local path to a file. Consider using '
                        'edit command for a specific object, e.g. wl container edit')
 
-    provided_manifest_type = ctx.parent.command.name if ctx.parent else None
-    if provided_manifest_type == 'main':
-        provided_manifest_type = None
+    manifest_type = ctx.parent.command.name if ctx.parent else None
+    if manifest_type == 'edit':  # e.g., container edit
+        manifest_type = ctx.parent.parent.command.name if ctx.parent and ctx.parent.parent else None
+    if manifest_type == 'wl':
+        manifest_type = None
 
-    path = find_manifest_file(obj.client, input_file, provided_manifest_type)
+    path = find_manifest_file(obj.client, input_file, manifest_type)
 
     try:
         manifest = Manifest.from_file(path, obj.client.session.sig)
-        manifest_type = manifest.fields['object']
+        actual_manifest_type = manifest.fields['object']
+        if manifest_type is None:
+            manifest_type = actual_manifest_type
+        else:
+            if manifest_type != actual_manifest_type:
+                # Typical mistake: trying edit inlined storage by: wl storage edit container_path
+                if manifest_type == 'storage' and actual_manifest_type == 'container':
+                    raise CliError(f"To edit inline storage use: wl container edit {input_file}")
+
+                raise CliError(f"Expected {manifest_type} manifest, but for argument '{input_file}'"
+                               f" {actual_manifest_type} manifest was found."
+                               f"\nConsider using: wl {actual_manifest_type} edit {input_file}")
         data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     except ManifestError:
         data = path.read_bytes()
-        manifest_type = provided_manifest_type
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
@@ -322,7 +334,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
     click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_running():
-        path = find_manifest_file(obj.client, input_file, provided_manifest_type)
+        path = find_manifest_file(obj.client, input_file, manifest_type)
         remount_container(obj, path)
 
     return True
