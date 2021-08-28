@@ -29,13 +29,12 @@ from typing import Dict, List, Tuple, Iterable, Set, Optional
 import time
 from pathlib import PurePosixPath
 import errno
-import logging
 import threading
 
 from .base import Attr
+from ..log import get_logger
 
-
-logger = logging.getLogger('storage-cached')
+logger = get_logger('storage-cached')
 
 
 class CachedStorageMixin:

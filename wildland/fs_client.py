@@ -28,7 +28,6 @@ import itertools
 import time
 from pathlib import Path, PurePosixPath
 import subprocess
-import logging
 from typing import Callable, Dict, List, Optional, Iterable, Tuple, Iterator
 import json
 import sys
@@ -45,8 +44,9 @@ from .control_client import ControlClient, ControlClientUnableToConnectError
 from .entity.fileinfo import FileInfo
 from .manifest.manifest import Manifest
 from .storage_backends.static import StaticStorageBackend
+from .log import get_logger
 
-logger = logging.getLogger('fs_client')
+logger = get_logger('fs_client')
 
 
 @dataclasses.dataclass

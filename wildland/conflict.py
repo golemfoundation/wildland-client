@@ -25,7 +25,6 @@
 Conflict resolution
 """
 
-import logging
 import abc
 import functools
 import stat
@@ -36,8 +35,9 @@ import dataclasses
 import errno
 
 from .storage_backends.base import Attr
+from .log import get_logger
 
-logger = logging.getLogger('conflict')
+logger = get_logger('conflict')
 
 @dataclasses.dataclass
 class Resolved:

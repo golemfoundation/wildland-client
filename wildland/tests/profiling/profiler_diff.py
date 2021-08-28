@@ -25,15 +25,15 @@ Base classes of the performance profiler diff tool for comparing profiler output
 """
 
 import abc
-import logging
 
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from typing import Iterable, Optional
 
+from wildland.log import get_logger
 
-logger = logging.getLogger('profiler-diff')
+logger = get_logger('profiler-diff')
 
 
 @dataclass

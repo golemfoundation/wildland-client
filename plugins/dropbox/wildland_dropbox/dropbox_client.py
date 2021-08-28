@@ -25,7 +25,7 @@ Dropbox client wrapping and exposing Dropbox API calls that are relevant for the
 """
 
 import errno
-import logging
+
 from pathlib import PurePosixPath
 from typing import Callable, List, Optional
 
@@ -41,7 +41,9 @@ from dropbox.files import (
     WriteMode
 )
 
-logger = logging.getLogger('dropbox-client')
+from wildland.log import get_logger
+
+logger = get_logger('dropbox-client')
 
 
 class DropboxClient:

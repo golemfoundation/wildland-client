@@ -31,7 +31,6 @@ import subprocess
 import tempfile
 from subprocess import Popen, PIPE
 from pathlib import PurePosixPath, Path
-import logging
 import secrets
 import string
 from typing import Dict, List, Optional, Type
@@ -42,9 +41,10 @@ from wildland.storage_backends.base import StorageBackend, File
 from wildland.manifest.schema import Schema
 from wildland.storage_backends.local import LocalStorageBackend, LocalFile
 from wildland.fs_client import WildlandFSError
+from wildland.log import get_logger
 
+logger = get_logger('storage-encrypted')
 
-logger = logging.getLogger('storage-encrypted')
 
 class EncryptedFSRunner(metaclass=abc.ABCMeta):
     '''

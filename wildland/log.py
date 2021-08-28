@@ -25,7 +25,17 @@
 Logging
 """
 
+import logging
 import logging.config
+
+
+def get_logger(name):
+    """
+    Simple logger
+    """
+    logging.basicConfig(format='%(levelname)s:%(name)s:%(message)s')
+    logger = logging.getLogger(name)
+    return logger
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -108,7 +118,6 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         }
     }
 
-
     if console:
         config['root']['handlers'].append('console')
 
@@ -119,4 +128,5 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
             'formatter': 'default',
         }
         config['root']['handlers'].append('file')
+
     logging.config.dictConfig(config)

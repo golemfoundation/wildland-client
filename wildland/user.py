@@ -29,15 +29,14 @@ from pathlib import PurePosixPath
 from typing import List, Optional, Union
 from copy import deepcopy
 
-import logging
-
 from wildland.wildland_object.wildland_object import WildlandObject
 from .manifest.manifest import Manifest, ManifestDecryptionKeyUnavailableError
 from .manifest.schema import Schema
 from .exc import WildlandError
+from .log import get_logger
 
 
-logger = logging.getLogger('user')
+logger = get_logger('user')
 
 
 class _CatalogCache:

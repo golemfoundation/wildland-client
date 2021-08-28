@@ -30,7 +30,6 @@ Client class
 import collections.abc
 import functools
 import glob
-import logging
 import os
 import sys
 import time
@@ -61,8 +60,9 @@ from .config import Config
 from .exc import WildlandError
 from .search import Search
 from .storage_driver import StorageDriver
+from .log import get_logger
 
-logger = logging.getLogger('client')
+logger = get_logger('client')
 
 
 HTTP_TIMEOUT_SECONDS = 5
@@ -682,7 +682,8 @@ class Client:
                         bridges_map
                     )
 
-    def ensure_mount_reference_container(self, containers: Iterator[Container]) -> \
+    def ensure_mount_reference_container(self, containers: Iterator[Container],
+                                         callback_iter_func=iter) -> \
             Tuple[List[Container], str]:
         """
         Ensure that for any storage with ``MOUNT_REFERENCE_CONTAINER`` corresponding
@@ -720,7 +721,7 @@ class Client:
                 if referenced not in containers_to_process:
                     containers_to_process.append(referenced)
 
-        for container in containers_to_process:
+        for container in callback_iter_func(containers_to_process):
             try:
                 open_node(container)
             except WildlandError as ex:
@@ -874,7 +875,7 @@ class Client:
         """
         for storage in container.load_storages():
             if not StorageBackend.is_type_supported(storage.storage_type):
-                logging.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
+                logger.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
                 continue
             if predicate and not predicate(storage):
                 continue

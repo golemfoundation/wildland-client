@@ -28,14 +28,15 @@ Delegate proxy backend
 from typing import Iterable, Optional, Tuple
 from pathlib import PurePosixPath
 
-import logging
 import click
 
 from .base import StorageBackend, File, Attr
 from ..exc import WildlandError
 from ..manifest.schema import Schema
+from ..log import get_logger
 
-logger = logging.getLogger('delegate')
+logger = get_logger('delegate')
+
 
 class DelegateProxyStorageBackend(StorageBackend):
     """

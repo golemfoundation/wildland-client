@@ -26,7 +26,6 @@ Bear storage backend
 """
 
 import errno
-import logging
 import os
 import sqlite3
 import threading
@@ -46,8 +45,9 @@ from wildland.storage_backends.generated import (
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.schema import Schema
 from wildland.container import ContainerStub
+from wildland.log import get_logger
 
-logger = logging.getLogger('storage-bear')
+logger = get_logger('storage-bear')
 
 
 def get_md(note) -> bytes:

@@ -166,7 +166,7 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
         with open(output_file, 'wb') as f:
             f.write(signed_data)
     else:
-        sys.stdout.buffer.write(signed_data)
+        sys.stdout.buffer.write(signed_data.decode())
 
 
 @click.command(short_help='verify manifest signature')

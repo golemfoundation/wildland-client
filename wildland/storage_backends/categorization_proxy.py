@@ -24,7 +24,6 @@
 Categorization proxy backend
 """
 
-import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -36,8 +35,9 @@ import click
 from .base import StorageBackend, File, Attr
 from ..manifest.schema import Schema
 from ..container import ContainerStub
+from ..log import get_logger
 
-logger = logging.getLogger('categorization-proxy')
+logger = get_logger('categorization-proxy')
 
 
 @dataclass(eq=True, frozen=True)

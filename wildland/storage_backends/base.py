@@ -30,7 +30,6 @@ import abc
 import hashlib
 import itertools
 import json
-import logging
 import os
 import pathlib
 import posixpath
@@ -49,12 +48,13 @@ from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
 from ..container import ContainerStub, Container
+from ..log import get_logger
 
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
 
 BLOCK_SIZE = 1024 ** 2
-logger = logging.getLogger('storage')
+logger = get_logger('storage')
 
 
 class StorageError(BaseException):

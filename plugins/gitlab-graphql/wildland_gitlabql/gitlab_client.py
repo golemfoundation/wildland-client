@@ -27,14 +27,16 @@ initial version of the GitLab backend
 
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=line-too-long
-import logging
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
 import requests
 
-logger = logging.getLogger('GitlabClient')
+from wildland.log import get_logger
+
+logger = get_logger('GitlabClient')
+
 
 @dataclass(frozen=True)
 class CompactIssue:
@@ -49,6 +51,7 @@ class CompactIssue:
     updated_at: datetime
     labels: List[str]
     ident: str
+
 
 class GitlabClient:
     """
@@ -67,11 +70,13 @@ class GitlabClient:
         response from the server.
         """
         logger.debug('Querying the GitLab server')
-        request = requests.post('https://gitlab.com/api/graphql', json={'query': query}, headers=self.headers)
+        request = requests.post('https://gitlab.com/api/graphql', json={'query': query},
+                                headers=self.headers)
         if request.status_code == 200:
             return request.json()
 
-        raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
+        raise Exception(
+            "Query failed to run by returning code of {}. {}".format(request.status_code, query))
 
     def overwrite_issues(self, full_path: str, tmp_cursor: str):
         """
@@ -127,18 +132,20 @@ class GitlabClient:
                     for label in issue['labels']['nodes']:
                         labels.append(label['title'])
 
-                    to_return.append(CompactIssue(milestone_title = m_title,
-                                                  project_name = project_name,
-                                                  title = issue['title'],
-                                                  iid = issue['iid'],
-                                                  updated_at = update,
-                                                  labels = labels,
-                                                  ident = issue['id']))
+                    to_return.append(CompactIssue(
+                        milestone_title=m_title,
+                        project_name=project_name,
+                        title=issue['title'],
+                        iid=issue['iid'],
+                        updated_at=update,
+                        labels=labels,
+                        ident=issue['id'])
+                    )
 
                 next_page = project_issues['pageInfo']['hasNextPage']
                 if next_page:
-                    project_issues = self.overwrite_issues(str(project['fullPath']),
-                                                           project_issues['pageInfo']['endCursor'])
+                    project_issues = self.overwrite_issues(
+                        str(project['fullPath']), project_issues['pageInfo']['endCursor'])
 
         return to_return
 
@@ -154,7 +161,7 @@ class GitlabClient:
         next_page = True
 
         while next_page:
-            issue_query ="""query {
+            issue_query = """query {
                 projects(membership: true, first: 100, after: "%s") {
                     nodes {
                         fullPath
@@ -185,7 +192,7 @@ class GitlabClient:
                         hasNextPage
                     }
                 }
-            }""" % (tmp_cursor)
+            }""" % tmp_cursor
             response = self.run_query(issue_query)
             nodes = response['data']['projects']['nodes']
 
@@ -211,7 +218,7 @@ class GitlabClient:
         next_page = True
 
         while next_page:
-            issue_query ="""query {
+            issue_query = """query {
                 project(fullPath: "%s") {
                     name
                     issues(first: 100, after: "%s") {
@@ -257,16 +264,15 @@ class GitlabClient:
             for label in issue['labels']['nodes']:
                 labels.append(label['title'])
 
-            to_return.append(CompactIssue(milestone_title = m_title,
-                                            project_name = name,
-                                            title = issue['title'],
-                                            iid = issue['iid'],
-                                            updated_at = update,
-                                            labels = labels,
-                                            ident = issue['id']))
+            to_return.append(CompactIssue(milestone_title=m_title,
+                                          project_name=name,
+                                          title=issue['title'],
+                                          iid=issue['iid'],
+                                          updated_at=update,
+                                          labels=labels,
+                                          ident=issue['id']))
 
         return to_return
-
 
     def get_issue_description(self, issue: CompactIssue) -> str:
         """

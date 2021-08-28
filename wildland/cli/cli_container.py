@@ -30,19 +30,17 @@ from pathlib import PurePosixPath, Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple, Union
 import os
 import sys
-import logging
 import re
 import signal
 import tempfile
 import click
 import daemon
-import progress.counter
+import progressbar
 import yaml
 
-
+from progressbar.widgets import FormatWidgetMixin, TimeSensitiveWidgetBase
 from click import ClickException
 from daemon import pidfile
-from progress.counter import Counter
 from xdg import BaseDirectory
 
 from wildland.client import Client
@@ -60,7 +58,7 @@ from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
-from ..log import init_logging
+from ..log import init_logging, get_logger
 from ..storage_sync.base import BaseSyncer, SyncConflict
 from ..tests.profiling.profilers import profile
 
@@ -73,7 +71,31 @@ except KeyError:
 MW_PIDFILE = RUNTIME_DIR / 'wildland-mount-watch.pid'
 MW_DATA_FILE = RUNTIME_DIR / 'wildland-mount-watch.data'
 
-logger = logging.getLogger('cli_container')
+logger = get_logger('cli_container')
+
+
+# We define our own Counter widget to solve refresh count on generator
+class Counter(FormatWidgetMixin, TimeSensitiveWidgetBase):
+    """Displays the current count"""
+
+    # pylint: disable=redefined-builtin
+    def __init__(self, format='%(value)d', **kwargs):
+        FormatWidgetMixin.__init__(self, format=format, **kwargs)
+        TimeSensitiveWidgetBase.__init__(self, format=format, **kwargs)
+
+    # pylint: disable=redefined-builtin
+    def __call__(self, progress, data, format=None):
+        return FormatWidgetMixin.__call__(self, progress, data, format)
+
+
+def get_counter(msg):
+    """Create standardized counter for Wildland"""
+    widgets = [
+        msg, ": ",
+        Counter()
+    ]
+    counter = progressbar.ProgressBar(widgets=widgets, redirect_stderr=True)
+    return counter
 
 
 @aliased_group('container', short_help='container management')
@@ -617,8 +639,6 @@ def prepare_mount(obj: ContextObj,
     else:
         subcontainers = []
 
-    storages = obj.client.get_storages_to_mount(container)
-
     if not subcontainers or not only_subcontainers:
         storages = obj.client.get_storages_to_mount(container)
         primary_storage_id = obj.fs_client.find_primary_storage_id(container)
@@ -810,12 +830,14 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         current_params: List[Tuple[Container, List[Storage],
                                    List[Iterable[PurePosixPath]], Container]] = []
 
-        msg = f"Loading containers (from '{container_name}'): "
-        containers = Counter(msg).iter(obj.client.load_containers_from(
+        counter = get_counter(f"Loading containers (from '{container_name}')")
+        containers = counter(obj.client.load_containers_from(
             container_name, include_manifests_catalog=manifests_catalog))
+        counter.start()
 
-        reordered, exc_msg = obj.client.ensure_mount_reference_container(containers)
-        msg = f"Preparing mount (from '{container_name}'): "
+        counter = get_counter(f"Checking container references (from '{container_name}')")
+        reordered, exc_msg = obj.client.ensure_mount_reference_container(
+            containers, callback_iter_func=counter)
 
         if exc_msg:
             fails.append(exc_msg)
@@ -828,23 +850,22 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
                 _create_cache(obj.client, container, cache_template, list_all)
         obj.client.load_caches()
 
-        with Counter(msg, max=len(reordered)) as ctr:
-            for container in reordered:
-                try:
-                    user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-                    ctr.next()
-                    mount_params = prepare_mount(
-                        obj, container, str(container), user_paths,
-                        remount, with_subcontainers, None, list_all, only_subcontainers)
-                    current_params.extend(mount_params)
-                except WildlandError as ex:
-                    fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
+        counter = get_counter(f"Preparing mount of container references (from '{container_name}')")
+        for container in counter(reordered):
+            try:
+                user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+                mount_params = prepare_mount(
+                    obj, container, str(container), user_paths,
+                    remount, with_subcontainers, None, list_all, only_subcontainers)
+                current_params.extend(mount_params)
+            except WildlandError as ex:
+                fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
 
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)
 
     if len(params) > 1:
-        click.echo(f'Mounting storages for containers:  {len(params)}')
+        click.echo(f'Mounting storages for containers: {len(params)}')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     elif len(params) > 0:
         click.echo('Mounting one storage')
@@ -918,12 +939,10 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     fails: List[str] = []
     all_storage_ids = []
     all_cache_ids = []
-    counter = Counter()
-
+    storage_ids: List[int] = []
     if container_names:
         for container_name in container_names:
-            counter.message = f"Loading containers (from '{container_name}'): "
-
+            counter = get_counter(f"Loading containers (from '{container_name}')")
             try:
                 storage_ids, cache_ids = _collect_storage_ids_by_container_name(
                     obj, container_name, counter, with_subcontainers)
@@ -935,7 +954,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
         if fails:
             fails = ['Failed to load some container manifests:'] + fails
     else:
-        counter.message = f"Loading containers (from '{path}'): "
+        counter = get_counter(f"Loading containers (from '{path}')")
         storage_ids, cache_ids = _collect_storage_ids_by_container_path(
             obj, PurePosixPath(path), counter, with_subcontainers)
         all_storage_ids.extend(storage_ids)
@@ -963,7 +982,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
             obj.client.config.update_and_save({'default-containers': new_default_containers})
 
     if all_storage_ids or all_cache_ids:
-        click.echo(f'Unmounting {counter.index} containers')
+        click.echo(f'Unmounting {len(storage_ids)} containers')
         for storage_id in all_storage_ids:
             obj.fs_client.unmount_storage(storage_id)
 
@@ -990,15 +1009,15 @@ def _mount_path_to_backend_id(path: PurePosixPath) -> Optional[str]:
 
 
 def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
-        counter: progress.counter.Counter, with_subcontainers: bool = True) \
+       callback_iter_func=iter, with_subcontainers: bool = True) \
         -> tuple[List[int], List[int]]:
     """
     Returns a tuple with a list of normal storages and a list of cache storages.
     """
 
-    storage_ids = []
+    storage_ids: List[int] = []
     cache_ids = []
-    containers = counter.iter(obj.client.load_containers_from(container_name))
+    containers = callback_iter_func(obj.client.load_containers_from(container_name))
     for container in containers:
         unique_storage_paths = obj.fs_client.get_unique_storage_paths(container)
 
@@ -1029,14 +1048,14 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
 
 
 def _collect_storage_ids_by_container_path(obj: ContextObj, path: PurePosixPath,
-        counter: progress.counter.Counter, with_subcontainers: bool = True) \
+        callback_iter_func=iter, with_subcontainers: bool = True) \
         -> tuple[List[int], List[int]]:
     """
     Return all storage IDs corresponding to a given mount path (tuple with normal storages and
     cache storages). Path can be either absolute or relative with respect to the mount directory.
     """
 
-    all_storage_ids = counter.iter(obj.fs_client.find_all_storage_ids_by_path(path))
+    all_storage_ids = callback_iter_func(obj.fs_client.find_all_storage_ids_by_path(path))
     storage_ids = []
     cache_ids = []
 

@@ -26,7 +26,6 @@ for wildland imap backend. The representation is read-only,
 update-sensitive and includes primitive caching support.
 """
 
-import logging
 import time
 import mimetypes
 import imaplib
@@ -38,6 +37,9 @@ from email.parser import BytesParser
 from email import policy
 from datetime import datetime
 from imapclient import IMAPClient
+
+from wildland.log import get_logger
+
 
 @dataclass(eq=True, frozen=True)
 class MessageEnvelopeData:
@@ -56,6 +58,7 @@ class MessageEnvelopeData:
     subject: str
     recv_t: datetime
 
+
 @dataclass(eq=True, frozen=True)
 class MessagePart:
     """
@@ -64,6 +67,7 @@ class MessagePart:
     attachment_name: str # can be None
     mime_type: str
     content: bytes
+
 
 class ImapClient:
     """
@@ -77,7 +81,7 @@ class ImapClient:
 
     def __init__(self, host: str, login: str, password: str,
                  folder: str, ssl: bool):
-        self.logger = logging.getLogger('ImapClient')
+        self.logger = get_logger('ImapClient')
         self.host = host
         self.ssl = ssl
         self.imap = None
@@ -106,7 +110,6 @@ class ImapClient:
         # to keep track of remote changes:
         self._mailbox_version = 0
         self._last_mailbox_query = 0
-
 
     def connect(self):
         """
@@ -269,7 +272,6 @@ class ImapClient:
         if msg_id in self._message_cache:
             del self._message_cache[msg_id]
 
-
     def _prefetch_msg(self, msg_id):
         """
         Fetch headers of given message and register them in
@@ -328,7 +330,6 @@ class ImapClient:
         self._envelope_cache[msgid] = hdr
         self._all_ids.add(msgid)
 
-
     def _invalidate_and_reread(self):
         """
         invalidate local message list. Reread and update index.
@@ -349,7 +350,6 @@ class ImapClient:
 
         if len(ids_to_remove) + len(ids_to_add) > 0:
             self._mailbox_version += 1
-
 
 
 def _decode_text(sub) -> str:

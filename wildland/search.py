@@ -28,7 +28,6 @@ Utilities for URL resolving and traversing the path
 from __future__ import annotations
 from copy import deepcopy
 
-import logging
 import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -47,11 +46,12 @@ from .storage_backends.base import StorageBackend
 from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
+from .log import get_logger
 
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
 
-logger = logging.getLogger('search')
+logger = get_logger('search')
 
 
 @dataclass

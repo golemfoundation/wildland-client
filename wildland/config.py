@@ -24,7 +24,6 @@
 """
 Configuration file handling.
 """
-import logging
 from pathlib import Path
 from typing import Dict, Any
 import os
@@ -35,8 +34,9 @@ import yaml
 from .manifest.schema import Schema, SchemaError
 from .exc import WildlandError
 from .utils import load_yaml
+from .log import get_logger
 
-logger = logging.getLogger('config')
+logger = get_logger('config')
 
 STANDARD_ALIASES = ['@default', '@default-owner']
 

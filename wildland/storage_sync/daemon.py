@@ -23,7 +23,6 @@
 """
 Wildland sync daemon.
 """
-import logging
 import signal
 import threading
 
@@ -45,8 +44,9 @@ from wildland.storage import Storage
 from wildland.storage_backends.base import StorageBackend, OptionalError
 from wildland.storage_sync.base import BaseSyncer, SyncerStatus
 from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.log import get_logger
 
-logger = logging.getLogger('sync-daemon')
+logger = get_logger('sync-daemon')
 
 DEFAULT_LOG_PATH = '/tmp/wl-sync.log'
 

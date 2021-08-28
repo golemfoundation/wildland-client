@@ -28,13 +28,13 @@ Watching for changes.
 from typing import Optional, List, Callable, Dict
 from pathlib import PurePosixPath
 import threading
-import logging
 from dataclasses import dataclass
 import abc
 
 from .base import StorageBackend, Attr
+from ..log import get_logger
 
-logger = logging.getLogger('watch')
+logger = get_logger('watch')
 
 
 @dataclass

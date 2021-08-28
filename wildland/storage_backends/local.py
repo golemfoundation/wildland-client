@@ -26,7 +26,6 @@ Local storage, similar to :command:`mount --bind`
 """
 
 import errno
-import logging
 import os
 import select
 import threading
@@ -41,10 +40,11 @@ from .file_subcontainers import FileSubcontainersMixin
 from ..fs_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
+from ..log import get_logger
 
 __all__ = ['LocalStorageBackend']
 
-logger = logging.getLogger('local')
+logger = get_logger('local')
 
 
 def to_attr(st: os.stat_result) -> Attr:
