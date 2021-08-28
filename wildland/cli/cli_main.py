@@ -344,7 +344,7 @@ def stop(obj: ContextObj, keep_sync_daemon: bool) -> None:
     Unmount the Wildland filesystem.
     """
 
-    click.echo(f'Stoping Wildland at: {obj.mount_dir}')
+    click.echo(f'Stopping Wildland at: {obj.mount_dir}')
     try:
         obj.fs_client.stop()
     except WildlandError as ex:

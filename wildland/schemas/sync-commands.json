@@ -4,20 +4,24 @@
         "start": {
             "description": "Start syncing two storages, or perform a one-shot sync",
             "type": "object",
-            "required": ["container", "continuous", "unidirectional"],
+            "required": ["container-name", "job-id", "source", "target", "continuous", "unidirectional"],
             "additionalProperties": false,
             "properties": {
-                "container": {
+                "container-name": {
                     "type": "string",
-                    "description": "container name"
+                    "description": "container name (for display purposes only)"
+                },
+                "job-id": {
+                    "type": "string",
+                    "description": "unique sync job ID, currently container_owner|container_uuid"
                 },
                 "source": {
-                    "type": "string",
-                    "description": "source backend UUID or type"
+                    "type": "object",
+                    "description": "source backend params"
                 },
                 "target": {
-                    "type": "string",
-                    "description": "target backend UUID or type"
+                    "type": "object",
+                    "description": "target backend params"
                 },
                 "continuous": {
                     "type": "boolean",
@@ -30,26 +34,26 @@
             }
         },
         "stop": {
-            "description": "Stop the sync job for a container",
+            "description": "Stop a sync job",
             "type": "object",
-            "required": ["container"],
+            "required": ["job-id"],
             "additionalProperties": false,
             "properties": {
-                "container": {
+                "job-id": {
                     "type": "string",
-                    "description": "container name"
+                    "description": "unique sync job ID, currently container_owner|container_uuid"
                 }
             }
         },
-        "container-status": {
-            "description": "Return status of a syncer for a container",
+        "job-status": {
+            "description": "Return status of a sync job",
             "type": "object",
-            "required": ["container"],
+            "required": ["job-id"],
             "additionalProperties": false,
             "properties": {
-                "container": {
+                "job-id": {
                     "type": "string",
-                    "description": "container name"
+                    "description": "unique sync job ID, currently container_owner|container_uuid"
                 }
             }
         },

@@ -32,18 +32,14 @@ from typing import List, Optional, Dict
 
 import click
 
-from wildland.client import Client
 from wildland.config import Config
-from wildland.container import Container
 from wildland.exc import WildlandError
 from wildland.hashdb import HashDb
 from wildland.log import init_logging
 from wildland.control_server import ControlServer, control_command
 from wildland.manifest.schema import Schema
-from wildland.storage import Storage
 from wildland.storage_backends.base import StorageBackend, OptionalError
 from wildland.storage_sync.base import BaseSyncer, SyncerStatus
-from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.log import get_logger
 
 logger = get_logger('sync-daemon')
@@ -124,18 +120,6 @@ class SyncJob:
             job.syncer.stop_sync()
 
 
-def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
-    """
-    Helper function to find a storage by listed id or type.
-    """
-    try:
-        return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
-    except IndexError:
-        # pylint: disable=raise-missing-from
-        raise WildlandError(f'Storage {id_or_type} not found')
-
-
 class SyncDaemon:
     """
     Daemon for processing storage sync requests.
@@ -147,10 +131,12 @@ class SyncDaemon:
         self.log_path = log_path
         self.base_dir = PurePosixPath(base_dir) if base_dir else None
 
+        config = Config.load(base_dir)
+        self.base_dir = config.base_dir
+
         if socket_path:
             self.socket_path = Path(socket_path)
         else:
-            config = Config.load(base_dir)
             self.socket_path = Path(config.get('sync-socket-path'))
 
         self.control_server = ControlServer()
@@ -161,67 +147,25 @@ class SyncDaemon:
             cmd: schema.validate for cmd, schema in command_schemas.items()
         })
 
-    @staticmethod
-    def _sync_id(container: Container) -> str:
-        # this might also be derived from source and target storages
-        return container.owner + '|' + container.uuid
-
-    def start_sync(self, container_name: str, continuous: bool, unidirectional: bool,
-                   source: Optional[str] = None, target: Optional[str] = None) -> str:
+    def start_sync(self, container_name: str, job_id: str, continuous: bool, unidirectional: bool,
+                   source: dict, target: dict) -> str:
         """
         Start syncing storages, or do a one-shot sync.
 
-        :param container_name: Name of the container to sync (can be anything that
-                               `client.load_object_from_name()` supports).
+        :param container_name: Name of the container (for display purposes only).
+        :param job_id: Unique sync job ID, currently 'container_owner|container_uuid'.
         :param continuous: If true, sync in a worker thread until explicitly stopped.
         :param unidirectional: If true, only sync from `source` to `target`.
-        :param source: Source storage (UUID or storage type). Uses primary storage if not present.
-        :param target: Target storage (UUID or storage type). Uses default remote for
-                       the container if not present.
+        :param source: Source storage params.
+        :param target: Target storage params.
         :return: Response message.
         """
-        client = Client(base_dir=self.base_dir)
-        container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
 
-        all_storages = list(client.all_storages(container))
-        cache = client.cache_storage(container)
-        if cache:
-            all_storages.append(cache)
+        source_backend = StorageBackend.from_params(source)
+        target_backend = StorageBackend.from_params(target)
 
-        if source:
-            source_storage = _get_storage_by_id_or_type(source, all_storages)
-        else:
-            try:
-                source_storage = [storage for storage in all_storages
-                                  if client.is_local_storage(storage.params['type'])][0]
-            except IndexError:
-                # pylint: disable=raise-missing-from
-                raise WildlandError('No local storage backend found')
-
-        source_backend = StorageBackend.from_params(source_storage.params)
-
-        default_remotes = client.config.get('default-remote-for-container')
-
-        if target:
-            target_storage = _get_storage_by_id_or_type(target, all_storages)
-            default_remotes[container.uuid] = target_storage.backend_id
-            client.config.update_and_save({'default-remote-for-container': default_remotes})
-        else:
-            target_remote_id = default_remotes.get(container.uuid, None)
-            try:
-                target_storage = [storage for storage in all_storages
-                                 if target_remote_id == storage.backend_id
-                                 or (not target_remote_id and
-                                     not client.is_local_storage(storage.params['type']))][0]
-            except IndexError:
-                # pylint: disable=raise-missing-from
-                raise WildlandError('No remote storage backend found: specify --target-storage.')
-
-        target_backend = StorageBackend.from_params(target_storage.params)
-
-        sync_id = self._sync_id(container)
         with self.lock:
-            if sync_id in self.jobs.keys():
+            if job_id in self.jobs.keys():
                 raise WildlandError("Sync process for this container is already running; use "
                                     "stop-sync to stop it.")
 
@@ -229,16 +173,13 @@ class SyncDaemon:
                        f'of type {target_backend.TYPE}'
 
             # Store information about container/backend mappings
-            hash_db = HashDb(client.config.base_dir)
-            hash_db.update_storages_for_containers(container.uuid, [source_backend, target_backend])
+            assert self.base_dir
+            hash_db = HashDb(self.base_dir)
+            uuid = job_id.split('|')[1]
+            hash_db.update_storages_for_containers(uuid, [source_backend, target_backend])
 
-            if container.local_path:
-                container_path = PurePosixPath(container.local_path)
-                container_name = container_name or \
-                                 container_path.name.replace(''.join(container_path.suffixes), '')
-
-            source_backend.set_config_dir(client.config.base_dir)
-            target_backend.set_config_dir(client.config.base_dir)
+            source_backend.set_config_dir(self.base_dir)  # hashdb location
+            target_backend.set_config_dir(self.base_dir)
             syncer = BaseSyncer.from_storages(source_storage=source_backend,
                                               target_storage=target_backend,
                                               log_prefix=f'Container: {container_name}',
@@ -250,47 +191,43 @@ class SyncDaemon:
                 # consider running in a thread and async completion, the process can take a while
                 syncer.one_shot_sync()
             else:
-                self.jobs[sync_id] = SyncJob(container_name, syncer, source_backend,
-                                             target_backend, continuous, unidirectional)
-                self.jobs[sync_id].start()
+                self.jobs[job_id] = SyncJob(container_name, syncer, source_backend,
+                                            target_backend, continuous, unidirectional)
+                self.jobs[job_id].start()
 
         return response
 
-    def stop_sync(self, container_name: str) -> str:
+    def stop_sync(self, job_id: str) -> str:
         """
         Stop syncing storages.
 
-        :param container_name: Name of the container to stop sync (can be anything that
-                               `client.load_object_from_name()` supports).
+        :param job_id: Unique sync job ID, currently 'container_owner|container_uuid'.
         :return: Response message.
         """
-        client = Client(base_dir=self.base_dir)
-        container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
         with self.lock:
             try:
-                sync_id = self._sync_id(container)
-                sync_thread = self.jobs[sync_id]
+                sync_thread = self.jobs[job_id]
                 sync_thread.stop()
-                self.jobs.pop(sync_id)
+                self.jobs.pop(job_id)
             except KeyError:
                 # pylint: disable=raise-missing-from
-                raise WildlandError(f'Sync for container {container_name} is not running')
-        return f'Sync for container {container_name} stopped'
+                raise WildlandError(f'Sync for job {job_id} is not running')
+        return f'Sync for job {job_id} stopped'
 
     @control_command('start')
-    def control_start(self, _handler, container: str, continuous: bool, unidirectional: bool,
-                      source: Optional[str] = None, target: Optional[str] = None) -> str:
+    def control_start(self, _handler, container_name: str, job_id: str, continuous: bool,
+                      unidirectional: bool, source: dict, target: dict) -> str:
         """
         Start syncing storages, or do a one-shot sync.
         """
-        return self.start_sync(container, continuous, unidirectional, source, target)
+        return self.start_sync(container_name, job_id, continuous, unidirectional, source, target)
 
     @control_command('stop')
-    def control_stop(self, _handler, container: str) -> str:
+    def control_stop(self, _handler, job_id: str) -> str:
         """
         Stop syncing storages.
         """
-        return self.stop_sync(container)
+        return self.stop_sync(job_id)
 
     @control_command('status')
     def control_status(self, _handler) -> List[str]:
@@ -302,16 +239,13 @@ class SyncDaemon:
 
         return ret
 
-    @control_command('container-status')
-    def control_container_status(self, _handler, container: str) -> Optional[int]:
+    @control_command('job-status')
+    def control_container_status(self, _handler, job_id: str) -> Optional[int]:
         """
-        Return status of a syncer for the given container.
+        Return status of a syncer for the given job.
         """
-        client = Client(base_dir=self.base_dir)
-        cont = client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
-        sync_id = self._sync_id(cont)
-        if sync_id in self.jobs.keys():
-            return self.jobs[sync_id].syncer_status().value
+        if job_id in self.jobs.keys():
+            return self.jobs[job_id].syncer_status().value
 
         return None
 
