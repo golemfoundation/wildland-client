@@ -29,7 +29,7 @@ import collections
 import sys
 import traceback
 from pathlib import Path
-from typing import List, Tuple, Callable, Optional, IO, Any
+from typing import List, Tuple, Callable, Optional, IO
 from gettext import gettext
 
 import click
@@ -49,12 +49,6 @@ class CliError(WildlandError, click.ClickException):
         click.secho(
             gettext("Error: {message}").format(message=self.format_message()), file=file, fg="red")
 
-
-def cli_warn(message: Optional[Any] = None):
-    """
-    Printing user warning during CLI command execution
-    """
-    click.secho(f"Warning: {message}", fg="yellow")
 
 # pylint: disable=no-self-use
 
@@ -163,7 +157,7 @@ class AliasedGroup(click.Group):
         if is_alias:
             name = self.aliases[name]
 
-        cli_warn(f'Understood {cmd_name!r} as {name!r}')
+        click.secho(f'Understood {cmd_name!r} as {name!r}', fg="yellow")
         return super().get_command(ctx, name)
 
     def format_commands(self, ctx, formatter):

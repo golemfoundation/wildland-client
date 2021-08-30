@@ -639,7 +639,8 @@ def modify(ctx: click.Context,
     modify_manifest(ctx, input_file,
                     edit_funcs=[add_fields, del_fields],
                     to_add=to_add,
-                    to_del=to_del)
+                    to_del=to_del,
+                    logger=logger)
 
 
 def _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,

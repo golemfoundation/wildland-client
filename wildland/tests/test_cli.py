@@ -467,18 +467,22 @@ def test_del_nested_field():
     nested_list = {'a': {'b': {'c': ['a', 'b', 'c']}}}
     nested_set = {'a': {'b': {'c': {'a': 1, 'b': 'c'}}}}
 
-    res = del_nested_fields(deepcopy(nested_list), {('a', 'b', 'c'): [0, 2, 99]})
+    class Logger:
+        def warning(self, *args, **kwargs):
+            pass
+
+    res = del_nested_fields(deepcopy(nested_list), {('a', 'b', 'c'): [0, 2, 99]}, logger=Logger())
     assert res['a']['b']['c'] == ['b']
 
     # Nested field doesn't exist. Expect unchanged object
-    res = del_nested_fields(deepcopy(nested_list), {('a', 'c'): [0, 2]})
+    res = del_nested_fields(deepcopy(nested_list), {('a', 'c'): [0, 2]}, logger=Logger())
     assert res == nested_list
 
-    res = del_nested_fields(deepcopy(nested_set), {('a', 'b', 'c'): [0, 'a', 'c']})
+    res = del_nested_fields(deepcopy(nested_set), {('a', 'b', 'c'): [0, 'a', 'c']}, logger=Logger())
     assert res['a']['b']['c'] == {'b': 'c'}
 
     # Nested field doesn't exist. Expect unchanged object
-    res = del_nested_fields(deepcopy(nested_set), {('a', 'b', 'd'): [0, 'a', 'c']})
+    res = del_nested_fields(deepcopy(nested_set), {('a', 'b', 'd'): [0, 'a', 'c']}, logger=Logger())
     assert res == nested_set
 
 
@@ -1541,7 +1545,11 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
     cli('forest', 'create', '--access', '*', 'Alice', 'rw')
 
     output = []
-    monkeypatch.setattr('wildland.cli.cli_container.cli_warn', output.append)
+
+    def capture(*args):
+        output.extend(args)
+
+    monkeypatch.setattr('wildland.cli.cli_container.logger.warning', capture)
     cli('container', 'publish', 'mycapsule')
     print(list(output))
     assert any((o.startswith("Some local containers (or container updates) "
@@ -5102,8 +5110,9 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
     lines = output.decode().splitlines()
     assert lines == [
         f'Created: {base_config_dir}/users/Alice.user.yaml',
-        f'WARNING:user:User {alice_key}: failed to load all 2 of the manifests catalog containers. '
-         '1 due to lack of decryption key and 1 due to unknown errors)',
+        f'\x1b[33mWarning: User {alice_key}: '
+        f'failed to load all 2 of the manifests catalog containers. '
+         '1 due to lack of decryption key and 1 due to unknown errors)\x1b[0m',
         f'Created: {base_config_dir}/bridges/Alice.bridge.yaml'
     ]
 

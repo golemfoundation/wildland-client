@@ -48,7 +48,7 @@ from xdg import BaseDirectory
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import aliased_group, ContextObj, CliError, cli_warn
+from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
     check_if_any_options
@@ -73,7 +73,7 @@ except KeyError:
 MW_PIDFILE = RUNTIME_DIR / 'wildland-mount-watch.pid'
 MW_DATA_FILE = RUNTIME_DIR / 'wildland-mount-watch.data'
 
-logger = logging.getLogger('cli_container')
+logger = logging.getLogger('cli-container')
 
 
 @aliased_group('container', short_help='container management')
@@ -255,8 +255,8 @@ def publish(obj: ContextObj, cont):
 
     # if all containers are unpublished DO NOT print warning
     if not_published and len(not_published) != n_container:
-        cli_warn("Some local containers (or container updates) are not published:\n" +
-                   '\n'.join(sorted(not_published)))
+        logger.warning("Some local containers (or container updates) are not published:%s",
+                       '\n'.join(sorted(not_published)))
 
 
 @container_.command(short_help='unpublish container manifest')
@@ -298,7 +298,7 @@ def _container_info(client, container, users_and_bridge_paths):
             result.update({"location": cache.params[storage_cls.LOCATION_PARAM]})
         container_fields["cache"] = result
 
-    cli_warn("Sensitive fields are hidden.")
+    click.secho("Sensitive fields are hidden.", fg="yellow")
     click.echo(container.local_path)
     data = yaml.dump(container_fields, encoding='utf-8', sort_keys=False)
     click.echo(data.decode())
@@ -355,7 +355,7 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
         container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
     except ManifestError as ex:
         if force:
-            cli_warn(f'Failed to load manifest: {ex}')
+            logger.warning('Failed to load manifest: %s', ex)
             try:
                 path = obj.client.find_local_manifest(WildlandObject.Type.CONTAINER, name)
                 if path:
@@ -365,9 +365,9 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
                 # already removed
                 pass
             if cascade:
-                cli_warn('Unable to cascade remove: manifest failed to load.')
+                logger.warning('Unable to cascade remove: manifest failed to load.')
             return
-        cli_warn(f'Failed to load manifest, cannot delete: {ex}')
+        logger.warning('Failed to load manifest, cannot delete: %s', ex)
         click.echo('Use --force to force deletion.')
         return
 
@@ -482,7 +482,8 @@ def modify(ctx: click.Context,
         to_add=to_add,
         to_del=to_del,
         to_set=to_set,
-        to_del_nested=to_del_nested
+        to_del_nested=to_del_nested,
+        logger=logger
     )
 
     if publish and modified:

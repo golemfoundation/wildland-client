@@ -26,6 +26,7 @@ Wildland command-line interface.
 """
 
 import os
+import logging
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional, Sequence, Union
 
@@ -38,7 +39,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
     aliased_group,
     CliError,
-    ContextObj, cli_warn,
+    ContextObj,
 )
 from . import (
     cli_common,
@@ -55,6 +56,9 @@ from ..log import init_logging
 from ..manifest.manifest import ManifestError
 from ..client import Client
 from .. import __version__ as _version
+
+
+logger = logging.getLogger('cli')
 
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]
@@ -79,6 +83,8 @@ def main(ctx: click.Context, base_dir, dummy, debug, verbose):
     ctx.obj = ContextObj(client)
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
+    else:
+        init_logging(level='WARNING')
 
 
 main.add_command(cli_user.user_)
@@ -142,7 +148,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         failed.append(f'Failed to mount: {e}')
 
     if failed:
-        cli_warn('Non-critical error(s) occurred:\n' + "\n".join(failed))
+        logger.warning('Non-critical error(s) occurred: %s', "\n".join(failed))
 
 
 @main.command(short_help='mount Wildland filesystem')

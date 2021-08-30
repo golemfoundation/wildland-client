@@ -34,7 +34,7 @@ import uuid
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import aliased_group, ContextObj, CliError, cli_warn
+from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
     dump, check_if_any_options, check_options_conflict
@@ -299,7 +299,7 @@ def _delete_force(client: Client, name: str, no_cascade: bool):
         # already removed
         pass
     if not no_cascade:
-        cli_warn('Unable to cascade remove: manifest failed to load.')
+        logger.warning('Unable to cascade remove: manifest failed to load.')
 
 
 def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path, str]]]):
@@ -361,8 +361,8 @@ def _ensure_backend_location_exists(backend: StorageBackend) -> None:
             backend.mkdir(PurePosixPath(path))
             click.echo(f'Created base path: {path}')
     except Exception as ex:
-        cli_warn(f'Could not create base path {path} in a writable storage '
-                 f'[{backend.backend_id}]. {ex}')
+        logger.warning('Could not create base path %s in a writable storage [%s]. %s',
+                       path, backend.backend_id, ex)
 
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',
@@ -434,4 +434,5 @@ def modify(ctx: click.Context,
                     edit_funcs=[add_fields, del_fields, set_fields],
                     to_add=to_add,
                     to_del=to_del,
-                    to_set=to_set)
+                    to_set=to_set,
+                    logger=logger)
