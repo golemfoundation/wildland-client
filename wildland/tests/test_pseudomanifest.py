@@ -82,8 +82,18 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         '--container', 'Container',
         '--inline',
         '--no-encrypt-manifest')
+
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli('container', 'create', 'ContainerB', '--path', '/PATH', '--owner', 'UserB')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'ContainerB',
+        '--inline',
+        '--no-encrypt-manifest')
+
     cli('start', '--default-user', 'User')
     cli('container', 'mount', 'Container')
+    cli('container', 'mount', 'ContainerB')
 
     client = Client(base_dir)
     mount_dir = client.fs_client.mount_dir
@@ -116,6 +126,19 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         assert "- /NEW" not in f.read()
     with open(pseudomanifest_path, "r") as f:
         assert "- /NEW" not in f.read()
+
+    # edit with non-default owner
+
+    pseudomanifest_path_b = mount_dir / '.users/0xbbb:/PATH/.manifest.wildland.yaml'
+    pseudomanifest_replace(pseudomanifest_path_b, "paths:\n", "paths:\n- /NEW\n")
+    with open(base_dir/"containers/ContainerB.container.yaml", "r") as f:
+        content = f.read()
+        assert "- /NEW" in content
+        assert "paths:\\n- /.uuid/" in content
+    with open(pseudomanifest_path_b, "r") as f:
+        content = f.read()
+        assert "- /NEW" in content
+        assert "paths:\n- /.uuid/" in content
 
     # edit category
 

@@ -46,7 +46,7 @@ class PseudomanifestFile(FullBufferedFile):
         manifest = Manifest.from_unsigned_bytes(bytes(self.data))
         manifest.skip_verification()
         self.uuid_path = manifest.fields['paths'][0]
-        self.container_wl_path = f':{self.uuid_path}:'
+        self.container_wl_path = f"wildland:{manifest.fields['owner']}:{self.uuid_path}:"
 
     def read_full(self) -> bytes:
         return self.data
