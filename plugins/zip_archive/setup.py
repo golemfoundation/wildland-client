@@ -25,7 +25,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'wildland.storage_backends': [
-            'webdav = wildland_zip.backend:ZipArchiveStorageBackend',
+            'zip_archive = wildland_zip.backend:ZipArchiveStorageBackend',
         ]
     }
 )
