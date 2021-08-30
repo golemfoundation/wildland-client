@@ -137,7 +137,7 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
             yield FuncDirEntry(self._id_issue(issue),
                                partial(self._issue_content, issue))
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')):
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')):
         """
         Creates a separate container for each of the issues fetched from the server
         """

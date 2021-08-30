@@ -992,7 +992,7 @@ class Client:
                     # enumeration in general case. See #419 for details.
                     continue
                 with backend:
-                    for _, subcontainer in backend.get_children():
+                    for _, subcontainer in backend.get_children(self):
                         yield self.load_subcontainer_object(container, storage, subcontainer)
             except NotImplementedError:
                 continue

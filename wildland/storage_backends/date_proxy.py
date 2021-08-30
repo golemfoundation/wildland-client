@@ -63,10 +63,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         "required": ["reference-container"],
         "properties": {
             "reference-container": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#url"},
-                    {"$ref": "/schemas/container.schema.json"}
-                ],
+                "$ref": "/schemas/types.json#reference-container",
                 "description": ("Container to be used, either as URL "
                                 "or as an inlined manifest"),
             },
@@ -152,7 +149,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
         return self.inner.open(inner_path, flags)
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dates = []

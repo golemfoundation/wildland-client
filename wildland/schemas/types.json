@@ -162,6 +162,11 @@
                 }
             },
         "additionalProperties": false
+    },
+    "reference-container": {
+        "oneOf": [
+            {"$ref": "/schemas/types.json#url"},
+            {"$ref": "/schemas/container.schema.json"}
+        ]
     }
-
 }

@@ -1,0 +1,19 @@
+.. option:: --reference-container-url <url>
+
+   Inner container URL for this storage.
+   
+.. option:: --rules <rules>
+    
+   Rules to be followed when modifying the initial categories of
+   the subcontainers, each to be passed as a dictionary enclosed in
+   single quotes, e.g.:
+   '{"match-with:: "/category", "replace-with": "/other"}'
+   Whenever a capture group is to be used in a regex rule, the user
+   should precede the rule that includes a backreference with a
+   raw string indicator, e.g.:
+   '{"match-category-regex: "/(.*)", "replace-with": r"/prefix/\1"}'
+
+.. option:: --conflict <conflict>
+    
+   A keyword explaining the behaviour of the backend when
+   encountering conflicting rules (first-apply|last-apply|all-apply)
