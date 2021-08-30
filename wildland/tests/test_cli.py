@@ -4222,9 +4222,9 @@ def test_nonexistent_container_under_existing_bridge(cli, base_dir, tmpdir):
     cli('user', 'import', str(bridge_destination))
 
     with pytest.raises(subprocess.CalledProcessError) as exception_info:
-        wl_call_output(base_dir, 'container', 'dump', ':/IMPORT:').decode()
+        wl_call_output(base_dir, 'container', 'dump', ':/forests/0xbbb-IMPORT:').decode()
 
-    assert 'Error: Manifest for the given path [:/IMPORT:] was not found' \
+    assert 'Error: Manifest for the given path [:/forests/0xbbb-IMPORT:] was not found' \
         in exception_info.value.stdout.decode()
 
 
@@ -4641,7 +4641,7 @@ def test_import_user(cli, base_dir, tmpdir):
     assert 'owner: \'0xaaa\'' in bridge_data
     assert f'user: file://localhost{user_path}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
     destination.write(_create_user_manifest('0xccc'))
     cli('user', 'import', '--path', '/IMPORT', '--path', '/FOO', str(destination))
@@ -4684,7 +4684,7 @@ def test_import_bridge(cli, base_dir, tmpdir):
     assert 'owner: \'0xaaa\'' in bridge_data
     assert f'user: file://localhost{user_destination}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /IMPORT[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-IMPORT[\S\s]+', bridge_data)
 
 
 def test_import_bridge_with_object_location(cli, base_dir, tmpdir):
@@ -4715,7 +4715,7 @@ def test_import_bridge_with_object_location(cli, base_dir, tmpdir):
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xaaa\'' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /IMPORT[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-IMPORT[\S\s]+', bridge_data)
 
 
 def test_import_user_wl_path(cli, base_dir, tmpdir):
@@ -4739,7 +4739,7 @@ def test_import_user_wl_path(cli, base_dir, tmpdir):
     assert 'owner: \'0xaaa\'' in bridge_data
     assert 'user: wildland:0xaaa:/STORAGE:/Bob.user.yaml' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
 
 def test_import_bridge_wl_path(cli, base_dir, tmpdir):
@@ -4776,7 +4776,7 @@ def test_import_bridge_wl_path(cli, base_dir, tmpdir):
     assert 'owner: \'0xddd\'' in bridge_data
     assert f'file://localhost{bob_manifest_location}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-IMPORT[\S\s]+', bridge_data)
 
     assert (base_dir / 'users/Bob.user.yaml').read_bytes() == bob_user_manifest
 
@@ -4798,7 +4798,7 @@ def test_import_user_bridge_owner(cli, base_dir, tmpdir):
     assert 'owner: \'0xccc\'' in bridge_data
     assert f'user: file://localhost{user_path}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
 
 def test_import_user_existing(cli, base_dir, tmpdir):

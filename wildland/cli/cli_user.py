@@ -442,7 +442,9 @@ def _do_process_imported_manifest(
             user_location=user_location,
             user_pubkey=user.primary_pubkey,
             user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
-            paths=paths,
+            paths=(paths or user.paths),
+            use_safe_paths=(not bool(paths)),  # Use safe paths if user has not
+                                               # defined paths explicitly
             client=obj.client
         )
 
@@ -450,7 +452,8 @@ def _do_process_imported_manifest(
         bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name)
         click.echo(f'Created: {bridge_path}')
     else:
-        bridge = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.BRIDGE)
+        bridge = WildlandObject.from_manifest(
+            manifest, obj.client, WildlandObject.Type.BRIDGE, use_safe_paths=True)
 
         # adjust imported bridge
         if default_user:
@@ -522,7 +525,9 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=posix_paths,
+                    paths=(posix_paths or bridge.paths),
+                    use_safe_paths=(not bool(posix_paths)),  # Use safe paths if user has not
+                                                             # defined paths explicitly
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')

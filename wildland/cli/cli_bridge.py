@@ -121,6 +121,7 @@ def create(obj: ContextObj,
         user_pubkey=target_user.primary_pubkey,
         user_id=obj.client.session.sig.fingerprint(target_user.primary_pubkey),
         paths=paths,
+        use_safe_paths=False,
         client=obj.client
     )
 

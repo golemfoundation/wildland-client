@@ -56,5 +56,5 @@ assert_readmes_comprehensive_enough
 make -C Documentation/ \
     SPHINXBUILD=/home/user/env/bin/sphinx-build \
     SPHINXOPTS=-W \
-    BUILDDIR=/tmp/artifacts/docs \
+    BUILDDIR="$PWD"/artifacts/docs \
     html man pseudoxml

@@ -25,6 +25,7 @@
 Stuff related to publishing and unpublishing wildland objects.
 """
 
+import functools
 from pathlib import Path, PurePosixPath
 from typing import Optional, Generator, List, Set, Tuple
 
@@ -66,6 +67,7 @@ class Publisher:
         if catalog_entry is not None:
             raise NotImplementedError('choosing catalog entry is not supported')
 
+    @functools.cache
     def _cache(self, obj_type: WildlandObject.Type):
         """
         Return wl object cache instance based on object type

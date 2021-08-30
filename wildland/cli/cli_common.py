@@ -393,7 +393,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
 @click.command(short_help='publish a manifest')
 @click.argument('file', metavar='NAME or PATH')
 @click.pass_context
-def publish(ctx: click.Context, file):
+def publish(ctx: click.Context, file: str):
     """
     Publish Wildland Object manifest to a publishable storage from manifests catalog.
     """
@@ -417,7 +417,7 @@ def publish(ctx: click.Context, file):
 @click.command(short_help='unpublish a manifest')
 @click.argument('file', metavar='NAME or PATH')
 @click.pass_context
-def unpublish(ctx: click.Context, file):
+def unpublish(ctx: click.Context, file: str):
     """
     Unpublish Wildland Object manifest from all matchin manifest catalogs.
     """
@@ -445,7 +445,7 @@ def republish_object(client: Client, wl_object: PublishableWildlandObject):
         raise WildlandError(f"Failed to republish {obj_type}: {ex}") from ex
 
 
-def _get_publishable_object_from_file(ctx: click.Context, file) -> PublishableWildlandObject:
+def _get_publishable_object_from_file(ctx: click.Context, file: str) -> PublishableWildlandObject:
     obj: ContextObj = ctx.obj
 
     manifest_type = _get_expected_manifest_type(ctx)

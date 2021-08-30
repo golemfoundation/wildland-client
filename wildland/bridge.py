@@ -54,6 +54,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                  user_pubkey: str,
                  user_id: str,
                  paths: Iterable[PurePosixPath],
+                 use_safe_paths: bool,
                  client,
                  manifest: Manifest = None):
         super().__init__()
@@ -66,9 +67,10 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         self.paths: List[PurePosixPath] = []
 
         if paths:
-            self.paths = list(paths)
-        else:
-            self.paths = [self._create_safe_bridge_path()]
+            if use_safe_paths:
+                self.paths = self._create_safe_bridge_paths(paths)
+            else:
+                self.paths = list(paths)
 
     def get_unique_publish_id(self) -> str:
         return f'{self.user_id}.bridge'
@@ -79,29 +81,21 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     def get_publish_paths(self) -> List[PurePosixPath]:
         return [self.get_primary_publish_path()] + self.paths.copy()
 
-    def _create_safe_bridge_path(self) -> PurePosixPath:
+    def _create_safe_bridge_paths(self, paths) -> List[PurePosixPath]:
         """
         Creates safe (ie. obscure) bridge path which will not conflict with other potentially
         existing, user-defined paths which could cause mailicious forest to be mounted without
         user's awareness.
         """
-        try:
-            user = self.client.get_user_by_id(self.user_id)
-            file_path = user.manifest.local_path
+        safe_paths = []
 
-            if file_path and file_path.suffixes[-2:] == ['.user', '.yaml']:
-                # Friendly name for newly imported user manifest will be 0xaaaa which is expected as
-                # the path is supposed to be safe. For existing user manifest with _really_ friendly
-                # names (ie. manually created by a user) this will still be a safe path.
-                friendly_name = file_path.name.removesuffix('.user.yaml')
-            else:
-                # If cannot recognize user yaml format, do not attempt to figure out friendly name
-                friendly_name = self.user_id
-        except WildlandError:
-            # If user was not imported yet, do not try to figure out friendly name
-            friendly_name = self.user_id
+        for path in paths:
+            if path.is_relative_to('/'):
+                path = path.relative_to('/')
 
-        return PurePosixPath('/forests') / friendly_name
+            safe_paths.append(PurePosixPath(f'/forests/{self.user_id}-' + '_'.join(path.parts)))
+
+        return safe_paths
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
@@ -111,6 +105,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                 user_pubkey=fields['pubkey'],
                 user_id=client.session.sig.fingerprint(fields['pubkey']),
                 paths=[PurePosixPath(p) for p in fields['paths']],
+                use_safe_paths=kwargs.pop('use_safe_paths', False),
                 client=client,
                 manifest=manifest
             )

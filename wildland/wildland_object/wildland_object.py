@@ -51,6 +51,7 @@ class WildlandObject(abc.ABC):
         LINK = 'link'
 
     _subclasses: typing.Dict[Type, typing.Type['WildlandObject']] = {}
+    _class_to_type: typing.Dict[typing.Type['WildlandObject'], Type] = {}
 
     CURRENT_VERSION = '1'  # when updating, update also in schemas/types.json
     SCHEMA: typing.Optional[Schema] = None
@@ -135,13 +136,18 @@ class WildlandObject(abc.ABC):
         """
 
     @property
-    def type(self):
+    def type(self) -> Type:
         """
         Returns Wildland Object Type
         """
-        class_to_type = {v: k for k, v in self._subclasses.items()}
+        if not self._class_to_type:
+            # Using @cache decorator from functools seems more elegant but mypy doesn't really
+            # like it, especially when you want to combine it with @property decorator.
+            # Implemeting your own cachedproperty decorator for this case would be an overkill tho
+            # ref: https://github.com/python/mypy/issues/1362
+            self._class_to_type = {v: k for k, v in self._subclasses.items()}
 
-        return class_to_type[self.__class__]
+        return self._class_to_type[self.__class__]
 
     @property
     def local_path(self):
