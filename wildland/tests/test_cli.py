@@ -1190,8 +1190,13 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
 def test_container_edit(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH',
+        '--container', 'Container', '--inline')
 
     manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        original = f.read()
 
     editor = r'sed -i s,PATH,HTAP,g'
     cli('container', 'edit', 'Container', '--editor', editor)
@@ -1204,6 +1209,8 @@ def test_container_edit(cli, base_dir):
     with open(manifest) as f:
         data = f.read()
     assert "/PATH" in data
+
+    assert original == data
 
 
 def test_container_edit_encryption(cli, base_dir):
