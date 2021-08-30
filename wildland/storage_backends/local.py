@@ -151,7 +151,7 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
     def cli_options(cls):
         opts = super(LocalStorageBackend, cls).cli_options()
         opts.append(click.Option(['--location'], metavar='PATH', help='path in local filesystem',
-                                  required=True))
+                                 required=True))
         return opts
 
     @classmethod
@@ -212,7 +212,7 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
             self.watcher_instance.ignore_event('delete', path)
         os.unlink(self._path(path))
 
-    def mkdir(self, path: PurePosixPath, mode: int=0o777) -> None:
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
         os.makedirs(self._path(path), mode, exist_ok=True)

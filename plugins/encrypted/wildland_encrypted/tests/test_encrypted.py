@@ -20,7 +20,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,consider-using-with
 from pathlib import Path
 import os
 import time
@@ -30,16 +30,18 @@ import zlib
 
 import pytest
 
-from wildland.storage_backends.encrypted import EncFS, GoCryptFS, generate_password
 from wildland.storage_backends.local import LocalStorageBackend
 from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.client import Client
+from wildland.cli.cli_base import ContextObj
+from wildland.cli.cli_main import _do_mount_containers
 
-from ..client import Client
+# Pylint does not recognize imported pytest fixtures as used.
+# It cannot be moved to the local conftest.py because import from one conftest.py to another fails.
+from wildland.tests.conftest import cli, base_dir  # pylint: disable=unused-import
+from ..backend import EncFS, GoCryptFS, generate_password
 
-from ..cli.cli_base import ContextObj
-from ..cli.cli_main import _do_mount_containers
 
-# pylint: disable=consider-using-with
 @pytest.mark.parametrize('engine', ['gocryptfs', 'encfs'])
 def test_encrypted_with_url(cli, base_dir, engine):
     local_dir = base_dir / 'local'
@@ -85,18 +87,18 @@ def test_encrypted_with_url(cli, base_dir, engine):
     # write and read a file
     mounted_plaintext = obj.fs_client.mount_dir / Path('/PATH').relative_to('/')
     assert os.listdir(mounted_plaintext) == ['.manifest.wildland.yaml'], \
-            "plaintext dir should contain pseudomanifest only!"
+        "plaintext dir should contain pseudomanifest only!"
     with open(mounted_plaintext / 'test.file', 'w') as ft:
-        ft.write("1" * 10000) # low entropy plaintext file
+        ft.write("1" * 10000)  # low entropy plaintext file
 
     assert sorted(os.listdir(mounted_plaintext)) == ['.manifest.wildland.yaml', 'test.file']
 
-    time.sleep(1) # time to let engine finish writing to plaintext dir
+    time.sleep(1)  # time to let engine finish writing to plaintext dir
 
     # check if ciphertext directory looks familiar
     listing = os.listdir(local_dir)
     assert len(listing) > 1
-    listing_set = set(listing) - set(['gocryptfs.conf', 'gocryptfs.diriv', '.encfs6.xml'])
+    listing_set = set(listing) - {'gocryptfs.conf', 'gocryptfs.diriv', '.encfs6.xml'}
     listing = list(listing_set)
 
     # read and examine entropy of ciphertext file
@@ -120,21 +122,12 @@ def test_encrypted_with_url(cli, base_dir, engine):
         with pytest.raises(OSError):
             ft2.write("2" * 10000)
 
-    time.sleep(1) # otherwise "unmount: /tmp/.../mnt: target is busy"
+    time.sleep(1)  # otherwise "unmount: /tmp/.../mnt: target is busy"
+
 
 def test_gocryptfs_runner(base_dir):
-    first = base_dir / 'a'
-    first_clear = first / 'clear'
-    first_enc = first / 'enc'
-    second = base_dir / 'b'
-    second_clear = second / 'clear'
-    second_enc = second / 'enc'
-    first.mkdir()
-    first_clear.mkdir()
-    first_enc.mkdir()
-    second.mkdir()
-    second_clear.mkdir()
-    second_enc.mkdir()
+    first, _first_clear, first_enc = _make_dirs(base_dir, 'a')
+    second, second_clear, second_enc = _make_dirs(base_dir, 'b')
 
     # init, capture config
     runner = GoCryptFS.init(first, first_enc, None)
@@ -162,19 +155,20 @@ def test_gocryptfs_runner(base_dir):
         assert f.read() == "string"
     assert runner3.stop() == 0
 
+
+def _make_dirs(base_dir, dir_name):
+    base = base_dir / dir_name
+    clear = base / 'clear'
+    enc = base / 'enc'
+    base.mkdir()
+    clear.mkdir()
+    enc.mkdir()
+    return base, clear, enc
+
+
 def test_encfs_runner(base_dir):
-    first = base_dir / 'a'
-    first_clear = first / 'clear'
-    first_enc = first / 'enc'
-    second = base_dir / 'b'
-    second_clear = second / 'clear'
-    second_enc = second / 'enc'
-    first.mkdir()
-    first_clear.mkdir()
-    first_enc.mkdir()
-    second.mkdir()
-    second_clear.mkdir()
-    second_enc.mkdir()
+    first, first_clear, first_enc = _make_dirs(base_dir, 'a')
+    second, second_clear, second_enc = _make_dirs(base_dir, 'b')
 
     # init, capture config
     runner = EncFS.init(first, first_enc, first_clear)
@@ -200,6 +194,7 @@ def test_encfs_runner(base_dir):
     with open(second_clear / 'test.file', 'r') as f:
         assert f.read() == "string"
     assert runner3.stop() == 0
+
 
 def test_generate_password():
     assert ';' not in generate_password(100)

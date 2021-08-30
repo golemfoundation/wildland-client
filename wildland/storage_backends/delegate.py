@@ -38,6 +38,7 @@ from ..log import get_logger
 logger = get_logger('delegate')
 
 
+
 class DelegateProxyStorageBackend(StorageBackend):
     """
     A proxy storage that exposes a subdirectory of another container.
@@ -65,7 +66,7 @@ class DelegateProxyStorageBackend(StorageBackend):
             },
             "subdirectory": {
                 "$ref": "/schemas/types.json#abs-path",
-                "description": ("Subdirectory of reference-container to be exposed"),
+                "description": "Subdirectory of reference-container to be exposed",
             },
         }
     })
@@ -84,10 +85,10 @@ class DelegateProxyStorageBackend(StorageBackend):
     def cli_options(cls):
         return [
             click.Option(['--reference-container-url'], metavar='URL',
-                          help='URL for reference container manifest',
+                         help='URL for reference container manifest',
                          required=True),
             click.Option(['--subdirectory'], metavar='SUBDIRECTORY',
-                          help='Subdirectory of reference-container to be exposed',
+                         help='Subdirectory of reference-container to be exposed',
                          required=False),
         ]
 

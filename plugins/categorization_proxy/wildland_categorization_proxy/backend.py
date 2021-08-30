@@ -32,10 +32,10 @@ from typing import Iterable, Iterator, List, Set, Tuple, FrozenSet
 
 import click
 
-from .base import StorageBackend, File, Attr
-from ..manifest.schema import Schema
-from ..container import ContainerStub
-from ..log import get_logger
+from wildland.storage_backends.base import StorageBackend, File, Attr
+from wildland.manifest.schema import Schema
+from wildland.container import ContainerStub
+from wildland.log import get_logger
 
 logger = get_logger('categorization-proxy')
 
@@ -68,8 +68,8 @@ class CategorizationProxyStorageBackend(StorageBackend):
         "properties": {
             "reference-container": {
                 "$ref": "/schemas/types.json#reference-container",
-                "description": ("Container to be used, either as URL or as an inlined manifest"),
-            },
+                "description": "Container to be used, either as URL or as an inlined manifest",
+                },
             "with-unclassified-category": {
                 "type": "boolean",
                 "description": "Create unclassified directory holding all of the untagged "
@@ -172,11 +172,11 @@ class CategorizationProxyStorageBackend(StorageBackend):
         return set(self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), False))
 
     def _get_categories_to_subcontainer_map_recursive(
-        self,
-        dir_path: PurePosixPath,
-        open_category: str,
-        closed_categories: Set[str],
-        category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
+            self,
+            dir_path: PurePosixPath,
+            open_category: str,
+            closed_categories: Set[str],
+            category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree, collect and return all of the metainformation needed to
         create subcontainers based on the tags embedded in directory names.

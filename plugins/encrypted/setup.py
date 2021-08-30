@@ -2,10 +2,6 @@
 #
 # Copyright (C) 2020 Golem Foundation
 #
-# Authors:
-#                    Paweł Marczewski <pawel@invisiblethingslab.com>,
-#                    Wojtek Porczyk <woju@invisiblethingslab.com>
-#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -24,12 +20,12 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="wildland-http",
+    name="wildland-encrypted",
     version="0.1",
     packages=find_packages(),
     entry_points={
         'wildland.storage_backends': [
-            'http = wildland_http.backend_http:HttpStorageBackend',
+            'encrypted = wildland_encrypted.backend:EncryptedStorageBackend',
         ]
     }
 )
