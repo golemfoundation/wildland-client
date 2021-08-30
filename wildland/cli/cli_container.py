@@ -255,7 +255,7 @@ def publish(obj: ContextObj, cont):
 
     # if all containers are unpublished DO NOT print warning
     if not_published and len(not_published) != n_container:
-        logger.warning("Some local containers (or container updates) are not published:%s",
+        logger.warning("Some local containers (or container updates) are not published:%s\n",
                        '\n'.join(sorted(not_published)))
 
 

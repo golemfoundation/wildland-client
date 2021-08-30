@@ -672,7 +672,7 @@ paths:
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
         logs = capsys.readouterr().err
-        assert "Manifest owner does not have access to signing key" in logs
+        assert "Warning: cannot load bridge to [/path]" in logs
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])

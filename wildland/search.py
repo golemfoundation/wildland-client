@@ -543,8 +543,8 @@ class Search:
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load bridge to [%s]', bridge.paths[0])
-                logger.warning('cannot load linked user manifest: %s. Exception: %s',
-                               location, str(ex))
+                logger.debug('cannot load linked user manifest: %s. Exception: %s',
+                             location, str(ex))
                 return
         assert isinstance(user, User)
         next_client.recognize_users_and_bridges([user], [bridge])
