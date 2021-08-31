@@ -3701,6 +3701,29 @@ def test_cli_container_sync_oneshot(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
+def test_cli_container_sync_oneshot_error(base_dir, sync, cli):
+    base_data_dir = base_dir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+
+    container_name = 'sync_oneshot'
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
+        '--location', storage2_data)
+
+    make_file(storage1_data / 'testfile', 'test data')
+
+    result = cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot',
+                 container_name, capture=True)
+    assert 'No such file or directory:' in result
+
+
+# pylint: disable=unused-argument
 def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
