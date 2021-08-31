@@ -159,7 +159,6 @@ def _do_create(
     elif container_obj.access:
         access_users = container_obj.access
 
-
     storage = Storage(
         storage_type=backend.TYPE,
         owner=container_obj.owner,

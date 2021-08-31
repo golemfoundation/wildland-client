@@ -61,8 +61,8 @@ class DelegateProxyStorageBackend(StorageBackend):
         "properties": {
             "reference-container": {
                 "$ref": "/schemas/types.json#reference-container",
-                "description": ("Container to be used, either as URL "
-                                "or as an inlined manifest"),
+                "description": "Container to be used, either as URL "
+                               "or as an inlined manifest",
             },
             "subdirectory": {
                 "$ref": "/schemas/types.json#abs-path",
