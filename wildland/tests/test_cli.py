@@ -1551,7 +1551,6 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
 
     monkeypatch.setattr('wildland.cli.cli_container.logger.warning', capture)
     cli('container', 'publish', 'mycapsule')
-    print(list(output))
     assert any((o.startswith("Some local containers (or container updates) "
                              "are not published:") for o in output))
 

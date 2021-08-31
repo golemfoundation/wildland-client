@@ -79,12 +79,12 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 def main(ctx: click.Context, base_dir, dummy, debug, verbose):
     # pylint: disable=missing-docstring, unused-argument
 
-    client = Client(dummy=dummy, base_dir=base_dir)
-    ctx.obj = ContextObj(client)
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
     else:
         init_logging(level='WARNING')
+    client = Client(dummy=dummy, base_dir=base_dir)
+    ctx.obj = ContextObj(client)
 
 
 main.add_command(cli_user.user_)
