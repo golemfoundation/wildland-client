@@ -44,7 +44,7 @@ from ..cli.cli_container import _resolve_container
 from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
-from ..storage_backends.container_children import ContainerChildrenMixin
+from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
 
@@ -5360,8 +5360,8 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
         data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == ContainerChildrenMixin.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == ContainerChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
@@ -5405,8 +5405,8 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
         data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == ContainerChildrenMixin.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == ContainerChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tmp_path):
@@ -5428,8 +5428,8 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
         data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == ContainerChildrenMixin.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == ContainerChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):

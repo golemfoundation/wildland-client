@@ -41,7 +41,7 @@ from wildland.storage_driver import StorageDriver
 from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 
 
-class ContainerChildrenMixin(StorageBackend):
+class FileChildrenMixin(StorageBackend):
     """
     A backend storage mixin providing support for pattern-manifest types of glob and list.
 
@@ -64,7 +64,7 @@ class ContainerChildrenMixin(StorageBackend):
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
-        result = super(ContainerChildrenMixin, cls).cli_options()
+        result = super(FileChildrenMixin, cls).cli_options()
         result.append(
             click.Option(['--subcontainer-manifest'], metavar='PATH', multiple=True,
                          help='Relative path to a child manifest (can be repeated), '
@@ -77,7 +77,7 @@ class ContainerChildrenMixin(StorageBackend):
 
     @classmethod
     def cli_create(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        result = super(ContainerChildrenMixin, cls).cli_create(data)
+        result = super(FileChildrenMixin, cls).cli_create(data)
         if data.get('subcontainer_manifest'):
             if data.get('manifest_pattern'):
                 raise WildlandError('--subcontainer-manifest and --manifest-pattern '
@@ -247,12 +247,7 @@ class ContainerChildrenMixin(StorageBackend):
                 )
             ))
 
-            if old_object.type == WildlandObject.Type.CONTAINER:
-                # Container is an exception as it directly relates to publishable Storage
-                # objects. (assert below is for mypy's sake)
-                assert isinstance(old_object, Container)
-                for url in old_object.load_raw_backends(include_inline=False):
-                    old_relpaths_to_remove.add(self.get_path_for_url(url))
+        return old_relpaths_to_remove
 
     @staticmethod
     def _remove_old_paths(driver: StorageDriver, old_relpaths_to_remove: Set[PurePosixPath]):
