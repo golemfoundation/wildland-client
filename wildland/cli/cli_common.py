@@ -86,6 +86,13 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
         obj.validate()
 
 
+def sync_id(container: Container) -> str:
+    """
+    Return unique sync job ID for a container.
+    """
+    return container.owner + '|' + container.uuid
+
+
 def wl_version():
     """
     Detect wildland version, including git commit ID if appropriate.

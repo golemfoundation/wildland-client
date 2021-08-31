@@ -561,13 +561,6 @@ def _republish_container(client: Client, container: Container) -> None:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
 
-def sync_id(container: Container) -> str:
-    """
-    Return unique sync job ID for a container.
-    """
-    return container.owner + '|' + container.uuid
-
-
 def _do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
              one_shot: bool, unidir: bool) -> str:
     kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
