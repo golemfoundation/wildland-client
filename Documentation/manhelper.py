@@ -28,13 +28,15 @@ sys.path.insert(0, '..')
 
 from wildland.cli.cli_main import main as cmd_main
 
-def walk_group(cmd, callback, *, prefix=()):
+
+def walk_group(cmd, callback, *, prefix=(), excluded=()):
     yield from callback(cmd, prefix)
     if not isinstance(cmd, click.Group):
         return
     prefix = (*prefix, cmd.name)
     for name, subcmd in cmd.commands.items():
-        yield from walk_group(subcmd, callback, prefix=prefix)
+        if subcmd.name not in excluded:
+            yield from walk_group(subcmd, callback, prefix=prefix, excluded=excluded)
 
 def joinwalk(cb, group, **kwds):
     return '\n'.join(i or '' for i in walk_group(group, cb, **kwds))

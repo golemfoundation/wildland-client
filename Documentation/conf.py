@@ -209,11 +209,10 @@ cnt_subcommands = collections.Counter(
     for subcmd in CMD_MAIN.commands
 )
 cnt_subcommands['manpages/wl'] = 1
-cnt_man_pages = collections.Counter(source
-    for source, *_ in man_pages)
+cnt_man_pages = collections.Counter(source for source, *_ in man_pages)
 cnt_man_sources = collections.Counter(str(p.with_suffix(''))
-    for p in pathlib.Path().glob('manpages/*.rst')
-    if not p.stem == 'index')
+                                      for p in pathlib.Path().glob('manpages/*.rst')
+                                      if not p.stem == 'index')
 
 # barf if something is wrong:
 assert cnt_man_pages == cnt_man_sources, (
@@ -221,6 +220,7 @@ assert cnt_man_pages == cnt_man_sources, (
     f'{set(cnt_man_pages).symmetric_difference(cnt_man_sources)}')
 assert cnt_subcommands == cnt_man_pages, ('under- or overdocumented commands: '
     f'{set(cnt_subcommands).symmetric_difference(cnt_man_pages)}')
+
 
 class ManpageCheckVisitor(docutils.nodes.SparseNodeVisitor):
     def __init__(self, doctree, command, command_options, command_refids):
@@ -258,19 +258,23 @@ class ManpageCheckVisitor(docutils.nodes.SparseNodeVisitor):
                 f'invalid or double-documented option {opt} '
                 f'for command {self.current_command.name}')
 
+
 def _collect_cmd_opts(cmd, prefix):
-    yield (cmd, None)
+    yield cmd, None
     for param in cmd.params:
         if not isinstance(param, click.Option):
             continue
         for opt in (*param.opts, *param.secondary_opts):
-            yield (cmd, opt)
+            yield cmd, opt
+
 
 def _collect_refids(cmd, prefix):
-    yield ('-'.join((*prefix, cmd.name)), cmd)
+    yield '-'.join((*prefix, cmd.name)), cmd
+
 
 def check_man(app, env):
-    command_options = set(manhelper.walk_group(CMD_MAIN, _collect_cmd_opts))
+    command_options = set(manhelper.walk_group(CMD_MAIN, _collect_cmd_opts,
+                                               excluded=["pseudomanifest"]))
     command_refids = dict(manhelper.walk_group(CMD_MAIN, _collect_refids))
 
     for docname in env.found_docs:
@@ -281,18 +285,17 @@ def check_man(app, env):
         doctree = env.get_doctree(docname)
 
         log.info('checking manpage for %s', command)
-        doctree.walk(ManpageCheckVisitor(doctree,
-            command, command_options, command_refids))
+        doctree.walk(ManpageCheckVisitor(doctree, command, command_options, command_refids))
 
     if command_options:
         for cmd, opt in command_options:
             if opt is None:
-                log.info('undocumented command %s (%s)',
-                    cmd.name, _describe_command(cmd))
+                log.info('undocumented command %s (%s)', cmd.name, _describe_command(cmd))
             else:
                 log.info('undocumented option %s for command %s (%s)',
-                    opt, cmd.name, _describe_command(cmd))
+                         opt, cmd.name, _describe_command(cmd))
         log.warn('undocumented options and/or commands')
+
 
 def _describe_command(cmd):
     callback = cmd.callback
@@ -311,6 +314,7 @@ def _describe_command(cmd):
             break
 
     return f'{callback.__code__.co_filename}:{callback.__code__.co_firstlineno}'
+
 
 # -- Options for Texinfo output ----------------------------------------------
 

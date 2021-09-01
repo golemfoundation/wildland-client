@@ -112,7 +112,7 @@ class Client:
         mount_dir = Path(self.config.get('mount-dir'))
         self.bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
         fs_socket_path = Path(self.config.get('fs-socket-path'))
-        self.fs_client = WildlandFSClient(mount_dir, fs_socket_path,
+        self.fs_client = WildlandFSClient(base_dir, mount_dir, fs_socket_path,
                                           bridge_separator=self.bridge_separator)
 
         # we only connect to sync daemon if needed
