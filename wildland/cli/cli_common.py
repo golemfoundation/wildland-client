@@ -118,45 +118,65 @@ def get_all_storages(client: Client, container: Container):
     return all_storages
 
 
+def get_local_storages(client: Client, container: Container):
+    """
+    Return local storages for a container
+    """
+    all_storages = get_all_storages(client, container)
+    local_storages = [storage for storage in all_storages
+                      if client.is_local_storage(storage.params['type'])]
+    return local_storages
+
+
 def get_local_storage(client: Client, container: Container, local_storage: Optional[str] = None):
     """
-    Return local storage for a container
+    Return first local storage found for a container
     """
     all_storages = get_all_storages(client, container)
     if local_storage:
-        source = _get_storage_by_id_or_type(local_storage, all_storages)
+        storage = _get_storage_by_id_or_type(local_storage, all_storages)
     else:
         try:
-            source = [storage for storage in all_storages
-                      if client.is_local_storage(storage.params['type'])][0]
+            storage = get_local_storages(client, container)[0]
         except IndexError:
             # pylint: disable=raise-missing-from
             raise WildlandError('No local storage backend found')
-    return source
+    return storage
+
+
+def get_remote_storages(client: Client, container: Container):
+    """
+    Return remote storages for a container
+    """
+    all_storages = get_all_storages(client, container)
+    default_remotes = client.config.get('default-remote-for-container')
+
+    target_remote_id = default_remotes.get(container.uuid, None)
+    remote_storages = [storage for storage in all_storages
+                       if target_remote_id == storage.backend_id or
+                       (not target_remote_id and
+                        not client.is_local_storage(storage.params['type']))]
+    return remote_storages
 
 
 def get_remote_storage(client: Client, container: Container, remote_storage: Optional[str] = None):
     """
-    Return remote storage for a container
+    Return first remote storage for a container
     """
     all_storages = get_all_storages(client, container)
     default_remotes = client.config.get('default-remote-for-container')
 
     if remote_storage:
-        remote = _get_storage_by_id_or_type(remote_storage, all_storages)
-        default_remotes[container.uuid] = remote.backend_id
+        storage = _get_storage_by_id_or_type(remote_storage, all_storages)
+        default_remotes[container.uuid] = storage.backend_id
         client.config.update_and_save({'default-remote-for-container': default_remotes})
     else:
-        target_remote_id = default_remotes.get(container.uuid, None)
         try:
-            remote = [storage for storage in all_storages
-                      if target_remote_id == storage.backend_id
-                      or (not target_remote_id and
-                          not client.is_local_storage(storage.params['type']))][0]
+            storage = get_remote_storages(client, container)[0]
         except IndexError:
             # pylint: disable=raise-missing-from
             raise WildlandError('No remote storage backend found: specify --target-storage.')
-    return remote
+    return storage
 
 
 def do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
