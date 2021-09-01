@@ -50,7 +50,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options
+    check_if_any_options, sync_id, get_local_storage, get_remote_storage
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -1176,18 +1176,6 @@ def add_mount_watch(obj: ContextObj, container_names):
     mount_watch(obj, container_names)
 
 
-def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
-    """
-    Helper function to find a storage by listed id or type.
-    """
-    try:
-        return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
-    except IndexError:
-        # pylint: disable=raise-missing-from
-        raise WildlandError(f'Storage {id_or_type} not found')
-
-
 @container_.command('sync', short_help='start syncing a container')
 @click.argument('cont', metavar='CONTAINER')
 @click.option('--target-storage', help='specify target storage. Default: first non-local storage'
@@ -1211,39 +1199,8 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
 
     client = obj.client
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-
-    all_storages = list(client.all_storages(container))
-    cache = client.cache_storage(container)
-    if cache:
-        all_storages.append(cache)
-
-    if source_storage:
-        source = _get_storage_by_id_or_type(source_storage, all_storages)
-    else:
-        try:
-            source = [storage for storage in all_storages
-                      if client.is_local_storage(storage.params['type'])][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No local storage backend found')
-
-    default_remotes = client.config.get('default-remote-for-container')
-
-    if target_storage:
-        target = _get_storage_by_id_or_type(target_storage, all_storages)
-        default_remotes[container.uuid] = target.backend_id
-        client.config.update_and_save({'default-remote-for-container': default_remotes})
-    else:
-        target_remote_id = default_remotes.get(container.uuid, None)
-        try:
-            target = [storage for storage in all_storages
-                      if target_remote_id == storage.backend_id
-                      or (not target_remote_id and
-                          not client.is_local_storage(storage.params['type']))][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No remote storage backend found: specify --target-storage.')
-
+    source = get_local_storage(client, container, source_storage)
+    target = get_remote_storage(client, container, target_storage)
     response = _do_sync(client, cont, sync_id(container), source.params, target.params,
                         one_shot, unidir=False)
 

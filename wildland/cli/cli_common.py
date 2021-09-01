@@ -40,6 +40,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import ContextObj, CliError
 from ..client import Client
 from ..container import Container
+from ..storage import Storage
 from ..manifest.sig import SigError
 from ..manifest.manifest import (
     HEADER_SEPARATOR,
@@ -91,6 +92,71 @@ def sync_id(container: Container) -> str:
     Return unique sync job ID for a container.
     """
     return container.owner + '|' + container.uuid
+
+
+def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
+    """
+    Helper function to find a storage by listed id or type.
+    """
+    try:
+        return [storage for storage in storages
+                if id_or_type in (storage.backend_id, storage.params['type'])][0]
+    except IndexError:
+        # pylint: disable=raise-missing-from
+        raise WildlandError(f'Storage {id_or_type} not found')
+
+
+def get_all_storages(client: Client, container: Container):
+    """
+    Return all storages (including cache storages) for a container
+    """
+    all_storages = list(client.all_storages(container))
+    cache = client.cache_storage(container)
+    if cache:
+        all_storages.append(cache)
+
+    return all_storages
+
+
+def get_local_storage(client: Client, container: Container, local_storage: Optional[str] = None):
+    """
+    Return local storage for a container
+    """
+    all_storages = get_all_storages(client, container)
+    if local_storage:
+        source = _get_storage_by_id_or_type(local_storage, all_storages)
+    else:
+        try:
+            source = [storage for storage in all_storages
+                      if client.is_local_storage(storage.params['type'])][0]
+        except IndexError:
+            # pylint: disable=raise-missing-from
+            raise WildlandError('No local storage backend found')
+    return source
+
+
+def get_remote_storage(client: Client, container: Container, remote_storage: Optional[str] = None):
+    """
+    Return remote storage for a container
+    """
+    all_storages = get_all_storages(client, container)
+    default_remotes = client.config.get('default-remote-for-container')
+
+    if remote_storage:
+        remote = _get_storage_by_id_or_type(remote_storage, all_storages)
+        default_remotes[container.uuid] = remote.backend_id
+        client.config.update_and_save({'default-remote-for-container': default_remotes})
+    else:
+        target_remote_id = default_remotes.get(container.uuid, None)
+        try:
+            remote = [storage for storage in all_storages
+                      if target_remote_id == storage.backend_id
+                      or (not target_remote_id and
+                          not client.is_local_storage(storage.params['type']))][0]
+        except IndexError:
+            # pylint: disable=raise-missing-from
+            raise WildlandError('No remote storage backend found: specify --target-storage.')
+    return remote
 
 
 def wl_version():
