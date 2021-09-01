@@ -8,8 +8,9 @@ pip install . plugins/ipfs/
 # IPFS
 
 ipfs init
-ipfs daemon &
+ipfs config Addresses.Gateway "/ip4/127.0.0.1/tcp/8888" # 8080 is already taken
 echo "Starting IPFS daemon: ipfs."
+ipfs daemon &
 
 echo "IPFS is running at /ip4/127.0.0.1/tcp/8888"
 echo

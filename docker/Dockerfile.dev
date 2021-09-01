@@ -1,0 +1,36 @@
+FROM wildland-client-base:latest
+
+USER root
+ARG DEBIAN_FRONTEND=noninteractive
+ENV WL_ENV=dev
+
+# Run update && install as one command:
+# https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#apt-get
+RUN apt-get -qy update && apt-get install -y \
+      python3-pip \
+      python3-venv \
+      git \
+      pkg-config \
+      libfuse-dev \
+      nano \
+      apache2 \
+      strace \
+      fish \
+      procps \
+      htop \
+      less \
+      vim \
+      ranger \
+      nnn \
+    && apt-get autoremove -y \
+    && python3 -m venv /home/user/env/ \
+    && . /home/user/env/bin/activate \
+    && pip install --no-cache-dir --no-warn-script-location -r requirements.dev.txt \
+    && rm -rf /var/lib/lists/* \
+    && apt-get clean autoclean \
+    && chown -R user:user /home/user/env/
+
+# Entrypoint
+
+USER user
+ENTRYPOINT ["./docker/entrypoint.dev.sh"]

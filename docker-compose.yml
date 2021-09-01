@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  wildland-client:
+    # --!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!
+    #
+    # TODO: This image must be changed to master/stable upon final merge
+    #
+    # --!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!
+    image: registry.gitlab.com/wildland/wildland-client:michal-docker-cleanup
+    container_name: wildland-client
+    privileged: true
+    stdin_open: true
+    hostname: wildland-client
+    tty: true
+    devices:
+      - /dev/fuse
+    ports:
+      - "8080:8080"
+    volumes:
+      - ~/.config/wildland:/home/user/.config/wildland:rw
+      - ./docker/storage:/home/user/storage:rw

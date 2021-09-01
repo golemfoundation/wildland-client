@@ -1,0 +1,12 @@
+-r requirements.base.in
+
+# Development / local testing
+
+pip-tools
+pytest
+pytest-cov
+pylint==2.8.3
+mypy
+python-lorem
+psutil
+pyinstrument

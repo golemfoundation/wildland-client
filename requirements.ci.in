@@ -1,0 +1,6 @@
+-r requirements.dev.in
+
+# Documentation
+sphinx
+sphinx-autodoc-typehints
+colorama

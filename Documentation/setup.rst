@@ -35,14 +35,14 @@ Install Python packages
 
    python3 -m venv env/
    . ./env/bin/activate
-   pip install -r requirements.txt
+   pip install -r requirements.dev.txt
    pip install -e . plugins/*
 
 (You can also run ``make`` to keep the packages up to date).
 
 Or, the quick-and-dirty way, without virtualenv::
 
-   pip3 install --user -r requirements.txt
+   pip3 install --user -r requirements.dev.txt
    pip3 install --user -e . plugins/*
 
 

@@ -4,12 +4,11 @@ stages:
   - docs
 
 before_script:
-  - mkdir -p --mode=0777 artifacts artifacts/htmlcov
+  - mkdir -p --mode=0777 artifacts artifacts/docs artifacts/htmlcov
 
 variables:
-  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-  CONTAINER_TEST_IMAGE_IMAP: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-imap
-  CONTAINER_TEST_IMAGE_HOWTO: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-howto
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-ci
+  CONTAINER_IMAGE_DEV: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
   CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
 
 build:
@@ -18,15 +17,30 @@ build:
   services:
     - docker:dind
   script:
-    - cd ci
-    - docker-compose build
+    - cd docker
+    - docker-compose build wildland-client-base
+    - docker-compose build --parallel wildland-client wildland-client-ci
     - docker tag wildland-client-ci $CONTAINER_TEST_IMAGE
-    - docker tag wildland-client-ci-imap $CONTAINER_TEST_IMAGE_IMAP
-    - docker tag wildland-client-ci-howto $CONTAINER_TEST_IMAGE_HOWTO
+    - docker tag wildland-client $CONTAINER_IMAGE_DEV
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker push $CONTAINER_TEST_IMAGE
-    - docker push $CONTAINER_TEST_IMAGE_IMAP
-    - docker push $CONTAINER_TEST_IMAGE_HOWTO
+    - docker push $CONTAINER_IMAGE_DEV
+
+gcp:
+  stage: build
+  image: docker/compose:latest
+  when: manual
+  allow_failure: true
+  services:
+    - docker:dind
+  script:
+    - echo $CI_COMMIT_SHA > git_commit_sha.txt
+    - cd docker
+    - docker-compose build wildland-client-base
+    - docker-compose build wildland-client-gcp
+    - docker tag wildland-client-gcp:latest eu.gcr.io/single-bindery-317213/wildland-client-gcp:latest
+    - echo $GCP_DOCKER_REPO_JSON | base64 -d | docker login -u _json_key --password-stdin https://eu.gcr.io
+    - docker push eu.gcr.io/single-bindery-317213/wildland-client-gcp:latest
 
 lint:
   stage: test
@@ -38,7 +52,7 @@ mypy:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-mypy wildland
+    - ./ci/ci-mypy --junit-xml artifacts/wildland-mypy.xml wildland
   artifacts:
     reports:
       junit: artifacts/wildland-mypy.xml
@@ -76,31 +90,37 @@ gitlab-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-gitlab-test
+    - ./ci/ci-gitlab
 
 git-test:
     stage: test
     image: $CONTAINER_TEST_IMAGE
     script:
-        - ./ci/ci-git-test
+      - ./ci/ci-git
 
 gitlab-graphql-test:
     stage: test
     image: $CONTAINER_TEST_IMAGE
     script:
-      - ./ci/ci-gitlab-graphql-test
+      - ./ci/ci-gitlab-graphql
 
 imap-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_IMAP
+  image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/ci-imap-test
+    - ./ci/ci-imap
 
 ipfs-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-ipfs
+
+sshfs-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-sshfs
 
 s3-test:
   stage: test
@@ -112,7 +132,7 @@ transpose-test:
     stage: test
     image: $CONTAINER_TEST_IMAGE
     script:
-      - ./ci/ci-transpose-test
+      - ./ci/ci-transpose
 
 encrypted-test:
   stage: test
@@ -142,31 +162,31 @@ googledrive-test:
 
 howto-quick-start-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_HOWTO
+  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-quick-start
 
 howto-sharing-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_HOWTO
+  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-sharing-and-access-control
 
 howto-forest-creation-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_HOWTO
+  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-forest-creation
 
 howto-group-users-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_HOWTO
+  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-group-users
 
 howto-encryption-backend-test:
   stage: test
-  image: $CONTAINER_TEST_IMAGE_HOWTO
+  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-encryption-backend
 
@@ -176,7 +196,7 @@ smoke-test:
   services:
     - docker:dind
   script:
-    - ./wildland-docker.sh wl-smoke-test < /dev/null
+    - ./wildland-docker.sh ci/ci-smoke-test < /dev/null
 
 pages-test:
   stage: test
