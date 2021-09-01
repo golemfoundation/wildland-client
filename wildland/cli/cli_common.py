@@ -159,6 +159,16 @@ def get_remote_storage(client: Client, container: Container, remote_storage: Opt
     return remote
 
 
+def do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
+             one_shot: bool, unidir: bool) -> str:
+    """
+    Start sync between source and target storages
+    """
+    kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
+              'unidirectional': unidir, 'source': source, 'target': target}
+    return client.run_sync_command('start', **kwargs)
+
+
 def wl_version():
     """
     Detect wildland version, including git commit ID if appropriate.

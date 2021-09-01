@@ -50,7 +50,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options, sync_id, get_local_storage, get_remote_storage
+    check_if_any_options, sync_id, get_local_storage, get_remote_storage, do_sync
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -561,13 +561,6 @@ def _republish_container(client: Client, container: Container) -> None:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
 
-def _do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
-             one_shot: bool, unidir: bool) -> str:
-    kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
-              'unidirectional': unidir, 'source': source, 'target': target}
-    return client.run_sync_command('start', **kwargs)
-
-
 def wl_path_for_container(client: Client, container: Container,
                           user_paths: Optional[Iterable[Iterable[PurePosixPath]]] = None) -> str:
     """
@@ -608,7 +601,7 @@ def _cache_sync(client: Client, container: Container, storages: List[Storage], v
         if not status:  # sync not running for this container
             # start bidirectional sync (this also performs an initial one-shot sync)
             # this happens in the background, user can see sync status/progress using `wl sync`
-            _do_sync(client, cname, sync_id(container), src.params, primary.params,
+            do_sync(client, cname, sync_id(container), src.params, primary.params,
                      one_shot=False, unidir=False)
 
 
@@ -1201,9 +1194,8 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
     source = get_local_storage(client, container, source_storage)
     target = get_remote_storage(client, container, target_storage)
-    response = _do_sync(client, cont, sync_id(container), source.params, target.params,
-                        one_shot, unidir=False)
-
+    response = do_sync(client, cont, sync_id(container), source.params, target.params,
+                       one_shot, unidir=False)
     click.echo(response)
 
     if one_shot:
