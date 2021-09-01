@@ -430,7 +430,7 @@ class EncryptedStorageBackend(StorageBackend):
         self.engine_cls = engines[self.engine]
 
         default = Path('~/.local/share/').expanduser()
-        tmpdir = PurePosixPath(os.getenv('XDG_DATA_HOME', default)) / 'wl' / 'encrypted'
+        tmpdir = PurePosixPath(os.getenv('XDG_DATA_HOME', str(default))) / 'wl' / 'encrypted'
         alphabet = string.ascii_letters + string.digits
         self.mountid = ''.join(secrets.choice(alphabet) for i in range(15))
         # delaying creation of those paths until self.mount()

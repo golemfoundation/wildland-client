@@ -239,6 +239,10 @@ class TemplateManager:
                 except TemplateError:
                     logger.warning('failed to load template file %s', file)
                     continue
+
+        # sorting is needed for automated E2E tests
+        templates.sort(key=str)
+
         return templates
 
     def get_storage_template(self, name: str) -> StorageTemplate:
