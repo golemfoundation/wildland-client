@@ -189,7 +189,10 @@ class SyncDaemon:
 
             if not continuous:
                 # consider running in a thread and async completion, the process can take a while
-                syncer.one_shot_sync()
+                try:
+                    syncer.one_shot_sync()
+                except Exception as e:
+                    response += f'\n[!] Error: {e}'
             else:
                 self.jobs[job_id] = SyncJob(container_name, syncer, source_backend,
                                             target_backend, continuous, unidirectional)
