@@ -42,10 +42,12 @@ from .test_sync import wait_for_file, wait_for_deletion, make_file
 from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_fields
 from ..cli.cli_container import _resolve_container
+from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, Manifest
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..utils import load_yaml, load_yaml_all
+from ..wildland_object.wildland_object import WildlandObject
 
 
 def modify_file(path, pattern, replacement):
@@ -103,10 +105,39 @@ def cleanup():
     for f in cleanup_functions:
         f()
 
+
 def test_version(base_dir):
     output = wl_call_output(base_dir, 'version').decode().strip('\n')
     version_regex = r'[0-9]+\.[0-9]+\.[0-9]+( \(commit [0-9a-f]+\))?$'
     assert re.match(version_regex, output) is not None
+
+
+def test_edit(cli, cli_fail, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+    cli('storage', 'create', 'local', 'Standalone', '--location', '/PATH',
+        '--container', 'Container', '--no-inline')
+
+    user_path = base_dir / 'users/User.user.yaml'
+    container_path = base_dir / 'containers/Container.container.yaml'
+    storage_path = base_dir / 'storage/Standalone.storage.yaml'
+
+    editor = r'sed -i s,PATH,NEW,g'
+
+    cli('edit', user_path, '--editor', editor)
+    cli('edit', container_path, '--editor', editor)
+    cli('edit', storage_path, '--editor', editor)
+
+    editor = r'sed -i s,NEW,WEN,g'
+
+    cli_fail('container', 'edit', user_path, '--editor', editor)
+    cli_fail('container', 'edit', storage_path, '--editor', editor)
+    cli_fail('storage', 'edit', container_path, '--editor', editor)
+    cli_fail('storage', 'edit', user_path, '--editor', editor)
+    cli_fail('user', 'edit', storage_path, '--editor', editor)
+    cli_fail('user', 'edit', container_path, '--editor', editor)
 
 
 # Users
@@ -849,8 +880,8 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     ]
     assert command[0]['paths'] == backend3_paths
     assert command[1]['paths'] == [
-        backend3_paths[0] + '-pseudomanifest',
-        backend3_paths[1]
+        backend3_paths[0] + '-pseudomanifest/.manifest.wildland.yaml',
+        backend3_paths[1] + '/.manifest.wildland.yaml'
     ]
 
 
@@ -947,8 +978,11 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
     expected_paths_pseudomanifest = \
         expected_paths_backend[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}-pseudomanifest'] + \
+        [f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}-pseudomanifest'] +\
         expected_paths_backend[2:]
+    expected_paths_pseudomanifest = \
+        [path + '/.manifest.wildland.yaml' for path in expected_paths_pseudomanifest]
+
     assert sorted(command[1]['paths']) == expected_paths_pseudomanifest
 
 
@@ -1165,8 +1199,13 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
 def test_container_edit(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH',
+        '--container', 'Container', '--inline')
 
     manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        original = f.read()
 
     editor = r'sed -i s,PATH,HTAP,g'
     cli('container', 'edit', 'Container', '--editor', editor)
@@ -1179,6 +1218,8 @@ def test_container_edit(cli, base_dir):
     with open(manifest) as f:
         data = f.read()
     assert "/PATH" in data
+
+    assert original == data
 
 
 def test_container_edit_encryption(cli, base_dir):
@@ -1230,6 +1271,9 @@ def test_container_add_path(cli, cli_fail, base_dir):
     cli('container', 'modify', 'Container.container', '--add-path', '/xyz')
     assert '/xyz' in manifest_path.read_text()
 
+    cli('container', 'modify', ':/PATH:', '--add-path', '/cba')
+    assert '/cba' in manifest_path.read_text()
+
     # duplicates should be ignored
     cli('container', 'modify', 'Container', '--add-path', '/xyz')
     data = manifest_path.read_text()
@@ -1251,8 +1295,16 @@ def test_container_del_path(cli, base_dir):
 
     manifest_path = base_dir / 'containers/Container.container.yaml'
     cli('container', 'modify', 'Container', '--add-path', '/abc')
+    assert '/abc' in manifest_path.read_text()
 
     cli('container', 'modify', 'Container', '--del-path', '/abc')
+    assert '/abc' not in manifest_path.read_text()
+
+    # WL path
+    cli('container', 'modify', ':/PATH:', '--add-path', '/abc')
+    assert '/abc' in manifest_path.read_text()
+
+    cli('container', 'modify', ':/PATH:', '--del-path', '/abc')
     assert '/abc' not in manifest_path.read_text()
 
     # non-existent paths should be ignored
@@ -1286,6 +1338,11 @@ def test_container_set_title(cli, base_dir):
     with open(manifest_path) as f:
         data = f.read()
     assert 'title: another thing' in data
+
+    cli('container', 'modify', ':/PATH:', '--title', 'one more time')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert 'one more time' in data
 
 
 def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
@@ -1322,7 +1379,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
             super().__init__()
             self.visited = False
 
-        def startswith(self, _str):
+        def startswith(self, _str, **_kwargs):
             if _str == 'file:' and not self.visited:
                 self.visited = True
                 return False
@@ -1343,6 +1400,13 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
         data = f.read()
     assert 'title: another thing' in data
 
+    # Check if downloaded manifest has updated title
+    client = Client(base_dir)
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
+    with open(base_dir / f"containers/{container.uuid}.container.yaml") as f:
+        data = f.read()
+    assert 'title: another thing' in data
+
 
 def test_container_add_category(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1359,6 +1423,11 @@ def test_container_add_category(cli, cli_fail, base_dir):
     with open(manifest_path) as f:
         data = f.read()
     assert '- /xyz' in data
+
+    cli('container', 'modify', ':/PATH:', '--add-category', '/cba')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /cba' in data
 
     # duplicates should be ignored
     cli('container', 'modify', 'Container', '--add-category', '/xyz')
@@ -1389,6 +1458,14 @@ def test_container_del_category(cli, base_dir):
     with open(manifest_path) as f:
         data = f.read()
     assert '- /abc' not in data
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+    cli('container', 'modify', ':/PATH:', '--add-category', '/cba')
+
+    cli('container', 'modify', ':/PATH:', '--del-category', '/cba')
+    with open(manifest_path) as f:
+        data = f.read()
+    assert '- /cba' not in data
 
     # non-existent paths should be ignored
     cli('container', 'modify', 'Container.container', '--del-category', '/xyz')
@@ -1421,7 +1498,8 @@ def test_container_modify_access(cli, base_dir):
     data = yaml.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 2
 
-    cli('container', 'modify', 'Container', '--del-access', 'User2')
+    # works with container name and wl path
+    cli('container', 'modify', ':/PATH:', '--del-access', 'User2')
     base_data = manifest_path.read_text().split('\n', 3)[-1]
     data = yaml.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 1
@@ -1640,12 +1718,12 @@ def test_container_republish_paths(cli, tmp_path):
     assert not (tmp_path / 'manifests/PA/TH3.yaml').exists()
 
     # --no-publish, modification in progress
-    cli('container', 'modify', 'Container', '--del-path', '/PA/TH2', '--no-publish')
+    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH2', '--no-publish')
     # auto republishing
-    cli('container', 'modify', 'Container', '--add-path', '/PA/TH3')
+    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH3')
     # --no-publish
-    cli('container', 'modify', 'Container', '--del-path', '/PA/TH1', '--no-publish')
-    cli('container', 'modify', 'Container', '--add-path', '/PA/TH4', '--no-publish')
+    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH1', '--no-publish')
+    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH4', '--no-publish')
 
     assert (tmp_path / 'manifests/PA/TH1.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
@@ -1653,7 +1731,7 @@ def test_container_republish_paths(cli, tmp_path):
     assert not (tmp_path / 'manifests/PA/TH4.yaml').exists()
 
     # after publishing all of the above container modifications are applied
-    cli('container', 'publish', 'Container')
+    cli('container', 'publish', ':/PA/TH3:')
 
     assert not (tmp_path / 'manifests/PA/TH1.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
@@ -1676,7 +1754,6 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
 
     result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
-    print(out_lines)
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
     assert 'Re-publishing container /.uuid/' in out_lines[1]
@@ -2372,11 +2449,14 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     command = control_client.calls['mount']['items']
     # exclude catalog
     command = [c for c in command
-               if '/CATALOG' not in c['paths']]
+               if '/CATALOG' not in c['paths']
+                  and '/CATALOG/.manifest.wildland.yaml' not in c['paths']]
     assert len(command) == 2
     paths_backend1 = command[0]['paths']
+    paths_backend1 = [paths_backend1[0] + '-pseudomanifest'] + paths_backend1[1:]
+    paths_backend1 = [path + '/.manifest.wildland.yaml' for path in paths_backend1]
     paths_backend2 = command[1]['paths']
-    assert [paths_backend1[0] + '-pseudomanifest'] + paths_backend1[1:] == paths_backend2
+    assert paths_backend1 == paths_backend2
 
 
 def test_container_mount_with_import(cli, base_dir, control_client):
@@ -2659,15 +2739,23 @@ def test_container_mount_glob(cli, base_dir, control_client):
     ]
     assert sorted(command[1]['paths']) == paths_backend2
 
-    assert sorted(command[2]['paths']) == \
+    pseudomanifest_backend_paths = \
         paths_backend1[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] + \
-        paths_backend1[2:]
+        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] \
+        + paths_backend1[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
 
-    assert sorted(command[3]['paths']) == \
+    assert sorted(command[2]['paths']) == pseudomanifest_backend_paths
+
+    pseudomanifest_backend_paths_2 = \
         paths_backend2[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id2}-pseudomanifest'] + \
-        paths_backend2[2:]
+        [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id2}-pseudomanifest'] \
+        + paths_backend2[2:]
+    pseudomanifest_backend_paths_2 = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths_2]
+
+    assert sorted(command[3]['paths']) == pseudomanifest_backend_paths_2
 
 
 def test_container_umount_undo_save_by_container_name(cli, base_dir, control_client):
@@ -3015,21 +3103,29 @@ backends:
     ]
     assert sorted(command[1]['paths']) == paths_backend2
 
-    assert sorted(command[2]['paths']) == \
+    pseudomanifest_backend_paths = \
         paths_backend1[:1] + \
-        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] + \
-        paths_backend1[2:]
+        [f'/.users/0xaaa:/.backends/{uuid1}/{backend_id1}-pseudomanifest'] \
+        + paths_backend1[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
+
+    assert sorted(command[2]['paths']) == pseudomanifest_backend_paths
 
     assert command[2]['storage']['owner'] == '0xaaa'
-    assert command[2]['storage']['type'] == 'static'
+    assert command[2]['storage']['type'] == 'pseudomanifest'
 
-    assert sorted(command[3]['paths']) == \
+    pseudomanifest_backend_paths_2 = \
         paths_backend2[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}-pseudomanifest'] + \
         paths_backend2[2:]
+    pseudomanifest_backend_paths_2 = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths_2]
+
+    assert sorted(command[3]['paths']) == pseudomanifest_backend_paths_2
 
     assert command[3]['storage']['owner'] == '0xaaa'
-    assert command[3]['storage']['type'] == 'static'
+    assert command[3]['storage']['type'] == 'pseudomanifest'
 
 
 def test_container_mount_errors(cli, base_dir, control_client, tmp_path):
@@ -3087,9 +3183,9 @@ backends:
     assert command[0]['storage']['type'] == 'delegate'
 
     assert command[1]['storage']['owner'] == '0xaaa'
-    assert command[1]['storage']['type'] == 'static'
+    assert command[1]['storage']['type'] == 'pseudomanifest'
 
-    assert command[0]['paths'] == [
+    paths = [
         '/.users/0xaaa:/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
         '/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
         '/.users/0xaaa:/.uuid/0000-1111-2222-3333-4444',
@@ -3097,14 +3193,13 @@ backends:
         '/.users/0xaaa:/container-99',
         '/container-99'
     ]
-    assert command[1]['paths'] == [
-        '/.users/0xaaa:/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444-pseudomanifest',
-        '/.backends/0000-1111-2222-3333-4444/0000-1111-2222-3333-4444',
-        '/.users/0xaaa:/.uuid/0000-1111-2222-3333-4444',
-        '/.uuid/0000-1111-2222-3333-4444',
-        '/.users/0xaaa:/container-99',
-        '/container-99'
-    ]
+
+    assert command[0]['paths'] == paths
+
+    paths[0] = paths[0] + "-pseudomanifest"
+    pseudomanifest_paths = \
+        [path + '/.manifest.wildland.yaml' for path in paths]
+    assert command[1]['paths'] == pseudomanifest_paths
 
 
 def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):
@@ -3164,11 +3259,15 @@ backends:
     assert sorted(command[0]['paths']) == backend_paths
 
     assert command[1]['storage']['owner'] == '0xaaa'
-    assert command[1]['storage']['type'] == 'static'
-    assert sorted(command[1]['paths']) == \
-        backend_paths[:1] + \
+    assert command[1]['storage']['type'] == 'pseudomanifest'
+
+    pseudomanifest_backend_paths = backend_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid2}/{backend_id}-pseudomanifest'] + \
         backend_paths[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
+
+    assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
 def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path, base_dir):
@@ -3216,12 +3315,16 @@ backends:
     assert sorted(command[0]['paths']) == backend_paths
 
     assert command[1]['storage']['owner'] == '0xaaa'
-    assert command[1]['storage']['type'] == 'static'
+    assert command[1]['storage']['type'] == 'pseudomanifest'
 
-    assert sorted(command[1]['paths']) == \
-        backend_paths[:1] + \
+    pseudomanifest_backend_paths = backend_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid}/{backend_id}-pseudomanifest'] + \
         backend_paths[2:]
+    pseudomanifest_backend_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_backend_paths]
+
+    assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
+
 
 
 def test_container_mount_container_without_storage(cli, control_client):
@@ -3687,6 +3790,29 @@ def test_cli_container_sync_oneshot(base_dir, sync, cli):
     time.sleep(1)
 
     assert not (storage2_data / 'testfile2').exists()
+
+
+# pylint: disable=unused-argument
+def test_cli_container_sync_oneshot_error(base_dir, sync, cli):
+    base_data_dir = base_dir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+
+    container_name = 'sync_oneshot'
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
+        '--location', storage2_data)
+
+    make_file(storage1_data / 'testfile', 'test data')
+
+    result = cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot',
+                 container_name, capture=True)
+    assert 'No such file or directory:' in result
 
 
 # pylint: disable=unused-argument
@@ -4523,22 +4649,26 @@ def test_only_subcontainers(cli, base_dir, control_client):
     assert sorted(command[0]['paths']) == parent_paths
     assert sorted(command[1]['paths']) == child_paths
 
-    assert command[2]['storage']['type'] == 'static'
+    assert command[2]['storage']['type'] == 'pseudomanifest'
     assert command[2]['extra']['hidden'] is True
 
     pseudomanifest_parent_paths = \
         parent_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid_parent}/{backend_id_parent}-pseudomanifest'] + \
         parent_paths[2:]
+    pseudomanifest_parent_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_parent_paths]
     assert sorted(command[2]['paths']) == pseudomanifest_parent_paths
 
-    assert command[3]['storage']['type'] == 'static'
+    assert command[3]['storage']['type'] == 'pseudomanifest'
     assert command[3]['extra']['hidden'] is True
 
     pseudomanifest_child_paths = \
         child_paths[:1] + \
         [f'/.users/0xaaa:/.backends/{uuid_child}/{backend_id_child}-pseudomanifest'] + \
         child_paths[2:]
+    pseudomanifest_child_paths = \
+        [path + '/.manifest.wildland.yaml' for path in pseudomanifest_child_paths]
     assert sorted(command[3]['paths']) == pseudomanifest_child_paths
 
     control_client.expect('info', {

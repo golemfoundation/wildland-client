@@ -26,7 +26,6 @@ Wildland Filesystem
 """
 
 import errno
-import logging
 import os
 import stat
 
@@ -41,9 +40,10 @@ from .storage_backends.watch import FileEvent, StorageWatcher
 from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
 from .manifest.schema import Schema
+from .log import get_logger
 
 
-logger = logging.getLogger('fs')
+logger = get_logger('fs')
 
 
 @dataclass

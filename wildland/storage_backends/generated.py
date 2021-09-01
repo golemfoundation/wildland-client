@@ -24,7 +24,6 @@
 """
 Generated storage - for auto-generated file lists
 """
-
 from pathlib import PurePosixPath
 import abc
 import errno
@@ -34,6 +33,9 @@ import time
 import threading
 
 from .base import File, Attr
+from ..log import get_logger
+
+logger = get_logger('storage-generated')
 
 
 class Entry(metaclass=abc.ABCMeta):
@@ -99,11 +101,11 @@ class FuncDirEntry(DirEntry):
     """
     Shortcut for creating function-based directories.
 
-        def get_entries():
-            yield FuncFileEntry('foo.txt', lambda: b'foo')
-            yield FuncFileEntry('bar.txt', lambda: b'bar')
-
-    d = DirEntry('dir', get_entries)
+    >>> def get_entries():
+    ...     yield FuncFileEntry('foo.txt', lambda: b'foo')
+    ...     yield FuncFileEntry('bar.txt', lambda: b'bar')
+    ...
+    >>> d = FuncDirEntry('dir', get_entries)
     """
 
     def __init__(self, name: str,
@@ -239,14 +241,14 @@ class FuncFileEntry(FileEntry):
     """
     Shortcut for creating function-based files.
 
-        def read_foo():
-            return 'hello from foo'
-
-        def write_bar(data: bytes):
-            logging.info('bar: %s', data)
-
-        f1 = FileEntry('foo', on_read=read_foo)
-        f2 = FileEntry('bar', on_write=write_bar)
+    >>> def read_foo():
+    ...     return 'hello from foo'
+    ...
+    >>> def write_bar(data: bytes):
+    ...     logger.info('bar: %s', data)
+    ...
+    >>> f1 = FileEntry('foo', on_read=read_foo)
+    >>> f2 = FileEntry('bar', on_write=write_bar)
     """
 
     def __init__(self, name: str,
@@ -285,23 +287,27 @@ class GeneratedStorageMixin:
 
     A simple usage is to implement callbacks:
 
-        class MyStorage(GeneratedStorageMixin, StorageBackend):
-            def get_root(self):
-                return FuncDirEntry('.', self._root)
-
-            def _root(self):
-                for i in range(10):
-                    yield FuncDirEntry(f'dir-{i}', partial(self._dir, i))
-
-            def _dir(self, i):
-                yield FuncFileEntry('readme.txt', partial(self._readme, i))
-                yield FuncFileEntry(f'{i}.txt', partial(self._file, i))
-
-            def _readme(self, i):
-                return f'This is readme.txt for {i}'
-
-            def _file(self, i):
-                return f'This is {i}.txt'
+    >>> from wildland.storage_backends.base import StorageBackend
+    >>> from functools import partial
+    >>>
+    >>> class MyStorage(GeneratedStorageMixin, StorageBackend):
+    ...     def get_root(self):
+    ...         return FuncDirEntry('.', self._root)
+    ...
+    ...     def _root(self):
+    ...         for i in range(10):
+    ...             yield FuncDirEntry(f'dir-{i}', partial(self._dir, i))
+    ...
+    ...     def _dir(self, i):
+    ...         yield FuncFileEntry('readme.txt', partial(self._readme, i))
+    ...         yield FuncFileEntry(f'{i}.txt', partial(self._file, i))
+    ...
+    ...     def _readme(self, i):
+    ...         return f'This is readme.txt for {i}'
+    ...
+    ...     def _file(self, i):
+    ...         return f'This is {i}.txt'
+    ...
     """
 
     # TODO cache

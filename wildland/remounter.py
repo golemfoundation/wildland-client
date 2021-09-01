@@ -28,7 +28,6 @@ Monitor container manifests for changes and remount if necessary
 import os
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple, Iterable, Dict, Set
-import logging
 
 from wildland.client import Client
 from wildland.container import Container
@@ -38,8 +37,9 @@ from wildland.search import Search
 from wildland.storage import Storage
 from wildland.wlpath import WildlandPath
 from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.log import get_logger
 
-logger = logging.getLogger('remounter')
+logger = get_logger('remounter')
 
 
 class Remounter:

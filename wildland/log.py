@@ -25,7 +25,17 @@
 Logging
 """
 
+import logging
 import logging.config
+
+
+def get_logger(name):
+    """
+    Simple logger
+    """
+    logging.basicConfig(format='%(levelname)s:%(name)s:%(message)s')
+    logger = logging.getLogger(name)
+    return logger
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -47,11 +57,12 @@ class ConsoleFormatter(logging.Formatter):
     def __init__(self, fmt, *args, **kwargs):
         if fmt is None:
             fmt = ('{grey}%(asctime)s '
-                   '{green}[%(threadName)s] '
+                   '{green}[%(process)d/%(threadName)s] '
                    '{cyan}[%(name)s] '
                    '$COLOR%(message)s'
                    '{reset}')
-            fmt = fmt.format(**self.colors)
+
+        fmt = fmt.format(**self.colors)
         super().__init__(fmt, *args, **kwargs)
 
     def format(self, record):
@@ -108,7 +119,8 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         'formatters': {
             'default': {
                 'class': 'logging.Formatter',
-                'format': '%(asctime)s [%(threadName)s] %(levelname)s [%(name)s] %(message)s',
+                'format': '%(asctime)s [%(process)d/%(threadName)s] %(levelname)s [%(name)s] '
+                          '%(message)s',
             },
             'console': {
                 'class': 'wildland.log.ConsoleFormatter',
@@ -145,4 +157,5 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
             'formatter': 'default',
         }
         config['root']['handlers'].append('file')
+
     logging.config.dictConfig(config)

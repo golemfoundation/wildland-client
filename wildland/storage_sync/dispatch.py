@@ -27,10 +27,12 @@ Dispatch for built-in and added storage types.
 """
 
 from typing import Dict, Type
-import logging
 import entrypoints
 
 from .base import BaseSyncer
+from ..log import get_logger
+
+logger = get_logger("storate-sync-dispatch")
 
 
 def load_syncers() -> Dict[str, Type[BaseSyncer]]:
@@ -40,7 +42,7 @@ def load_syncers() -> Dict[str, Type[BaseSyncer]]:
 
     result = {}
     for ep in entrypoints.get_group_all('wildland.storage_sync'):
-        logging.debug('sync: %s', ep)
+        logger.debug('sync: %s', ep)
         cls: Type[BaseSyncer] = ep.load()
         result[cls.SYNCER_NAME] = cls
 

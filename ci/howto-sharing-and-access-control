@@ -162,7 +162,10 @@ run wl user import --path /forests/alice ~/Downloads/alice.user.yaml
 
 run wl start
 
-expected="Mounting one storage"
+expected_pcre="(?:(Loading containers \(from ':\/forests\/alice:\/very\/secret:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/forests\/alice:\/very\/secret:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/forests\/alice:\/very\/secret:'\): [0-9]*)*"\
+"(Mounting one storage)*)"
 run wl container mount :/forests/alice:/very/secret:
 
 
@@ -220,7 +223,10 @@ run wl container create hello-world \
   --path /hello/world \
   --template carolines-s3
 
-expected="Mounting one storage"
+expected_pcre="(?:(Loading containers \(from ':\/hello\/world:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/hello\/world:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/hello\/world:'\): [0-9]*)*"\
+"(Mounting one storage)*)"
 run wl c mount :/hello/world:
 
 run bash -c "echo 'It works!' > ~/wildland/hello/world/Hello-World.md"
@@ -276,9 +282,11 @@ run wl user import ~/Downloads/caroline.user.yaml \
   --path /f/caroline
 
 
-expected="User $caroline_userid already exists. Forcing user import.
-Updated: /home/user/.config/wildland/users/caroline.user.yaml
-Mounting storages for containers:  2"
+expected_pcre="(?:(User $caroline_userid already exists\. Forcing user import\.)*"\
+"(Updated: .*\.yaml)*(Loading containers \(from ':\/f\/caroline:\*:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/f\/caroline:\*:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/f\/caroline:\*:'\): [0-9]*)*"\
+"(Mounting storages for containers: 2)*)"
 run wl forest mount :/f/caroline:
 
 cd ~/wildland/f/caroline\:/hello/world/

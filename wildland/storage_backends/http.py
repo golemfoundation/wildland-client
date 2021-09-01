@@ -29,7 +29,6 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
 from urllib.parse import urljoin, urlparse, quote
-import logging
 import errno
 from io import BytesIO
 
@@ -42,9 +41,9 @@ from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
+from wildland.log import get_logger
 
-
-logger = logging.getLogger('storage-http')
+logger = get_logger('storage-http')
 
 
 # TODO: Changed to FullBufferedFile due to pre-release hotfix. Requires proper implementation
@@ -75,6 +74,7 @@ class PagedHttpFile(FullBufferedFile):
 
     def write_full(self, data: bytes) -> int:
         raise IOError(errno.EROFS, str(self.url))
+
 
 class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
     """

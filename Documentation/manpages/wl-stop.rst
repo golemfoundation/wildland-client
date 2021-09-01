@@ -12,4 +12,6 @@ Synopsis
 Options
 -------
 
-No options.
+.. option:: --keep-sync-daemon
+
+   Don't shut down the sync daemon.

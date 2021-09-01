@@ -27,7 +27,6 @@ Manage bridges
 
 from pathlib import PurePosixPath, Path
 from typing import List, Optional
-import logging
 
 import click
 
@@ -38,9 +37,9 @@ from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit, dump
 from .cli_user import import_manifest, find_user_manifest_within_catalog
+from ..log import get_logger
 
-
-logger = logging.getLogger('cli-bridge')
+logger = get_logger('cli-bridge')
 
 
 @aliased_group('bridge', short_help='bridge management')

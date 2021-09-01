@@ -29,13 +29,12 @@ from typing import Dict, List, Tuple, Iterable, Set, Optional
 import time
 from pathlib import PurePosixPath
 import errno
-import logging
 import threading
 
 from .base import Attr
+from ..log import get_logger
 
-
-logger = logging.getLogger('storage-cached')
+logger = get_logger('storage-cached')
 
 
 class CachedStorageMixin:
@@ -163,7 +162,7 @@ class DirectoryCachedStorageMixin:
 
     def __init__(self, *args, **kwargs):
         # Silence mypy: https://github.com/python/mypy/issues/5887
-        super().__init__(*args, **kwargs) # type: ignore
+        super().__init__(*args, **kwargs)  # type: ignore
 
         self.getattr_cache: Dict[PurePosixPath, Attr] = {}
         self.readdir_cache: Dict[PurePosixPath, List[str]] = {}

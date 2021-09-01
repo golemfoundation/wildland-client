@@ -343,22 +343,24 @@ def _print_container_title(title: Optional[str]) -> None:
 
 
 @main.command(short_help='unmount Wildland filesystem')
+@click.option('--keep-sync-daemon', is_flag=True, help='keep sync daemon running')
 @click.pass_obj
-def stop(obj: ContextObj) -> None:
+def stop(obj: ContextObj, keep_sync_daemon: bool) -> None:
     """
     Unmount the Wildland filesystem.
     """
 
-    click.echo(f'Stoping Wildland at: {obj.mount_dir}')
+    click.echo(f'Stopping Wildland at: {obj.mount_dir}')
     try:
         obj.fs_client.stop()
     except WildlandError as ex:
         raise CliError(str(ex)) from ex
 
-    try:
-        obj.client.run_sync_command('shutdown')
-    except ControlClientError:
-        pass  # we don't expect a response
+    if not keep_sync_daemon:
+        try:
+            obj.client.run_sync_command('shutdown')
+        except ControlClientError:
+            pass  # we don't expect a response
 
 
 @main.command(short_help='watch for changes')

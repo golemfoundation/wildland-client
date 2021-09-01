@@ -2,7 +2,6 @@
 Wildland storage backend using sshfs
 """
 
-import logging
 import getpass
 from pathlib import PurePosixPath
 from os import unlink
@@ -13,9 +12,10 @@ import click
 
 from wildland.fs_client import WildlandFSError
 from wildland.manifest.schema import Schema
+from wildland.log import get_logger
 from .local_proxy import LocalProxy
 
-logger = logging.getLogger('storage-sshfs')
+logger = get_logger('storage-sshfs')
 
 
 class SshFsBackend(LocalProxy):

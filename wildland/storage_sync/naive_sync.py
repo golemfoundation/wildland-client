@@ -24,7 +24,6 @@ Storage syncing.
 """
 
 import threading
-import logging
 import hashlib
 import os
 from typing import List, Dict, Iterable, Optional
@@ -35,10 +34,11 @@ from wildland.storage import StorageBackend
 from wildland.storage_backends.watch import FileEvent, StorageWatcher
 from wildland.storage_backends.base import OptionalError, HashMismatchError
 from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict, SyncerStatus
+from wildland.log import get_logger
 
 BLOCK_SIZE = 1024 ** 2
 
-logger = logging.getLogger('sync')
+logger = get_logger('sync')
 
 
 class NaiveSyncer(BaseSyncer):
@@ -330,6 +330,16 @@ class NaiveSyncer(BaseSyncer):
         for p in sub_objects:
             del self.storage_hashes[storage][p]
 
+    def _already_removed(self, target_storage: StorageBackend, path: PurePosixPath):
+        """
+        Helper for cleanup of already removed objects.
+        """
+        logger.warning("%s: removal of %s from storage %s failed: file already"
+                       " removed.", self.log_prefix, path, target_storage.backend_id)
+        self._remove_subdir_paths(target_storage, path)
+        if path in self.storage_hashes[target_storage]:
+            del self.storage_hashes[target_storage][path]
+
     def _remove_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
                        path: PurePosixPath, source_is_dir: bool, old_source_hash=None):
         """
@@ -347,9 +357,7 @@ class NaiveSyncer(BaseSyncer):
         try:
             target_is_dir = target_storage.getattr(path).is_dir()
         except FileNotFoundError:
-            logger.warning("%s: removal of %s from storage %s failed: file already"
-                           " removed.", self.log_prefix, path, target_storage.backend_id)
-            self._remove_subdir_paths(target_storage, path)
+            self._already_removed(target_storage, path)
             return
 
         if target_is_dir != source_is_dir:
@@ -359,13 +367,25 @@ class NaiveSyncer(BaseSyncer):
         if target_is_dir:
             self._remove_whole_dir(target_storage, path)
         else:
-            target_hash = target_storage.get_hash(path)
+            try:
+                target_hash = target_storage.get_hash(path)
+            except FileNotFoundError:
+                self._already_removed(target_storage, path)
+                return
+
             source_hash = old_source_hash if old_source_hash else \
                 self.storage_hashes[target_storage][path]
+
             if target_hash != source_hash:
                 self._handle_conflict(source_storage, target_storage, path)
                 return
-            target_storage.unlink(path)
+
+            try:
+                target_storage.unlink(path)
+            except FileNotFoundError:
+                self._already_removed(target_storage, path)
+                return
+
             if path in self.storage_hashes[target_storage]:
                 del self.storage_hashes[target_storage][path]
             return

@@ -27,7 +27,6 @@ Manage users
 from copy import deepcopy
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
-import logging
 import binascii
 import click
 
@@ -45,8 +44,9 @@ from ..manifest.sig import SigError
 from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
+from ..log import get_logger
 
-logger = logging.getLogger('cli-user')
+logger = get_logger('cli-user')
 
 
 @aliased_group('user', short_help='user management')

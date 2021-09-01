@@ -28,14 +28,16 @@ Delegate proxy backend
 from typing import Iterable, Optional, Tuple
 from pathlib import PurePosixPath
 
-import logging
 import click
 
 from .base import StorageBackend, File, Attr
 from ..exc import WildlandError
 from ..manifest.schema import Schema
+from ..log import get_logger
 
-logger = logging.getLogger('delegate')
+logger = get_logger('delegate')
+
+
 
 class DelegateProxyStorageBackend(StorageBackend):
     """
@@ -58,16 +60,13 @@ class DelegateProxyStorageBackend(StorageBackend):
         "required": ["reference-container"],
         "properties": {
             "reference-container": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#url"},
-                    {"$ref": "/schemas/container.schema.json"}
-                ],
+                "$ref": "/schemas/types.json#reference-container",
                 "description": ("Container to be used, either as URL "
                                 "or as an inlined manifest"),
             },
             "subdirectory": {
                 "$ref": "/schemas/types.json#abs-path",
-                "description": ("Subdirectory of reference-container to be exposed"),
+                "description": "Subdirectory of reference-container to be exposed",
             },
         }
     })
@@ -86,10 +85,10 @@ class DelegateProxyStorageBackend(StorageBackend):
     def cli_options(cls):
         return [
             click.Option(['--reference-container-url'], metavar='URL',
-                          help='URL for reference container manifest',
+                         help='URL for reference container manifest',
                          required=True),
             click.Option(['--subdirectory'], metavar='SUBDIRECTORY',
-                          help='Subdirectory of reference-container to be exposed',
+                         help='Subdirectory of reference-container to be exposed',
                          required=False),
         ]
 

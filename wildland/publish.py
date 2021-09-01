@@ -25,7 +25,6 @@
 Stuff related to publishing and unpublishing containers.
 """
 
-import logging
 from pathlib import Path, PurePosixPath
 from typing import Optional, Generator, List, Set, Tuple
 
@@ -37,8 +36,9 @@ from .container import Container
 from .exc import WildlandError
 from .manifest.manifest import ManifestError, Manifest
 from .storage_driver import StorageDriver
+from .log import get_logger
 
-logger = logging.getLogger('publish')
+logger = get_logger('publish')
 
 
 class Publisher:

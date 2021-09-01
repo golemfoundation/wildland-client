@@ -25,13 +25,13 @@ Wildland filesystem implementation intended to work as part of embedded Python
 installation on Apple platform.
 """
 
-import logging
 import os
 from pathlib import Path
 from .apple_log import apple_log
 from ..fs_base import WildlandFSBase
+from ..log import get_logger
 
-logger = logging.getLogger('fs')
+logger = get_logger('fs')
 
 
 class WildlandMacFS(WildlandFSBase):

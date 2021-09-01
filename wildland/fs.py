@@ -25,7 +25,6 @@
 Wildland Filesystem
 """
 
-import logging
 import os
 import re
 from pathlib import Path
@@ -37,9 +36,10 @@ from .fs_base import WildlandFSBase, Timespec
 from .fuse_utils import debug_handler
 from .log import init_logging
 from .control_server import ControlHandler
+from .log import get_logger
 
 fuse.fuse_python_api = 0, 2
-logger = logging.getLogger('fuse')
+logger = get_logger('fuse')
 
 
 @dataclass
@@ -184,6 +184,7 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
         with self.mount_lock:
             for storage_id in list(self.storages):
                 self._unmount_storage(storage_id)
+
 
 def main():
     # pylint: disable=missing-docstring

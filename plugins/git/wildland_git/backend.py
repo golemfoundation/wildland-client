@@ -25,8 +25,7 @@ Initial implementation of the git backend, used to expose git repositories
 as wildland containers.
 """
 
-#pylint: disable=no-member
-import logging
+# pylint: disable=no-member
 import stat
 from pathlib import PurePosixPath
 from typing import List, Union, Optional, Callable, Iterable, Tuple
@@ -39,9 +38,11 @@ from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.manifest.schema import Schema
+from wildland.log import get_logger
 from .git_client import GitClient
 
-logger = logging.getLogger('git-backend')
+logger = get_logger('git-backend')
+
 
 class GitFile(FullBufferedFile):
     """
@@ -51,7 +52,7 @@ class GitFile(FullBufferedFile):
     def __init__(self,
                  client: GitClient,
                  path_parts: List[str],
-                 attr: Attr, clear_cache_callback: Optional[Callable]=None):
+                 attr: Attr, clear_cache_callback: Optional[Callable] = None):
         super().__init__(attr, clear_cache_callback)
         self.client = client
         self.path_parts = path_parts
@@ -149,16 +150,16 @@ class GitStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             attr = self._get_attr_from_object(obj)
             yield obj.name, attr
 
-    def open(self, path: PurePosixPath, _flags:int) -> GitFile:
+    def open(self, path: PurePosixPath, _flags: int) -> GitFile:
         obj = self.client.get_object(self.convert_to_subparts(path))
         attr = self._get_attr_from_object(obj)
         return GitFile(self.client, self.convert_to_subparts(path), attr, None)
 
     def _get_attr_from_object(self, obj: Union[Blob, Tree]):
         if isinstance(obj, Blob):
-            attr = Attr(mode = stat.S_IFREG | 0o644,
-                        size = obj.size,
-                        timestamp = self.client.get_commit_timestamp())
+            attr = Attr(mode=stat.S_IFREG | 0o644,
+                        size=obj.size,
+                        timestamp=self.client.get_commit_timestamp())
         else:
             assert isinstance(obj, Tree)
             attr = Attr(mode=stat.S_IFDIR | 0o755)

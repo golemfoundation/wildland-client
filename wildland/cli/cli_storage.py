@@ -28,7 +28,6 @@ Storage object
 from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
-import logging
 import uuid
 
 import click
@@ -42,13 +41,13 @@ from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager, StorageTemplate
 from ..publish import Publisher
-
+from ..log import get_logger
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
 
-logger = logging.getLogger('cli-storage')
+logger = get_logger('cli-storage')
 
 
 @aliased_group('storage', short_help='storage management')

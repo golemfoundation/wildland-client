@@ -63,10 +63,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         "required": ["reference-container"],
         "properties": {
             "reference-container": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#url"},
-                    {"$ref": "/schemas/container.schema.json"}
-                ],
+                "$ref": "/schemas/types.json#reference-container",
                 "description": ("Container to be used, either as URL "
                                 "or as an inlined manifest"),
             },
@@ -83,7 +80,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
     def cli_options(cls):
         return [
             click.Option(['--reference-container-url'], metavar='URL',
-                          help='URL for inner container manifest',
+                         help='URL for inner container manifest',
                          required=True),
         ]
 
@@ -130,7 +127,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
         yield from self._info_all_walk(PurePosixPath('.'))
 
     def _info_all_walk(self, dir_path: PurePosixPath) -> \
-        Iterable[Tuple[PurePosixPath, Attr]]:
+            Iterable[Tuple[PurePosixPath, Attr]]:
 
         for name in self.inner.readdir(dir_path):
             path = dir_path / name
@@ -152,7 +149,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
 
         return self.inner.open(inner_path, flags)
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dates = []

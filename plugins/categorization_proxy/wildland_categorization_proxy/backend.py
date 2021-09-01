@@ -24,7 +24,6 @@
 Categorization proxy backend
 """
 
-import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -33,11 +32,12 @@ from typing import Iterable, Iterator, List, Set, Tuple, FrozenSet
 
 import click
 
-from .base import StorageBackend, File, Attr
-from ..manifest.schema import Schema
-from ..container import ContainerStub
+from wildland.storage_backends.base import StorageBackend, File, Attr
+from wildland.manifest.schema import Schema
+from wildland.container import ContainerStub
+from wildland.log import get_logger
 
-logger = logging.getLogger('categorization-proxy')
+logger = get_logger('categorization-proxy')
 
 
 @dataclass(eq=True, frozen=True)
@@ -67,12 +67,9 @@ class CategorizationProxyStorageBackend(StorageBackend):
         ],
         "properties": {
             "reference-container": {
-                "oneOf": [
-                    {"$ref": "/schemas/types.json#url"},
-                    {"$ref": "/schemas/container.schema.json"}
-                ],
-                "description": ("Container to be used, either as URL or as an inlined manifest"),
-            },
+                "$ref": "/schemas/types.json#reference-container",
+                "description": "Container to be used, either as URL or as an inlined manifest",
+                },
             "with-unclassified-category": {
                 "type": "boolean",
                 "description": "Create unclassified directory holding all of the untagged "
@@ -141,7 +138,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
     def open(self, path: PurePosixPath, flags: int) -> File:
         return self.inner.open(path, flags)
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dir_path = PurePosixPath('')
@@ -175,11 +172,11 @@ class CategorizationProxyStorageBackend(StorageBackend):
         return set(self._get_categories_to_subcontainer_map_recursive(dir_path, '', set(), False))
 
     def _get_categories_to_subcontainer_map_recursive(
-        self,
-        dir_path: PurePosixPath,
-        open_category: str,
-        closed_categories: Set[str],
-        category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
+            self,
+            dir_path: PurePosixPath,
+            open_category: str,
+            closed_categories: Set[str],
+            category_tag_found: bool) -> Iterator[CategorizationSubcontainerMetaInfo]:
         """
         Recursively traverse directory tree, collect and return all of the metainformation needed to
         create subcontainers based on the tags embedded in directory names.

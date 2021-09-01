@@ -30,7 +30,6 @@ Client class
 import collections.abc
 import functools
 import glob
-import logging
 import os
 import sys
 import time
@@ -61,8 +60,9 @@ from .config import Config
 from .exc import WildlandError
 from .search import Search
 from .storage_driver import StorageDriver
+from .log import get_logger
 
-logger = logging.getLogger('client')
+logger = get_logger('client')
 
 
 HTTP_TIMEOUT_SECONDS = 5
@@ -112,7 +112,7 @@ class Client:
         mount_dir = Path(self.config.get('mount-dir'))
         self.bridge_separator = '\uFF1A' if self.config.get('alt-bridge-separator') else ':'
         fs_socket_path = Path(self.config.get('fs-socket-path'))
-        self.fs_client = WildlandFSClient(mount_dir, fs_socket_path,
+        self.fs_client = WildlandFSClient(base_dir, mount_dir, fs_socket_path,
                                           bridge_separator=self.bridge_separator)
 
         # we only connect to sync daemon if needed
@@ -164,7 +164,7 @@ class Client:
         """
         Connect to the sync daemon. Starts the daemon if not running.
         """
-        delay = 0.1
+        delay = 0.5
         daemon_started = False
         sync_socket_path = Path(self.config.get('sync-socket-path'))
         self._sync_client = ControlClient()
@@ -186,6 +186,7 @@ class Client:
         cmd = [sys.executable, '-m', 'wildland.storage_sync.daemon']
         if self.base_dir:
             cmd.extend(['--base-dir', str(self.base_dir)])
+        logger.debug('starting sync daemon: %s', cmd)
         Popen(cmd)
 
     def run_sync_command(self, name, **kwargs) -> Any:
@@ -681,7 +682,8 @@ class Client:
                         bridges_map
                     )
 
-    def ensure_mount_reference_container(self, containers: Iterator[Container]) -> \
+    def ensure_mount_reference_container(self, containers: Iterator[Container],
+                                         callback_iter_func=iter) -> \
             Tuple[List[Container], str]:
         """
         Ensure that for any storage with ``MOUNT_REFERENCE_CONTAINER`` corresponding
@@ -719,7 +721,7 @@ class Client:
                 if referenced not in containers_to_process:
                     containers_to_process.append(referenced)
 
-        for container in containers_to_process:
+        for container in callback_iter_func(containers_to_process):
             try:
                 open_node(container)
             except WildlandError as ex:
@@ -873,7 +875,7 @@ class Client:
         """
         for storage in container.load_storages():
             if not StorageBackend.is_type_supported(storage.storage_type):
-                logging.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
+                logger.warning('Unsupported storage manifest: (type %s)', storage.storage_type)
                 continue
             if predicate and not predicate(storage):
                 continue
@@ -990,7 +992,7 @@ class Client:
                     # enumeration in general case. See #419 for details.
                     continue
                 with backend:
-                    for _, subcontainer in backend.get_children():
+                    for _, subcontainer in backend.get_children(self):
                         yield self.load_subcontainer_object(container, storage, subcontainer)
             except NotImplementedError:
                 continue

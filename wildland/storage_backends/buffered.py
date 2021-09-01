@@ -25,16 +25,15 @@
 File buffering classes
 """
 
-import logging
 import abc
 from typing import Dict, Tuple, Iterable, List, Optional, Callable
 import heapq
 import threading
 
 from .base import File, Attr
+from ..log import get_logger
 
-
-logger = logging.getLogger('storage-buffered')
+logger = get_logger('storage-buffered')
 
 
 class Buffer:

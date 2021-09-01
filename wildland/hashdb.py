@@ -23,12 +23,14 @@
 Hash db.
 """
 
-import logging
 import sqlite3
 from pathlib import PurePosixPath
 from typing import List, Optional, Tuple, NamedTuple
 
-logger = logging.getLogger('hashdb')
+from .log import get_logger
+
+logger = get_logger('hashdb')
+
 
 class HashCache(NamedTuple):
     """
@@ -36,6 +38,7 @@ class HashCache(NamedTuple):
     """
     hash: str
     token: str
+
 
 class HashDb:
     """

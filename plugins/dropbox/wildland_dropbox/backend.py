@@ -24,7 +24,6 @@
 Dropbox storage backend
 """
 import errno
-import logging
 import stat
 
 from pathlib import PurePosixPath, PosixPath
@@ -41,9 +40,10 @@ from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.manifest.schema import Schema
 from wildland.cli.cli_base import CliError
+from wildland.log import get_logger
 from .dropbox_client import DropboxClient
 
-logger = logging.getLogger('storage-dropbox')
+logger = get_logger('storage-dropbox')
 
 
 class DropboxFileAttr(Attr):

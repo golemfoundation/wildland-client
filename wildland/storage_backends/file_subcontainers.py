@@ -248,7 +248,7 @@ class FileSubcontainersMixin(StorageBackend):
             driver.makedirs(relpath.parent)
             driver.write_file(relpath, client.session.dump_object(container))
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
         """
         List all subcontainers provided by this storage.

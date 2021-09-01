@@ -24,10 +24,17 @@
 Unit tests for the categorization proxy
 """
 
+# pylint: disable=missing-docstring,redefined-outer-name,consider-using-with
+
 import os
 
-from .helpers import treewalk
-from ..storage_backends.categorization_proxy import CategorizationProxyStorageBackend
+from wildland.tests.helpers import treewalk
+
+# Pylint does not recognize imported pytest fixtures as used.
+# It cannot be moved to the local conftest.py because import from one conftest.py to another fails.
+from wildland.tests.conftest import cli, base_dir  # pylint: disable=unused-import
+
+from ..backend import CategorizationProxyStorageBackend
 
 
 def test_filename_to_prefix_postfix_category_path():
@@ -62,7 +69,7 @@ def test_filename_to_prefix_postfix_category_path():
         '@@@@@@@@': ('/@@@@@@@@', ''),
         # Names with valid category name embedded.
         '@authors': ('', '/authors'),
-        '@titles_title1' : ('', '/titles/title1'),
+        '@titles_title1': ('', '/titles/title1'),
         'author2_@titles_title3': ('/author2', '/titles/title3'),
         'aaa_bbb_ccc@ddd_eee_fff': ('/aaa/bbb/ccc', '/ddd/eee/fff'),
         'aaa_bbb @ccc_ddd': ('/aaa/bbb ', '/ccc/ddd'),

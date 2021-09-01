@@ -31,7 +31,6 @@ from pathlib import Path
 import os
 import base64
 import stat
-import logging
 from hashlib import sha256
 
 import nacl.utils
@@ -42,8 +41,9 @@ from nacl.encoding import RawEncoder
 from nacl.exceptions import BadSignatureError, CryptoError
 
 from ..exc import WildlandError
+from ..log import get_logger
 
-logger = logging.getLogger('sig')
+logger = get_logger('sig')
 
 
 class SigError(WildlandError):

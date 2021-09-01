@@ -22,7 +22,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=missing-docstring
-
+import sys
+from multiprocessing import Process
 import subprocess
 import tempfile
 import os
@@ -67,23 +68,30 @@ class FuseEnv:
         self.storage_dir = self.test_dir / 'storage'
         self.socket_path = self.test_dir / 'wlfuse.sock'
         self.mounted = False
-        self.proc = None
+        self.proc_stop = None
         self.conn: Optional[socket.socket] = None
 
         os.mkdir(self.mnt_dir)
         os.mkdir(self.storage_dir)
 
-    def mount(self):
+    def mount(self, fs=None):
         assert not self.mounted, 'only one mount() at a time'
 
         options = ['log=-', 'socket=' + str(self.socket_path)]
 
-        # pylint: disable=consider-using-with
-        self.proc = subprocess.Popen([
-            ENTRY_POINT, self.mnt_dir,
-            '-f', '-d',
-            '-o', ','.join(options),
-        ], cwd=PROJECT_PATH)
+        if fs:
+            sys.argv = [sys.argv[0], str(self.mnt_dir), '-f', '-d', '-o', ','.join(options)]
+            proc = Process(target=fs)
+            proc.start()
+            self.proc_stop = proc.join
+        else:
+            # pylint: disable=consider-using-with
+            subproc = subprocess.Popen([
+                ENTRY_POINT, self.mnt_dir,
+                '-f', '-d',
+                '-o', ','.join(options),
+            ], cwd=PROJECT_PATH)
+            self.proc_stop = subproc.wait
         try:
             self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.wait_for_mount(self.conn)
@@ -146,14 +154,14 @@ class FuseEnv:
 
     def unmount(self):
         assert self.mounted
-        assert self.proc
+        assert self.proc_stop
         assert self.conn
 
         self.conn.close()
         self.conn = None
         subprocess.run(['fusermount', '-u', self.mnt_dir], check=False)
-        self.proc.wait()
-        self.proc = False
+        self.proc_stop()
+        self.proc_stop = None
         self.mounted = False
 
     def destroy(self):

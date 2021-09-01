@@ -20,9 +20,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-'''
+"""
 Encrypted proxy backend
-'''
+"""
 
 import os
 import abc
@@ -31,7 +31,6 @@ import subprocess
 import tempfile
 from subprocess import Popen, PIPE
 from pathlib import PurePosixPath, Path
-import logging
 import secrets
 import string
 from typing import Dict, List, Optional, Type
@@ -42,16 +41,18 @@ from wildland.storage_backends.base import StorageBackend, File
 from wildland.manifest.schema import Schema
 from wildland.storage_backends.local import LocalStorageBackend, LocalFile
 from wildland.fs_client import WildlandFSError
+from wildland.log import get_logger
+
+logger = get_logger('storage-encrypted')
 
 
-logger = logging.getLogger('storage-encrypted')
 
 class EncryptedFSRunner(metaclass=abc.ABCMeta):
-    '''
+    """
     Abstract base class for cryptographic filesystem runner.
 
     To be returned from ``init()``.
-    '''
+    """
     binary: str
     cleartextdir: Optional[PurePosixPath]
 
@@ -59,10 +60,10 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
     def init(cls, tempdir: PurePosixPath,
              ciphertextdir: PurePosixPath,
              cleartextdir: PurePosixPath) -> 'EncryptedFSRunner':
-        '''
+        """
         Initialize and configure a cryptographic filesystem storage.
         ``credentials()`` should be available after that.
-        '''
+        """
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -73,16 +74,16 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
-        '''
+        """
         Mount and decrypt.
-        '''
+        """
         raise NotImplementedError()
 
     # pylint: disable=subprocess-run-check
     def stop(self) -> int:
-        '''
+        """
         Unmount.
-        '''
+        """
         if self.cleartextdir is None:
             raise WildlandFSError('Unmounting failed: mount point unknown')
         assert self.cleartextdir.is_absolute()
@@ -97,24 +98,26 @@ class EncryptedFSRunner(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def credentials(self) -> str:
-        '''
+        """
         Return serialized credentials.
-        '''
+        """
         raise NotImplementedError()
 
+
 def generate_password(length: int) -> str:
-    '''
+    """
     Generates an alphanumeric password.
 
     Note that credentials parsing assumes that password does not contain semicolon (';')
-    '''
+    """
     alphabet = string.ascii_letters + string.digits
-    password = ''.join(secrets.choice(alphabet) for i in range(length))
+    password = ''.join(secrets.choice(alphabet) for _ in range(length))
     return password
+
 
 # pylint: disable=super-init-not-called
 class EncFS(EncryptedFSRunner):
-    '''
+    """
     Runs encfs via subprocess.
 
     Relevant issues of encfs:
@@ -124,7 +127,7 @@ class EncFS(EncryptedFSRunner):
       number of files and directories inside a directory. It encrypts but does not
       randomize file names - leaking information about file duplicates in a single
       filesystem.
-    '''
+    """
     password: str
     config: str
     ciphertextdir: PurePosixPath
@@ -147,7 +150,7 @@ class EncFS(EncryptedFSRunner):
     def _encode_credentials(self):
         assert self.password
         assert self.config
-        return self.password+";"+ \
+        return self.password + ";" + \
             base64.standard_b64encode(self.config.encode()).decode()
 
     def _decode_credentials(self, encoded_credentials):
@@ -158,9 +161,9 @@ class EncFS(EncryptedFSRunner):
     def _write_config(self, storage: StorageBackend):
 
         def _write_file(path: PurePosixPath, data: bytes):
-            '''
+            """
             Write file, if it does not exist already
-            '''
+            """
             flags = os.O_WRONLY | os.O_APPEND
             try:
                 bf = storage.open(path, flags)
@@ -191,11 +194,11 @@ class EncFS(EncryptedFSRunner):
     def init(cls, tempdir: PurePosixPath,
              ciphertextdir: PurePosixPath,
              cleartextdir: PurePosixPath) -> 'EncFS':
-        '''
+        """
         Create a new, empty encfs storage.
 
         Loads contents of config created by gocryptfs, so we can store it in the storage manifest.
-        '''
+        """
         encfs = cls(tempdir, ciphertextdir, None)
         encfs.password = generate_password(30)
         assert encfs.ciphertextdir.is_absolute()
@@ -215,17 +218,17 @@ class EncFS(EncryptedFSRunner):
 
     # pylint: disable=consider-using-with
     def run_binary(self, cmd):
-        '''
+        """
         For internal use only.
-        '''
+        """
         cmd = [self.binary] + cmd
         sp = Popen(cmd, stdin=PIPE, stderr=PIPE, stdout=PIPE)
         (_, err) = sp.communicate(input=self.password.encode())
-        return (sp, err)
+        return sp, err
 
 
 class GoCryptFS(EncryptedFSRunner):
-    '''
+    """
     Runs gocryptfs via subprocess.
 
     Relevant issues of gocryptfs:
@@ -245,7 +248,7 @@ class GoCryptFS(EncryptedFSRunner):
 
     For more information, please read audit report:
     https://defuse.ca/downloads/audits/gocryptfs-cryptography-design-audit.pdf
-    '''
+    """
     password: str
     config: str
     topdiriv: bytes
@@ -269,8 +272,8 @@ class GoCryptFS(EncryptedFSRunner):
         assert self.password
         assert self.config
         assert self.topdiriv
-        return self.password+";"+ \
-            base64.standard_b64encode(self.config.encode()).decode()+";"+ \
+        return self.password + ";" + \
+            base64.standard_b64encode(self.config.encode()).decode() + ";" + \
             base64.standard_b64encode(self.topdiriv).decode()
 
     def _decode_credentials(self, encoded_credentials):
@@ -282,9 +285,9 @@ class GoCryptFS(EncryptedFSRunner):
     def _write_config(self, storage: StorageBackend):
 
         def _write_file(path: PurePosixPath, data: bytes):
-            '''
+            """
             Write file, if it does not exist already
-            '''
+            """
             flags = os.O_WRONLY | os.O_APPEND
             try:
                 bf = storage.open(path, flags)
@@ -311,12 +314,12 @@ class GoCryptFS(EncryptedFSRunner):
 
     @classmethod
     def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, _) -> 'GoCryptFS':
-        '''
+        """
         Create a new, empty gocryptfs storage.
 
         Loads contents of config and top directory's IV files
         created by gocryptfs, so we can store them in the storage manifest.
-        '''
+        """
         gcfs = cls(tempdir, ciphertextdir, None)
         gcfs.password = generate_password(30)
         out, sp = gcfs.run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
@@ -331,30 +334,31 @@ class GoCryptFS(EncryptedFSRunner):
 
     # pylint: disable=consider-using-with
     def run_binary(self, cmd1, cmd2):
-        '''
+        """
         For internal use only.
-        '''
+        """
         passwordpipe = self.tmpdir / 'password-pipe'
         try:
             os.mkfifo(passwordpipe)
         except FileExistsError:
             pass
-        cmd = [self.binary] + cmd1  + [passwordpipe] + cmd2
+        cmd = [self.binary] + cmd1 + [passwordpipe] + cmd2
         sp = Popen(cmd, stdout=PIPE)
         with open(passwordpipe, 'w') as f:
             f.write(self.password)
             f.flush()
         out, _ = sp.communicate()
         os.unlink(passwordpipe)
-        return (out, sp)
+        return out, sp
+
 
 class FileOnAMount(LocalFile):
-    '''
+    """
     When writing / reading, adds a check if mount is still a mount.
 
     Example scenario - engine (EncFS or GoCryptFS) process is killed by OOM,
     user attempts to write to a file, file ends up on unencrypted partition.
-    '''
+    """
     def __init__(self, *args, **kwargs):
         self.mount_path = Path(kwargs.pop('mount_path'))
         super().__init__(*args, **kwargs)
@@ -377,8 +381,9 @@ engines: Dict[str, Type['EncryptedFSRunner']] = {
 
 # pylint: disable=no-member
 
+
 class EncryptedStorageBackend(StorageBackend):
-    '''
+    """
     The 'reference-container' parameter specifies inner container, either as URL,
     or as an inline manifest. When creating the object instance:
 
@@ -387,7 +392,7 @@ class EncryptedStorageBackend(StorageBackend):
 
     2. Then, the inner storage backend will be instantiated and passed as
     params['storage'] (see StorageBackend.from_params()).
-    '''
+    """
 
     SCHEMA = Schema({
         "type": "object",
@@ -417,7 +422,6 @@ class EncryptedStorageBackend(StorageBackend):
     TYPE = 'encrypted'
     MOUNT_REFERENCE_CONTAINER = True
 
-
     def __init__(self, **kwds):
         super().__init__(**kwds)
 
@@ -432,11 +436,11 @@ class EncryptedStorageBackend(StorageBackend):
         default = Path('~/.local/share/').expanduser()
         tmpdir = PurePosixPath(os.getenv('XDG_DATA_HOME', default)) / 'wl' / 'encrypted'
         alphabet = string.ascii_letters + string.digits
-        self.mountid = ''.join(secrets.choice(alphabet) for i in range(15))
+        self.mountid = ''.join(secrets.choice(alphabet) for _ in range(15))
         # delaying creation of those paths until self.mount()
         self.mountid_path = tmpdir / self.mountid
         self.cleartext_path = tmpdir / self.mountid / 'cleartext'
-        self.tmpdir_path =  tmpdir / self.mountid / self.engine
+        self.tmpdir_path = tmpdir / self.mountid / self.engine
 
         self.local: LocalStorageBackend
 
@@ -448,7 +452,6 @@ class EncryptedStorageBackend(StorageBackend):
 
         # The path where it got mounted
         self.ciphertext_path = PurePosixPath(self.params['storage-path'])
-
 
     @classmethod
     def cli_options(cls):

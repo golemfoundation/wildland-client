@@ -25,17 +25,18 @@ Initial implementation of the git backend used to expose git repositories
 as wildland containers
 """
 
-#pylint: disable=no-member
+# pylint: disable=no-member
 import os
 import shutil
-import logging
 from typing import List, Union, Optional
 
 from git import Repo, Blob, Tree, exc
 
 from wildland.exc import WildlandError
+from wildland.log import get_logger
 
-logger = logging.getLogger('git-client')
+logger = get_logger('git-client')
+
 
 class GitClient:
     """
@@ -70,13 +71,13 @@ class GitClient:
         upon every mount/unmount of the container), but you can choose to use the
         prompt if you dont want your credentials to be shown in bash history.
         """
-        #removes the current contents of the directory
+        # removes the current contents of the directory
         if os.path.isdir(self.location) and os.listdir(self.location):
             try:
                 shutil.rmtree(self.location)
             except OSError as error:
                 raise WildlandError('Cleaning the directory %s unsuccessful: %s'
-                                     % (self.location, error.strerror)) from error
+                                    % (self.location, error.strerror)) from error
 
         try:
             os.makedirs(self.location)
@@ -112,7 +113,7 @@ class GitClient:
                 shutil.rmtree(self.location)
             except OSError as error:
                 raise WildlandError('Cleaning the directory %s unsuccessful: %s'
-                                     % (self.location, error.strerror)) from error
+                                    % (self.location, error.strerror)) from error
 
     def list_folder(self, path_parts: List[str]) -> List[Union[Blob, Tree]]:
         """

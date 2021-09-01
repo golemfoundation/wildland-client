@@ -463,8 +463,9 @@ ply==3.11 \
     --hash=sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3 \
     --hash=sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce
     # via stone
-progress==1.5 \
-    --hash=sha256:69ecedd1d1bbe71bf6313d88d1e6c4d2957b7f1d4f71312c211257f7dae64372
+progressbar2==3.53.1 \
+    --hash=sha256:ef72be284e7f2b61ac0894b44165926f13f5d995b2bf3cd8a8dedc6224b255a7 \
+    --hash=sha256:fe2738e7ecb7df52ad76307fe610c460c52b50f5335fd26c3ab80ff7655ba1e0
     # via -r requirements.in
 protobuf==3.17.3 \
     --hash=sha256:13ee7be3c2d9a5d2b42a1030976f760f28755fcf5863c55b1460fd205e6cd637 \
@@ -659,6 +660,10 @@ python-lorem==1.1.2 \
     --hash=sha256:7fee2289b7f034653034a7ef2f1bde860346ccc99748c852a25f596de12d9ccb \
     --hash=sha256:f1991a304719d233ea14098501ae34b9aa03e7f3700683472619b8975ffa9b9d
     # via -r requirements.in
+python-utils==2.5.6 \
+    --hash=sha256:18fbc1a1df9a9061e3059a48ebe5c8a66b654d688b0e3ecca8b339a7f168f208 \
+    --hash=sha256:352d5b1febeebf9b3cdb9f3c87a3b26ef22d3c9e274a8ec1e7048ecd2fac4349
+    # via progressbar2
 pytz==2021.1 \
     --hash=sha256:83a4a90894bf38e243cf052c8b58f381bfe9a7a483f6a9cab140bc7f702ac4da \
     --hash=sha256:eb10ce3e7736052ed3623d49975ce333bcd712c7bb19a58b9e2089d4057d0798
