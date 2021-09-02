@@ -108,20 +108,24 @@ def create(obj: ContextObj,
             location_link = Link(file, storage=storage)
             location = location_link.to_manifest_fields(inline=True)
 
+    fingerprint = obj.client.session.sig.fingerprint(target_user.primary_pubkey)
+
     if user_paths:
         paths = [PurePosixPath(p) for p in user_paths]
     else:
+        paths = target_user.paths
+
         click.echo(
-            "Using user's default paths: {}".format([str(p) for p in target_user.paths]))
-        paths = list(target_user.paths)
+            "Using user's default paths in safe format: {}".format(
+                [str(p) for p in target_user.paths])
+        )
 
     bridge = Bridge(
         owner=owner_user.owner,
         user_location=location,
         user_pubkey=target_user.primary_pubkey,
-        user_id=obj.client.session.sig.fingerprint(target_user.primary_pubkey),
+        user_id=fingerprint,
         paths=paths,
-        use_safe_paths=False,
         client=obj.client
     )
 

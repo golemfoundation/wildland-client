@@ -27,12 +27,11 @@ Manage containers
 """
 from itertools import combinations
 from pathlib import PurePosixPath, Path
-from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Optional, Sequence, Tuple
 import os
 import sys
 import re
 import signal
-import tempfile
 import click
 import daemon
 import progressbar
@@ -41,6 +40,9 @@ from progressbar.widgets import FormatWidgetMixin, TimeSensitiveWidgetBase
 from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
+
+# https://stackoverflow.com/questions/28403380/py-tests-monkeypatch-setattr-not-working-in-some-cases
+import wildland.cli.cli_common
 
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
@@ -474,8 +476,8 @@ def modify(ctx: click.Context,
     if no_encrypt_manifest:
         to_set['access'] = [{'user': '*'}]
 
-    container, modified = _resolve_container(
-        ctx, input_file, modify_manifest,
+    container, modified = wildland.cli.cli_common.resolve_object(
+        ctx, input_file, WildlandObject.Type.CONTAINER, modify_manifest,
         remount=remount,
         edit_funcs=[add_fields, del_fields, set_fields, del_nested_fields],
         to_add=to_add,
@@ -1308,7 +1310,9 @@ def dump(ctx: click.Context, path: str, decrypt: bool):
     """
     Verify and dump contents of a container.
     """
-    _resolve_container(ctx, path, base_dump, decrypt=decrypt, save_manifest=False)
+    wildland.cli.cli_common.resolve_object(
+        ctx, path, WildlandObject.Type.CONTAINER, base_dump, decrypt=decrypt, save_manifest=False
+    )
 
 
 @container_.command(short_help='edit container manifest in external tool')
@@ -1321,65 +1325,8 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
     """
     Edit container manifest in external tool.
     """
-    container, manifest_modified = _resolve_container(
-        ctx, path, base_edit, editor=editor, remount=remount)
+    container, manifest_modified = wildland.cli.cli_common.resolve_object(
+        ctx, path, WildlandObject.Type.CONTAINER, base_edit, editor=editor, remount=remount)
 
     if publish and manifest_modified:
         republish_object(ctx.obj.client, container)
-
-
-def _resolve_container(
-        ctx: click.Context,
-        path: str,
-        callback: Union[click.core.Command, Callable[..., Any]],
-        save_manifest: bool = True,
-        **callback_kwargs: Any
-        ) -> Tuple[Container, bool]:
-
-    client: Client = ctx.obj.client
-
-    if client.is_url(path) and not path.startswith('file:'):
-        container = client.load_object_from_url(
-            WildlandObject.Type.CONTAINER, path, client.config.get('@default'))
-        if container.manifest is None:
-            raise WildlandError(f'Manifest for the given path [{path}] was not found')
-
-        if container.local_path:
-            # modify local manifest
-            manifest_modified = ctx.invoke(callback, pass_ctx=ctx,
-                                           input_file=str(container.local_path), **callback_kwargs)
-            container = client.load_object_from_name(
-                WildlandObject.Type.CONTAINER, str(container.local_path))
-        else:
-            # download, modify and optionally save manifest
-            with tempfile.NamedTemporaryFile(suffix='.tmp.container.yaml') as f:
-                f.write(container.manifest.to_bytes())
-                f.flush()
-
-                manifest_modified = ctx.invoke(
-                    callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
-
-                with open(f.name, 'rb') as file:
-                    data = file.read()
-
-                container = client.load_object_from_bytes(WildlandObject.Type.CONTAINER, data)
-
-                if save_manifest:
-                    path = client.save_new_object(WildlandObject.Type.CONTAINER, container)
-                    click.echo(f'Created: {path}')
-    else:
-        # modify local manifest
-        local_path = client.find_local_manifest(WildlandObject.Type.CONTAINER, path)
-
-        if local_path:
-            path = str(local_path)
-
-        manifest_modified = ctx.invoke(callback, pass_ctx=ctx, input_file=path, **callback_kwargs)
-
-        container = client.load_object_from_name(WildlandObject.Type.CONTAINER, path)
-
-    if callback not in [base_edit, modify_manifest]:
-        assert manifest_modified is None
-        manifest_modified = False
-
-    return container, manifest_modified

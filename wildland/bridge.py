@@ -54,7 +54,6 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                  user_pubkey: str,
                  user_id: str,
                  paths: Iterable[PurePosixPath],
-                 use_safe_paths: bool,
                  client,
                  manifest: Manifest = None):
         super().__init__()
@@ -64,13 +63,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         self.user_id = user_id
         self.manifest = manifest
         self.client = client
-        self.paths: List[PurePosixPath] = []
-
-        if paths:
-            if use_safe_paths:
-                self.paths = self._create_safe_bridge_paths(paths)
-            else:
-                self.paths = list(paths)
+        self.paths = list(paths)
 
     def get_unique_publish_id(self) -> str:
         return f'{self.user_id}.bridge'
@@ -81,7 +74,8 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     def get_publish_paths(self) -> List[PurePosixPath]:
         return [self.get_primary_publish_path()] + self.paths.copy()
 
-    def _create_safe_bridge_paths(self, paths) -> List[PurePosixPath]:
+    @staticmethod
+    def create_safe_bridge_paths(user_id, paths) -> List[PurePosixPath]:
         """
         Creates safe (ie. obscure) bridge path which will not conflict with other potentially
         existing, user-defined paths which could cause mailicious forest to be mounted without
@@ -93,7 +87,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
             if path.is_relative_to('/'):
                 path = path.relative_to('/')
 
-            safe_paths.append(PurePosixPath(f'/forests/{self.user_id}-' + '_'.join(path.parts)))
+            safe_paths.append(PurePosixPath(f'/forests/{user_id}-' + '_'.join(path.parts)))
 
         return safe_paths
 
@@ -105,7 +99,6 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                 user_pubkey=fields['pubkey'],
                 user_id=client.session.sig.fingerprint(fields['pubkey']),
                 paths=[PurePosixPath(p) for p in fields['paths']],
-                use_safe_paths=kwargs.pop('use_safe_paths', False),
                 client=client,
                 manifest=manifest
             )

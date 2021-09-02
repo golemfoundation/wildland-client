@@ -39,8 +39,7 @@ import pytest
 
 from .test_sync import wait_for_file, wait_for_deletion, make_file
 from ..cli.cli_base import CliError
-from ..cli.cli_common import del_nested_fields
-from ..cli.cli_container import _resolve_container
+from ..cli.cli_common import del_nested_fields, resolve_object
 from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
@@ -1486,7 +1485,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     # Mock inbuilt string to pass startswith() check.
     # This is done to allow testing the is_url() logic but with local file.
     #
-    # def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
+    # def resolve_object(ctx: click.Context, path, obj_type, callback, save_manifest **cb_kwargs):
     #    if client.is_url(path) and not path.startswith('file:'):
     class MyStr(str):
         def __init__(self, *_args):
@@ -1500,10 +1499,11 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
 
             return super().startswith(_str)
 
-    def _cb(ctx, path, callback, **callback_kwargs):
-        return _resolve_container(ctx, MyStr(path), callback, **callback_kwargs)
+    def _cb(ctx, path, obj_type, callback, save_manifest=True, **callback_kwargs):
+        return resolve_object(ctx, MyStr(path), obj_type,
+                              callback, save_manifest, **callback_kwargs)
 
-    monkeypatch.setattr("wildland.cli.cli_container._resolve_container", _cb)
+    monkeypatch.setattr("wildland.cli.cli_common.resolve_object", _cb)
 
     # Modify it again, although this time use file:// URL (and auto-re-publish)
     cli('container', 'modify', '--title', 'another thing',

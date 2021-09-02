@@ -437,14 +437,14 @@ def _do_process_imported_manifest(
                 'storage': storage.to_manifest_fields(inline=True)
             }
 
+        fingerprint = obj.client.session.sig.fingerprint(user.primary_pubkey)
+
         bridge = Bridge(
             owner=default_user,
             user_location=user_location,
             user_pubkey=user.primary_pubkey,
-            user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
-            paths=(paths or user.paths),
-            use_safe_paths=(not bool(paths)),  # Use safe paths if user has not
-                                               # defined paths explicitly
+            user_id=fingerprint,
+            paths=(paths or Bridge.create_safe_bridge_paths(fingerprint, user.paths)),
             client=obj.client
         )
 
@@ -453,14 +453,13 @@ def _do_process_imported_manifest(
         click.echo(f'Created: {bridge_path}')
     else:
         bridge = WildlandObject.from_manifest(
-            manifest, obj.client, WildlandObject.Type.BRIDGE, use_safe_paths=True)
+            manifest, obj.client, WildlandObject.Type.BRIDGE)
 
         # adjust imported bridge
         if default_user:
             bridge.owner = default_user
 
-        if paths:
-            bridge.paths = list(paths)
+        bridge.paths = list(paths) or Bridge.create_safe_bridge_paths(bridge.user_id, bridge.paths)
 
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
@@ -520,14 +519,15 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
         copied_files = []
         try:
             for bridge in bridges:
+                fingerprint = obj.client.session.sig.fingerprint(bridge.user_pubkey)
+
                 new_bridge = Bridge(
                     owner=default_user,
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
-                    user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=(posix_paths or bridge.paths),
-                    use_safe_paths=(not bool(posix_paths)),  # Use safe paths if user has not
-                                                             # defined paths explicitly
+                    user_id=fingerprint,
+                    paths=(posix_paths or
+                           Bridge.create_safe_bridge_paths(fingerprint, bridge.paths)),
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')
