@@ -28,7 +28,7 @@ import threading
 
 from pathlib import Path, PurePosixPath
 from threading import Lock
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 import click
 
@@ -73,13 +73,20 @@ class SyncJob:
         """
         Signals the worker thread to stop and waits until it does.
         """
-        self.stop_event.set()
+        if self.continuous:
+            self.stop_event.set()
+
+        # TODO: one-shot sync is not interruptible currently, there's no safe way to abort
+        # see issue #580
         self.thread.join()
 
     def syncer_status(self) -> SyncerStatus:
         """
         Status of this sync job as SyncerStatus.
         """
+        if self.error:  # worker thread was interrupted, syncer might not have updated its status
+            return SyncerStatus.ERROR
+
         return self.syncer.status()
 
     def status(self) -> str:
@@ -111,13 +118,17 @@ class SyncJob:
         Function for the worker thread.
         """
         try:
-            job.syncer.start_sync()
-            job.stop_event.wait()
+            if job.continuous:
+                job.syncer.start_sync()
+                job.stop_event.wait()
+            else:
+                job.syncer.one_shot_sync(job.unidirectional)
         except Exception as ex:
             logger.exception('Exception:')
             job.error = f'Error: {ex}'
         finally:
-            job.syncer.stop_sync()
+            if job.continuous:
+                job.syncer.stop_sync()
 
 
 class SyncDaemon:
@@ -170,7 +181,7 @@ class SyncDaemon:
                                     "stop-sync to stop it.")
 
             response = f'Using remote backend {target_backend.backend_id} ' \
-                       f'of type {target_backend.TYPE}'
+                       f'of type {target_backend.TYPE}.'
 
             # Store information about container/backend mappings
             assert self.base_dir
@@ -187,30 +198,23 @@ class SyncDaemon:
                                               unidirectional=unidirectional,
                                               can_require_mount=False)
 
-            if not continuous:
-                # consider running in a thread and async completion, the process can take a while
-                try:
-                    syncer.one_shot_sync()
-                except Exception as e:
-                    response += f'\n[!] Error: {e}'
-            else:
-                self.jobs[job_id] = SyncJob(container_name, syncer, source_backend,
-                                            target_backend, continuous, unidirectional)
-                self.jobs[job_id].start()
+            self.jobs[job_id] = SyncJob(container_name, syncer, source_backend,
+                                        target_backend, continuous, unidirectional)
+            self.jobs[job_id].start()
 
         return response
 
     def stop_sync(self, job_id: str) -> str:
         """
-        Stop syncing storages.
+        Stop syncing storages if continuous, remove the job from internal state if one-shot.
 
         :param job_id: Unique sync job ID, currently 'container_owner|container_uuid'.
         :return: Response message.
         """
         with self.lock:
             try:
-                sync_thread = self.jobs[job_id]
-                sync_thread.stop()
+                sync_job = self.jobs[job_id]
+                sync_job.stop()
                 self.jobs.pop(job_id)
             except KeyError:
                 # pylint: disable=raise-missing-from
@@ -243,12 +247,13 @@ class SyncDaemon:
         return ret
 
     @control_command('job-status')
-    def control_container_status(self, _handler, job_id: str) -> Optional[int]:
+    def control_job_status(self, _handler, job_id: str) -> Optional[Tuple[int, str]]:
         """
         Return status of a syncer for the given job.
         """
         if job_id in self.jobs.keys():
-            return self.jobs[job_id].syncer_status().value
+            job = self.jobs[job_id]
+            return job.syncer_status().value, job.status()
 
         return None
 

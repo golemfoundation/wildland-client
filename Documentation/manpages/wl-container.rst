@@ -474,8 +474,8 @@ a local file.
 .. program:: wl-container-sync
 .. _wl-container-sync:
 
-:command:`wl container sync [--target-storage <id_or_type>] [--source-storage <id_or_type>] [--one-shot] <container>`
----------------------------------------------------------------------------------------------------------------------
+:command:`wl container sync [--target-storage <id_or_type>] [--source-storage <id_or_type>] [--one-shot] [--no-wait] <container>`
+---------------------------------------------------------------------------------------------------------------------------------
 
 Start synchronizing two of a container's storages, by default the first local storage with the
 first non-local storage in the manifest).
@@ -494,6 +494,10 @@ first non-local storage in the manifest).
 .. option:: --one-shot
 
     Perform one-time sync, do not maintain sync.
+
+.. option:: --no-wait
+
+    Do not wait for a one-time sync to finish, run in the background. Requires --one-shot.
 
 .. program:: wl-container-stop-sync
 .. _wl-container-stop-sync:
