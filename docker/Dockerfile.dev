@@ -33,4 +33,4 @@ RUN apt-get -qy update && apt-get install -y \
 # Entrypoint
 
 USER user
-ENTRYPOINT ["./docker/entrypoint.dev.sh"]
+ENTRYPOINT ["bash", "./docker/entrypoint.dev.sh"]

@@ -235,8 +235,8 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. program:: wl-storage-create-ipfs
 .. _wl-storage-create-ipfs:
 
-:command:`wl storage create ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-address <multiaddress> <storage> [--no-publish]`
------------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create ipfs --container <container> [-u] [--user <user>] --ipfs-hash <url> --endpoint-addr <multiaddress> <storage> [--no-publish]`
+--------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/ipfs.rsti

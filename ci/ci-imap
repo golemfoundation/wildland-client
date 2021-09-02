@@ -19,12 +19,12 @@ sudo /etc/init.d/dovecot start
 
 sudo chmod 0666 /dev/fuse
 
-./wl user create User
-./wl container create  Imap --path /imap
-./wl storage create imap --container Imap --host 127.0.0.1 --login user \
+wl user create User
+wl container create  Imap --path /imap
+wl storage create imap --container Imap --host 127.0.0.1 --login user \
      --password test --trusted --no-ssl
-./wl start
-./wl container mount --with-subcontainers Imap
+wl start
+wl container mount --with-subcontainers Imap
 
 ROOT=$HOME/wildland
 
@@ -43,5 +43,5 @@ time -p chronic grep 'Test number 2' $ROOT/users/sender2@dev.null/sender/Test\ 2
 time -p chronic grep 'Test number 1' $ROOT/timeline/2020/01/01/Test\ 1*/main_body.txt
 
 # Unmount container
-time -p chronic ./wl container unmount Imap
+time -p chronic wl container unmount Imap
 

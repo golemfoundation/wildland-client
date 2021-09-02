@@ -3640,11 +3640,11 @@ def test_bridge_create(cli, base_dir):
 # Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
 
 def wl_call(base_config_dir, *args, **kwargs):
-    subprocess.check_call(['./wl', '--base-dir', base_config_dir, *args], **kwargs)
+    subprocess.check_call(['wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 def wl_call_output(base_config_dir, *args, **kwargs):
-    return subprocess.check_output(['./wl', '--base-dir', base_config_dir, *args], **kwargs)
+    return subprocess.check_output(['wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 # container-sync

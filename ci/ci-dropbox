@@ -7,7 +7,7 @@ pip install . plugins/dropbox
 
 function cleanup {
     time -p chronic rm -rf "$1"
-    time -p chronic ./wl container unmount dropbox-test-container
+    time -p chronic wl container unmount dropbox-test-container
 }
 
 ROOT="$HOME/wildland"
@@ -22,14 +22,14 @@ REFRESH_TOKEN="$3"
 
 # Wildland
 
-./wl user create dropbox-user
-./wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" dropbox-test-container
+wl user create dropbox-user
+wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" dropbox-test-container
 if [ -n "$ACCESS_TOKEN" ]; then
-    ./wl storage create dropbox --container dropbox-test-container --inline --token "$ACCESS_TOKEN"
+    wl storage create dropbox --container dropbox-test-container --inline --token "$ACCESS_TOKEN"
 else
-    ./wl storage create dropbox --container dropbox-test-container --inline --app-key "$APP_KEY" --refresh-token "$REFRESH_TOKEN"
+    wl storage create dropbox --container dropbox-test-container --inline --app-key "$APP_KEY" --refresh-token "$REFRESH_TOKEN"
 fi
-./wl start --container dropbox-test-container
+wl start --container dropbox-test-container
 
 # Create temporary timestamped test directory
 

@@ -40,7 +40,7 @@ s3_photos_uuid=$(get_container_uuid s3-photos)
 expected_pcre="Using container: /home/user/.config/wildland/containers/s3-photos.container.yaml \(/.uuid/$UUID_PCRE\)
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/s3-photos.container.yaml"
-run ./wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' \
+run wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' \
   --container s3-photos --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
 
 expected="Created: /home/user/.config/wildland/containers/greece-vacation.container.yaml"

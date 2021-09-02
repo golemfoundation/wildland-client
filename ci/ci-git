@@ -7,11 +7,11 @@ pip install . plugins/git
 ROOT="$HOME/wildland"
 
 # Create and mount a Git container
-./wl user create git-user
+wl user create git-user
 mkdir /tmp/git_repo
-./wl container create Git --path /git
-./wl storage create git --container Git --url https://gitlab.com/wildland/wildland-tutorials.git
-./wl start
+wl container create Git --path /git
+wl storage create git --container Git --url https://gitlab.com/wildland/wildland-tutorials.git
+wl start
 
 # List full tree
 time -p chronic tree "$ROOT"
@@ -33,12 +33,12 @@ time -p test -f "$ROOT"/git/src/scenarios/kartoteka/Kartoteka-HOWTO.md
 time -p chronic grep 'tutorials' "$ROOT"/git/README.md
 
 # Unmount the container
-time -p chronic ./wl container unmount Git
+time -p chronic wl container unmount Git
 
 # Create and mount a container for a private repo
-./wl container create PrivateGit --path /privategit
-./wl storage create git --container PrivateGit --url https://gitlab.com/wildland/ci-example-project.git --username wildland-bot --password $PERSONAL_GITLAB_TOKEN
-./wl container mount PrivateGit
+wl container create PrivateGit --path /privategit
+wl storage create git --container PrivateGit --url https://gitlab.com/wildland/ci-example-project.git --username wildland-bot --password $PERSONAL_GITLAB_TOKEN
+wl container mount PrivateGit
 
 # Check whether a directory exists
 time -p test -d "$ROOT"/privategit/New\ directory
@@ -50,4 +50,4 @@ time -p test -f "$ROOT"/privategit/README.md
 time -p chronic grep 'plugin' "$ROOT"/privategit/README.md
 
 # Unmount the container
-time -p chronic ./wl container unmount PrivateGit
+time -p chronic wl container unmount PrivateGit

@@ -10,14 +10,14 @@ mkdir $HOME/files
 . /home/user/env/bin/activate
 pip install . plugins/*
 
-./wl user create User
-./wl container create sshfs --path /sshfs
-./wl storage create sshfs --container sshfs --host 127.0.0.1 \
+wl user create User
+wl container create sshfs --path /sshfs
+wl storage create sshfs --container sshfs --host 127.0.0.1 \
      --path ./files --ssh-user user --ssh-identity $HOME/.ssh/id_rsa
 
 # Test the backend
-./wl start
-./wl container mount sshfs
+wl start
+wl container mount sshfs
 
 mkdir ~/files/testdir
 echo 1234 > ~/files/testdir/testfile
