@@ -298,7 +298,7 @@ def _delete_force(client: Client, name: str, no_cascade: bool):
         # already removed
         pass
     if not no_cascade:
-        click.echo('Unable to cascade remove: manifest failed to load.')
+        logger.warning('Unable to cascade remove: manifest failed to load.')
 
 
 def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path, str]]]):
@@ -309,7 +309,7 @@ def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path
             click.echo(f'Saving: {container.local_path}')
             client.save_object(WildlandObject.Type.CONTAINER, container)
         except ManifestError as ex:
-            click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
+            raise CliError(f'Failed to modify container manifest, cannot delete: {ex}') from ex
 
 
 def do_create_storage_from_templates(client: Client, container: Container,
@@ -330,8 +330,7 @@ def do_create_storage_from_templates(client: Client, container: Container,
         try:
             storage = template.get_storage(client, container, local_dir)
         except ValueError as ex:
-            click.echo(f'Failed to create storage from storage template: {ex}')
-            raise ex
+            raise CliError(f'Failed to create storage from storage template: {ex}') from ex
 
         storage_backend = StorageBackend.from_params(storage.params)
         to_process.append((storage, storage_backend))
@@ -361,8 +360,8 @@ def _ensure_backend_location_exists(backend: StorageBackend) -> None:
             backend.mkdir(PurePosixPath(path))
             click.echo(f'Created base path: {path}')
     except Exception as ex:
-        click.echo(f'WARN: Could not create base path {path} in a writable storage '
-                   f'[{backend.backend_id}]. {ex}')
+        logger.warning('Could not create base path %s in a writable storage [%s]. %s',
+                       path, backend.backend_id, ex)
 
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',
@@ -434,4 +433,5 @@ def modify(ctx: click.Context,
                     edit_funcs=[add_fields, del_fields, set_fields],
                     to_add=to_add,
                     to_del=to_del,
-                    to_set=to_set)
+                    to_set=to_set,
+                    logger=logger)

@@ -26,6 +26,7 @@ Common commands (sign, edit, ...) for multiple object types
 """
 import copy
 import re
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -300,7 +301,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
             manifest.skip_verification()
         except (ManifestError, WildlandError) as e:
-            click.echo(f'Manifest parse error: {e}')
+            click.secho(f'Manifest parse error: {e}', fg="red")
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
                 continue
             click.echo('Changes not saved.')
@@ -310,7 +311,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             try:
                 validate_manifest(manifest, manifest_type, obj.client)
             except (SchemaError, ManifestError, WildlandError) as e:
-                click.echo(f'Manifest validation error: {e}')
+                click.secho(f'Manifest validation error: {e}', fg="red")
                 if click.confirm('Do you want to edit the manifest again to fix the error?'):
                     continue
                 click.echo('Changes not saved.')
@@ -441,7 +442,7 @@ def add_fields(fields: dict, to_add: Dict[str, List[Any]], **_kwargs) -> dict:
 
 
 def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
-                      **_kwagrs) -> dict:
+                      **kwagrs) -> dict:
     """
     Callback function for `modify_manifest` which is a wrapper for del_field callback
     for nested fields.
@@ -465,13 +466,18 @@ def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
                     f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
 
         # Removing keys from the inner dict
-        del_fields(subfields, {fs[-1]: keys}, by_value=False)
+        del_fields(subfields, {fs[-1]: keys}, by_value=False, logger=kwagrs['logger'])
 
     return fields
 
 
-def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool = True, **_kwargs) \
-        -> dict:
+def del_fields(
+        fields: dict,
+        to_del: Dict[str, List[Any]],
+        logger: logging.Logger,
+        by_value: bool = True,
+        **_kwargs
+        ) -> dict:
     """
     Callback function for `modify_manifest`. Removes values from a list or a set either by values
     or keys. Non-existent values or keys are ignored.
@@ -488,25 +494,29 @@ def del_fields(fields: dict, to_del: Dict[str, List[Any]], by_value: bool = True
 
         if isinstance(obj, list):
             obj = dict(zip(range(len(obj)), obj))
-            new_dict = _del_keys_and_values_from_dict(obj, keys, values)
+            new_dict = _del_keys_and_values_from_dict(obj, keys, values, logger)
             fields[field] = list(new_dict.values())
         elif isinstance(obj, dict):
-            fields[field] = _del_keys_and_values_from_dict(obj, keys, values)
+            fields[field] = _del_keys_and_values_from_dict(obj, keys, values, logger)
         else:
-            click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
-                       'Nothing is deleted.')
+            logger.warning(f'Given field [{field}] is neither list, dict or does not exist. '
+                           'Nothing is deleted.')
 
     return fields
 
 
-def _del_keys_and_values_from_dict(dictionary: Dict[Any, Any], keys: Any, values: Any):
+def _del_keys_and_values_from_dict(
+        dictionary: Dict[Any, Any],
+        keys: Any, values: Any,
+        logger: logging.Logger
+        ):
     skipped_positions = [key for key in keys if key not in dictionary]
     if skipped_positions:
-        click.echo(f'Given positions {skipped_positions} do not exist. Skipped.')
+        logger.warning(f'Given positions {skipped_positions} do not exist. Skipped.')
 
     skipped_values = [v for v in values if v not in dictionary.values()]
     if skipped_values:
-        click.echo(f'{skipped_values} are not in the manifest. Skipped.')
+        logger.warning(f'{skipped_values} are not in the manifest. Skipped.')
 
     return {k: v for k, v in dictionary.items() if k not in keys and v not in values}
 

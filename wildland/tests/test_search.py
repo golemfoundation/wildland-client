@@ -515,7 +515,7 @@ def modify_file(path, pattern, replacement):
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_other_key(cli, base_dir, client, owner, caplog):
+def test_traverse_other_key(cli, base_dir, client, owner, capsys):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users_and_bridges()
@@ -585,12 +585,12 @@ paths:
     elif owner == '0xbbb':
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
-        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        logs = capsys.readouterr().err
         assert "Manifest owner does not have access to signing key" in logs
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_bridge_link(cli, base_dir, client, owner, caplog):
+def test_traverse_bridge_link(cli, base_dir, client, owner, capsys):
     cli('user', 'create', 'KnownUser', '--key', '0xddd')
 
     client.recognize_users_and_bridges()
@@ -671,12 +671,12 @@ paths:
     elif owner == '0xbbb':
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
-        logs = '\n'.join(r.getMessage() for r in caplog.records)
-        assert "Manifest owner does not have access to signing key" in logs
+        logs = capsys.readouterr().err
+        assert "Warning: cannot load bridge to [/path]" in logs
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_linked_catalog_entry(cli, base_dir, client, owner, caplog):
+def test_traverse_linked_catalog_entry(cli, base_dir, client, owner, capsys):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users_and_bridges()
@@ -765,7 +765,7 @@ paths:
     elif owner == '0xbbb':
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
-        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        logs = capsys.readouterr().err
         assert "Manifest owner does not have access to signing key" in logs
 
 

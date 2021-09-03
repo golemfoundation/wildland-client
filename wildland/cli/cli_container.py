@@ -71,7 +71,7 @@ except KeyError:
 MW_PIDFILE = RUNTIME_DIR / 'wildland-mount-watch.pid'
 MW_DATA_FILE = RUNTIME_DIR / 'wildland-mount-watch.data'
 
-logger = get_logger('cli_container')
+logger = get_logger('cli-container')
 
 
 # We define our own Counter widget to solve refresh count on generator
@@ -277,8 +277,8 @@ def publish(obj: ContextObj, cont):
 
     # if all containers are unpublished DO NOT print warning
     if not_published and len(not_published) != n_container:
-        click.echo("WARN: Some local containers (or container updates) are not published:\n" +
-                   '\n'.join(sorted(not_published)))
+        logger.warning("Some local containers (or container updates) are not published:\n%s",
+                       '\n'.join(sorted(not_published)))
 
 
 @container_.command(short_help='unpublish container manifest')
@@ -320,7 +320,7 @@ def _container_info(client, container, users_and_bridge_paths):
             result.update({"location": cache.params[storage_cls.LOCATION_PARAM]})
         container_fields["cache"] = result
 
-    click.echo("### Sensitive fields are hidden ###")
+    click.secho("Sensitive fields are hidden.", fg="yellow")
     click.echo(container.local_path)
     data = yaml.dump(container_fields, encoding='utf-8', sort_keys=False)
     click.echo(data.decode())
@@ -377,7 +377,7 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
         container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
     except ManifestError as ex:
         if force:
-            click.echo(f'Failed to load manifest: {ex}')
+            logger.warning('Failed to load manifest: %s', ex)
             try:
                 path = obj.client.find_local_manifest(WildlandObject.Type.CONTAINER, name)
                 if path:
@@ -387,14 +387,14 @@ def delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish:
                 # already removed
                 pass
             if cascade:
-                click.echo('Unable to cascade remove: manifest failed to load.')
+                logger.warning('Unable to cascade remove: manifest failed to load.')
             return
-        click.echo(f'Failed to load manifest, cannot delete: {ex}')
+        logger.warning('Failed to load manifest, cannot delete: %s', ex)
         click.echo('Use --force to force deletion.')
         return
 
     if not container.local_path:
-        raise WildlandError('Can only delete a local manifest')
+        raise CliError('Can only delete a local manifest')
 
     # unmount if mounted
     try:
@@ -504,7 +504,8 @@ def modify(ctx: click.Context,
         to_add=to_add,
         to_del=to_del,
         to_set=to_set,
-        to_del_nested=to_del_nested
+        to_del_nested=to_del_nested,
+        logger=logger
     )
 
     if publish and modified:
@@ -524,7 +525,7 @@ def _option_check(ctx, add_path, del_path, add_category, del_category, title, ad
             'using --encrypt-manifest or --no-encrypt-manifest'
             'AND --add-access or --del-access is ambiguous.')
     if encrypt_manifest and no_encrypt_manifest:
-        raise CliError('Error: options conflict:'
+        raise CliError('options conflict:'
                        '\n  --encrypt-manifest and --no-encrypt-manifest')
 
 
