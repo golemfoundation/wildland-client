@@ -61,8 +61,7 @@ class ConsoleFormatter(logging.Formatter):
                    '{cyan}[%(name)s] '
                    '$COLOR%(message)s'
                    '{reset}')
-
-        fmt = fmt.format(**self.colors)
+            fmt = fmt.format(**self.colors)
         super().__init__(fmt, *args, **kwargs)
 
     def format(self, record):

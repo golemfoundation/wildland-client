@@ -13,6 +13,7 @@ mkdir -p ~/Downloads/
 ######################
 ### Create yatima user
 ######################
+new_user='yatima'  # to nicely print cmd prompt before first switch_user
 run wl user create yatima
 cp ~/.config/wildland/users/yatima.user.yaml ~/Downloads
 yatima_userid=$(get_userid yatima)

@@ -7,6 +7,7 @@
 mkdir -p /home/user/storage
 sudo /etc/init.d/apache2 start
 
+new_user='yatima'  # to nicely print cmd prompt before first switch_user
 run wl user create yatima
 
 userid=$(echo $(wl user ls|grep owner:| cut -f 2 -d :))
