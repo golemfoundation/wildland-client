@@ -990,6 +990,10 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
         if len(new_default_containers) < len(default_containers):
             obj.client.config.update_and_save({'default-containers': new_default_containers})
 
+    # remove duplicates while maintaining id order
+    all_storage_ids = list(dict.fromkeys(all_storage_ids))
+    all_cache_ids = list(dict.fromkeys(all_cache_ids))
+
     if all_storage_ids or all_cache_ids:
         click.echo(f'Unmounting {len(storage_ids)} containers')
         for storage_id in all_storage_ids:
