@@ -2,12 +2,7 @@ version: '3'
 
 services:
   wildland-client:
-    # --!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!
-    #
-    # TODO: This image must be changed to master/stable upon final merge
-    #
-    # --!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!--!
-    image: registry.gitlab.com/wildland/wildland-client:michal-docker-cleanup
+    image: registry.gitlab.com/wildland/wildland-client:${CI_COMMIT_REF_SLUG:-master}
     container_name: wildland-client
     privileged: true
     stdin_open: true

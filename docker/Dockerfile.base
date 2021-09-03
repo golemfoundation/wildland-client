@@ -64,10 +64,11 @@ RUN sed -i 's/ ALL/ NOPASSWD:ALL/' /etc/sudoers
 # Setup fuse
 
 RUN echo user_allow_other >> /etc/fuse.conf
-RUN chown -R user:user /dev/null
 
 # Domain-specific files
 
+# The COPY below does not mean the developer cannot mount own volumes and override
+# project files included in the image.
 COPY --chown=user:user . .
 RUN chmod +x ./docker/*.sh
 

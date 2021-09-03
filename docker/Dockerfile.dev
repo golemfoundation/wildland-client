@@ -26,8 +26,6 @@ RUN apt-get -qy update && apt-get install -y \
     && python3 -m venv /home/user/env/ \
     && . /home/user/env/bin/activate \
     && pip install --no-cache-dir --no-warn-script-location -r requirements.dev.txt \
-    && rm -rf /var/lib/lists/* \
-    && apt-get clean autoclean \
     && chown -R user:user /home/user/env/
 
 # Entrypoint

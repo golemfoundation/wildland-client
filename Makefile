@@ -28,7 +28,7 @@ plugins:
 
 .PHONY: compile
 compile: env
-	rm requirements.base.txt requirements.dev.txt requirements.ci.txt
+	rm -f requirements.base.txt requirements.dev.txt requirements.ci.txt
 	$(VENV_BIN)/pip-compile --generate-hashes --output-file requirements.base.txt requirements.base.in
 	$(VENV_BIN)/pip-compile --generate-hashes --output-file requirements.dev.txt requirements.dev.in
 	$(VENV_BIN)/pip-compile --generate-hashes --output-file requirements.ci.txt requirements.ci.in
