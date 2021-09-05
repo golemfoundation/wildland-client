@@ -794,7 +794,7 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
 
 
 @profile()
-@wrap_output
+@cli_common.wrap_output
 def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
@@ -908,7 +908,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: boo
              undo_save=undo_save, unmount_all=unmount_all)
 
 
-@wrap_output
+@cli_common.wrap_output
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
              with_subcontainers: bool = True, undo_save: bool = False,
              unmount_all: bool = False) -> None:

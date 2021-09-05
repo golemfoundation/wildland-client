@@ -1685,6 +1685,151 @@ def test_container_update(cli, base_dir):
     assert str(storage_path) in data
 
 
+def test_bridge_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Alice', 'alice-forest')
+
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('template', 'create', 'local', 'bob-forest',
+        '--location', f'{tmp_path}/bob-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Bob', 'bob-forest')
+
+    cli('bridge', 'create', '--owner', 'Bob',
+                            '--target-user', 'Alice',
+                            '--path', '/forests/alice',
+                            'bridge-to-alice')
+
+    cli('bridge', 'publish', 'bridge-to-alice')
+
+    uuid_dir = list(Path(f'/{tmp_path}/bob-forest/.manifests/').glob('*'))[0].resolve()
+
+    bridge_path = uuid_dir / '.uuid/0xaaa.bridge.yaml'
+    assert bridge_path.exists()
+
+    bridge_path = uuid_dir / 'forests/alice.yaml'
+    assert bridge_path.exists()
+
+    original_bridge = (base_dir / 'bridges/bridge-to-alice.bridge.yaml').read_text()
+    published_bridge = bridge_path.read_text()
+
+    assert original_bridge == published_bridge
+
+    cli('bridge', 'unpublish', 'bridge-to-alice')
+
+    assert not bridge_path.exists()
+
+    # Try again without 'bridge' context
+
+    cli('publish', base_dir / 'bridges/bridge-to-alice.bridge.yaml')
+
+    bridge_path = uuid_dir / '.uuid/0xaaa.bridge.yaml'
+    assert bridge_path.exists()
+
+    bridge_path = uuid_dir / 'forests/alice.yaml'
+    assert bridge_path.exists()
+
+
+def test_user_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('container', 'create', 'alice-catalog',
+        '--template', 'alice-forest', '--local-dir', '/.manifests', '--path', '/.manifests')
+
+    catalog_local_file = (base_dir / 'containers/alice-catalog.container.yaml')
+    cli('user', 'modify', '--add-catalog-entry', f'file://{str(catalog_local_file)}', 'Alice')
+
+    cli('user', 'publish', 'Alice')
+
+    uuid_dir = list(Path(f'/{tmp_path}/alice-forest/.manifests/').glob('*'))[0].resolve()
+    user_path = uuid_dir / 'forest-owner.yaml'
+
+    assert user_path.exists()
+
+    original_user = (base_dir / 'users/Alice.user.yaml').read_text()
+    published_user = user_path.read_text()
+
+    assert original_user == published_user
+
+    cli('user', 'unpublish', 'Alice')
+
+    assert not user_path.exists()
+
+
+def test_storage_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Alice', 'alice-forest')
+
+    uuid_dir = list(Path(f'/{tmp_path}/alice-forest/.manifests/').glob('*'))[0].resolve()
+
+    cli('container', 'create', 'some-container', '--path', '/some/container',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'some-storage', '--no-inline',
+        '--location', '/foo/bar', '--container', 'some-container')
+
+    with open(base_dir / 'storage/some-storage.storage.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    backend_id = documents[1]['backend-id']
+
+    cli('storage', 'publish', 'some-storage')
+
+    storage_path = uuid_dir / f'.uuid/{backend_id}.yaml'
+
+    assert storage_path.exists()
+
+    original_storage = (base_dir / 'storage/some-storage.storage.yaml').read_text()
+    published_storage = storage_path.read_text()
+
+    assert original_storage == published_storage
+
+    cli('storage', 'unpublish', 'some-storage')
+
+    assert not storage_path.exists()
+
+
+def test_container_with_storage_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Alice', 'alice-forest')
+
+    uuid_dir = list(Path(f'/{tmp_path}/alice-forest/.manifests/').glob('*'))[0].resolve()
+
+    cli('container', 'create', 'some-container', '--path', '/some/container',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'some-storage', '--no-inline',
+        '--location', '/foo/bar', '--container', 'some-container')
+
+    with open(base_dir / 'containers/some-container.container.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    uuid_path = documents[1]['paths'][0]
+    container_uuid = get_container_uuid_from_uuid_path(uuid_path)
+
+    with open(base_dir / 'storage/some-storage.storage.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    backend_id = documents[1]['backend-id']
+
+    cli('container', 'publish', 'some-container')
+
+    container_path = uuid_dir / f'.uuid/{container_uuid}.yaml'
+    assert container_path.exists()
+
+    storage_path = uuid_dir / f'.uuid/{container_uuid}.{backend_id}.yaml'
+    assert storage_path.exists()
+
+    cli('container', 'unpublish', 'some-container')
+
+    assert not container_path.exists()
+    assert not storage_path.exists()
+
+
 def test_container_publish_unpublish(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
