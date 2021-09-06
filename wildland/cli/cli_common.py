@@ -115,7 +115,14 @@ def get_all_storages(client: Client, container: Container):
     if cache:
         all_storages.append(cache)
 
-    return all_storages
+    # fixme: we prevent returning storages with multiple identical backend_id
+    #  see wildland/wildland-client/-/issues/583
+    filtered_storages = {}
+
+    for s in all_storages:
+        filtered_storages[s.backend_id] = s
+
+    return list(filtered_storages.values())
 
 
 def get_local_storages(client: Client, container: Container):

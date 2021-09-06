@@ -37,7 +37,7 @@ from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
     dump, check_if_any_options, check_options_conflict, sync_id, get_local_storages, \
-    get_remote_storages, do_sync, _get_storage_by_id_or_type
+    get_remote_storages, do_sync, _get_storage_by_id_or_type, get_all_storages
 from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager, StorageTemplate
@@ -240,7 +240,7 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
 
     container_to_sync = []
     for container_obj, _ in used_by:
-        if len(list(obj.client.all_storages(container_obj))) > 1 and not force:
+        if len(get_all_storages(obj.client, container_obj)) > 1 and not force:
             status = obj.client.run_sync_command('job-status', job_id=sync_id(container_obj))
             if status is None:
                 container_to_sync.append(container_obj)
