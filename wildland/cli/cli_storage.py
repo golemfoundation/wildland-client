@@ -246,14 +246,13 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
             if status is None:
                 container_to_sync.append(container_obj)
             elif status[0] != SyncerStatus.SYNCED:
-                click.echo(f"Syncing of {container_obj} is in progress. "
-                           f"You can check status with 'wl status'.")
+                click.echo(f"Syncing of {container_obj.uuid} is in progress.")
                 return
 
     if container_to_sync:
         for c in container_to_sync:
             storage_to_delete = _get_storage_by_id_or_type(name, obj.client.all_storages(c))
-            click.echo(f'More than one unsynchronised storage exist for container {c}')
+            click.echo(f'Outdated storage for container {c.uuid}, attempting to sync storage.')
             target = None
             local_storages = get_local_storages(obj.client, c)
             remote_storages = get_remote_storages(obj.client, c)
@@ -265,7 +264,7 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
                 raise WildlandError("Cannot find storage to sync data into.")
             do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params, target.params,
                     one_shot=True, unidir=True)
-            click.echo(f"Started syncing {c}. You can check status with 'wl status'.")
+            click.echo("You can check status with 'wl status'.")
         return
 
     if local_path:

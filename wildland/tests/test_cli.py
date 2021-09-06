@@ -722,8 +722,7 @@ def test_storage_delete_sync(cli, base_dir, sync):
         backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     result = cli('storage', 'delete', str(backend_id), '--container', 'Container', capture=True)
-    assert "More than one unsynchronised storage exist for container container(owner='0xaaa'" \
-           in result.splitlines()[0]
+    assert "Outdated storage for container" in result.splitlines()[0]
 
 
 def test_storage_delete_cascade(cli, base_dir):
