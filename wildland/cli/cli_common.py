@@ -82,10 +82,9 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
             backend.validate()
 
 
-@click.command(short_help='Wildland version')
-def version():
+def wl_version():
     """
-    Returns Wildland version
+    Detect wildland version, including git commit ID if appropriate.
     """
     # Fallback version
     wildland_version = __version__
@@ -107,7 +106,15 @@ def version():
         pass
     if commit_hash:
         wildland_version = f"{wildland_version} (commit {commit_hash})"
-    print(wildland_version)
+    return wildland_version
+
+
+@click.command(short_help='Wildland version')
+def version():
+    """
+    Returns Wildland version
+    """
+    print(wl_version())
 
 
 @click.command(short_help='manifest signing tool')
