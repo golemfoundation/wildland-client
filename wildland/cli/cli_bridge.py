@@ -115,10 +115,7 @@ def create(obj: ContextObj,
     else:
         paths = target_user.paths
 
-        click.echo(
-            "Using user's default paths in safe format: {}".format(
-                [str(p) for p in target_user.paths])
-        )
+        click.echo("Using user's default paths: {}".format([str(p) for p in target_user.paths]))
 
     bridge = Bridge(
         owner=owner_user.owner,

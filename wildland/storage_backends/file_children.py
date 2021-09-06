@@ -127,7 +127,7 @@ class FileChildrenMixin(StorageBackend):
             Iterator[PurePosixPath]:
         pattern = self.params['manifest-pattern']['path']
 
-        path_pattern = pattern.replace('*', container_uuid_path.name)\
+        path_pattern = pattern.replace('*', wl_object_uuid_path.name)\
             .replace('{object-type}', 'container')
 
         paths = wl_object_expanded_paths or (wl_object_uuid_path,)

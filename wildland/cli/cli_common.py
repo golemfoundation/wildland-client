@@ -58,7 +58,7 @@ from ..user import User
 from ..publish import Publisher
 from ..log import get_logger
 
-logger = get_logger('cli-common')
+LOGGER = get_logger('cli-common')
 
 def wrap_output(func):
     """
@@ -412,8 +412,12 @@ def publish(ctx: click.Context, file: str):
 
     # if all objects of the given type are unpublished DO NOT print warning
     if not_published and len(not_published) != n_objects:
-        logger.warning("Some local {wl_object.type.value}s (or {wl_object.type.value} updates) "
-                       "are not published:\n%s", '\n'.join(sorted(not_published)))
+        LOGGER.warning(
+            "Some local %ss (or %s updates) are not published:\n%s",
+            wl_object.type.value,
+            wl_object.type.value,
+            '\n'.join(sorted(not_published))
+        )
 
 
 @click.command(short_help='unpublish a manifest')
@@ -695,12 +699,27 @@ def resolve_object(
         callback: Union[click.core.Command, Callable[..., Any]],
         save_manifest: bool = True,
         **callback_kwargs: Any
-        ) -> Tuple[Container, bool]:
+        ) -> Tuple[PublishableWildlandObject, bool]:
     """
-    Resolve wildland object and its manifest from either URL, WL Path or Local file
+    Resolve Wildland Object and its Manifest from either an URL, WL Path or Local file.
 
-    If the given path is an url or wl_path, the manifest file will be fetched from the remote
-    server and temporarirly stored localy for potential editing purposes.
+    This is a helper method used by specific cli contexts (e.g. container, bridge, etc.) to allow
+    editing, modifying or dumping remote Wildland Objects (ie. the ones that are not stored on
+    user's local machine).
+
+    If the given path is an URL or WL Path, the Manifest file will be fetched from the remote
+    server and stored in a temporary directory. Afterwards the callback function is going to be
+    executed on that file using Context.invoke() helper where one of the arguments to the callback
+    function is going to be the path to the Manifest file, including callback_kwargs, ie.:
+
+        ctx.invoke(callback, pass_ctx=ctx, input_file=<path_to_manifest>, **callback_kwargs)
+
+    Examples of valid callbacks are: modify_manifest(), edit() or dump() methods.
+
+    If save_manifest parameter was set to True and the path was not pointing at  a local file,
+    the Manifest of Wildland Object is stored  persistently in Wildland Config directory.
+
+    @return Resolved Wildland Object and Boolean which is True if the Manifest has been modified
     """
 
     client: Client = ctx.obj.client

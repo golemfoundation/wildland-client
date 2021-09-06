@@ -41,16 +41,12 @@ from click import ClickException
 from daemon import pidfile
 from xdg import BaseDirectory
 
-# https://stackoverflow.com/questions/28403380/py-tests-monkeypatch-setattr-not-working-in-some-cases
-import wildland.cli.cli_common
+import wildland.cli.cli_common as cli_common
 
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
-    set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options, wrap_output, publish, unpublish, republish_object
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -419,10 +415,10 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
     container.local_path.unlink()
 
 
-container_.add_command(sign)
-container_.add_command(verify)
-container_.add_command(publish)
-container_.add_command(unpublish)
+container_.add_command(cli_common.sign)
+container_.add_command(cli_common.verify)
+container_.add_command(cli_common.publish)
+container_.add_command(cli_common.unpublish)
 
 @container_.command(short_help='modify container manifest')
 @click.option('--add-path', metavar='PATH', multiple=True, help='path to add')
@@ -476,10 +472,15 @@ def modify(ctx: click.Context,
     if no_encrypt_manifest:
         to_set['access'] = [{'user': '*'}]
 
-    container, modified = wildland.cli.cli_common.resolve_object(
-        ctx, input_file, WildlandObject.Type.CONTAINER, modify_manifest,
+    container, modified = cli_common.resolve_object(
+        ctx, input_file, WildlandObject.Type.CONTAINER, cli_common.modify_manifest,
         remount=remount,
-        edit_funcs=[add_fields, del_fields, set_fields, del_nested_fields],
+        edit_funcs=[
+            cli_common.add_fields,
+            cli_common.del_fields,
+            cli_common.set_fields,
+            cli_common.del_nested_fields
+        ],
         to_add=to_add,
         to_del=to_del,
         to_set=to_set,
@@ -488,16 +489,17 @@ def modify(ctx: click.Context,
     )
 
     if publish and modified:
-        republish_object(ctx.obj.client, container)
+        cli_common.republish_object(ctx.obj.client, container)
 
 
 def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
                   del_access, encrypt_manifest, no_encrypt_manifest, del_storage):
-    check_if_any_options(ctx, add_path, del_path, add_category, del_category, title, add_access,
-                         del_access, encrypt_manifest, no_encrypt_manifest, del_storage)
-    check_options_conflict("path", add_path, del_path)
-    check_options_conflict("category", add_category, del_category)
-    check_options_conflict("access", add_access, del_access)
+    cli_common.check_if_any_options(ctx, add_path, del_path, add_category, del_category, title,
+                                    add_access, del_access, encrypt_manifest, no_encrypt_manifest,
+                                    del_storage)
+    cli_common.check_options_conflict("path", add_path, del_path)
+    cli_common.check_options_conflict("category", add_category, del_category)
+    cli_common.check_options_conflict("access", add_access, del_access)
 
     if (encrypt_manifest or no_encrypt_manifest) and (add_access or del_access):
         raise CliError(
@@ -512,7 +514,7 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
     to_del_nested = {}
     if del_storage:
         idxs_to_delete = []
-        container_manifest = find_manifest_file(
+        container_manifest = cli_common.find_manifest_file(
             ctx.obj.client, input_file, 'container').read_bytes()
         container_yaml = list(yaml_parser.safe_load_all(container_manifest))[1]
         storages_obj = container_yaml.get('backends', {}).get('storage', {})
@@ -1310,8 +1312,9 @@ def dump(ctx: click.Context, path: str, decrypt: bool):
     """
     Verify and dump contents of a container.
     """
-    wildland.cli.cli_common.resolve_object(
-        ctx, path, WildlandObject.Type.CONTAINER, base_dump, decrypt=decrypt, save_manifest=False
+    cli_common.resolve_object(
+        ctx, path, WildlandObject.Type.CONTAINER, cli_common.dump,
+        decrypt=decrypt, save_manifest=False
     )
 
 
@@ -1325,8 +1328,8 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
     """
     Edit container manifest in external tool.
     """
-    container, manifest_modified = wildland.cli.cli_common.resolve_object(
-        ctx, path, WildlandObject.Type.CONTAINER, base_edit, editor=editor, remount=remount)
+    container, manifest_modified = cli_common.resolve_object(
+        ctx, path, WildlandObject.Type.CONTAINER, cli_common.edit, editor=editor, remount=remount)
 
     if publish and manifest_modified:
-        republish_object(ctx.obj.client, container)
+        cli_common.republish_object(ctx.obj.client, container)
