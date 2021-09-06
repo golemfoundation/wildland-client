@@ -69,6 +69,17 @@ The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
    Add the forest containers to ``default-containers`` in configuration file, so
    that they will be mounted at startup.
 
+.. option:: -c, --with-cache
+
+   Create and use a cache storage for all containers in the forest, using the default cache template
+   (see :ref:`wl set-default-cache <wl-set-default-cache>`).
+   See :ref:`wl container create-cache <wl-container-create-cache>` for details about caches.
+
+.. option:: --cache-template <template_name>
+
+   Create and use a cache storage for all containers in the forest, using the given template. If used together with `--with-cache` option, explicit `<template_name>` takes precedence.
+   See :ref:`wl container create-cache <wl-container-create-cache>`.
+
 .. option:: -l, --list-all
 
    During mount, list all the forest containers to be mounted and result of mount (changed/not changed).
