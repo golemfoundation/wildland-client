@@ -3738,23 +3738,16 @@ def test_cli_container_sync(base_dir, sync, cli):
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
 
+    container_name = 'sync'
     cli('user', 'create', 'Alice')
-    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
-    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
-    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
         '--location', storage2_data)
-    cli('container', 'sync', '--target-storage', 'local-cached', 'AliceContainer')
+    cli('container', 'sync', '--target-storage', 'local-cached', container_name)
 
-    time.sleep(1)
-
-    with open(storage1_data / 'testfile', 'w') as f:
-        f.write("test data")
-
-    time.sleep(1)
-
-    assert (storage2_data / 'testfile').exists()
-    with open(storage2_data / 'testfile') as file:
-        assert file.read() == 'test data'
+    make_file(storage1_data / 'testfile', 'test data')
+    wait_for_file(storage2_data / 'testfile', 'test data')
 
 
 # pylint: disable=unused-argument
@@ -3767,28 +3760,19 @@ def test_cli_container_sync_oneshot(base_dir, sync, cli):
     os.mkdir(storage1_data)
     os.mkdir(storage2_data)
 
+    container_name = 'sync_oneshot'
     cli('user', 'create', 'Alice')
-    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', 'AliceContainer')
-    cli('storage', 'create', 'local', '--container', 'AliceContainer', '--location', storage1_data)
-    cli('storage', 'create', 'local-cached', '--container', 'AliceContainer',
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
         '--location', storage2_data)
 
-    with open(storage1_data / 'testfile', 'w') as f:
-        f.write("test data")
+    make_file(storage1_data / 'testfile', 'test data')
+    cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot', container_name)
+    wait_for_file(storage2_data / 'testfile', 'test data')
 
-    cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot', 'AliceContainer')
-
+    make_file(storage1_data / 'testfile2', 'test data2')
     time.sleep(1)
-
-    assert (storage2_data / 'testfile').exists()
-    with open(storage2_data / 'testfile') as file:
-        assert file.read() == 'test data'
-
-    with open(storage1_data / 'testfile2', 'w') as f:
-        f.write("test data2")
-
-    time.sleep(1)
-
     assert not (storage2_data / 'testfile2').exists()
 
 
@@ -3801,7 +3785,7 @@ def test_cli_container_sync_oneshot_error(base_dir, sync, cli):
     os.mkdir(base_data_dir)
     os.mkdir(storage1_data)
 
-    container_name = 'sync_oneshot'
+    container_name = 'sync_oneshot_error'
     cli('user', 'create', 'Alice')
     cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
     cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
@@ -3813,6 +3797,38 @@ def test_cli_container_sync_oneshot_error(base_dir, sync, cli):
     result = cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot',
                  container_name, capture=True)
     assert 'No such file or directory:' in result
+
+
+# pylint: disable=unused-argument
+def test_cli_container_sync_oneshot_nowait(base_dir, sync, cli):
+    base_data_dir = base_dir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+
+    container_name = 'sync_oneshot_nowait'
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
+        '--location', storage2_data)
+
+    make_file(storage1_data / 'testfile', 'test data')
+    cli('container', 'sync', '--target-storage', 'local-cached', '--one-shot',
+        container_name, '--no-wait')
+    wait_for_file(storage2_data / 'testfile', 'test data')
+    result = cli('status', capture=True)
+    assert f'{container_name} STOPPED' in result
+
+    make_file(storage1_data / 'testfile2', 'test data2')
+    time.sleep(1)
+    assert not (storage2_data / 'testfile2').exists()
+    cli('container', 'stop-sync', container_name)
+    result = cli('status', capture=True)
+    assert container_name not in result
 
 
 # pylint: disable=unused-argument

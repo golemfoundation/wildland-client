@@ -25,6 +25,7 @@
 """
 Manage containers
 """
+import time
 from itertools import combinations
 from pathlib import PurePosixPath, Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple, Union
@@ -59,7 +60,7 @@ from ..publish import Publisher
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
-from ..storage_sync.base import BaseSyncer, SyncConflict
+from ..storage_sync.base import BaseSyncer, SyncConflict, SyncerStatus
 from ..tests.profiling.profilers import profile
 
 try:
@@ -1199,12 +1200,17 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
                                        'storage type (e.g. s3)')
 @click.option('--one-shot', is_flag=True, default=False,
               help='perform only one-time sync, do not start syncing daemon')
+@click.option('--no-wait', is_flag=True, default=False,
+              help="don't wait for a one-shot sync to complete, run in the background")
 @click.pass_obj
-def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, cont):
+def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no_wait, cont):
     """
     Keep the given container in sync across the local storage and selected remote storage
     (by default the first listed in manifest).
     """
+    if no_wait and not one_shot:
+        raise CliError('--no-wait requires --one-shot')
+
     client = obj.client
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
 
@@ -1242,7 +1248,24 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, co
 
     response = _do_sync(client, cont, sync_id(container), source.params, target.params,
                         one_shot, unidir=False)
+
     click.echo(response)
+
+    if one_shot:
+        if no_wait:
+            click.echo('One-shot sync started, run `wl status` for current status and '
+                       '`wl container stop-sync` to stop/clear its status.')
+        else:
+            while True:
+                time.sleep(1)
+                status, response = client.run_sync_command('job-status', job_id=sync_id(container))
+                if status == SyncerStatus.STOPPED.value:
+                    click.echo('One-shot sync finished.')
+                    client.run_sync_command('stop', job_id=sync_id(container))
+                    break
+                if status == SyncerStatus.ERROR.value:
+                    click.echo(response)
+                    break
 
 
 @container_.command('stop-sync', short_help='stop syncing a container')
