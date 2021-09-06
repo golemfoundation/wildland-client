@@ -45,6 +45,7 @@ from ..publish import Publisher
 from ..log import get_logger
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
+from ..storage_sync.base import SyncerStatus
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
 
@@ -244,6 +245,10 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
             status = obj.client.run_sync_command('job-status', job_id=sync_id(container_obj))
             if status is None:
                 container_to_sync.append(container_obj)
+            elif status[0] != SyncerStatus.SYNCED:
+                click.echo(f"Syncing of {container_obj} is in progress. "
+                           f"You can check status with 'wl status'.")
+                return
 
     if container_to_sync:
         for c in container_to_sync:
@@ -258,10 +263,9 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
                     break
             if not target:
                 raise WildlandError("Cannot find storage to sync data into.")
-            response = do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params,
-                               target.params, one_shot=True, unidir=True)
-            click.echo(f"Started syncing {c} ({response}). Please wait until it's completed. "
-                       f"You can check status with 'wl status'.")
+            do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params, target.params,
+                    one_shot=True, unidir=True)
+            click.echo(f"Started syncing {c}. You can check status with 'wl status'.")
         return
 
     if local_path:
