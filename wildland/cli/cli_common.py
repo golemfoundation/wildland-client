@@ -106,7 +106,7 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
         raise WildlandError(f'Storage {id_or_type} not found')
 
 
-def get_all_storages(client: Client, container: Container):
+def get_all_storages(client: Client, container: Container, excluded_storage: Optional[str] = None):
     """
     Return all storages (including cache storages) for a container
     """
@@ -122,40 +122,47 @@ def get_all_storages(client: Client, container: Container):
     for s in all_storages:
         filtered_storages[s.backend_id] = s
 
+    if excluded_storage:
+        storage_to_ignore = _get_storage_by_id_or_type(excluded_storage, all_storages)
+        filtered_storages.pop(storage_to_ignore.backend_id, None)
+
     return list(filtered_storages.values())
 
 
-def get_local_storages(client: Client, container: Container):
+def get_local_storages(client: Client, container: Container,
+                       excluded_storage: Optional[str] = None):
     """
     Return local storages for a container
     """
-    all_storages = get_all_storages(client, container)
+    all_storages = get_all_storages(client, container, excluded_storage)
     local_storages = [storage for storage in all_storages
                       if client.is_local_storage(storage.params['type'])]
     return local_storages
 
 
-def get_local_storage(client: Client, container: Container, local_storage: Optional[str] = None):
+def get_local_storage(client: Client, container: Container, local_storage: Optional[str] = None,
+                      excluded_storage: Optional[str] = None):
     """
     Return first local storage found for a container
     """
-    all_storages = get_all_storages(client, container)
+    all_storages = get_all_storages(client, container, excluded_storage)
     if local_storage:
         storage = _get_storage_by_id_or_type(local_storage, all_storages)
     else:
         try:
-            storage = get_local_storages(client, container)[0]
+            storage = get_local_storages(client, container, excluded_storage)[0]
         except IndexError:
             # pylint: disable=raise-missing-from
             raise WildlandError('No local storage backend found')
     return storage
 
 
-def get_remote_storages(client: Client, container: Container):
+def get_remote_storages(client: Client, container: Container,
+                        excluded_storage: Optional[str] = None):
     """
     Return remote storages for a container
     """
-    all_storages = get_all_storages(client, container)
+    all_storages = get_all_storages(client, container, excluded_storage)
     default_remotes = client.config.get('default-remote-for-container')
 
     target_remote_id = default_remotes.get(container.uuid, None)
@@ -166,11 +173,12 @@ def get_remote_storages(client: Client, container: Container):
     return remote_storages
 
 
-def get_remote_storage(client: Client, container: Container, remote_storage: Optional[str] = None):
+def get_remote_storage(client: Client, container: Container, remote_storage: Optional[str] = None,
+                       excluded_storage: Optional[str] = None):
     """
     Return first remote storage for a container
     """
-    all_storages = get_all_storages(client, container)
+    all_storages = get_all_storages(client, container, excluded_storage)
     default_remotes = client.config.get('default-remote-for-container')
 
     if remote_storage:
@@ -179,7 +187,7 @@ def get_remote_storage(client: Client, container: Container, remote_storage: Opt
         client.config.update_and_save({'default-remote-for-container': default_remotes})
     else:
         try:
-            storage = get_remote_storages(client, container)[0]
+            storage = get_remote_storages(client, container, excluded_storage)[0]
         except IndexError:
             # pylint: disable=raise-missing-from
             raise WildlandError('No remote storage backend found: specify --target-storage.')
