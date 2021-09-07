@@ -136,10 +136,10 @@ Create a |~| new container manifest.
 .. program:: wl-container-create-cache
 .. _wl-container-create-cache:
 
-:command:`wl container create-cache --template <template_name> <container>`
------------------------------------------------------------------------------
+:command:`wl container create-cache --template <template_name> <container> [<container>...]`
+--------------------------------------------------------------------------------------------
 
-Create a cache storage for the container from a template. This is used to speed up accessing
+Create a cache storage for container(s) from a template. This is used to speed up accessing
 slow remote storages like s3. The template should usually be the default local storage one
 (`wl template create local --location /path/to/cache/root template_name`).
 
@@ -165,10 +165,10 @@ in the form of `owner_id.container_uuid.storage.yaml`.
 .. program:: wl-container-delete-cache
 .. _wl-container-delete-cache:
 
-:command:`wl container delete-cache <container>`
-------------------------------------------------
+:command:`wl container delete-cache <container> [<container>...]`
+-----------------------------------------------------------------
 
-Deletes cache storage associated with the container.
+Deletes cache storage associated with container(s).
 
 
 .. program:: wl-container-update

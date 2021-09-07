@@ -750,30 +750,34 @@ def _delete_cache(client: Client, container: Container) -> bool:
     return False
 
 
-@container_.command(short_help='create cache storage for the container')
-@click.argument('name', metavar='CONTAINER')
+@container_.command(short_help='create cache storage for container(s)')
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.option('--template', '-t', metavar='TEMPLATE', required=True,
               help='Use the specified storage template to create a new cache storage '
                    '(becomes primary storage for the container while mounted)')
 @click.pass_obj
-def create_cache(obj: ContextObj, name, template):
+def create_cache(obj: ContextObj, container_names, template):
     """
-    Create cache storage for the container.
+    Create cache storage for container(s).
     """
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
-    _create_cache(obj.client, container, template, verbose=True)
+    for name in container_names:
+        containers = obj.client.load_containers_from(name)
+        for container in containers:
+            _create_cache(obj.client, container, template, verbose=True)
 
 
-@container_.command(short_help='delete cache storage for the container')
-@click.argument('name', metavar='CONTAINER')
+@container_.command(short_help='delete cache storage for container(s)')
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def delete_cache(obj: ContextObj, name):
+def delete_cache(obj: ContextObj, container_names):
     """
-    Delete cache storage for the container.
+    Delete cache storage for container(s).
     """
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
-    if not _delete_cache(obj.client, container):
-        click.echo('Cache not set for the container')
+    for name in container_names:
+        containers = obj.client.load_containers_from(name)
+        for container in containers:
+            if not _delete_cache(obj.client, container):
+                click.echo('Cache not set for the container')
 
 
 @container_.command(short_help='mount container')

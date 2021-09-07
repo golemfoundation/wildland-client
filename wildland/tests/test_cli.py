@@ -1910,20 +1910,53 @@ def test_container_info_cache(cli, base_dir):
 
 def test_container_cli_cache(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    name, uuid, _, cache_dir = _cache_setup(cli, base_dir, ['Container'], 'User')[0]
+    params = _cache_setup(cli, base_dir, ['cli_cache1', 'cli_cache2'], 'User')
+    name1, uuid1, _, cache_dir1 = params[0]
+    name2, uuid2, _, cache_dir2 = params[1]
 
-    cli('container', 'create-cache', '--template', 't1', name)
+    cli('container', 'create-cache', '--template', 't1', name1)
 
-    cache_path = base_dir / 'cache' / f'0xaaa.{uuid}.storage.yaml'
-    assert cache_path.exists()
-    with open(cache_path) as cache:
+    cache_path1 = base_dir / 'cache' / f'0xaaa.{uuid1}.storage.yaml'
+    cache_path2 = base_dir / 'cache' / f'0xaaa.{uuid2}.storage.yaml'
+
+    assert cache_path1.exists()
+    with open(cache_path1) as cache:
         lines = cache.read()
-        assert f'container-path: /.uuid/{uuid}' in lines
-    assert cache_dir.exists()
+        assert f'container-path: /.uuid/{uuid1}' in lines
+    assert cache_dir1.exists()
 
-    cli('container', 'delete-cache', name)
-    assert not cache_path.exists()
-    assert cache_dir.exists()  # we don't want actual cache contents deleted
+    cli('container', 'delete-cache', name1)
+    assert not cache_path1.exists()
+    assert cache_dir1.exists()  # we don't want actual cache contents deleted
+    shutil.rmtree(cache_dir1)
+
+    # multiple containers
+    cli('container', 'create-cache', '--template', 't1', name1, name2)
+    assert cache_path1.exists()
+    assert cache_path2.exists()
+    assert cache_dir1.exists()
+    assert cache_dir2.exists()
+
+    cli('container', 'delete-cache', ':*:')
+    assert not cache_path1.exists()
+    assert not cache_path2.exists()
+    assert cache_dir1.exists()
+    assert cache_dir2.exists()
+    shutil.rmtree(cache_dir1)
+    shutil.rmtree(cache_dir2)
+
+    # wildcard
+    cli('container', 'create-cache', '--template', 't1', name1, name2)
+    assert cache_path1.exists()
+    assert cache_path2.exists()
+    assert cache_dir1.exists()
+    assert cache_dir2.exists()
+
+    cli('container', 'delete-cache', ':*:')
+    assert not cache_path1.exists()
+    assert not cache_path2.exists()
+    assert cache_dir1.exists()
+    assert cache_dir2.exists()
 
 
 def test_container_mount(cli, base_dir, control_client):
