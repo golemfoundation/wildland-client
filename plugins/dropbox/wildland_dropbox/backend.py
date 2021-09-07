@@ -328,6 +328,6 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         if path == PurePosixPath('.'):
             return None  # DirectoryCachedStorageMixin returns Attr.dir() for '.'
-        attr = self.getattr(self._path(path))
+        attr = self.getattr(path)
         assert isinstance(attr, DropboxFileAttr)
         return attr.content_hash
