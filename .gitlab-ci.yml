@@ -190,6 +190,12 @@ howto-encryption-backend-test:
   script:
     - ./ci/howto-encryption-backend
 
+howto-cache-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/howto-cache
+
 smoke-test:
   stage: test
   image: docker/compose:latest
