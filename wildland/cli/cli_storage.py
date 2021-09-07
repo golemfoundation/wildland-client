@@ -36,7 +36,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
-    dump, check_if_any_options, check_options_conflict, sync_id, \
+    dump, check_if_any_options, check_options_conflict, sync_id, get_local_storage, \
     get_remote_storage, do_sync, _get_storage_by_id_or_type, get_all_storages
 from ..container import Container
 from ..storage import Storage
@@ -253,10 +253,16 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
         for c in container_to_sync:
             storage_to_delete = _get_storage_by_id_or_type(name, obj.client.all_storages(c))
             click.echo(f'Outdated storage for container {c.uuid}, attempting to sync storage.')
+            target = None
             try:
                 target = get_remote_storage(obj.client, c, name)
-            except WildlandError as e:
-                raise WildlandError(f"Cannot find storage to sync data into.") from e
+            except WildlandError:
+                pass
+            if not target:
+                try:
+                    target = get_local_storage(obj.client, c, name)
+                except WildlandError:
+                    raise WildlandError(f"Cannot find storage to sync data into.")
             do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params, target.params,
                     one_shot=True, unidir=True)
             click.echo("You can check status with 'wl status'.")
