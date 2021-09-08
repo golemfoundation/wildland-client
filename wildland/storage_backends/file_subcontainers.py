@@ -191,7 +191,7 @@ class FileSubcontainersMixin(StorageBackend):
             assert relpath not in storage_relpaths
             storage_relpaths[relpath] = backend
             container.add_storage_from_obj(
-                backend, inline=False, new_url=self.get_url_for_path(relpath))
+                backend, inline=False, new_url=None)
         return storage_relpaths
 
     def _fetch_from_uuid_path(self,
@@ -220,8 +220,6 @@ class FileSubcontainersMixin(StorageBackend):
 
             old_relpaths_to_remove.update(set(
                 self._get_relpaths(old_container.uuid_path, old_container.expanded_paths)))
-            for url in old_container.load_raw_backends(include_inline=False):
-                old_relpaths_to_remove.add(self.get_path_for_url(url))
         return old_relpaths_to_remove
 
     @staticmethod
