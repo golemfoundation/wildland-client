@@ -169,6 +169,11 @@ def _do_create(
         access=access_users
     )
     storage.validate()
+    # try to load storage from params to check if everything is ok,
+    # e.g., reference container is available
+    obj.client.load_object_from_url_or_dict(WildlandObject.Type.STORAGE,
+                                            storage.to_manifest_fields(inline=False),
+                                            storage.owner)
     click.echo(f'Adding storage {storage.backend_id} to container.')
     obj.client.add_storage_to_container(container_obj, storage, inline, name)
     click.echo(f'Saved container {container_obj.local_path}')
