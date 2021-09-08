@@ -102,7 +102,9 @@ class GitlabClient:
         if self.project_id:
             projects = [self.gitlab.projects.get(self.project_id)]
         else:
-            projects = list(self.gitlab.projects.list(membership=True))
+            # Casting RESTObject list to Project list to satisfy mypy
+            projects = [gitlab.v4.objects.Project(self.gitlab.projects, i.attributes)
+                        for i in self.gitlab.projects.list(membership=True)]
 
         for project in projects:
             tmp_issues.extend(project.issues.list(all=True, per_page=100))

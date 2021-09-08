@@ -48,7 +48,7 @@ the GitLab CI/CD pipeline, run:
 
 .. code-block:: console
 
-   cd ci
+   cd docker
    docker-compose build
    docker-compose run wildland-client-ci ./ci/ci-lint
 
@@ -88,7 +88,7 @@ To convert ``*.rst`` documentation into HTML, PDF or any other format supported 
 
 .. code-block:: console
 
-   cd ci
+   cd docker
    docker-compose build
    docker-compose run wildland-client-ci ./ci/ci-docs
 

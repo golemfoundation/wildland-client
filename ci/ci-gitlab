@@ -7,11 +7,11 @@ pip install . plugins/gitlab
 ROOT="$HOME/wildland"
 
 # Create and mount two GitLab containers: with and without specified project ID
-./wl user create gitlab-user
-./wl container create GitLab-p --path /gitlab
-./wl storage create gitlab --container GitLab-p --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617
-./wl start
-./wl container mount --with-subcontainers GitLab-p
+wl user create gitlab-user
+wl container create GitLab-p --path /gitlab
+wl storage create gitlab --container GitLab-p --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617
+wl start
+wl container mount --with-subcontainers GitLab-p
 
 # List full tree
 time -p chronic tree $ROOT
@@ -40,13 +40,13 @@ time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
 time -p chronic grep 'issue' $ROOT/projects/ci\ example\ project/issue\ 2/issue\ 2.md
 
 # Unmount the container
-time -p chronic ./wl container unmount GitLab-p
+time -p chronic wl container unmount GitLab-p
 
-./wl container create GitLab --path /gitlab
-./wl storage create gitlab --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN
+wl container create GitLab --path /gitlab
+wl storage create gitlab --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN
 
 # Mount a GitLab container (without specified project ID)
-./wl container mount --with-subcontainers GitLab
+wl container mount --with-subcontainers GitLab
 
 # List contents of the timeline directory for the project
 time -p test -d $ROOT/timeline/2021/06/16
@@ -56,4 +56,4 @@ time -p test -f $ROOT/labels/feature/issue\ 1/issue\ 1.md
 time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
 
 # Unmount the container
-time -p chronic ./wl container unmount GitLab
+time -p chronic wl container unmount GitLab

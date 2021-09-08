@@ -25,14 +25,14 @@ file will also be available under ``timeline/2020/05/01/bar/foo.txt``.
 
 Create a user, if you haven't done that yet::
 
-   $ ./wl user create User
+   $ wl user create User
 
 
 Create the "reference" container, and directory with files::
 
-   $ ./wl container create Inner --path /reference --category /foo
+   $ wl container create Inner --path /reference --category /foo
 
-   $ ./wl storage create local Inner --location $HOME/proxy-data \
+   $ wl storage create local Inner --location $HOME/proxy-data \
        --container Inner
    $ mkdir ~/proxy-data
    $ touch ~/proxy-data/file1.txt -t 202005010000
@@ -40,16 +40,16 @@ Create the "reference" container, and directory with files::
 
 Create the proxy container storage::
 
-   $ ./wl container create Proxy --path /proxy
+   $ wl container create Proxy --path /proxy
 
-   $ ./wl storage create date-proxy Proxy \
+   $ wl storage create date-proxy Proxy \
        --reference-container-url file://$HOME/.config/wildland/containers/Inner.container.yaml \
        --container Proxy
 
 Mount::
 
-   $ ./wl start
-   $ ./wl container mount Proxy
+   $ wl start
+   $ wl container mount Proxy
 
 You should be able to see the files::
 

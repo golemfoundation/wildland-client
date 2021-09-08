@@ -8,6 +8,8 @@ entrypoints
 pynacl
 graphlib-backport; python_version < '3.9'
 progressbar2
+jinja2
+yq
 
 # Storage
 
@@ -31,21 +33,3 @@ google-auth-httplib2
 google-auth-oauthlib
 httplib2shim
 treelib
-
-# Development / testing
-
-pip-tools
-psutil
-pytest
-pytest-cov
-pylint
-mypy
-python-lorem
-yq
-pyinstrument
-
-# Documentation
-
-sphinx
-sphinx-autodoc-typehints
-colorama

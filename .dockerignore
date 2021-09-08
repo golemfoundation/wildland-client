@@ -1,0 +1,6 @@
+*.egg-info
+.*cache
+/build/
+/env/
+__pycache__
+htmlcov

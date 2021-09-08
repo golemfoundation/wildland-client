@@ -7,11 +7,11 @@ pip install . plugins/gitlab-graphql
 ROOT="$HOME/wildland"
 
 # Create and mount a gitlab-graphql container with a specified project path
-./wl user create gitlab-user
-./wl container create GitLab --path /gitlab
-./wl storage create gitlab-graphql --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN --project-path wildland/ci-example-project
-./wl start
-./wl container mount --with-subcontainers GitLab
+wl user create gitlab-user
+wl container create GitLab --path /gitlab
+wl storage create gitlab-graphql --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN --project-path wildland/ci-example-project
+wl start
+wl container mount --with-subcontainers GitLab
 
 # List full tree
 time -p chronic tree $ROOT
@@ -40,12 +40,12 @@ time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
 time -p chronic grep 'issue' $ROOT/projects/ci\ example\ project/issue\ 2/issue\ 2.md
 
 # Unmount the container
-time -p chronic ./wl container unmount GitLab
+time -p chronic wl container unmount GitLab
 
 # Create and mount a gitlab-graphql container without a specified project path
-./wl container create GitLab-no-path --path /gitlab
-./wl storage create gitlab-graphql --container GitLab-no-path --personal-token $PERSONAL_GITLAB_TOKEN
-./wl container mount --with-subcontainers GitLab-no-path
+wl container create GitLab-no-path --path /gitlab
+wl storage create gitlab-graphql --container GitLab-no-path --personal-token $PERSONAL_GITLAB_TOKEN
+wl container mount --with-subcontainers GitLab-no-path
 
 # List contents of the project directory
 time -p chronic ls $ROOT/projects/ci\ example\ project/
@@ -68,4 +68,4 @@ time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
 time -p chronic grep 'issue' $ROOT/projects/ci\ example\ project/issue\ 2/issue\ 2.md
 
 # Unmount the container
-time -p chronic ./wl container unmount GitLab-no-path
+time -p chronic wl container unmount GitLab-no-path

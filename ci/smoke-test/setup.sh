@@ -2,7 +2,6 @@
 
 cd "$(dirname "$0")"
 
-WL="../../wl"
 STORAGE="$HOME/storage"
 
 #
@@ -11,20 +10,20 @@ STORAGE="$HOME/storage"
 
 cp -r storage/* "$STORAGE"/
 
-$WL user create User
+wl user create User
 
-$WL container create container1 --path /container1
-$WL storage create local storage11 --location "$STORAGE"/storage11 \
+wl container create container1 --path /container1
+wl storage create local storage11 --location "$STORAGE"/storage11 \
     --container container1
 
-$WL container create container2 --path /container2
-$WL storage create local-cached storage21 --location "$STORAGE"/storage21 \
+wl container create container2 --path /container2
+wl storage create local-cached storage21 --location "$STORAGE"/storage21 \
     --container container2
 
 cp ~/.config/wildland/containers/container2.container.yaml "$STORAGE"/storage11/container2.yaml
 
 # we start wildland AND the container at the same time
-$WL start --container container1
+wl start --container container1
 
 #
 # Setup case 2

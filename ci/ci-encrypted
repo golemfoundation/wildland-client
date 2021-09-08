@@ -15,12 +15,12 @@ MINIO_ACCESS_KEY='dmr' MINIO_SECRET_KEY='/.,/.,/.,' /tmp/minio server /tmp/minio
 
 # Wildland
 
-./wl user create s3-user
-./wl container create s3-con --path /s3
-./wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
-./wl container create decrypted --path /decrypted
-./wl storage create encrypted --container decrypted --engine encfs --reference-container-url wildland::/s3:
-./wl start --container decrypted
+wl user create s3-user
+wl container create s3-con --path /s3
+wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
+wl container create decrypted --path /decrypted
+wl storage create encrypted --container decrypted --engine encfs --reference-container-url wildland::/s3:
+wl start --container decrypted
 
 # Test files
 

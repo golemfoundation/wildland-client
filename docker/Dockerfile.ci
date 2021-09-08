@@ -1,0 +1,65 @@
+FROM wildland-client-base:latest
+
+USER root
+ARG DEBIAN_FRONTEND=noninteractive
+ENV WL_ENV=ci
+
+# TODO: Shouldn't sshfs be part of base? For some reason sshfs tests were excluded from CI
+RUN apt-get -qy update && apt-get install -y \
+        python3-pip \
+        python3-venv \
+        libfuse-dev \
+        pkg-config \
+        dovecot-imapd \
+        git \
+        netcat \
+        moreutils \
+        openssh-server \
+        sshfs \
+    && apt-get autoremove -y \
+    && . /home/user/env/bin/activate \
+    && pip install --no-cache-dir --no-warn-script-location -r requirements.ci.txt \
+    && rm -rf /var/lib/lists/* \
+    && apt-get clean autoclean
+
+# IMAP mock env
+
+RUN sed -i '/auth-system.conf.ext/ s/^/#/; /auth-static.conf.ext/ s/^#//' \
+  /etc/dovecot/conf.d/10-auth.conf
+RUN sed -i '/^mail_location/ s/.*/mail_location = maildir:~\/Maildir/' \
+  /etc/dovecot/conf.d/10-mail.conf
+RUN sed -i 's/ssl = yes/ssl = no/' /etc/dovecot/conf.d/10-ssl.conf
+RUN echo 'passdb { \n\
+    driver = static \n\
+    args = password=test \n\
+} \n\
+userdb {\n\
+    driver = static\n\
+    args = uid=user gid=user home=/home/%u\n\
+}\n' > /etc/dovecot/conf.d/auth-static.conf.ext
+
+USER user
+RUN maildirmake.dovecot /home/user/Maildir
+USER root
+
+# WebDav@apache test
+
+COPY ./docker/apache2-webdav-test.conf /etc/apache2/sites-available/test-webdav.conf
+RUN htpasswd -cb /home/user/test-webdav-passwords user password
+RUN htpasswd -b /home/user/test-webdav-passwords userro passwordro
+RUN a2ensite test-webdav
+
+# SSHFS
+
+RUN ssh-keygen -A
+RUN mkdir -p /run/sshd
+USER user
+RUN mkdir /home/user/.ssh
+RUN ssh-keygen -t rsa -f /home/user/.ssh/id_rsa -N '' < /dev/zero
+RUN cp /home/user/.ssh/id_rsa.pub /home/user/.ssh/authorized_keys
+USER root
+
+# Entrypoint
+
+USER user
+ENTRYPOINT ["./docker/entrypoint.ci.sh"]
