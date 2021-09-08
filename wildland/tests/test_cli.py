@@ -2077,9 +2077,12 @@ def _cache_setup(cli, base_dir, container_names, user_name, subcont_path: str = 
     return data
 
 
-def _cache_test(cli, cli_fail, base_dir, container_data, user_key):
+def _cache_test(cli, cli_fail, base_dir, container_data, user_key, mount_cmd=None):
     container_names = [x[0] for x in container_data]
-    args = ['container', 'mount', '--with-subcontainers', '--with-cache'] + container_names
+    if mount_cmd is None:
+        args = ['container', 'mount', '--with-subcontainers', '--with-cache'] + container_names
+    else:
+        args = mount_cmd
     cli(*args)
     user_mount_path = base_dir / 'wildland' / '.users' / f'{user_key}:'
 
@@ -2162,6 +2165,16 @@ def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
     data = _cache_setup(cli, base_dir, container_names, 'User')
     cli('start', '--skip-forest-mount')
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
+
+
+# pylint: disable=unused-argument
+def test_container_mount_with_cache_forest(base_dir, sync, cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    container_names = ['c1', 'c2']
+    data = _cache_setup(cli, base_dir, container_names, 'User')
+    cli('start', '--skip-forest-mount')
+    _cache_test(cli, cli_fail, base_dir, data, '0xaaa',
+        ['forest', 'mount', '--with-cache', '0xaaa:'])
 
 
 # pylint: disable=unused-argument

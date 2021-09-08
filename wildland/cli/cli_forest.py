@@ -56,13 +56,22 @@ def forest_():
 @click.argument('forest_names', nargs=-1, required=True)
 @click.option('--save', '-s', is_flag=True,
               help='Save the forest containers to be mounted at startup')
+@click.option('--with-cache', '-c', is_flag=True, default=False,
+              help='Use the default cache storage template to create and use a new cache storage '
+                   '(becomes primary storage for the container while mounted, synced with '
+                   'the old primary). '
+                   'Cache template to use can be overriden using the --cache-template option.')
+@click.option('--cache-template', metavar='TEMPLATE',
+              help='Use specified storage template to create and use a new cache storage')
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all forest containers, including those '
                    'who did not need to be changed')
 @click.option('--no-refresh-users', '-n', is_flag=True, default=False,
               help="Do not refresh remote users when mounting")
 @click.pass_context
-def mount(ctx: click.Context, forest_names, save: bool, list_all: bool, no_refresh_users: bool):
+def mount(ctx: click.Context, forest_names, save: bool,
+          with_cache: bool, cache_template: str,
+          list_all: bool, no_refresh_users: bool):
     """
     Mount a forest given by name or path to manifest. Repeat the argument to
     mount multiple forests.
@@ -79,13 +88,19 @@ def mount(ctx: click.Context, forest_names, save: bool, list_all: bool, no_refre
                 f'For example, ":/forests/User:" is a valid forest name')
         forests.append(f'{forest_name}*:')
 
+    if with_cache and not cache_template:
+        cache_template = obj.client.config.get('default-cache-template')
+        if not cache_template:
+            raise WildlandError('Default cache template not set, set one with '
+                                '`wl set-default-cache` or use --cache-template option')
+
     # TODO: in versions v.0.0.2 or up
     # Refresh all local users; this could be optimized by refactoring search.py itself
     # to only use remote users, not local
     if not no_refresh_users:
         refresh_users(obj)
 
-    mount_container(obj, forests, save=save, list_all=list_all)
+    mount_container(obj, forests, save=save, cache_template=cache_template, list_all=list_all)
 
 
 @forest_.command(short_help='Unmount Wildland Forest', alias=['umount'])
