@@ -55,7 +55,7 @@ from . import (
 from ..log import init_logging
 from ..manifest.manifest import ManifestError
 from ..client import Client
-from .. import __version__ as _version
+from .cli_common import wl_version
 
 
 logger = logging.getLogger('cli')
@@ -65,7 +65,7 @@ PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
-@aliased_group('wl')
+@aliased_group('wl', invoke_without_command=True)
 @click.option('--dummy/--no-dummy', default=False,
               help='use dummy signatures')
 @click.option('--base-dir', default=None,
@@ -74,11 +74,16 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
-@click.version_option(_version)
+@click.option('--version', is_flag=True, help='output Wildland version')
 @click.pass_context
-def main(ctx: click.Context, base_dir, dummy, debug, verbose):
+def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
     # pylint: disable=missing-docstring, unused-argument
-
+    if not ctx.invoked_subcommand:
+        if version:
+            print(wl_version())
+            return
+        click.echo(ctx.get_help())
+        return
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
     else:

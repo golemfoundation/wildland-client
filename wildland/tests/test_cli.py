@@ -5533,8 +5533,10 @@ def test_wl_help(cli):
 
 
 def test_wl_version(cli):
-    result = cli('--version', capture=True)
-    assert 'version' in result
+    result_1 = cli('--version', capture=True)
+    result_2 = cli('version', capture=True)
+    assert result_1 == result_2
+    assert 'commit' in result_1
 
 
 def test_set_default_cache(cli, base_dir):
