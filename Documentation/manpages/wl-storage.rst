@@ -102,8 +102,8 @@ for details.
 .. program:: wl-storage-create-date-proxy
 .. _wl-storage-create-date-proxy:
 
-:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url> [--no-publish] <storage>`
----------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl storage create date-proxy --container <container> [-u] [--user <user>] --reference-container-url <url> [--timeline-root <dir>] [--no-publish] <storage>`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/date-proxy.rsti

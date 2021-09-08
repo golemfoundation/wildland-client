@@ -1,3 +1,7 @@
 .. option:: --reference-container-url <url>
 
    Inner container URL for this storage.
+   
+.. option:: --timeline-root <dir>
+
+   The name of the root of the timeline tree. Defaults to '/timeline'

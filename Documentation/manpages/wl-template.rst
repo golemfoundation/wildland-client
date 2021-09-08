@@ -122,8 +122,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-create-date-proxy
 .. _wl-template-create-date-proxy:
 
-:command:`wl template create date-proxy --reference-container-url <url> NAME`
--------------------------------------------------------------------------------------
+:command:`wl template create date-proxy --reference-container-url <url> [--timeline-root <dir>] NAME`
+-----------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/date-proxy.rsti
@@ -330,8 +330,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-add-date-proxy
 .. _wl-template-add-date-proxy:
 
-:command:`wl template add date-proxy --reference-container-url <url> NAME`
-----------------------------------------------------------------------------------
+:command:`wl template add date-proxy --reference-container-url <url> [--timeline-root <dir>] NAME`
+--------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/date-proxy.rsti

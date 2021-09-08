@@ -4285,6 +4285,7 @@ def test_proxy_storage_template(cli, base_dir):
     assert template_jinja[0] == {
         'read-only': False,
         'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+        'timeline-root': '/timeline',
         'type': 'date-proxy'
     }
 
@@ -4308,6 +4309,7 @@ def test_proxy_storage_template(cli, base_dir):
                 {
                     'read-only': False,
                     'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
+                    'timeline-root': '/timeline',
                     'type': 'date-proxy',
                     'backend-id': mock.ANY,
                     'object': 'storage',
