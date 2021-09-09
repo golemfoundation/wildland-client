@@ -31,12 +31,13 @@ from pathlib import PurePosixPath
 import click
 
 from .base import StorageBackend, File, Attr
+from ..cli.cli_base import CliError
 from ..exc import WildlandError
 from ..manifest.schema import Schema
 from ..log import get_logger
+from ..wlpath import WildlandPath
 
 logger = get_logger('delegate')
-
 
 
 class DelegateProxyStorageBackend(StorageBackend):
@@ -94,6 +95,11 @@ class DelegateProxyStorageBackend(StorageBackend):
 
     @classmethod
     def cli_create(cls, data):
+        if WildlandPath.match(data['reference_container_url']):
+            wl_path = WildlandPath.from_str(data['reference_container_url'])
+            if not wl_path.has_explicit_owner():
+                raise CliError("reference container URL must contain explicit owner")
+
         opts = {
             'reference-container': data['reference_container_url'],
         }
