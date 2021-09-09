@@ -262,7 +262,8 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
                 try:
                     target = get_local_storage(obj.client, c, name)
                 except WildlandError:
-                    raise WildlandError(f"Cannot find storage to sync data into.")
+                    # pylint: disable=raise-missing-from
+                    raise WildlandError("Cannot find storage to sync data into.")
             do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params, target.params,
                     one_shot=True, unidir=True)
             click.echo("You can check status with 'wl status'.")
