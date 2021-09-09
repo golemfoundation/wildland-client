@@ -162,4 +162,4 @@ class WildlandPath:
         """
         Check if WildlandPath has explicit owner, i.e., not default.
         """
-        return self.owner and self.owner != '@default'
+        return self.owner is not None and self.owner != '@default'
