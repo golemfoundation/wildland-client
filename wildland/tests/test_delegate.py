@@ -36,6 +36,26 @@ from .helpers import treewalk
 from ..client import Client
 
 
+def test_delegate_create(cli, cli_fail):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
+    cli('storage', 'create', 'dummy', '--container', 'referenceContainer')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'delegate',
+        '--reference-container-url', 'wildland:0xaaa:/reference_PATH:',
+        '--container', 'Container')
+    cli('storage', 'create', 'delegate',
+        '--reference-container-url', 'wildland:@default:/reference_PATH:',
+        '--container', 'Container')
+    cli('storage', 'create', 'delegate',
+        '--reference-container-url', 'wildland::/reference_PATH:',
+        '--container', 'Container')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli_fail('storage', 'create', 'delegate',
+             '--reference-container-url', 'wildland:0xbbb:/reference_PATH:',
+             '--container', 'Container')
+
+
 def test_delegate_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')

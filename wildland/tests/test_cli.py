@@ -4255,16 +4255,6 @@ def test_delegated_template(cli, base_dir):
                     'type': 'delegate',
                     'backend-id': mock.ANY,
                     'object': 'storage',
-                    'storage': {
-                        'location': '/STORAGE',
-                        'backend-id': mock.ANY,
-                        'type': 'local',
-                        'owner': '0xaaa',
-                        'version': '1',
-                        'object': 'storage',
-                        'container-path': mock.ANY,
-                        'is-local-owner': True
-                    }
                 }
             ]
         },
@@ -4326,16 +4316,6 @@ def test_proxy_storage_template(cli, base_dir):
                     'type': 'date-proxy',
                     'backend-id': mock.ANY,
                     'object': 'storage',
-                    'storage': {
-                        'location': '/STORAGE',
-                        'backend-id': mock.ANY,
-                        'type': 'local',
-                        'owner': '0xaaa',
-                        'version': '1',
-                        'object': 'storage',
-                        'container-path': mock.ANY,
-                        'is-local-owner': True
-                    }
                 }
             ]
         },

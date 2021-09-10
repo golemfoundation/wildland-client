@@ -197,6 +197,10 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
         if 'is-local-owner' in fields:
             del fields['is-local-owner']
+
+        if 'storage' in fields:
+            del fields['storage']
+
         return fields
 
     def to_repr_fields(self, include_sensitive: bool = False) -> dict:

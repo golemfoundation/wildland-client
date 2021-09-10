@@ -117,6 +117,19 @@ def version():
     print(wl_version())
 
 
+def _get_expected_manifest_type(ctx: click.Context) -> Optional[str]:
+    """Return expected manifest type based on wl subcommand.
+
+    > wl container dump ... -> 'container'
+    > wl user modify ... -> 'user'
+    > wl edit ... -> None
+    """
+    manifest_type = ctx.parent.command.name if ctx.parent else None
+    if manifest_type == 'wl':
+        manifest_type = None
+    return manifest_type
+
+
 @click.command(short_help='manifest signing tool')
 @click.option('-o', 'output_file', metavar='FILE', help='output file (default is stdout)')
 @click.option('-i', 'in_place', is_flag=True, help='modify the file in place')
@@ -131,10 +144,7 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
     the manifest against schema.
     """
     obj: ContextObj = ctx.obj
-
-    manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
+    manifest_type = _get_expected_manifest_type(ctx)
 
     if in_place:
         if not input_file:
@@ -188,10 +198,7 @@ def verify(ctx: click.Context, input_file):
     also validate the manifest against schema.
     """
     obj: ContextObj = ctx.obj
-
-    manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
+    manifest_type = _get_expected_manifest_type(ctx)
 
     if input_file:
         path = find_manifest_file(obj.client, input_file, manifest_type)
@@ -225,9 +232,7 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
         raise CliError('This command supports only an absolute path to a file. Consider using '
                        'dump command for a specific object, e.g. wl container dump')
 
-    manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
+    manifest_type = _get_expected_manifest_type(ctx)
 
     path = find_manifest_file(obj.client, input_file, manifest_type)
 
@@ -381,11 +386,7 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
     determine if it should be republished).
     """
     obj: ContextObj = pass_ctx.obj
-
-    manifest_type = pass_ctx.parent.command.name if pass_ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
-
+    manifest_type = _get_expected_manifest_type(pass_ctx)
     manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
 
     sig_ctx = obj.client.session.sig

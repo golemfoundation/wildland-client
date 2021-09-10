@@ -300,7 +300,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                 storage = cache.get(self.client, self.owner)
                 if 'reference-container' in storage.params and 'storage' not in storage.params:
                     logger.warning("Can't select reference storage: %s",
-                                    storage.params['reference-container'])
+                                   storage.params['reference-container'])
                     continue
             except (ManifestError, WildlandError):
                 continue
