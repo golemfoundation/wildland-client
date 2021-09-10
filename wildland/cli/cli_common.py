@@ -49,6 +49,7 @@ from ..manifest.manifest import (
 )
 from ..manifest.schema import SchemaError
 from ..exc import WildlandError
+from ..user import User
 
 
 def find_manifest_file(client: Client, name: str, manifest_type: Optional[str]) -> Path:
@@ -332,6 +333,9 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             # for user manifests, allow loading keys for signing even if the manifest was
             # previously malformed and couldn't be loaded
             obj.client.session.sig.use_local_keys = True
+            updated_user = User.from_manifest(manifest, obj.client)
+            obj.client.session.sig.remove_owner(updated_user.owner)
+            updated_user.add_user_keys(obj.client.session.sig)
 
         try:
             manifest.encrypt_and_sign(obj.client.session.sig,
@@ -415,6 +419,14 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
             validate_manifest(modified_manifest, manifest_type, obj.client)
         except SchemaError as se:
             raise CliError(f'Invalid manifest: {se}') from se
+
+    if manifest_type == 'user':
+        # for user manifests, allow loading keys for signing even if the manifest was
+        # previously malformed and couldn't be loaded
+        obj.client.session.sig.use_local_keys = True
+        updated_user = User.from_manifest(manifest, obj.client)
+        obj.client.session.sig.remove_owner(updated_user.owner)
+        updated_user.add_user_keys(obj.client.session.sig)
 
     modified_manifest.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
 
