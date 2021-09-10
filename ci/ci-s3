@@ -5,6 +5,12 @@ set -ex
 . /home/user/env/bin/activate
 pip install . plugins/s3/
 
+# Setup
+ROOT="$HOME/wildland"
+MNT_DIR_2="s3-mnt-2"
+MNT_PATH_2="$ROOT/$MNT_DIR_2"
+MINIO_DATA_DIR="/tmp/minio-data/the-bucket"
+
 # Minio
 
 curl -so /tmp/minio https://dl.min.io/server/minio/release/linux-amd64/minio
@@ -49,3 +55,37 @@ time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/im_new ]]'
 time -p chronic /bin/bash -c '$(rm ~/wildland/s3/abbott)'
 
 time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/abbott ]]'
+
+# Creating a storage by utilizing a template
+
+./wl template create s3 --access-key 'dmr' --secret-key '/.,/.,/.,'  --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-template
+./wl container create s3-temp-con --path "/$MNT_DIR_2" --template s3-template
+./wl container mount s3-temp-con
+
+tree "$ROOT"
+
+uuid=$(./wl container dump s3-temp-con | grep '/.uuid/' | cut -d / -f 3 )
+
+# Creating some files and folders
+mkdir -p "$MINIO_DATA_DIR"/$uuid/subdir
+
+printf "foo" > "$MINIO_DATA_DIR"/$uuid/tempfile
+printf "bar" > "$MINIO_DATA_DIR"/$uuid/subdir/tempfile
+printf "copy_me" > "$MINIO_DATA_DIR"/$uuid/abbott
+printf "move_me" > "$MINIO_DATA_DIR"/$uuid/floating
+
+# Waiting so that the watcher can detect the changes
+sleep 10
+
+# Testing whether the files and folders appear in the container
+time -p test -d "$MNT_PATH_2"
+time -p test -d "$MNT_PATH_2"/subdir
+time -p test ! -d "$MNT_PATH_2"/s3:/
+
+time -p test -f "$MNT_PATH_2"/tempfile
+time -p test -f "$MNT_PATH_2"/subdir/tempfile
+time -p test -f "$MNT_PATH_2"/abbott
+time -p test -f "$MNT_PATH_2"/floating
+
+tree "$ROOT"
+

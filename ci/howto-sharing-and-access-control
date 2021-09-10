@@ -201,7 +201,7 @@ run wl template add webdav carolines-s3 \
     --access '*' \
     --read-only
 
-expected_pcre="Created base path: http://localhost:8081/.manifests/$UUID_PCRE
+expected_pcre="Created base path: /.manifests/$UUID_PCRE
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/caroline-forest-catalog.container.yaml
 Adding storage $UUID_PCRE to container.
@@ -212,7 +212,7 @@ run wl forest create --access '*' caroline carolines-s3
 
 
 expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml
-Created base path: http://localhost:8081/$UUID_PCRE
+Created base path: /$UUID_PCRE
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
 Adding storage $UUID_PCRE to container.
@@ -251,12 +251,13 @@ manifests-catalog:
   storage:
     access:
     - user: '\*'
+    base_path: /.manifests/$UUID_PCRE
     credentials:
       login: userro
       password: passwordro
     read-only: true
     type: webdav
-    url: http://localhost:8081/.manifests/$UUID_PCRE
+    url: http://localhost:8081/
     backend-id: $UUID_PCRE
     object: storage
     manifest-pattern:
