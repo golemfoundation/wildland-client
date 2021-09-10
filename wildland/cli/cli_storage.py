@@ -29,7 +29,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
 import uuid
-
+import time
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -240,6 +240,7 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
         return
 
     container_to_sync = []
+    container_failed_to_sync = []
     for container_obj, _ in used_by:
         if len(get_all_storages(obj.client, container_obj)) > 1 and not force:
             status = obj.client.run_sync_command('job-status', job_id=sync_id(container_obj))
@@ -266,7 +267,20 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
                     raise WildlandError("Cannot find storage to sync data into.")
             do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params, target.params,
                     one_shot=True, unidir=True)
-            click.echo("You can check status with 'wl status'.")
+            while True:
+                time.sleep(1)
+                status, response = obj.client.run_sync_command('job-status', job_id=sync_id(c))
+                if status == SyncerStatus.STOPPED.value:
+                    click.echo('One-shot sync finished.')
+                    obj.client.run_sync_command('stop', job_id=sync_id(c))
+                    break
+                if status == SyncerStatus.ERROR.value:
+                    click.echo(response)
+                    container_failed_to_sync.append(c.uuid)
+                    break
+
+    if container_failed_to_sync and not force:
+        click.echo(f"Failed to sync storage for containers: {','.join(container_failed_to_sync)}")
         return
 
     if local_path:
