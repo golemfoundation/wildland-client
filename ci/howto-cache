@@ -7,13 +7,13 @@
 mkdir -p /home/user/storage
 
 run wl user create yatima
-userid=$(echo $(wl user ls|grep owner:| cut -f 2 -d :))
+userid=$(get_userid yatima)
 
 run wl start --skip-forest-mount
 
 ## Single container
 
-# FIXME: use real remote storage
+# FIXME: use real remote storage (see issue #587)
 storage_type=local
 mkdir -p ~/storage/local
 
@@ -22,7 +22,7 @@ run wl template create $storage_type mydropbox --location ~/storage/local
 run wl container create --path "/mydropbox" --template mydropbox cache-test
 
 cont_uuid=$(get_container_uuid cache-test)
-storage_uuid=$(wl s ls | grep "type: $storage_type" | grep "$cont_uuid" | cut -d ' ' -f 4)
+storage_uuid=$(get_storage_uuid $cont_uuid $storage_type)
 
 expected="Sensitive fields are hidden.
 /home/user/.config/wildland/containers/cache-test.container.yaml
@@ -73,6 +73,7 @@ run wl set-default-cache cache-tpl
 # mount with cache
 
 # FIXME: run command hangs here, but similar mount command for Pandora below doesn't...
+# see issue #588
 wl c mount -c cache-test
 
 cache_uuid=$(wl s dump ~/.config/wildland/cache/$userid.$cont_uuid.storage.yaml | grep backend-id: | cut -d ' ' -f 2)
@@ -224,7 +225,7 @@ tree_list_1=$(tree -J -F -L 2 ~/wildland/mydirs/ariadne:/forests/pandora:/)
 
 run wl c unmount ':/mydirs/ariadne:/forests/pandora:*:'
 
-wl c mount -c ':/mydirs/ariadne:/forests/pandora:*:'
+run wl c mount -c ':/mydirs/ariadne:/forests/pandora:*:'
 
 expected_pcre="Sensitive fields are hidden.
 
