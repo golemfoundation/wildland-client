@@ -97,8 +97,8 @@ class DelegateProxyStorageBackend(StorageBackend):
     def cli_create(cls, data):
         if WildlandPath.match(data['reference_container_url']):
             wl_path = WildlandPath.from_str(data['reference_container_url'])
-            if not wl_path.has_explicit_owner():
-                raise CliError("reference container URL must contain explicit owner")
+            if not wl_path.has_explicit_or_default_owner():
+                raise CliError("reference container URL must contain explicit or default owner")
 
         opts = {
             'reference-container': data['reference_container_url'],

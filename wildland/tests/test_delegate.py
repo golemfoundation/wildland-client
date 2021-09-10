@@ -44,12 +44,12 @@ def test_delegate_create(cli, cli_fail):
     cli('storage', 'create', 'delegate',
         '--reference-container-url', 'wildland:0xaaa:/reference_PATH:',
         '--container', 'Container')
-    cli_fail('storage', 'create', 'delegate',
-             '--reference-container-url', 'wildland:@default:/reference_PATH:',
-             '--container', 'Container')
-    cli_fail('storage', 'create', 'delegate',
-             '--reference-container-url', 'wildland::/reference_PATH:',
-             '--container', 'Container')
+    cli('storage', 'create', 'delegate',
+        '--reference-container-url', 'wildland:@default:/reference_PATH:',
+        '--container', 'Container')
+    cli('storage', 'create', 'delegate',
+        '--reference-container-url', 'wildland::/reference_PATH:',
+        '--container', 'Container')
     cli('user', 'create', 'UserB', '--key', '0xbbb')
     cli_fail('storage', 'create', 'delegate',
              '--reference-container-url', 'wildland:0xbbb:/reference_PATH:',
