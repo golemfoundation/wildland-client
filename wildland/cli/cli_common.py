@@ -153,6 +153,7 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
         if output_file:
             raise click.ClickException('Cannot use both -i and -o')
 
+    path = None
     if input_file:
         path = find_manifest_file(obj.client, input_file, manifest_type)
         data = path.read_bytes()
@@ -161,31 +162,33 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
 
     manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
     manifest.skip_verification()
-    if manifest_type:
-        try:
-            validate_manifest(manifest, manifest_type, obj.client)
-        except SchemaError as se:
-            raise CliError(f'Invalid manifest: {se}') from se
 
-    if manifest_type == 'user' or manifest.fields.get('object') == 'user':
-        # for user manifests, allow loading keys for signing even if the manifest was
-        # previously malformed and couldn't be loaded
-        obj.client.session.sig.use_local_keys = True
-
-    manifest.encrypt_and_sign(obj.client.session.sig,
-                              only_use_primary_key=(manifest_type == 'user'))
-    signed_data = manifest.to_bytes()
-
-    if in_place:
-        print(f'Saving: {path}')
-        with open(path, 'wb') as f:
-            f.write(signed_data)
-    elif output_file:
-        print(f'Saving: {output_file}')
-        with open(output_file, 'wb') as f:
-            f.write(signed_data)
-    else:
-        sys.stdout.buffer.write(signed_data.decode())
+    sign_and_save(obj, manifest, manifest_type, path, in_place, output_file)
+    # if manifest_type:
+    #     try:
+    #         validate_manifest(manifest, manifest_type, obj.client)
+    #     except SchemaError as se:
+    #         raise CliError(f'Invalid manifest: {se}') from se
+    #
+    # if manifest_type == 'user' or manifest.fields.get('object') == 'user':
+    #     # for user manifests, allow loading keys for signing even if the manifest was
+    #     # previously malformed and couldn't be loaded
+    #     obj.client.session.sig.use_local_keys = True
+    #
+    # manifest.encrypt_and_sign(obj.client.session.sig,
+    #                           only_use_primary_key=(manifest_type == 'user'))
+    # signed_data = manifest.to_bytes()
+    #
+    # if in_place:
+    #     print(f'Saving: {path}')
+    #     with open(path, 'wb') as f:
+    #         f.write(signed_data)
+    # elif output_file:
+    #     print(f'Saving: {output_file}')
+    #     with open(output_file, 'wb') as f:
+    #         f.write(signed_data)
+    # else:
+    #     sys.stdout.buffer.write(signed_data.decode())
 
 
 @click.command(short_help='verify manifest signature')
@@ -320,35 +323,44 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             click.echo('Changes not saved.')
             return False
 
-        if manifest_type is not None:
-            try:
-                validate_manifest(manifest, manifest_type, obj.client)
-            except (SchemaError, ManifestError, WildlandError) as e:
-                click.secho(f'Manifest validation error: {e}', fg="red")
-                if click.confirm('Do you want to edit the manifest again to fix the error?'):
-                    continue
-                click.echo('Changes not saved.')
-                return False
-        if manifest_type == 'user':
-            # for user manifests, allow loading keys for signing even if the manifest was
-            # previously malformed and couldn't be loaded
-            obj.client.session.sig.use_local_keys = True
-            updated_user = User.from_manifest(manifest, obj.client)
-            obj.client.session.sig.remove_owner(updated_user.owner)
-            updated_user.add_user_keys(obj.client.session.sig)
-
         try:
-            manifest.encrypt_and_sign(obj.client.session.sig,
-                                      only_use_primary_key=(manifest_type == 'user'))
-        except SigError as se:
-            raise CliError(f'Cannot save manifest: {se}') from se
+            sign_and_save(obj, manifest, manifest_type, path)
+        except CliError as e:
+            click.secho(f'Manifest signing error: {e}', fg="red")
+            if click.confirm('Do you want to edit the manifest again to fix the error?'):
+                continue
+            click.echo('Changes not saved.')
+            return False
 
-        new_manifest = manifest
-
-    signed_data = new_manifest.to_bytes()
-    with open(path, 'wb') as f:
-        f.write(signed_data)
-    click.echo(f'Saved: {path}')
+    #     if manifest_type is not None:
+    #         try:
+    #             validate_manifest(manifest, manifest_type, obj.client)
+    #         except (SchemaError, ManifestError, WildlandError) as e:
+    #             click.secho(f'Manifest validation error: {e}', fg="red")
+    #             if click.confirm('Do you want to edit the manifest again to fix the error?'):
+    #                 continue
+    #             click.echo('Changes not saved.')
+    #             return False
+    #     if manifest_type == 'user':
+    #         # for user manifests, allow loading keys for signing even if the manifest was
+    #         # previously malformed and couldn't be loaded
+    #         obj.client.session.sig.use_local_keys = True
+    #         updated_user = User.from_manifest(manifest, obj.client)
+    #         obj.client.session.sig.remove_owner(updated_user.owner)
+    #         updated_user.add_user_keys(obj.client.session.sig)
+    #
+    #     try:
+    #         manifest.encrypt_and_sign(obj.client.session.sig,
+    #                                   only_use_primary_key=(manifest_type == 'user'))
+    #     except SigError as se:
+    #         raise CliError(f'Cannot save manifest: {se}') from se
+    #
+    #     new_manifest = manifest
+    #
+    # signed_data = new_manifest.to_bytes()
+    # with open(path, 'wb') as f:
+    #     f.write(signed_data)
+    # click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_running():
         path = find_manifest_file(obj.client, input_file, manifest_type)
@@ -414,11 +426,42 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
         click.echo('Manifest has not changed.')
         return False
 
+    sign_and_save(obj, modified_manifest, manifest_type, manifest_path)
+    # if manifest_type is not None:
+    #     try:
+    #         validate_manifest(modified_manifest, manifest_type, obj.client)
+    #     except SchemaError as se:
+    #         raise CliError(f'Invalid manifest: {se}') from se
+    #
+    # if manifest_type == 'user':
+    #     # for user manifests, allow loading keys for signing even if the manifest was
+    #     # previously malformed and couldn't be loaded
+    #     obj.client.session.sig.use_local_keys = True
+    #     updated_user = User.from_manifest(manifest, obj.client)
+    #     obj.client.session.sig.remove_owner(updated_user.owner)
+    #     updated_user.add_user_keys(obj.client.session.sig)
+    #
+    # modified_manifest.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+    #
+    # signed_data = modified_manifest.to_bytes()
+    # with open(manifest_path, 'wb') as f:
+    #     f.write(signed_data)
+    #
+    # click.echo(f'Saved: {manifest_path}')
+
+    if remount and manifest_type == 'container' and obj.fs_client.is_running():
+        path = find_manifest_file(obj.client, input_file, 'container')
+        remount_container(obj, path)
+
+    return True
+
+
+def sign_and_save(obj, manifest, manifest_type, manifest_path, in_place=True, output_file=None):
     if manifest_type is not None:
         try:
-            validate_manifest(modified_manifest, manifest_type, obj.client)
-        except SchemaError as se:
-            raise CliError(f'Invalid manifest: {se}') from se
+            validate_manifest(manifest, manifest_type, obj.client)
+        except (SchemaError, ManifestError, WildlandError) as ex:
+            raise CliError(f'Invalid manifest: {ex}') from ex
 
     if manifest_type == 'user':
         # for user manifests, allow loading keys for signing even if the manifest was
@@ -428,19 +471,21 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
         obj.client.session.sig.remove_owner(updated_user.owner)
         updated_user.add_user_keys(obj.client.session.sig)
 
-    modified_manifest.encrypt_and_sign(sig_ctx, only_use_primary_key=(manifest_type == 'user'))
+    try:
+        manifest.encrypt_and_sign(obj.client.session.sig,
+                                  only_use_primary_key=(manifest_type == 'user'))
+    except SigError as se:
+        raise CliError(f'Cannot sign manifest: {se}') from se
 
-    signed_data = modified_manifest.to_bytes()
-    with open(manifest_path, 'wb') as f:
-        f.write(signed_data)
+    signed_data = manifest.to_bytes()
 
-    click.echo(f'Saved: {manifest_path}')
-
-    if remount and manifest_type == 'container' and obj.fs_client.is_running():
-        path = find_manifest_file(obj.client, input_file, 'container')
-        remount_container(obj, path)
-
-    return True
+    path = manifest_path if in_place else output_file
+    if path:
+        with open(path, 'wb') as f:
+            f.write(signed_data)
+        click.echo(f'Saved: {path}')
+    else:
+        sys.stdout.buffer.write(signed_data.decode())
 
 
 def add_fields(fields: dict, to_add: Dict[str, List[Any]], **_kwargs) -> dict:
