@@ -142,6 +142,8 @@ class Client:
 
         self.users: Dict[str, User] = {}
         self.bridges: Set[Bridge] = set()
+        self.__local_users: Optional[List[User]] = None
+        self.__local_bridges: Optional[List[Bridge]] = None
         self._select_reference_storage_cache: Dict[Tuple[str, str, bool],
                                                    Optional[Tuple[PurePosixPath, Dict]]] = {}
 
@@ -149,6 +151,18 @@ class Client:
             self.recognize_users_and_bridges()
             self.caches: List[Storage] = []
             self.load_caches()
+
+    @property
+    def local_users(self) -> List[User]:
+        if not self.__local_users:
+            self.__local_users = list(self.load_all(WildlandObject.Type.USER))
+        return self.__local_users
+
+    @property
+    def local_bridges(self) -> List[Bridge]:
+        if not self.__local_bridges:
+            self.__local_bridges = list(self.load_all(WildlandObject.Type.BRIDGE))
+        return self.__local_bridges
 
     def load_caches(self):
         """
@@ -218,10 +232,10 @@ class Client:
             user.add_user_keys(self.session.sig)
 
         # duplicated to decrypt manifests catalog correctly
-        for user in users or self.load_all(WildlandObject.Type.USER):
+        for user in users or self.local_users:
             self.users[user.owner] = user
 
-        for bridge in bridges or self.load_all(WildlandObject.Type.BRIDGE):
+        for bridge in bridges or self.local_bridges:
             self.bridges.add(bridge)
 
     def find_local_manifest(self, object_type: Union[WildlandObject.Type, None],
@@ -250,7 +264,7 @@ class Client:
                 return self.users[name].local_path
 
             if name.startswith('0x'):
-                for user in self.load_all(WildlandObject.Type.USER):
+                for user in self.local_users:
                     if user.owner == name:
                         return user.local_path
 
@@ -640,14 +654,14 @@ class Client:
         bridge_paths: Dict[str, List[PurePosixPath]] = {}
         default_user = self.config.get('@default')
 
-        for bridge in self.load_all(WildlandObject.Type.BRIDGE):
+        for bridge in self.local_bridges:
             if only_default_user and bridge.owner != default_user:
                 continue
             if bridge.user_id not in bridge_paths:
                 bridge_paths[bridge.user_id] = []
             bridge_paths[bridge.user_id].extend(bridge.paths)
 
-        for user in self.load_all(WildlandObject.Type.USER):
+        for user in self.local_users:
             yield user, bridge_paths.get(user.owner)
 
     def _generate_bridge_paths_recursive(self, path_prefix: List[PurePosixPath],
