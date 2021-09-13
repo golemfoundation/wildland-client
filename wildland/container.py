@@ -216,6 +216,8 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         This function provides filtered sensitive and unneeded fields for representation
         """
         fields = self.to_manifest_fields(inline=True)
+        if self.local_path:
+            fields.update({"local-path": str(self.local_path)})
         if not include_sensitive:
             # Remove sensitive fields
             # for backends, we only keep some useful info
