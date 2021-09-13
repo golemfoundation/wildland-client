@@ -256,17 +256,17 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
             click.echo(f'Outdated storage for container {c.uuid}, attempting to sync storage.')
             target = None
             try:
-                target = get_remote_storage(obj.client, c, name)
+                target = get_remote_storage(obj.client, c, excluded_storage=name)
             except WildlandError:
                 pass
             if not target:
                 try:
-                    target = get_local_storage(obj.client, c, name)
+                    target = get_local_storage(obj.client, c,  excluded_storage=name)
                 except WildlandError:
                     # pylint: disable=raise-missing-from
                     raise WildlandError("Cannot find storage to sync data into.")
-            do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params, target.params,
-                    one_shot=True, unidir=True)
+            response = do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params,
+                               target.params, one_shot=True, unidir=True)
             while True:
                 time.sleep(1)
                 status, response = obj.client.run_sync_command('job-status', job_id=sync_id(c))
