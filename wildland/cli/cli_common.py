@@ -125,7 +125,7 @@ def get_all_storages(client: Client, container: Container, excluded_storage: Opt
 
     # fixme: we prevent returning storages with multiple identical backend_id
     #  see wildland/wildland-client/-/issues/583
-    filtered_storages = {}
+    filtered_storages: Dict[str, Storage] = {}
 
     for s in all_storages:
         if filtered_storages.get(s.backend_id, None):
