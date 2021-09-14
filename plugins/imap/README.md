@@ -82,6 +82,8 @@ wl storage create imap --container mail \
                        --password <password> \
                        [--folder <imap_folder>]
 ```
+If password option is not used, a prompt will be shown for you
+to fill it in.
 
 Once the backend is exposed to container, it can be mounted:
 
