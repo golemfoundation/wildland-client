@@ -318,8 +318,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
     data = b'# All YAML comments will be discarded when the manifest is saved\n' + data
     original_data = data
 
-    new_manifest = None
-    while not new_manifest:
+    while True:
         edited_s = click.edit(data.decode(), editor=editor, extension='.yaml',
                               require_save=False)
         assert edited_s
@@ -347,6 +346,8 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
                 continue
             click.echo('Changes not saved.')
             return False
+        else:
+            break
 
     if remount and manifest_type == 'container' and obj.fs_client.is_running():
         path = find_manifest_file(obj.client, input_file, manifest_type)
