@@ -698,12 +698,8 @@ def test_storage_delete_inline_many_in_one(monkeypatch, cli, base_dir):
         f.write(yaml.safe_dump(documents[1]))
 
     monkeypatch.setattr('sys.stdin.readline', lambda: "n")
-    cli('storage', 'delete', str(backend_id), '--container', 'Container')
-    assert backend_id in container_path.read_text()
-
-    monkeypatch.setattr('sys.stdin.readline', lambda: "y")
-    cli('storage', 'delete', str(backend_id), '--container', 'Container')
-    assert backend_id not in container_path.read_text()
+    with pytest.raises(WildlandError, match='Duplicate backend-id found! Aborting...'):
+        cli('storage', 'delete', str(backend_id), '--container', 'Container')
 
 
 # pylint: disable=unused-argument
