@@ -1410,7 +1410,7 @@ def _resolve_container(
 
         if container.local_path:
             # modify local manifest
-            manifest_modified = ctx.invoke(callback, ctx=ctx, input_file=container.local_path,
+            manifest_modified = ctx.invoke(callback, pass_ctx=ctx, input_file=container.local_path,
                                            **callback_kwargs)
             container = client.load_object_from_name(
                 WildlandObject.Type.CONTAINER, str(container.local_path))
@@ -1438,7 +1438,7 @@ def _resolve_container(
         if local_path:
             path = str(local_path)
 
-        manifest_modified = ctx.invoke(callback, ctx=ctx, input_file=path, **callback_kwargs)
+        manifest_modified = ctx.invoke(callback, pass_ctx=ctx, input_file=path, **callback_kwargs)
 
         container = client.load_object_from_name(WildlandObject.Type.CONTAINER, path)
 

@@ -370,12 +370,12 @@ def remount_container(ctx_obj: ContextObj, path: Path):
         ctx_obj.fs_client.mount_container(container, storages, user_paths, remount=True)
 
 
-def modify_manifest(ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
+def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
                     *, remount: bool = True, **kwargs) -> bool:
     """
     Edit manifest (identified by `name`) fields using a specified callback.
 
-    @param ctx: click context
+    @param pass_ctx: click context
     @param input_file: manifest file name
     @param edit_funcs: callbacks function to modify manifest.
     This module provides four common callbacks:
@@ -388,8 +388,8 @@ def modify_manifest(ctx: click.Context, input_file: str, edit_funcs: List[Callab
     @return: Returns True iff the manifest was successfully modified (to be able to
     determine if it should be republished).
     """
-    obj: ContextObj = ctx.obj
-    manifest_type = _get_expected_manifest_type(ctx)
+    obj: ContextObj = pass_ctx.obj
+    manifest_type = _get_expected_manifest_type(pass_ctx)
     manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
 
     sig_ctx = obj.client.session.sig
