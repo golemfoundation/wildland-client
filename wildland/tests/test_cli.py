@@ -1869,6 +1869,37 @@ def test_container_delete_umount(cli, base_dir, control_client):
     assert not container_path.exists()
 
 
+def test_container_delete_multiple(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container1', '--path', '/PATH1')
+    cli('container', 'create', 'Container2', '--path', '/PATH2')
+
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/PATH1',
+        '--container', 'Container1', '--no-inline')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/PATH2',
+        '--container', 'Container2', '--no-inline')
+
+    container1_path = base_dir / 'containers/Container1.container.yaml'
+    assert container1_path.exists()
+    container2_path = base_dir / 'containers/Container2.container.yaml'
+    assert container2_path.exists()
+    storage_path1 = base_dir / 'storage/Storage1.storage.yaml'
+    assert storage_path1.exists()
+    storage_path2 = base_dir / 'storage/Storage2.storage.yaml'
+    assert storage_path2.exists()
+
+    with pytest.raises(CliError, match='Container refers to local manifests'):
+        cli('container', 'delete', 'Container1', 'Container2')
+
+    # Should not complain if the storage manifest does not exist
+    storage_path1.unlink()
+    storage_path2.unlink()
+    cli('container', 'delete', 'Container1')
+    assert not container1_path.exists()
+    cli('container', 'delete', 'Container2')
+    assert not container2_path.exists()
+
+
 def test_container_list(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
