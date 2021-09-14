@@ -108,7 +108,15 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
 
 def get_all_storages(client: Client, container: Container, excluded_storage: Optional[str] = None):
     """
-    Return all storages (including cache storages) for a container
+    List of all storages (including cache storages) for the provided container.
+
+    If excluded_storage is provided, it will filter out the corresponding Storage
+    object from the resulting list.
+
+    :param client: Client object
+    :param container: Container object
+    :param excluded_storage: Storage backend_id
+    :return: List of Storage objects
     """
     all_storages = list(client.all_storages(container))
     cache = client.cache_storage(container)
@@ -134,7 +142,16 @@ def get_all_storages(client: Client, container: Container, excluded_storage: Opt
 def get_local_storages(client: Client, container: Container,
                        excluded_storage: Optional[str] = None):
     """
-    Return local storages for a container
+    List of Storage object representing all local storages
+    (as defined by client.is_local_storage) for the provided container.
+
+    If excluded_storage is provided, it will filter out the corresponding Storage object
+    from the resulting list.
+
+    :param client: Client object
+    :param container: Container object
+    :param excluded_storage: Storage backend_id
+    :return: List of storages objects
     """
     all_storages = get_all_storages(client, container, excluded_storage)
     local_storages = [storage for storage in all_storages
@@ -145,7 +162,19 @@ def get_local_storages(client: Client, container: Container,
 def get_local_storage(client: Client, container: Container, local_storage: Optional[str] = None,
                       excluded_storage: Optional[str] = None):
     """
-    Return first local storage found for a container
+    Get first local Storage found for the provided container.
+
+    If local_storage is provided as backend_id, it will return the corresponding Storage object
+    if it exists.
+
+    If excluded_storage is provided, it will filter out the corresponding Storage object
+    from the result.
+
+    :param client: Client object
+    :param container: Container object
+    :param local_storage: Storage backend_id
+    :param excluded_storage: Storage backend_id
+    :return: Storage object
     """
     all_storages = get_all_storages(client, container, excluded_storage)
     if local_storage:
@@ -162,7 +191,16 @@ def get_local_storage(client: Client, container: Container, local_storage: Optio
 def get_remote_storages(client: Client, container: Container,
                         excluded_storage: Optional[str] = None):
     """
-    Return remote storages for a container
+    List of Storage object representing all remote storages
+    (as defined as being not client.is_local_storage) for the provided container.
+
+    If excluded_storage is provided, it will filter out the corresponding Storage object
+    from the resulting list.
+
+    :param client: Client object
+    :param container: Container object
+    :param excluded_storage: Storage backend_id
+    :return: List of storages objects
     """
     all_storages = get_all_storages(client, container, excluded_storage)
     default_remotes = client.config.get('default-remote-for-container')
@@ -178,7 +216,19 @@ def get_remote_storages(client: Client, container: Container,
 def get_remote_storage(client: Client, container: Container, remote_storage: Optional[str] = None,
                        excluded_storage: Optional[str] = None):
     """
-    Return first remote storage for a container
+    Get first remote Storage found for the provided container.
+
+    If remote_storage is provided as backend_id, it will return the corresponding Storage object
+    if it exists.
+
+    If excluded_storage is provided, it will filter out the corresponding Storage object
+    from the result.
+
+    :param client: Client object
+    :param container: Container object
+    :param remote_storage: Storage backend_id
+    :param excluded_storage: Storage backend_id
+    :return: Storage object
     """
     all_storages = get_all_storages(client, container, excluded_storage)
     default_remotes = client.config.get('default-remote-for-container')
