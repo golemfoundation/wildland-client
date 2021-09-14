@@ -216,7 +216,8 @@ def list_(obj: ContextObj):
 @storage_.command('delete', short_help='delete a storage', alias=['rm'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
-              help='delete even if used by containers or if manifest cannot be loaded')
+              help='delete even if used by containers or if manifest cannot be loaded;'
+                   ' skip attempting to sync storage with remaining storage(s)')
 @click.option('--no-cascade', is_flag=True,
               help='remove reference from containers')
 @click.option('--container', metavar='CONTAINER',
