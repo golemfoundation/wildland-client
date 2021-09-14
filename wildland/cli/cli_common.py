@@ -120,6 +120,8 @@ def get_all_storages(client: Client, container: Container, excluded_storage: Opt
     filtered_storages = {}
 
     for s in all_storages:
+        if filtered_storages.get(s.backend_id, None):
+            raise WildlandError("Duplicate backend-id found! Aborting...")
         filtered_storages[s.backend_id] = s
 
     if excluded_storage:
