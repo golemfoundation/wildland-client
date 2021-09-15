@@ -25,9 +25,8 @@
 Manage users
 """
 from copy import deepcopy
-from typing import Tuple, Optional, Union, List, Dict
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
-import logging
 import binascii
 import click
 
@@ -37,15 +36,17 @@ from ..user import User
 
 from .cli_base import aliased_group, ContextObj, CliError
 from ..wlpath import WILDLAND_URL_PREFIX
-from .cli_common import sign, verify, edit, modify_manifest, add_field, del_field, dump
+from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
+    check_if_any_options, check_options_conflict
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
 from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
+from ..log import get_logger
 
-logger = logging.getLogger('cli-user')
+logger = get_logger('cli-user')
 
 
 @aliased_group('user', short_help='user management')
@@ -74,8 +75,7 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         try:
             owner, pubkey = obj.session.sig.load_key(key)
         except SigError as ex:
-            click.echo(f'Failed to use provided key: {ex}')
-            return
+            raise CliError(f'Failed to use provided key:\n  {ex}') from ex
         click.echo(f'Using key: {owner}')
     else:
         owner, pubkey = obj.session.sig.generate()
@@ -102,24 +102,23 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         manifests_catalog=[],
         client=obj.client
     )
+    error_on_save = False
     try:
-        error_on_save = False
         path = obj.client.save_new_object(WildlandObject.Type.USER, user, name)
     except binascii.Error as ex:
         # Separate error to provide some sort of readable feedback
         # raised by SigContext.fingerprint through base64.b64decode
-        click.echo(f'Failed to create user due to incorrect key provided (provide public '
-                   f'key, not path to key file): {ex}')
         error_on_save = True
+        raise CliError(f'Failed to create user due to incorrect key provided (provide public '
+                       f'key, not path to key file): {ex}') from ex
     except SchemaError as ex:
-        click.echo(f'Failed to create user: {ex}')
         error_on_save = True
-
-    if error_on_save:
-        if not key:
-            # remove generated keys that will not be used due to failure at creating user
-            obj.session.sig.remove_key(owner)
-        return
+        raise CliError(f'Failed to create user: {ex}') from ex
+    finally:
+        if error_on_save:
+            if not key:
+                # remove generated keys that will not be used due to failure at creating user
+                obj.session.sig.remove_key(owner)
 
     user.add_user_keys(obj.session.sig)
 
@@ -265,8 +264,8 @@ def _remove_suffix(s: str, suffix: str) -> str:
 def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
                         force: bool = False) -> Tuple[Optional[Path], Optional[str]]:
     """
-    Takes a manifest as pointed towards by path (can be local file path, url, wildland url),
-    imports its public keys, copies the manifest itself.
+    Takes a user or bridge manifest as pointed towards by path (can be local file path, url,
+    wildland url), imports its public keys, copies the manifest itself.
     :param obj: ContextObj
     :param path: (potentially ambiguous) path to manifest to be imported
     :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
@@ -358,7 +357,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
     at that manifest in the storage
 
     """
-    for container in user.load_catalog():
+    for container in user.load_catalog(warn_about_encrypted_manifests=False):
         all_storages = obj.client.all_storages(container=container)
 
         for storage_candidate in all_storages:
@@ -382,7 +381,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
 def _sanitize_imported_paths(paths: List[PurePosixPath], owner: str) -> List[PurePosixPath]:
     """
     Accept a list of imported paths (either from a user or a bridge manifest) and return only
-    the first one with sanitised (safe) path.
+    the first one with sanitized (safe) path.
     """
     if not paths:
         raise CliError('No paths found to sanitize')
@@ -438,7 +437,7 @@ def _do_process_imported_manifest(
         )
 
         name = _remove_suffix(copied_manifest_path.stem, ".user")
-        bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name, None)
+        bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name)
         click.echo(f'Created: {bridge_path}')
     else:
         bridge = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.BRIDGE)
@@ -457,12 +456,13 @@ def _do_process_imported_manifest(
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
 
-
-def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_owner, only_first):
+def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
+                    wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
+                    only_first: bool):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
-    Optionally override bridge paths with paths provided via --paths.
+    Optionally override bridge paths with paths provided via --path.
     Separate function so that it can be used by both wl bridge and wl user
     """
     if bridge_owner:
@@ -474,14 +474,15 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
     if not default_user:
         raise CliError('Cannot import user or bridge without a --bridge-owner or a default user.')
 
+    posix_paths = [PurePosixPath(p) for p in paths]
+
     if wl_obj_type == WildlandObject.Type.USER:
         copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
         if not copied_manifest_path or not manifest_url:
             return
         try:
             _do_process_imported_manifest(
-                obj, copied_manifest_path, manifest_url,
-                [PurePosixPath(p) for p in paths], default_user)
+                obj, copied_manifest_path, manifest_url, posix_paths, default_user)
         except Exception as ex:
             click.echo(
                 f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
@@ -514,7 +515,7 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
                     user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=(paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
+                    paths=(posix_paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')
@@ -544,11 +545,12 @@ def import_manifest(obj: ContextObj, path_or_url, paths, wl_obj_type, bridge_own
               help="import only first encountered bridge "
                    "(ignored in all cases except WL container paths)")
 @click.argument('path-or-url')
-def user_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first):
+def user_import(obj: ContextObj, path_or_url: str, paths: Tuple[str], bridge_owner: Optional[str],
+                only_first: bool):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
-    Optionally override bridge paths with paths provided via --paths.
+    Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
@@ -598,7 +600,7 @@ def refresh_users(obj: ContextObj, user_list: Optional[List[User]] = None):
         try:
             _do_import_manifest(obj, location, owner, force=True)
         except WildlandError as ex:
-            click.echo(f"Error while refreshing bridge: {ex}")
+            click.secho(f"Error while refreshing bridge: {ex}", fg="red")
 
 
 user_.add_command(sign)
@@ -607,76 +609,54 @@ user_.add_command(edit)
 user_.add_command(dump)
 
 
-@user_.group(short_help='modify user manifest')
-def modify():
-    """
-    Commands for modifying user manifests.
-    """
-
-
-@modify.command(short_help='add path to the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to add')
+@user_.command(short_help='modify user manifest')
+@click.option('--add-path', metavar='PATH', multiple=True, help='path to add')
+@click.option('--del-path', metavar='PATH', multiple=True, help='path to remove')
+@click.option('--add-catalog-entry', metavar='PATH', multiple=True, help='container path to add')
+@click.option('--del-catalog-entry', metavar='PATH', multiple=True, help='container path to remove')
+@click.option('--add-pubkey', metavar='PUBKEY', multiple=True, help='raw public keys to append')
+@click.option('--add-pubkey-user', metavar='USER', multiple=True,
+              help='user whose public keys should be appended to FILE')
+@click.option('--del-pubkey', metavar='PUBKEY', multiple=True, help='public key to remove')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_path(ctx: click.Context, input_file, path):
+def modify(ctx: click.Context,
+           add_path, del_path, add_catalog_entry, del_catalog_entry,
+           add_pubkey, add_pubkey_user, del_pubkey,
+           input_file
+           ):
     """
-    Add path to the manifest.
+    Command for modifying user manifests.
     """
-    modify_manifest(ctx, input_file, add_field, 'paths', path)
+    _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                  add_pubkey, add_pubkey_user, del_pubkey)
+
+    pubkeys = _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey)
+
+    to_add = {'paths': add_path, 'manifests-catalog': add_catalog_entry, 'pubkeys': pubkeys}
+    to_del = {'paths': del_path, 'manifests-catalog': del_catalog_entry, 'pubkeys': del_pubkey}
+
+    modify_manifest(ctx, input_file,
+                    edit_funcs=[add_fields, del_fields],
+                    to_add=to_add,
+                    to_del=to_del,
+                    logger=logger)
 
 
-@modify.command(short_help='remove path from the manifest')
-@click.option('--path', metavar='PATH', required=True, multiple=True, help='Path to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_path(ctx: click.Context, input_file, path):
-    """
-    Remove path from the manifest.
-    """
-    modify_manifest(ctx, input_file, del_field, 'paths', path)
+def _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                  add_pubkey, add_pubkey_user, del_pubkey):
+    check_if_any_options(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
+                         add_pubkey, add_pubkey_user, del_pubkey)
+    check_options_conflict("path", add_path, del_path)
+    check_options_conflict("catalog_entry", add_catalog_entry, del_catalog_entry)
+    check_options_conflict("pubkey", add_pubkey, del_pubkey)
 
 
-@modify.command(short_help='add entry to manifests-catalog')
-@click.option('--path', metavar='PATH', required=True, multiple=True,
-              help='Container path to add')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_catalog_entry(ctx: click.Context, input_file, path):
-    """
-    Add path to the manifest.
-    """
-    modify_manifest(ctx, input_file, add_field, 'manifests-catalog', path)
+def _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey):
+    pubkeys = set(add_pubkey)
 
-
-@modify.command(short_help="remove an entry from manifest's manifest catalog")
-@click.option('--path', metavar='PATH', required=True, multiple=True,
-              help='Container path to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_catalog_entry(ctx: click.Context, input_file, path):
-    """
-    Add path to the manifest.
-    """
-    modify_manifest(ctx, input_file, del_field, 'manifests-catalog', path)
-
-
-@modify.command(short_help='add public key(s) to the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=False, multiple=True,
-              help='Raw public keys to append')
-@click.option('--user', metavar='USER', required=False, multiple=True,
-              help='Users whose public keys should be appended to FILE')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def add_pubkey(ctx: click.Context, input_file, pubkey, user):
-    """
-    Add public key to the manifest.
-    """
-    if not pubkey and not user:
-        raise CliError('You must provide at least one --user or --pubkey.')
-
-    pubkeys = set(pubkey)
-
-    for name in user:
+    conflicts = ""
+    for name in add_pubkey_user:
         user_obj = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, name)
 
         click.echo(f'Pubkeys found in [{name}]:')
@@ -684,22 +664,19 @@ def add_pubkey(ctx: click.Context, input_file, pubkey, user):
         for key in user_obj.pubkeys:
             click.echo(f'  {key}')
 
+        pubkey_conflicts = set(del_pubkey).intersection(user_obj.pubkeys)
+        if pubkey_conflicts:
+            conflicts += 'Error: options conflict:'
+            for c in pubkey_conflicts:
+                conflicts += f'\n  --add-pubkey-user {name} and --del-pubkey {c}' \
+                             f'\n    User {name} has a pubkey {c}'
+
         pubkeys.update(user_obj.pubkeys)
+    if conflicts:
+        raise CliError(conflicts)
 
     for key in pubkeys:
         if not ctx.obj.session.sig.is_valid_pubkey(key):
             raise CliError(f'Given pubkey [{key}] is not a valid pubkey')
 
-    modify_manifest(ctx, input_file, add_field, 'pubkeys', pubkeys)
-
-
-@modify.command(short_help='remove public key from the manifest')
-@click.option('--pubkey', metavar='PUBKEY', required=True, multiple=True,
-              help='Public key to remove')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_pubkey(ctx: click.Context, input_file, pubkey):
-    """
-    Remove public key from the manifest.
-    """
-    modify_manifest(ctx, input_file, del_field, 'pubkeys', pubkey)
+    return pubkeys

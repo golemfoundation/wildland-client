@@ -24,10 +24,8 @@
 gitlab_client fetches the information necessary for exposing the issues
 in the backend.
 """
-
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-member
-import logging
 from typing import List, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
@@ -35,7 +33,10 @@ from datetime import datetime
 import requests
 import gitlab
 
-logger = logging.getLogger('GitlabClient')
+from wildland.log import get_logger
+
+logger = get_logger('GitlabClient')
+
 
 @dataclass(frozen=True)
 class CompactIssue:
@@ -52,6 +53,7 @@ class CompactIssue:
     labels: List[str]
     ident: int
     issue_size: int
+
 
 class GitlabClient:
     """
@@ -100,7 +102,9 @@ class GitlabClient:
         if self.project_id:
             projects = [self.gitlab.projects.get(self.project_id)]
         else:
-            projects = list(self.gitlab.projects.list(membership=True))
+            # Casting RESTObject list to Project list to satisfy mypy
+            projects = [gitlab.v4.objects.Project(self.gitlab.projects, i.attributes)
+                        for i in self.gitlab.projects.list(membership=True)]
 
         for project in projects:
             tmp_issues.extend(project.issues.list(all=True, per_page=100))
@@ -129,17 +133,17 @@ class GitlabClient:
             else:
                 size = 0
 
-            update = datetime.fromisoformat(issue.attributes['updated_at'].replace('Z','+00:00'))
+            update = datetime.fromisoformat(issue.attributes['updated_at'].replace('Z', '+00:00'))
             name = project_names.get(issue.attributes['project_id'])
-            to_return.append(CompactIssue(milestone_title = m_title,
-                                          project_id = issue.attributes['project_id'],
-                                          project_name = name,
-                                          title = issue.attributes['title'],
-                                          iid = issue.attributes['iid'],
-                                          updated_at = update,
-                                          labels = issue.attributes['labels'],
-                                          ident = issue.attributes['id'],
-                                          issue_size = size))
+            to_return.append(CompactIssue(milestone_title=m_title,
+                                          project_id=issue.attributes['project_id'],
+                                          project_name=name,
+                                          title=issue.attributes['title'],
+                                          iid=issue.attributes['iid'],
+                                          updated_at=update,
+                                          labels=issue.attributes['labels'],
+                                          ident=issue.attributes['id'],
+                                          issue_size=size))
 
         return to_return
 

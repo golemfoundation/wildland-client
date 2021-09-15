@@ -25,10 +25,11 @@
 Abstract classes for storage
 """
 
+from __future__ import annotations
 import abc
 import hashlib
 import itertools
-import logging
+import json
 import os
 import pathlib
 import posixpath
@@ -36,20 +37,24 @@ import stat
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
-from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union
 from uuid import UUID
+from typing import Optional, Dict, Type, Any, List, Iterable, Tuple, Union, TYPE_CHECKING
 
 import click
-import yaml
 
+import wildland
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
 from ..link import Link
-from ..container import ContainerStub
+from ..container import ContainerStub, Container
+from ..log import get_logger
+
+if TYPE_CHECKING:
+    import wildland.client  # pylint: disable=cyclic-import
 
 BLOCK_SIZE = 1024 ** 2
-logger = logging.getLogger('storage')
+logger = get_logger('storage')
 
 
 class StorageError(BaseException):
@@ -91,7 +96,7 @@ class Attr:
         return stat.S_ISDIR(self.mode)
 
     @classmethod
-    def file(cls, size: int=0, timestamp: int=0) -> 'Attr':
+    def file(cls, size: int = 0, timestamp: int = 0) -> 'Attr':
         """
         Simple file with default access mode.
         """
@@ -102,7 +107,7 @@ class Attr:
             timestamp=timestamp)
 
     @classmethod
-    def dir(cls, size: int=0, timestamp: int=0) -> 'Attr':
+    def dir(cls, size: int = 0, timestamp: int = 0) -> 'Attr':
         """
         Simple directory with default access mode.
         """
@@ -133,7 +138,7 @@ class File(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def read(self, length: Optional[int]=None, offset: int=0) -> bytes:
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         """
         Read data from an open file. This method is a proxy for
         :meth:`wildland.storage_backends.base.StorageBackend.read`.
@@ -184,7 +189,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
                                             Some backends (eg. dateproxy) don't specify any
                                             locations as they are merely proxying actual backends.
-                                            In those cases this costant should be omitted.
+                                            In those cases this constant should be omitted.
 
                                             Examples:
                                             - `location` for `local` storage as it points to a
@@ -308,8 +313,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
 
         hasher = hashlib.md5()
-        params_for_hash = dict((k, v) for (k, v) in params.items() if k != 'storage')
-        hasher.update(yaml.dump(params_for_hash, sort_keys=True).encode('utf-8'))
+        params_for_hash = dict((k, str(v)) for (k, v) in params.items() if k != 'storage')
+        hasher.update(json.dumps(params_for_hash, sort_keys=True).encode('utf-8'))
 
         return str(UUID(hasher.hexdigest()))
 
@@ -422,7 +427,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def create(self, path: PurePosixPath, flags: int, mode: int=0o666):
+    def create(self, path: PurePosixPath, flags: int, mode: int = 0o666):
         """
         Create and open a file. If the file does not exist, first create it with the specified mode,
         and then open it. Flags are expressed in POSIX style (see os module flag constants). They
@@ -501,7 +506,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def mkdir(self, path: PurePosixPath, mode: int=0o777) -> None:
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
         """
         Create a directory with the given name. The directory permissions are encoded in ``mode``.
         """
@@ -619,7 +624,37 @@ class StorageBackend(metaclass=abc.ABCMeta):
             if file_obj_atr.is_dir():
                 yield from self.walk(full_path)
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    @property
+    def supports_publish(self) -> bool:
+        """
+        Check if storage handles subcontainers.
+        """
+        return False
+
+    def has_child(self, container_uuid_path: PurePosixPath) -> bool:
+        """
+        Check if the given container is subcontainer of this storage.
+        """
+        raise OptionalError()
+
+    def add_child(self, client: wildland.client.Client, container: Container):
+        """
+        Add subcontainer to this storage.
+
+        If given container is already a child of this storage, subcontainer info will be updated.
+        """
+        raise OptionalError()
+
+    def remove_child(self, client: wildland.client.Client, container: Container):
+        """
+        Remove subcontainer from this storage.
+
+        If given subcontainer is not a child of that storage, nothing happens.
+        """
+        raise OptionalError()
+
+    def get_children(self, client: wildland.client.Client = None,
+                     query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]]:
         """
         List all subcontainers provided by this storage.
@@ -695,7 +730,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if 'public-url' not in self.params:
             return None
         return posixpath.join(self.params['public-url'],
-            urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
+                              urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
 
     def get_path_for_url(self, url):
         """
@@ -707,6 +742,21 @@ class StorageBackend(metaclass=abc.ABCMeta):
         assert url.startswith(self.params['public-url'])
         return pathlib.PurePosixPath(
             url[len(self.params['public-url']):].lstrip('/'))
+
+    def start_bulk_writing(self) -> None:
+        """
+        Indicates that we want to do many writing/creation operation.
+        Writing may be cached (or just invisible in local cache) so from now on reading what we are
+        writing/updating is undefined (files may or may not be updated).
+        Reading untouched files should works as usual.
+        """
+
+    def stop_bulk_writing(self) -> None:
+        """
+        Indicates that we end up bulk writing.
+        This method should accomplish cached writing operations (like the flush method).
+        The cache should be (possibly) invalidated if applicable.
+        """
 
 
 def _inner_proxy(method_name):
@@ -751,5 +801,5 @@ def verify_local_access(path: Path, user: str, is_local_owner: bool):
             logger.warning('Cannot read %s: %s', flag_file, e)
 
     raise PermissionError(
-        'User {} is not allowed to access {}: not in local-owners nor .wildland-owners file'.
-            format(user, path))
+        f'User {user} is not allowed to access {path}: '
+        'not in local-owners nor .wildland-owners file')

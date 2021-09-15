@@ -21,7 +21,7 @@
 Storage templates management
 """
 
-from typing import Type
+from typing import Optional, Sequence, Type
 import functools
 import click
 
@@ -36,7 +36,9 @@ from ..storage_backends.dispatch import get_storage_backends
 
 @aliased_group('template', short_help='storage templates management')
 def template():
-    """Manage storage templates"""
+    """
+    Manage storage templates.
+    """
 
 
 @template.group('create', alias=['c'], short_help='create storage template')
@@ -58,12 +60,14 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
         click.Option(['--access'], multiple=True, required=False, metavar='USER',
                      help='Limit access to this storage to the provided users. '
                           'By default the @default owner is used.'),
-        click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
+        click.Option(['--watcher-interval'], metavar='SECONDS', required=False, type=int,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--public-url'], metavar='URL', required=False,
                      help='Set public base URL.'),
         click.Option(['--read-only'], metavar='BOOL', is_flag=True,
                      help='Mark storage as read-only.'),
+        click.Option(['--default-cache'], metavar='BOOL', is_flag=True,
+                     help='Mark template as default for container caches'),
         click.Argument(['name'], metavar='NAME', required=True),
     ]
 
@@ -79,7 +83,7 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
     return command
 
 
-def _add_create_commands(group, create: bool):
+def _add_create_commands(group: click.core.Group, create: bool):
     for backend in get_storage_backends().values():
         try:
             command = _make_create_command(backend, create=create)
@@ -91,11 +95,12 @@ def _add_create_commands(group, create: bool):
 def _do_create(
         backend: Type[StorageBackend],
         create: bool,
-        name,
-        watcher_interval,
-        public_url,
-        read_only,
-        access,
+        name: str,
+        watcher_interval: Optional[int],
+        public_url: Optional[str],
+        read_only: bool,
+        default_cache: bool,
+        access: Sequence[str],
         **data):
 
     obj: ContextObj = click.get_current_context().obj
@@ -111,12 +116,15 @@ def _do_create(
         raise CliError(f'Template {name} does not exist. Use [wl template create] '
                        'command to create a new template.')
 
+    if default_cache and read_only:
+        raise CliError('Cache storage cannot be read-only.')
+
     params = backend.cli_create(data)
     params['type'] = backend.TYPE
     params['read-only'] = read_only
 
     if watcher_interval:
-        params['watcher-interval'] = int(watcher_interval)
+        params['watcher-interval'] = watcher_interval
 
     if access:
         # We only accept '*' if '*' is the only entry, ie there can't be list of users alongside
@@ -152,12 +160,15 @@ def _do_create(
     else:
         click.echo(f'Storage template [{name}] created in {path}')
 
+    if default_cache:
+        obj.client.config.update_and_save({'default-cache-template': name})
+
 
 @template.command('list', short_help='list storage templates', alias=['ls'])
 @click.option('--show-filenames', '-s', is_flag=True, required=False,
               help='show filenames for storage template sets and template files')
 @click.pass_obj
-def template_list(obj: ContextObj, show_filenames):
+def template_list(obj: ContextObj, show_filenames: bool):
     """
     Display known storage templates
     """
@@ -168,9 +179,9 @@ def template_list(obj: ContextObj, show_filenames):
     templates = template_manager.available_templates()
 
     if not templates:
-        click.echo('    No templates available.')
+        click.echo('No templates available.')
     else:
-        for tpl in templates:
+        for tpl in sorted(templates):
             if show_filenames:
                 click.echo(f"    {tpl} [{template_manager.get_file_path(str(tpl))}]")
             else:

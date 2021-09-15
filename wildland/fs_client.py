@@ -28,7 +28,6 @@ import itertools
 import time
 from pathlib import Path, PurePosixPath
 import subprocess
-import logging
 from typing import Callable, Dict, List, Optional, Iterable, Tuple, Iterator
 import json
 import sys
@@ -41,12 +40,13 @@ from .cli.cli_base import CliError
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError
-from .control_client import ControlClient
+from .control_client import ControlClient, ControlClientUnableToConnectError
 from .entity.fileinfo import FileInfo
 from .manifest.manifest import Manifest
-from .storage_backends.static import StaticStorageBackend
+from .storage_backends.pseudomanifest import PseudomanifestStorageBackend
+from .log import get_logger
 
-logger = logging.getLogger('fs_client')
+logger = get_logger('fs_client')
 
 
 @dataclasses.dataclass
@@ -79,7 +79,14 @@ class WildlandFSClient:
     A class to communicate with Wildland filesystem over the .control API.
     """
 
-    def __init__(self, mount_dir: Path, socket_path: Path, bridge_separator: str = ':'):
+    def __init__(
+            self,
+            base_dir: Optional[PurePosixPath],
+            mount_dir: Path,
+            socket_path: Path,
+            bridge_separator: str = ':'
+    ):
+        self.base_dir = base_dir
         self.mount_dir = mount_dir
         self.socket_path = socket_path
         self.bridge_separator = bridge_separator
@@ -171,7 +178,7 @@ class WildlandFSClient:
         client = ControlClient()
         try:
             client.connect(self.socket_path)
-        except IOError:
+        except ControlClientUnableToConnectError:
             return False
         client.disconnect()
         return True
@@ -253,7 +260,7 @@ class WildlandFSClient:
             remount: bool = False,
             unique_path_only: bool = False) -> List[Dict]:
 
-        identity_storage_generator = lambda _, storage : storage
+        identity_storage_generator = lambda _, storage: storage
         commands = self._get_commands_for_mount_containers(
             params, remount, unique_path_only, False, identity_storage_generator)
 
@@ -270,13 +277,15 @@ class WildlandFSClient:
 
         return pseudomanifest_commands
 
-    def _get_commands_for_mount_containers(self,
-            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
-                                   Optional[Container]]],
-            remount: bool,
-            unique_path_only: bool,
-            is_hidden: bool,
-            storage_generator: Callable[[Container, Storage], Storage]) -> List[Dict]:
+    def _get_commands_for_mount_containers(
+        self,
+        params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
+                               Optional[Container]]],
+        remount: bool,
+        unique_path_only: bool,
+        is_hidden: bool,
+        storage_generator: Callable[[Container, Storage], Storage]
+                                           ) -> List[Dict]:
 
         return [
             self.get_command_for_mount_container(
@@ -287,8 +296,7 @@ class WildlandFSClient:
             for storage in storages
         ]
 
-    @staticmethod
-    def _generate_pseudomanifest_storage(container: Container, storage: Storage) -> Storage:
+    def _generate_pseudomanifest_storage(self, container: Container, storage: Storage) -> Storage:
         """
         Create pseudomanifest storage out of storage params and paths.
         """
@@ -305,19 +313,18 @@ class WildlandFSClient:
         storage_manifest = Manifest.from_fields(pseudo_manifest_params)
         pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
 
-        static_params = {
-            'type': 'static',
-            'content': {
-                '.manifest.wildland.yaml': pseudomanifest_content
-            },
+        params = {
+            'type': 'pseudomanifest',
+            'content': pseudomanifest_content,
+            'base-dir': str(self.base_dir),
             'primary': storage.is_primary,  # determines how many mountpoints are generated
             'backend-id': storage.backend_id,
             'owner': storage.owner,
             'container-path': str(container.paths[0]),
-            'version': Manifest.CURRENT_VERSION,
+            'version': Manifest.CURRENT_VERSION
         }
-        return Storage(storage.owner, StaticStorageBackend.TYPE, container.uuid_path,
-                       trusted=True, params=static_params, client=container.client)
+        return Storage(storage.owner, PseudomanifestStorageBackend.TYPE, container.uuid_path,
+                       trusted=True, params=params, client=container.client)
 
     def unmount_storage(self, storage_id: int) -> None:
         """
@@ -359,16 +366,19 @@ class WildlandFSClient:
 
     def find_all_storage_ids_by_path(self, path: PurePosixPath) -> List[int]:
         """
-        Find all storage IDs for a given mount path. This method is similar to
-        :meth:`WildlandFSClient.find_storage_id_by_path` but instead of returning just one (first)
-        storage ID, it returns all of them. This method is useful when unmounting a storage by given
-        path.
+        Find all storage IDs for a given mount path (either absolute or relative with respect to the
+        mount directory). This method is similar to :meth:`WildlandFSClient.find_storage_id_by_path`
+        but instead of returning just one (first) storage ID, it returns all of them. This method is
+        useful when unmounting a storage by given path.
 
         Note that this method returns at least 2 storage IDs if called with ``path`` corresponding
         to primary storage: one for pseudomanifest storage (which is also mounted in primary path)
         and one for the underlying storage.
         """
         paths = self.get_paths()
+        if path.is_relative_to(self.mount_dir):
+            path = path.relative_to(self.mount_dir)
+        path = PurePosixPath('/') / path
         return paths.get(path, [])
 
     def get_primary_unique_mount_path_from_storage_id(self, storage_id: int) -> PurePosixPath:
@@ -452,6 +462,8 @@ class WildlandFSClient:
                 # this raises ValueError for not matching paths
                 users_path = path.relative_to('/.users')
                 owner = users_path.parts[0]
+                if owner.endswith(self.bridge_separator):
+                    owner = owner[:-1]
                 container_paths.append(PurePosixPath('/').joinpath(
                     *users_path.parts[1:]))
             except ValueError:
@@ -721,6 +733,7 @@ class WildlandFSClient:
             old_main_path = mount_paths[0]
             new_main_path = old_main_path.parent / (old_main_path.name + '-pseudomanifest')
             mount_paths[0] = new_main_path
+            mount_paths = [path / '.manifest.wildland.yaml' for path in mount_paths]
 
         return {
             'paths': [str(p) for p in mount_paths],

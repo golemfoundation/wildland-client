@@ -25,14 +25,14 @@ Local storage, similar to :command:`mount --bind`
 """
 
 from pathlib import PurePosixPath
-import logging
 
 from .base import StorageBackend, Attr
 from ..manifest.schema import Schema
+from ..log import get_logger
 
 __all__ = ['DummyStorageBackend']
 
-logger = logging.getLogger('dummy-storage')
+logger = get_logger('dummy-storage')
 
 
 class DummyStorageBackend(StorageBackend):

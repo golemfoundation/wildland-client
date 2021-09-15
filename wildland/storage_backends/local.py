@@ -26,7 +26,6 @@ Local storage, similar to :command:`mount --bind`
 """
 
 import errno
-import logging
 import os
 import select
 import threading
@@ -41,10 +40,11 @@ from .file_subcontainers import FileSubcontainersMixin
 from ..fs_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent
+from ..log import get_logger
 
 __all__ = ['LocalStorageBackend']
 
-logger = logging.getLogger('local')
+logger = get_logger('local')
 
 
 def to_attr(st: os.stat_result) -> Attr:
@@ -144,14 +144,14 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
             location_path = relative_to / location_path
         location_path = location_path.resolve()
         if not location_path.is_dir():
-            logger.warning('LocalStorage root does not exist: %s', location_path)
+            logger.info('LocalStorage root does not exist: %s', location_path)
         self.root = location_path
 
     @classmethod
     def cli_options(cls):
         opts = super(LocalStorageBackend, cls).cli_options()
         opts.append(click.Option(['--location'], metavar='PATH', help='path in local filesystem',
-                                  required=True))
+                                 required=True))
         return opts
 
     @classmethod
@@ -212,7 +212,7 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
             self.watcher_instance.ignore_event('delete', path)
         os.unlink(self._path(path))
 
-    def mkdir(self, path: PurePosixPath, mode: int=0o777) -> None:
+    def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
         if self.ignore_own_events and self.watcher_instance:
             self.watcher_instance.ignore_event('create', path)
         os.makedirs(self._path(path), mode, exist_ok=True)

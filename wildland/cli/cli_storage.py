@@ -25,10 +25,9 @@
 Storage object
 """
 
-from typing import Iterable, List, Optional, Tuple, Type, Union
+from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
-import logging
 import uuid
 
 import click
@@ -36,18 +35,19 @@ import click
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
-from .cli_common import sign, verify, edit, modify_manifest, set_field, add_field, del_field, dump
+from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
+    dump, check_if_any_options, check_options_conflict
 from ..container import Container
 from ..storage import Storage
 from ..manifest.template import TemplateManager, StorageTemplate
 from ..publish import Publisher
-
+from ..log import get_logger
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
 
-logger = logging.getLogger('cli-storage')
+logger = get_logger('cli-storage')
 
 
 @aliased_group('storage', short_help='storage management')
@@ -74,7 +74,7 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--inline/--no-inline'], default=True,
                      help='Add the storage directly to container '
                      'manifest, instead of saving it to a file.'),
-        click.Option(['--watcher-interval'], metavar='SECONDS', required=False,
+        click.Option(['--watcher-interval'], metavar='SECONDS', required=False, type=int,
                      help='Set the storage watcher-interval in seconds.'),
         click.Option(['--public-url'], metavar='PUBLICURL',
                      help='Set public base URL'),
@@ -87,7 +87,7 @@ def _make_create_command(backend: Type[StorageBackend]):
                           '--access cannot be used. For inline storage, container manifest might '
                           'still be encrypted.'),
         click.Option(['--no-publish'], is_flag=True,
-                    help='do not publish the container after creation'),
+                     help='do not publish the container after creation'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -104,7 +104,7 @@ def _make_create_command(backend: Type[StorageBackend]):
     return command
 
 
-def _add_create_commands(group):
+def _add_create_commands(group: click.core.Group):
     for backend in get_storage_backends().values():
         try:
             command = _make_create_command(backend)
@@ -115,25 +115,25 @@ def _add_create_commands(group):
 
 def _do_create(
         backend: Type[StorageBackend],
-        name,
-        container,
-        trusted,
-        inline,
-        watcher_interval,
-        public_url,
-        access,
-        encrypt_manifest,
-        no_publish,
+        name: Optional[str],
+        container: str,
+        trusted: bool,
+        inline: bool,
+        watcher_interval: Optional[int],
+        public_url: Optional[str],
+        access: Sequence[str],
+        encrypt_manifest: bool,
+        no_publish: bool,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
 
-    container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
-    if not container.local_path:
+    container_obj = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, container)
+    if not container_obj.local_path:
         raise WildlandError('Need a local container')
 
-    container_mount_path = container.paths[0]
-    click.echo(f'Using container: {container.local_path} ({container_mount_path})')
+    container_mount_path = container_obj.paths[0]
+    click.echo(f'Using container: {container_obj.local_path} ({container_mount_path})')
 
     params = backend.cli_create(data)
 
@@ -143,42 +143,47 @@ def _do_create(
             del params[param]
 
     if watcher_interval:
-        params['watcher-interval'] = int(watcher_interval)
+        params['watcher-interval'] = watcher_interval
 
     params['backend-id'] = str(uuid.uuid4())
     if public_url is not None:
         params['public-url'] = public_url
 
+    access_users = None
+
     if not encrypt_manifest:
-        access = [{'user': '*'}]
+        access_users = [{'user': '*'}]
     elif access:
-        access = [{'user': obj.client.load_object_from_name(
+        access_users = [{'user': obj.client.load_object_from_name(
             WildlandObject.Type.USER, user).owner} for user in access]
-    else:
-        if container.access:
-            access = container.access
-        else:
-            access = None
+    elif container_obj.access:
+        access_users = container_obj.access
 
     storage = Storage(
         storage_type=backend.TYPE,
-        owner=container.owner,
+        owner=container_obj.owner,
         container_path=container_mount_path,
         params=params,
         client=obj.client,
         trusted=params.get('trusted', trusted),
-        access=access
+        access=access_users
     )
     storage.validate()
+    # try to load storage from params to check if everything is ok,
+    # e.g., reference container is available
+    obj.client.load_object_from_url_or_dict(WildlandObject.Type.STORAGE,
+                                            storage.to_manifest_fields(inline=False),
+                                            storage.owner)
     click.echo(f'Adding storage {storage.backend_id} to container.')
-    obj.client.add_storage_to_container(container, storage, inline, name)
-    click.echo(f'Saved container {container.local_path}')
+    obj.client.add_storage_to_container(container_obj, storage, inline, name)
+    click.echo(f'Saved container {container_obj.local_path}')
 
     if no_publish:
         return
 
     try:
-        Publisher(obj.client, container).republish_container()
+        user = obj.client.load_object_from_name(WildlandObject.Type.USER, container_obj.owner)
+        Publisher(obj.client, user).republish_container(container_obj)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
@@ -215,7 +220,7 @@ def list_(obj: ContextObj):
 @click.option('--container', metavar='CONTAINER',
               help='remove reference from specific containers')
 @click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, no_cascade, container):
+def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container: Optional[str]):
     """
     Delete a storage.
     """
@@ -297,7 +302,7 @@ def _delete_force(client: Client, name: str, no_cascade: bool):
         # already removed
         pass
     if not no_cascade:
-        click.echo('Unable to cascade remove: manifest failed to load.')
+        logger.warning('Unable to cascade remove: manifest failed to load.')
 
 
 def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path, str]]]):
@@ -308,7 +313,7 @@ def _delete_cascade(client: Client, containers: List[Tuple[Container, Union[Path
             click.echo(f'Saving: {container.local_path}')
             client.save_object(WildlandObject.Type.CONTAINER, container)
         except ManifestError as ex:
-            click.echo(f'Failed to modify container manifest, cannot delete: {ex}')
+            raise CliError(f'Failed to modify container manifest, cannot delete: {ex}') from ex
 
 
 def do_create_storage_from_templates(client: Client, container: Container,
@@ -329,8 +334,7 @@ def do_create_storage_from_templates(client: Client, container: Container,
         try:
             storage = template.get_storage(client, container, local_dir)
         except ValueError as ex:
-            click.echo(f'Failed to create storage from storage template: {ex}')
-            raise ex
+            raise CliError(f'Failed to create storage from storage template: {ex}') from ex
 
         storage_backend = StorageBackend.from_params(storage.params)
         to_process.append((storage, storage_backend))
@@ -345,7 +349,8 @@ def do_create_storage_from_templates(client: Client, container: Container,
 
     if not no_publish:
         try:
-            Publisher(client, container).republish_container()
+            user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+            Publisher(client, user).republish_container(container)
         except WildlandError as ex:
             raise WildlandError(f"Failed to republish container: {ex}") from ex
 
@@ -359,8 +364,8 @@ def _ensure_backend_location_exists(backend: StorageBackend) -> None:
             backend.mkdir(PurePosixPath(path))
             click.echo(f'Created base path: {path}')
     except Exception as ex:
-        click.echo(f'WARN: Could not create base path {path} in a writable storage '
-                   f'[{backend.backend_id}]. {ex}')
+        logger.warning('Could not create base path %s in a writable storage [%s]. %s',
+                       path, backend.backend_id, ex)
 
 
 @storage_.command('create-from-template', short_help='create a storage from a storage template',
@@ -398,61 +403,39 @@ storage_.add_command(dump)
 _add_create_commands(create)
 
 
-@storage_.group(short_help='modify storage manifest')
-def modify():
-    """
-    Commands for modifying storage manifests.
-    """
-
-
-@modify.command(short_help='set location in the manifest')
-@click.argument('input_file', metavar='FILE')
-@click.option('--location', metavar='PATH', required=True, help='Location to set')
-@click.pass_context
-def set_location(ctx: click.Context, input_file, location):
-    """
-    Set location in the manifest.
-    """
-    modify_manifest(ctx, input_file, set_field, 'location', location)
-
-
-@modify.command(short_help='allow additional user(s) access to this encrypted manifest')
-@click.option('--access', metavar='PATH', required=True, multiple=True,
-              help='Users to add access for')
+@storage_.command(short_help='modify storage manifest')
+@click.option('--location', metavar='PATH', help='location to set')
+@click.option('--add-access', metavar='PATH', multiple=True, help='users to add access for')
+@click.option('--del-access', metavar='PATH', multiple=True, help='users to remove access for')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
-def add_access(ctx: click.Context, input_file, access):
+def modify(ctx: click.Context,
+           location, add_access, del_access, input_file
+           ):
     """
-    Add category to the manifest.
+    Command for modifying storage manifests.
     """
-    processed_access = []
+    check_if_any_options(ctx, location, add_access, del_access)
+    check_options_conflict("access", add_access, del_access)
 
     try:
-        for user in access:
-            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-            processed_access.append({'user': user.owner})
+        add_access_owners = [
+            {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+            for user in add_access]
+        del_access_owners = [
+            {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
+            for user in del_access]
     except WildlandError as ex:
         raise CliError(f'Cannot modify access: {ex}') from ex
 
-    modify_manifest(ctx, input_file, add_field, 'access', processed_access)
-
-
-@modify.command(short_help='stop additional user(s) from having access to this encrypted manifest')
-@click.option('--access', metavar='PATH', required=True, multiple=True,
-              help='Users whose access should be revoked')
-@click.argument('input_file', metavar='FILE')
-@click.pass_context
-def del_access(ctx: click.Context, input_file, access):
-    """
-    Remove category from the manifest.
-    """
-    processed_access = []
-
-    try:
-        for user in access:
-            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-            processed_access.append({'user': user.owner})
-    except WildlandError as ex:
-        raise CliError(f'Cannot modify access: {ex}') from ex
-
-    modify_manifest(ctx, input_file, del_field, 'access', processed_access)
+    to_add = {'access': add_access_owners}
+    to_del = {'access': del_access_owners}
+    to_set = {}
+    if location:
+        to_set['location'] = location
+    modify_manifest(ctx, input_file,
+                    edit_funcs=[add_fields, del_fields, set_fields],
+                    to_add=to_add,
+                    to_del=to_del,
+                    to_set=to_set,
+                    logger=logger)

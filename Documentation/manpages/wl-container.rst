@@ -12,10 +12,12 @@ Synopsis
 | :command:`wl container info NAME`
 | :command:`wl container delete [--force] [--cascade] NAME`
 | :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-template <storage_template>]`
+| :command:`wl container create-cache --template <template_name> <container>`
+| :command:`wl container delete-cache <container>`
 | :command:`wl container update [--storage <storage>] <container>`
 | :command:`wl container mount []`
 | :command:`wl container unmount`
-| :command:`wl container modify {add-path|del-path|add-category|del-category|set-title} [...] <file>`
+| :command:`wl container modify [] <file>`
 | :command:`wl container publish <container>`
 | :command:`wl container unpublish <container>`
 
@@ -131,6 +133,44 @@ Create a |~| new container manifest.
    infrastructure defined in the user manifest, the container is published.
 
 
+.. program:: wl-container-create-cache
+.. _wl-container-create-cache:
+
+:command:`wl container create-cache --template <template_name> <container> [<container>...]`
+--------------------------------------------------------------------------------------------
+
+Create a cache storage for container(s) from a template. This is used to speed up accessing
+slow remote storages like s3. The template should usually be the default local storage one
+(`wl template create local --location /path/to/cache/root template_name`).
+
+On the first container mount, old primary storage's content (usually a slow remote one) is copied
+to the cache storage. From then on the cache storage becomes container's primary storage
+when the container is mounted. Old primary storage is kept in sync with the cache when mounted.
+
+Cache storage is created based on the template provided. Because the purpose of the cache storage
+is to be fast, it's best to use a local storage template unless some specific setup is needed.
+When using a default local storage template as outlined above, the cache storage directory
+is `/path/to/cache/root/container_uuid`.
+
+Cache manifests are stored in `<Wildland config root>/cache` directory and are storage manifests.
+Wildland storage commands can be used to display or manually edit them. They have file names
+in the form of `owner_id.container_uuid.storage.yaml`.
+
+
+.. option:: -t, --template <template_name>
+
+   Name of the storage template to use.
+
+
+.. program:: wl-container-delete-cache
+.. _wl-container-delete-cache:
+
+:command:`wl container delete-cache <container> [<container>...]`
+-----------------------------------------------------------------
+
+Deletes cache storage associated with container(s).
+
+
 .. program:: wl-container-update
 .. _wl-container-update:
 
@@ -225,6 +265,17 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
    If container contains any subcontainers then mount just the subcontainers and skip mounting
    the container's storage itself.
 
+.. option:: -c, --with-cache
+
+   Create and use a cache storage for the container using the default cache template
+   (see :ref:`wl set-default-cache <wl-set-default-cache>`).
+   See :ref:`wl container create-cache <wl-container-create-cache>` for details about caches.
+
+.. option:: --cache-template <template_name>
+
+   Create and use a cache storage for the container from the given template.
+   See :ref:`wl container create-cache <wl-container-create-cache>`.
+
 .. option:: -l, --list-all
 
    During mount, list all the containers to be mounted and result of mount (changed/not changed).
@@ -305,8 +356,8 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
-:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] <container>`
----------------------------------------------------------------------------------------------------
+:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] [--undo-save] <container>`
+-----------------------------------------------------------------------------------------------------------------
 
 .. option:: --path <path>
 
@@ -314,12 +365,28 @@ Stop the current mount-watch daemon.
 
 .. option:: -w, --with-subcontainers
 
-    Unmount the subcontainers of those containers. Subcontainers are unmounted recursively (i.e. if
-    any subcontainer provides own set of subcontainers, unmount those too). This is the default.
+   Unmount the subcontainers of those containers. Subcontainers are unmounted recursively (i.e. if
+   any subcontainer provides own set of subcontainers, unmount those too). This is the default.
 
 .. option:: -W, --without-subcontainers
 
    Do not unmount the subcontainers of those containers.
+
+.. option:: -u, --undo-save
+
+   Undo ``wl container mount --save <container>``. ``<container>`` must be specified exactly the
+   same as when running ``wl container mount --save <container>``.
+
+   For example, if you run::
+
+      wl c mount --save '~/mnt/.manifests/.uuid/*'
+
+   then it will not work::
+
+      wl c unmount --undo-save '~/mnt/.manifests/.uuid/*.yaml'
+
+   Also make sure to quote ``~/mnt/.manifests/.uuid/*.yaml`` unless you want it to be expanded by
+   your shell instead of Wildland itself.
 
 .. program:: wl-container-publish
 .. _wl-container-publish:
@@ -407,8 +474,8 @@ a local file.
 .. program:: wl-container-sync
 .. _wl-container-sync:
 
-:command:`wl container sync [--target-storage <id_or_type>] [--source-storage <id_or_type>] [--one-shot] <container>`
----------------------------------------------------------------------------------------------------------------------
+:command:`wl container sync [--target-storage <id_or_type>] [--source-storage <id_or_type>] [--one-shot] [--no-wait] <container>`
+---------------------------------------------------------------------------------------------------------------------------------
 
 Start synchronizing two of a container's storages, by default the first local storage with the
 first non-local storage in the manifest).
@@ -427,6 +494,10 @@ first non-local storage in the manifest).
 .. option:: --one-shot
 
     Perform one-time sync, do not maintain sync.
+
+.. option:: --no-wait
+
+    Do not wait for a one-time sync to finish, run in the background. Requires --one-shot.
 
 .. program:: wl-container-stop-sync
 .. _wl-container-stop-sync:
@@ -465,173 +536,51 @@ user manifest. UUIDs and backend-ids are updated, everything else remains the sa
 .. program:: wl-container-modify
 .. _wl-container-modify:
 
-.. _wl-container-modify-add-path:
+:command:`wl container modify [--add-path <path> ...] [--del-path <path> ...] [--add-access <user> ...] [--del-access <user> ...] [--add-category <path> ...] [--del-category <path> ...] [--del-storage <storage>] [--title] [--encrypt-manifest] [--no-encrypt-manifest] [--publish/--no-publish] [--remount/--no-remount] <file>`
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-:command:`wl container modify add-path --path PATH <file>`
-----------------------------------------------------------
+Modify a container |~| manifest given by *<file>*.
 
-Add Wildland path to a container |~| manifest given by *<file>*.
-
-.. option:: --path
+.. option:: --add-path
 
    Path to add. Can be repeated.
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-del-path:
-
-:command:`wl container modify del-path --path PATH <file>`
-----------------------------------------------------------
-
-Remove Wildland path from a container |~| manifest given by *<file>*.
-
-.. option:: --path
+.. option:: --del-path
 
    Path to remove. Can be repeated.
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-add-access:
-
-:command:`wl container modify add-access --access USER <file>`
---------------------------------------------------------------
-
-Allow an additional user |~| access to manifest given by *<file>*.
-
-.. option:: --access
+.. option:: --add-access
 
    User to add access for. Can be repeated.
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-del-access:
-
-:command:`wl container modify del-acccess --access USER <file>`
----------------------------------------------------------------
-
-Revoke user's |~| access to manifest given by *<file>*.
-
-.. option:: --access
+.. option:: --del-access
 
    User to revoke access from. Can be repeated.
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-add-category:
-
-:command:`wl container modify add-category --category PATH <file>`
-------------------------------------------------------------------
-
-Add category to a container |~| manifest given by *<file>*.
-
-.. option:: --category
+.. option:: --add-category
 
    Category to add. Can be repeated.
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-del-category:
-
-:command:`wl container modify del-category --category PATH <file>`
-------------------------------------------------------------------
-
-Remove category from a container |~| manifest given by *<file>*.
-
-.. option:: --category
+.. option:: --del-category
 
    Category to remove. Can be repeated.
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-del-storage:
-
-:command:`wl container modify del-storage --storage PATH <file>`
-----------------------------------------------------------------
-
-Remove storage(s) from a container |~| manifest given by *<file>*.
-
-.. option:: --storage
+.. option:: --del-storage
 
    Storages to remove. Can be either the backend_id of a storage or position in
    storage list (starting from 0). Can be repeated.
-
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-set-title:
-
-:command:`wl container modify set-title --title TEXT <file>`
-------------------------------------------------------------
-
-Set title in a container |~| manifest given by *<file>*.
 
 .. option:: --title
 
    Title to set.
 
-.. option:: --publish, -p
+.. option:: --encrypt-manifest
 
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
+    Encrypt manifest given by *<file>* so that it's only readable by its owner.
 
-.. option:: --no-publish, -P
+.. option:: --no-encrypt-manifest
 
-   Do not attempt to republish the container after modification.
-
-.. _wl-container-modify-set-encrypt-manifest:
-
-:command:`wl container modify set-encrypt-manifest <file>`
-----------------------------------------------------------
-
-Encrypt manifest given by *<file>* so that it's only readable by its owner.
+    Stop encrypting manifest given by *<file>*.
 
 .. option:: --publish, -p
 
@@ -642,21 +591,14 @@ Encrypt manifest given by *<file>* so that it's only readable by its owner.
 
    Do not attempt to republish the container after modification.
 
-.. _wl-container-modify-set-no-encrypt-manifest:
+.. option:: --remount, -r
 
-:command:`wl container modify set-no-encrypt-manifest <file>`
--------------------------------------------------------------
+   By default, if the container is already mounted, the modified version
+   of the container will be remounted.
 
-Stop encrypting manifest given by *<file>*.
+.. option:: --no-remount, -n
 
-.. option:: --publish, -p
-
-   By default, if the container is already published, the modified version
-   of the container manifest will be republished.
-
-.. option:: --no-publish, -P
-
-   Do not attempt to republish the container after modification.
+   Do not attempt to remounting the container after modification.
 
 .. _wl-container-find:
 

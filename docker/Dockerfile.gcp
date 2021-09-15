@@ -1,0 +1,24 @@
+FROM wildland-client-base:latest
+
+USER root
+ARG DEBIAN_FRONTEND=noninteractive
+ENV WL_ENV=gcp
+
+# Run update && install as one command:
+# https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#apt-get
+RUN apt-get -qy update && apt-get install -y \
+      git \
+      nano \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/lists/* \
+    && apt-get clean autoclean
+
+# Setup liveness probe endpoint
+
+COPY ./docker/apache2-liveness.conf /etc/apache2/sites-available/liveness.conf
+RUN a2ensite liveness
+
+# Entrypoint
+
+USER user
+ENTRYPOINT ["./docker/entrypoint.gcp.sh"]

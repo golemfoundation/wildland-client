@@ -76,6 +76,8 @@ def data_dir(base_dir):
 @pytest.fixture
 def storage(data_dir):
     return {
+        'timeline-root': '/timeline',
+        'reference-container': 'test_container',
         'type': 'date-proxy',
         'storage': {
             'type': 'local',
@@ -144,6 +146,7 @@ def container(cli, base_dir, data_dir):
             ],
             'backends': {
                 'storage': [{
+                    'timeline-root': '/timeline',
                     'object': 'storage',
                     'type': 'date-proxy',
                     'owner': '0xaaa',
@@ -174,7 +177,6 @@ def container(cli, base_dir, data_dir):
 
     yield 'macro'
 
-
 def test_date_proxy_subcontainers(base_dir, container, data_dir):
     # pylint: disable=protected-access
     (data_dir / 'dir1').mkdir()
@@ -198,7 +200,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
     assert subcontainers[0]._storage_cache[0].storage == {
         'object': 'storage',
         'type': 'delegate',
-        'subdirectory': '/2008/02/03',
+        'subdirectory': '/2008/02/03/dir2/dir3',
         'owner': container.owner,
         'container-path': str(subcontainers[0].paths[0]),
         'reference-container': f'wildland:@default:{container.paths[0]}:',
@@ -206,7 +208,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
         'version': Manifest.CURRENT_VERSION
     }
     assert subcontainers[1].paths[1:] == [PurePosixPath('/timeline/2010/05/07')]
-    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07'
+    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07/dir1'
 
 def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
     (data_dir / 'dir1').mkdir()
@@ -232,12 +234,91 @@ def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
         'timeline/2008/',
         'timeline/2008/02/',
         'timeline/2008/02/03/',
-        'timeline/2008/02/03/dir2/',
-        'timeline/2008/02/03/dir2/dir3/',
-        'timeline/2008/02/03/dir2/dir3/file2',
+        'timeline/2008/02/03/file2',
         'timeline/2010/',
         'timeline/2010/05/',
         'timeline/2010/05/07/',
-        'timeline/2010/05/07/dir1/',
-        'timeline/2010/05/07/dir1/file1',
+        'timeline/2010/05/07/file1',
+    ]
+
+@pytest.fixture
+def old_container(cli, base_dir, data_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    # this needs to be saved, so client.get_all() will see it
+    with (base_dir / 'containers/macro.container.yaml').open('w') as f:
+        f.write(yaml.dump({
+            'object': 'container',
+            'owner': '0xaaa',
+            'version': Manifest.CURRENT_VERSION,
+            'paths': [
+                '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
+                '/PATH',
+            ],
+            'backends': {
+                'storage': [{
+                    'object': 'storage',
+                    'type': 'date-proxy',
+                    'owner': '0xaaa',
+                    'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
+                    'backend-id': str(uuid.uuid4()),
+                    'version': Manifest.CURRENT_VERSION,
+                    'reference-container': {
+                        'object': 'container',
+                        'version': Manifest.CURRENT_VERSION,
+                        'owner': '0xaaa',
+                        'paths': ['/.uuid/39f437f3-b071-439c-806b-6d14fa55e827'],
+                        'backends': {
+                            'storage': [{
+                                'object': 'storage',
+                                'owner': '0xaaa',
+                                'container-path': '/.uuid/39f437f3-b071-439c-806b-6d14fa55e827',
+                                'type': 'local',
+                                'location': str(data_dir),
+                                'backend-id': str(uuid.uuid4()),
+                                'version': Manifest.CURRENT_VERSION
+                            }]
+                        }
+                    }
+                }]
+            }
+        }))
+    cli('container', 'sign', '-i', 'macro')
+
+    yield 'macro'
+
+def test_backwards_compatibility(cli, old_container, data_dir, base_dir):
+    """
+    Tests the backwards compatibility of the backend, based on an
+    'old container' (one without the 'timeline-root' field in it's schema).
+    Ensures the containers created prior to the date-proxy modifications
+    will still be mounted correctly.
+    """
+    (data_dir / 'dir1').mkdir()
+    (data_dir / 'dir1/file1').write_text('file 1')
+    os.utime(data_dir / 'dir1/file1',
+             (int(datetime(2010, 5, 7, 10, 30).timestamp()),
+              int(datetime(2010, 5, 7, 10, 30).timestamp())))
+
+    (data_dir / 'dir2/dir3').mkdir(parents=True)
+    (data_dir / 'dir2/dir3/file2').write_text('file 2')
+    os.utime(data_dir / 'dir2/dir3/file2',
+             (int(datetime(2008, 2, 3, 10, 30).timestamp()),
+              int(datetime(2008, 2, 3, 10, 30).timestamp())))
+
+    cli('start')
+    cli('container', 'mount', old_container)
+
+    mnt_dir = base_dir / 'wildland'
+
+    assert treewalk.walk_all(mnt_dir / 'timeline') == [
+        '2008/',
+        '2008/02/',
+        '2008/02/03/',
+        '2008/02/03/.manifest.wildland.yaml',
+        '2008/02/03/file2',
+        '2010/',
+        '2010/05/',
+        '2010/05/07/',
+        '2010/05/07/.manifest.wildland.yaml',
+        '2010/05/07/file1',
     ]

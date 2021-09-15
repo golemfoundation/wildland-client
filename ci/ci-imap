@@ -1,0 +1,47 @@
+#!/usr/bin/env sh
+
+set -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/*
+
+# Configure a mail server and populate a mailbox
+for sender in 1 2 3; do
+    for msg in 1 2 3; do
+        ./ci/imap-mail-make /home/user/Maildir sender${sender}@dev.null \
+                            "Test $msg" \
+                            "`date --date=2020-0${msg}-0${msg}\ 11:13`" \
+                            "Test number ${msg}"
+    done
+done
+# Create and mount an IMAP container
+sudo /etc/init.d/dovecot start
+
+sudo chmod 0666 /dev/fuse
+
+wl user create User
+wl container create  Imap --path /imap
+wl storage create imap --container Imap --host 127.0.0.1 --login user \
+     --password test --trusted --no-ssl
+wl start
+wl container mount --with-subcontainers Imap
+
+ROOT=$HOME/wildland
+
+# List full tree
+time -p chronic tree $ROOT
+
+# List contents of sender2 dir
+time -p chronic ls -l $ROOT/users/sender1@dev.null/sender/
+
+# List contents of February timeline dir
+time -p chronic ls -l $ROOT/timeline/2020/02/02
+
+# Read contents of a files
+time -p chronic grep 'Test number 1' $ROOT/users/sender2@dev.null/sender/Test\ 1*/main_body.txt
+time -p chronic grep 'Test number 2' $ROOT/users/sender2@dev.null/sender/Test\ 2*/main_body.txt
+time -p chronic grep 'Test number 1' $ROOT/timeline/2020/01/01/Test\ 1*/main_body.txt
+
+# Unmount container
+time -p chronic wl container unmount Imap
+

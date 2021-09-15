@@ -7,7 +7,7 @@ pip install . plugins/googledrive
 
 function cleanup {
     time -p chronic rm -rf "$1"
-    time -p chronic ./wl container unmount googledrive-test-container
+    time -p chronic wl container unmount googledrive-test-container
 }
 
 ROOT="$HOME/wildland"
@@ -18,12 +18,12 @@ MNT_PATH_2="$ROOT/$MNT_DIR_2"
 
 # Wildland
 
-./wl user create googledrive-user
-./wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" googledrive-test-container
+wl user create googledrive-user
+wl container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" googledrive-test-container
 set +x
-./wl storage create googledrive --container googledrive-test-container --inline --credentials "$1" --skip-interaction
+wl storage create googledrive --container googledrive-test-container --inline --credentials "$1" --skip-interaction
 set -x
-./wl start --container googledrive-test-container
+wl start --container googledrive-test-container
 
 # Create temporary timestamped test directory
 

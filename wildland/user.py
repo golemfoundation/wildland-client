@@ -29,24 +29,23 @@ from pathlib import PurePosixPath
 from typing import List, Optional, Union
 from copy import deepcopy
 
-import logging
-
 from wildland.wildland_object.wildland_object import WildlandObject
-from .manifest.manifest import Manifest
+from .manifest.manifest import Manifest, ManifestDecryptionKeyUnavailableError
 from .manifest.schema import Schema
 from .exc import WildlandError
+from .log import get_logger
 
 
-logger = logging.getLogger('user')
+logger = get_logger('user')
 
 
 class _CatalogCache:
     """Helper object to manage catalog cache"""
-    def __init__(self, manifest, cached_object):
+    def __init__(self, manifest: Union[str, dict], cached_object=None):
         self.manifest = manifest
         self.cached_object = cached_object
 
-    def get(self, client, owner):
+    def get(self, client, owner: str):
         """
         Retrieve a cached container object or construct it if needed (for construction it needs
         client and owner).
@@ -60,10 +59,11 @@ class _CatalogCache:
                 # search.py
                 logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
                 raise ex
+            except ManifestDecryptionKeyUnavailableError as ex:
+                raise ex
             except Exception as ex:  # pylint: disable=broad-except
                 # All other errors should not cause WL to completely give up, and we cannot
                 # anticipate all possible kinds of error
-                logger.warning('User %s: cannot load manifests catalog entry: %s', owner, str(ex))
                 raise WildlandError(f'Cannot load manifests catalog entry: {str(ex)}') from ex
         return self.cached_object
 
@@ -90,7 +90,7 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         self.owner = owner
         self.paths = paths
 
-        self._manifests_catalog = [_CatalogCache(manifest, None) for manifest in manifests_catalog]
+        self._manifests_catalog = [_CatalogCache(manifest) for manifest in manifests_catalog]
 
         self.pubkeys = pubkeys
         self.manifest = manifest
@@ -114,13 +114,14 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
     def __repr__(self):
         return self.to_str()
 
-    def to_str(self):
+    def to_str(self, include_sensitive=False):
         """
         Return string representation
         """
+        fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = [
-            f"owner={self.owner}",
-            f"paths={[str(p) for p in self.paths]}"
+            f"owner={fields['owner']}",
+            f"paths={[str(p) for p in fields['paths']]}"
         ]
         str_repr = "user(" + ", ".join(array_repr) + ")"
         return str_repr
@@ -144,16 +145,38 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         """Checks if user has a manifest catalog defined"""
         return bool(self._manifests_catalog)
 
-    def load_catalog(self):
+    def load_catalog(self, warn_about_encrypted_manifests: bool = True):
         """Load and cache all of user's manifests catalog."""
         assert self.client
+        total_containers = 0
+        undecryptable_containers = 0
+        unknown_failure_containers = 0
+
         for cached_object in self._manifests_catalog:
+            total_containers += 1
+
             try:
                 container = cached_object.get(self.client, self.owner)
-            except WildlandError:
+            except ManifestDecryptionKeyUnavailableError as e:
+                undecryptable_containers += 1
+                if warn_about_encrypted_manifests:
+                    logger.warning('User %s: cannot load manifests catalog entry: %s', self.owner,
+                                    str(e))
                 continue
+            except WildlandError as e:
+                unknown_failure_containers += 1
+                continue
+
             if container:
                 yield container
+
+        total_failures = undecryptable_containers + unknown_failure_containers
+
+        if total_failures and total_containers == total_failures:
+            logger.warning('User %s: failed to load all %d of the manifests catalog containers. '
+                           '%d due to lack of decryption key and %d due to unknown errors)',
+                           self.owner, total_failures, undecryptable_containers,
+                           unknown_failure_containers)
 
     def get_catalog_descriptions(self):
         """Provide a human-readable descriptions of user's manifests catalog without loading
@@ -163,7 +186,7 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
 
     def add_catalog_entry(self, path: str):
         """Add a path to a container to user's manifests catalog."""
-        self._manifests_catalog.append(_CatalogCache(path, None))
+        self._manifests_catalog.append(_CatalogCache(path))
 
     @property
     def primary_pubkey(self):
@@ -184,6 +207,16 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
             }
         self.SCHEMA.validate(result)
         return result
+
+    def to_repr_fields(self, include_sensitive: bool = False) -> dict:
+        """
+        This function provides filtered sensitive and unneeded fields for representation
+        """
+        fields = self.to_manifest_fields(inline=False)
+        if not include_sensitive:
+            # Remove sensitive fields
+            del fields["manifests-catalog"]
+        return fields
 
     def add_user_keys(self, sig_context, add_primary=True):
         """

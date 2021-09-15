@@ -157,3 +157,9 @@ class WildlandPath:
         if self.file_path is not None:
             s += str(self.file_path)
         return s
+
+    def has_explicit_or_default_owner(self) -> bool:
+        """
+        Check if WildlandPath has explicit owner or default, i.e., not alias.
+        """
+        return self.owner is None or self.owner == '@default' or self.owner.startswith('0x')

@@ -28,7 +28,6 @@ Assorted helpers for handling FUSE API
 import errno
 import functools
 import itertools
-import logging
 import sys
 import threading
 
@@ -36,8 +35,9 @@ from typing import Dict, Callable
 
 import fuse
 
+from .log import get_logger
 
-logger = logging.getLogger('fuse')
+logger = get_logger('fuse')
 
 fuse_thread_local = threading.local()
 
@@ -187,7 +187,7 @@ class Tracer:
     def __call__(self, frame, event, arg):
         if event == 'call' and frame.f_code.co_filename.startswith('/usr/lib/python3.7/logging'):
             return None
-        logging.debug('tracer: %s %s %d %r %r',
+        logger.debug('tracer: %s %s %d %r %r',
             frame.f_code.co_filename, frame.f_code.co_name, frame.f_lineno,
             event, arg)
 #       if frame is self.current_frame and event == 'return':

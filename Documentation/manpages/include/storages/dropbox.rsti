@@ -4,7 +4,15 @@
 
 .. option:: --token <access_token>
 
-   Dropbox app token. You can generate it with Dropbox App Console. Required.
+   Dropbox app token. You can generate it with Dropbox App Console. Required if not --app-key.
+
+.. option:: --app-key <app_key>
+
+   Dropbox App Key. You obtain it in Dropbox App Console when creating an application. Required. if not --token.
+
+.. option:: --refresh-token <refresh_token>
+
+   Dropbox refresh token. You can generate it with Dropbox SDK or API. Optional.
 
 .. option:: --subcontainer-manifest <path_in_storage>
 

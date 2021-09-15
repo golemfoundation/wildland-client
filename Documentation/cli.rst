@@ -13,7 +13,7 @@ Quick start
 
 Create a user::
 
-   $ ./wl user create User
+   $ wl user create User
    Generated key: 0x5a7a224844d80b086445
    No path specified, using: /users/User
    Created: /home/user/.config/wildland/users/User.yaml
@@ -22,7 +22,7 @@ Create a user::
 
 List users::
 
-   $ ./wl user list
+   $ wl user list
    /home/user/.config/wildland/users/User.yaml
      owner: 0x5a7a224844d80b086445
      path: /users/User
@@ -30,20 +30,20 @@ List users::
 Create a container and storage manifests. You need to first create a container,
 and then attach storage to it::
 
-   $ ./wl container create Container --path /C1
+   $ wl container create Container --path /C1
    Created: /home/user/.config/wildland/containers/Container.yaml
 
-   $ ./wl storage create local --location /tmp/storage --container Container
+   $ wl storage create local --location /tmp/storage --container Container
    Using container: /home/user/.config/wildland/containers/Container.yaml (/.uuid/589e53d9-54ae-4036-95d7-4af261e7746f)
    Adding storage ed7594e7-5316-4fd3-b437-bd393b684fb4 directly to the container
    Saving: /home/user/.config/wildland/containers/Container.yaml
 
 Mount it all::
 
-   $ ./wl start
+   $ wl start
    Mounting: /home/user/wildland
 
-   $ ./wl container mount Container
+   $ wl container mount Container
    Mounting: /home/user/.config/wildland/containers/Container.yaml
 
    $ ls -a ~/wildland

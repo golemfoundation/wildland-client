@@ -27,7 +27,6 @@ Classes for handling signed Wildland manifests
 
 from typing import Tuple, Optional, Dict
 import re
-import logging
 from pathlib import Path
 
 import yaml
@@ -36,9 +35,9 @@ from .schema import Schema
 from .sig import SigContext, SigError
 from ..utils import load_yaml
 from ..exc import WildlandError
+from ..log import get_logger
 
-
-logger = logging.getLogger('manifest')
+logger = get_logger('manifest')
 
 HEADER_SEPARATOR = b'\n---\n'
 HEADER_SEPARATOR_EMPTY = b'---\n'
@@ -48,6 +47,13 @@ class ManifestError(WildlandError):
     """
     Exception class for problems during manifest loading or construction.
     """
+
+
+class ManifestDecryptionKeyUnavailableError(ManifestError):
+    """Error thrown when accessign encrypted Wildland manifest."""
+
+    def __init__(self):
+        super().__init__('Cannot decrypt manifest: decryption key unavailable')
 
 
 class Manifest:
@@ -377,7 +383,7 @@ class Manifest:
         return cls(None, fields, data, local_path=local_path)
 
     def encrypt_and_sign(self, sig_context: SigContext, only_use_primary_key: bool = False,
-                         encrypt=True):
+                         encrypt: bool = True):
         """
         Sign a manifest. If signed, will replace signature.
         If attach_pubkey is true, attach the public key to the signature.

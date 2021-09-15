@@ -10,6 +10,7 @@ sudo /etc/init.d/apache2 start
 ###################
 ### Create bob user
 ###################
+new_user='bob'  # to nicely print cmd prompt before first switch_user
 run wl user create bob
 mkdir -p ~/Downloads/
 cp ~/.config/wildland/users/bob.user.yaml ~/Downloads
@@ -72,8 +73,8 @@ encrypted:
 run cat ~/.config/wildland/containers/mycontainer.container.yaml
 
 expected="Saved: /home/user/.config/wildland/containers/mycontainer.container.yaml
-re-publishing container /.uuid/$mycontainer_uuid..."
-run wl container modify set-no-encrypt-manifest mycontainer
+Re-publishing container /.uuid/$mycontainer_uuid..."
+run wl container modify --no-encrypt-manifest mycontainer
 
 expected_pcre="signature: \|
   $alice_userid:.*
@@ -142,10 +143,10 @@ run wl forest create --access bob alice mywebdav
 
 ## Container publishing
 
-expected="publishing container /.uuid/$alice_and_bob_uuid...
-WARN: Some local containers (or container updates) are not published:
+expected_pcre="(?s)Publishing container /.uuid/$alice_and_bob_uuid...
+.*
 /home/user/.config/wildland/containers/mycontainer.container.yaml
-/home/user/.config/wildland/containers/unencrypted-container.container.yaml"
+.*"
 run wl container publish alice-and-bob
 
 cp ~/.config/wildland/users/alice.user.yaml ~/Downloads
@@ -161,8 +162,10 @@ run wl user import --path /forests/alice ~/Downloads/alice.user.yaml
 
 run wl start
 
-expected="Preparing mount (from ':/forests/alice:/very/secret:')
-Mounting one storage"
+expected_pcre="(?:(Loading containers \(from ':\/forests\/alice:\/very\/secret:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/forests\/alice:\/very\/secret:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/forests\/alice:\/very\/secret:'\): [0-9]*)*"\
+"(Mounting one storage)*)"
 run wl container mount :/forests/alice:/very/secret:
 
 
@@ -195,8 +198,8 @@ run wl template add webdav carolines-s3 \
     --login 'userro' \
     --password 'passwordro' \
     --url 'http://localhost:8081/' \
-  --access '*' \
-  --read-only
+    --access '*' \
+    --read-only
 
 expected_pcre="Created base path: http://localhost:8081/.manifests/$UUID_PCRE
 Adding storage $UUID_PCRE to container.
@@ -214,14 +217,16 @@ Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
-publishing container /.uuid/$UUID_PCRE..."
+Publishing container /.uuid/$UUID_PCRE..."
 run wl container create hello-world \
   --no-encrypt-manifest \
   --path /hello/world \
   --template carolines-s3
 
-expected="Preparing mount (from ':/hello/world:')
-Mounting one storage"
+expected_pcre="(?:(Loading containers \(from ':\/hello\/world:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/hello\/world:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/hello\/world:'\): [0-9]*)*"\
+"(Mounting one storage)*)"
 run wl c mount :/hello/world:
 
 run bash -c "echo 'It works!' > ~/wildland/hello/world/Hello-World.md"
@@ -272,17 +277,16 @@ run wl user create daniel
 run wl start
 
 expected="Created: /home/user/.config/wildland/users/caroline.user.yaml
-WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
 Created: /home/user/.config/wildland/bridges/caroline.bridge.yaml"
 run wl user import ~/Downloads/caroline.user.yaml \
   --path /f/caroline
 
 
-expected="User $caroline_userid already exists. Forcing user import.
-Updated: /home/user/.config/wildland/users/caroline.user.yaml
-WARNING:user:User $caroline_userid: cannot load manifests catalog entry: Cannot decrypt manifest: decryption key unavailable
-Preparing mount (from ':/f/caroline:*:')
-Mounting storages for containers:  2"
+expected_pcre="(?:(User $caroline_userid already exists\. Forcing user import\.)*"\
+"(Updated: .*\.yaml)*(Loading containers \(from ':\/f\/caroline:\*:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/f\/caroline:\*:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/f\/caroline:\*:'\): [0-9]*)*"\
+"(Mounting storages for containers: 2)*)"
 run wl forest mount :/f/caroline:
 
 cd ~/wildland/f/caroline\:/hello/world/

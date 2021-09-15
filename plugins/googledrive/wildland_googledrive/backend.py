@@ -24,7 +24,6 @@
 Google Drive storage backend
 """
 import errno
-import logging
 import json
 import stat
 
@@ -42,6 +41,7 @@ from wildland.storage_backends.buffered import File, FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
 from wildland.manifest.schema import Schema
+from wildland.log import get_logger
 from .drive_client import DriveClient
 
 # for scopes, see: https://developers.google.com/drive/api/v3/about-auth
@@ -151,7 +151,7 @@ class DriveStorageBackend(
         self.cache_tree = Tree()
         self.client = DriveClient(drive_access_credentials, self.cache_tree)
         self.root = PosixPath(self.params.get("location", "/")).resolve()
-        self.logger = logging.getLogger("Google Drive Logger")
+        self.logger = get_logger("Google Drive Logger")
 
     @classmethod
     def cli_options(cls):

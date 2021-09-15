@@ -25,7 +25,7 @@ Storage backends
 .. autoclass:: wildland.storage_backends.delegate.DelegateProxyStorageBackend
    :members:
 
-.. autoclass:: wildland.storage_backends.encrypted.EncryptedStorageBackend
+.. autoclass:: plugins.encrypted.wildland_encrypted.backend.EncryptedStorageBackend
    :members:
 
 .. autoclass:: wildland.storage_backends.dummy.DummyStorageBackend
@@ -43,7 +43,7 @@ Storage backends
 .. autoclass:: wildland.storage_backends.local.LocalStorageBackend
    :members:
 
-.. autoclass:: wildland.storage_backends.zip_archive.ZipArchiveStorageBackend
+.. autoclass:: wildland.storage_backends.http.HttpStorageBackend
    :members:
 
 
@@ -88,7 +88,7 @@ Files
 .. autoclass:: wildland.storage_backends.generated.CommandFile
    :members:
 
-.. autoclass:: wildland.storage_backends.zip_archive.FullBufferedFile
+.. autoclass:: wildland.storage_backends.buffered.FullBufferedFile
    :members:
 
 .. autoclass:: wildland.storage_backends.buffered.PagedFile
@@ -100,7 +100,7 @@ Files
 .. autoclass:: wildland.storage_backends.generated.StaticFileEntry
    :members:
 
-.. autoclass:: wildland.storage_backends.zip_archive.ZipArchiveFile
+.. autoclass:: wildland.storage_backends.http.PagedHttpFile
    :members:
 
 
@@ -127,13 +127,6 @@ Mixins
    :members:
 
 .. autoclass:: wildland.storage_backends.file_subcontainers.FileSubcontainersMixin
-   :members:
-
-
-Watchers
---------
-
-.. autoclass:: wildland.storage_backends.zip_archive.ZipArchiveWatcher
    :members:
 
 

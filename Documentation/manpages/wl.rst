@@ -63,6 +63,8 @@ Subcommands
 
 :ref:`wl-start <wl-start>`
 :ref:`wl-stop <wl-stop>`
+:ref:`wl-status <wl-status>`
+:ref:`wl-set-default-cache <wl-set-default-cache>`
 
 :ref:`wl-get <wl-get>`
 :ref:`wl-put <wl-put>`

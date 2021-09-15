@@ -25,22 +25,21 @@
 import os
 import shutil
 import time
-from unittest.mock import patch
 from typing import Callable
 from pathlib import PurePosixPath, Path
 from itertools import combinations, product
 
 import pytest
 
-from wildland.storage_sync.naive_sync import NaiveSyncer, BLOCK_SIZE
-from wildland.storage_sync.base import SyncConflict, BaseSyncer
+from wildland.storage_sync.naive_sync import BLOCK_SIZE
+from wildland.storage_sync.base import SyncConflict, BaseSyncer, SyncerStatus
 from ..storage_backends.local import LocalStorageBackend
-from ..storage_backends.zip_archive import ZipArchiveStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
 from ..storage_backends.base import StorageBackend
-from .test_zip import make_zip
 from ..log import init_logging
+
+MAX_TIMEOUT = 10
 
 init_logging()
 
@@ -99,7 +98,7 @@ def make_syncer(storage1: StorageBackend, storage2: StorageBackend) -> BaseSynce
     return BaseSyncer.from_storages(storage1, storage2, 'test: ', False, False, True, False)
 
 
-def wait_for_file(path: Path, contents=None, timeout=10) -> bool:
+def wait_for_file(path: Path, contents=None, timeout=MAX_TIMEOUT) -> bool:
     counter = 0
     while counter < timeout:
         if path.exists():
@@ -113,7 +112,7 @@ def wait_for_file(path: Path, contents=None, timeout=10) -> bool:
     return False
 
 
-def wait_for_dir(path: Path, timeout=10) -> bool:
+def wait_for_dir(path: Path, timeout=MAX_TIMEOUT) -> bool:
     counter = 0
     while counter < timeout:
         if path.exists() and path.is_dir():
@@ -123,7 +122,7 @@ def wait_for_dir(path: Path, timeout=10) -> bool:
     return False
 
 
-def wait_for_deletion(path: Path, timeout=10) -> bool:
+def wait_for_deletion(path: Path, timeout=MAX_TIMEOUT) -> bool:
     counter = 0
     while counter < timeout:
         if not path.exists():
@@ -501,74 +500,6 @@ def test_sync_file_dir_conf_res2(tmpdir, storage_backend, cleanup):
     assert wait_for_dir(Path(storage_dir2 / 'test'))
 
 
-def test_zip_sync(tmpdir, storage_backend, cleanup):
-    make_zip(tmpdir, [
-        ('foo.txt', 'foo data'),
-        ('dir/', ''),
-        ('dir/bar.txt', 'bar data'),
-    ])
-
-    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
-    backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
-
-    syncer = make_syncer(backend1, backend2)
-    cleanup(syncer.stop_sync)
-    syncer.start_sync()
-
-    assert wait_for_file(Path(storage_dir1 / 'foo.txt'), 'foo data')
-    assert wait_for_file(Path(storage_dir1 / 'dir/bar.txt'), 'bar data')
-
-
-def test_zip_sync_change(tmpdir, storage_backend, cleanup):
-    make_zip(tmpdir, [
-        ('foo.txt', 'foobar data'),
-    ])
-
-    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
-    backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
-
-    syncer = make_syncer(backend1, backend2)
-    cleanup(syncer.stop_sync)
-    syncer.start_sync()
-
-    assert Path(storage_dir1 / 'foo.txt').exists()
-    assert read_file(storage_dir1 / 'foo.txt') == 'foobar data'
-
-    make_zip(tmpdir, [
-        ('bar.txt', 'data'),
-    ])
-
-    assert wait_for_file(Path(storage_dir1 / 'bar.txt'), 'data')
-    assert wait_for_deletion(Path(storage_dir1 / 'foo.txt'))
-
-
-def test_readonly_storage_sync(tmpdir, storage_backend, cleanup):
-    make_zip(tmpdir, [])
-
-    backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
-    backend2, _ = make_storage(ZipArchiveStorageBackend, tmpdir / 'archive.zip')
-
-    syncer = NaiveSyncer(source_storage=backend1, target_storage=backend2,
-                         log_prefix='Container test: ')
-    cleanup(syncer.stop_sync)
-    syncer.start_sync()
-
-    with patch('wildland.storage_sync.naive_sync.logger.warning') as patched_logger:
-        make_file(storage_dir1 / 'testfile', 'aaaa')
-
-        time.sleep(1)
-
-        # depending on the storage, we should have received one or two warnings (create or
-        # create and modify)
-        assert len(patched_logger.mock_calls) == 1 or len(patched_logger.mock_calls) == 2
-
-    # however, syncing in the other direction should still work
-
-    make_zip(tmpdir, [('testfile2', 'bbbb')])
-
-    assert wait_for_file(Path(storage_dir1 / 'testfile2'), 'bbbb')
-
-
 @pytest.mark.parametrize('use_hash_db', [True, False])
 def test_sync_two_containers(tmpdir, storage_backend, cleanup, use_hash_db):
     backend1, storage_dir1 = make_storage(storage_backend, tmpdir / 'storage1')
@@ -659,6 +590,12 @@ def test_find_syncer(tmpdir):
         def iter_errors(self):
             pass
 
+        def iter_conflicts(self):
+            pass
+
+        def status(self) -> SyncerStatus:
+            return SyncerStatus.STOPPED
+
     class TestSyncer2(BaseSyncer):
         SYNCER_NAME = "test2"
         SOURCE_TYPES = ["type1"]
@@ -670,6 +607,12 @@ def test_find_syncer(tmpdir):
 
         def iter_errors(self):
             pass
+
+        def iter_conflicts(self):
+            pass
+
+        def status(self) -> SyncerStatus:
+            return SyncerStatus.STOPPED
 
     BaseSyncer._types['test1'] = TestSyncer1
     BaseSyncer._types['test2'] = TestSyncer2

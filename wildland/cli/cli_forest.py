@@ -38,7 +38,7 @@ from ..publish import Publisher
 from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageTemplate
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import modify_manifest, add_field
+from .cli_common import modify_manifest, add_fields
 from .cli_container import _mount as mount_container
 from .cli_container import _unmount as unmount_container
 from .cli_user import refresh_users
@@ -56,13 +56,22 @@ def forest_():
 @click.argument('forest_names', nargs=-1, required=True)
 @click.option('--save', '-s', is_flag=True,
               help='Save the forest containers to be mounted at startup')
+@click.option('--with-cache', '-c', is_flag=True, default=False,
+              help='Use the default cache storage template to create and use a new cache storage '
+                   '(becomes primary storage for the container while mounted, synced with '
+                   'the old primary). '
+                   'Cache template to use can be overriden using the --cache-template option.')
+@click.option('--cache-template', metavar='TEMPLATE',
+              help='Use specified storage template to create and use a new cache storage')
 @click.option('--list-all', '-l', is_flag=True,
               help='During mount, list all forest containers, including those '
                    'who did not need to be changed')
 @click.option('--no-refresh-users', '-n', is_flag=True, default=False,
               help="Do not refresh remote users when mounting")
 @click.pass_context
-def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refresh_users: bool):
+def mount(ctx: click.Context, forest_names, save: bool,
+          with_cache: bool, cache_template: str,
+          list_all: bool, no_refresh_users: bool):
     """
     Mount a forest given by name or path to manifest. Repeat the argument to
     mount multiple forests.
@@ -79,16 +88,22 @@ def mount(ctx: click.Context, forest_names, save:bool, list_all: bool, no_refres
                 f'For example, ":/forests/User:" is a valid forest name')
         forests.append(f'{forest_name}*:')
 
+    if with_cache and not cache_template:
+        cache_template = obj.client.config.get('default-cache-template')
+        if not cache_template:
+            raise WildlandError('Default cache template not set, set one with '
+                                '`wl set-default-cache` or use --cache-template option')
+
     # TODO: in versions v.0.0.2 or up
     # Refresh all local users; this could be optimized by refactoring search.py itself
     # to only use remote users, not local
     if not no_refresh_users:
         refresh_users(obj)
 
-    mount_container(obj, forests, save=save, list_all=list_all)
+    mount_container(obj, forests, save=save, cache_template=cache_template, list_all=list_all)
 
 
-@forest_.command(short_help='Unmount Wildland Forest')
+@forest_.command(short_help='Unmount Wildland Forest', alias=['umount'])
 @click.option('--path', metavar='PATH', help='mount path to search for')
 @click.argument('forest_names', nargs=-1, required=True)
 @click.pass_context
@@ -149,14 +164,14 @@ def create(ctx: click.Context,
          storage from Forest manifests container
 
     """
-    _boostrap_forest(ctx,
+    _bootstrap_forest(ctx,
                      user,
                      storage_template,
                      manifest_local_dir,
                      access)
 
 
-def _boostrap_forest(ctx: click.Context,
+def _bootstrap_forest(ctx: click.Context,
                      user: str,
                      manifest_storage_template_name: str,
                      manifest_local_dir: str = '/',
@@ -192,14 +207,14 @@ def _boostrap_forest(ctx: click.Context,
 
     try:
         catalog_container = _create_container(obj, forest_owner, [Path('/.manifests')],
-                                            f'{user}-forest-catalog', access_list,
-                                            storage_templates, manifest_local_dir)
+                                              f'{user}-forest-catalog', access_list,
+                                              storage_templates, manifest_local_dir)
 
         assert catalog_container.local_path is not None
         assert forest_owner.local_path is not None
 
         catalog_storage = obj.client.select_storage(container=catalog_container,
-                                                  predicate=lambda x: x.is_writeable)
+                                                    predicate=lambda x: x.is_writeable)
 
         # If a writeable catalog storage doesn't have manifest_pattern defined,
         # forcibly set manifest pattern for all storages in this container.
@@ -229,7 +244,7 @@ def _boostrap_forest(ctx: click.Context,
         manifests_backend = StorageBackend.from_params(manifests_storage.params)
 
         # Provision manifest storage with container from manifest catalog
-        _boostrap_manifest(manifests_backend, catalog_container.local_path,
+        _bootstrap_manifest(manifests_backend, catalog_container.local_path,
                            Path('.manifests.yaml'))
 
         for storage in obj.client.all_storages(container=catalog_container):
@@ -248,14 +263,18 @@ def _boostrap_forest(ctx: click.Context,
 
             link_obj['storage'] = fields
 
-            modify_manifest(ctx, str(forest_owner.local_path), add_field,
-                            'manifests-catalog', [link_obj])
+            modify_manifest(ctx, str(forest_owner.local_path), edit_funcs=[add_fields],
+                            to_add={'manifests-catalog': [link_obj]})
 
         # Refresh user's manifests catalog
         obj.client.recognize_users_and_bridges()
 
-        _boostrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
-        Publisher(obj.client, catalog_container).publish_container()
+        _bootstrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
+
+        # Reload forest_owner to load the manifests-catalog info
+        forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
+        Publisher(obj.client, forest_owner).publish_container(catalog_container)
+
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:
@@ -289,7 +308,7 @@ def _create_container(obj: ContextObj,
     return container
 
 
-def _boostrap_manifest(backend: StorageBackend, manifest_path: Path, file_path: Path):
+def _bootstrap_manifest(backend: StorageBackend, manifest_path: Path, file_path: Path):
     with backend:
         with backend.create(PurePosixPath(file_path), os.O_CREAT | os.O_WRONLY) as manifest_obj:
             data = manifest_path.read_bytes()

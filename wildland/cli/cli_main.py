@@ -26,12 +26,15 @@ Wildland command-line interface.
 """
 
 import os
+import logging
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional, Sequence, Union
 
 import click
 
+from wildland.control_client import ControlClientError
 from wildland.exc import WildlandError
+from wildland.manifest.template import TemplateManager
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
     aliased_group,
@@ -52,14 +55,17 @@ from . import (
 from ..log import init_logging
 from ..manifest.manifest import ManifestError
 from ..client import Client
-from .. import __version__ as _version
+from .cli_common import wl_version
+
+
+logger = logging.getLogger('cli')
 
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 
 
-@aliased_group('wl')
+@aliased_group('wl', invoke_without_command=True)
 @click.option('--dummy/--no-dummy', default=False,
               help='use dummy signatures')
 @click.option('--base-dir', default=None,
@@ -68,15 +74,22 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
               help='output logs (repeat for more verbosity)')
-@click.version_option(_version)
+@click.option('--version', is_flag=True, help='output Wildland version')
 @click.pass_context
-def main(ctx: click.Context, base_dir, dummy, debug, verbose):
+def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
     # pylint: disable=missing-docstring, unused-argument
-
-    client = Client(dummy=dummy, base_dir=base_dir)
-    ctx.obj = ContextObj(client)
+    if not ctx.invoked_subcommand:
+        if version:
+            print(wl_version())
+            return
+        click.echo(ctx.get_help())
+        return
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
+    else:
+        init_logging(level='WARNING')
+    client = Client(dummy=dummy, base_dir=base_dir)
+    ctx.obj = ContextObj(client)
 
 
 main.add_command(cli_user.user_)
@@ -119,7 +132,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
     for name in to_mount:
         click.echo(f'Resolving containers: {name}')
         containers = obj.client.load_containers_from(name)
-        reordered, _, _ = obj.client.ensure_mount_reference_container(containers)
+        reordered, _ = obj.client.ensure_mount_reference_container(containers)
         for container in reordered:
             user_paths = obj.client.get_bridge_paths_for_user(container.owner)
             try:
@@ -140,7 +153,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
         failed.append(f'Failed to mount: {e}')
 
     if failed:
-        click.echo('Non-critical error(s) occurred:\n' + "\n".join(failed))
+        logger.warning('Non-critical error(s) occurred: %s', "\n".join(failed))
 
 
 @main.command(short_help='mount Wildland filesystem')
@@ -264,6 +277,21 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
             click.echo(s)
 
 
+@main.command(short_help='set the specified storage template as default for container '
+                         'cache storages')
+@click.argument('template_name', metavar='TEMPLATE', required=True)
+@click.pass_obj
+def set_default_cache(obj: ContextObj, template_name: str):
+    """
+    Set the specified storage template as default for container cache storages.
+    """
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
+    if not template_manager.get_file_path(template_name).exists():
+        raise WildlandError(f'Template {template_name} does not exist')
+    obj.client.config.update_and_save({'default-cache-template': template_name})
+    click.echo(f'Set template {template_name} as default for container cache storages')
+
+
 def _print_container_paths(storage: Dict, all_paths: bool) -> None:
     if all_paths:
         _print_container_all_paths(storage['paths'])
@@ -320,17 +348,24 @@ def _print_container_title(title: Optional[str]) -> None:
 
 
 @main.command(short_help='unmount Wildland filesystem')
+@click.option('--keep-sync-daemon', is_flag=True, help='keep sync daemon running')
 @click.pass_obj
-def stop(obj: ContextObj) -> None:
+def stop(obj: ContextObj, keep_sync_daemon: bool) -> None:
     """
     Unmount the Wildland filesystem.
     """
 
-    click.echo(f'Stoping Wildland at: {obj.mount_dir}')
+    click.echo(f'Stopping Wildland at: {obj.mount_dir}')
     try:
         obj.fs_client.stop()
     except WildlandError as ex:
         raise CliError(str(ex)) from ex
+
+    if not keep_sync_daemon:
+        try:
+            obj.client.run_sync_command('shutdown')
+        except ControlClientError:
+            pass  # we don't expect a response
 
 
 @main.command(short_help='watch for changes')

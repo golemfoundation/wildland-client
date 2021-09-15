@@ -109,11 +109,21 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/categorization.rsti
 
+.. program:: wl-template-create-transpose
+.. _wl-template-create-transpose:
+
+:command:`wl template create transpose --reference-container-url <url> NAME`
+-----------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/transpose.rsti
+
+
 .. program:: wl-template-create-date-proxy
 .. _wl-template-create-date-proxy:
 
-:command:`wl template create date-proxy --reference-container-url <url> NAME`
--------------------------------------------------------------------------------------
+:command:`wl template create date-proxy --reference-container-url <url> [--timeline-root <dir>] NAME`
+-----------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/date-proxy.rsti
@@ -130,8 +140,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-create-dropbox
 .. _wl-template-create-dropbox:
 
-:command:`wl template create dropbox --token <access_token> NAME`
--------------------------------------------------------------------------
+:command:`wl template create dropbox --token <access_token> --app-key <app_key> [--refresh-token <refresh_token>] NAME`
+-----------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/dropbox.rsti
@@ -188,6 +198,24 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/gitlab.rsti
+
+.. program:: wl-template-create-gitlab-graphql
+.. _wl-template-create-gitlab-graphql:
+
+:command:`wl template create gitlab-graphql --personal-token <personal-token> NAME`
+-----------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/gitlab-graphql.rsti
+
+.. program:: wl-template-create-git
+.. _wl-template-create-git:
+
+:command:`wl template create git --url <url> [--username <username>] [--password <password>] NAME`
+------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/git.rsti
 
 .. program:: wl-template-create-ipfs
 .. _wl-template-create-ipfs:
@@ -290,11 +318,20 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/categorization.rsti
 
+.. program:: wl-template-add-transpose
+.. _wl-template-add-transpose:
+
+:command:`wl template add transpose --reference-container-url <url> NAME`
+--------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/transpose.rsti
+
 .. program:: wl-template-add-date-proxy
 .. _wl-template-add-date-proxy:
 
-:command:`wl template add date-proxy --reference-container-url <url> NAME`
-----------------------------------------------------------------------------------
+:command:`wl template add date-proxy --reference-container-url <url> [--timeline-root <dir>] NAME`
+--------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/date-proxy.rsti
@@ -311,8 +348,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-add-dropbox
 .. _wl-template-add-dropbox:
 
-:command:`wl template add dropbox --token <access_token> NAME`
-----------------------------------------------------------------------
+:command:`wl template add dropbox --token <access_token> --app-key <app_key> [--refresh-token <refresh_token>] NAME`
+--------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/dropbox.rsti
@@ -450,3 +487,21 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/gitlab.rsti
+
+.. program:: wl-template-add-gitlab-graphql
+.. _wl-template-add-gitlab-graphql:
+
+:command:`wl template add gitlab-graphql --personal-token <personal-token> NAME`
+-----------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/gitlab-graphql.rsti
+
+.. program:: wl-template-add-git
+.. _wl-template-add-git:
+
+:command:`wl template add git --url <url> [--username <username>] [--password <password>] NAME`
+----------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/git.rsti

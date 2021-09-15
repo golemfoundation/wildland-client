@@ -26,10 +26,11 @@ Common commands (sign, edit, ...) for multiple object types
 """
 import copy
 import re
+import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Any, Optional
+from typing import Callable, List, Any, Optional, Dict, Tuple
 
 import click
 import yaml
@@ -81,10 +82,9 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
             backend.validate()
 
 
-@click.command(short_help='Wildland version')
-def version():
+def wl_version():
     """
-    Returns Wildland version
+    Detect wildland version, including git commit ID if appropriate.
     """
     # Fallback version
     wildland_version = __version__
@@ -106,14 +106,33 @@ def version():
         pass
     if commit_hash:
         wildland_version = f"{wildland_version} (commit {commit_hash})"
-    print(wildland_version)
+    return wildland_version
+
+
+@click.command(short_help='Wildland version')
+def version():
+    """
+    Returns Wildland version
+    """
+    print(wl_version())
+
+
+def _get_expected_manifest_type(ctx: click.Context) -> Optional[str]:
+    """Return expected manifest type based on wl subcommand.
+
+    > wl container dump ... -> 'container'
+    > wl user modify ... -> 'user'
+    > wl edit ... -> None
+    """
+    manifest_type = ctx.parent.command.name if ctx.parent else None
+    if manifest_type == 'wl':
+        manifest_type = None
+    return manifest_type
 
 
 @click.command(short_help='manifest signing tool')
-@click.option('-o', 'output_file', metavar='FILE',
-    help='output file (default is stdout)')
-@click.option('-i', 'in_place', is_flag=True,
-    help='modify the file in place')
+@click.option('-o', 'output_file', metavar='FILE', help='output file (default is stdout)')
+@click.option('-i', 'in_place', is_flag=True, help='modify the file in place')
 @click.argument('input_file', metavar='FILE', required=False)
 @click.pass_context
 def sign(ctx: click.Context, input_file, output_file, in_place):
@@ -125,10 +144,7 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
     the manifest against schema.
     """
     obj: ContextObj = ctx.obj
-
-    manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
+    manifest_type = _get_expected_manifest_type(ctx)
 
     if in_place:
         if not input_file:
@@ -154,11 +170,9 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
         # for user manifests, allow loading keys for signing even if the manifest was
         # previously malformed and couldn't be loaded
         obj.client.session.sig.use_local_keys = True
-    try:
-        manifest.encrypt_and_sign(obj.client.session.sig,
-                                  only_use_primary_key=(manifest_type == 'user'))
-    except SigError as e:
-        raise click.ClickException(f'Error signing manifest: {e}')
+
+    manifest.encrypt_and_sign(obj.client.session.sig,
+                              only_use_primary_key=(manifest_type == 'user'))
     signed_data = manifest.to_bytes()
 
     if in_place:
@@ -170,7 +184,7 @@ def sign(ctx: click.Context, input_file, output_file, in_place):
         with open(output_file, 'wb') as f:
             f.write(signed_data)
     else:
-        sys.stdout.buffer.write(signed_data)
+        sys.stdout.buffer.write(signed_data.decode())
 
 
 @click.command(short_help='verify manifest signature')
@@ -184,10 +198,7 @@ def verify(ctx: click.Context, input_file):
     also validate the manifest against schema.
     """
     obj: ContextObj = ctx.obj
-
-    manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
+    manifest_type = _get_expected_manifest_type(ctx)
 
     if input_file:
         path = find_manifest_file(obj.client, input_file, manifest_type)
@@ -207,7 +218,7 @@ def verify(ctx: click.Context, input_file):
 
 @click.command(short_help='verify and dump contents of specified file')
 @click.option('--decrypt/--no-decrypt', '-d/-n', default=True,
-    help='decrypt manifest (if applicable)')
+              help='decrypt manifest (if applicable)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
@@ -221,32 +232,27 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
         raise CliError('This command supports only an absolute path to a file. Consider using '
                        'dump command for a specific object, e.g. wl container dump')
 
-    manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'main':
-        manifest_type = None
+    manifest_type = _get_expected_manifest_type(ctx)
 
     path = find_manifest_file(obj.client, input_file, manifest_type)
 
     if decrypt:
         manifest = Manifest.from_file(path, obj.client.session.sig)
-        print(yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False).decode())
-
+        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     else:
         data = path.read_bytes()
         if HEADER_SEPARATOR in data:
             _, data = split_header(data)
-        print(data.decode())
+    print(data.decode())
 
 
 @click.command(short_help='edit manifest in external tool')
-@click.option('--editor', metavar='EDITOR',
-    help='custom editor')
-@click.option('--remount/--no-remount', '-r/-n', default=True,
-    help='remount mounted container')
+@click.option('--editor', metavar='EDITOR', help='custom editor')
+@click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bool,
-    **_callback_kwargs: Any) -> bool:
+         **_callback_kwargs: Any) -> bool:
     """
     Edit and sign a manifest in a safe way. The command will launch an editor
     and validate the edited file before signing and replacing it.
@@ -260,19 +266,31 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
         raise CliError('This command supports only an local path to a file. Consider using '
                        'edit command for a specific object, e.g. wl container edit')
 
-    provided_manifest_type = ctx.parent.command.name if ctx.parent else None
-    if provided_manifest_type == 'main':
-        provided_manifest_type = None
+    manifest_type = ctx.parent.command.name if ctx.parent else None
+    if manifest_type == 'edit':  # e.g., container edit
+        manifest_type = ctx.parent.parent.command.name if ctx.parent and ctx.parent.parent else None
+    if manifest_type == 'wl':
+        manifest_type = None
 
-    path = find_manifest_file(obj.client, input_file, provided_manifest_type)
+    path = find_manifest_file(obj.client, input_file, manifest_type)
 
     try:
         manifest = Manifest.from_file(path, obj.client.session.sig)
-        manifest_type = manifest.fields['object']
+        actual_manifest_type = manifest.fields['object']
+        if manifest_type is None:
+            manifest_type = actual_manifest_type
+        else:
+            if manifest_type != actual_manifest_type:
+                # Typical mistake: trying edit inlined storage by: wl storage edit container_path
+                if manifest_type == 'storage' and actual_manifest_type == 'container':
+                    raise CliError(f"To edit inline storage use: wl container edit {input_file}")
+
+                raise CliError(f"Expected {manifest_type} manifest, but for argument '{input_file}'"
+                               f" {actual_manifest_type} manifest was found."
+                               f"\nConsider using: wl {actual_manifest_type} edit {input_file}")
         data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     except ManifestError:
         data = path.read_bytes()
-        manifest_type = provided_manifest_type
 
     if HEADER_SEPARATOR in data:
         _, data = split_header(data)
@@ -295,7 +313,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
             manifest.skip_verification()
         except (ManifestError, WildlandError) as e:
-            click.echo(f'Manifest parse error: {e}')
+            click.secho(f'Manifest parse error: {e}', fg="red")
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
                 continue
             click.echo('Changes not saved.')
@@ -305,7 +323,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             try:
                 validate_manifest(manifest, manifest_type, obj.client)
             except (SchemaError, ManifestError, WildlandError) as e:
-                click.echo(f'Manifest validation error: {e}')
+                click.secho(f'Manifest validation error: {e}', fg="red")
                 if click.confirm('Do you want to edit the manifest again to fix the error?'):
                     continue
                 click.echo('Changes not saved.')
@@ -329,39 +347,46 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
     click.echo(f'Saved: {path}')
 
     if remount and manifest_type == 'container' and obj.fs_client.is_running():
-        container = obj.client.load_object_from_file_path(WildlandObject.Type.CONTAINER, path)
-        if obj.fs_client.find_primary_storage_id(container) is not None:
-            click.echo('Container is mounted, remounting')
-
-            user_paths = obj.client.get_bridge_paths_for_user(container.owner)
-            storages = obj.client.get_storages_to_mount(container)
-
-            obj.fs_client.mount_container(
-                container, storages, user_paths, remount=remount)
+        path = find_manifest_file(obj.client, input_file, manifest_type)
+        remount_container(obj, path)
 
     return True
 
 
-def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callable[..., dict],
-                    *args, **kwargs) -> bool:
+def remount_container(ctx_obj: ContextObj, path: Path):
+    """
+    Remount container given by path.
+    """
+    container = ctx_obj.client.load_object_from_file_path(WildlandObject.Type.CONTAINER, path)
+    if ctx_obj.fs_client.find_primary_storage_id(container) is not None:
+        click.echo('Container is mounted, remounting')
+
+        user_paths = ctx_obj.client.get_bridge_paths_for_user(container.owner)
+        storages = ctx_obj.client.get_storages_to_mount(container)
+
+        ctx_obj.fs_client.mount_container(container, storages, user_paths, remount=True)
+
+
+def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
+                    *, remount: bool = True, **kwargs) -> bool:
     """
     Edit manifest (identified by `name`) fields using a specified callback.
+
+    @param pass_ctx: click context
+    @param input_file: manifest file name
+    @param edit_funcs: callbacks function to modify manifest.
     This module provides four common callbacks:
     - `add_field`,
     - `del_field`,
     - `set_field`,
     - `del_nested_field`.
-
-    Returns True iff the manifest was successfully modified (to be able to
+    @param remount: default True: modified manifest is remounted
+    @param kwargs: params for callbacks
+    @return: Returns True iff the manifest was successfully modified (to be able to
     determine if it should be republished).
     """
     obj: ContextObj = pass_ctx.obj
-
-    manifest_type = (pass_ctx.parent.parent.command.name
-                        if pass_ctx.parent and pass_ctx.parent.parent else None)
-    if manifest_type == 'main':
-        manifest_type = None
-
+    manifest_type = _get_expected_manifest_type(pass_ctx)
     manifest_path = find_manifest_file(obj.client, input_file, manifest_type)
 
     sig_ctx = obj.client.session.sig
@@ -371,7 +396,9 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
 
     # the manifest is edited by edit_func below
     orig_manifest = copy.deepcopy(manifest)
-    fields = edit_func(manifest.fields, *args, **kwargs)
+    fields = manifest.fields
+    for edit_func in edit_funcs:
+        fields = edit_func(fields, **kwargs)
     modified_manifest = Manifest.from_fields(fields)
 
     orig_manifest_data = yaml.safe_dump(
@@ -396,100 +423,145 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_func: Callabl
         f.write(signed_data)
 
     click.echo(f'Saved: {manifest_path}')
+
+    if remount and manifest_type == 'container' and obj.fs_client.is_running():
+        path = find_manifest_file(obj.client, input_file, 'container')
+        remount_container(obj, path)
+
     return True
 
 
-def add_field(fields: dict, field: str, values: List[Any]) -> dict:
+def add_fields(fields: dict, to_add: Dict[str, List[Any]], **_kwargs) -> dict:
     """
     Callback function for `modify_manifest`. Adds values to the specified field.
     Duplicates are ignored.
     """
-    fields.setdefault(field, [])
+    for field, values in to_add.items():
+        fields.setdefault(field, [])
 
-    for value in values:
-        if value not in fields[field]:
-            fields[field].append(value)
-        else:
-            click.echo(f'{value} is already in the manifest')
-            continue
+        for value in values:
+            if value not in fields[field]:
+                fields[field].append(value)
+            else:
+                click.echo(f'{value} is already in the manifest')
+                continue
 
     return fields
 
 
-# pylint: disable=dangerous-default-value
-def del_nested_field(manifest_fields: dict, fields: List[str],
-                     values: List[Any] = [], keys: List[Any] = []) -> dict:
+def del_nested_fields(fields: dict, to_del_nested: Dict[Tuple, List[Any]],
+                      **kwagrs) -> dict:
     """
     Callback function for `modify_manifest` which is a wrapper for del_field callback
-    for nested fields (e.g. ['backends', 'storage'])
+    for nested fields.
+
+    >>> del_nested_fields(fields, {('backends', 'storage'): [0, 1, 2]})
+    is equivalent of:
+    >>> del fields['backends']['storage'][0]
+    ... del fields['backends']['storage'][1]
+    ... del fields['backends']['storage'][2]
     """
-    field = fields.pop(0)
+    for fs, keys in to_del_nested.items():
 
-    if not fields:
-        return del_field(manifest_fields, field, values, keys)
+        # Going deeper into nested fields down to the last field (dict).
+        subfields = fields
+        for field in fs[:-1]:
+            sf = subfields.get(field)
+            if isinstance(sf, dict):
+                subfields = sf
+            else:
+                raise CliError(
+                    f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
 
-    next_obj = manifest_fields.get(field)
+        # Removing keys from the inner dict
+        del_fields(subfields, {fs[-1]: keys}, by_value=False, logger=kwagrs['logger'])
 
-    if isinstance(next_obj, dict):
-        manifest_fields[field] = del_nested_field(next_obj, fields, values, keys)
-    else:
-        click.echo(f'Field [{field}] either does not exist or is not a dictionary. Terminating.')
-
-    return manifest_fields
+    return fields
 
 
-def del_field(fields: dict, field: str, values: List[Any] = [], keys: List[Any] = []) -> dict:
+def del_fields(
+        fields: dict,
+        to_del: Dict[str, List[Any]],
+        logger: logging.Logger,
+        by_value: bool = True,
+        **_kwargs
+        ) -> dict:
     """
     Callback function for `modify_manifest`. Removes values from a list or a set either by values
     or keys. Non-existent values or keys are ignored.
     """
-    if values and keys:
-        click.echo('You may not simultanously remove both by key and by value. Choose only one.')
-        return fields
+    for field, values_or_key in to_del.items():
+        if by_value:
+            keys = []
+            values = values_or_key
+        else:
+            keys = values_or_key
+            values = []
 
-    obj = fields.get(field)
+        obj = fields.get(field)
 
-    # We handle lists and sets differently.
-
-    if isinstance(obj, list):
-        # Remove by value
-        for value in values:
-            if value in obj:
-                obj.remove(value)
-            else:
-                click.echo(f'{value} is not in the manifest')
-                continue
-
-        # If remove by keys in a list, thus by indexes, they must be reversed so
-        # that we don't remove elements by indexes changing and moving upwards
-        for idx in sorted(keys, reverse=True):
-            try:
-                del obj[idx]
-            except IndexError:
-                click.echo(f'Given index [{idx}] does not exist. Skipped.')
-    elif isinstance(obj, dict):
-        for key in keys:
-            try:
-                del obj[key]
-            except KeyError:
-                click.echo(f'Given key [{key}] does not exist. Skipped.')
-
-        for value in values:
-            for key, item in obj.copy().items():
-                if value == item:
-                    del obj[key]
-    else:
-        click.echo(f'Given field [{field}] is neither list, dict or does not exist. '
-                    'Nothing is deleted.')
-        return fields
+        if isinstance(obj, list):
+            obj = dict(zip(range(len(obj)), obj))
+            new_dict = _del_keys_and_values_from_dict(obj, keys, values, logger)
+            fields[field] = list(new_dict.values())
+        elif isinstance(obj, dict):
+            fields[field] = _del_keys_and_values_from_dict(obj, keys, values, logger)
+        else:
+            logger.warning(f'Given field [{field}] is neither list, dict or does not exist. '
+                           'Nothing is deleted.')
 
     return fields
 
 
-def set_field(fields: dict, field: str, value: str) -> dict:
+def _del_keys_and_values_from_dict(
+        dictionary: Dict[Any, Any],
+        keys: Any, values: Any,
+        logger: logging.Logger
+        ):
+    skipped_positions = [key for key in keys if key not in dictionary]
+    if skipped_positions:
+        logger.warning(f'Given positions {skipped_positions} do not exist. Skipped.')
+
+    skipped_values = [v for v in values if v not in dictionary.values()]
+    if skipped_values:
+        logger.warning(f'{skipped_values} are not in the manifest. Skipped.')
+
+    return {k: v for k, v in dictionary.items() if k not in keys and v not in values}
+
+
+def set_fields(fields: dict, to_set: Dict[str, str], **_kwargs) -> dict:
     """
     Callback function for `modify_manifest`. Sets value of the specified field.
     """
-    fields[field] = value
+    fields.update(to_set)
 
     return fields
+
+
+def check_if_any_options(ctx: click.Context, *args):
+    """
+    Raise CliError if all options are empty.
+    """
+    help_message = ""
+    if ctx.parent:
+        help_message += f"\nTry 'wl {ctx.parent.command.name} modify --help' for help."
+    if not any(args):
+        raise CliError('no option specified.' + help_message)
+
+
+def check_options_conflict(option_name: str, add_option: List[str], del_option: List[str]):
+    """
+    Checks whether we want to add and remove the same field at the same time.
+
+    Raise CliError when it finds conflict.
+
+    @param option_name: e.g., 'path', 'category'
+    @param add_option: values to add
+    @param del_option: values to del
+    """
+    conflicts = set(add_option).intersection(del_option)
+    if conflicts:
+        message = "options conflict:"
+        for c in conflicts:
+            message += f'\n  --add-{option_name} {c} and --del-{option_name} {c}'
+        raise CliError(message)

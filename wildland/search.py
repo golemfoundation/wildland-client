@@ -28,7 +28,6 @@ Utilities for URL resolving and traversing the path
 from __future__ import annotations
 from copy import deepcopy
 
-import logging
 import types
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -47,11 +46,12 @@ from .storage_backends.base import StorageBackend
 from .manifest.manifest import ManifestError
 from .wlpath import WildlandPath, PathError
 from .exc import WildlandError
+from .log import get_logger
 
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
 
-logger = logging.getLogger('search')
+logger = get_logger('search')
 
 
 @dataclass
@@ -428,7 +428,7 @@ class Search:
 
         with storage_backend:
             try:
-                children_iter = storage_backend.get_children(part)
+                children_iter = storage_backend.get_children(step.client, part)
             except NotImplementedError:
                 logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
                             storage.params["type"], part)
@@ -544,7 +544,7 @@ class Search:
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load bridge to [%s]', bridge.paths[0])
                 logger.debug('cannot load linked user manifest: %s. Exception: %s',
-                               location, str(ex))
+                             location, str(ex))
                 return
         assert isinstance(user, User)
         next_client.recognize_users_and_bridges([user], [bridge])
@@ -568,7 +568,7 @@ class Search:
             previous=step,
         )
 
-        for container in user.load_catalog():
+        for container in user.load_catalog(warn_about_encrypted_manifests=False):
             if container.owner != user.owner:
                 logger.warning('Unexpected owner for %s: %s (expected %s)',
                                container, container.owner, user.owner)

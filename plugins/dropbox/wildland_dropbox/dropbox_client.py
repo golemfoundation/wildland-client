@@ -25,7 +25,7 @@ Dropbox client wrapping and exposing Dropbox API calls that are relevant for the
 """
 
 import errno
-import logging
+
 from pathlib import PurePosixPath
 from typing import Callable, List, Optional
 
@@ -41,7 +41,9 @@ from dropbox.files import (
     WriteMode
 )
 
-logger = logging.getLogger('dropbox-client')
+from wildland.log import get_logger
+
+logger = get_logger('dropbox-client')
 
 
 class DropboxClient:
@@ -49,29 +51,52 @@ class DropboxClient:
     Dropbox client exposing relevant Dropbox API for Dropbox plugin.
     """
 
-    def __init__(self, access_token: str):
-        self.access_token = access_token
-        self.connection: Optional[Dropbox] = None
+    def __init__(self, token=None, app_key=None, refresh_token=None):
+        self.token = token
+        self.app_key = app_key
+        self.refresh_token = refresh_token
+        self._dropbox_connection: Optional[Dropbox] = None
+
+        if not token and not app_key and not refresh_token:
+            raise ValueError("Please provide access token or App Key with refresh token")
 
     def connect(self) -> None:
         """
         Create an object that routes all the Dropbox API requests to the Dropbox API endpoint.
         """
-        self.connection = Dropbox(self.access_token)
+        if self.token:
+            self._dropbox_connection = Dropbox(oauth2_access_token=self.token)
+        else:
+            self._dropbox_connection = Dropbox(
+                oauth2_refresh_token=self.refresh_token,
+                app_key=self.app_key
+            )
 
     def disconnect(self) -> None:
         """
         Gracefully terminate the connection with Dropbox endpoint and free related resources.
         """
-        assert self.connection
-        self.connection.close()
-        self.connection = None
+        if self.connection:
+            self.connection.close()
+        self._dropbox_connection = None
+
+    @property
+    def connection(self):
+        """
+        Return Dropbox connection and refresh it if necessary
+        """
+        if self._dropbox_connection:
+            if self.refresh_token:
+                self._dropbox_connection.check_and_refresh_access_token()
+        else:
+            self.connect()
+            assert self._dropbox_connection
+        return self._dropbox_connection
 
     def list_folder(self, path: PurePosixPath) -> List[Metadata]:
         """
         List content of the given directory.
         """
-        assert self.connection
         try:
             path_str = self._convert_to_dropbox_path(path)
             listing = self.connection.files_list_folder(path_str)
@@ -88,7 +113,6 @@ class DropboxClient:
         """
         Get content of the given file.
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
             _, response = self.connection.files_download(path_str)
@@ -110,7 +134,6 @@ class DropboxClient:
         return self._unlink(path_str)
 
     def _unlink(self, path: str):
-        assert self.connection
         try:
             return self.connection.files_delete_v2(path)
         except (AuthError, BadInputError) as e:
@@ -122,7 +145,6 @@ class DropboxClient:
         """
         Create given directory. In case of a conflict don't allow Dropbox to autorename.
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         try:
             return self.connection.files_create_folder_v2(path_str, autorename=False)
@@ -154,7 +176,6 @@ class DropboxClient:
         more network traffic (unless cached) to check if a file exists. It could also introduce a
         race condition.
         """
-        assert self.connection
 
         logger.debug('Renaming [%s] to [%s]', move_from_path, move_to_path)
 
@@ -229,7 +250,6 @@ class DropboxClient:
         """
         Get file/directory metadata. This is kind of a superset of getattr().
         """
-        assert self.connection
         path_str = self._convert_to_dropbox_path(path)
         return self.connection.files_get_metadata(path_str)
 
@@ -251,11 +271,9 @@ class DropboxClient:
             raise PermissionError(errno.EACCES, f'No permissions to write file [{path}]') from e
 
     def _upload_small_file(self, data: bytes, path: str) -> FileMetadata:
-        assert self.connection
         return self.connection.files_upload(data, path, mode=WriteMode.overwrite)
 
     def _upload_large_file(self, data: bytes, path: str) -> FileMetadata:
-        assert self.connection
         CHUNK_SIZE = 10 * 1024 * 1024  # 10 MiB
         offset = CHUNK_SIZE
         file_size = len(data)

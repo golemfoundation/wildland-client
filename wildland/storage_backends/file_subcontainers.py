@@ -27,13 +27,18 @@ and a file list.
 
 import re
 from pathlib import PurePosixPath
-from typing import List, Dict, Any, Iterable, Tuple
+from typing import List, Dict, Any, Iterable, Tuple, Optional, Iterator, Set
 
 import click
 
+from wildland.client import Client
+from wildland.container import Container
 from wildland.link import Link
+from wildland.storage import Storage
 from wildland.storage_backends.base import StorageBackend
 from wildland.exc import WildlandError
+from wildland.storage_driver import StorageDriver
+from wildland.wildland_object.wildland_object import WildlandObject
 
 
 class FileSubcontainersMixin(StorageBackend):
@@ -88,7 +93,162 @@ class FileSubcontainersMixin(StorageBackend):
                 }
         return result
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    @property
+    def supports_publish(self) -> bool:
+        """
+        Check if storage handles subcontainers.
+
+        At the moment only simple file-based backends with manifest-pattern: glob are supported.
+        """
+        return 'manifest-pattern' in self.params \
+               and self.params['manifest-pattern']['type'] == 'glob'
+
+    def has_child(self, container_uuid_path: PurePosixPath) -> bool:
+        """
+        Check if the given container is subcontainer of this storage.
+        """
+        container_manifest = next(self._get_relpaths(container_uuid_path))
+
+        with StorageDriver(self) as driver:
+            return driver.file_exists(container_manifest)
+
+    def _get_relpaths(self, container_uuid_path: PurePosixPath,
+                      container_expanded_paths: Optional[Iterable[PurePosixPath]] = None) -> \
+            Iterator[PurePosixPath]:
+        pattern = self.params['manifest-pattern']['path']
+
+        path_pattern = pattern.replace('*', container_uuid_path.name)
+
+        paths = container_expanded_paths or (container_uuid_path,)
+        for path in paths:
+            yield PurePosixPath(path_pattern.replace(
+                '{path}', str(path.relative_to('/')))).relative_to('/')
+
+    def add_child(self, client: Client, container: Container):
+        """
+        Add subcontainer to this storage.
+
+        If given subcontainer is already a child of this storage, subcontainer info will be updated.
+        """
+        self._update_child(client, container, just_remove=False)
+
+    def remove_child(self, client: Client, container: Container):
+        """
+        Remove subcontainer from this storage.
+
+        If given subcontainer is not a child of that storage, nothing happens.
+        """
+        self._update_child(client, container, just_remove=True)
+
+    def _update_child(self, client: Client, container: Container, just_remove: bool):
+        # Marczykowski-Górecki's Algorithm:
+        # 1) choose manifests catalog entry from container owner
+        #    - if the container was published earlier, the same entry
+        #      should be chosen; this will make sense when user will be able to
+        #      choose to which catalog entry the container should be published
+        # 2) generate all new relpaths for the container and storages
+        # 3) try to fetch container from new relpaths; check if the file
+        #    contains the same container; if yes, generate relpaths for old
+        #    paths
+        # 4) remove old copies of manifest for container and storages (only
+        #    those that won't be overwritten later)
+        # 5) post new storage manifests
+        # 6) post new container manifests starting with /.uuid/ one
+        #
+        # For unpublishing, instead of 4), 5) and 6), all manifests are removed
+        # from relpaths and no new manifests are published.
+
+        if just_remove:
+            update = set.update
+        else:
+            update = set.difference_update
+
+        container_relpaths = list(self._get_relpaths(container.uuid_path, container.expanded_paths))
+
+        with StorageDriver(self, bulk_writing=True) as driver:
+            storage_relpaths = self._replace_old_relative_urls(container)
+            old_relpaths_to_remove = self._fetch_from_uuid_path(
+                client, driver, container_relpaths[0], container.uuid)
+
+            update(old_relpaths_to_remove, container_relpaths)
+            update(old_relpaths_to_remove, storage_relpaths)
+
+            self._remove_old_paths(driver, old_relpaths_to_remove)
+            if not just_remove:
+                self._create_new_paths(
+                    client, driver, storage_relpaths, container_relpaths, container)
+
+    def _replace_old_relative_urls(self, container: Container) -> \
+            Dict[PurePosixPath, Storage]:
+        storage_relpaths = {}
+        for backend in container.load_storages(include_inline=False):
+            # we publish only a single manifest for a storage, under `/.uuid/` path
+            container_manifest = next(self._get_relpaths(container.uuid_path))
+            relpath = container_manifest.with_name(
+                container_manifest.name.removesuffix('.yaml')
+                + f'.{backend.backend_id}.yaml'
+            )
+            assert relpath not in storage_relpaths
+            storage_relpaths[relpath] = backend
+            container.add_storage_from_obj(
+                backend, inline=False, new_url=self.get_url_for_path(relpath))
+        return storage_relpaths
+
+    def _fetch_from_uuid_path(self,
+                              client: Client,
+                              driver: StorageDriver,
+                              uuid_path: PurePosixPath,
+                              uuid: str) -> \
+            Set[PurePosixPath]:
+        old_relpaths_to_remove = set()
+        try:
+            old_container_manifest_data = driver.read_file(uuid_path)
+        except FileNotFoundError:
+            pass
+        else:
+            old_container = client.load_object_from_bytes(
+                WildlandObject.Type.CONTAINER, old_container_manifest_data)
+            assert isinstance(old_container, Container)
+
+            if not old_container.uuid == uuid:
+                # we just downloaded this file from container_relpaths[0], so
+                # things are very wrong here
+                raise WildlandError(
+                    f'old version of container manifest at storage '
+                    f'{driver.storage.params["backend-id"]} has serious '
+                    f'problems; please remove it manually')
+
+            old_relpaths_to_remove.update(set(
+                self._get_relpaths(old_container.uuid_path, old_container.expanded_paths)))
+            for url in old_container.load_raw_backends(include_inline=False):
+                old_relpaths_to_remove.add(self.get_path_for_url(url))
+        return old_relpaths_to_remove
+
+    @staticmethod
+    def _remove_old_paths(driver: StorageDriver, old_relpaths_to_remove: Set[PurePosixPath]):
+        # remove /.uuid path last, if present (bool sorts False < True)
+        for relpath in sorted(old_relpaths_to_remove,
+                              key=(lambda path: path.parts[:2] == ('/', '.uuid'))):
+            try:
+                driver.remove_file(relpath)
+            except FileNotFoundError:
+                pass
+
+    @staticmethod
+    def _create_new_paths(client: Client,
+                          driver: StorageDriver,
+                          storage_relpaths: Dict[PurePosixPath, Storage],
+                          container_relpaths: List[PurePosixPath],
+                          container: Container):
+        for relpath, storage in storage_relpaths.items():
+            driver.makedirs(relpath.parent)
+            driver.write_file(relpath, client.session.dump_object(storage))
+
+        for relpath in container_relpaths:
+            driver.makedirs(relpath.parent)
+            driver.write_file(relpath, client.session.dump_object(container))
+
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
         """
         List all subcontainers provided by this storage.

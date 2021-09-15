@@ -26,7 +26,6 @@ Bear storage backend
 """
 
 import errno
-import logging
 import os
 import sqlite3
 import threading
@@ -46,8 +45,9 @@ from wildland.storage_backends.generated import (
 from wildland.storage_backends.watch import SimpleStorageWatcher
 from wildland.manifest.schema import Schema
 from wildland.container import ContainerStub
+from wildland.log import get_logger
 
-logger = logging.getLogger('storage-bear')
+logger = get_logger('storage-bear')
 
 
 def get_md(note) -> bytes:
@@ -281,7 +281,7 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             }]}
         })
 
-    def get_children(self, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         for ident, title, tags, _timestamp in \
                 self.bear_db.get_notes_with_metadata():

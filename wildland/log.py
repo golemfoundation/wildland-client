@@ -25,7 +25,17 @@
 Logging
 """
 
+import logging
 import logging.config
+
+
+def get_logger(name):
+    """
+    Simple logger
+    """
+    logging.basicConfig(format='%(levelname)s:%(name)s:%(message)s')
+    logger = logging.getLogger(name)
+    return logger
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -45,13 +55,13 @@ class ConsoleFormatter(logging.Formatter):
     }
 
     def __init__(self, fmt, *args, **kwargs):
-        fmt = ('{grey}%(asctime)s '
-               '{green}[%(threadName)s] '
-               '{cyan}[%(name)s] '
-               '$COLOR%(message)s'
-               '{reset}')
-
-        fmt = fmt.format(**self.colors)
+        if fmt is None:
+            fmt = ('{grey}%(asctime)s '
+                   '{green}[%(process)d/%(threadName)s] '
+                   '{cyan}[%(name)s] '
+                   '$COLOR%(message)s'
+                   '{reset}')
+            fmt = fmt.format(**self.colors)
         super().__init__(fmt, *args, **kwargs)
 
     def format(self, record):
@@ -72,6 +82,31 @@ class ConsoleFormatter(logging.Formatter):
         return result
 
 
+class BriefConsoleFormatter(ConsoleFormatter):
+    """
+    A formatter for color and brief (for users) messages in console.
+    """
+    colors = {
+        'grey': '\x1b[38;5;246m',
+        'green': '\x1b[32m',
+        'yellow': '\x1b[33m',
+        'red': '\x1b[31m',
+        'cyan': '\x1b[36m',
+        'reset': '\x1b[0m',
+    }
+
+    def __init__(self, fmt, *args, **kwargs):
+        fmt = ('$COLOR$LEVEL: %(message)s'
+               '{reset}')
+        fmt = fmt.format(**self.colors)
+        super().__init__(fmt, *args, **kwargs)
+
+    def format(self, record):
+        result = super().format(record)
+        result = result.replace('$LEVEL', record.levelname.title())
+        return result
+
+
 def init_logging(console=True, file_path=None, level='DEBUG'):
     """
     Configure logging module.
@@ -83,7 +118,8 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         'formatters': {
             'default': {
                 'class': 'logging.Formatter',
-                'format': '%(asctime)s [%(threadName)s] %(levelname)s [%(name)s] %(message)s',
+                'format': '%(asctime)s [%(process)d/%(threadName)s] %(levelname)s [%(name)s] '
+                          '%(message)s',
             },
             'console': {
                 'class': 'wildland.log.ConsoleFormatter',
@@ -107,9 +143,11 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         }
     }
 
-
     if console:
         config['root']['handlers'].append('console')
+
+        if level not in ("DEBUG", "INFO"):
+            config['formatters']['console']['class'] = 'wildland.log.BriefConsoleFormatter'
 
     if file_path:
         config['handlers']['file'] = {
@@ -118,4 +156,5 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
             'formatter': 'default',
         }
         config['root']['handlers'].append('file')
+
     logging.config.dictConfig(config)

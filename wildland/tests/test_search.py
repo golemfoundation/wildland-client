@@ -515,7 +515,7 @@ def modify_file(path, pattern, replacement):
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_other_key(cli, base_dir, client, owner, caplog):
+def test_traverse_other_key(cli, base_dir, client, owner, capsys):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users_and_bridges()
@@ -585,12 +585,12 @@ paths:
     elif owner == '0xbbb':
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
-        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        logs = capsys.readouterr().err
         assert "Manifest owner does not have access to signing key" in logs
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_bridge_link(cli, base_dir, client, owner, caplog):
+def test_traverse_bridge_link(cli, base_dir, client, owner, capsys):
     cli('user', 'create', 'KnownUser', '--key', '0xddd')
 
     client.recognize_users_and_bridges()
@@ -671,12 +671,12 @@ paths:
     elif owner == '0xbbb':
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
-        logs = '\n'.join(r.getMessage() for r in caplog.records)
-        assert "Manifest owner does not have access to signing key" in logs
+        logs = capsys.readouterr().err
+        assert "Warning: cannot load bridge to [/path]" in logs
 
 
 @pytest.mark.parametrize('owner', ['0xfff', '0xbbb'])
-def test_traverse_linked_catalog_entry(cli, base_dir, client, owner, caplog):
+def test_traverse_linked_catalog_entry(cli, base_dir, client, owner, capsys):
     cli('user', 'create', 'KnownUser', '--key', '0xddd', '--add-pubkey', 'key.0xfff')
 
     client.recognize_users_and_bridges()
@@ -765,7 +765,7 @@ paths:
     elif owner == '0xbbb':
         with pytest.raises(FileNotFoundError):
             data = search.read_file()
-        logs = '\n'.join(r.getMessage() for r in caplog.records)
+        logs = capsys.readouterr().err
         assert "Manifest owner does not have access to signing key" in logs
 
 
@@ -904,7 +904,7 @@ def two_users_catalog(base_dir, cli, control_client):
     )
     entry_path = (base_dir / 'manifests/dummy2-catalog.yaml')
     entry_path.write_text(manifest)
-    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{entry_path}', 'Dummy2')
+    cli('user', 'modify', 'Dummy2', '--add-catalog-entry', f'file://{entry_path}')
 
     manifest = container_with_files(
         'Dummy3', 'dummy3-catalog', ['/.catalog', '/.uuid/00000000-3333-0000-0000-000000000000'],
@@ -915,7 +915,7 @@ def two_users_catalog(base_dir, cli, control_client):
     )
     entry_path = (base_dir / 'manifests/dummy3-catalog.yaml')
     entry_path.write_text(manifest)
-    cli('user', 'modify', 'add-catalog-entry', '--path', f'file://{entry_path}', 'Dummy3')
+    cli('user', 'modify', 'Dummy3', '--add-catalog-entry', f'file://{entry_path}')
 
     # and finally bridges
     container_with_files(

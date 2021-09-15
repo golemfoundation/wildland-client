@@ -114,7 +114,7 @@ Create a user, if you haven't done that yet::
 
 Create the "reference" container, and directory with files::
 
-   $ ./wl container create Inner --path /reference
+   $ wl container create Inner --path /reference
 
    $ wl storage create local Inner --location $HOME/proxy-data \
        --container Inner

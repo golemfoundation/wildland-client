@@ -1,21 +1,28 @@
 version: '3'
 
+#############################################
+# This file is for development purposes only
+#
+# If you're intending to use Wildland as an
+# end user, use docker-compose.yaml in the
+# project's root directory instead.
+############################################
+
 services:
-  wildland-client-ci:
+  wildland-client-base:
     build:
       context: ..
-      dockerfile: ./ci/Dockerfile
-    image: wildland-client-ci
-    container_name: wildland-client-ci
+      dockerfile: ./docker/Dockerfile.base
+    image: wildland-client-base
 
   wildland-client:
     build:
       context: ..
-      dockerfile: ./docker/Dockerfile
-    container_name: wildland-client
+      dockerfile: ./docker/Dockerfile.dev
     image: wildland-client
+    container_name: wildland-client
     depends_on:
-      - wildland-client-ci
+      - wildland-client-base
     privileged: true
     stdin_open: true
     hostname: wildland-client
@@ -24,32 +31,35 @@ services:
       - /dev/fuse
     ports:
       - "8080:8080"
+      - "4554:4554"
     volumes:
       - ..:/home/user/wildland-client:ro
       - ~/.config/wildland:/home/user/.config/wildland:rw
       - ./storage:/home/user/storage:rw
 
-  wildland-forest:
+  wildland-client-ci:
     build:
       context: ..
-      dockerfile: ./docker/Dockerfile.forest
-    container_name: wildland-forest
-    image: wildland-forest
+      dockerfile: ./docker/Dockerfile.ci
+    image: wildland-client-ci
+    container_name: wildland-client-ci
     depends_on:
-      - wildland-client
+      - wildland-client-base
     privileged: true
     stdin_open: true
     tty: true
     devices:
       - /dev/fuse
-    ports:
-      - "8080:8080"
-      - "445:445"
-      - "139:139"
     volumes:
-      - ..:/home/user/wildland-client:ro
-      - usercfg:/home/user/.config:rw
       - ./storage:/home/user/storage:rw
+
+  wildland-client-gcp:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile.gcp
+    image: wildland-client-gcp
+    depends_on:
+      - wildland-client-base
 
 volumes:
   usercfg:

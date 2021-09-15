@@ -59,7 +59,7 @@ ENCRYPTED_PCRE="[0-9A-Za-z+\/=]+"
 # $expected variable content; clear $expected afterwards, to avoid confusion
 run() {
     ((++current_step))
-    printf '%s(%02d/%02d)%s $ %s%s\n' "$red" $current_step $all_steps "$norm$bold" "$*" "$norm"
+    printf '%s(%02d/%02d)%s %s:~$ %s%s\n' "$red" $current_step $all_steps "$norm$bold" "$new_user" "$*" "$norm"
     if [ "${expected_fail-0}" = 1 ]; then
         if actual=$("$@" 2>&1); then
             printf '%s\n%s-> SHOULD FAIL%s\n' "$actual" "$red$bold" "$norm"

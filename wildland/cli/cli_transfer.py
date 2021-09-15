@@ -27,7 +27,7 @@ Transfer commands (get, put)
 
 import click
 
-from .cli_base import ContextObj
+from .cli_base import ContextObj, CliError
 from ..wlpath import WildlandPath, PathError
 from ..search import Search
 
@@ -44,14 +44,13 @@ def put(obj: ContextObj, local_file, wlpath):
     try:
         wlpath = WildlandPath.from_str(wlpath)
     except PathError as ex:
-        click.echo(f"Path error: {ex}")
-        return
+        raise CliError(f"Path error: {ex}") from ex
     data = local_file.read()
     search = Search(obj.client, wlpath, obj.client.config.aliases)
     try:
         search.write_file(data)
     except PathError as ex:
-        click.echo(f'Error: {ex}')
+        raise CliError(f"Path error: {ex}") from ex
 
 
 @click.command(short_help='download a file')
@@ -66,11 +65,10 @@ def get(obj: ContextObj, wlpath, local_file):
     try:
         wlpath = WildlandPath.from_str(wlpath)
     except PathError as ex:
-        click.echo(f"Path error: {ex}")
-        return
+        raise CliError(f"Path error: {ex}") from ex
     search = Search(obj.client, wlpath, obj.client.config.aliases)
     data = search.read_file()
     try:
         local_file.write(data)
     except PathError as ex:
-        click.echo(f'Error: {ex}')
+        raise CliError(str(ex)) from ex

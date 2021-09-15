@@ -24,7 +24,6 @@ Storage syncing.
 """
 
 import threading
-import logging
 import hashlib
 import os
 from typing import List, Dict, Iterable, Optional
@@ -34,11 +33,12 @@ from contextlib import suppress
 from wildland.storage import StorageBackend
 from wildland.storage_backends.watch import FileEvent, StorageWatcher
 from wildland.storage_backends.base import OptionalError, HashMismatchError
-from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict
+from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict, SyncerStatus
+from wildland.log import get_logger
 
 BLOCK_SIZE = 1024 ** 2
 
-logger = logging.getLogger('sync')
+logger = get_logger('sync')
 
 
 class NaiveSyncer(BaseSyncer):
@@ -65,6 +65,8 @@ class NaiveSyncer(BaseSyncer):
         self.storage_watchers: Dict[StorageBackend, StorageWatcher] = {}
         self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, Optional[str]]] = {}
         self.lock = threading.Lock()
+        self._status = SyncerStatus.ONE_SHOT
+        self.conflicts: List[SyncConflict] = []
 
     def start_sync(self, unidirectional: bool = False):
         """
@@ -86,6 +88,7 @@ class NaiveSyncer(BaseSyncer):
                              self.log_prefix, backend.backend_id)
 
             self.one_shot_sync(unidirectional)
+        self._status = SyncerStatus.SYNCED
 
     def _handle_conflict(self, storage_1, storage_2, path):
         """
@@ -94,6 +97,8 @@ class NaiveSyncer(BaseSyncer):
         logger.warning("%s: conflict between storages detected: storages %s and %s "
                        "differ on file %s.",
                        self.log_prefix, storage_1.backend_id, storage_2.backend_id, path)
+        self.conflicts.append(SyncConflict(Path(path), self.source_storage.backend_id,
+                                           self.target_storage.backend_id))
 
     def one_shot_sync(self, unidirectional: bool = False):
         """
@@ -101,6 +106,7 @@ class NaiveSyncer(BaseSyncer):
         """
         storage_dirs: Dict[StorageBackend, List[PurePosixPath]] = {}
 
+        self._status = SyncerStatus.ONE_SHOT
         for storage in [self.source_storage, self.target_storage]:
             self.storage_hashes[storage] = {}
             storage_dirs[storage] = []
@@ -160,6 +166,8 @@ class NaiveSyncer(BaseSyncer):
             missing_files = (path for path in storage_hashes1 if path not in storage_hashes2)
             for path in missing_files:
                 self._sync_file(backend1, backend2, path)
+
+        self._status = SyncerStatus.STOPPED
 
     def _sync_file(self, source_storage: StorageBackend, target_storage: StorageBackend,
                    path: PurePosixPath):
@@ -322,6 +330,16 @@ class NaiveSyncer(BaseSyncer):
         for p in sub_objects:
             del self.storage_hashes[storage][p]
 
+    def _already_removed(self, target_storage: StorageBackend, path: PurePosixPath):
+        """
+        Helper for cleanup of already removed objects.
+        """
+        logger.warning("%s: removal of %s from storage %s failed: file already"
+                       " removed.", self.log_prefix, path, target_storage.backend_id)
+        self._remove_subdir_paths(target_storage, path)
+        if path in self.storage_hashes[target_storage]:
+            del self.storage_hashes[target_storage][path]
+
     def _remove_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
                        path: PurePosixPath, source_is_dir: bool, old_source_hash=None):
         """
@@ -339,9 +357,7 @@ class NaiveSyncer(BaseSyncer):
         try:
             target_is_dir = target_storage.getattr(path).is_dir()
         except FileNotFoundError:
-            logger.warning("%s: removal of %s from storage %s failed: file already"
-                           " removed.", self.log_prefix, path, target_storage.backend_id)
-            self._remove_subdir_paths(target_storage, path)
+            self._already_removed(target_storage, path)
             return
 
         if target_is_dir != source_is_dir:
@@ -351,13 +367,25 @@ class NaiveSyncer(BaseSyncer):
         if target_is_dir:
             self._remove_whole_dir(target_storage, path)
         else:
-            target_hash = target_storage.get_hash(path)
+            try:
+                target_hash = target_storage.get_hash(path)
+            except FileNotFoundError:
+                self._already_removed(target_storage, path)
+                return
+
             source_hash = old_source_hash if old_source_hash else \
                 self.storage_hashes[target_storage][path]
+
             if target_hash != source_hash:
                 self._handle_conflict(source_storage, target_storage, path)
                 return
-            target_storage.unlink(path)
+
+            try:
+                target_storage.unlink(path)
+            except FileNotFoundError:
+                self._already_removed(target_storage, path)
+                return
+
             if path in self.storage_hashes[target_storage]:
                 del self.storage_hashes[target_storage][path]
             return
@@ -436,11 +464,16 @@ class NaiveSyncer(BaseSyncer):
         for backend in self.storage_watchers:
             backend.stop_watcher()
             backend.request_unmount()
+        self.conflicts.clear()
         self.storage_watchers.clear()
         logger.debug("%s: file syncing stopped.", self.log_prefix)
 
-    def is_running(self) -> bool:
-        return bool(self.storage_watchers)
+    def status(self) -> SyncerStatus:
+        return self._status
+
+    def iter_conflicts(self) -> Iterable[SyncConflict]:
+        for conflict in self.conflicts:
+            yield conflict
 
     def iter_errors(self) -> Iterable[SyncError]:
         for path, attr in self.source_storage.walk():

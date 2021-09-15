@@ -26,7 +26,6 @@ IPFS storage backend
 
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
-import logging
 import errno
 import stat
 
@@ -37,10 +36,11 @@ from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
+from wildland.log import get_logger
 from .unixfsv1_pb2 import Data
 
 
-logger = logging.getLogger('storage-ipfs')
+logger = get_logger('storage-ipfs')
 
 
 # pylint: disable=no-member

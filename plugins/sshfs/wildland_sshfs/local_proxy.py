@@ -8,16 +8,18 @@ Definition of LocalProxy storage backend base class.
 """
 
 import abc
-import logging
 import uuid
+
 from os import rmdir
 from tempfile import mkdtemp
 from typing import Optional
 from pathlib import PurePosixPath
 from wildland.storage_backends.base import StorageBackend, File
 from wildland.storage_backends.local import LocalStorageBackend
+from wildland.log import get_logger
 
-logger = logging.getLogger('local-proxy')
+logger = get_logger('local-proxy')
+
 
 class LocalProxy(StorageBackend):
     """

@@ -28,18 +28,24 @@ Client class for the control server
 from pathlib import Path
 import socket
 import json
-import logging
 from typing import Dict, Iterator, List, Optional
 
 from .exc import WildlandError
 from .control_server import ControlRequest
+from .log import get_logger
 
-logger = logging.getLogger('control-server')
+logger = get_logger('control-server')
 
 
 class ControlClientError(WildlandError):
     """
     An error originating from the control server.
+    """
+
+
+class ControlClientUnableToConnectError(ControlClientError):
+    """
+    An error thrown whenever there is a problem to connect with the control server.
     """
 
 
@@ -54,16 +60,20 @@ class ControlClient:
         self.pending_events = []
         self.id_counter = 1
 
-    def connect(self, path: Path):
+    def connect(self, path: Path) -> None:
         """
         Connect to a server listening under a given socket path.
         """
 
         self.conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.conn.connect(str(path))
+        try:
+            self.conn.connect(str(path))
+        except OSError as e:
+            raise ControlClientUnableToConnectError from e
+
         self.conn_file = self.conn.makefile()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """
         Disconnect from server.
         """

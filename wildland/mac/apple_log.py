@@ -28,12 +28,14 @@ Apple's Unified Logging.
 # pylint: disable=import-error
 import logging
 from PBRLogBridge import log_message
+from ..log import get_logger
+
 
 class apple_log(logging.StreamHandler):
-    '''
+    """
     A logging handler class which is responsible for forwarding
     log messages to the Apple unified logging logging bridge.
-    '''
+    """
 
     def __init__(self):
         logging.StreamHandler.__init__(self)
@@ -44,14 +46,14 @@ class apple_log(logging.StreamHandler):
 
     @staticmethod
     def configure():
-        '''
+        """
         Configure the logging system to use the Apple
         logging bridge. This should be called before
         any log statements are executed.
-        '''
+        """
 
         ioshandler = apple_log()
         logging.basicConfig(level=logging.DEBUG)
-        logger = logging.getLogger()
-        logger.handlers = [ ]
+        logger = get_logger('apple')
+        logger.handlers = []
         logger.addHandler(ioshandler)

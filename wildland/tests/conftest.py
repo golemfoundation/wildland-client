@@ -4,6 +4,7 @@ import signal
 import os
 import shutil
 import tempfile
+import time
 
 from contextlib import suppress
 from multiprocessing import Process
@@ -11,14 +12,13 @@ from pathlib import Path, PurePosixPath
 from typing import List
 from unittest import mock
 
-import psutil
 import pytest
 import yaml
 
 from .fuse_env import FuseEnv
 from ..cli import cli_main
+from ..control_client import ControlClient, ControlClientUnableToConnectError
 from ..search import Search
-
 from ..storage_sync.daemon import SyncDaemon
 
 ## CLI
@@ -46,15 +46,36 @@ def _sync_daemon(base_dir):
     server.main()
 
 
+def _wait_for_sync_daemon(socket_path):
+    delay = 0.5
+    client = ControlClient()
+    for _ in range(20):
+        try:
+            client.connect(socket_path)
+            client.disconnect()
+            return
+        except ControlClientUnableToConnectError:
+            time.sleep(delay)
+    pytest.fail('Timed out waiting for sync daemon')
+
+
 @pytest.fixture
 def sync(base_dir):
-    # this is so we can easily get coverage data from the sync daemon
-    try:
-        daemon = Process(target=_sync_daemon, args=(base_dir,))
-        daemon.start()
-    finally:
-        daemon.terminate()
-        daemon.join()
+    # this fixture is so we can easily get coverage data from the sync daemon
+    socket_path = Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock'
+    daemon = Process(target=_sync_daemon, args=(base_dir,))
+    daemon.start()
+    # make sure sync daemon is ready and accepting connections
+    # to avoid subsequent Client instances accidentally spawning another one
+    _wait_for_sync_daemon(socket_path)
+    # if we don't yield anything here this whole function is executed immediately,
+    # and the sync daemon is prematurely killed
+    yield daemon
+
+    assert daemon.pid
+    os.kill(daemon.pid, signal.SIGINT)
+    daemon.join()
+    socket_path.unlink(missing_ok=True)
 
 
 @pytest.fixture
@@ -80,14 +101,9 @@ def cli(base_dir, capsys):
     yield cli
 
     if os.path.ismount(base_dir / 'wildland'):
-        cli('stop')
+        # sync daemon is started and stopped by the sync fixture
+        cli('stop', '--keep-sync-daemon')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink(missing_ok=True)
-
-    syncs = [p for p in psutil.process_iter() if 'wildland.storage_sync.daemon' in p.cmdline()]
-    for p in syncs:
-        p.send_signal(signal.SIGTERM)
-    if len(syncs) > 0:
-        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock').unlink(missing_ok=True)
 
 
 # TODO examine exception
