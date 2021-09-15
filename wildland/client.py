@@ -585,7 +585,7 @@ class Client:
                 yield self.load_object_from_file_path(WildlandObject.Type.CONTAINER, Path(p))
             except WildlandError as ex:
                 failed = True
-                exc_msg += str(ex) + '\n'
+                exc_msg += f"Couldn't load container manifest: {p}: {str(ex)}\n"
                 continue
 
         if failed:
