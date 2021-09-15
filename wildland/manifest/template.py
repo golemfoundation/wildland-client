@@ -171,7 +171,10 @@ class TemplateFile:
             raise WildlandError(f'Template file [{self.file_path}] does not exist.')
 
         with self.file_path.open() as f:
-            return [StorageTemplate(source_data=data) for data in load_yaml(f)]
+            yaml_ds = load_yaml(f)
+            if yaml_ds is None:
+                raise WildlandError(f'Failed to parse template file [{self.file_path}].')
+            return [StorageTemplate(source_data=data) for data in yaml_ds]
 
     def __str__(self):
         file_name = self.file_path.name
