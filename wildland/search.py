@@ -133,8 +133,8 @@ class Search:
         self.fs_client = fs_client
 
         self.local_containers = list(self.client.load_all(WildlandObject.Type.CONTAINER))
-        self.local_users = self.client.local_users
-        self.local_bridges = self.client.local_bridges
+        self.local_users = list(self.client.load_all(WildlandObject.Type.USER))
+        self.local_bridges = list(self.client.load_all(WildlandObject.Type.BRIDGE))
 
     def resolve_raw(self) -> Iterable[Step]:
         """

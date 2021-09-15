@@ -154,12 +154,18 @@ class Client:
 
     @property
     def local_users(self) -> List[User]:
+        """
+        List of local users (loaded from the appropriate directory).
+        """
         if not self.__local_users:
             self.__local_users = list(self.load_all(WildlandObject.Type.USER))
         return self.__local_users
 
     @property
     def local_bridges(self) -> List[Bridge]:
+        """
+        List of local bridges (loaded from the appropriate directory).
+        """
         if not self.__local_bridges:
             self.__local_bridges = list(self.load_all(WildlandObject.Type.BRIDGE))
         return self.__local_bridges
