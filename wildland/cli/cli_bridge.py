@@ -143,7 +143,7 @@ def list_(obj: ContextObj):
     Display known bridges.
     """
 
-    for bridge in obj.client.local_bridges:
+    for bridge in obj.client.get_local_bridges():
         click.echo(bridge.local_path)
 
         try:
