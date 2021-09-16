@@ -5531,7 +5531,8 @@ def test_wl_version(cli):
     result_1 = cli('--version', capture=True)
     result_2 = cli('version', capture=True)
     assert result_1 == result_2
-    assert 'commit' in result_1
+    version_numbers = result_1.split(" ")[0].split(".")
+    assert len(version_numbers) == 3
 
 
 def test_set_default_cache(cli, base_dir):
