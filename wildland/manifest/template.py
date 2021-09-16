@@ -171,7 +171,10 @@ class TemplateFile:
             raise WildlandError(f'Template file [{self.file_path}] does not exist.')
 
         with self.file_path.open() as f:
-            yaml_ds = load_yaml(f)
+            try:
+                yaml_ds = load_yaml(f)
+            except yaml.YAMLError as ye:
+                raise ye
             if yaml_ds is None:
                 raise WildlandError(f'Failed to parse template file [{self.file_path}].')
             return [StorageTemplate(source_data=data) for data in yaml_ds]
@@ -242,7 +245,7 @@ class TemplateManager:
                 except TemplateError:
                     logger.warning('failed to load template file %s', file)
                     continue
-                except WildlandError as err:
+                except (yaml.YAMLError, WildlandError) as err:
                     logger.warning(err)
                     continue
 

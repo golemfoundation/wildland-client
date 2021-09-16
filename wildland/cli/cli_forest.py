@@ -283,12 +283,13 @@ def _bootstrap_forest(ctx: click.Context,
 
 
 def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]:
+    import yaml
     try:
         tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
         return tpl_manager.get_template_file_by_name(template_name).templates
-    except WildlandError as we:
-        raise CliError(f'Could not load [{template_name}] storage template. {we}') from we
+    except (WildlandError, yaml.YAMLError) as err:
+        raise CliError(f'Could not load [{template_name}] storage template. {err}') from err
 
 
 def _create_container(obj: ContextObj,
