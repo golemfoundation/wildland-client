@@ -143,8 +143,8 @@ class Client:
         self.users: Dict[str, User] = {}
         self.bridges: Set[Bridge] = set()
 
-        self._local_users_cache: Dict[Path, WildlandObject] = {}
-        self._local_bridges_cache: Dict[Path, WildlandObject] = {}
+        self._local_users_cache: Dict[Path, Optional[Any]] = {}
+        self._local_bridges_cache: Dict[Path, Optional[Any]] = {}
         self._select_reference_storage_cache: Dict[Tuple[str, str, bool],
                                                    Optional[Tuple[PurePosixPath, Dict]]] = {}
 
@@ -153,21 +153,23 @@ class Client:
             self.caches: List[Storage] = []
             self.load_local_storage_cache()
 
-    def get_local_users(self, reload: bool = False) -> List[User]:
+    def get_local_users(self, reload: bool = False):
         """
         List of local users (loaded from the appropriate directory).
         """
-        local_users_cache: Dict[Path, User] = dict(self._find_paths_and_load_all(
-            WildlandObject.Type.USER, cached=self._local_users_cache, reload_cached=reload))
+        local_users_cache: Dict[Path, Optional[Any]] = dict(
+            self._find_paths_and_load_all(
+                WildlandObject.Type.USER, cached=self._local_users_cache, reload_cached=reload))
         self._local_users_cache = local_users_cache
         return [obj for obj in self._local_users_cache.values() if obj is not None]
 
-    def get_local_bridges(self, reload: bool = False) -> List[Bridge]:
+    def get_local_bridges(self, reload: bool = False):
         """
         List of local bridges (loaded from the appropriate directory).
         """
-        local_bridges_cache: Dict[Path, Bridge] = dict(self._find_paths_and_load_all(
-            WildlandObject.Type.BRIDGE, cached=self._local_bridges_cache, reload_cached=reload))
+        local_bridges_cache: Dict[Path, Optional[Any]] = dict(
+            self._find_paths_and_load_all(
+                WildlandObject.Type.BRIDGE, cached=self._local_bridges_cache, reload_cached=reload))
         self._local_bridges_cache = local_bridges_cache
         return [obj for obj in self._local_bridges_cache.values() if obj is not None]
 
@@ -650,7 +652,7 @@ class Client:
                                  base_dir: Path = None,
                                  quiet: bool = False,
                                  reload_cached: bool = False,
-                                 cached: Dict[Path, Optional[WildlandObject]] = None):
+                                 cached: Optional[Dict[Path, Optional[WildlandObject]]] = None):
         """
         Load and return object manifests with corresponding path from the appropriate directory.
         """
