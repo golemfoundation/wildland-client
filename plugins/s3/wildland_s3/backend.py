@@ -27,15 +27,14 @@ S3 storage backend
 
 from pathlib import PurePosixPath
 from io import BytesIO
-from typing import Iterable, List, Optional, Set, Tuple, Callable
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 import mimetypes
 
 from urllib.parse import urlparse
-import os
 import errno
 import html
+import os
 import stat
-import threading
 import time
 
 import boto3
@@ -55,10 +54,9 @@ from wildland.log import get_logger
 logger = get_logger('storage-s3')
 
 
-
 class S3FileAttr(Attr):
     """
-    File attributes, include S3 E-Tag
+    File attributes, include S3 E-Tag.
     """
     def __init__(self, size: int, timestamp: int, etag: str):
         self.etag = etag
@@ -67,10 +65,9 @@ class S3FileAttr(Attr):
         self.timestamp = timestamp
 
     @classmethod
-    def from_s3_object(cls, obj):
+    def from_s3_object(cls, obj: Dict[str, Any]):
         """
-        Convert S3's object summary, as returned by list_objects_v2 or
-        head_object.
+        Convert S3's object summary, as returned by ``list_objects_v2`` or ``head_object``.
         """
         etag = obj['ETag'].strip('\"')
 
@@ -244,12 +241,6 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
         self.bucket = s3_url.netloc
         self.base_path = PurePosixPath(s3_url.path)
 
-        # Persist created directories. This is because S3 doesn't have
-        # information about directories, and we might want to create/remove
-        # them manually.
-        self.s3_dirs_lock = threading.Lock()
-        self.s3_dirs: Set[PurePosixPath] = {PurePosixPath('.')}
-
         mimetypes.init()
 
     @classmethod
@@ -302,17 +293,6 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
         except botocore.exceptions.ClientError as ex:
             raise WildlandError(f"Could not connect to AWS with Exception: {ex}") from ex
 
-        # TODO
-        # Commenting out as it makes S3 with-index completely unusable
-        # https://gitlab.com/wildland/wildland-client/-/issues/435
-        #
-        # if self.with_index and not self.read_only:
-        #     self.refresh()
-        #     with self.s3_dirs_lock:
-        #         s3_dirs = list(self.s3_dirs)
-        #     for path in s3_dirs:
-        #         self._update_index(path)
-
     def key(self, path: PurePosixPath, is_dir: bool = False) -> str:
         """
         Convert path to S3 object key.
@@ -352,6 +332,8 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
                     Bucket=self.bucket,
                 )
 
+            # iterate files (Prefix and Delimiter in the list_objects_v2 request determine that
+            # those are files only, and not dirs)
             for summary in resp.get('Contents', []):
                 full_path = PurePosixPath('/') / summary['Key']
 
@@ -588,7 +570,7 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
             Bucket=self.bucket,
             Key=self.key(path / self.INDEX_NAME))
 
-    def _update_index(self, path):
+    def _update_index(self, path: PurePosixPath) -> None:
         if self.read_only or not self.with_index:
             return
 
@@ -601,7 +583,7 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
             Body=BytesIO(data.encode()),
             ContentType='text/html')
 
-    def _get_index_entries(self, path):
+    def _get_index_entries(self, path: PurePosixPath):
         # (name, url, is_dir)
         entries: List[Tuple[str, str, Attr]] = []
         if path != PurePosixPath('.'):

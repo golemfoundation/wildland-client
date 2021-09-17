@@ -71,7 +71,7 @@ class FileChildrenMixin(StorageBackend):
                               'cannot be used together with manifest-pattern'))
         result.append(
             click.Option(['--manifest-pattern'], metavar='GLOB',
-                         help='Set the manifest pattern for storage, cannot be user '
+                         help='Set the manifest pattern for storage, cannot be used '
                               'together with --subcontainer-manifest'))
         return result
 

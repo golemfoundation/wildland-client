@@ -42,7 +42,7 @@ from wildland.storage_backends.generated import GeneratedStorageMixin, FuncDirEn
 from wildland.log import get_logger
 from .gitlab_client import GitlabClient, CompactIssue
 
-logger = get_logger('GitlabBackend')
+logger = get_logger('GitlabQLBackend')
 
 
 class GitlabFileEntry(FileEntry):
@@ -135,7 +135,7 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
         assert self.all_compact_issues is not None
         for issue in self.all_compact_issues:
             yield self._make_issue_container(issue)
-        logger.debug('subcontainers succesfully created')
+        logger.debug('subcontainers successfully created')
 
     @classmethod
     def _get_issue_categories(cls, issue: CompactIssue) -> List[str]:

@@ -25,11 +25,12 @@
 Cached storage
 """
 
-from typing import Dict, List, Tuple, Iterable, Set, Optional
-import time
-from pathlib import PurePosixPath
+import abc
 import errno
 import threading
+import time
+from pathlib import PurePosixPath
+from typing import Dict, Iterable, Optional, Set, Tuple
 
 from .base import Attr
 from ..log import get_logger
@@ -64,7 +65,7 @@ class CachedStorageMixin:
 
         raise NotImplementedError()
 
-    def refresh(self):
+    def refresh(self) -> None:
         """
         Refresh cache.
         """
@@ -72,9 +73,7 @@ class CachedStorageMixin:
         with self.cache_lock:
             self._refresh()
 
-    def _refresh(self):
-        logger.info('refresh')
-
+    def _refresh(self) -> None:
         self.getattr_cache.clear()
         self.readdir_cache.clear()
         self.readdir_cache[PurePosixPath('.')] = set()
@@ -96,18 +95,17 @@ class CachedStorageMixin:
         if attr.is_dir():
             self.readdir_cache.setdefault(path, set())
 
-        # Add all intermediate directories, in case info_all()
-        # didn't include them.
+        # Add all intermediate directories, in case ``info_all()`` didn't include them
         for i in range(len(path.parts)):
             self.readdir_cache.setdefault(
                 PurePosixPath(*path.parts[:i]), set()).add(
                 path.parts[i])
 
-    def _update(self):
+    def _update(self) -> None:
         if self.expiry < time.time():
             self._refresh()
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """
         Invalidate cache.
         """
@@ -119,10 +117,12 @@ class CachedStorageMixin:
 
     def getattr(self, path: PurePosixPath) -> Attr:
         """
-        Cached implementation of getattr().
+        Cached implementation of ``getattr()``.
         """
+
         if isinstance(path, str):
             path = PurePosixPath(path)
+
         with self.cache_lock:
             self._update()
 
@@ -135,15 +135,17 @@ class CachedStorageMixin:
 
             return self.getattr_cache[path]
 
-    def readdir(self, path: PurePosixPath) -> List[str]:
+    def readdir(self, path: PurePosixPath) -> Iterable[str]:
         """
-        Cached implementation of readdir().
+        Cached implementation of ``readdir()``.
         """
+
         if isinstance(path, str):
             path = PurePosixPath(path)
 
         with self.cache_lock:
             self._update()
+
             if path not in self.readdir_cache:
                 raise FileNotFoundError(errno.ENOENT, str(path))
 
@@ -171,15 +173,17 @@ class DirectoryCachedStorageMixin:
 
     def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         """
-        Retrieve information about files in a directory (readdir + getattr).
+        Retrieve information about files in a directory (``readdir`` + ``getattr``).
         """
 
         raise NotImplementedError()
 
     def _clear_dir(self, path: PurePosixPath):
         del self.dir_expiry[path]
+
         if path in self.readdir_cache:
             del self.readdir_cache[path]
+
         for getattr_path in list(self.getattr_cache.keys()):
             if getattr_path.parent == path:
                 del self.getattr_cache[getattr_path]
@@ -201,18 +205,9 @@ class DirectoryCachedStorageMixin:
 
         self.dir_expiry[path] = time.time() + self.CACHE_TIMEOUT
 
-    def _update_dir(self, path: PurePosixPath):
-        if self.dir_expiry.get(path, 0) >= time.time():
-            return
-
-        if path in self.dir_expiry:
-            self._clear_dir(path)
-
-        self._refresh_dir(path)
-
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """
-        Invalidate cache.
+        Invalidate the cache.
         """
 
         with self.cache_lock:
@@ -222,12 +217,13 @@ class DirectoryCachedStorageMixin:
 
     def getattr(self, path: PurePosixPath) -> Attr:
         """
-        Cached implementation of getattr().
+        Cached implementation of ``getattr()``.
         """
+
         if isinstance(path, str):
             path = PurePosixPath(path)
-        # We don't retrieve any information about the root directory's
-        # attributes.
+
+        # We don't retrieve any information about the root directory's attributes
         if path == PurePosixPath('.'):
             return Attr.dir()
 
@@ -239,12 +235,14 @@ class DirectoryCachedStorageMixin:
 
             return self.getattr_cache[path]
 
-    def readdir(self, path: PurePosixPath) -> List[str]:
+    def readdir(self, path: PurePosixPath) -> Iterable[str]:
         """
-        Cached implementation of readdir().
+        Cached implementation of ``readdir()``.
         """
+
         if isinstance(path, str):
             path = PurePosixPath(path)
+
         with self.cache_lock:
             self._update_dir(path)
 

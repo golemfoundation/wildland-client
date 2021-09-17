@@ -40,7 +40,7 @@ logger = get_logger('git-client')
 
 class GitClient:
     """
-    GitClient reponsible for handling the cloned repository data
+    GitClient responsible for handling the cloned repository data
     """
 
     def __init__(self, repo_url: str, location: str,
@@ -57,7 +57,7 @@ class GitClient:
     def connect(self) -> None:
         """
         Clones the chosen repo to /tmp/git_repo/{owner}/{directory uuid} and
-        creates an instance of git.Repo so that all the neccessary
+        creates an instance of git.Repo so that all the necessary
         information about the chosen repository can be accessed from the
         client.
 
@@ -69,7 +69,7 @@ class GitClient:
         is preferred over the authorization over the prompt
         (the backend will continuously prompt for the username and password
         upon every mount/unmount of the container), but you can choose to use the
-        prompt if you dont want your credentials to be shown in bash history.
+        prompt if you don't want your credentials to be shown in bash history.
         """
         # removes the current contents of the directory
         if os.path.isdir(self.location) and os.listdir(self.location):
