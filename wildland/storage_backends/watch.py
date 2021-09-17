@@ -88,7 +88,8 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         Stop the watching thread.
         """
         self.stop_event.set()
-        self.thread.join()
+        if self.thread != threading.current_thread():
+            self.thread.join()
         self.shutdown()
 
     @abc.abstractmethod

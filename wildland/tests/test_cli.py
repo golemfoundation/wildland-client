@@ -4030,7 +4030,7 @@ def test_cli_container_sync_oneshot_nowait(base_dir, sync, cli):
         container_name, '--no-wait')
     wait_for_file(storage2_data / 'testfile', 'test data')
     result = cli('status', capture=True)
-    assert f'{container_name} STOPPED' in result
+    assert f'{container_name} SYNCED' in result
 
     make_file(storage1_data / 'testfile2', 'test data2')
     time.sleep(1)

@@ -30,10 +30,12 @@ from typing import List, Dict, Iterable, Optional
 from functools import partial
 from pathlib import PurePosixPath, Path
 from contextlib import suppress
+
 from wildland.storage import StorageBackend
 from wildland.storage_backends.watch import FileEvent, StorageWatcher
 from wildland.storage_backends.base import OptionalError, HashMismatchError
-from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict, SyncerStatus
+from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict, SyncState, \
+    SyncConflictEvent, SyncErrorEvent
 from wildland.log import get_logger
 
 BLOCK_SIZE = 1024 ** 2
@@ -65,7 +67,6 @@ class NaiveSyncer(BaseSyncer):
         self.storage_watchers: Dict[StorageBackend, StorageWatcher] = {}
         self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, Optional[str]]] = {}
         self.lock = threading.Lock()
-        self._status = SyncerStatus.ONE_SHOT
         self.conflicts: List[SyncConflict] = []
 
     def start_sync(self, unidirectional: bool = False):
@@ -88,7 +89,6 @@ class NaiveSyncer(BaseSyncer):
                              self.log_prefix, backend.backend_id)
 
             self.one_shot_sync(unidirectional)
-        self._status = SyncerStatus.SYNCED
 
     def _handle_conflict(self, storage_1, storage_2, path):
         """
@@ -97,8 +97,10 @@ class NaiveSyncer(BaseSyncer):
         logger.warning("%s: conflict between storages detected: storages %s and %s "
                        "differ on file %s.",
                        self.log_prefix, storage_1.backend_id, storage_2.backend_id, path)
-        self.conflicts.append(SyncConflict(Path(path), self.source_storage.backend_id,
-                                           self.target_storage.backend_id))
+        conflict = SyncConflict(Path(path), self.source_storage.backend_id,
+                                self.target_storage.backend_id)
+        self.conflicts.append(conflict)
+        self.notify_event(SyncConflictEvent(str(conflict)))
 
     def one_shot_sync(self, unidirectional: bool = False):
         """
@@ -106,7 +108,7 @@ class NaiveSyncer(BaseSyncer):
         """
         storage_dirs: Dict[StorageBackend, List[PurePosixPath]] = {}
 
-        self._status = SyncerStatus.ONE_SHOT
+        self.set_state(SyncState.ONE_SHOT)
         for storage in [self.source_storage, self.target_storage]:
             self.storage_hashes[storage] = {}
             storage_dirs[storage] = []
@@ -167,7 +169,7 @@ class NaiveSyncer(BaseSyncer):
             for path in missing_files:
                 self._sync_file(backend1, backend2, path)
 
-        self._status = SyncerStatus.STOPPED
+        self.set_state(SyncState.SYNCED)
 
     def _sync_file(self, source_storage: StorageBackend, target_storage: StorageBackend,
                    path: PurePosixPath):
@@ -419,42 +421,53 @@ class NaiveSyncer(BaseSyncer):
         """
         Process storage events originating from a given source_storage.
         """
+        self.set_state(SyncState.RUNNING)
+        error = False
         with self.lock:
             for event in events:
-                logger.debug("%s: handling event %s for object %s occurring in "
-                             "storage %s", self.log_prefix, event.type, event.path,
-                             source_storage.backend_id)
+                try:
+                    logger.debug("%s: handling event %s for object %s occurring in "
+                                 "storage %s", self.log_prefix, event.type, event.path,
+                                 source_storage.backend_id)
 
-                obj_path = event.path
+                    obj_path = event.path
 
-                if event.type == 'delete':
-                    old_source_hash = self.storage_hashes[source_storage].get(obj_path)
-                    is_dir = obj_path not in self.storage_hashes[source_storage]
+                    if event.type == 'delete':
+                        old_source_hash = self.storage_hashes[source_storage].get(obj_path)
+                        is_dir = obj_path not in self.storage_hashes[source_storage]
 
-                    for target_storage in self.storage_watchers:
-                        if target_storage == source_storage:
-                            continue
+                        for target_storage in self.storage_watchers:
+                            if target_storage == source_storage:
+                                continue
 
-                        old_target_hash = self.storage_hashes[target_storage].get(obj_path)
+                            old_target_hash = self.storage_hashes[target_storage].get(obj_path)
 
-                        if old_source_hash == old_target_hash:
-                            self._remove_object(source_storage, target_storage, obj_path,
-                                                is_dir, old_source_hash)
-                        else:
-                            logger.warning(
-                                "%s: conflict resolved via removal of file at %s from "
-                                "storage %s; version from %s is now authoritative.",
-                                self.log_prefix, obj_path,
-                                source_storage.backend_id, target_storage.backend_id)
-                            self._create_object(target_storage, source_storage, obj_path)
-                else:
-                    for target_storage in self.storage_watchers:
-                        if target_storage == source_storage:
-                            continue
-                        if event.type == 'create':
-                            self._create_object(source_storage, target_storage, obj_path)
-                        elif event.type == 'modify':
-                            self._sync_file(source_storage, target_storage, obj_path)
+                            if old_source_hash == old_target_hash:
+                                self._remove_object(source_storage, target_storage, obj_path,
+                                                    is_dir, old_source_hash)
+                            else:
+                                logger.warning(
+                                    "%s: conflict resolved via removal of file at %s from "
+                                    "storage %s; version from %s is now authoritative.",
+                                    self.log_prefix, obj_path,
+                                    source_storage.backend_id, target_storage.backend_id)
+                                self._create_object(target_storage, source_storage, obj_path)
+                    else:
+                        for target_storage in self.storage_watchers:
+                            if target_storage == source_storage:
+                                continue
+                            if event.type == 'create':
+                                self._create_object(source_storage, target_storage, obj_path)
+                            elif event.type == 'modify':
+                                self._sync_file(source_storage, target_storage, obj_path)
+                except Exception as e:
+                    self.notify_event(SyncErrorEvent(str(e)))
+                    self.set_state(SyncState.ERROR)
+                    error = True
+                    break
+
+        if not error:
+            self.set_state(SyncState.SYNCED)
 
     def stop_sync(self):
         """
@@ -467,9 +480,7 @@ class NaiveSyncer(BaseSyncer):
         self.conflicts.clear()
         self.storage_watchers.clear()
         logger.debug("%s: file syncing stopped.", self.log_prefix)
-
-    def status(self) -> SyncerStatus:
-        return self._status
+        self.set_state(SyncState.STOPPED)
 
     def iter_conflicts(self) -> Iterable[SyncConflict]:
         for conflict in self.conflicts:

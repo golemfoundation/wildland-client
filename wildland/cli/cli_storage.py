@@ -30,7 +30,6 @@ from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
 import uuid
-import time
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -45,7 +44,7 @@ from ..publish import Publisher
 from ..log import get_logger
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
-from ..storage_sync.base import SyncerStatus
+from ..storage_sync.base import SyncState
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
 from ..utils import format_command_options
@@ -253,10 +252,10 @@ def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container
     container_failed_to_sync = []
     for container_obj, _ in used_by:
         if len(obj.client.get_all_storages(container_obj)) > 1 and not force:
-            status = obj.client.run_sync_command('job-status', job_id=container_obj.sync_id)
+            status = obj.client.run_sync_command('state', job_id=container_obj.sync_id)
             if status is None:
                 container_to_sync.append(container_obj)
-            elif status[0] != SyncerStatus.SYNCED:
+            elif status[0] != SyncState.SYNCED:
                 click.echo(f"Syncing of {container_obj.uuid} is in progress.")
                 return
 
@@ -279,17 +278,7 @@ def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container
             response = obj.client.do_sync(c.uuid, c.sync_id, storage_to_delete.params,
                                           target.params, one_shot=True, unidir=True)
             logger.debug(response)
-            while True:
-                time.sleep(1)
-                status, response = obj.client.run_sync_command('job-status', job_id=c.sync_id)
-                if status == SyncerStatus.STOPPED.value:
-                    click.echo('One-shot sync finished.')
-                    obj.client.run_sync_command('stop', job_id=c.sync_id)
-                    break
-                if status == SyncerStatus.ERROR.value:
-                    click.echo(response)
-                    container_failed_to_sync.append(c.uuid)
-                    break
+            obj.client.wait_for_sync(c.sync_id)
 
     if container_failed_to_sync and not force:
         click.echo(f"Failed to sync storage for containers: {','.join(container_failed_to_sync)}")

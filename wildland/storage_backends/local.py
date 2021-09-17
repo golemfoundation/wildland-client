@@ -306,11 +306,14 @@ class LocalStorageWatcher(StorageWatcher):
         super().stop()
 
     def shutdown(self) -> None:
-        os.close(self._stop_pipe_write)
-        os.close(self._stop_pipe_read)
-        for wd in self.watches:
-            self.inotify.rm_watch(wd)
-        self.inotify.close()
+        try:
+            os.close(self._stop_pipe_write)
+            os.close(self._stop_pipe_read)
+            for wd in self.watches:
+                self.inotify.rm_watch(wd)
+            self.inotify.close()
+        except Exception:
+            logger.exception('Exceptiopn during local storage watcher shutdown:')
 
     def wait(self) -> Optional[List[FileEvent]]:
         result = select.select([self._stop_pipe_read, self.inotify], [], [])

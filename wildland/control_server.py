@@ -178,9 +178,15 @@ class ControlHandler(BaseRequestHandler):
                 close_handler()
 
     def _send_message(self, message):
-        message_bytes = json.dumps(message, indent=2).encode() + b'\n\n'
-        with self.lock:
-            self.request.sendall(message_bytes)
+        if self.request.fileno() >= 0:
+            try:
+                message_bytes = json.dumps(message, indent=2).encode() + b'\n\n'
+                with self.lock:
+                    self.request.sendall(message_bytes)
+            except Exception:
+                logger.exception('Exception:')
+        else:
+            logger.warning('Connection closed for %s', message)
 
     def _handle_request(self, request_str: str):
         request = None

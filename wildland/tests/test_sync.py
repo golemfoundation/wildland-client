@@ -32,12 +32,15 @@ from itertools import combinations, product
 import pytest
 
 from wildland.storage_sync.naive_sync import BLOCK_SIZE
-from wildland.storage_sync.base import SyncConflict, BaseSyncer, SyncerStatus
+from wildland.storage_sync.base import SyncConflict, BaseSyncer, SyncState, SyncEvent, \
+    SyncStateEvent, SyncErrorEvent, SyncConflictEvent
+from ..client import Client
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
 from ..storage_backends.base import StorageBackend
 from ..log import init_logging
+from ..wildland_object.wildland_object import WildlandObject
 
 MAX_TIMEOUT = 10
 
@@ -593,8 +596,8 @@ def test_find_syncer(tmpdir):
         def iter_conflicts(self):
             pass
 
-        def status(self) -> SyncerStatus:
-            return SyncerStatus.STOPPED
+        def state(self) -> SyncState:
+            return SyncState.STOPPED
 
     class TestSyncer2(BaseSyncer):
         SYNCER_NAME = "test2"
@@ -611,8 +614,8 @@ def test_find_syncer(tmpdir):
         def iter_conflicts(self):
             pass
 
-        def status(self) -> SyncerStatus:
-            return SyncerStatus.STOPPED
+        def state(self) -> SyncState:
+            return SyncState.STOPPED
 
     BaseSyncer._types['test1'] = TestSyncer1
     BaseSyncer._types['test2'] = TestSyncer2
@@ -623,3 +626,163 @@ def test_find_syncer(tmpdir):
                                           one_shot=bool2, continuous=bool3, can_require_mount=bool4)
         # assert that the correct Syncer was found
         assert syncer.SYNCER_NAME == 'test2'
+
+
+def assert_event(client: Client, ev: SyncEvent):
+    event = next(client.get_sync_event())
+    assert event == ev
+
+
+def assert_state(client: Client, state: SyncState):
+    assert_event(client, SyncStateEvent(state))
+
+
+def wait_for_event(client: Client, predicate: Callable[[SyncEvent], bool]):
+    while True:
+        event = next(client.get_sync_event())
+        if predicate(event):
+            break
+
+
+def wait_for_state(client: Client, state: SyncState):
+    wait_for_event(client, lambda s: s == SyncStateEvent(state))
+
+
+def events_setup(base_dir, cli, container_name):
+    base_data_dir = base_dir / 'wldata'
+    storage1_data = base_data_dir / 'storage1'
+    storage2_data = base_data_dir / 'storage2'
+
+    os.mkdir(base_data_dir)
+    os.mkdir(storage1_data)
+    os.mkdir(storage2_data)
+
+    cli('user', 'create', 'Alice')
+    cli('container', 'create', '--owner', 'Alice', '--path', '/Alice', container_name)
+    cli('storage', 'create', 'local', '--container', container_name, '--location', storage1_data)
+    cli('storage', 'create', 'local-cached', '--container', container_name,
+        '--location', storage2_data)
+
+    client = Client(base_dir)
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
+    source = client.get_local_storage(container, 'local')
+    target = client.get_remote_storage(container, 'local-cached')
+    job_id = container.sync_id
+    path1 = storage1_data / 'testfile'
+    path2 = storage2_data / 'testfile'
+    return client, source, target, job_id, path1, path2
+
+
+# pylint: disable=unused-argument
+def test_sync_events_oneshot(base_dir, sync, cli):
+    container_name = 'sync_events_oneshot'
+    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+
+    # one-shot
+    make_file(path1, 'test data')
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=True,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    assert_state(client, SyncState.SYNCED)
+
+
+# pylint: disable=unused-argument
+def test_sync_events_continuous_pre(base_dir, sync, cli):
+    container_name = 'sync_events_continuous_pre'
+    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+
+    # continuous, preexisting file
+    make_file(path1, 'test data')
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    assert_state(client, SyncState.RUNNING)
+    assert_state(client, SyncState.SYNCED)
+
+
+# pylint: disable=unused-argument
+def test_sync_events_continuous_post(base_dir, sync, cli):
+    container_name = 'sync_events_continuous_post'
+    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+
+    # continuous, file created after sync start
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)  # initial sync
+    assert_state(client, SyncState.SYNCED)
+    make_file(path1, 'test data')
+    assert_state(client, SyncState.RUNNING)  # handling events
+    wait_for_state(client, SyncState.SYNCED)  # there can be some more RUNNING events before this
+
+
+# pylint: disable=unused-argument
+def test_sync_events_oneshot_error(base_dir, sync, cli):
+    container_name = 'sync_events_oneshot_error'
+    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+
+    # make_file(path1, 'test data')
+    shutil.rmtree(path1.parent)
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=True,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    wait_for_event(client, lambda ev: ev.type == SyncErrorEvent.type and
+                   'No such file or directory' in ev.value)
+
+
+# pylint: disable=unused-argument
+def test_sync_events_continuous_error(base_dir, sync, cli):
+    container_name = 'sync_events_continuous_error'
+    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+
+    make_file(path1, 'test data')
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    wait_for_state(client, SyncState.SYNCED)
+    shutil.rmtree(path1.parent)
+    wait_for_event(client, lambda ev: ev.type == SyncErrorEvent.type and
+                   'No such file or directory' in ev.value)
+
+
+# pylint: disable=unused-argument
+def test_sync_events_oneshot_conflict(base_dir, sync, cli):
+    container_name = 'sync_events_oneshot_conflict'
+    client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
+
+    make_file(path1, 'test data 1')
+    make_file(path2, 'test data 2')
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=True,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    wait_for_event(client, lambda ev: ev.type == SyncConflictEvent.type and
+                   'Conflict detected on testfile' in ev.value)
+
+
+# pylint: disable=unused-argument
+def test_sync_events_continuous_pre_conflict(base_dir, sync, cli):
+    container_name = 'sync_events_continuous_pre_conflict'
+    client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
+
+    make_file(path1, 'test data 1')
+    make_file(path2, 'test data 2')
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    wait_for_event(client, lambda ev: ev.type == SyncConflictEvent.type and
+                   'Conflict detected on testfile' in ev.value)
+
+
+# pylint: disable=unused-argument
+def test_sync_events_continuous_post_conflict(base_dir, sync, cli):
+    container_name = 'sync_events_continuous_post_conflict'
+    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+
+    make_file(path1, 'test data 1')
+    client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
+                   unidir=False)
+    assert_state(client, SyncState.ONE_SHOT)
+    assert_state(client, SyncState.RUNNING)
+    assert_state(client, SyncState.SYNCED)
+    make_file(path1, 'test data 2')
+    wait_for_event(client, lambda ev: ev.type == SyncConflictEvent.type and
+                   'Conflict detected on testfile' in ev.value)

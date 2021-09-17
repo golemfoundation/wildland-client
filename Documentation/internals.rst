@@ -56,6 +56,12 @@ Syncing
 .. autoclass:: wildland.storage_backends.watch.FileEvent
    :members:
 
+.. autoclass:: wildland.storage_sync.base.SyncEvent
+   :members:
+
+.. autoclass:: wildland.storage_sync.base.SyncState
+   :members:
+
 
 File/dir entries
 ----------------
