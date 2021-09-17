@@ -1,8 +1,8 @@
-# pylint: disable=missing-docstring,redefined-outer-name
+# pylint: disable=missing-docstring,redefined-outer-name,copyright-violation
 import signal
 
 import os
-import shutil
+import shutilp
 import tempfile
 import time
 

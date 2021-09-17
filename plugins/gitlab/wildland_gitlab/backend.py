@@ -3,7 +3,7 @@
 # Copyright (C) 2020 Golem Foundation
 #
 # Authors:
-#                       Maja Kostacinska
+#                       Maja Kostacinska <maja@wildland.io>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
