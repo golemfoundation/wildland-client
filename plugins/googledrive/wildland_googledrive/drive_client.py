@@ -375,7 +375,7 @@ class DriveClient:
             node_item = next(
                 self.cache_tree.filter_nodes(
                     lambda node, tag=item: (
-                        node.tag == tag and node.bpointer == parent_id
+                        node.tag==tag and node.predecessor(self.cache_tree.identifier)==parent_id
                     )
                 )
             )
