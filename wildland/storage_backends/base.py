@@ -223,7 +223,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def __init__(self, *,
                  params: Optional[Dict[str, Any]] = None,
                  read_only: bool = False,
-                 **kwds):
+                 **_kwds):
+        super().__init__()  # cooperative multiple inheritance
         # pylint: disable=redefined-builtin, unused-argument
         self.read_only = False
         self.params: Dict[str, Any] = {}

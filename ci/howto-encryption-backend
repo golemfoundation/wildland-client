@@ -15,7 +15,7 @@ curl -so /tmp/minio https://dl.min.io/server/minio/release/linux-amd64/minio
 chmod +x /tmp/minio
 mkdir -p /tmp/minio-data/the-bucket/subdir
 
-MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server /tmp/minio-data &
+MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --console-address :9001 /tmp/minio-data &
 
 # Howto
 

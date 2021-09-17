@@ -45,7 +45,7 @@ from wildland.link import Link
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.file_children import FileChildrenMixin
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
-from wildland.storage_backends.cached import CachedStorageMixin
+from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.manifest.schema import Schema
 from wildland.exc import WildlandError
 from wildland.log import get_logger
@@ -91,15 +91,13 @@ class S3File(FullBufferedFile):
                  key: str,
                  content_type: str,
                  attr: Attr,
-                 update_cache: Callable[[PurePosixPath, Attr], None],
-                 cache_lock: threading.Lock):
+                 update_cache: Callable[[PurePosixPath, Attr], None]):
         super().__init__(attr, self.__clear_cache)
         self.client = client
         self.bucket = bucket
         self.key = key
         self.content_type = content_type
-        self._update_cache = update_cache
-        self._cache_lock = cache_lock
+        self.update_cache = update_cache
 
     def read_full(self) -> bytes:
         response = self.client.get_object(
@@ -128,8 +126,7 @@ class S3File(FullBufferedFile):
         )
         path = PurePosixPath(self.key)
         attr = S3FileAttr.from_s3_object(response)
-        with self._cache_lock:
-            self._update_cache(path, attr)
+        self.update_cache(path, attr)
 
 
 class PagedS3File(PagedFile):
@@ -153,7 +150,7 @@ class PagedS3File(PagedFile):
         return response['Body'].read()
 
 
-class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
+class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     Amazon S3 storage.
     """
@@ -317,19 +314,27 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
     def _stat(obj) -> Attr:
         return S3FileAttr.from_s3_object(obj)
 
-    def info_all(self) -> Iterable[Tuple[PurePosixPath, Attr]]:
-        new_s3_dirs = set()
-
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
+        """
+        Retrieve information about files in a directory (readdir + getattr).
+        """
+        prefix = self.key(path, is_dir=True)
+        if prefix == './':
+            prefix = ''
         token = None
         while True:
             if token:
                 resp = self.client.list_objects_v2(
                     Bucket=self.bucket,
+                    Prefix=prefix,  # list only files/dirs in given 'subdir'/prefix
+                    Delimiter='/',  # trick to list dir without subdirs
                     ContinuationToken=token,
                 )
             else:
                 resp = self.client.list_objects_v2(
                     Bucket=self.bucket,
+                    Prefix=prefix,
+                    Delimiter='/',
                 )
 
             # iterate files (Prefix and Delimiter in the list_objects_v2 request determine that
@@ -340,38 +345,36 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
                 try:
                     obj_path = full_path.relative_to(self.base_path)
                 except ValueError:
+                    logger.warning('Unable to get relative path [%s]', full_path)
                     continue
 
-                # We cannot use PosixPath because S3 may return Key with trailing slash which is
-                # the case for empty directories. If we move straight ahead to transforming Key into
-                # PosixPath, we'll loose this trailing slash and we won't be able to differentiate
-                # an empty directory from a file.
-                _, file = os.path.split(summary['Key'])
-                if not file:
-                    # We hit an empty directory
-                    new_s3_dirs.add(obj_path)
-                else:
-                    if not (self.with_index and obj_path.name == self.INDEX_NAME):
-                        yield obj_path, self._stat(summary)
+                # don't add '.' directory because it's added explicitly
+                if obj_path == path:
+                    continue
 
-                # Add path to s3_dirs even if we just see index.html.
-                for parent in obj_path.parents:
-                    new_s3_dirs.add(parent)
+                if not (self.with_index and obj_path.name == self.INDEX_NAME):
+                    fname = obj_path.relative_to(path)
+                    yield PurePosixPath(fname), self._stat(summary)
+
+            # iterate subdirectories
+            for summary in resp.get('CommonPrefixes', []):
+                key = summary['Prefix']
+                assert key, f'Unexpected None key in {summary} for {path}'
+                full_path = PurePosixPath('/') / key
+
+                try:
+                    obj_path = full_path.relative_to(self.base_path)
+                except ValueError:
+                    logger.warning('Unable to get relative path [%s]', full_path)
+                    continue
+
+                fname = obj_path.relative_to(path)
+                yield PurePosixPath(fname), Attr.dir()
 
             if resp['IsTruncated']:
                 token = resp['NextContinuationToken']
             else:
                 break
-
-        # In case we haven't found any files
-        new_s3_dirs.add(PurePosixPath('.'))
-
-        with self.s3_dirs_lock:
-            self.s3_dirs = new_s3_dirs
-            all_s3_dirs = list(self.s3_dirs)
-
-        for dir_path in all_s3_dirs:
-            yield dir_path, Attr.dir()
 
     @property
     def can_have_children(self) -> bool:
@@ -414,7 +417,7 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
                 content_type = self.get_content_type(path)
                 return S3File(
                     self.client, self.bucket, self.key(path),
-                    content_type, attr, self._update_cache, self.cache_lock)
+                    content_type, attr, self.update_cache)
 
             return PagedS3File(self.client, self.bucket, self.key(path), attr)
         except botocore.exceptions.ClientError as e:
@@ -434,12 +437,10 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
             ContentType=content_type)
 
         attr = Attr.file(size=0, timestamp=int(time.time()))
-        with self.cache_lock:
-            self._update_cache(path, attr)
-
+        self.update_cache(path, attr)
         self._update_index(path.parent)
         return S3File(self.client, self.bucket, self.key(path),
-                      content_type, attr, self._update_cache, self.cache_lock)
+                      content_type, attr, self.update_cache)
 
     def unlink(self, path: PurePosixPath):
         if self.with_index and path.name == self.INDEX_NAME:
@@ -448,22 +449,19 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
         self.client.delete_object(
             Bucket=self.bucket,
             Key=self.key(path))
-        with self.cache_lock:
-            self._update_cache(path, None)
+        self.update_cache(path, None)
         self._update_index(path.parent)
 
     def mkdir(self, path: PurePosixPath, _mode: int = 0o777):
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.EPERM, str(path))
 
-        self.s3_dirs.add(path)
         self.client.put_object(
             Bucket=self.bucket,
             Key=self.key(path, is_dir=True))
 
         attr = Attr.dir()
-        with self.cache_lock:
-            self._update_cache(path, attr)
+        self.update_cache(path, attr)
         self._update_index(path)
         self._update_index(path.parent)
 
@@ -472,15 +470,13 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
             raise IOError(errno.EPERM, str(path))
 
         children = self.readdir(path)
-        if len(children) > 0:
+        if len(list(children)) > 0:
             raise IOError(errno.ENOTEMPTY, str(path))
 
-        self.s3_dirs.remove(path)
         self.client.delete_object(
             Bucket=self.bucket,
             Key=self.key(path, is_dir=True))
-        with self.cache_lock:
-            self._update_cache(path, None)
+        self.update_cache(path, None)
         self._remove_index(path)
         self._update_index(path.parent)
 
@@ -522,8 +518,7 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
                 Key=self.key(move_to),
                 CopySource=f"{self.bucket}/{self.key(move_from)}",
             )
-            with self.cache_lock:
-                self._update_cache(move_to, self.getattr_cache[move_from])
+            self.update_cache(move_to, self.getattr_cache[move_from])
             self.unlink(move_from)
 
     def utimens(self, path: PurePosixPath, atime, mtime) -> None:
@@ -541,8 +536,7 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
             ContentType=self.get_content_type(path))
 
         attr = Attr.file(size=0, timestamp=int(time.time()))
-        with self.cache_lock:
-            self._update_cache(path, attr)
+        self.update_cache(path, attr)
 
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
         attr = self.getattr(path)
@@ -556,8 +550,7 @@ class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
         return None
 
     def start_bulk_writing(self) -> None:
-        self.refresh()
-        self.expiry = float('inf')
+        pass  # TODO how to properly handle bulk writing?
 
     def stop_bulk_writing(self) -> None:
         self.clear_cache()

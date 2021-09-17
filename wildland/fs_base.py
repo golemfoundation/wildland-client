@@ -41,6 +41,7 @@ from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
 from .manifest.schema import Schema
 from .log import get_logger
+from .tests.profiling.profilers import profile
 
 
 logger = get_logger('fs')
@@ -170,6 +171,7 @@ class WildlandFSBase:
     #
 
     @control_command('mount')
+    @profile()
     def control_mount(self, _handler, items):
         collected_errors = list()
         for params in items:
