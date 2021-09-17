@@ -39,11 +39,13 @@ class PseudomanifestFile(FullBufferedFile):
     as a comment.
     """
 
-    def __init__(self, base_dir: Optional[str], data: bytearray, attr: Attr):
+    def __init__(
+            self, base_dir: Optional[str], data: bytearray, original_data: bytearray, attr: Attr):
         super().__init__(attr)
         self.base_dir = base_dir
         self.data = data
-        manifest = Manifest.from_unsigned_bytes(bytes(self.data))
+        self.original_data = original_data
+        manifest = Manifest.from_unsigned_bytes(bytes(self.original_data))
         manifest.skip_verification()
         self.uuid_path = manifest.fields['paths'][0]
         self.container_wl_path = f"wildland:{manifest.fields['owner']}:{self.uuid_path}:"
@@ -56,7 +58,7 @@ class PseudomanifestFile(FullBufferedFile):
         try:
             new = Manifest.from_unsigned_bytes(bytes(data))
             new.skip_verification()
-            old = Manifest.from_unsigned_bytes(bytes(self.data))
+            old = Manifest.from_unsigned_bytes(bytes(self.original_data))
             old.skip_verification()
         except Exception as e:
             error_messages += '\n' + str(e)
@@ -102,10 +104,9 @@ class PseudomanifestFile(FullBufferedFile):
                 '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
                 '\n# ' + error_messages.replace('\n', '\n# ') + \
                 '\n'
-            str_data = self.data.decode()
-            data_without_comments = str_data[:str_data.find('\n\n#')]
-            self.data[:] = data_without_comments.encode() + message.encode()
-            raise IOError()
+            self.data[:] = self.original_data[:] + message.encode()
+        else:
+            self.data[:] = self.original_data[:]
 
         return len(data)
 
@@ -132,7 +133,7 @@ class PseudomanifestFile(FullBufferedFile):
             to_modify = {f for f in old_fields if f not in new_fields}
             try:
                 to_modify.remove(self.uuid_path)
-                raise ValueError("\n Pseudomanifest error: uuid path cannot be removed.")
+                raise ValueError("\n Pseudomanifest error: uuid path cannot be changed or removed.")
             except KeyError:
                 pass
         else:
@@ -165,6 +166,7 @@ class PseudomanifestStorageBackend(StorageBackend):
         if isinstance(data, str):
             data = data.encode()
         self.data = bytearray(data)
+        self.original_data = self.data.copy()
 
         self.base_dir = params.get('base-dir', None)
         if self.base_dir == 'None':
@@ -180,13 +182,24 @@ class PseudomanifestStorageBackend(StorageBackend):
         """
         open() for generated pseudomanifest storage
         """
-        return PseudomanifestFile(self.base_dir, self.data, self.attr)
+        self.attr.size = len(self.data)
+        file = PseudomanifestFile(self.base_dir, self.data, self.original_data, self.attr)
+        return file
 
     def getattr(self, path: PurePosixPath) -> Attr:
         """
         getattr() for generated pseudomanifest storage
         """
+        self.attr.size = len(self.data)
         return self.attr
+
+    def truncate(self, path: PurePosixPath, length: int) -> None:
+        """
+        Truncate the pseudomanifest file.
+        """
+        if length != 0:
+            raise NotImplementedError()
+        self.data.clear()
 
 
 def _cli(base_dir, *args):
