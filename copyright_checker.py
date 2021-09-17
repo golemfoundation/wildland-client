@@ -62,6 +62,15 @@ class CopyrightChecker(BaseChecker):
                 file_index, template_index = 0, 0
                 template_lines = template_stream.readlines()
                 file_line = file_stream.readline().decode('utf-8')
+                pylint_disable_regex = f'# pylint:.*disable=.*({self.COPYRIGHT_VIOLATION}|'\
+                                       f'{self.COPYRIGHT_FORMATTING}|'\
+                                       f'{self.COPYRIGHT_AUTHOR_FORMATTING})'
+
+                if re.match(pylint_disable_regex, file_line):
+                    return
+                if file_line.strip() == '#!/usr/bin/env python3':
+                    file_line = file_stream.readline().decode('utf-8')
+                    file_index += 1
 
                 while template_index < len(template_lines):
                     template_line = template_lines[template_index]
