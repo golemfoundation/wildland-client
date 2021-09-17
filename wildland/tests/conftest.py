@@ -2,7 +2,7 @@
 import signal
 
 import os
-import shutilp
+import shutil
 import tempfile
 import time
 
