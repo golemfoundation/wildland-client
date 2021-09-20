@@ -208,6 +208,15 @@ class SigContext:
             owners.extend(self.key_ownership[signer])
         return owners
 
+    def remove_owner(self, owner: str):
+        """
+        Remove a given key from owners' lists of others keys (in local context).
+        Key is not deleted.
+        """
+        for key_id in self.key_ownership:
+            if owner in self.key_ownership[key_id]:
+                self.key_ownership[key_id].remove(owner)
+
     def remove_key(self, key_id):
         """
         Remove a given key (and a matching private key) from disk and from local context.

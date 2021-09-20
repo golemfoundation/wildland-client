@@ -113,7 +113,7 @@ run wl dump ~/Downloads/access-test.container.yaml
 
 wl start
 
-expected="Saving: /home/user/Downloads/access-test.container.yaml"
+expected="Saved: /home/user/Downloads/access-test.container.yaml"
 run wl sign -i ~/Downloads/access-test.container.yaml
 
 
