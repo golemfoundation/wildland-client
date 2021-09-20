@@ -1765,6 +1765,35 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
     assert out_lines[1] == 'Manifest has not changed.'
 
 
+def test_published_container_dump(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+        '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
+    cli('forest', 'create', 'Alice', 'forest-tpl')
+
+    # Auto publish
+    cli('container', 'create', 'AliceContainer', '--path', '/MY/ALICE')
+
+    dump_container = wl_call_output(base_dir, 'container', 'dump', '0xaaa:/MY/ALICE:').decode()
+    assert '/MY/ALICE' in dump_container
+
+    # Remove locally and test again
+    cli('container', 'rm', '--no-unpublish', 'AliceContainer')
+
+    dump_container = wl_call_output(base_dir, 'container', 'dump', '0xaaa:/MY/ALICE:').decode()
+    assert '/MY/ALICE' in dump_container
+
+    # Remove remotely and test again
+
+    cli('container', 'unpublish', '0xaaa:/MY/ALICE:')
+
+    with pytest.raises(subprocess.CalledProcessError) as exception_info:
+        wl_call_output(base_dir, 'container', 'dump', '0xaaa:/MY/ALICE:').decode()
+
+    assert 'Error: Container not found for path:' \
+        in exception_info.value.stdout.decode()
+
+
 def test_container_delete(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
