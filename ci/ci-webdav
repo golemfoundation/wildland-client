@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -ex
+
+. /home/user/env/bin/activate
+pip install .
+
+ROOT="$HOME/wildland"
+
+# Setup
+mkdir -p /home/user/storage
+sudo /etc/init.d/apache2 start
+
+mkdir -p /home/user/storage/foo
+echo foobar > /home/user/storage/foo/file1.txt
+echo text > /home/user/storage/file2.txt
+
+# Wildland
+./wl user create User1
+./wl container create Container1 --path /webdav\
+                                 --category /ci-test
+./wl storage create webdav --container Container1 \
+                           --login 'user' \
+                           --password 'password' \
+                           --url 'http://localhost:8081/'
+./wl start
+
+# Test files and directories
+tree $ROOT
+time -p test -f $ROOT/ci-test/Container1/file2.txt
+time -p chronic grep 'text' $ROOT/ci-test/Container1/file2.txt
+time -p test -f $ROOT/webdav/file2.txt
+time -p chronic grep 'text' $ROOT/webdav/file2.txt
+
+time -p test -d $ROOT/ci-test/Container1/foo
+time -p test -d $ROOT/webdav/foo
+
+time -p test -f $ROOT/ci-test/Container1/foo/file1.txt
+time -p chronic grep 'foobar' $ROOT/ci-test/Container1/foo/file1.txt
+time -p test -f $ROOT/webdav/foo/file1.txt
+time -p chronic grep 'foobar' $ROOT/webdav/foo/file1.txt
+
+./wl stop
+
+# Cleanup
+rm -rf /home/user/storage
