@@ -27,6 +27,7 @@ from typing import List, Dict, Any
 import os
 import uuid
 import click
+import yaml
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_storage import do_create_storage_from_templates
@@ -283,7 +284,6 @@ def _bootstrap_forest(ctx: click.Context,
 
 
 def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]:
-    import yaml
     try:
         tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
