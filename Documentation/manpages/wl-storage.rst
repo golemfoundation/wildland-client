@@ -99,14 +99,14 @@ for details.
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/local-dir-cached.rsti
 
-.. program:: wl-storage-create-date-proxy
-.. _wl-storage-create-date-proxy:
+.. program:: wl-storage-create-timeline
+.. _wl-storage-create-timeline:
 
-:command:`wl storage create date-proxy --container <container> --reference-container-url <url> [--timeline-root <dir>] [--no-publish] <storage>`
+:command:`wl storage create timeline --container <container> --reference-container-url <url> [--timeline-root <dir>] [--no-publish] <storage>`
 ------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
-.. include:: include/storages/date-proxy.rsti
+.. include:: include/storages/timeline.rsti
 
 .. program:: wl-storage-create-delegate
 .. _wl-storage-create-delegate:
