@@ -136,3 +136,7 @@ get_userid() {
 get_container_uuid() {
     wl container dump "$1" | grep -oP "\- \/.uuid/\K$UUID_PCRE"
 }
+
+get_storage_uuid() { # $1 = container UUID, $2 = storage type
+    wl storage ls | grep "type: $2" | grep "$1" | cut -d ' ' -f 4
+}

@@ -1,0 +1,268 @@
+#!/bin/bash
+
+# See ci/howto-test-lib.bash for docs about the "test framework"
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage
+
+run wl user create yatima
+userid=$(get_userid yatima)
+
+run wl start --skip-forest-mount
+
+## Single container
+
+# FIXME: use real remote storage (see issue #587)
+storage_type=local
+mkdir -p ~/storage/local
+
+run wl template create $storage_type mydropbox --location ~/storage/local
+
+run wl container create --path "/mydropbox" --template mydropbox cache-test
+
+cont_uuid=$(get_container_uuid cache-test)
+storage_uuid=$(get_storage_uuid $cont_uuid $storage_type)
+
+expected="Sensitive fields are hidden.
+/home/user/.config/wildland/containers/cache-test.container.yaml
+object: container
+owner: '$userid'
+paths:
+- /.uuid/$cont_uuid
+- /mydropbox
+backends:
+  storage:
+  - type: $storage_type
+    backend-id: $storage_uuid
+title: null
+categories: []
+version: '1'"
+
+run wl container info cache-test
+
+run wl container mount cache-test
+
+run bash -c "echo 'test 1' > ~/wildland/mydropbox/test1.txt"
+
+run dd if=/dev/urandom of=/tmp/rnd bs=4K count=1024
+
+run cp /tmp/rnd ~/wildland/mydropbox/test2.rnd
+
+expected="/home/user/wildland/mydropbox/
+├── test1.txt
+└── test2.rnd
+
+0 directories, 2 files"
+
+run tree ~/wildland/mydropbox/
+
+hash1=$(sha256sum ~/wildland/mydropbox/test1.txt | awk '{print $1}')
+hash2=$(sha256sum ~/wildland/mydropbox/test2.rnd | awk '{print $1}')
+
+run wl c unmount cache-test
+
+run mkdir -p ~/storage/cache
+
+run wl template create local --location ~/storage/cache cache-tpl
+
+expected="Set template cache-tpl as default for container cache storages"
+
+run wl set-default-cache cache-tpl
+
+# mount with cache
+
+# FIXME: run command hangs here, but similar mount command for Pandora below doesn't...
+# see issue #588
+wl c mount -c cache-test
+
+cache_uuid=$(wl s dump ~/.config/wildland/cache/$userid.$cont_uuid.storage.yaml | grep backend-id: | cut -d ' ' -f 2)
+
+expected="Mounted containers:
+
+/.users/$userid:/.backends/$cont_uuid/$cache_uuid
+  storage: local
+  paths:
+    /mydropbox
+/.users/$userid:/.backends/$cont_uuid/$storage_uuid
+  storage: $storage_type
+
+Sync jobs:
+:/mydropbox: SYNCED '$storage_type'(backend_id=$storage_uuid) <-> 'local'(backend_id=$cache_uuid)"
+
+run wl status
+
+expected="Sensitive fields are hidden.
+/home/user/.config/wildland/containers/cache-test.container.yaml
+object: container
+owner: '$userid'
+paths:
+- /.uuid/$cont_uuid
+- /mydropbox
+backends:
+  storage:
+  - type: $storage_type
+    backend-id: $storage_uuid
+title: null
+categories: []
+version: '1'
+cache:
+  type: local
+  backend_id: $cache_uuid
+  location: /home/user/storage/cache/$cont_uuid"
+
+run wl c info cache-test
+
+expected="/home/user/wildland/mydropbox/
+├── test1.txt
+└── test2.rnd
+
+0 directories, 2 files"
+
+run tree ~/wildland/mydropbox/
+
+compare () {
+   if [ "$1" != "$2" ]; then
+     return 1
+   else
+     return 0
+   fi
+}
+
+hash1a=$(sha256sum ~/wildland/mydropbox/test1.txt | awk '{print $1}')
+hash2a=$(sha256sum ~/wildland/mydropbox/test2.rnd | awk '{print $1}')
+
+run compare $hash1 $hash1a
+run compare $hash2 $hash2a
+
+run bash -c "echo 'modified' > ~/wildland/mydropbox/test1.txt"
+
+run cp /tmp/rnd ~/wildland/mydropbox/test3.rnd
+
+expected="modified"
+run cat ~/storage/cache/$cont_uuid/test1.txt
+
+# using cache by default
+
+run wl c unmount cache-test
+
+run wl c mount cache-test
+
+expected="Mounted containers:
+
+/.users/$userid:/.backends/$cont_uuid/$cache_uuid
+  storage: local
+  paths:
+    /mydropbox
+/.users/$userid:/.backends/$cont_uuid/$storage_uuid
+  storage: $storage_type
+
+Sync jobs:
+:/mydropbox: SYNCED '$storage_type'(backend_id=$storage_uuid) <-> 'local'(backend_id=$cache_uuid)"
+
+run wl status
+
+# disable cache
+
+run wl c unmount cache-test
+
+expected="Deleting cache: /home/user/.config/wildland/cache/$userid.$cont_uuid.storage.yaml"
+run wl c delete-cache cache-test
+
+expected="Sensitive fields are hidden.
+/home/user/.config/wildland/containers/cache-test.container.yaml
+object: container
+owner: '$userid'
+paths:
+- /.uuid/$cont_uuid
+- /mydropbox
+backends:
+  storage:
+  - type: $storage_type
+    backend-id: $storage_uuid
+title: null
+categories: []
+version: '1'"
+
+run wl c info cache-test
+
+run wl c mount cache-test
+
+expected="Mounted containers:
+
+/.users/$userid:/.backends/$cont_uuid/$storage_uuid
+  storage: $storage_type
+  paths:
+    /mydropbox
+
+No sync jobs running"
+run wl status
+
+expected="/home/user/wildland/mydropbox/
+├── test1.txt
+├── test2.rnd
+└── test3.rnd
+
+0 directories, 3 files"
+run tree ~/wildland/mydropbox/
+
+expected="modified"
+run cat ~/wildland/mydropbox/test1.txt
+
+hash2b=$(sha256sum ~/wildland/mydropbox/test2.rnd | awk '{print $1}')
+hash3b=$(sha256sum ~/wildland/mydropbox/test3.rnd | awk '{print $1}')
+
+run compare $hash2 $hash2b
+run compare $hash2 $hash3b
+
+## Forest example
+
+run wl user import --path /mydirs/ariadne https://ariadne.wildland.io
+
+run wl c mount ':/mydirs/ariadne:/forests/pandora:*:'
+
+tree_list_1=$(tree -J -F -L 2 ~/wildland/mydirs/ariadne:/forests/pandora:/)
+
+run wl c unmount ':/mydirs/ariadne:/forests/pandora:*:'
+
+run wl c mount -c ':/mydirs/ariadne:/forests/pandora:*:'
+
+expected_pcre="Sensitive fields are hidden.
+
+object: container
+owner: '0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe'
+paths:
+- /.uuid/24b3b45c-57e1-44ec-b66c-33d952c99c6a
+- /home/omeg
+backends:
+  storage:
+  - type: delegate
+    backend-id: 3f65e772-ec1e-419a-9d62-4d1b8c311589
+title: null
+categories: \[\]
+version: '1'
+access:
+- user: '\*'
+cache:
+  type: local
+  backend_id: $UUID_PCRE
+  location: /home/user/storage/cache/24b3b45c-57e1-44ec-b66c-33d952c99c6a"
+
+run wl c info ':/mydirs/ariadne:/forests/pandora:/home/omeg:'
+
+tree_list_2=$(tree -J -F -L 2 ~/wildland/mydirs/ariadne:/forests/pandora:/)
+
+run diff <(echo "$tree_list_1") <(echo "$tree_list_2")
+
+# all non-synced lines from status
+status=$(wl status | sed -n '/Sync jobs:/,$p' | grep -v "SYNCED")
+
+# make sure there are no errors
+expected=""
+run echo "$status" | grep "ERROR" || true
+
+unset expected
+run wl c delete-cache ':/mydirs/ariadne:/forests/pandora:*:'
+
+expected=""
+run ls ~/.config/wildland/cache/
