@@ -268,6 +268,7 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     wildland url), imports its public keys, copies the manifest itself.
     :param obj: ContextObj
     :param path_or_dict: (potentially ambiguous) path to manifest to be imported
+    or dictionary with manifest fields of link object (see `Link.to_manifest_fields`)
     :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
         input)
     """
