@@ -106,6 +106,13 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         """ Container UUID"""
         return self.uuid_path.name
 
+    @property
+    def sync_id(self) -> str:
+        """
+        Return unique sync job ID for a container.
+        """
+        return self.owner + '|' + self.uuid
+
     def _ensure_uuid(self) -> PurePosixPath:
         """
         Find or create an UUID path for this container.

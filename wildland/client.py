@@ -49,7 +49,7 @@ from .control_client import ControlClient
 from .user import User
 from .container import Container, ContainerStub
 from .link import Link
-from .storage import Storage
+from .storage import Storage, _get_storage_by_id_or_type
 from .wlpath import WildlandPath, PathError
 from .manifest.sig import DummySigContext, SodiumSigContext, SigContext
 from .manifest.manifest import ManifestDecryptionKeyUnavailableError, ManifestError, Manifest
@@ -1192,3 +1192,140 @@ class Client:
             return None
 
         return path
+
+    def get_all_storages(self, container: Container, excluded_storage: Optional[str] = None):
+        """
+        List of all storages (including cache storages) for the provided container.
+
+        If excluded_storage is provided, it will filter out the corresponding Storage
+        object from the resulting list.
+
+        :param container: Container object
+        :param excluded_storage: Storage backend_id
+        :return: List of Storage objects
+        """
+        all_storages = list(self.all_storages(container))
+        cache = self.cache_storage(container)
+        if cache:
+            all_storages.append(cache)
+
+        # fixme: we prevent returning storages with multiple identical backend_id
+        #  see wildland/wildland-client/-/issues/583
+        filtered_storages: Dict[str, Storage] = {}
+
+        for s in all_storages:
+            if filtered_storages.get(s.backend_id, None):
+                raise WildlandError("Duplicate backend-id found! Aborting...")
+            filtered_storages[s.backend_id] = s
+
+        if excluded_storage:
+            storage_to_ignore = _get_storage_by_id_or_type(excluded_storage, all_storages)
+            filtered_storages.pop(storage_to_ignore.backend_id, None)
+
+        return list(filtered_storages.values())
+
+    def get_local_storages(self, container: Container, excluded_storage: Optional[str] = None):
+        """
+        List of Storage object representing all local storages
+        (as defined by self.is_local_storage) for the provided container.
+
+        If excluded_storage is provided, it will filter out the corresponding Storage object
+        from the resulting list.
+
+        :param container: Container object
+        :param excluded_storage: Storage backend_id
+        :return: List of storages objects
+        """
+        all_storages = self.get_all_storages(container, excluded_storage)
+        local_storages = [storage for storage in all_storages
+                          if self.is_local_storage(storage.params['type'])]
+        return local_storages
+
+    def get_local_storage(self, container: Container, local_storage: Optional[str] = None,
+                          excluded_storage: Optional[str] = None):
+        """
+        Get first local Storage found for the provided container.
+
+        If local_storage is provided as backend_id, it will return the corresponding Storage object
+        if it exists.
+
+        If excluded_storage is provided, it will filter out the corresponding Storage object
+        from the result.
+
+        :param container: Container object
+        :param local_storage: Storage backend_id
+        :param excluded_storage: Storage backend_id
+        :return: Storage object
+        """
+        all_storages = self.get_all_storages(container, excluded_storage)
+        if local_storage:
+            storage = _get_storage_by_id_or_type(local_storage, all_storages)
+        else:
+            try:
+                storage = self.get_local_storages(container, excluded_storage)[0]
+            except IndexError:
+                # pylint: disable=raise-missing-from
+                raise WildlandError('No local storage backend found')
+        return storage
+
+    def get_remote_storages(self, container: Container, excluded_storage: Optional[str] = None):
+        """
+        List of Storage object representing all remote storages
+        (as defined as being not self.is_local_storage) for the provided container.
+
+        If excluded_storage is provided, it will filter out the corresponding Storage object
+        from the resulting list.
+
+        :param container: Container object
+        :param excluded_storage: Storage backend_id
+        :return: List of storages objects
+        """
+        all_storages = self.get_all_storages(container, excluded_storage)
+        default_remotes = self.config.get('default-remote-for-container')
+
+        target_remote_id = default_remotes.get(container.uuid, None)
+        remote_storages = [storage for storage in all_storages
+                           if target_remote_id == storage.backend_id or
+                           (not target_remote_id and
+                            not self.is_local_storage(storage.params['type']))]
+        return remote_storages
+
+    def get_remote_storage(self, container: Container, remote_storage: Optional[str] = None,
+                           excluded_storage: Optional[str] = None):
+        """
+        Get first remote Storage found for the provided container.
+
+        If remote_storage is provided as backend_id, it will return the corresponding Storage object
+        if it exists.
+
+        If excluded_storage is provided, it will filter out the corresponding Storage object
+        from the result.
+
+        :param container: Container object
+        :param remote_storage: Storage backend_id
+        :param excluded_storage: Storage backend_id
+        :return: Storage object
+        """
+        all_storages = self.get_all_storages(container, excluded_storage)
+        default_remotes = self.config.get('default-remote-for-container')
+
+        if remote_storage:
+            storage = _get_storage_by_id_or_type(remote_storage, all_storages)
+            default_remotes[container.uuid] = storage.backend_id
+            self.config.update_and_save({'default-remote-for-container': default_remotes})
+        else:
+            try:
+                storage = self.get_remote_storages(container, excluded_storage)[0]
+            except IndexError:
+                # pylint: disable=raise-missing-from
+                raise WildlandError('No remote storage backend found: specify --target-storage.')
+        return storage
+
+    def do_sync(self, container_name: str, job_id: str, source: dict, target: dict,
+                one_shot: bool, unidir: bool) -> str:
+        """
+        Start sync between source and target storages
+        """
+        kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
+                  'unidirectional': unidir, 'source': source, 'target': target}
+        return self.run_sync_command('start', **kwargs)

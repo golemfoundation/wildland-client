@@ -50,7 +50,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options, sync_id, get_local_storage, get_remote_storage, do_sync
+    check_if_any_options
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -597,12 +597,12 @@ def _cache_sync(client: Client, container: Container, storages: List[Storage], v
             click.echo(f'Using cache at: {primary.params["location"]}')
         src = storages[1]  # [1] is the non-cache (old primary)
         cname = wl_path_for_container(client, container, user_paths)
-        status = client.run_sync_command('job-status', job_id=sync_id(container))
+        status = client.run_sync_command('job-status', job_id=container.sync_id)
         if not status:  # sync not running for this container
             # start bidirectional sync (this also performs an initial one-shot sync)
             # this happens in the background, user can see sync status/progress using `wl sync`
-            do_sync(client, cname, sync_id(container), src.params, primary.params,
-                     one_shot=False, unidir=False)
+            client.do_sync(cname, container.sync_id, src.params, primary.params,
+                           one_shot=False, unidir=False)
 
 
 def prepare_mount(obj: ContextObj,
@@ -993,7 +993,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
         for storage_id in all_cache_ids:
             container = obj.fs_client.get_container_from_storage_id(storage_id)
-            obj.client.run_sync_command('stop', job_id=sync_id(container))
+            obj.client.run_sync_command('stop', job_id=container.sync_id)
             obj.fs_client.unmount_storage(storage_id)
 
     elif not undo_save:
@@ -1192,10 +1192,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
 
     client = obj.client
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    source = get_local_storage(client, container, source_storage)
-    target = get_remote_storage(client, container, target_storage)
-    response = do_sync(client, cont, sync_id(container), source.params, target.params,
-                       one_shot, unidir=False)
+    source = client.get_local_storage(container, source_storage)
+    target = client.get_remote_storage(container, target_storage)
+    response = client.do_sync(cont, container.sync_id, source.params, target.params,
+                              one_shot, unidir=False)
     click.echo(response)
 
     if one_shot:
@@ -1205,10 +1205,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
         else:
             while True:
                 time.sleep(1)
-                status, response = client.run_sync_command('job-status', job_id=sync_id(container))
+                status, response = client.run_sync_command('job-status', job_id=container.sync_id)
                 if status == SyncerStatus.STOPPED.value:
                     click.echo('One-shot sync finished.')
-                    client.run_sync_command('stop', job_id=sync_id(container))
+                    client.run_sync_command('stop', job_id=container.sync_id)
                     break
                 if status == SyncerStatus.ERROR.value:
                     click.echo(response)
@@ -1223,7 +1223,7 @@ def stop_syncing_container(obj: ContextObj, cont):
     Stop sync process for the given container.
     """
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    response = obj.client.run_sync_command('stop', job_id=sync_id(container))
+    response = obj.client.run_sync_command('stop', job_id=container.sync_id)
     click.echo(response)
 
 

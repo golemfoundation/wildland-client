@@ -36,10 +36,9 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
-    dump, check_if_any_options, check_options_conflict, sync_id, get_local_storage, \
-    get_remote_storage, do_sync, _get_storage_by_id_or_type, get_all_storages
+    dump, check_if_any_options, check_options_conflict
 from ..container import Container
-from ..storage import Storage
+from ..storage import Storage, _get_storage_by_id_or_type
 from ..manifest.template import TemplateManager, StorageTemplate
 from ..publish import Publisher
 from ..log import get_logger
@@ -243,8 +242,8 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
     container_to_sync = []
     container_failed_to_sync = []
     for container_obj, _ in used_by:
-        if len(get_all_storages(obj.client, container_obj)) > 1 and not force:
-            status = obj.client.run_sync_command('job-status', job_id=sync_id(container_obj))
+        if len(obj.client.get_all_storages(container_obj)) > 1 and not force:
+            status = obj.client.run_sync_command('job-status', job_id=container_obj.sync_id)
             if status is None:
                 container_to_sync.append(container_obj)
             elif status[0] != SyncerStatus.SYNCED:
@@ -257,25 +256,25 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
             click.echo(f'Outdated storage for container {c.uuid}, attempting to sync storage.')
             target = None
             try:
-                target = get_remote_storage(obj.client, c, excluded_storage=name)
+                target = obj.client.get_remote_storage(c, excluded_storage=name)
             except WildlandError:
                 pass
             if not target:
                 try:
-                    target = get_local_storage(obj.client, c,  excluded_storage=name)
+                    target = obj.client.get_local_storage(c,  excluded_storage=name)
                 except WildlandError:
                     # pylint: disable=raise-missing-from
                     raise WildlandError("Cannot find storage to sync data into.")
             logger.debug("sync: {%s} -> {%s}", storage_to_delete, target)
-            response = do_sync(obj.client, c.uuid, sync_id(c), storage_to_delete.params,
-                               target.params, one_shot=True, unidir=True)
+            response = obj.client.do_sync(c.uuid, c.sync_id, storage_to_delete.params,
+                                          target.params, one_shot=True, unidir=True)
             logger.debug(response)
             while True:
                 time.sleep(1)
-                status, response = obj.client.run_sync_command('job-status', job_id=sync_id(c))
+                status, response = obj.client.run_sync_command('job-status', job_id=c.sync_id)
                 if status == SyncerStatus.STOPPED.value:
                     click.echo('One-shot sync finished.')
-                    obj.client.run_sync_command('stop', job_id=sync_id(c))
+                    obj.client.run_sync_command('stop', job_id=c.sync_id)
                     break
                 if status == SyncerStatus.ERROR.value:
                     click.echo(response)
