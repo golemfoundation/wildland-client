@@ -34,6 +34,9 @@ from typing import Callable, List, Any, Optional, Dict, Tuple
 
 import click
 import yaml
+import progressbar
+
+import wildland.log
 
 from wildland import __version__
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -51,6 +54,21 @@ from ..manifest.schema import SchemaError
 from ..exc import WildlandError
 from ..storage import Storage
 from ..user import User
+
+
+def wrap_output(func):
+    def wrapper_func(*args, **kwargs):
+        progressbar.streams.wrap(stdout=True, stderr=True)
+        # https://github.com/WoLpH/python-progressbar/issues/254
+        sys.stdout.isatty = progressbar.streams.original_stdout.isatty
+        sys.stderr.isatty = progressbar.streams.original_stderr.isatty
+        wildland.log.RootStreamHandler.setStream(stream=progressbar.streams.stdout)
+
+        func(*args, **kwargs)
+
+        progressbar.streams.unwrap(stdout=True, stderr=True)
+        wildland.log.RootStreamHandler.setStream(stream=sys.stderr)
+    return wrapper_func
 
 
 def find_manifest_file(client: Client, name: str, manifest_type: Optional[str]) -> Path:
