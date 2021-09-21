@@ -71,7 +71,6 @@ you are ready to open a `merge request`_.
 .. _.pylintrc: http://pylint.pycqa.org/en/latest/user_guide/run.html?highlight=.pylintrc#command-line-options
 .. _pylint: https://www.pylint.org/
 .. _merge request: https://docs.gitlab.com/ee/user/project/merge_requests/
-.. _copyright_template:
 
 
 Bash
