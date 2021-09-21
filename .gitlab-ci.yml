@@ -134,6 +134,12 @@ transpose-test:
     script:
       - ./ci/ci-transpose
 
+webdav-test:
+    stage: test
+    image: $CONTAINER_TEST_IMAGE
+    script:
+      - ./ci/ci-webdav
+
 encrypted-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
@@ -189,6 +195,12 @@ howto-encryption-backend-test:
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-encryption-backend
+
+howto-cache-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/howto-cache
 
 smoke-test:
   stage: test
