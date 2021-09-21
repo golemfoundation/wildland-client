@@ -24,15 +24,19 @@
 """
 Storage class
 """
+import os
 from pathlib import PurePosixPath
 from typing import Dict, Any, Optional, List
 from copy import deepcopy
 
 from wildland.wildland_object.wildland_object import WildlandObject
+from .log import get_logger
 from .storage_backends.base import StorageBackend
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
 from .container import Container
+
+logger = get_logger('storage')
 
 
 class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
@@ -126,6 +130,11 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             raise ManifestError(f'Unrecognized storage type: {self.storage_type}')
         backend = StorageBackend.types()[self.storage_type]
         manifest.apply_schema(backend.SCHEMA)
+        if self.storage_type in ['local', 'local-cached', 'local-dir-cached']:
+            location = manifest.fields['location']
+            # warn user if location doesn't point to existing directory
+            if not os.path.isdir(location):
+                logger.warn("Storage location \"%s\" doesn't point to existing directory", location)
 
     def promote_to_primary(self):
         """
