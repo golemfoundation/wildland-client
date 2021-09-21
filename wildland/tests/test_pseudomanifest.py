@@ -53,6 +53,7 @@ def test_pseudomanifest_create(cli, base_dir):
 
     assert pseudomanifest_content_bytes.decode() == \
 f'''# All YAML comments will be discarded when the manifest is saved
+version: '1'
 object: container
 owner: '0xaaa'
 paths:
@@ -60,7 +61,6 @@ paths:
 - /PATH
 title: 'null'
 categories: []
-version: '1'
 access:
 - user: '*'
 '''
@@ -77,7 +77,7 @@ def pseudomanifest_replace(pseudomanifest_path, to_replace, new):
 
 def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
@@ -85,7 +85,8 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
         '--no-encrypt-manifest')
 
     cli('user', 'create', 'UserB', '--key', '0xbbb')
-    cli('container', 'create', 'ContainerB', '--path', '/PATH', '--owner', 'UserB')
+    cli('container', 'create', 'ContainerB', '--path', '/PATH', '--owner', 'UserB',
+        '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'ContainerB',
@@ -116,7 +117,7 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(base_dir/"containers/Container.container.yaml", "r") as f:
         content = f.read()
         assert "- /NEW" in content
-        assert "paths:\\n- /.uuid/" in content
+        assert "paths:\n- /.uuid/" in content
     with open(pseudomanifest_path, "r") as f:
         content = f.read()
         assert "- /NEW" in content
@@ -135,7 +136,7 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(base_dir/"containers/ContainerB.container.yaml", "r") as f:
         content = f.read()
         assert "- /NEW" in content
-        assert "paths:\\n- /.uuid/" in content
+        assert "paths:\n- /.uuid/" in content
     with open(pseudomanifest_path_b, "r") as f:
         content = f.read()
         assert "- /NEW" in content
@@ -229,6 +230,7 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
 
     pseudomanifest_content = \
 f'''# All YAML comments will be discarded when the manifest is saved
+version: '1'
 object: container
 owner: '0xaaa'
 paths:
@@ -238,7 +240,6 @@ paths:
 title: new_title
 categories:
 - /cat1
-version: '1'
 access:
 - user: '*'
 '''
@@ -251,7 +252,8 @@ access:
         assert f.read() == pseudomanifest_content
 
     new_content = \
-f'''object: container
+f'''version: '1'
+object: container
 owner: '0xaaa'
 paths:
 - {uuid_path}
@@ -262,13 +264,13 @@ title: other_title
 categories:
 - /cat2
 - /cat2
-version: '1'
 access:
 - user: '*'
 '''
 
     expexted_content = \
 f'''# All YAML comments will be discarded when the manifest is saved
+version: '1'
 object: container
 owner: '0xaaa'
 paths:
@@ -278,7 +280,6 @@ paths:
 title: other_title
 categories:
 - /cat2
-version: '1'
 access:
 - user: '*'
 '''

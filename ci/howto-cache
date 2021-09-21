@@ -26,18 +26,18 @@ storage_uuid=$(get_storage_uuid $cont_uuid $storage_type)
 
 expected="Sensitive fields are hidden.
 /home/user/.config/wildland/containers/cache-test.container.yaml
+version: '1'
 object: container
 owner: '$userid'
 paths:
 - /.uuid/$cont_uuid
 - /mydropbox
+title: null
+categories: []
 backends:
   storage:
   - type: $storage_type
-    backend-id: $storage_uuid
-title: null
-categories: []
-version: '1'"
+    backend-id: $storage_uuid"
 
 run wl container info cache-test
 
@@ -94,18 +94,18 @@ run wl status
 
 expected="Sensitive fields are hidden.
 /home/user/.config/wildland/containers/cache-test.container.yaml
+version: '1'
 object: container
 owner: '$userid'
 paths:
 - /.uuid/$cont_uuid
 - /mydropbox
+title: null
+categories: []
 backends:
   storage:
   - type: $storage_type
     backend-id: $storage_uuid
-title: null
-categories: []
-version: '1'
 cache:
   type: local
   backend_id: $cache_uuid
@@ -171,18 +171,18 @@ run wl c delete-cache cache-test
 
 expected="Sensitive fields are hidden.
 /home/user/.config/wildland/containers/cache-test.container.yaml
+version: '1'
 object: container
 owner: '$userid'
 paths:
 - /.uuid/$cont_uuid
 - /mydropbox
+title: null
+categories: []
 backends:
   storage:
   - type: $storage_type
-    backend-id: $storage_uuid
-title: null
-categories: []
-version: '1'"
+    backend-id: $storage_uuid"
 
 run wl c info cache-test
 
@@ -229,20 +229,20 @@ run wl c mount -c ':/mydirs/ariadne:/forests/pandora:*:'
 
 expected_pcre="Sensitive fields are hidden.
 
+version: '1'
 object: container
 owner: '0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe'
 paths:
 - /.uuid/24b3b45c-57e1-44ec-b66c-33d952c99c6a
 - /home/omeg
+title: null
+categories: \[\]
+access:
+- user: '\*'
 backends:
   storage:
   - type: delegate
     backend-id: 3f65e772-ec1e-419a-9d62-4d1b8c311589
-title: null
-categories: \[\]
-version: '1'
-access:
-- user: '\*'
 cache:
   type: local
   backend_id: $UUID_PCRE

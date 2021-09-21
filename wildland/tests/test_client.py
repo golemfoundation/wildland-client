@@ -75,7 +75,7 @@ def test_add_storage(client, owner):
 
     cont_data = cont_path.read_text()
     assert 'backend-id' in cont_data
-    assert 'type: local' in cont_data
+    assert 'object: storage' in cont_data
 
     # duplicate should not be re-added
     client.add_storage_to_container(container, storage)
