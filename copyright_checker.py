@@ -23,9 +23,15 @@
 """
 Custom checker extension for pylint. Checks if file has correctly formatted copyright
 header on the top of the file.
+
+Provides disable keywords which include:
+* copyright-violation = doesn't check for copyright notice at all
+* copyright-formatting = doesn't check if copyright is correctly formatted only if it exists
+* copyright-author-formatting = ignores if a list of authors is incorrectly formatted
 """
 
 import re
+from io import BufferedReader
 
 from pylint.interfaces import IRawChecker
 from pylint.checkers import BaseChecker
@@ -57,6 +63,13 @@ class CopyrightChecker(BaseChecker):
     priority = -1
 
     def process_module(self, node):
+        """
+        If node doesn't contain disable comment, check if file has correctly formatted copyright
+        notice.
+        """
+
+        # ignore __init__.py files, it cannot be implemented in .pylintrc file because disabling
+        # checks for that file doesn't work
         if re.search(r'__init__\.py$', node.file) is None:
             with node.stream() as file_stream, open('copyright_template', 'r') as template_stream:
                 file_index, template_index = 0, 0
@@ -67,6 +80,7 @@ class CopyrightChecker(BaseChecker):
                                        f'{self.COPYRIGHT_AUTHOR_FORMATTING})'
 
                 if re.match(pylint_disable_regex, file_line):
+                    # contains copyright disable comment, skip check
                     return
                 if file_line.strip() == '#!/usr/bin/env python3':
                     file_line = file_stream.readline().decode('utf-8')
@@ -92,10 +106,12 @@ class CopyrightChecker(BaseChecker):
                         args = file_line, template_line.strip()
                         if matched is None:
                             if template_index != 0:
+                                # copyright notice is incorrectly formatted
                                 self.add_message(self.COPYRIGHT_FORMATTING,
                                                  line=file_index,
                                                  args=args)
                             else:
+                                # file doesn't have copyright notice
                                 self.add_message(self.COPYRIGHT_VIOLATION, line=0)
                                 break
 
@@ -103,7 +119,15 @@ class CopyrightChecker(BaseChecker):
                     file_index += 1
                     template_index += 1
 
-    def check_authors(self, file_stream, template_lines, file_index, template_index):
+    def check_authors(self, file_stream: BufferedReader, template_lines: [str], file_index: int,
+                      template_index: int):
+        """
+        Check if 'authors' section of a copyright notice is correctly formatted.
+        """
+        print(type(file_stream))
+        print(type(template_lines))
+        print(type(file_index))
+        print(type(template_index))
         file_line = file_stream.readline().decode('utf-8')
         template_line = template_lines[template_index]
         while "#" != file_line.strip():
