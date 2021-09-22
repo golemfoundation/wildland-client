@@ -23,6 +23,7 @@ Storage templates management
 
 import types
 from typing import Optional, Sequence, Type
+import json
 from pathlib import PurePosixPath
 from typing import Optional, Sequence, Type, List, Dict
 import functools
@@ -30,8 +31,10 @@ import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
-from ..manifest.template import TemplateManager
+from ..manifest.schema import SchemaError, Schema
+from ..manifest.template import TemplateManager, StorageTemplate
 from ..exc import WildlandError
+from ..storage import Storage
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
@@ -106,7 +109,6 @@ def _do_create(
         default_cache: bool,
         access: Sequence[str],
         **data):
-
     obj: ContextObj = click.get_current_context().obj
 
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
@@ -220,11 +222,15 @@ def template_dump(obj: ContextObj, input_template: str):
         input_template (str): either path to template's file or its name
     """
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
-    template_file = _get_template_file(template_manager, input_template)
-    click.echo(yaml.dump(template_file))
+
+    try:
+        template_file = _get_template_content(template_manager, input_template)
+        click.echo(yaml.dump(template_file))
+    except FileNotFoundError as e:
+        click.echo(f'Could not find template: {input_template}')
 
 
-def _get_template_file(template_manager: TemplateManager, input_template: str) -> List[Dict]:
+def _get_template_content(template_manager: TemplateManager, input_template: str) -> List[Dict]:
     """
     Return contents of a storage template's .jinja file.
 
@@ -241,6 +247,76 @@ def _get_template_file(template_manager: TemplateManager, input_template: str) -
         return load_yaml(file)
 
 
+def _save_template_content(template_manager: TemplateManager,
+                           input_template: str,
+                           content: List[Dict]):
+    """
+    Saves content of a storage template's .jinja file. Assumes that the content to save
+    is correct.
+
+    Args:
+        template_manager (TemplateManager)
+        input_template (str): either path to template's file or its name
+        content (List[Dict]): content to be saved inside template's file
+    """
+    path = PurePosixPath(input_template)
+    if not template_manager.is_valid_template_file_path(path):
+        # provided template name
+        path = template_manager.get_file_path(input_template)
+
+    with open(path, 'w') as file:
+        yaml.dump(content, file)
+
+
+@click.command('edit', short_help='edit template in external tool')
+@click.option('--editor', metavar='EDITOR', help='custom editor')
+@click.argument('input_template', metavar='FILE OR NAME')
+@click.pass_obj
+def template_edit(obj: ContextObj, editor: Optional[str], input_template: str) -> bool:
+    """
+    Edit template's .jinja file in an external tool. After editing validate it.
+
+    Args:
+        obj (ContextObj)
+        editor (Optional[str]): editor to choose from to edit the file
+        input_template (str): either path to template's file or its name
+    Returns:
+        True if edited file was successfully validated.
+    """
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
+    try:
+        template_json = _get_template_content(template_manager, input_template)
+        data = yaml.dump(template_json, encoding='utf-8', sort_keys=False)
+        data = b'# All YAML comments will be discarded when the manifest is saved\n' + data
+        original_data = data
+
+        edited_file = click.edit(data.decode(), editor=editor, extension='.yaml',
+                                 require_save=False)
+        data = edited_file.encode()
+        edited_json: List[Dict] = load_yaml(edited_file)
+
+        if original_data == data:
+            click.echo('No changes detected, not saving.')
+            return False
+
+        for template_data in edited_json:
+            storage_type = template_data['type']
+            if True or not storage_type or not StorageBackend.is_type_supported(storage_type):
+                raise WildlandError(f'Unrecognized storage type: {storage_type}')
+            backend = StorageBackend.types()[storage_type]
+            backend.SCHEMA.validate(template_data)
+
+        _save_template_content(template_manager, input_template, edited_json)
+        return True
+    except FileNotFoundError as e:
+        click.secho(f'Could not find template: {input_template}', fg="red")
+    except SchemaError as e:
+        click.secho(f'Incorrectly formatted template: {e}', fg="red")
+    except Exception as e:
+        click.secho(f'Error occurred when editing template: {e}', fg="red")
+
+
 _add_create_commands(_create, create=True)
 _add_create_commands(_append, create=False)
 template.add_command(template_dump)
+template.add_command(template_edit)
