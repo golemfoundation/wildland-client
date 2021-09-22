@@ -301,7 +301,7 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str) -
 
         for template_data in edited_json:
             storage_type = template_data['type']
-            if True or not storage_type or not StorageBackend.is_type_supported(storage_type):
+            if not storage_type or not StorageBackend.is_type_supported(storage_type):
                 raise WildlandError(f'Unrecognized storage type: {storage_type}')
             backend = StorageBackend.types()[storage_type]
             backend.SCHEMA.validate(template_data)
