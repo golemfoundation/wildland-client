@@ -23,6 +23,8 @@ Storage templates management
 
 import types
 from typing import Optional, Sequence, Type
+from pathlib import PurePosixPath
+from typing import Optional, Sequence, Type, List, Dict
 import functools
 import click
 
@@ -33,6 +35,8 @@ from ..exc import WildlandError
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
+from ..utils import load_yaml
+import yaml
 from ..utils import format_command_options
 
 
@@ -204,5 +208,39 @@ def template_del(obj: ContextObj, name: str):
     click.echo(f'Deleted [{name}] storage template.')
 
 
+@template.command('dump', short_help='dump contents of a storage template')
+@click.argument('input_template', metavar='FILE OR NAME')
+@click.pass_obj
+def template_dump(obj: ContextObj, input_template: str):
+    """
+    Dump contents of a storage template's .jinja file.
+
+    Args:
+        obj (ContextObj)
+        input_template (str): either path to template's file or its name
+    """
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
+    template_file = _get_template_file(template_manager, input_template)
+    click.echo(yaml.dump(template_file))
+
+
+def _get_template_file(template_manager: TemplateManager, input_template: str) -> List[Dict]:
+    """
+    Return contents of a storage template's .jinja file.
+
+    Args:
+        template_manager (TemplateManager)
+        input_template (str): either path to template's file or its name
+    """
+    path = PurePosixPath(input_template)
+    if not template_manager.is_valid_template_file_path(path):
+        # provided template name
+        path = template_manager.get_file_path(input_template)
+
+    with open(path, 'r') as file:
+        return load_yaml(file)
+
+
 _add_create_commands(_create, create=True)
 _add_create_commands(_append, create=False)
+template.add_command(template_dump)
