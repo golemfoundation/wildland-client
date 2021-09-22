@@ -156,6 +156,13 @@ class Client:
     def get_local_users(self, reload: bool = False):
         """
         List of local users (loaded from the appropriate directory).
+
+        Loads local users and caches.
+        :@param reload: if False, load only new manifests and use the cache for the rest;
+        if True, reload cached manifests and load new ones but DO NOT reload broken manifests,
+        as we do not expect these manifests to fix themselves.
+        In short, if the manifest fails to load, do not try to reload it.
+        To reload the broken manifest, we need to use `clear_cache()` first.
         """
         local_users_cache: Dict[Path, Optional[Any]] = dict(
             self._find_paths_and_load_all(
@@ -166,6 +173,13 @@ class Client:
     def get_local_bridges(self, reload: bool = False):
         """
         List of local bridges (loaded from the appropriate directory).
+
+        Loads local bridges and caches.
+        :@param reload: if False, load only new manifests and use the cache for the rest;
+        if True, reload cached manifests and load new ones but DO NOT reload broken manifests,
+        as we do not expect these manifests to fix themselves.
+        In short, if the manifest fails to load, do not try to reload it.
+        To reload the broken manifest, we need to use `clear_cache()` first.
         """
         local_bridges_cache: Dict[Path, Optional[Any]] = dict(
             self._find_paths_and_load_all(
