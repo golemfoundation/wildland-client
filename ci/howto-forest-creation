@@ -38,7 +38,7 @@ Saved container /home/user/.config/wildland/containers/bob-forest-catalog.contai
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/bob-forest-catalog.container.yaml
 Saved: /home/user/.config/wildland/users/bob.user.yaml"
-run wl forest create bob demo-s3
+run wl forest create --owner bob demo-s3
 
 expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 ├── .manifests.yaml

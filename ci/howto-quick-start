@@ -65,8 +65,8 @@ expected="Available templates:
 run wl template ls
 
 # FIXME: easier with webdav in CI
-#run wl forest create yatima mydropbox
-run wl forest create yatima mywebdav
+#run wl forest create --owner yatima mydropbox
+run wl forest create --owner yatima mywebdav
 
 ### Creating a container
 
