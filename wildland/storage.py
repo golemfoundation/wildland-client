@@ -130,11 +130,13 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             raise ManifestError(f'Unrecognized storage type: {self.storage_type}')
         backend = StorageBackend.types()[self.storage_type]
         manifest.apply_schema(backend.SCHEMA)
-        if self.storage_type in ['local', 'local-cached', 'local-dir-cached']:
+
+        if self.client.is_local_storage(self.storage_type):
             location = manifest.fields['location']
             # warn user if location doesn't point to existing directory
             if not os.path.isdir(location):
-                logger.warn("Storage location \"%s\" doesn't point to existing directory", location)
+                logger.warning('Storage location "%s" does not point to existing directory',
+                               location)
 
     def promote_to_primary(self):
         """
