@@ -5107,7 +5107,7 @@ def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', '--owner', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     catalog_dirs = list(catalog_path.glob('*'))
@@ -5334,7 +5334,8 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
         '--login', 'foo-login',
         '--password', 'foo-password', 'forest-template')
 
-    wl_call(base_config_dir, 'forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-template')
+    wl_call(base_config_dir, 'forest', 'create', '--access', '*', '--owner', 'Alice',
+            'forest-template')
 
     shutil.copy(Path(f'{base_config_dir}/users/Alice.user.yaml'),
                 Path(f'{shared_user_manifests}/Alice.yaml'))
