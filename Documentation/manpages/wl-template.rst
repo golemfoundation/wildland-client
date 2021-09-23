@@ -14,6 +14,8 @@ Synopsis
 | :command:`wl template create <storage_type> [<storage_params>] NAME`
 | :command:`wl template add <storage_type> [<storage_params>] NAME`
 | :command:`wl template remove NAME`
+| :command:`wl template edit [--editor] PATH/NAME`
+| :command:`wl template dump PATH/NAME`
 
 Description
 ===========
@@ -505,3 +507,27 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/git.rsti
+
+.. program:: wl-template-edit
+.. _wl-template-edit:
+
+:command:`wl template edit PATH/NAME`
+----------------------------------------
+
+Edit template in an external tool. If you provide template name, command will find its location and
+open that file. You can also provide the path directly. After editing, command will validate edited
+file and if everything is fine it will be saved.
+
+.. option:: --editor <editor>
+
+   Use custom editor instead of the one configured with usual :envvar:`VISUAL`
+   or :envvar:`EDITOR` variables.
+
+.. program:: wl-template-dump
+.. _wl-template-dump:
+
+:command:`wl template dump PATH/NAME`
+----------------------------------------
+
+The command will output .jinja file's content. If you provide template name, command will find its
+location and open that file. You can also provide the path directly.

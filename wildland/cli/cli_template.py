@@ -25,16 +25,17 @@ import types
 from typing import Optional, Sequence, Type
 import json
 from pathlib import PurePosixPath
+from pathlib import Path
 from typing import Optional, Sequence, Type, List, Dict
 import functools
 import click
+import yaml
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
-from ..manifest.schema import SchemaError, Schema
-from ..manifest.template import TemplateManager, StorageTemplate
+from ..manifest.schema import SchemaError
+from ..manifest.template import TemplateManager
 from ..exc import WildlandError
-from ..storage import Storage
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
@@ -109,6 +110,7 @@ def _do_create(
         default_cache: bool,
         access: Sequence[str],
         **data):
+
     obj: ContextObj = click.get_current_context().obj
 
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
@@ -211,22 +213,18 @@ def template_del(obj: ContextObj, name: str):
 
 
 @template.command('dump', short_help='dump contents of a storage template')
-@click.argument('input_template', metavar='FILE OR NAME')
+@click.argument('input_template', metavar='PATH/NAME')
 @click.pass_obj
 def template_dump(obj: ContextObj, input_template: str):
     """
     Dump contents of a storage template's .jinja file.
-
-    Args:
-        obj (ContextObj)
-        input_template (str): either path to template's file or its name
     """
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
     try:
         template_file = _get_template_content(template_manager, input_template)
         click.echo(yaml.dump(template_file))
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         click.echo(f'Could not find template: {input_template}')
 
 
@@ -238,7 +236,7 @@ def _get_template_content(template_manager: TemplateManager, input_template: str
         template_manager (TemplateManager)
         input_template (str): either path to template's file or its name
     """
-    path = PurePosixPath(input_template)
+    path = Path(input_template)
     if not template_manager.is_valid_template_file_path(path):
         # provided template name
         path = template_manager.get_file_path(input_template)
@@ -259,7 +257,7 @@ def _save_template_content(template_manager: TemplateManager,
         input_template (str): either path to template's file or its name
         content (List[Dict]): content to be saved inside template's file
     """
-    path = PurePosixPath(input_template)
+    path = Path(input_template)
     if not template_manager.is_valid_template_file_path(path):
         # provided template name
         path = template_manager.get_file_path(input_template)
@@ -268,20 +266,13 @@ def _save_template_content(template_manager: TemplateManager,
         yaml.dump(content, file)
 
 
-@click.command('edit', short_help='edit template in external tool')
+@click.command('edit', short_help='edit template in an external tool')
 @click.option('--editor', metavar='EDITOR', help='custom editor')
-@click.argument('input_template', metavar='FILE OR NAME')
+@click.argument('input_template', metavar='PATH/NAME')
 @click.pass_obj
-def template_edit(obj: ContextObj, editor: Optional[str], input_template: str) -> bool:
+def template_edit(obj: ContextObj, editor: Optional[str], input_template: str):
     """
-    Edit template's .jinja file in an external tool. After editing validate it.
-
-    Args:
-        obj (ContextObj)
-        editor (Optional[str]): editor to choose from to edit the file
-        input_template (str): either path to template's file or its name
-    Returns:
-        True if edited file was successfully validated.
+    Edit template's .jinja file in an external tool. After editing, validate it.
     """
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     try:
@@ -292,12 +283,13 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str) -
 
         edited_file = click.edit(data.decode(), editor=editor, extension='.yaml',
                                  require_save=False)
+        assert edited_file
         data = edited_file.encode()
         edited_json: List[Dict] = load_yaml(edited_file)
 
         if original_data == data:
             click.echo('No changes detected, not saving.')
-            return False
+            return
 
         for template_data in edited_json:
             storage_type = template_data['type']
@@ -307,8 +299,7 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str) -
             backend.SCHEMA.validate(template_data)
 
         _save_template_content(template_manager, input_template, edited_json)
-        return True
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         click.secho(f'Could not find template: {input_template}', fg="red")
     except SchemaError as e:
         click.secho(f'Incorrectly formatted template: {e}', fg="red")
