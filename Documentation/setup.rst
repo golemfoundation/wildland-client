@@ -38,12 +38,10 @@ Install Python packages
    pip install -r requirements.dev.txt
    pip install -e . plugins/*
 
-(You can also run ``make`` to keep the packages up to date).
-
-Or, the quick-and-dirty way, without virtualenv::
-
-   pip3 install --user -r requirements.dev.txt
-   pip3 install --user -e . plugins/*
+You can also run ``make`` to keep the packages up to date. This tip
+applies to both host and docker environments. The Makefile will 
+automatically detect whether you're using one of the Docker images
+from ``docker/`` directory and execute appropiate commands.
 
 
 Run tests
@@ -76,18 +74,35 @@ Usage:
 .. code-block:: sh
 
     cd docker
-    docker-compose build
-    docker-compose run wildland-client
+    docker-compose build wildland-client-base wildland-client
+    docker-compose run --service-ports wildland-client
 
 To create and mount the example containers, run ``wl-example``. wildland-client
 is mounted in ``/home/user/wildland`` and the log is in ``/tmp/wlfuse.log``.
+
+The python packages will be reinstalled as a part of an entrypoint. You can still
+re-install them manually by running ``make`` without having to terminate the docker 
+container.
 
 Running tests:
 
 .. code-block:: sh
 
-    cd ci
-    docker-compose build
+    cd docker
+    docker-compose build wildland-client-base wildland-client-ci
     docker-compose run wildland-client-ci ./ci/ci-pytest
+    docker-compose run wildland-client-ci ./ci/ci-lint
+    docker-compose run wildland-client-ci ./ci/ci-docs
+    # etc...
 
-(or ``./ci/ci-lint``, ``./ci/ci-docs``)
+Note that the source code is bundled in the ``wildland-client-base``. Because 
+of that every time you make changes in the source code, before running tests
+locally, you should re-build the image. This may be a time consuming process so
+what you can do instead is map the project's directory as a volume to override
+the bundled code. Use docker-compose's override feature to do that.
+
+.. code-block:: sh
+
+    mkdir artifacts # ensure this directory is writable
+    cd docker
+    docker-compose -f docker-compose.yml -f docker-compose.local.yml run wildland-client-ci ./ci/ci-pytest

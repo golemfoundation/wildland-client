@@ -1,0 +1,18 @@
+version: '3'
+
+#############################################
+# This file is for development purposes only
+#
+# If you're intending to use Wildland as an
+# end user, use docker-compose.yaml in the
+# project's root directory instead.
+############################################
+
+services:
+  wildland-client-ci:
+    # By using the project's directory as a volume you don't have to rebuild
+    # wildland-client-ci image after each change, allowing you to run CI
+    # tests locally much more convieniently.
+    volumes:
+      - ..:/home/user/wildland-client:ro
+      - ../artifacts:/home/user/wildland-client/artifacts:rw

@@ -1,5 +1,8 @@
 FROM debian:bullseye-slim
 
+# Maintainers:
+#   Michal Kluczek <michal@wildland.io>
+
 ARG DEBIAN_FRONTEND=noninteractive
 ENV WL_ENV=base
 
