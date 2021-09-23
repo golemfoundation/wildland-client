@@ -105,4 +105,5 @@ the bundled code. Use docker-compose's override feature to do that.
 
     mkdir artifacts # ensure this directory is writable
     cd docker
+    docker-compose build wildland-client-base wildland-client-ci
     docker-compose -f docker-compose.yml -f docker-compose.local.yml run wildland-client-ci ./ci/ci-pytest
