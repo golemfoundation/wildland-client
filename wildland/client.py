@@ -254,6 +254,16 @@ class Client:
         for event in self._sync_client.iter_events():
             yield SyncEvent.fromJSON(str(event))
 
+    def get_sync_job_state(self, job_id: str) -> Optional[Tuple[SyncState, str]]:
+        """
+        Return state of a sync job or None if the job doesn't exist.
+        Returned tuple contains SyncState and a human-readable description.
+        """
+        state = self.run_sync_command('job-state', job_id=job_id)
+        if state:
+            return SyncState(state[0]), state[1]
+        return None
+
     def stop_sync(self, job_id: str) -> str:
         """
         Stop a sync job by job ID.

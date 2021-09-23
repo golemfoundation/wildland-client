@@ -354,8 +354,8 @@ class SyncDaemon:
 
         return ret
 
-    @control_command('state')
-    def control_state(self, _handler, job_id: str) -> Optional[Tuple[int, str]]:
+    @control_command('job-state')
+    def control_job_state(self, _handler, job_id: str) -> Optional[Tuple[int, str]]:
         """
         Return status of a syncer for the given job.
         """

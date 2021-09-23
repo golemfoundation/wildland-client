@@ -609,7 +609,7 @@ def _cache_sync(client: Client, container: Container, storages: List[Storage], v
             click.echo(f'Using cache at: {primary.params["location"]}')
         src = storages[1]  # [1] is the non-cache (old primary)
         cname = wl_path_for_container(client, container, user_paths)
-        state = client.run_sync_command('state', job_id=container.sync_id)
+        state = client.get_sync_job_state(container.sync_id)
         if not state:  # sync not running for this container
             # start bidirectional sync (this also performs an initial one-shot sync)
             # this happens in the background, user can see sync status/progress using `wl sync`

@@ -50,7 +50,7 @@
             "type": "object",
             "additionalProperties": false
         },
-        "state": {
+        "job-state": {
             "description": "Return state of a sync job",
             "type": "object",
             "required": ["job-id"],

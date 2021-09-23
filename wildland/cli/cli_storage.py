@@ -252,7 +252,7 @@ def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container
     container_failed_to_sync = []
     for container_obj, _ in used_by:
         if len(obj.client.get_all_storages(container_obj)) > 1 and not force:
-            status = obj.client.run_sync_command('state', job_id=container_obj.sync_id)
+            status = obj.client.get_sync_job_state(container_obj.sync_id)
             if status is None:
                 container_to_sync.append(container_obj)
             elif status[0] != SyncState.SYNCED:
