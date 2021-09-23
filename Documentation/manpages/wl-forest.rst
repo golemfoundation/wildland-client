@@ -8,7 +8,7 @@
 Synopsis
 ========
 
-| :command:`wl forest create [<storage-template>]`
+| :command:`wl forest create [--owner <user>] <storage-template>`
 | :command:`wl forest mount []`
 | :command:`wl forest unmount []`
 
@@ -49,7 +49,7 @@ After the container is created, the following steps take place:
    Allow an additional user access to containers created using this command. By default,
    those the containers are unencrypted unless at least one USER is passed using this option.
 
-.. option:: --owner USER
+.. option:: --owner USER, --user USER
 
    Name of the user who owns the Forest. Default: `@default-owner`
 
