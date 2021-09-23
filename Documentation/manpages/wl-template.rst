@@ -13,7 +13,7 @@ Synopsis
 | :command:`wl template list [--show-filenames]`
 | :command:`wl template create <storage_type> [<storage_params>] NAME`
 | :command:`wl template add <storage_type> [<storage_params>] NAME`
-| :command:`wl template remove NAME`
+| :command:`wl template remove NAME [NAME ...]`
 | :command:`wl template edit [--editor] PATH/NAME`
 | :command:`wl template dump PATH/NAME`
 
@@ -88,8 +88,8 @@ Display known storage templates.
 .. program:: wl-template-remove
 .. _wl-template-remove:
 
-:command:`wl template remove NAME`
-------------------------------------------
+:command:`wl template remove NAME [NAME ...]`
+---------------------------------------------
 
 Delete a storage template from local filesystem.
 
@@ -529,5 +529,5 @@ file and if everything is fine it will be saved.
 :command:`wl template dump PATH/NAME`
 ----------------------------------------
 
-The command will output .jinja file's content. If you provide template name, command will find its
+The command will output a template file's contents. If you provide template name, command will find its
 location and open that file. You can also provide the path directly.

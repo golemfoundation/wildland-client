@@ -25,7 +25,7 @@ Templates for manifests.
 
 import re
 import uuid
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -298,3 +298,35 @@ class TemplateManager:
             raise FileNotFoundError
 
         target_path.unlink()
+
+    def get_template_content(self, input_template: str) -> List[Dict]:
+        """
+        Return contents of a storage template's .jinja file.
+
+        Args:
+            input_template (str): either path to template's file or its name
+        """
+        path = Path(input_template)
+        if not self.is_valid_template_file_path(path):
+            # provided template name
+            path = self.get_file_path(input_template)
+
+        with open(path, 'r') as file:
+            return load_yaml(file)
+
+    def save_template_content(self, input_template: str, content: List[Dict]):
+        """
+        Saves content of a storage template's .jinja file. Assumes that the content to save
+        is correct.
+
+        Args:
+            input_template (str): either path to template's file or its name
+            content (List[Dict]): content to be saved inside template's file
+        """
+        path = Path(input_template)
+        if not self.is_valid_template_file_path(path):
+            # provided template name
+            path = self.get_file_path(input_template)
+
+        with open(path, 'w') as file:
+            yaml.dump(content, file)

@@ -10,7 +10,7 @@ Synopsis
 
 | :command:`wl {container|containers} list`
 | :command:`wl container info NAME`
-| :command:`wl container delete [--force] [--cascade] NAME`
+| :command:`wl container delete [--force] [--cascade] NAME [NAME ...]`
 | :command:`wl container create [--owner <user>] --path <path> [--path <path2> ...] [--storage-template <storage_template>]`
 | :command:`wl container create-cache --template <template_name> <container>`
 | :command:`wl container delete-cache <container>`
@@ -55,8 +55,8 @@ Display a short summary of a single container. The information is equivalent to
 .. program:: wl-container-delete
 .. _wl-container-delete:
 
-:command:`wl container delete [--force] [--cascade] [--no-unpublish] NAME`
---------------------------------------------------------------------------
+:command:`wl container delete [--force] [--cascade] [--no-unpublish] NAME [NAME ...]`
+----------------------------------------------------------------------------------------
 
 Delete a container from local filesystem and unpublish it, if published.
 

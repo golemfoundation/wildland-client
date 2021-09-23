@@ -180,12 +180,20 @@ def list_(obj: ContextObj):
               help='remove all containers and storage as well')
 @click.option('--delete-keys', is_flag=True,
               help='also remove user keys')
-@click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name, force, cascade, delete_keys):
+@click.argument('names', metavar='NAME', nargs=-1)
+def delete(obj: ContextObj, names, force, cascade, delete_keys):
     """
     Delete a user.
     """
 
+    for name in names:
+        try:
+            _delete(obj, name, force, cascade, delete_keys)
+        except Exception as e:
+            click.secho(f'Error while deleting user {name}: {e}', fg="red")
+
+
+def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys: bool):
     user = obj.client.load_object_from_name(WildlandObject.Type.USER, name)
 
     if not user.local_path:
@@ -231,8 +239,8 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
 
         if possible_owners != [user.owner] and not force:
             click.echo('Key used by other users as secondary key and will not be deleted. '
-                       'Key should be removed manually. In the future you can use --force to force '
-                       'key deletion.')
+                       'Key should be removed manually. In the future you can use --force to '
+                       'force key deletion.')
         else:
             click.echo(f'Removing key {user.owner}')
             obj.session.sig.remove_key(user.owner)

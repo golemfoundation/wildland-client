@@ -227,8 +227,8 @@ def test_user_delete(cli, base_dir):
     container_path = base_dir / 'containers/Container.container.yaml'
     assert container_path.exists()
 
-    with pytest.raises(CliError, match='User still has manifests'):
-        cli('user', 'delete', 'User')
+    output = wl_call_output(base_dir, 'user', 'delete', 'User')
+    assert b'User still has manifests' in output
 
     cli('user', 'delete', '--force', 'User')
     assert not user_path.exists()
@@ -577,8 +577,8 @@ def test_storage_delete(cli, base_dir):
     storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
-    with pytest.raises(CliError, match='Storage is still used'):
-        cli('storage', 'delete', '--no-cascade', 'Storage')
+    output = wl_call_output(base_dir, 'storage', 'delete', '--no-cascade', 'Storage')
+    assert b'Storage is still used' in output
 
     cli('storage', 'delete', 'Storage')
 
@@ -594,8 +594,8 @@ def test_storage_delete_force(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         base_data = f.read().split('\n', 4)[-1]
 
-    with pytest.raises(CliError, match='Storage is still used'):
-        cli('storage', 'delete', '--no-cascade', 'Storage')
+    output = wl_call_output(base_dir, 'storage', 'delete', '--no-cascade', 'Storage')
+    assert b'Storage is still used' in output
 
     cli('storage', 'delete', '--no-cascade', '--force', 'Storage')
 
@@ -616,8 +616,8 @@ def test_storage_delete_force_broken_manifest(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         base_data = f.read().split('\n', 4)[-1]
 
-    with pytest.raises(ManifestError):
-        cli('storage', 'delete', 'Storage')
+    output = wl_call_output(base_dir, 'storage', 'delete', 'Storage')
+    assert b'Failed to load manifest' in output
 
     cli('storage', 'delete', '--force', 'Storage')
 
@@ -636,8 +636,8 @@ def test_storage_delete_inline(cli, base_dir):
         documents = list(yaml_parser.load_all(f))
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
-    with pytest.raises(CliError, match='Inline storage cannot be deleted'):
-        cli('storage', 'delete', '--no-cascade', str(backend_id))
+    output = wl_call_output(base_dir, 'storage', 'delete', '--no-cascade', str(backend_id))
+    assert b'Inline storage cannot be deleted' in output
 
     cli('storage', 'delete', str(backend_id))
 
@@ -669,8 +669,9 @@ def test_storage_delete_inline_multiple_containers(cli, base_dir):
         f.write('signature: |\n  dummy.0xaaa\n---\n')
         f.write(yaml_parser.safe_dump(documents[1]))
 
-    with pytest.raises(CliError, match='(...)(please specify container name with --container)'):
-        cli('storage', 'delete', str(backend_id))
+    output = wl_call_output(base_dir, 'storage', 'delete', str(backend_id))
+    assert b'Error while deleting storage' in output
+    assert b'(please specify container name with --container)' in output
 
     cli('storage', 'delete', str(backend_id), '--container', 'Container0')
 
@@ -1839,8 +1840,8 @@ def test_container_delete(cli, base_dir):
     storage_path = base_dir / 'storage/Storage.storage.yaml'
     assert storage_path.exists()
 
-    with pytest.raises(CliError, match='Container refers to local manifests'):
-        cli('container', 'delete', 'Container')
+    output = wl_call_output(base_dir, 'container', 'delete', 'Container')
+    assert output.startswith(b'Container refers to a local manifest')
 
     # Should not complain if the storage manifest does not exist
     storage_path.unlink()
@@ -1950,8 +1951,11 @@ def test_container_delete_multiple(cli, base_dir):
     storage_path2 = base_dir / 'storage/Storage2.storage.yaml'
     assert storage_path2.exists()
 
-    with pytest.raises(CliError, match='Container refers to local manifests'):
-        cli('container', 'delete', 'Container1', 'Container2')
+    output = wl_call_output(base_dir, 'container', 'delete', 'Container1', 'Container2')
+    output_lines = output.rstrip().split(b'\n')
+    assert len(output_lines) == 4
+    assert output_lines[0].startswith(b'Container refers to a local manifest')
+    assert output_lines[2].startswith(b'Container refers to a local manifest')
 
     # Should not complain if the storage manifest does not exist
     storage_path1.unlink()
@@ -4236,9 +4240,9 @@ def test_cli_remove_storage_template(cli, base_dir):
     assert not Path(base_dir / 'templates/t1.template.jinja').exists()
 
 
-def test_cli_remove_nonexisting_storage_template(cli):
-    with pytest.raises(CliError, match='does not exist'):
-        cli('template', 'remove', 't1')
+def test_cli_remove_nonexisting_storage_template(cli, base_dir):
+    output = wl_call_output(base_dir, 'template', 'remove', 't1')
+    assert b'does not exist' in output
 
 
 def test_appending_to_existing_storage_template(cli, base_dir):

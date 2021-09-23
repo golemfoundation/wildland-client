@@ -219,12 +219,19 @@ def list_(obj: ContextObj):
               help='remove reference from containers')
 @click.option('--container', metavar='CONTAINER',
               help='remove reference from specific containers')
-@click.argument('name', metavar='NAME')
-def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container: Optional[str]):
+@click.argument('names', metavar='NAME', nargs=-1)
+def delete(obj: ContextObj, names, force: bool, no_cascade: bool, container: Optional[str]):
     """
     Delete a storage.
     """
+    for name in names:
+        try:
+            _delete(obj, name, force, no_cascade, container)
+        except Exception as e:
+            click.secho(f'Error while deleting storage {name}: {e}', fg="red")
 
+
+def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container: Optional[str]):
     try:
         local_path, used_by = _get_local_path_and_find_usage(obj.client, name)
     except ManifestError as ex:
@@ -259,7 +266,7 @@ def delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container:
                 pass
             if not target:
                 try:
-                    target = obj.client.get_local_storage(c,  excluded_storage=name)
+                    target = obj.client.get_local_storage(c, excluded_storage=name)
                 except WildlandError:
                     # pylint: disable=raise-missing-from
                     raise WildlandError("Cannot find storage to sync data into.")

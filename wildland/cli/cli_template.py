@@ -29,7 +29,6 @@ from pathlib import Path
 from typing import Optional, Sequence, Type, List, Dict
 import functools
 import click
-import yaml
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
@@ -194,22 +193,23 @@ def template_list(obj: ContextObj, show_filenames: bool):
 
 
 @template.command('remove', short_help='remove storage template', alias=['rm', 'delete'])
-@click.argument('name', required=True)
+@click.argument('names', metavar='NAME', nargs=-1, required=True)
 @click.pass_obj
-def template_del(obj: ContextObj, name: str):
+def template_del(obj: ContextObj, names):
     """
     Remove a storage template set.
     """
 
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
-    try:
-        template_manager.remove_storage_template(name)
-    except FileNotFoundError as fnf:
-        raise CliError(f'Template [{name}] does not exist.') from fnf
-    except WildlandError as ex:
-        raise CliError(f'Failed to delete template: {ex}') from ex
 
-    click.echo(f'Deleted [{name}] storage template.')
+    for name in names:
+        try:
+            template_manager.remove_storage_template(name)
+            click.echo(f'Deleted [{name}] storage template.')
+        except FileNotFoundError:
+            click.secho(f'Template [{name}] does not exist.', fg="red")
+        except WildlandError as ex:
+            click.secho(f'Failed to delete template: {ex}', fg="red")
 
 
 @template.command('dump', short_help='dump contents of a storage template')
@@ -228,44 +228,6 @@ def template_dump(obj: ContextObj, input_template: str):
         click.echo(f'Could not find template: {input_template}')
 
 
-def _get_template_content(template_manager: TemplateManager, input_template: str) -> List[Dict]:
-    """
-    Return contents of a storage template's .jinja file.
-
-    Args:
-        template_manager (TemplateManager)
-        input_template (str): either path to template's file or its name
-    """
-    path = Path(input_template)
-    if not template_manager.is_valid_template_file_path(path):
-        # provided template name
-        path = template_manager.get_file_path(input_template)
-
-    with open(path, 'r') as file:
-        return load_yaml(file)
-
-
-def _save_template_content(template_manager: TemplateManager,
-                           input_template: str,
-                           content: List[Dict]):
-    """
-    Saves content of a storage template's .jinja file. Assumes that the content to save
-    is correct.
-
-    Args:
-        template_manager (TemplateManager)
-        input_template (str): either path to template's file or its name
-        content (List[Dict]): content to be saved inside template's file
-    """
-    path = Path(input_template)
-    if not template_manager.is_valid_template_file_path(path):
-        # provided template name
-        path = template_manager.get_file_path(input_template)
-
-    with open(path, 'w') as file:
-        yaml.dump(content, file)
-
-
 @click.command('edit', short_help='edit template in an external tool')
 @click.option('--editor', metavar='EDITOR', help='custom editor')
 @click.argument('input_template', metavar='PATH/NAME')
@@ -276,7 +238,7 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str):
     """
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     try:
-        template_json = _get_template_content(template_manager, input_template)
+        template_json = template_manager.get_template_content(input_template)
         data = yaml.dump(template_json, encoding='utf-8', sort_keys=False)
         data = b'# All YAML comments will be discarded when the manifest is saved\n' + data
         original_data = data
@@ -298,7 +260,7 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str):
             backend = StorageBackend.types()[storage_type]
             backend.SCHEMA.validate(template_data)
 
-        _save_template_content(template_manager, input_template, edited_json)
+        template_manager.save_template_content(input_template, edited_json)
     except FileNotFoundError:
         click.secho(f'Could not find template: {input_template}', fg="red")
     except SchemaError as e:
