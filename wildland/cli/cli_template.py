@@ -193,7 +193,7 @@ def template_list(obj: ContextObj, show_filenames: bool):
                 click.echo(f"    {tpl}")
 
 
-@template.command('remove', short_help='remove storage template', alias=['rm', 'd'])
+@template.command('remove', short_help='remove storage template', alias=['rm', 'delete'])
 @click.argument('name', required=True)
 @click.pass_obj
 def template_del(obj: ContextObj, name: str):

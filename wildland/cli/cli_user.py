@@ -172,7 +172,7 @@ def list_(obj: ContextObj):
         click.echo()
 
 
-@user_.command('delete', short_help='delete a user', alias=['rm'])
+@user_.command('delete', short_help='delete a user', alias=['rm', 'remove'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
               help='delete even if still has containers/storage')

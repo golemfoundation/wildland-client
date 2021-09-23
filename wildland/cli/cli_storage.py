@@ -210,7 +210,7 @@ def list_(obj: ContextObj):
             click.echo(backend)
 
 
-@storage_.command('delete', short_help='delete a storage', alias=['rm'])
+@storage_.command('delete', short_help='delete a storage', alias=['rm', 'remove'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
               help='delete even if used by containers or if manifest cannot be loaded;'

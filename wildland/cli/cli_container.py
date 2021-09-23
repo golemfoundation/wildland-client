@@ -359,7 +359,7 @@ def info(obj: ContextObj, name):
     _container_info(obj.client, container, users_and_bridge_paths)
 
 
-@container_.command('delete', short_help='delete a container', alias=['rm'])
+@container_.command('delete', short_help='delete a container', alias=['rm', 'remove'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
               help='delete even when using local storage manifests; ignore errors on parse')
