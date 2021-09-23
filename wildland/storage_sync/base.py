@@ -95,6 +95,7 @@ class SyncEvent(metaclass=abc.ABCMeta):
     """
     type: str
     value: str
+    job_id: Optional[str]
 
     @staticmethod
     def fromJSON(s: str) -> 'SyncEvent':
@@ -112,6 +113,9 @@ class SyncEvent(metaclass=abc.ABCMeta):
         else:
             raise WildlandError('Invalid sync event type')
 
+        if 'job_id' in obj.keys():
+            event.job_id = obj['job_id']
+
         return event
 
     def toJSON(self) -> str:
@@ -120,9 +124,15 @@ class SyncEvent(metaclass=abc.ABCMeta):
         """
         # can't use json.dumps(self.__dict__) because that misses fields not initialized
         # in __init__
+        if self.job_id:
+            return f'{{"type" : "{self.type}", "value": "{self.value}", "job_id": "{self.job_id}"}}'
+
         return f'{{"type" : "{self.type}", "value": "{self.value}"}}'
 
     def __repr__(self):
+        if self.job_id:
+            return f"<{self.type}: {self.value}> ({self.job_id})"
+
         return f"<{self.type}: {self.value}>"
 
     def __str__(self):
@@ -132,10 +142,13 @@ class SyncEvent(metaclass=abc.ABCMeta):
         if not issubclass(type(other), SyncEvent):
             return False
 
-        if not self.type == other.type:
+        if self.type != other.type:
             return False
 
-        if not self.value == other.value:
+        if self.value != other.value:
+            return False
+
+        if self.job_id and self.job_id != other.job_id:
             return False
 
         return True
@@ -156,9 +169,10 @@ class SyncStateEvent(SyncEvent):
         assert obj['type'] == SyncStateEvent.type
         return SyncStateEvent(SyncState[obj['value']])
 
-    def __init__(self, state: SyncState):
+    def __init__(self, state: SyncState, job_id: Optional[str] = None):
         self.state = state
         self.value = str(self.state.name)
+        self.job_id = job_id
 
 
 class SyncConflictEvent(SyncEvent):
@@ -176,8 +190,9 @@ class SyncConflictEvent(SyncEvent):
         assert obj['type'] == SyncConflictEvent.type
         return SyncConflictEvent(obj['value'])
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, job_id: Optional[str] = None):
         self.value = message
+        self.job_id = job_id
 
 
 class SyncErrorEvent(SyncEvent):
@@ -195,8 +210,9 @@ class SyncErrorEvent(SyncEvent):
         assert obj['type'] == SyncErrorEvent.type
         return SyncErrorEvent(obj['value'])
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, job_id: Optional[str] = None):
         self.value = message
+        self.job_id = job_id
 
 
 class BaseSyncer(metaclass=abc.ABCMeta):

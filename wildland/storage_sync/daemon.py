@@ -144,6 +144,8 @@ class SyncJob:
         """
         Callback for syncer events. Runs in the worker subprocess.
         """
+        if not event.job_id:
+            event.job_id = self.job_id
         self.event_queue.put([self.job_id, event])
 
     def _worker(self):
