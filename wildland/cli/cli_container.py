@@ -864,7 +864,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         for container in reordered:
             if cache_template:
                 _create_cache(client, container, cache_template, list_all)
-        client.load_caches()
+        client.load_local_storage_cache()
 
         counter = get_counter(f"Preparing mount of container references (from '{container_name}')")
         for container in counter(reordered):

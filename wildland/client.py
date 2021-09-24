@@ -142,15 +142,60 @@ class Client:
 
         self.users: Dict[str, User] = {}
         self.bridges: Set[Bridge] = set()
+
+        self._local_users_cache: Dict[Path, Optional[Any]] = {}
+        self._local_bridges_cache: Dict[Path, Optional[Any]] = {}
         self._select_reference_storage_cache: Dict[Tuple[str, str, bool],
                                                    Optional[Tuple[PurePosixPath, Dict]]] = {}
 
         if load:
             self.recognize_users_and_bridges()
             self.caches: List[Storage] = []
-            self.load_caches()
+            self.load_local_storage_cache()
 
-    def load_caches(self):
+    def get_local_users(self, reload: bool = False):
+        """
+        List of local users (loaded from the appropriate directory).
+
+        Loads local users and caches.
+        :@param reload: if False, load only new manifests and use the cache for the rest;
+        if True, reload cached manifests and load new ones but DO NOT reload broken manifests,
+        as we do not expect these manifests to fix themselves.
+        In short, if the manifest fails to load, do not try to reload it.
+        To reload the broken manifest, we need to use `clear_cache()` first.
+        """
+        local_users_cache: Dict[Path, Optional[Any]] = dict(
+            self._find_paths_and_load_all(
+                WildlandObject.Type.USER, cached=self._local_users_cache, reload_cached=reload))
+        self._local_users_cache = local_users_cache
+        return [obj for obj in self._local_users_cache.values() if obj is not None]
+
+    def get_local_bridges(self, reload: bool = False):
+        """
+        List of local bridges (loaded from the appropriate directory).
+
+        Loads local bridges and caches.
+        :@param reload: if False, load only new manifests and use the cache for the rest;
+        if True, reload cached manifests and load new ones but DO NOT reload broken manifests,
+        as we do not expect these manifests to fix themselves.
+        In short, if the manifest fails to load, do not try to reload it.
+        To reload the broken manifest, we need to use `clear_cache()` first.
+        """
+        local_bridges_cache: Dict[Path, Optional[Any]] = dict(
+            self._find_paths_and_load_all(
+                WildlandObject.Type.BRIDGE, cached=self._local_bridges_cache, reload_cached=reload))
+        self._local_bridges_cache = local_bridges_cache
+        return [obj for obj in self._local_bridges_cache.values() if obj is not None]
+
+    def clear_cache(self):
+        """
+        Clear cache: users, bridges and reference storages.
+        """
+        self._local_users_cache.clear()
+        self._local_bridges_cache.clear()
+        self._select_reference_storage_cache.clear()
+
+    def load_local_storage_cache(self):
         """
         Load local cache storages from manifests to memory for fast access.
         """
@@ -218,10 +263,10 @@ class Client:
             user.add_user_keys(self.session.sig)
 
         # duplicated to decrypt manifests catalog correctly
-        for user in users or self.load_all(WildlandObject.Type.USER):
+        for user in users or self.get_local_users(reload=True):
             self.users[user.owner] = user
 
-        for bridge in bridges or self.load_all(WildlandObject.Type.BRIDGE):
+        for bridge in bridges or self.get_local_bridges(reload=True):
             self.bridges.add(bridge)
 
     def find_local_manifest(self, object_type: Union[WildlandObject.Type, None],
@@ -250,7 +295,7 @@ class Client:
                 return self.users[name].local_path
 
             if name.startswith('0x'):
-                for user in self.load_all(WildlandObject.Type.USER):
+                for user in self.get_local_users():
                     if user.owner == name:
                         return user.local_path
 
@@ -611,6 +656,20 @@ class Client:
         """
         Load object manifests from the appropriate directory.
         """
+        for _, obj in self._find_paths_and_load_all(object_type, decrypt, base_dir, quiet):
+            if obj is not None:
+                yield obj
+
+    def _find_paths_and_load_all(self,
+                                 object_type: WildlandObject.Type,
+                                 decrypt: bool = True,
+                                 base_dir: Path = None,
+                                 quiet: bool = False,
+                                 reload_cached: bool = False,
+                                 cached: Optional[Dict[Path, Optional[WildlandObject]]] = None):
+        """
+        Load and return object manifests with corresponding path from the appropriate directory.
+        """
         if object_type == WildlandObject.Type.USER:
             # Copy sig context and make a new client to avoid propagating recognize_local_keys
             # where it could be dangerous
@@ -623,14 +682,18 @@ class Client:
         base_dir = base_dir or self.dirs[object_type]
         if base_dir.exists():
             for path in sorted(base_dir.glob('*.yaml')):
+                if cached and path in cached and (not reload_cached or cached[path] is None):
+                    yield path, cached[path]
+                    continue
                 try:
                     obj_ = client.load_object_from_file_path(object_type, path, decrypt=decrypt)
                 except WildlandError as e:
                     if not quiet:
                         logger.warning('error loading %s manifest: %s: %s',
                                        object_type.value, path, e)
+                    yield path, None
                 else:
-                    yield obj_
+                    yield path, obj_
 
     def load_users_with_bridge_paths(self, only_default_user: bool = False) -> \
             Iterable[Tuple[User, Optional[List[PurePosixPath]]]]:
@@ -640,14 +703,14 @@ class Client:
         bridge_paths: Dict[str, List[PurePosixPath]] = {}
         default_user = self.config.get('@default')
 
-        for bridge in self.load_all(WildlandObject.Type.BRIDGE):
+        for bridge in self.get_local_bridges():
             if only_default_user and bridge.owner != default_user:
                 continue
             if bridge.user_id not in bridge_paths:
                 bridge_paths[bridge.user_id] = []
             bridge_paths[bridge.user_id].extend(bridge.paths)
 
-        for user in self.load_all(WildlandObject.Type.USER):
+        for user in self.get_local_users():
             yield user, bridge_paths.get(user.owner)
 
     def _generate_bridge_paths_recursive(self, path_prefix: List[PurePosixPath],
