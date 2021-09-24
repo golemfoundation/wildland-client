@@ -112,11 +112,13 @@ class PseudomanifestFile(FullBufferedFile):
                 '\n# ' + error_messages.replace('\n', '\n# ') + \
                 '\n'
             self.message[:] = message.encode()
-            self.data[:] = self.original_data + message.encode()
+            self.data[:] = self.original_data + self.message
+            self.attr.size = len(self.data)
             raise IOError()
 
         # nothing has changed, keep a error message
         self.data[:] = self.original_data + self.message
+        self.attr.size = len(self.data)
 
         return len(data)
 
@@ -175,7 +177,8 @@ class PseudomanifestStorageBackend(StorageBackend):
         data = params['content']
         if isinstance(data, str):
             data = data.encode()
-        self.data = bytearray(data)
+        header = b'# All YAML comments will be discarded when the manifest is saved\n'
+        self.data = bytearray(header + data)
         self.original_data = self.data.copy()
         self.error_message = bytearray(b"")
 
@@ -195,7 +198,12 @@ class PseudomanifestStorageBackend(StorageBackend):
         """
         self.attr.size = len(self.data)
         file = PseudomanifestFile(
-            self.base_dir, self.data, self.original_data, self.error_message, self.attr)
+            self.base_dir,
+            self.data,
+            self.original_data,
+            self.error_message,
+            self.attr
+        )
         return file
 
     def getattr(self, path: PurePosixPath) -> Attr:
