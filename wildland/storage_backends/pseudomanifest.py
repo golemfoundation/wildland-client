@@ -18,7 +18,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """Pseudomanifest storage, handles .manifest.wildland.yaml files"""
-
 import stat
 from itertools import chain
 from pathlib import PurePosixPath
@@ -40,11 +39,17 @@ class PseudomanifestFile(FullBufferedFile):
     """
 
     def __init__(
-            self, base_dir: Optional[str], data: bytearray, original_data: bytearray, attr: Attr):
+            self, base_dir: Optional[str],
+            data: bytearray,
+            original_data: bytearray,
+            error_message: bytearray,
+            attr: Attr
+    ):
         super().__init__(attr)
         self.base_dir = base_dir
         self.data = data
         self.original_data = original_data
+        self.message = error_message
         manifest = Manifest.from_unsigned_bytes(bytes(self.original_data))
         manifest.skip_verification()
         self.uuid_path = manifest.fields['paths'][0]
@@ -97,16 +102,21 @@ class PseudomanifestFile(FullBufferedFile):
 
         if error_messages:
             str_data = data.decode()
-            data_without_comments = str_data[:str_data.find('#')]
+            lines = str_data.splitlines()
+            without_comments = [line for line in lines if not line.startswith("#")]
+            data_without_comments = "\n".join(without_comments)
             message = \
                 '\n\n# Changes to the following manifest' \
                 '\n# was rejected due to encountered errors:' \
                 '\n#\n# ' + data_without_comments.replace('\n', '\n# ') + \
                 '\n# ' + error_messages.replace('\n', '\n# ') + \
                 '\n'
-            self.data[:] = self.original_data[:] + message.encode()
-        else:
-            self.data[:] = self.original_data[:]
+            self.message[:] = message.encode()
+            self.data[:] = self.original_data + message.encode()
+            raise IOError()
+
+        # nothing has changed, keep a error message
+        self.data[:] = self.original_data + self.message
 
         return len(data)
 
@@ -167,6 +177,7 @@ class PseudomanifestStorageBackend(StorageBackend):
             data = data.encode()
         self.data = bytearray(data)
         self.original_data = self.data.copy()
+        self.error_message = bytearray(b"")
 
         self.base_dir = params.get('base-dir', None)
         if self.base_dir == 'None':
@@ -183,7 +194,8 @@ class PseudomanifestStorageBackend(StorageBackend):
         open() for generated pseudomanifest storage
         """
         self.attr.size = len(self.data)
-        file = PseudomanifestFile(self.base_dir, self.data, self.original_data, self.attr)
+        file = PseudomanifestFile(
+            self.base_dir, self.data, self.original_data, self.error_message, self.attr)
         return file
 
     def getattr(self, path: PurePosixPath) -> Attr:

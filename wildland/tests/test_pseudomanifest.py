@@ -24,6 +24,7 @@
 
 import os
 from pathlib import Path
+import pytest
 
 from ..client import Client
 from ..wildland_object.wildland_object import WildlandObject
@@ -158,7 +159,8 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
 
-    pseudomanifest_replace(pseudomanifest_path, "categories: []", "categories:\n- cat")
+    with pytest.raises(OSError, match='Invalid argument'):
+        pseudomanifest_replace(pseudomanifest_path, "categories: []", "categories:\n- cat")
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert old_content == f.read()
@@ -182,14 +184,16 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
 
     # edit uuid
 
-    pseudomanifest_replace(pseudomanifest_path, "/.uuid/", "/")
+    with pytest.raises(OSError, match='Invalid argument'):
+        pseudomanifest_replace(pseudomanifest_path, "/.uuid/", "/")
 
     # edit user
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
 
-    pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xbbb")
+    with pytest.raises(OSError, match='Invalid argument'):
+        pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xbbb")
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert old_content == f.read()
@@ -197,13 +201,26 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     with open(pseudomanifest_path, 'r') as f:
         assert "rejected due to encountered errors" in f.read()
 
-    pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xccc")
+    with pytest.raises(OSError, match='Invalid argument'):
+        pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xccc")
 
     # check if only latest error messages are available
     with open(pseudomanifest_path, 'r') as f:
         content = f.read()
         assert "0xbbb" not in content
         assert "0xccc" in content
+
+    # whitespaces
+
+    with open(pseudomanifest_path, 'r') as f:
+        old_content = f.read()
+
+    with open(pseudomanifest_path, 'r+') as f:
+        f.read()
+        f.write("    ")
+
+    with open(pseudomanifest_path, 'r') as f:
+        assert old_content == f.read()
 
     # many changes at once
 
