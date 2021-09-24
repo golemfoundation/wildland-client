@@ -17,7 +17,7 @@ printf "copy_me" > /tmp/minio-data/the-bucket/abbott
 printf "move_me" > /tmp/minio-data/the-bucket/floating
 
 
-MINIO_ACCESS_KEY='dmr' MINIO_SECRET_KEY='/.,/.,/.,' /tmp/minio server /tmp/minio-data &
+MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --console-address :9001 /tmp/minio-data &
 
 # Wildland
 
