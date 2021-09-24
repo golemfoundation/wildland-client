@@ -44,7 +44,7 @@ expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 ├── .manifests.yaml
 ├── .uuid/
 │   └── $UUID_PCRE.yaml
-├── forest-owner.yaml
+├── forest-owner.user.yaml
 └── s3:/
     └── the-bucket/
         └── .manifests/
@@ -63,7 +63,7 @@ expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 ├── .uuid/
 │   ├── $UUID_PCRE.yaml
 │   └── $UUID_PCRE.yaml
-├── forest-owner.yaml
+├── forest-owner.user.yaml
 ├── hello/
 │   └── world.yaml
 └── s3:/

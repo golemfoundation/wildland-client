@@ -4968,7 +4968,7 @@ def test_forest_create(cli, tmp_path):
 
     uuid_dir = str(catalog_dirs[0])
 
-    assert Path(f'{uuid_dir}/forest-owner.yaml').exists()
+    assert Path(f'{uuid_dir}/forest-owner.user.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
 
 
@@ -4984,7 +4984,7 @@ def test_forest_bridge_to(cli, tmp_path, base_dir):
     bridge_data = (base_dir / 'bridges/Bridge.bridge.yaml').read_text()
     assert '/Bridge/To/Bob' in bridge_data
     assert 'object: link' in bridge_data
-    assert 'forest-owner.yaml' in bridge_data
+    assert 'forest-owner.user.yaml' in bridge_data
 
 
 def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
@@ -5299,7 +5299,7 @@ def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
         data = list(yaml.safe_load_all(f))[1]
 
     assert data['user']['object'] == 'link'
-    assert data['user']['file'] == '/forest-owner.yaml'
+    assert data['user']['file'] == '/forest-owner.user.yaml'
     assert data['user']['storage']['type'] == 'local'
 
 

@@ -270,7 +270,8 @@ def _bootstrap_forest(ctx: click.Context,
         # Refresh user's manifests catalog
         obj.client.recognize_users_and_bridges()
 
-        _bootstrap_manifest(manifests_backend, forest_owner.local_path, Path('forest-owner.yaml'))
+        _bootstrap_manifest(manifests_backend, forest_owner.local_path,
+                            Path('forest-owner.user.yaml'))
 
         # Reload forest_owner to load the manifests-catalog info
         forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
