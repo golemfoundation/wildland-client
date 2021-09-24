@@ -4966,17 +4966,18 @@ def test_forest_create(cli, tmp_path):
     catalog_dirs = list(catalog_path.glob('*'))
 
     assert len(catalog_dirs) == 1
-
-    uuid_dir = str(catalog_dirs[0])
+    first_catalog = catalog_dirs[0]
+    uuid_dir = str(first_catalog)
 
     assert Path(f'{uuid_dir}/forest-owner.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
-    with open(Path(catalog_dirs[0] / 'forest-owner.yaml')) as f:
+    with open(Path(first_catalog / 'forest-owner.yaml')) as f:
         stringified_file = ''.join(f.readlines())
         assert "owner: '0xaaa'" in stringified_file
 
     cli('forest', 'create', '--owner', 'Bob', 'forest-tpl')
     catalog_dirs = list(catalog_path.glob('*'))
+    catalog_dirs.remove(first_catalog)
     with open(Path(catalog_dirs[0] / 'forest-owner.yaml')) as f:
         stringified_file = ''.join(f.readlines())
         assert "owner: '0xbbb'" in stringified_file
