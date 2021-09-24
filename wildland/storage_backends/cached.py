@@ -169,7 +169,7 @@ class DirectoryCachedStorageMixin:
         self.dir_expiry: Dict[PurePosixPath, float] = {}
         self.cache_lock = threading.Lock()
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         """
         Retrieve information about files in a directory (readdir + getattr).
         """
@@ -187,9 +187,9 @@ class DirectoryCachedStorageMixin:
     def _refresh_dir(self, path: PurePosixPath):
         names = []
         try:
-            for name, attr in self.info_dir(path):
-                names.append(name)
-                self.getattr_cache[path / name] = attr
+            for filePath, attr in self.info_dir(path):
+                names.append(filePath.name)
+                self.getattr_cache[filePath] = attr
         except PermissionError as e:
             raise e
         except OSError as e:

@@ -218,11 +218,11 @@ class DriveStorageBackend(
     def unmount(self) -> None:
         self.client.disconnect()
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         for metadata in self.client.list_folder(path):
             attr = self._get_attr_from_metadata(metadata)
             self.add_into_tree(metadata)
-            yield metadata.get("name"), attr
+            yield path / metadata.get("name"), attr
 
     def open(self, path: PurePosixPath, _flags: int) -> File:
         try:
