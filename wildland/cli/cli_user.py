@@ -267,10 +267,13 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     Takes a user or bridge manifest as pointed towards by path (can be local file path, url,
     wildland url), imports its public keys, copies the manifest itself.
     :param obj: ContextObj
-    :param path: (potentially ambiguous) path to manifest to be imported
+    :param path_or_dict: (potentially ambiguous) path to manifest to be imported
+    or dictionary with manifest fields of link object (see `Link.to_manifest_fields`)
     :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
         input)
     """
+
+    local_url = False
 
     # TODO: Accepting paths (string) should be deprecated and force using link objects
     if isinstance(path_or_dict, dict):
@@ -291,7 +294,8 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
         if Path(path).exists():
             file_data = Path(path).read_bytes()
             file_name = Path(path).stem
-            file_url = obj.client.local_url(Path(path).absolute())
+            file_url = None
+            local_url = True
         elif obj.client.is_url(path):
             try:
                 file_data = obj.client.read_from_url(path, use_aliases=True)
@@ -339,6 +343,9 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     else:
         msg = f'Created: {str(destination)}'
     click.echo(msg)
+
+    if local_url:
+        file_url = obj.client.local_url(Path(destination).absolute())
 
     return destination, file_url
 
@@ -455,6 +462,7 @@ def _do_process_imported_manifest(
 
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
+
 
 def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                     wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],

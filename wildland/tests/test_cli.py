@@ -4489,12 +4489,13 @@ def test_import_user(cli, base_dir, tmpdir):
     cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
     cli('user', 'import', str(destination))
 
-    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+    user_path = base_dir / 'users/Bob.user.yaml'
+    assert user_path.read_bytes() == test_data
 
     bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xaaa\'' in bridge_data
-    assert f'user: file://localhost{destination}' in bridge_data
+    assert f'user: file://localhost{user_path}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
@@ -4503,10 +4504,11 @@ def test_import_user(cli, base_dir, tmpdir):
 
     assert (base_dir / 'users/Bob.1.user.yaml').read_bytes() == _create_user_manifest('0xccc')
 
+    user_path_1 = base_dir / 'users/Bob.1.user.yaml'
     bridge_data = (base_dir / 'bridges/Bob.1.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xaaa\'' in bridge_data
-    assert f'user: file://localhost{destination}' in bridge_data
+    assert f'user: file://localhost{user_path_1}' in bridge_data
     assert 'pubkey: key.0xccc' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /IMPORT[\S\s]+', bridge_data)
 
@@ -4644,12 +4646,13 @@ def test_import_user_bridge_owner(cli, base_dir, tmpdir):
     cli('user', 'create', 'Carol', '--key', '0xccc')
     cli('user', 'import', '--bridge-owner', 'Carol', str(destination))
 
-    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+    user_path = base_dir / 'users/Bob.user.yaml'
+    assert user_path.read_bytes() == test_data
 
     bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xccc\'' in bridge_data
-    assert f'user: file://localhost{destination}' in bridge_data
+    assert f'user: file://localhost{user_path}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
@@ -4814,6 +4817,7 @@ def test_user_refresh(cli, base_dir, tmpdir):
     # it should be replaced by native link object support for wl u import
     cli('user', 'import', str(destination))
     bridge_destination = base_dir / 'bridges/Alice.bridge.yaml'
+    user_path = base_dir / 'users/Alice.user.yaml'
 
     link_data = f'''
   storage:
@@ -4822,7 +4826,7 @@ def test_user_refresh(cli, base_dir, tmpdir):
   object: link
   file: /Alice.user.yaml'''
     bridge_text = bridge_destination.read_text()
-    bridge_text = bridge_text.replace('file://localhost' + str(destination), link_data)
+    bridge_text = bridge_text.replace('file://localhost' + str(user_path), link_data)
     bridge_destination.write_text(bridge_text)
 
     user_data = (base_dir / 'users/Alice.user.yaml').read_text()
