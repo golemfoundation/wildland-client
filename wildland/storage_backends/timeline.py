@@ -22,7 +22,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Date proxy backend
+Timeline backend
 """
 
 import uuid
@@ -41,7 +41,7 @@ from ..wildland_object.wildland_object import WildlandObject
 
 
 
-class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
+class TimelineStorageBackend(CachedStorageMixin, StorageBackend):
     """
     A proxy storage that re-organizes the files into directories based on their
     modification date.
@@ -76,7 +76,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
             },
         }
     })
-    TYPE = 'date-proxy'
+    TYPE = 'timeline'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)

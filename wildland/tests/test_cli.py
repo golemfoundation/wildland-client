@@ -4332,16 +4332,16 @@ def test_delegated_template(cli, base_dir):
 
 def test_proxy_storage_template(cli, base_dir):
     # The purpose of this test is to verify that the storage templates are working correctly for a
-    # storage type (date-proxy) that does not have StorageBackend.LOCATION_PARAM defined
+    # storage type (timeline) that does not have StorageBackend.LOCATION_PARAM defined
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
         '--container', 'Container', '--inline')
 
-    cli('template', 'create', 'date-proxy', '--reference-container-url',
-        f'file://{base_dir}/containers/Container.container.yaml', 'dateproxy')
+    cli('template', 'create', 'timeline', '--reference-container-url',
+        f'file://{base_dir}/containers/Container.container.yaml', 'timeline')
 
-    with open(base_dir / 'templates/dateproxy.template.jinja') as f:
+    with open(base_dir / 'templates/timeline.template.jinja') as f:
         template_jinja = load_yaml(f)
 
     assert len(template_jinja) == 1
@@ -4349,13 +4349,13 @@ def test_proxy_storage_template(cli, base_dir):
         'read-only': False,
         'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
         'timeline-root': '/timeline',
-        'type': 'date-proxy'
+        'type': 'timeline'
     }
 
-    cli('container', 'create', '--storage-template', 'dateproxy', '--no-encrypt-manifest',
-        'dateproxy')
+    cli('container', 'create', '--storage-template', 'timeline', '--no-encrypt-manifest',
+        'timeline')
 
-    with open(base_dir / 'containers/dateproxy.container.yaml') as f:
+    with open(base_dir / 'containers/timeline.container.yaml') as f:
         dateproxy_container_manifest = list(load_yaml_all(f))
     assert len(dateproxy_container_manifest) == 2
     assert dateproxy_container_manifest[0] == {
@@ -4373,7 +4373,7 @@ def test_proxy_storage_template(cli, base_dir):
                     'read-only': False,
                     'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
                     'timeline-root': '/timeline',
-                    'type': 'date-proxy',
+                    'type': 'timeline',
                     'backend-id': mock.ANY,
                     'object': 'storage',
                 }
