@@ -1229,7 +1229,8 @@ class Client:
             storage_to_ignore = _get_storage_by_id_or_type(excluded_storage, all_storages)
             filtered_storages.pop(storage_to_ignore.backend_id, None)
 
-        return list(filtered_storages.values())
+        # Sort storages in order to have writable first (python is treating False (0) < True (1))
+        return sorted(filtered_storages.values(), key=lambda x: x.is_writeable, reverse=True)
 
     def get_local_storages(self, container: Container, excluded_storage: Optional[str] = None,
                            only_writable: bool = False):
