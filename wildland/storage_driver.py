@@ -116,6 +116,16 @@ class StorageDriver:
         """
         self.storage_backend.unlink(relpath)
 
+    def remove_empty_dir(self, relpath):
+        """
+        Remove a directory if it is empty
+        """
+
+        if len(self.storage_backend.readdir(relpath)):
+            return
+
+        self.storage_backend.rmdir(relpath)
+
     def makedirs(self, relpath, mode=0o755):
         """
         Make directory, and it's parents if needed. Does not work across
