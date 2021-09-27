@@ -38,3 +38,12 @@ wl start --container ipfs-con
 
 time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfs/file) == "foo" ]]'
 time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfs/subdir/file) == "bar" ]]'
+
+# Test storage-template creation
+wl template create ipfs --endpoint-addr "/ip4/127.0.0.1/tcp/8888" --ipfs-hash /ipfs/$HASH ipfs-template
+wl container create ipfs-temp --template ipfs-template --path /ipfstem
+wl container mount ipfs-temp
+
+# Verify that the template creation works
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfstem/file) == "foo" ]]'
+time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfstem/subdir/file) == "bar" ]]'

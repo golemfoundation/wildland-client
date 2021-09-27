@@ -13,8 +13,10 @@ function cleanup {
 ROOT="$HOME/wildland"
 MNT_DIR_1="dropbox-mnt-1"
 MNT_DIR_2="dropbox-mnt-2"
+MNT_DIR_3="dropbox-mnt-3"
 MNT_PATH_1="$ROOT/$MNT_DIR_1"
 MNT_PATH_2="$ROOT/$MNT_DIR_2"
+MNT_PATH_3="$ROOT/$MNT_DIR_3"
 
 ACCESS_TOKEN="$1"
 APP_KEY="$2"
@@ -119,3 +121,26 @@ SRC="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "f
 # time -p chronic dd if=/dev/urandom of="$TEST_DIRPATH/300MB_file" bs=1M count=300
 # FILE_SIZE=$(stat -c%s "$TEST_DIRPATH/300MB_file")
 # ((FILE_SIZE==314572800))
+
+# Test storage template creation
+if [ -n "$ACCESS_TOKEN" ]; then
+    wl template create dropbox --token "$ACCESS_TOKEN" mydropbox
+else
+    wl template create dropbox --app-key "$APP_KEY" --refresh-token "$REFRESH_TOKEN" mydropbox
+fi
+wl container create template-container --path "/$MNT_DIR_3" --template mydropbox
+wl container mount template-container
+
+# Test simple directory/file adding
+time -p chronic mkdir -p "$MNT_PATH_3"/dir1
+time -p chronic mkdir -p "$MNT_PATH_3"/dir2
+time -p chronic echo "test file 1" > "$MNT_PATH_3"/file1
+time -p chronic echo "test file 2" > "$MNT_PATH_3"/dir1/file2
+
+# Test listing contents of said directory
+time -p chronic ls -a "$MNT_PATH_3"
+
+# Test checking file content
+time -p chronic cat "$MNT_PATH_3"/file1
+
+wl c unmount template-container
