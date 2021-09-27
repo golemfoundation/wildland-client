@@ -184,7 +184,9 @@ def _bootstrap_forest(ctx: click.Context,
     # Load users manifests
     try:
         forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-        user = forest_owner.paths[0].parts[-1] if user == '@default-owner' else user
+        if user == '@default-owner':
+            # retrieve owner's name from path
+            user = forest_owner.paths[0].parts[-1]
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
