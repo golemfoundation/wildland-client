@@ -555,8 +555,7 @@ def test_get_conflicts_simple(tmpdir, storage_backend, cleanup, use_hash_db):
 
     for b1, b2 in combinations(backends, 2):
         syncer = make_syncer(b1, b2)
-        conflicts.extend([error for error in syncer.iter_errors()
-                          if isinstance(error, SyncConflict)])
+        conflicts.extend(syncer.iter_conflicts_force())
 
     expected_conflicts = []
 
@@ -590,14 +589,11 @@ def test_find_syncer(tmpdir):
         UNIDIRECTIONAL = True
         REQUIRES_MOUNT = False
 
-        def iter_errors(self):
+        def iter_conflicts_force(self):
             pass
 
         def iter_conflicts(self):
             pass
-
-        def state(self) -> SyncState:
-            return SyncState.STOPPED
 
     class TestSyncer2(BaseSyncer):
         SYNCER_NAME = "test2"
@@ -608,14 +604,11 @@ def test_find_syncer(tmpdir):
         UNIDIRECTIONAL = True
         REQUIRES_MOUNT = False
 
-        def iter_errors(self):
+        def iter_conflicts_force(self):
             pass
 
         def iter_conflicts(self):
             pass
-
-        def state(self) -> SyncState:
-            return SyncState.STOPPED
 
     BaseSyncer._types['test1'] = TestSyncer1
     BaseSyncer._types['test2'] = TestSyncer2
@@ -807,13 +800,13 @@ def test_sync_events_multiple(base_dir, sync, cli):
     assert_state(client, job_id1, SyncState.SYNCED)
     client.do_sync(container_name2, job_id2, source2.params, target2.params, one_shot=False,
                    unidir=False)
-    assert_state(client, job_id2, SyncState.ONE_SHOT)  # initial sync
+    assert_state(client, job_id2, SyncState.ONE_SHOT)
     assert_state(client, job_id2, SyncState.SYNCED)
 
     make_file(path1a, 'test data')
-    assert_state(client, job_id1, SyncState.RUNNING)  # handling events
+    wait_for_state(client, job_id1, SyncState.RUNNING)  # handling events
     wait_for_state(client, job_id1, SyncState.SYNCED)
 
     make_file(path1b, 'test data')
-    assert_state(client, job_id2, SyncState.RUNNING)  # handling events
+    wait_for_state(client, job_id2, SyncState.RUNNING)
     wait_for_state(client, job_id2, SyncState.SYNCED)

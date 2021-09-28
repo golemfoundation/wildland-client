@@ -1237,7 +1237,7 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
             click.echo('One-shot sync started, run `wl status` for current status and '
                        '`wl container stop-sync` to stop/clear its status.')
         else:
-            click.echo(client.wait_for_sync(job_id))
+            click.echo(client.wait_for_sync(job_id)[0])
 
 
 @container_.command('stop-sync', short_help='stop syncing a container')
@@ -1271,7 +1271,7 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
         for storage in storages:
             storage.set_config_dir(obj.client.config.base_dir)
 
-    conflicts = []
+    conflicts: List[SyncConflict] = []
     for storage1, storage2 in combinations(storages, 2):
         syncer = BaseSyncer.from_storages(source_storage=storage1,
                                           target_storage=storage2,
@@ -1279,8 +1279,7 @@ def list_container_conflicts(obj: ContextObj, cont, force_scan):
                                           one_shot=False, continuous=False, unidirectional=False,
                                           can_require_mount=False)
 
-        conflicts.extend([error for error in syncer.iter_errors()
-                          if isinstance(error, SyncConflict)])
+        conflicts.extend(syncer.iter_conflicts_force())
 
     if conflicts:
         click.echo("Conflicts detected on:")

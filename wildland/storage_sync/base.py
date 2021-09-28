@@ -33,27 +33,9 @@ from ..storage_backends.base import OptionalError
 from ..exc import WildlandError
 
 
-class SyncError:
+class SyncConflict:
     """
-    General class representing syncing errors.
-    """
-
-
-class SyncWriteError(SyncError):
-    """
-    Error representing write error while syncing.
-    """
-
-
-class SyncReadError(SyncError):
-    """
-    Error representing read error while syncing.
-    """
-
-
-class SyncConflict(SyncError):
-    """
-    Error representing file conflict encountered during sync.
+    Class representing file conflict encountered during sync.
     """
     def __init__(self, path: Path, backend1_id: str, backend2_id: str):
         self.path = path
@@ -276,11 +258,22 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         """
         raise OptionalError
 
+    @property
     def state(self) -> SyncState:
         """
         Current state of the syncer.
         """
         return self._state
+
+    @state.setter
+    def state(self, state: SyncState):
+        """
+        Set syncer state and automatically notify registered event callback.
+        Doesn't change the state if current state is SyncState.ERROR.
+        """
+        if self._state != SyncState.ERROR and self._state != state:
+            self._state = state
+            self.notify_event(SyncStateEvent(state))
 
     def set_event_callback(self, callback: Callable[[SyncEvent, Any], None], context: Any = None):
         """
@@ -298,23 +291,16 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         if self._event_callback:
             self._event_callback(event, self._event_context)
 
-    def set_state(self, state: SyncState):
-        """
-        Set syncer state and automatically notify registered event callback.
-        """
-        self._state = state
-        self.notify_event(SyncStateEvent(state))
-
     @abc.abstractmethod
-    def iter_errors(self) -> Iterable[SyncError]:
+    def iter_conflicts_force(self) -> Iterable[SyncConflict]:
         """
-        Iterate over discovered syncer errors.
+        Walk through the storages and iterate over all conflicts. Doesn't require running sync.
         """
 
     @abc.abstractmethod
     def iter_conflicts(self) -> Iterable[SyncConflict]:
         """
-        Iterate over discovered sync conflicts.
+        Iterate over discovered sync conflicts. Requires that the sync is/was running.
         """
 
     @classmethod

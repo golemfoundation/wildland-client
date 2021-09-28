@@ -34,13 +34,13 @@ from contextlib import suppress
 from wildland.storage import StorageBackend
 from wildland.storage_backends.watch import FileEvent, StorageWatcher
 from wildland.storage_backends.base import OptionalError, HashMismatchError
-from wildland.storage_sync.base import BaseSyncer, SyncError, SyncConflict, SyncState, \
-    SyncConflictEvent, SyncErrorEvent
+from wildland.storage_sync.base import BaseSyncer, SyncConflict, SyncState,  SyncConflictEvent, \
+    SyncErrorEvent
 from wildland.log import get_logger
 
 BLOCK_SIZE = 1024 ** 2
 
-logger = get_logger('sync')
+logger = get_logger('naive-sync')
 
 
 class NaiveSyncer(BaseSyncer):
@@ -108,7 +108,7 @@ class NaiveSyncer(BaseSyncer):
         """
         storage_dirs: Dict[StorageBackend, List[PurePosixPath]] = {}
 
-        self.set_state(SyncState.ONE_SHOT)
+        self.state = SyncState.ONE_SHOT
         for storage in [self.source_storage, self.target_storage]:
             self.storage_hashes[storage] = {}
             storage_dirs[storage] = []
@@ -169,7 +169,7 @@ class NaiveSyncer(BaseSyncer):
             for path in missing_files:
                 self._sync_file(backend1, backend2, path)
 
-        self.set_state(SyncState.SYNCED)
+        self.state = SyncState.SYNCED
 
     def _sync_file(self, source_storage: StorageBackend, target_storage: StorageBackend,
                    path: PurePosixPath):
@@ -421,8 +421,7 @@ class NaiveSyncer(BaseSyncer):
         """
         Process storage events originating from a given source_storage.
         """
-        self.set_state(SyncState.RUNNING)
-        error = False
+        self.state = SyncState.RUNNING
         with self.lock:
             for event in events:
                 try:
@@ -462,12 +461,10 @@ class NaiveSyncer(BaseSyncer):
                                 self._sync_file(source_storage, target_storage, obj_path)
                 except Exception as e:
                     self.notify_event(SyncErrorEvent(str(e)))
-                    self.set_state(SyncState.ERROR)
-                    error = True
+                    self.state = SyncState.ERROR
                     break
 
-        if not error:
-            self.set_state(SyncState.SYNCED)
+        self.state = SyncState.SYNCED
 
     def stop_sync(self):
         """
@@ -480,13 +477,13 @@ class NaiveSyncer(BaseSyncer):
         self.conflicts.clear()
         self.storage_watchers.clear()
         logger.debug("%s: file syncing stopped.", self.log_prefix)
-        self.set_state(SyncState.STOPPED)
+        self.state = SyncState.STOPPED
 
     def iter_conflicts(self) -> Iterable[SyncConflict]:
         for conflict in self.conflicts:
             yield conflict
 
-    def iter_errors(self) -> Iterable[SyncError]:
+    def iter_conflicts_force(self) -> Iterable[SyncConflict]:
         for path, attr in self.source_storage.walk():
             try:
                 attr2 = self.target_storage.getattr(path)

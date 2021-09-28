@@ -1371,15 +1371,16 @@ class Client:
                   'unidirectional': unidir, 'source': source, 'target': target}
         return self.run_sync_command('start', **kwargs)
 
-    def wait_for_sync(self, job_id: str, stop_on_finish: bool = True) -> str:
+    def wait_for_sync(self, job_id: str, stop_on_finish: bool = True) -> Tuple[str, bool]:
         """
         Wait for a sync job to complete (state: SYNCED).
-        Returns response messages.
+        Returns response messages and a bool meaning if the operation succeeded.
         """
         msg = ''
+        success = True
         while True:
             for event in self.get_sync_event():
-                # assert event.job_id == job_id, 'Invalid response from sync daemon'
+                assert event.job_id == job_id, 'Invalid response from sync daemon'
 
                 if isinstance(event, SyncStateEvent):
                     if event.state == SyncState.SYNCED:
@@ -1387,11 +1388,12 @@ class Client:
                         break
                     logger.debug('Sync state changed to %s', event.state)
                 elif isinstance(event, SyncConflictEvent):
-                    logger.debug('Sync state changed to %s', event.value)
+                    logger.debug('Sync conflict: %s', event.value)
                     msg += f'Sync conflict: {event.value}'
                 elif isinstance(event, SyncErrorEvent):
-                    logger.debug('Sync error: %s', event.value)
+                    logger.warning('Sync error: %s', event.value)
                     msg += f'Sync error: {event.value}'
+                    success = False
                     break
             else:
                 continue
@@ -1400,4 +1402,4 @@ class Client:
         if stop_on_finish:
             self.stop_sync(job_id)
 
-        return msg
+        return msg, success

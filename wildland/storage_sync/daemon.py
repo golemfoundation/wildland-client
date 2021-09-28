@@ -160,9 +160,11 @@ class SyncJob:
             else:
                 self.syncer.one_shot_sync(self.unidirectional)
         except Exception as ex:
-            logger.exception('Exception:')
-            self._event_handler(SyncErrorEvent(f'Error: {ex}'))
+            logger.exception('Sync worker exception:')
+            self._event_handler(SyncErrorEvent(str(ex)))
             self._event_handler(SyncStateEvent(SyncState.ERROR))
+            # syncer didn't catch the exception so it didn't update its state
+            self.syncer.state = SyncState.ERROR
         finally:
             if self.continuous:
                 self.syncer.stop_sync()

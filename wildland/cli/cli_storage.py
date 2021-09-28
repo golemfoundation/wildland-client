@@ -278,7 +278,10 @@ def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container
             response = obj.client.do_sync(c.uuid, c.sync_id, storage_to_delete.params,
                                           target.params, one_shot=True, unidir=True)
             logger.debug(response)
-            obj.client.wait_for_sync(c.sync_id)
+            msg, success = obj.client.wait_for_sync(c.sync_id)
+            click.echo(msg)
+            if not success:
+                container_failed_to_sync.append(c.uuid)
 
     if container_failed_to_sync and not force:
         click.echo(f"Failed to sync storage for containers: {','.join(container_failed_to_sync)}")
