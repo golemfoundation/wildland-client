@@ -2,16 +2,22 @@
 
 set -ex
 
+# Setup
+ROOT="$HOME/wildland"
+MNT_DIR_1="sshfs-mnt-1"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
+FILES="$HOME/files"
+
 # Prepare for wildland
 sudo /usr/sbin/sshd
 ssh -oStrictHostKeyChecking=no 127.0.0.1 echo 1
-mkdir $HOME/files
+mkdir $FILES
 
 . /home/user/env/bin/activate
 pip install . plugins/*
 
 wl user create User
-wl container create sshfs --path /sshfs
+wl container create sshfs --path "/$MNT_DIR_1"
 wl storage create sshfs --container sshfs --host 127.0.0.1 \
      --path ./files --ssh-user user --ssh-identity $HOME/.ssh/id_rsa
 
@@ -20,14 +26,14 @@ wl start
 wl container mount sshfs
 
 mkdir ~/files/testdir
-echo 1234 > ~/files/testdir/testfile
+echo 1234 > "$FILES"/testdir/testfile
 
-time -p chronic tree ~/wildland/
-time -p chronic ls -l ~/wildland/sshfs/testdir
-time -p chronic grep 1234 ~/wildland/sshfs/testdir/testfile
+time -p chronic tree "$ROOT"
+time -p chronic ls -l "$MNT_PATH_1"/testdir
+time -p chronic grep 1234 "$MNT_PATH_1"/testdir/testfile
 
-time -p chronic /bin/sh -c 'echo abcd > ~/wildland/sshfs/testdir/test2'
-time -p chronic grep abcd ~/files/testdir/test2
+time -p chronic /bin/sh -c 'echo abcd > '$MNT_PATH_1'/testdir/test2'
+time -p chronic grep abcd "$FILES"/testdir/test2
 
 # Test template creation
 wl template create sshfs --host 127.0.0.1 \

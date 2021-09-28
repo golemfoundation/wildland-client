@@ -3,18 +3,19 @@
 set -ex
 
 ROOT="$HOME/wildland"
+MANIFEST_CATALOG="/home/user/catalog"
 
 . /home/user/env/bin/activate
 pip install .
 
-mkdir -p /home/user/catalog
+mkdir -p "$MANIFEST_CATALOG"
 
 # creating an user
 wl user create user1
 wl start
 
 # creating a template and a forest
-wl template create local --location /home/user/catalog mylocal
+wl template create local --location "$MANIFEST_CATALOG" mylocal
 wl forest create --owner user1 mylocal
 
 # creating an example container
@@ -33,19 +34,19 @@ wl storage create transpose --container transpose --reference-container-url wild
  tree $ROOT
  
 # checking if the modified categories exist
-time -p chronic ls $ROOT/prefix
-time -p test -d $ROOT/prefix/replaced/one
-time -p test -d $ROOT/prefix/t/2021/07/25
+time -p chronic ls "$ROOT"/prefix
+time -p test -d "$ROOT"/prefix/replaced/one
+time -p test -d "$ROOT"/prefix/t/2021/07/25
 
 # checking category permutations
-time -p test -d $ROOT/prefix/replaced/one/@prefix/category/three/container2
+time -p test -d "$ROOT"/prefix/replaced/one/@prefix/category/three/container2
 
 # checking if the files can be accessed via the modifies paths
-time -p test -f $ROOT/prefix/replaced/one/container1/Hello.md
-time -p test -f $ROOT/prefix/t/2021/08/16/container2/Bye.md
+time -p test -f "$ROOT"/prefix/replaced/one/container1/Hello.md
+time -p test -f "$ROOT"/prefix/t/2021/08/16/container2/Bye.md
 
 # checking the content of the files
-time -p chronic grep 'Hello' $ROOT/prefix/category/two/container1/Hello.md
+time -p chronic grep 'Hello' "$ROOT"/prefix/category/two/container1/Hello.md
 
 wl stop
  

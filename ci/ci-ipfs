@@ -5,6 +5,12 @@ set -ex
 . /home/user/env/bin/activate
 pip install . plugins/ipfs/
 
+# Setup
+ROOT="$HOME/wildland"
+MNT_DIR_1="ipfs-mnt-1"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
+DATA_DIR_1="$HOME/tmp/ipfs-data"
+
 # IPFS
 
 ipfs init
@@ -15,9 +21,9 @@ ipfs daemon &
 echo "IPFS is running at /ip4/127.0.0.1/tcp/8888"
 echo
 
-mkdir -p ~/tmp/ipfs-data/subdir
-printf "foo" > ~/tmp/ipfs-data/file
-printf "bar" > ~/tmp/ipfs-data/subdir/file
+mkdir -p "$DATA_DIR_1"/subdir
+printf "foo" > "$DATA_DIR_1"/file
+printf "bar" > "$DATA_DIR_1"/subdir/file
 
 sleep 5
 # wait for the daemon to start
@@ -25,19 +31,19 @@ while ! ipfs diag sys &>/dev/null; do
   sleep 1
 done
 
-HASH=$(ipfs add -r ~/tmp/ipfs-data/ | grep -E 'Qm.{44} ipfs-data$' -o | head -c 46)
+HASH=$(ipfs add -r "$DATA_DIR_1" | grep -E 'Qm.{44} ipfs-data$' -o | head -c 46)
 
 # Wildland
 
 wl user create ipfs-user
-wl container create ipfs-con --path /ipfs
+wl container create ipfs-con --path "/$MNT_DIR_1"
 wl storage create ipfs --container ipfs-con --endpoint-addr "/ip4/127.0.0.1/tcp/8888" --ipfs-hash /ipfs/$HASH ipfs-storage
 wl start --container ipfs-con
 
 # Testing
 
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfs/file) == "foo" ]]'
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/ipfs/subdir/file) == "bar" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/file) == "foo" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/subdir/file) == "bar" ]]'
 
 # Test storage-template creation
 wl template create ipfs --endpoint-addr "/ip4/127.0.0.1/tcp/8888" --ipfs-hash /ipfs/$HASH ipfs-template
