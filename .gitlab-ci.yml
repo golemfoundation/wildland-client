@@ -202,7 +202,7 @@ howto-cache-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/howto-cache
+    - timeout 15m ./ci/howto-cache
   artifacts:
     when: always
     paths:
