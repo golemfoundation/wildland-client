@@ -6,6 +6,7 @@ FROM wildland-client-base:latest
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 ENV WL_ENV=ci
+ENV WL_SYNC_LOG_PATH artifacts/sync-daemon.log
 
 # TODO: Shouldn't sshfs be part of base? For some reason sshfs tests were excluded from CI
 RUN apt-get -qy update && apt-get install -y \

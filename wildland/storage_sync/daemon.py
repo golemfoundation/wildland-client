@@ -25,6 +25,7 @@ Wildland sync daemon.
 """
 import os
 import multiprocessing
+import os
 import signal
 import threading
 
@@ -46,7 +47,8 @@ from wildland.log import get_logger
 
 logger = get_logger('sync-daemon')
 
-DEFAULT_LOG_PATH = f"{os.path.expanduser('~')}/.local/share/wildland/wl-fuse.log"
+LOG_ENV_NAME = 'WL_SYNC_LOG_PATH'  # environmental variable with log path override
+DEFAULT_LOG_PATH = f"{os.path.expanduser('~')}/.local/share/wildland/wl-sync.log"
 
 
 class SyncJob:
@@ -410,7 +412,13 @@ class SyncDaemon:
         """
         Configure logging module.
         """
-        log_path = self.log_path or DEFAULT_LOG_PATH
+        if self.log_path:  # command line param
+            log_path = self.log_path
+        elif LOG_ENV_NAME in os.environ:
+            log_path = os.environ[LOG_ENV_NAME]
+        else:
+            log_path = DEFAULT_LOG_PATH
+
         if log_path == '-':
             init_logging(console=True)
         else:
@@ -418,7 +426,8 @@ class SyncDaemon:
 
 
 @click.command()
-@click.option('-l', '--log-path', help=f'path to log file (default: {DEFAULT_LOG_PATH})')
+@click.option('-l', '--log-path', help=f'path to log file (default: {DEFAULT_LOG_PATH}),\n'
+                                       f'can be set in {LOG_ENV_NAME} environment variable')
 @click.option('-s', '--socket-path', help='path to control socket')
 @click.option('-b', '--base-dir', help='base directory for configuration')
 def main(log_path, socket_path, base_dir):

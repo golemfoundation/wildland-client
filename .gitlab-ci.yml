@@ -73,8 +73,10 @@ pytest:
     - export PYTEST_ADDOPTS="--color=yes"
     - ./ci/ci-pytest
   artifacts:
+    when: always
     paths:
       - artifacts/htmlcov/
+      - artifacts/sync-daemon.log
     reports:
       junit: artifacts/wildland.xml
       cobertura: artifacts/coverage.xml
@@ -201,6 +203,10 @@ howto-cache-test:
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/howto-cache
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sync-daemon.log
 
 smoke-test:
   stage: test
