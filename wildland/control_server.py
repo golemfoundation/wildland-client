@@ -171,6 +171,8 @@ class ControlHandler(BaseRequestHandler):
                 request = ''.join(lines)
                 if request.strip() != '':
                     self._handle_request(request)
+        except ConnectionResetError:
+            logger.exception('Connection reset when handling request:')
         finally:
             with self.lock:
                 self.request.close()
