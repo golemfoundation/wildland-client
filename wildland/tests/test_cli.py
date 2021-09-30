@@ -1654,7 +1654,7 @@ def test_container_delete_unpublish(cli, tmp_path):
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', os.fspath(tmp_path), 'myforest')
-    cli('forest', 'create', 'User', 'myforest')
+    cli('forest', 'create', 'myforest')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
