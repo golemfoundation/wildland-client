@@ -118,17 +118,19 @@ def test_timeline_fuse_files(env, storage, data_dir):
         '2008/02/03/',
         '2008/02/03/dir2/',
         '2008/02/03/dir2/dir3/',
-        '2008/02/03/dir2/dir3/file2',
+        '2008/02/03/dir2/dir3/file2/',
+        '2008/02/03/dir2/dir3/file2/file2',
         '2010/',
         '2010/05/',
         '2010/05/07/',
         '2010/05/07/dir1/',
-        '2010/05/07/dir1/file1',
+        '2010/05/07/dir1/file1/',
+        '2010/05/07/dir1/file1/file1'
     ]
 
-    assert Path(env.mnt_dir / 'proxy/2010/05/07/dir1/file1').read_text() == \
+    assert Path(env.mnt_dir / 'proxy/2010/05/07/dir1/file1/file1').read_text() == \
         'file 1'
-    assert Path(env.mnt_dir / 'proxy/2008/02/03/dir2/dir3/file2').read_text() == \
+    assert Path(env.mnt_dir / 'proxy/2008/02/03/dir2/dir3/file2/file2').read_text() == \
         'file 2'
 
 @pytest.fixture
@@ -200,7 +202,7 @@ def test_timeline_subcontainers(base_dir, container, data_dir):
     assert subcontainers[0]._storage_cache[0].storage == {
         'object': 'storage',
         'type': 'delegate',
-        'subdirectory': '/2008/02/03/dir2/dir3',
+        'subdirectory': '/2008/02/03/dir2/dir3/file2',
         'owner': container.owner,
         'container-path': str(subcontainers[0].paths[0]),
         'reference-container': f'wildland:@default:{container.paths[0]}:',
@@ -208,7 +210,7 @@ def test_timeline_subcontainers(base_dir, container, data_dir):
         'version': Manifest.CURRENT_VERSION
     }
     assert subcontainers[1].paths[1:] == [PurePosixPath('/timeline/2010/05/07')]
-    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07/dir1'
+    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07/dir1/file1'
 
 def test_timeline_subcontainers_fuse(base_dir, env, container, data_dir):
     (data_dir / 'dir1').mkdir()
