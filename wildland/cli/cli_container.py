@@ -554,9 +554,10 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
 
 def _republish_container(client: Client, container: Container) -> None:
     try:
-        click.echo(f'Re-publishing container {container.uuid_path}...')
         user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-        Publisher(client, user).republish_container(container)
+        if user.has_catalog:
+            click.echo(f'Re-publishing container {container.uuid_path}...')
+            Publisher(client, user).republish_container(container)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
