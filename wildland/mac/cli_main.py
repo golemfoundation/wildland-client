@@ -40,4 +40,5 @@ def cli_main(mountpoint: str):
     cfg = EnvProvider.shared().load_config()
     cfg.override(override_fields = {'mount-dir': mountpoint})
     logger.debug("configuration bootstrapped with mountpoint %s", mountpoint)
-    sys.exit(main(None, None, None, None, cfg))
+    sys.exit(main(ctx=None, base_dir=None, dummy=None, debug=None,
+                      verbose=None, version=None))
