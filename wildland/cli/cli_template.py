@@ -22,10 +22,6 @@ Storage templates management
 """
 
 import types
-from typing import Optional, Sequence, Type
-import json
-from pathlib import PurePosixPath
-from pathlib import Path
 from typing import Optional, Sequence, Type, List, Dict
 import functools
 import click
@@ -39,7 +35,6 @@ from ..exc import WildlandError
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..utils import load_yaml
-import yaml
 from ..utils import format_command_options
 
 
@@ -201,15 +196,18 @@ def template_del(obj: ContextObj, names):
     """
 
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
-
+    error_messages = ''
     for name in names:
         try:
             template_manager.remove_storage_template(name)
             click.echo(f'Deleted [{name}] storage template.')
         except FileNotFoundError:
-            click.secho(f'Template [{name}] does not exist.', fg="red")
+            error_messages += f'Template [{name}] does not exist.\n'
         except WildlandError as ex:
-            click.secho(f'Failed to delete template: {ex}', fg="red")
+            error_messages += f'{ex}\n'
+
+    if error_messages:
+        raise CliError(f'Some templates could not be deleted:\n{error_messages.strip()}')
 
 
 @template.command('dump', short_help='dump contents of a storage template')
@@ -222,8 +220,8 @@ def template_dump(obj: ContextObj, input_template: str):
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
     try:
-        template_file = _get_template_content(template_manager, input_template)
-        click.echo(yaml.dump(template_file))
+        template_bytes = template_manager.get_template_bytes(input_template)
+        click.echo(template_bytes.decode())
     except FileNotFoundError:
         click.echo(f'Could not find template: {input_template}')
 
@@ -238,9 +236,9 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str):
     """
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     try:
-        template_json = template_manager.get_template_content(input_template)
-        data = yaml.dump(template_json, encoding='utf-8', sort_keys=False)
-        data = b'# All YAML comments will be discarded when the manifest is saved\n' + data
+        template_bytes = template_manager.get_template_bytes(input_template)
+        data = b'# All YAML comments will be discarded when the manifest is saved\n' \
+               + template_bytes
         original_data = data
 
         edited_file = click.edit(data.decode(), editor=editor, extension='.yaml',

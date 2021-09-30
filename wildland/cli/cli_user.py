@@ -186,11 +186,15 @@ def delete(obj: ContextObj, names, force, cascade, delete_keys):
     Delete a user.
     """
 
+    error_messages = ''
     for name in names:
         try:
             _delete(obj, name, force, cascade, delete_keys)
         except Exception as e:
-            click.secho(f'Error while deleting user {name}: {e}', fg="red")
+            error_messages += f'{e}\n'
+
+    if error_messages:
+        raise CliError(f'Some users could not be deleted:\n{error_messages.strip()}')
 
 
 def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys: bool):

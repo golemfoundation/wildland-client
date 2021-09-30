@@ -224,11 +224,16 @@ def delete(obj: ContextObj, names, force: bool, no_cascade: bool, container: Opt
     """
     Delete a storage.
     """
+
+    error_messages = ''
     for name in names:
         try:
             _delete(obj, name, force, no_cascade, container)
         except Exception as e:
-            click.secho(f'Error while deleting storage {name}: {e}', fg="red")
+            error_messages += f'{e}\n'
+
+    if error_messages:
+        raise CliError(f'Some storages could not be deleted:\n{error_messages.strip()}')
 
 
 def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container: Optional[str]):

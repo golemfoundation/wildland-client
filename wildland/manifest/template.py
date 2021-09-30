@@ -299,7 +299,7 @@ class TemplateManager:
 
         target_path.unlink()
 
-    def get_template_content(self, input_template: str) -> List[Dict]:
+    def get_template_bytes(self, input_template: str) -> bytes:
         """
         Return contents of a storage template's .jinja file.
 
@@ -311,8 +311,8 @@ class TemplateManager:
             # provided template name
             path = self.get_file_path(input_template)
 
-        with open(path, 'r') as file:
-            return load_yaml(file)
+        data = path.read_bytes()
+        return data
 
     def save_template_content(self, input_template: str, content: List[Dict]):
         """

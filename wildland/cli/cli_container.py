@@ -372,11 +372,16 @@ def delete(obj: ContextObj, names, force: bool, cascade: bool, no_unpublish: boo
     """
     Delete a container.
     """
+
+    error_messages = ''
     for name in names:
         try:
             _delete(obj, name, force, cascade, no_unpublish)
         except Exception as e:
-            click.secho(f'Error while deleting container {name}: {e}', fg="red")
+            error_messages += f'{e}\n'
+
+    if error_messages:
+        raise CliError(f'Some containers could not be deleted:\n{error_messages.strip()}')
 
 
 def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish: bool):
