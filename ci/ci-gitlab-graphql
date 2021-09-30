@@ -69,3 +69,13 @@ time -p chronic grep 'issue' $ROOT/projects/ci\ example\ project/issue\ 2/issue\
 
 # Unmount the container
 time -p chronic wl container unmount GitLab-no-path
+
+# Test storage template creation
+wl template create gitlab-graphql --personal-token $PERSONAL_GITLAB_TOKEN --project-path wildland/ci-example-project gitlab-temp
+wl container create gitlab-template --template gitlab-temp
+wl container mount gitlab-template
+
+# Verify that the template creation works
+time -p chronic tree $ROOT
+
+wl container unmount gitlab-template

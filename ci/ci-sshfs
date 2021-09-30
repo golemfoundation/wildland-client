@@ -28,3 +28,13 @@ time -p chronic grep 1234 ~/wildland/sshfs/testdir/testfile
 
 time -p chronic /bin/sh -c 'echo abcd > ~/wildland/sshfs/testdir/test2'
 time -p chronic grep abcd ~/files/testdir/test2
+
+# Test template creation
+wl template create sshfs --host 127.0.0.1 \
+     --path ./files --ssh-user user --ssh-identity $HOME/.ssh/id_rsa sshfs-temp
+wl container create sshfs-temp --template sshfs-temp --path /sshfst
+wl container mount sshfs-temp
+
+time -p chronic tree ~/wildland/
+time -p chronic ls -l ~/wildland/sshfst/testdir
+time -p chronic grep 1234 ~/wildland/sshfst/testdir/testfile

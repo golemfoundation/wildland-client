@@ -13,8 +13,10 @@ function cleanup {
 ROOT="$HOME/wildland"
 MNT_DIR_1="googledrive-mnt-1"
 MNT_DIR_2="googledrive-mnt-2"
+MNT_DIR_3="googledrive-mnt-3"
 MNT_PATH_1="$ROOT/$MNT_DIR_1"
 MNT_PATH_2="$ROOT/$MNT_DIR_2"
+MNT_PATH_3="$ROOT/$MNT_DIR_3"
 
 # Wildland
 
@@ -96,3 +98,11 @@ SRC="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "f
 # time -p chronic dd if=/dev/urandom of="$TEST_DIRPATH/300MB_file" bs=1M count=300
 # FILE_SIZE=$(stat -c%s "$TEST_DIRPATH/300MB_file")
 # ((FILE_SIZE==314572800))
+
+# Test template creation
+wl template create googledrive --credentials "$1" --skip-interaction googledrive-temp
+wl container create googledrive-temp --template googledrive-temp --path "/$MNT_DIR_3"
+wl container mount googledrive-temp
+
+# Verify that the template creation is working
+tree -a $MNT_PATH_3

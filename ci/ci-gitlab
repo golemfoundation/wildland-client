@@ -57,3 +57,13 @@ time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
 
 # Unmount the container
 time -p chronic wl container unmount GitLab
+
+# Test storage template creation
+wl template create gitlab --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617 mygitlab
+wl container create gitlab-template --template mygitlab
+wl container mount gitlab-template
+
+# Verify that the template creation is working
+time -p chronic tree $ROOT
+
+wl container unmount gitlab-template

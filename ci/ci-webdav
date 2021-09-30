@@ -40,7 +40,18 @@ time -p chronic grep 'foobar' $ROOT/ci-test/Container1/foo/file1.txt
 time -p test -f $ROOT/webdav/foo/file1.txt
 time -p chronic grep 'foobar' $ROOT/webdav/foo/file1.txt
 
-./wl stop
-
 # Cleanup
 rm -rf /home/user/storage
+
+# Test template creation
+./wl template create webdav --login 'user' \
+                          --password 'password' \
+                          --url 'http://localhost:8081/' webdav-temp
+./wl container create webdav-temp --template webdav-temp --path /webdavt
+./wl container mount webdav-temp
+
+# Verify the template creation works
+tree $ROOT/wedavt
+
+./wl stop
+                   
