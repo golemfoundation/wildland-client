@@ -31,10 +31,7 @@ import hashlib
 import itertools
 import json
 import os
-import pathlib
-import posixpath
 import stat
-import urllib.parse
 from dataclasses import dataclass
 from pathlib import PurePosixPath, Path
 from uuid import UUID
@@ -721,27 +718,6 @@ class StorageBackend(metaclass=abc.ABCMeta):
         storage_type = manifest.fields['type']
         cls = StorageBackend.types()[storage_type]
         manifest.apply_schema(cls.SCHEMA)
-
-    def get_url_for_path(self, path):
-        """
-        Return a URL, under which a file can be accessed.
-        """
-        assert not path.is_absolute()
-        if 'public-url' not in self.params:
-            return None
-        return posixpath.join(self.params['public-url'],
-                              urllib.parse.quote_from_bytes(bytes(pathlib.PurePosixPath(path))))
-
-    def get_path_for_url(self, url):
-        """
-        Return a path relative to storage's root, under which a file given by
-        URL can be accessed.
-        """
-        # TODO unquote?
-        assert 'public-url' in self.params
-        assert url.startswith(self.params['public-url'])
-        return pathlib.PurePosixPath(
-            url[len(self.params['public-url']):].lstrip('/'))
 
     def start_bulk_writing(self) -> None:
         """

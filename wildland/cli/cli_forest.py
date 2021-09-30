@@ -25,7 +25,6 @@ from pathlib import Path, PurePosixPath
 from typing import List, Dict, Any
 
 import os
-import uuid
 import click
 import yaml
 
@@ -36,7 +35,6 @@ from ..storage import StorageBackend
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..user import User
 from ..publish import Publisher
-from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageTemplate
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_fields
@@ -252,15 +250,9 @@ def _bootstrap_forest(ctx: click.Context,
 
             link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.yaml'}
 
-            if not storage.public_url:
-                fields = storage.to_manifest_fields(inline=True)
-                if not storage.access:
-                    fields['access'] = access_list
-            else:
-                fields = {
-                    'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
-                    'backend-id': str(uuid.uuid4()), 'owner': catalog_container.owner,
-                    'url': storage.public_url, 'access': storage.access or access_list}
+            fields = storage.to_manifest_fields(inline=True)
+            if not storage.access:
+                fields['access'] = access_list
 
             link_obj['storage'] = fields
 

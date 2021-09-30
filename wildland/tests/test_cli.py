@@ -1653,31 +1653,27 @@ def test_container_delete_unpublish(cli, tmp_path):
 
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
-        '--no-encrypt-manifest')
+    cli('template', 'create', 'local', '--location', os.fspath(tmp_path), 'myforest')
+    cli('forest', 'create', 'User', 'myforest')
+    cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
         '--manifest-pattern', '/m-*.yaml',
-        '--public-url', 'https://example.invalid/')
+        '--no-encrypt-manifest')
 
     cli('container', 'publish', 'Container')
 
-    # “Always two there are. No more, no less. A master and an apprentice.”
-    m1, m2 = tmp_path.glob('*.yaml')
+    files = tmp_path.glob('**/**/*.yaml')
 
-    # “But which was destroyed, the master or the apprentice?”
-    with open(m1) as file1:
-        with open(m2) as file2:
-            for line in itertools.chain(file1, file2):
-                if re.fullmatch(
-                        r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}yaml',
-                        line.strip()):
-                    break
-            else:
-                assert False
+    for file in files:
+        with open(file) as file1:
+            for line in itertools.chain(file1):
+                if re.match(fr'location: {tmp_path}', line.strip()):
+                    return
 
+    assert False
 
 def test_container_publish_auto(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1708,8 +1704,7 @@ def test_container_republish_paths(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
-        '--manifest-pattern', '/manifests/{path}.yaml',
-        '--public-url', 'https://example.invalid/')
+        '--manifest-pattern', '/manifests/{path}.yaml')
 
     cli('container', 'publish', 'Container')
 
@@ -5126,8 +5121,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
@@ -5153,16 +5147,14 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     assert catalog[0]['storage']['location'] == f'{uuid_dir}'
 
     assert catalog[1]['object'] == 'link'
-    assert catalog[1]['storage']['type'] == 'http'
-    assert catalog[1]['storage']['url'] == f'file://{uuid_dir}'
+    assert catalog[1]['storage']['type'] == 'local'
 
 
 def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', 'Alice', 'forest-tpl')
 
@@ -5187,8 +5179,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     assert 'type: local' in catalog[0]['storage']['encrypted']['encrypted-data']
     assert f'location: {uuid_dir}' in catalog[0]['storage']['encrypted']['encrypted-data']
 
-    assert 'type: http' in catalog[1]['storage']['encrypted']['encrypted-data']
-    assert f'url: file://{uuid_dir}' in catalog[1]['storage']['encrypted']['encrypted-data']
+    assert 'type: local' in catalog[1]['storage']['encrypted']['encrypted-data']
 
 
 def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
