@@ -29,7 +29,6 @@ from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
 import uuid
-
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -352,10 +351,13 @@ def do_create_storage_from_templates(client: Client, container: Container,
 
 def _ensure_backend_location_exists(backend: StorageBackend) -> None:
     path = backend.location
+
     if path is None:
         return
     try:
         with backend:
+            if str(PurePosixPath(backend.location)) != backend.location:
+                raise WildlandError('The `LOCATION_PARAM` of the backend is not a valid path.')
             backend.mkdir(PurePosixPath(path))
             click.echo(f'Created base path: {path}')
     except Exception as ex:

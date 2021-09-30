@@ -4233,15 +4233,9 @@ def test_template_parsing(cli, base_dir):
         '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć',
         '--local-dir', '/a_local_dir')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-        uuid_path = documents[1]['paths'][0]
-
-    just_uuid = uuid_path.replace('/.uuid/', '')
-
     data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-    assert f'url: https://acme.com{uuid_path}/foobar/a_local_dir/{just_uuid}' in data
+    assert 'url: https://acme.com/' in data
     assert 'login: /boo!foo:hoo' in data
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
 
