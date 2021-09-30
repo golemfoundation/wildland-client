@@ -139,7 +139,7 @@ run wl template create webdav mywebdav \
     --password 'password' \
     --url 'http://localhost:8081/'
 
-run wl forest create --access bob alice mywebdav
+run wl forest create --access bob --owner alice mywebdav
 
 ## Container publishing
 
@@ -208,7 +208,7 @@ Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/caroline-forest-catalog.container.yaml
 Saved: /home/user/.config/wildland/users/caroline.user.yaml
 Saved: /home/user/.config/wildland/users/caroline.user.yaml"
-run wl forest create --access '*' caroline carolines-s3
+run wl forest create --access '*' --owner caroline carolines-s3
 
 
 expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml

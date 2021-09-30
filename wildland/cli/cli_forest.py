@@ -126,8 +126,10 @@ def unmount(ctx: click.Context, path: str, forest_names):
 
 
 @forest_.command(short_help='Bootstrap Wildland Forest')
-@click.argument('user', metavar='USER', required=True)
 @click.argument('storage_template', required=True)
+@click.option('--owner', '--user', metavar='USER', required=False,
+              default='@default-owner',
+              help='User for signing')
 @click.option('--access', metavar='USER', required=False, multiple=True,
               help='Name of users to encrypt the container with. Can be used multiple times. '
                    'If not set, the container is unencrypted.')
@@ -136,17 +138,16 @@ def unmount(ctx: click.Context, path: str, forest_names):
               help='Set manifests local directory. Must be an absolute path.')
 @click.pass_context
 def create(ctx: click.Context,
-           user: str,
            storage_template: str,
+           owner: str = '@default-owner',
            manifest_local_dir: str = '/.manifests/',
            access: List[str] = None):
     """
-    Bootstrap a new Forest for given USER.
-    You must have private key of that user in order to use this command.
+    Bootstrap a new Forest. If owner is not specified, @default-owner is used.
+    You must have a private key of the owner in order to use this command.
 
     \b
     Arguments:
-      USER                  name of the user who owns the Forest (mandatory)
       STORAGE_TEMPLATE      storage template used to create Forest containers
 
     Description
@@ -164,23 +165,26 @@ def create(ctx: click.Context,
 
     """
     _bootstrap_forest(ctx,
-                     user,
-                     storage_template,
-                     manifest_local_dir,
-                     access)
+                      owner,
+                      storage_template,
+                      manifest_local_dir,
+                      access)
 
 
 def _bootstrap_forest(ctx: click.Context,
-                     user: str,
-                     manifest_storage_template_name: str,
-                     manifest_local_dir: str = '/',
-                     access: List[str] = None):
+                      user: str,
+                      manifest_storage_template_name: str,
+                      manifest_local_dir: str = '/',
+                      access: List[str] = None):
 
     obj: ContextObj = ctx.obj
 
     # Load users manifests
     try:
         forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
+        if user == '@default-owner':
+            # retrieve owner's name from path
+            user = forest_owner.paths[0].parts[-1]
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
