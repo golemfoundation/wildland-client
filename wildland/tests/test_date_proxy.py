@@ -36,7 +36,7 @@ from ..client import Client
 from ..manifest.manifest import Manifest
 
 
-def test_date_proxy_with_url(cli, base_dir):
+def test_timeline_with_url(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'referenceContainer', '--path', '/reference_PATH')
     cli('storage', 'create', 'local', 'referenceStorage', '--location', '/tmp/local-path',
@@ -47,7 +47,7 @@ def test_date_proxy_with_url(cli, base_dir):
     reference_url = f'file://{reference_path}'
 
     cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'date-proxy', 'ProxyStorage',
+    cli('storage', 'create', 'timeline', 'ProxyStorage',
         '--reference-container-url', reference_url,
         '--container', 'Container', '--no-inline')
 
@@ -60,7 +60,7 @@ def test_date_proxy_with_url(cli, base_dir):
     # But select_storage loads also the reference manifest
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
     storage = client.select_storage(container)
-    assert storage.storage_type == 'date-proxy'
+    assert storage.storage_type == 'timeline'
     reference_storage = storage.params['storage']
     assert isinstance(reference_storage, dict)
     assert reference_storage['type'] == 'local'
@@ -78,7 +78,7 @@ def storage(data_dir):
     return {
         'timeline-root': '/timeline',
         'reference-container': 'test_container',
-        'type': 'date-proxy',
+        'type': 'timeline',
         'storage': {
             'type': 'local',
             'location': str(data_dir),
@@ -90,12 +90,12 @@ def storage(data_dir):
     }
 
 
-def test_date_proxy_fuse_empty(env, storage):
+def test_timeline_fuse_empty(env, storage):
     env.mount_storage(['/proxy'], storage)
     assert os.listdir(env.mnt_dir / 'proxy') == []
 
 
-def test_date_proxy_fuse_files(env, storage, data_dir):
+def test_timeline_fuse_files(env, storage, data_dir):
     (data_dir / 'dir1').mkdir()
     (data_dir / 'dir1/file1').write_text('file 1')
     os.utime(data_dir / 'dir1/file1',
@@ -118,17 +118,19 @@ def test_date_proxy_fuse_files(env, storage, data_dir):
         '2008/02/03/',
         '2008/02/03/dir2/',
         '2008/02/03/dir2/dir3/',
-        '2008/02/03/dir2/dir3/file2',
+        '2008/02/03/dir2/dir3/file2/',
+        '2008/02/03/dir2/dir3/file2/file2',
         '2010/',
         '2010/05/',
         '2010/05/07/',
         '2010/05/07/dir1/',
-        '2010/05/07/dir1/file1',
+        '2010/05/07/dir1/file1/',
+        '2010/05/07/dir1/file1/file1'
     ]
 
-    assert Path(env.mnt_dir / 'proxy/2010/05/07/dir1/file1').read_text() == \
+    assert Path(env.mnt_dir / 'proxy/2010/05/07/dir1/file1/file1').read_text() == \
         'file 1'
-    assert Path(env.mnt_dir / 'proxy/2008/02/03/dir2/dir3/file2').read_text() == \
+    assert Path(env.mnt_dir / 'proxy/2008/02/03/dir2/dir3/file2/file2').read_text() == \
         'file 2'
 
 @pytest.fixture
@@ -148,7 +150,7 @@ def container(cli, base_dir, data_dir):
                 'storage': [{
                     'timeline-root': '/timeline',
                     'object': 'storage',
-                    'type': 'date-proxy',
+                    'type': 'timeline',
                     'owner': '0xaaa',
                     'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
                     'backend-id': str(uuid.uuid4()),
@@ -177,7 +179,7 @@ def container(cli, base_dir, data_dir):
 
     yield 'macro'
 
-def test_date_proxy_subcontainers(base_dir, container, data_dir):
+def test_timeline_subcontainers(base_dir, container, data_dir):
     # pylint: disable=protected-access
     (data_dir / 'dir1').mkdir()
     (data_dir / 'dir1/file1').write_text('file 1')
@@ -200,7 +202,7 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
     assert subcontainers[0]._storage_cache[0].storage == {
         'object': 'storage',
         'type': 'delegate',
-        'subdirectory': '/2008/02/03/dir2/dir3',
+        'subdirectory': '/2008/02/03/dir2/dir3/file2',
         'owner': container.owner,
         'container-path': str(subcontainers[0].paths[0]),
         'reference-container': f'wildland:@default:{container.paths[0]}:',
@@ -208,9 +210,9 @@ def test_date_proxy_subcontainers(base_dir, container, data_dir):
         'version': Manifest.CURRENT_VERSION
     }
     assert subcontainers[1].paths[1:] == [PurePosixPath('/timeline/2010/05/07')]
-    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07/dir1'
+    assert subcontainers[1]._storage_cache[0].storage['subdirectory'] == '/2010/05/07/dir1/file1'
 
-def test_date_proxy_subcontainers_fuse(base_dir, env, container, data_dir):
+def test_timeline_subcontainers_fuse(base_dir, env, container, data_dir):
     (data_dir / 'dir1').mkdir()
     (data_dir / 'dir1/file1').write_text('file 1')
     os.utime(data_dir / 'dir1/file1',
@@ -257,7 +259,7 @@ def old_container(cli, base_dir, data_dir):
             'backends': {
                 'storage': [{
                     'object': 'storage',
-                    'type': 'date-proxy',
+                    'type': 'timeline',
                     'owner': '0xaaa',
                     'container-path': '/.uuid/98cf16bf-f59b-4412-b54f-d8acdef391c0',
                     'backend-id': str(uuid.uuid4()),
@@ -290,7 +292,7 @@ def test_backwards_compatibility(cli, old_container, data_dir, base_dir):
     """
     Tests the backwards compatibility of the backend, based on an
     'old container' (one without the 'timeline-root' field in it's schema).
-    Ensures the containers created prior to the date-proxy modifications
+    Ensures the containers created prior to the timeline modifications
     will still be mounted correctly.
     """
     (data_dir / 'dir1').mkdir()

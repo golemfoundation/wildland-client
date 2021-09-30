@@ -82,10 +82,10 @@ def test_add_storage(client, owner):
     assert len(container._storage_cache) == 1
 
     # but changes should be reflected
-    storage.public_url = '/'
+    storage.access = [{'user': '*'}]
     client.add_storage_to_container(container, storage)
     assert len(container._storage_cache) == 1
-    assert container._storage_cache[0].storage['public-url'] == '/'
+    assert container._storage_cache[0].storage['access'] == [{'user': '*'}]
 
 
 def test_add_storage_not_inline(client, owner):
@@ -114,10 +114,10 @@ def test_add_storage_not_inline(client, owner):
     assert len(container._storage_cache) == 1
 
     # but changes should be reflected
-    storage.public_url = '/PUBLICURL'
+    storage.access = [{'user': '*'}]
     client.add_storage_to_container(container, storage)
     assert len(container._storage_cache) == 1
-    assert '/PUBLICURL' in storage_path.read_text()
+    assert '*' in storage_path.read_text()
 
 
 def test_add_storage_link(client, owner, tmpdir):
@@ -149,7 +149,7 @@ def test_add_storage_link(client, owner, tmpdir):
     client.save_new_object(WildlandObject.Type.CONTAINER, container, "container")
 
     # reflect changes
-    storage.public_url = '/PUBLICURL'
+    storage.access = [{'user': '*'}]
     client.add_storage_to_container(container, storage)
     assert len(container._storage_cache) == 1
-    assert '/PUBLICURL' in storage_path.read_text()
+    assert '*' in storage_path.read_text()

@@ -27,7 +27,7 @@ WebDAV storage backend
 
 from pathlib import PurePosixPath
 from typing import Iterable, Tuple
-from urllib.parse import urljoin, urlparse, quote, unquote
+from urllib.parse import urljoin, urlparse, urlunparse, quote, unquote
 import os
 
 import dateutil.parser
@@ -129,7 +129,7 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         }
     })
     TYPE = 'webdav'
-    LOCATION_PARAM = 'url'
+    LOCATION_PARAM = 'base_path'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
@@ -141,7 +141,13 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
         self.session.auth = self.auth
 
         self.public_url = self.params['url']
-        self.base_path = PurePosixPath(urlparse(self.public_url).path)
+
+        # stripping the public url of the path
+        parsed_url = urlparse(self.public_url)
+        if parsed_url.path!='/' and parsed_url.path!='':
+            self.public_url=urlunparse(parsed_url._replace(path='/'))
+
+        self.base_path = PurePosixPath(self.params.get('base_path', urlparse(self.public_url).path))
 
     @classmethod
     def cli_options(cls):
@@ -158,8 +164,13 @@ class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBa
     @classmethod
     def cli_create(cls, data):
         result = super(WebdavStorageBackend, cls).cli_create(data)
+        base_path = urlparse(data['url']).path
+        url = data['url']
+        if urlparse(url).path!='/' and urlparse(url).path!='':
+            url=urlunparse(urlparse(url)._replace(path='/'))
         result.update({
-            'url': data['url'],
+            'url': url,
+            'base_path': base_path,
             'credentials': {
                 'login': data['login'],
                 'password': data['password'],

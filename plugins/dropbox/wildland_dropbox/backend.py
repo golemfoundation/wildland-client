@@ -268,10 +268,10 @@ class DropboxStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin,
     def unmount(self) -> None:
         self.client.disconnect()
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, DropboxFileAttr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, DropboxFileAttr]]:
         for metadata in self.client.list_folder(self._path(path)):
             attr = self._get_attr_from_metadata(metadata)
-            yield metadata.name, attr
+            yield path / metadata.name, attr
 
     def open(self, path: PurePosixPath, _flags: int) -> DropboxFile:
         try:

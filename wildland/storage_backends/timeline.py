@@ -22,7 +22,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Date proxy backend
+Timeline backend
 """
 
 import uuid
@@ -41,7 +41,7 @@ from ..wildland_object.wildland_object import WildlandObject
 
 
 
-class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
+class TimelineStorageBackend(CachedStorageMixin, StorageBackend):
     """
     A proxy storage that re-organizes the files into directories based on their
     modification date.
@@ -76,7 +76,7 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
             },
         }
     })
-    TYPE = 'date-proxy'
+    TYPE = 'timeline'
 
     def __init__(self, **kwds):
         super().__init__(**kwds)
@@ -123,11 +123,20 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
             >>> _split_path(PurePosixPath('2020/10/foo.txt')
             (None, PurePosixPath('2020/10/foo.txt'))
         """
+        # As the backend creates separate subcontainers for each of the files,
+        # the creation of separate 'name' directories for each of the files in
+        # the parent container is necessary.
+        # Thus, as to access the content of the actual file (via it's initial
+        # path) we need to remove those 'name' directories (or the part of the
+        # directory that is a duplicate of the file's name).
+        name_duplicate = len(path.parts) - 1
 
         if len(path.parts) <= 3:
             return None, path
 
-        prefix, suffix = path.parts[:3], path.parts[3:]
+        # The duplicated 'name' part of the path is discarded.
+        prefix, suffix, _ = path.parts[:3], path.parts[3:name_duplicate], \
+                            path.parts[name_duplicate]
         date = '/'.join(prefix)
         return date, PurePosixPath(*suffix)
 
@@ -149,7 +158,11 @@ class DateProxyStorageBackend(CachedStorageMixin, StorageBackend):
                 yield from self._info_all_walk(path)
             else:
                 date_str = self._date_str(attr.timestamp)
-                yield date_str / path, attr
+                # Duplicating the 'name' to create a separate directory for each
+                # file. This is necessary for the delegate backend to be able
+                # to access each of the files individually and prevents
+                # unneccessary file duplicates in the timeline tree.
+                yield date_str / path / PurePosixPath(name), attr
 
     def open(self, path: PurePosixPath, flags: int) -> File:
         date_str, inner_path = self._split_path(path)

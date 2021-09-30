@@ -49,6 +49,7 @@ from ..manifest.manifest import (
 )
 from ..manifest.schema import SchemaError
 from ..exc import WildlandError
+from ..storage import Storage
 from ..user import User
 
 
@@ -81,6 +82,8 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     if isinstance(obj, Container):
         for backend in obj.load_storages(include_url=False):
             backend.validate()
+    elif isinstance(obj, Storage):
+        obj.validate()
 
 
 def wl_version():

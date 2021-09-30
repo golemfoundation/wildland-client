@@ -145,10 +145,10 @@ class GitStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def unmount(self) -> None:
         self.client.disconnect()
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         for obj in self.client.list_folder(self.convert_to_subparts(path)):
             attr = self._get_attr_from_object(obj)
-            yield obj.name, attr
+            yield path / obj.name, attr
 
     def open(self, path: PurePosixPath, _flags: int) -> GitFile:
         obj = self.client.get_object(self.convert_to_subparts(path))

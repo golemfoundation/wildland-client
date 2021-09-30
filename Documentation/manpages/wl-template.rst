@@ -119,14 +119,14 @@ Delete a storage template from local filesystem.
 .. include:: include/storages/transpose.rsti
 
 
-.. program:: wl-template-create-date-proxy
-.. _wl-template-create-date-proxy:
+.. program:: wl-template-create-timeline
+.. _wl-template-create-timeline:
 
-:command:`wl template create date-proxy --reference-container-url <url> [--timeline-root <dir>] NAME`
+:command:`wl template create timeline --reference-container-url <url> [--timeline-root <dir>] NAME`
 -----------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
-.. include:: include/storages/date-proxy.rsti
+.. include:: include/storages/timeline.rsti
 
 .. program:: wl-template-create-delegate
 .. _wl-template-create-delegate:
@@ -327,14 +327,14 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/transpose.rsti
 
-.. program:: wl-template-add-date-proxy
-.. _wl-template-add-date-proxy:
+.. program:: wl-template-add-timeline
+.. _wl-template-add-timeline:
 
-:command:`wl template add date-proxy --reference-container-url <url> [--timeline-root <dir>] NAME`
+:command:`wl template add timeline --reference-container-url <url> [--timeline-root <dir>] NAME`
 --------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
-.. include:: include/storages/date-proxy.rsti
+.. include:: include/storages/timeline.rsti
 
 .. program:: wl-template-add-delegate
 .. _wl-template-add-delegate:

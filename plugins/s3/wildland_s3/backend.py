@@ -200,7 +200,7 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         }
     })
     TYPE = 's3'
-    LOCATION_PARAM = 's3_url'
+    LOCATION_PARAM = 'base_url'
 
     INDEX_NAME = '/'
 
@@ -237,7 +237,8 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         else:
             self.sts_client = session.client(service_name='sts')
 
-        s3_url = urlparse(self.params['s3_url'])
+        base_url = self.params.get('base_url', '/')
+        s3_url = urlparse(self.params['s3_url']+base_url.lstrip('/'))
         assert s3_url.scheme == 's3'
 
         self.bucket = s3_url.netloc
@@ -272,8 +273,10 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
     @classmethod
     def cli_create(cls, data):
         result = super(S3StorageBackend, cls).cli_create(data)
+        base_url = urlparse(data['s3_url']).path.lstrip('/')
         result.update({
             's3_url': data['s3_url'],
+            'base_url': base_url,
             'endpoint_url': data['endpoint_url'],
             'credentials': {
                 'access-key': data['access_key'],

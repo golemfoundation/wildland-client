@@ -1653,31 +1653,27 @@ def test_container_delete_unpublish(cli, tmp_path):
 
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
-        '--no-encrypt-manifest')
+    cli('template', 'create', 'local', '--location', os.fspath(tmp_path), 'myforest')
+    cli('forest', 'create', 'User', 'myforest')
+    cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
         '--manifest-pattern', '/m-*.yaml',
-        '--public-url', 'https://example.invalid/')
+        '--no-encrypt-manifest')
 
     cli('container', 'publish', 'Container')
 
-    # “Always two there are. No more, no less. A master and an apprentice.”
-    m1, m2 = tmp_path.glob('*.yaml')
+    files = tmp_path.glob('**/**/*.yaml')
 
-    # “But which was destroyed, the master or the apprentice?”
-    with open(m1) as file1:
-        with open(m2) as file2:
-            for line in itertools.chain(file1, file2):
-                if re.fullmatch(
-                        r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}yaml',
-                        line.strip()):
-                    break
-            else:
-                assert False
+    for file in files:
+        with open(file) as file1:
+            for line in itertools.chain(file1):
+                if re.match(fr'location: {tmp_path}', line.strip()):
+                    return
 
+    assert False
 
 def test_container_publish_auto(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1708,8 +1704,7 @@ def test_container_republish_paths(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
-        '--manifest-pattern', '/manifests/{path}.yaml',
-        '--public-url', 'https://example.invalid/')
+        '--manifest-pattern', '/manifests/{path}.yaml')
 
     cli('container', 'publish', 'Container')
 
@@ -4238,15 +4233,9 @@ def test_template_parsing(cli, base_dir):
         '--title', 'foobar', '--category', '/boo!foo:hoo', '--category', '/żółć',
         '--local-dir', '/a_local_dir')
 
-    with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
-        uuid_path = documents[1]['paths'][0]
-
-    just_uuid = uuid_path.replace('/.uuid/', '')
-
     data = (base_dir / 'containers/Container.container.yaml').read_text()
 
-    assert f'url: https://acme.com{uuid_path}/foobar/a_local_dir/{just_uuid}' in data
+    assert 'url: https://acme.com/' in data
     assert 'login: /boo!foo:hoo' in data
     assert 'password: "/\\u017C\\xF3\\u0142\\u0107"' in data
 
@@ -4332,16 +4321,16 @@ def test_delegated_template(cli, base_dir):
 
 def test_proxy_storage_template(cli, base_dir):
     # The purpose of this test is to verify that the storage templates are working correctly for a
-    # storage type (date-proxy) that does not have StorageBackend.LOCATION_PARAM defined
+    # storage type (timeline) that does not have StorageBackend.LOCATION_PARAM defined
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/STORAGE',
         '--container', 'Container', '--inline')
 
-    cli('template', 'create', 'date-proxy', '--reference-container-url',
-        f'file://{base_dir}/containers/Container.container.yaml', 'dateproxy')
+    cli('template', 'create', 'timeline', '--reference-container-url',
+        f'file://{base_dir}/containers/Container.container.yaml', 'timeline')
 
-    with open(base_dir / 'templates/dateproxy.template.jinja') as f:
+    with open(base_dir / 'templates/timeline.template.jinja') as f:
         template_jinja = load_yaml(f)
 
     assert len(template_jinja) == 1
@@ -4349,13 +4338,13 @@ def test_proxy_storage_template(cli, base_dir):
         'read-only': False,
         'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
         'timeline-root': '/timeline',
-        'type': 'date-proxy'
+        'type': 'timeline'
     }
 
-    cli('container', 'create', '--storage-template', 'dateproxy', '--no-encrypt-manifest',
-        'dateproxy')
+    cli('container', 'create', '--storage-template', 'timeline', '--no-encrypt-manifest',
+        'timeline')
 
-    with open(base_dir / 'containers/dateproxy.container.yaml') as f:
+    with open(base_dir / 'containers/timeline.container.yaml') as f:
         dateproxy_container_manifest = list(load_yaml_all(f))
     assert len(dateproxy_container_manifest) == 2
     assert dateproxy_container_manifest[0] == {
@@ -4373,7 +4362,7 @@ def test_proxy_storage_template(cli, base_dir):
                     'read-only': False,
                     'reference-container': f'file://{base_dir}/containers/Container.container.yaml',
                     'timeline-root': '/timeline',
-                    'type': 'date-proxy',
+                    'type': 'timeline',
                     'backend-id': mock.ANY,
                     'object': 'storage',
                 }
@@ -4489,12 +4478,13 @@ def test_import_user(cli, base_dir, tmpdir):
     cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
     cli('user', 'import', str(destination))
 
-    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+    user_path = base_dir / 'users/Bob.user.yaml'
+    assert user_path.read_bytes() == test_data
 
     bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xaaa\'' in bridge_data
-    assert f'user: file://localhost{destination}' in bridge_data
+    assert f'user: file://localhost{user_path}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
@@ -4503,10 +4493,11 @@ def test_import_user(cli, base_dir, tmpdir):
 
     assert (base_dir / 'users/Bob.1.user.yaml').read_bytes() == _create_user_manifest('0xccc')
 
+    user_path_1 = base_dir / 'users/Bob.1.user.yaml'
     bridge_data = (base_dir / 'bridges/Bob.1.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xaaa\'' in bridge_data
-    assert f'user: file://localhost{destination}' in bridge_data
+    assert f'user: file://localhost{user_path_1}' in bridge_data
     assert 'pubkey: key.0xccc' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /IMPORT[\S\s]+', bridge_data)
 
@@ -4644,12 +4635,13 @@ def test_import_user_bridge_owner(cli, base_dir, tmpdir):
     cli('user', 'create', 'Carol', '--key', '0xccc')
     cli('user', 'import', '--bridge-owner', 'Carol', str(destination))
 
-    assert (base_dir / 'users/Bob.user.yaml').read_bytes() == test_data
+    user_path = base_dir / 'users/Bob.user.yaml'
+    assert user_path.read_bytes() == test_data
 
     bridge_data = (base_dir / 'bridges/Bob.bridge.yaml').read_text()
     assert 'object: bridge' in bridge_data
     assert 'owner: \'0xccc\'' in bridge_data
-    assert f'user: file://localhost{destination}' in bridge_data
+    assert f'user: file://localhost{user_path}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-PATH[\S\s]+', bridge_data)
 
@@ -4814,6 +4806,7 @@ def test_user_refresh(cli, base_dir, tmpdir):
     # it should be replaced by native link object support for wl u import
     cli('user', 'import', str(destination))
     bridge_destination = base_dir / 'bridges/Alice.bridge.yaml'
+    user_path = base_dir / 'users/Alice.user.yaml'
 
     link_data = f'''
   storage:
@@ -4822,7 +4815,7 @@ def test_user_refresh(cli, base_dir, tmpdir):
   object: link
   file: /Alice.user.yaml'''
     bridge_text = bridge_destination.read_text()
-    bridge_text = bridge_text.replace('file://localhost' + str(destination), link_data)
+    bridge_text = bridge_text.replace('file://localhost' + str(user_path), link_data)
     bridge_destination.write_text(bridge_text)
 
     user_data = (base_dir / 'users/Alice.user.yaml').read_text()
@@ -5122,8 +5115,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
@@ -5149,16 +5141,14 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     assert catalog[0]['storage']['location'] == f'{uuid_dir}'
 
     assert catalog[1]['object'] == 'link'
-    assert catalog[1]['storage']['type'] == 'http'
-    assert catalog[1]['storage']['url'] == f'file://{uuid_dir}'
+    assert catalog[1]['storage']['type'] == 'local'
 
 
 def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
     cli('forest', 'create', 'Alice', 'forest-tpl')
 
@@ -5183,8 +5173,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     assert 'type: local' in catalog[0]['storage']['encrypted']['encrypted-data']
     assert f'location: {uuid_dir}' in catalog[0]['storage']['encrypted']['encrypted-data']
 
-    assert 'type: http' in catalog[1]['storage']['encrypted']['encrypted-data']
-    assert f'url: file://{uuid_dir}' in catalog[1]['storage']['encrypted']['encrypted-data']
+    assert 'type: local' in catalog[1]['storage']['encrypted']['encrypted-data']
 
 
 def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):

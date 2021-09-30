@@ -314,7 +314,7 @@ class LocalDirectoryCachedStorageBackend(DirectoryCachedStorageMixin, BaseCached
 
     TYPE = 'local-dir-cached'
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         """
         Load information about a single directory.
         """
@@ -323,7 +323,7 @@ class LocalDirectoryCachedStorageBackend(DirectoryCachedStorageMixin, BaseCached
                 file_path = self._local(path) / dir_entry.name
                 if not is_symlink_pointing_outside_container(self.root, file_path):
                     attr = self._stat(dir_entry.stat())
-                    yield dir_entry.name, attr
+                    yield path / dir_entry.name, attr
 
 
 def is_symlink_pointing_outside_container(root: Path, path: Path) -> bool:

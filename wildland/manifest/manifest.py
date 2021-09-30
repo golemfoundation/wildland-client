@@ -261,6 +261,9 @@ class Manifest:
         if fields.get('type') == 'http-index':
             fields['type'] = 'http'
 
+        if fields.get('type') == 'date-proxy':
+            fields['type'] = 'timeline'
+
         if fields.get('subcontainers'):
             if 'manifest-pattern' in fields:
                 raise ManifestError('Obsolete subcontainers field cannot be '

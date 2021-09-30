@@ -40,7 +40,14 @@ Python
 For Python code, follow `PEP-8`_ style guide. There may be exceptions to the rules imposed by PEP-8,
 which are defined in `.pylintrc`_ configuration file. One notable example is the limit to 100
 characters for all lines instead of the maximum of 79 and 72 characters for code and comments,
-respectively.
+respectively. Also if you create a new file you should add a copyright notice at the top (the
+template can be found in the *copyright_template* file). If for some reason you think this file
+should not contain a copyright notice you can choose from multiple `pylint`_'s disable keywords and
+place it at the top like:
+
+.. code-block::
+
+    # pylint: disable=copyright-violation,copyright-formatting,copyright-author-formatting
 
 To ensure you are following the coding conventions, run `pylint`_ linter with the `.pylintrc`_
 configuration file you can find in the Wildland repository. To make sure your code is accepted by

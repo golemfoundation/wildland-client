@@ -3,4 +3,4 @@
 set -ex
 
 . /home/user/env/bin/activate
-pylint wildland/ plugins/ "$@"
+PYTHONPATH=. pylint wildland/ plugins/ "$@"

@@ -62,8 +62,6 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
                           'By default the @default owner is used.'),
         click.Option(['--watcher-interval'], metavar='SECONDS', required=False, type=int,
                      help='Set the storage watcher-interval in seconds.'),
-        click.Option(['--public-url'], metavar='URL', required=False,
-                     help='Set public base URL.'),
         click.Option(['--read-only'], metavar='BOOL', is_flag=True,
                      help='Mark storage as read-only.'),
         click.Option(['--default-cache'], metavar='BOOL', is_flag=True,
@@ -97,7 +95,6 @@ def _do_create(
         create: bool,
         name: str,
         watcher_interval: Optional[int],
-        public_url: Optional[str],
         read_only: bool,
         default_cache: bool,
         access: Sequence[str],
@@ -145,9 +142,6 @@ def _do_create(
     if backend.LOCATION_PARAM:
         params[backend.LOCATION_PARAM] = \
             (params[backend.LOCATION_PARAM] or '').rstrip('/') + local_dir_postfix
-
-    if public_url:
-        params['public-url'] = public_url.rstrip('/') + local_dir_postfix
 
     # remove default, non-required values
     for param_key in [k for k, v in params.items() if v is None or v == []]:

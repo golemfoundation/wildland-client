@@ -140,7 +140,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
 
         return urljoin(self.public_url, quote(full_path))
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         url = self.make_url(path, is_dir=True)
         resp = self.session.request(
             method='GET',
@@ -197,8 +197,7 @@ class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, St
                 attr = Attr.dir(size, timestamp)
             else:
                 attr = Attr.file(size, timestamp)
-
-            yield PurePosixPath(parsed_href.path).name, attr
+            yield path / parsed_href.path, attr
 
     def getattr(self, path: PurePosixPath) -> Attr:
         try:

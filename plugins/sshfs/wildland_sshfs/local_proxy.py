@@ -1,3 +1,5 @@
+# pylint: disable=missing-module-docstring,copyright-violation
+
 # Wildland Project
 #
 # The contents of this file is primarily inspired by

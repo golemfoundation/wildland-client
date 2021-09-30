@@ -19,7 +19,7 @@ Storage backends
 .. autoclass:: wildland.storage_backends.local_cached.BaseCached
    :members:
 
-.. autoclass:: wildland.storage_backends.date_proxy.DateProxyStorageBackend
+.. autoclass:: wildland.storage_backends.timeline.TimelineStorageBackend
    :members:
 
 .. autoclass:: wildland.storage_backends.delegate.DelegateProxyStorageBackend

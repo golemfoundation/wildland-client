@@ -1,4 +1,4 @@
-# Wildland project
+# Wildland Project
 #
 # Copyright (C) 2020 Golem Foundation
 #
