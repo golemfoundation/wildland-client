@@ -274,7 +274,7 @@ def publish(obj: ContextObj, cont):
 
     # check if all containers are published
     not_published = Publisher.list_unpublished_containers(obj.client)
-    n_container = len(list(obj.client.dirs[WildlandObject.Type.CONTAINER].glob('*.yaml')))
+    n_container = len(list(obj.client.dirs[WildlandObject.Type.CONTAINER].glob('*.container.yaml')))
 
     # if all containers are unpublished DO NOT print warning
     if not_published and len(not_published) != n_container:

@@ -435,6 +435,11 @@ class Search:
                 return
 
             for manifest_path, subcontainer_data in children_iter:
+                # load only containers or bridges
+                if not str(manifest_path).endswith(f'{WildlandObject.Type.CONTAINER.value}.yaml') \
+                        and not str(manifest_path)\
+                        .endswith(f'{WildlandObject.Type.BRIDGE.value}.yaml'):
+                    continue
                 try:
                     container_or_bridge = step.client.load_subcontainer_object(
                         step.container, storage, subcontainer_data)

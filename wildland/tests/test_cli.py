@@ -1349,7 +1349,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     # Create local forest so that container can be published somewhere
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', base_dir, 'local-catalog',
-        '--manifest-pattern', '/{path}.yaml')
+        '--manifest-pattern', '/{path}.{object-type}.yaml')
     cli('container', 'create', 'Catalog', '--template', 'local-catalog',
         '--update-user', '--no-encrypt-manifest')
 
@@ -1365,7 +1365,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     cli('container', 'modify', 'Container.container', '--title', 'something')
 
     # Find it using forest catalog path
-    with open(catalog_dir / 'PATH.yaml') as f:
+    with open(catalog_dir / 'PATH.container.yaml') as f:
         data = f.read()
     assert 'title: something' in data
 
@@ -1396,7 +1396,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
         f'file://localhost/{base_dir}/containers/Container.container.yaml')
 
     # Check if it was re-published with updated title
-    with open(catalog_dir / 'PATH.yaml') as f:
+    with open(catalog_dir / 'PATH.container.yaml') as f:
         data = f.read()
     assert 'title: another thing' in data
 
@@ -1578,17 +1578,17 @@ def test_container_publish_unpublish(cli, tmp_path, base_dir):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--inline',
-        '--manifest-pattern', '/*.yaml')
+        '--manifest-pattern', '/*.{object-type}.yaml')
 
-    assert not tuple(tmp_path.glob('*.yaml'))
+    assert not tuple(tmp_path.glob('*.container.yaml'))
 
     cli('container', 'publish', 'Container')
 
-    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
     cli('container', 'unpublish', 'Container')
 
-    assert not tuple(tmp_path.glob('*.yaml'))
+    assert not tuple(tmp_path.glob('*.container.yaml'))
 
     cli('container', 'create', 'NewContainer', '--path', '/NEWPATH')
 
@@ -1598,11 +1598,11 @@ def test_container_publish_unpublish(cli, tmp_path, base_dir):
 
     cli('container', 'publish', base_dir / 'tempdir/NewContainer.container.yaml')
 
-    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
     cli('container', 'unpublish', base_dir / 'tempdir/NewContainer.container.yaml')
 
-    assert not tuple(tmp_path.glob('*.yaml'))
+    assert not tuple(tmp_path.glob('*.container.yaml'))
 
 
 def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
@@ -1610,7 +1610,7 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
 
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location',
-        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.{object-type}.yaml', 'rw')
     cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
         'my_awesome_capsule', "--category", "/testing", "--template",
         "rw", '--no-encrypt-manifest')
@@ -1640,15 +1640,15 @@ def test_container_delete_unpublish(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--inline',
-        '--manifest-pattern', '/*.yaml')
+        '--manifest-pattern', '/*.{object-type}.yaml')
 
     cli('container', 'publish', 'Container')
 
-    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
     cli('container', 'delete', 'Container')
 
-    assert not tuple(tmp_path.glob('*.yaml'))
+    assert not tuple(tmp_path.glob('*.container.yaml'))
 
 
 def test_container_publish_rewrite(cli, tmp_path):
@@ -1659,20 +1659,20 @@ def test_container_publish_rewrite(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
-        '--manifest-pattern', '/m-*.yaml',
+        '--manifest-pattern', '/m-*.{object-type}.yaml',
         '--public-url', 'https://example.invalid/')
 
     cli('container', 'publish', 'Container')
 
     # “Always two there are. No more, no less. A master and an apprentice.”
-    m1, m2 = tmp_path.glob('*.yaml')
+    m1, m2 = tmp_path.glob('*.container.yaml')
 
     # “But which was destroyed, the master or the apprentice?”
     with open(m1) as file1:
         with open(m2) as file2:
             for line in itertools.chain(file1, file2):
                 if re.fullmatch(
-                        r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}yaml',
+                        r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}container.yaml',
                         line.strip()):
                     break
             else:
@@ -1682,19 +1682,19 @@ def test_container_publish_rewrite(cli, tmp_path):
 def test_container_publish_auto(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'ManifestsCatalog', '--path', '/PATH', '--update-user')
-    assert not tuple(tmp_path.glob('*.yaml'))  # no manifest-catalog yet
+    assert not tuple(tmp_path.glob('*.container.yaml'))  # no manifest-catalog yet
 
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'ManifestsCatalog',
         '--inline',
-        '--manifest-pattern', '/*.yaml')
+        '--manifest-pattern', '/*.container.yaml')
 
     cli('container', 'create', 'NoPublic', '--path', '/PATH', '--no-publish')
-    assert not tuple(tmp_path.glob('*.yaml'))  # --no-publish
+    assert not tuple(tmp_path.glob('*.container.yaml'))  # --no-publish
 
     cli('container', 'create', 'Public', '--path', '/PATH')
-    assert len(tuple(tmp_path.glob('*.yaml'))) == 1  # auto published
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1  # auto published
 
 
 def test_container_republish_paths(cli, tmp_path):
@@ -1708,14 +1708,14 @@ def test_container_republish_paths(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
-        '--manifest-pattern', '/manifests/{path}.yaml',
+        '--manifest-pattern', '/manifests/{path}.{object-type}.yaml',
         '--public-url', 'https://example.invalid/')
 
     cli('container', 'publish', 'Container')
 
-    assert (tmp_path / 'manifests/PA/TH1.yaml').exists()
-    assert (tmp_path / 'manifests/PA/TH2.yaml').exists()
-    assert not (tmp_path / 'manifests/PA/TH3.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
 
     # --no-publish, modification in progress
     cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH2', '--no-publish')
@@ -1725,18 +1725,18 @@ def test_container_republish_paths(cli, tmp_path):
     cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH1', '--no-publish')
     cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH4', '--no-publish')
 
-    assert (tmp_path / 'manifests/PA/TH1.yaml').exists()
-    assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
-    assert (tmp_path / 'manifests/PA/TH3.yaml').exists()
-    assert not (tmp_path / 'manifests/PA/TH4.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH4.container.yaml').exists()
 
     # after publishing all of the above container modifications are applied
     cli('container', 'publish', ':/PA/TH3:')
 
-    assert not (tmp_path / 'manifests/PA/TH1.yaml').exists()
-    assert not (tmp_path / 'manifests/PA/TH2.yaml').exists()
-    assert (tmp_path / 'manifests/PA/TH3.yaml').exists()
-    assert (tmp_path / 'manifests/PA/TH4.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH4.container.yaml').exists()
 
 
 def test_container_dont_republish_if_not_modified(cli, tmp_path):
@@ -1746,11 +1746,11 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--inline',
-        '--manifest-pattern', '/*.yaml')
+        '--manifest-pattern', '/*.container.yaml')
 
     cli('container', 'publish', 'Container')
 
-    assert len(tuple(tmp_path.glob('*.yaml'))) == 1
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
     result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
@@ -1768,7 +1768,7 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
 def test_published_container_dump(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
-        '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
+        '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
     cli('forest', 'create', 'Alice', 'forest-tpl')
 
     # Auto publish
@@ -2339,7 +2339,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
                 'location': str(base_dir / 'containers'),
                 'manifest-pattern': {
                     'type': 'glob',
-                    'path': '/*.yaml',
+                    'path': '/*.{object-type}.yaml',
                 }
             }]}
         })
@@ -2479,7 +2479,7 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
                 'location': str(base_dir / 'containers'),
                 'manifest-pattern': {
                     'type': 'glob',
-                    'path': '/*.yaml',
+                    'path': '/*.{object-type}.yaml',
                 }
             }]}
         })
@@ -2523,7 +2523,7 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     cli('container', 'create', 'Catalog', '--owner', 'User', '--path', '/CATALOG',
         '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', str(catalog_dir),
-        '--container', 'Catalog', '--manifest-pattern', '/*.yaml')
+        '--container', 'Catalog', '--manifest-pattern', '/*.{object-type}.yaml')
 
     cli('container', 'create', 'Mock1', '--owner', 'User', '--path', '/C',
         '--no-encrypt-manifest')
@@ -2534,8 +2534,8 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     cli('storage', 'create', 'local', 'Storage', '--location', str(storage_dir),
         '--container', 'Mock2')
 
-    os.rename(base_dir / 'containers/Mock1.container.yaml', catalog_dir / 'Mock1.yaml')
-    os.rename(base_dir / 'containers/Mock2.container.yaml', catalog_dir / 'Mock2.yaml')
+    os.rename(base_dir / 'containers/Mock1.container.yaml', catalog_dir / 'Mock1.container.yaml')
+    os.rename(base_dir / 'containers/Mock2.container.yaml', catalog_dir / 'Mock2.container.yaml')
 
     container_file = base_dir / 'containers/Catalog.container.yaml'
     cli('user', 'modify', '--add-catalog-entry', f'file://{str(container_file)}', 'User')
@@ -2584,7 +2584,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
                 'location': str(base_dir / 'other-catalog'),
                 'manifest-pattern': {
                     'type': 'glob',
-                    'path': '/*.yaml',
+                    'path': '/*.{object-type}.yaml',
                 }
             }]}
         })
@@ -2662,7 +2662,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
                 'location': str(base_dir / 'other-catalog'),
                 'manifest-pattern': {
                     'type': 'glob',
-                    'path': '/*.yaml',
+                    'path': '/*.{object-type}.yaml',
                 }
             }]}
         })
@@ -2730,7 +2730,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
                 'location': str(base_dir / 'user-catalog'),
                 'manifest-pattern': {
                     'type': 'glob',
-                    'path': '/*.yaml',
+                    'path': '/*.{object-type}.yaml',
                 }
             }]}
         })
@@ -3243,7 +3243,7 @@ def test_container_mount_errors(cli, base_dir, control_client, tmp_path):
         '--container', 'Container')
     path2 = '/.uuid/0000-1111-2222-3333-4444'
     # put the correct one last, to check if mount errors do not interrupt mount
-    with open(tmp_path / 'container-99.yaml', 'w') as f:
+    with open(tmp_path / 'container-99.container.yaml', 'w') as f:
         f.write(f"""signature: |
   dummy.0xaaa
 ---
@@ -3260,15 +3260,15 @@ backends:
       subdirectory: '/subdir1'
 """)
 
-    subpath = tmp_path / 'container-2.yaml'
-    shutil.copyfile(tmp_path / 'container-99.yaml', subpath)
+    subpath = tmp_path / 'container-2.container.yaml'
+    shutil.copyfile(tmp_path / 'container-99.container.yaml', subpath)
     modify_file(subpath, 'container-99', 'container-2')
     modify_file(subpath, 'subdir1', 'subdir2')
     # corrupt signature so this one won't load
     modify_file(subpath, 'dummy.0xaaa', 'dummy.0xZZZ')
 
-    subpath = tmp_path / 'container-3.yaml'
-    shutil.copyfile(tmp_path / 'container-99.yaml', subpath)
+    subpath = tmp_path / 'container-3.container.yaml'
+    shutil.copyfile(tmp_path / 'container-99.container.yaml', subpath)
     modify_file(subpath, 'container-99', 'container-3')
     modify_file(subpath, 'subdir1', 'subdir3')
     # corrupt storage, so it will load but will fail to mount
@@ -3279,7 +3279,7 @@ backends:
 
     # TODO: cli_fail doesn't capture stderr now...
     with pytest.raises(WildlandError, match='Failed to load some container manifests'):
-        cli('container', 'mount', tmp_path / 'container-*.yaml', capture=True)
+        cli('container', 'mount', tmp_path / 'container-*.container.yaml', capture=True)
 
     # the other container should still be mounted
     command = control_client.calls['mount']['items']
@@ -4447,7 +4447,7 @@ def _create_user_manifest(owner: str, path: str = '/PATH',
       location: {catalog_path}
       manifest-pattern:
         type: glob
-        path: /{{path}}.yaml
+        path: /{{path}}.{{object-type}}.yaml
 '''
 
     else:
@@ -4609,7 +4609,7 @@ def test_import_bridge_wl_path(cli, base_dir, tmpdir):
 
     bob_bridge_dir = tmpdir / 'manifests'
     os.mkdir(bob_bridge_dir)
-    bob_bridge_location = bob_bridge_dir / 'IMPORT.yaml'
+    bob_bridge_location = bob_bridge_dir / 'IMPORT.bridge.yaml'
     bob_bridge_location.write(_create_bridge_manifest(
         '0xaaa', f'file://localhost{bob_manifest_location}', '0xbbb'))
 
@@ -4953,9 +4953,9 @@ def test_file_find_with_unmocked_client(cli, base_dir, tmpdir):
 def test_forest_create(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
-        '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
+        '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
     cli('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
-        '--read-only', '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
+        '--read-only', '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
 
     cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
 
@@ -4969,14 +4969,14 @@ def test_forest_create(cli, tmp_path):
     uuid_dir = str(catalog_dirs[0])
 
     assert Path(f'{uuid_dir}/forest-owner.user.yaml').exists()
-    assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+    assert Path(f'{uuid_dir}/.manifests.container.yaml').exists()
 
 
 def test_forest_bridge_to(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
-        '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
+        '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
     cli('forest', 'create', '--access', '*', 'Bob', 'forest-tpl')
 
     cli('bridge', 'create', 'Bridge', '--target-user', 'Bob', '--path', '/Bridge/To/Bob')
@@ -4992,7 +4992,7 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
 
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location',
-        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.{object-type}.yaml', 'rw')
     cli('container', 'create', '--owner', 'Alice', 'mycapsule', '--title',
         'my_awesome_capsule', "--category", "/testing", "--template",
         "rw", '--no-encrypt-manifest')
@@ -5012,7 +5012,7 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     catalog_dirs = list(catalog_path.glob('*'))
     catalog_uuid_dir = str(catalog_dirs[0])
 
-    with open(f'{catalog_uuid_dir}/.manifests.yaml') as f:
+    with open(f'{catalog_uuid_dir}/.manifests.container.yaml') as f:
         documents = list(load_yaml_all(f))
     entry_uuid_path = documents[1]['paths'][0]
     entry_uuid = get_container_uuid_from_uuid_path(entry_uuid_path)
@@ -5103,12 +5103,12 @@ def test_forest_create_check_for_published_catalog(cli, tmp_path):
     catalog_dirs = list(catalog_path.glob('*'))
 
     uuid_dir = catalog_dirs[0]
-    assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+    assert Path(f'{uuid_dir}/.manifests.container.yaml').exists()
 
-    with open(uuid_dir / '.manifests.yaml') as f:
+    with open(uuid_dir / '.manifests.container.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
-    published_path = uuid_dir / (Path(data["paths"][0]).name + '.yaml')
+    published_path = uuid_dir / (Path(data["paths"][0]).name + '.container.yaml')
 
     assert published_path.exists()
 
@@ -5201,7 +5201,7 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
-    with open(uuid_dir / '.manifests.yaml') as f:
+    with open(uuid_dir / '.manifests.container.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
@@ -5223,7 +5223,7 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
-    with open(uuid_dir / '.manifests.yaml') as f:
+    with open(uuid_dir / '.manifests.container.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
@@ -5246,7 +5246,7 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
-    with open(uuid_dir / '.manifests.yaml') as f:
+    with open(uuid_dir / '.manifests.container.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
@@ -5269,7 +5269,7 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
-    with open(uuid_dir / '.manifests.yaml') as f:
+    with open(uuid_dir / '.manifests.container.yaml') as f:
         data = list(yaml.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
@@ -5359,7 +5359,7 @@ def test_storage_dropbox_params(cli, base_dir):
     cli('storage', 'create', 'dropbox',
         '--container', 'Container',
         '--inline',
-        '--subcontainer-manifest', '/sub.yaml',
+        '--subcontainer-manifest', '/sub.container.yaml',
         '--location', '/foo-location',
         '--token', 'foo-token')
 
@@ -5370,13 +5370,13 @@ def test_storage_dropbox_params(cli, base_dir):
     assert storage['location'] == '/foo-location'
     assert storage['token'] == 'foo-token'
     assert storage['manifest-pattern']['type'] == 'list'
-    assert storage['manifest-pattern']['paths'] == ['/sub.yaml']
+    assert storage['manifest-pattern']['paths'] == ['/sub.container.yaml']
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest')
     cli('storage', 'create', 'dropbox',
         '--container', 'Container2',
         '--inline',
-        '--manifest-pattern', '/*.yaml',
+        '--manifest-pattern', '/*.{object-type}.yaml',
         '--location', '/foo-location',
         '--token', 'foo-token')
 
@@ -5387,7 +5387,7 @@ def test_storage_dropbox_params(cli, base_dir):
     assert storage['location'] == '/foo-location'
     assert storage['token'] == 'foo-token'
     assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
+    assert storage['manifest-pattern']['path'] == '/*.{object-type}.yaml'
 
 
 def test_storage_dropbox_params_with_refresh_token(cli, base_dir):
@@ -5415,7 +5415,7 @@ def test_storage_dropbox_params_with_refresh_token(cli, base_dir):
     cli('storage', 'create', 'dropbox',
         '--container', 'Container2',
         '--inline',
-        '--manifest-pattern', '/*.yaml',
+        '--manifest-pattern', '/*.{object-type}.yaml',
         '--location', '/foo-location',
         '--app-key', 'foo-app-key',
         '--refresh-token', 'foo-token')
@@ -5428,7 +5428,7 @@ def test_storage_dropbox_params_with_refresh_token(cli, base_dir):
     assert storage['app-key'] == 'foo-app-key'
     assert storage['refresh-token'] == 'foo-token'
     assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
+    assert storage['manifest-pattern']['path'] == '/*.{object-type}.yaml'
 
 
 def test_storage_googledrive_params(cli, base_dir):
@@ -5455,7 +5455,7 @@ def test_storage_googledrive_params(cli, base_dir):
     cli('storage', 'create', 'googledrive',
         '--container', 'Container2',
         '--inline',
-        '--manifest-pattern', '/*.yaml',
+        '--manifest-pattern', '/*.{object-type}.yaml',
         '--credentials', '{"token": "foo", "refresh_token": "foo", "token_uri": "foo",'
                          '"client_id": "foo", "client_secret": "foo", "scopes": "foo"}',
         '--skip-interaction')
@@ -5467,7 +5467,7 @@ def test_storage_googledrive_params(cli, base_dir):
     assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
                                       "client_id": "foo", "client_secret": "foo", "scopes": "foo"}
     assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
+    assert storage['manifest-pattern']['path'] == '/*.{object-type}.yaml'
 
 
 def test_storage_webdav_params(cli, base_dir):
@@ -5495,7 +5495,7 @@ def test_storage_webdav_params(cli, base_dir):
     cli('storage', 'create', 'webdav',
         '--container', 'Container2',
         '--inline',
-        '--manifest-pattern', '/*.yaml',
+        '--manifest-pattern', '/*.{object-type}.yaml',
         '--url', 'http://foo-location.com',
         '--login', 'foo-login',
         '--password', 'foo-password')
@@ -5508,7 +5508,7 @@ def test_storage_webdav_params(cli, base_dir):
     assert storage['credentials']['login'] == 'foo-login'
     assert storage['credentials']['password'] == 'foo-password'
     assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
+    assert storage['manifest-pattern']['path'] == '/*.{object-type}.yaml'
 
 
 def test_storage_s3_params(cli, base_dir):
@@ -5540,7 +5540,7 @@ def test_storage_s3_params(cli, base_dir):
     cli('storage', 'create', 's3',
         '--container', 'Container2',
         '--inline',
-        '--manifest-pattern', '/*.yaml',
+        '--manifest-pattern', '/*.{object-type}.yaml',
         '--s3-url', 's3://foo-location',
         '--endpoint-url', 'http://foo-location.com',
         '--access-key', 'foo-access-key',
@@ -5556,7 +5556,7 @@ def test_storage_s3_params(cli, base_dir):
     assert storage['credentials']['secret-key'] == 'foo-secret-key'
     assert not storage['with-index']
     assert storage['manifest-pattern']['type'] == 'glob'
-    assert storage['manifest-pattern']['path'] == '/*.yaml'
+    assert storage['manifest-pattern']['path'] == '/*.{object-type}.yaml'
 
 
 def test_storage_http_params(cli, base_dir):

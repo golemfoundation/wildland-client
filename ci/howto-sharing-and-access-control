@@ -240,14 +240,14 @@ paths:
 - /users/caroline
 manifests-catalog:
 - object: link
-  file: /.manifests.yaml
+  file: /.manifests.container.yaml
   storage:
     encrypted:
       encrypted-data: .*
       encrypted-keys:
       - .*
 - object: link
-  file: /.manifests.yaml
+  file: /.manifests.container.yaml
   storage:
     access:
     - user: '\*'
@@ -261,7 +261,7 @@ manifests-catalog:
     object: storage
     manifest-pattern:
       type: glob
-      path: /\*.yaml
+      path: /\*.{object-type}.yaml
 pubkeys:
 - .*
 version: '1'"

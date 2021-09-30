@@ -41,7 +41,7 @@ cat > ~/.config/wildland/templates/simple.template.jinja << EOF
   type: local
   manifest-pattern:
     type: glob
-    path: /*.yaml
+    path: /*.{object-type}.yaml
 EOF
 
 # containers

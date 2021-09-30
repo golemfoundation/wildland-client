@@ -79,7 +79,7 @@ pattern-matching expression) and list (a list of files).
 
     manifest-pattern:
       type: glob
-      path: /manifests/{path}/*.yaml
+      path: /manifests/{path}/*.{object-type}.yaml
 
 The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
 ``{path}`` is expanded to the container path we are looking for.

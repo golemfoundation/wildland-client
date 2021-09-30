@@ -40,7 +40,7 @@
                 ]
             },
             "file": {
-                "description": "absolute path to manifest file in storage, e.g. /manifest.yaml or /subdir/manifest.yaml; must begin with /",
+                "description": "absolute path to manifest file in storage, e.g. /manifest.container.yaml or /subdir/manifest.container.yaml; must begin with /",
                 "$ref": "#/abs-path"
             }
         }
@@ -142,7 +142,7 @@
             },
             "path": {
                 "type": "string",
-                "description": "An absolute path that can contain '*' and '{path}'. Default is '/*.yaml'.",
+                "description": "An absolute path that can contain '*' and '{path}'. Default is '/*.{object-type}.yaml'.",
                 "pattern": "^/.*$"
                 }
             },

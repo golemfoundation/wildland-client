@@ -246,11 +246,11 @@ def _bootstrap_forest(ctx: click.Context,
 
         # Provision manifest storage with container from manifest catalog
         _bootstrap_manifest(manifests_backend, catalog_container.local_path,
-                           Path('.manifests.yaml'))
+                           Path('.manifests.container.yaml'))
 
         for storage in obj.client.all_storages(container=catalog_container):
 
-            link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.yaml'}
+            link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.container.yaml'}
 
             if not storage.public_url:
                 fields = storage.to_manifest_fields(inline=True)

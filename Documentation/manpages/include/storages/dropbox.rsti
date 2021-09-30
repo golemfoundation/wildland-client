@@ -20,5 +20,5 @@
 
 .. option:: --manifest-pattern <glob>
 
-    Glob pattern to find manifest files in the storage, e.g. `/*.yaml`. Can use {path}`
+    Glob pattern to find manifest files in the storage, e.g. `/*.{object-type}.yaml`. Can use {path}`
     and `*` special characters.
