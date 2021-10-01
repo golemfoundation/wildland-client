@@ -124,10 +124,6 @@ class CopyrightChecker(BaseChecker):
         """
         Check if 'authors' section of a copyright notice is correctly formatted.
         """
-        print(type(file_stream))
-        print(type(template_lines))
-        print(type(file_index))
-        print(type(template_index))
         file_line = file_stream.readline().decode('utf-8')
         template_line = template_lines[template_index]
         while "#" != file_line.strip():
