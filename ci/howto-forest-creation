@@ -61,7 +61,7 @@ expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 │   └── $UUID_PCRE.container.yaml
 ├── forest-owner.user.yaml
 └── hello/
-    └── world.yaml
+    └── world.container.yaml
 
 2 directories, 5 files"
 run tree -aF /tmp/minio-data/the-bucket/.manifests/*
