@@ -86,20 +86,11 @@ container.
 
 Running tests:
 
-.. code-block:: sh
-
-    cd docker
-    docker-compose build wildland-client-base wildland-client-ci
-    docker-compose run wildland-client-ci ./ci/ci-pytest
-    docker-compose run wildland-client-ci ./ci/ci-lint
-    docker-compose run wildland-client-ci ./ci/ci-docs
-    # etc...
-
-Note that the source code is bundled in the ``wildland-client-base``. Because 
-of that every time you make changes in the source code, before running tests
-locally, you should re-build the image. This may be a time consuming process so
-what you can do instead is map the project's directory as a volume to override
-the bundled code. Use docker-compose's override feature to do that.
+Tests are automatically executed as part of CI/CD pipelines in an isolated environment
+using ``wildland-client-ci`` image. You may also run those tests locally, though to make
+this more convenient, you may want to map the project's directory as a volume to override
+the code bundled in the image. Use docker-compose's override feature to do that as shown
+in the example below:
 
 .. code-block:: sh
 
@@ -107,3 +98,17 @@ the bundled code. Use docker-compose's override feature to do that.
     cd docker
     docker-compose build wildland-client-base wildland-client-ci
     docker-compose -f docker-compose.yml -f docker-compose.local.yml run wildland-client-ci ./ci/ci-pytest
+    docker-compose -f docker-compose.yml -f docker-compose.local.yml run wildland-client-ci ./ci/ci-lint
+    # etc...
+
+To come as close as possible to the production environment, you should run tests without
+mapping local volumes. Note that this approach would require you to re-build docker image
+every time you make changes to the codebase.
+
+.. code-block:: sh
+
+    cd docker
+    docker-compose build wildland-client-base wildland-client-ci
+    docker-compose run wildland-client-ci ./ci/ci-pytest
+    docker-compose run wildland-client-ci ./ci/ci-lint
+    # etc...
