@@ -16,7 +16,7 @@ setup(
             'static = wildland.storage_backends.static:StaticStorageBackend',
             ('pseudomanifest = '
              'wildland.storage_backends.pseudomanifest:PseudomanifestStorageBackend'),
-            'date_proxy = wildland.storage_backends.date_proxy:DateProxyStorageBackend',
+            'timeline = wildland.storage_backends.timeline:TimelineStorageBackend',
             'delegate = wildland.storage_backends.delegate:DelegateProxyStorageBackend',
             'transpose = wildland.storage_backends.transpose:TransposeStorageBackend',
             'http = wildland.storage_backends.http:HttpStorageBackend',

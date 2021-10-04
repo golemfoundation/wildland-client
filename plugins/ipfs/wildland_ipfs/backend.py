@@ -151,7 +151,7 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
     def _is_file(obj) -> bool:
         return obj['LinksSize'] + obj['DataSize'] == obj['CumulativeSize']
 
-    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[str, Attr]]:
+    def info_dir(self, path: PurePosixPath) -> Iterable[Tuple[PurePosixPath, Attr]]:
         """
         List a directory.
         """
@@ -170,7 +170,7 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
                 continue
 
             if self._is_file(resp):
-                yield str(link_summary['Name']), self._stat(link_summary)
+                yield local_path, self._stat(link_summary)
             else:
                 dirs.add(local_path)
 
@@ -179,7 +179,7 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
             size=0,
             timestamp=1)
         for dir_path in dirs:
-            yield str(dir_path), dir_stat
+            yield path / str(dir_path), dir_stat
 
     def open(self, path: PurePosixPath, _flags: int) -> File:
         key = self.key(path)

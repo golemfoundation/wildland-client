@@ -32,25 +32,21 @@ expected="Appended to an existing storage template [demo-s3]"
 run wl storage-template add s3 --s3-url s3://the-bucket/ --manifest-pattern "/{path}.{object-type}.yaml" \
   --access-key 'dmr' --secret-key '/.,/.,/.,' --endpoint-url 'http://127.0.0.1:9000' --access '*' --read-only demo-s3
 
-expected_pcre="Created base path: s3://the-bucket/.manifests/$UUID_PCRE
+expected_pcre="Created base path: /.manifests/$UUID_PCRE
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/bob-forest-catalog.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/bob-forest-catalog.container.yaml
 Saved: /home/user/.config/wildland/users/bob.user.yaml"
-run wl forest create bob demo-s3
+run wl forest create --owner bob demo-s3
 
 expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 ├── .manifests.container.yaml
 ├── .uuid/
 │   └── $UUID_PCRE.container.yaml
-├── forest-owner.user.yaml
-└── s3:/
-    └── the-bucket/
-        └── .manifests/
-            └── $UUID_PCRE/
+└── forest-owner.user.yaml
 
-5 directories, 3 files"
+1 directory, 3 files"
 run tree -aF /tmp/minio-data/the-bucket/.manifests/*
 
 expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml
@@ -64,14 +60,10 @@ expected_pcre="/tmp/minio-data/the-bucket/.manifests/$UUID_PCRE
 │   ├── $UUID_PCRE.container.yaml
 │   └── $UUID_PCRE.container.yaml
 ├── forest-owner.user.yaml
-├── hello/
-│   └── world.yaml
-└── s3:/
-    └── the-bucket/
-        └── .manifests/
-            └── $UUID_PCRE/
+└── hello/
+    └── world.yaml
 
-6 directories, 5 files"
+2 directories, 5 files"
 run tree -aF /tmp/minio-data/the-bucket/.manifests/*
 
 wl c mount wildland:"$bob_userid:/hello/world":

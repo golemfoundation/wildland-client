@@ -16,7 +16,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public LicenUnkse
+# You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -133,8 +133,8 @@ class Search:
         self.fs_client = fs_client
 
         self.local_containers = list(self.client.load_all(WildlandObject.Type.CONTAINER))
-        self.local_users = list(self.client.load_all(WildlandObject.Type.USER))
-        self.local_bridges = list(self.client.load_all(WildlandObject.Type.BRIDGE))
+        self.local_users = self.client.get_local_users(reload=True)
+        self.local_bridges = self.client.get_local_bridges(reload=True)
 
     def resolve_raw(self) -> Iterable[Step]:
         """

@@ -15,7 +15,7 @@ wl start
 
 # creating a template and a forest
 wl template create local --location /home/user/catalog mylocal
-wl forest create user1 mylocal
+wl forest create --owner user1 mylocal
 
 # creating an example container
 wl container create container1 --title "container1" --category /category/one --category /category/two --category /timeline/2021/07/25

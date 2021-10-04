@@ -95,16 +95,16 @@ The ``path`` is an absolute path that can contain ``*`` and ``{path}``.
 The ``paths`` is a list of absolute (in the context of the storage) paths to container or bridge
 files.
 
-``date-proxy`` storage
+``timeline`` storage
 ----------------------
 
-``date-proxy`` is an example storage with subcontainers. It's a storage that sorts files
+``timeline`` is an example storage with subcontainers. It's a storage that sorts files
 according to the modification time. For example, if a file ``foo.txt`` has a
 modification time of 2020-05-01, it will be available under
 ``2020/05/01/foo.txt``. At the same time, each date-based directory is exposed
 via a subcontainer with a path ``/timeline/<YEAR>/<MONTH>/<DAY>``.
 
-``date-proxy`` example (using CLI)
+``timeline`` example (using CLI)
 ----------------------------------
 
 Create a user, if you haven't done that yet::
@@ -126,7 +126,7 @@ Create the proxy container storage::
 
    $ wl container create Proxy --path /.proxy
 
-   $ wl storage create date-proxy Proxy \
+   $ wl storage create timeline Proxy \
        --reference-container-url file://$HOME/.config/wildland/containers/Inner.container.yaml \
        --container Proxy
 
@@ -148,7 +148,7 @@ You should be able to see the files::
    /home/user/wildland/timeline/2020/05/01
    /home/user/wildland/timeline/2020/05/01/file1.txt
 
-``date-proxy`` example (self-contained manifest)
+``timeline`` example (self-contained manifest)
 ------------------------------------------------
 
 All manifests can be inlined. You can create a ``container.yaml``
@@ -163,7 +163,7 @@ file (or edit existing one using ``wl container edit``)
 
    backends:
      storage:
-       - type: date-proxy
+       - type: timeline
          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
          owner: <OWNER>
          reference-container:

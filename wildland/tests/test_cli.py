@@ -1620,7 +1620,7 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
 
     cli('container', 'create', 'unpublished', '--template', 'rw')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'rw')
 
     output = []
 
@@ -1653,30 +1653,27 @@ def test_container_delete_unpublish(cli, tmp_path):
 
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
-        '--no-encrypt-manifest')
+    cli('template', 'create', 'local', '--location', os.fspath(tmp_path), 'myforest')
+    cli('forest', 'create', 'myforest')
+    cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
         '--manifest-pattern', '/m-*.{object-type}.yaml',
-        '--public-url', 'https://example.invalid/')
+        '--no-encrypt-manifest')
 
     cli('container', 'publish', 'Container')
 
-    # “Always two there are. No more, no less. A master and an apprentice.”
-    m1, m2 = tmp_path.glob('*.container.yaml')
+    files = tmp_path.glob('**/**/*.container.yaml')
 
-    # “But which was destroyed, the master or the apprentice?”
-    with open(m1) as file1:
-        with open(m2) as file2:
-            for line in itertools.chain(file1, file2):
-                if re.fullmatch(
-                        r'- https://example\.invalid/m-([A-Za-z0-9-]+\.){2}container.yaml',
-                        line.strip()):
-                    break
-            else:
-                assert False
+    for file in files:
+        with open(file) as file1:
+            for line in itertools.chain(file1):
+                if re.match(fr'location: {tmp_path}', line.strip()):
+                    return
+
+    assert False
 
 
 def test_container_publish_auto(cli, tmp_path):
@@ -1708,8 +1705,7 @@ def test_container_republish_paths(cli, tmp_path):
         '--location', os.fspath(tmp_path),
         '--container', 'Container',
         '--no-inline',
-        '--manifest-pattern', '/manifests/{path}.{object-type}.yaml',
-        '--public-url', 'https://example.invalid/')
+        '--manifest-pattern', '/manifests/{path}.{object-type}.yaml')
 
     cli('container', 'publish', 'Container')
 
@@ -1769,7 +1765,7 @@ def test_published_container_dump(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
-    cli('forest', 'create', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--owner', 'Alice', 'forest-tpl')
 
     # Auto publish
     cli('container', 'create', 'AliceContainer', '--path', '/MY/ALICE')
@@ -4952,12 +4948,13 @@ def test_file_find_with_unmocked_client(cli, base_dir, tmpdir):
 
 def test_forest_create(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
     cli('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert catalog_path.exists()
@@ -4965,11 +4962,21 @@ def test_forest_create(cli, tmp_path):
     catalog_dirs = list(catalog_path.glob('*'))
 
     assert len(catalog_dirs) == 1
-
-    uuid_dir = str(catalog_dirs[0])
+    first_catalog = catalog_dirs[0]
+    uuid_dir = str(first_catalog)
 
     assert Path(f'{uuid_dir}/forest-owner.user.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.container.yaml').exists()
+    with open(Path(first_catalog / 'forest-owner.user.yaml')) as f:
+        stringified_file = ''.join(f.readlines())
+        assert "owner: '0xaaa'" in stringified_file
+
+    cli('forest', 'create', '--owner', 'Bob', 'forest-tpl')
+    catalog_dirs = list(catalog_path.glob('*'))
+    catalog_dirs.remove(first_catalog)
+    with open(Path(catalog_dirs[0] / 'forest-owner.user.yaml')) as f:
+        stringified_file = ''.join(f.readlines())
+        assert "owner: '0xbbb'" in stringified_file
 
 
 def test_forest_bridge_to(cli, tmp_path, base_dir):
@@ -4977,7 +4984,7 @@ def test_forest_bridge_to(cli, tmp_path, base_dir):
     cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
-    cli('forest', 'create', '--access', '*', 'Bob', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Bob', 'forest-tpl')
 
     cli('bridge', 'create', 'Bridge', '--target-user', 'Bob', '--path', '/Bridge/To/Bob')
 
@@ -4999,7 +5006,7 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Alice',
         '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
         '--path', '/forests/Alice', 'self_bridge')
-    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'rw')
     cli('container', 'publish', 'mycapsule')
 
     control_client.expect('paths', {})
@@ -5097,7 +5104,7 @@ def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     catalog_dirs = list(catalog_path.glob('*'))
@@ -5122,10 +5129,9 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert catalog_path.exists()
@@ -5149,18 +5155,16 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     assert catalog[0]['storage']['location'] == f'{uuid_dir}'
 
     assert catalog[1]['object'] == 'link'
-    assert catalog[1]['storage']['type'] == 'http'
-    assert catalog[1]['storage']['url'] == f'file://{uuid_dir}'
+    assert catalog[1]['storage']['type'] == 'local'
 
 
 def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
-    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
-        '--public-url', f'file://{tmp_path}/wl-forest', 'forest-tpl')
+    cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
-    cli('forest', 'create', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert catalog_path.exists()
@@ -5183,8 +5187,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     assert 'type: local' in catalog[0]['storage']['encrypted']['encrypted-data']
     assert f'location: {uuid_dir}' in catalog[0]['storage']['encrypted']['encrypted-data']
 
-    assert 'type: http' in catalog[1]['storage']['encrypted']['encrypted-data']
-    assert f'url: file://{uuid_dir}' in catalog[1]['storage']['encrypted']['encrypted-data']
+    assert 'type: local' in catalog[1]['storage']['encrypted']['encrypted-data']
 
 
 def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
@@ -5196,7 +5199,7 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
@@ -5218,7 +5221,7 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
@@ -5241,7 +5244,7 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
@@ -5264,7 +5267,7 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
@@ -5283,7 +5286,7 @@ def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-template')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-template')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-template')
 
     shutil.copy(Path(f'{base_dir}/users/Alice.user.yaml'), Path(f'{tmp_path}/Alice.yaml'))
 
@@ -5324,7 +5327,8 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
         '--login', 'foo-login',
         '--password', 'foo-password', 'forest-template')
 
-    wl_call(base_config_dir, 'forest', 'create', '--access', '*', 'Alice', 'forest-template')
+    wl_call(base_config_dir, 'forest', 'create', '--access', '*', '--owner', 'Alice',
+            'forest-template')
 
     shutil.copy(Path(f'{base_config_dir}/users/Alice.user.yaml'),
                 Path(f'{shared_user_manifests}/Alice.yaml'))

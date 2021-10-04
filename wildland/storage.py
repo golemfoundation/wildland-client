@@ -24,15 +24,19 @@
 """
 Storage class
 """
+import os
 from pathlib import PurePosixPath
 from typing import Dict, Any, Optional, List
 from copy import deepcopy
 
 from wildland.wildland_object.wildland_object import WildlandObject
+from .log import get_logger
 from .storage_backends.base import StorageBackend
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
 from .container import Container
+
+logger = get_logger('storage')
 
 
 class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
@@ -49,7 +53,6 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
                  trusted: bool,
                  params: Dict[str, Any],
                  client,
-                 public_url: Optional[str] = None,
                  manifest: Manifest = None,
                  access: Optional[List[dict]] = None):
         super().__init__()
@@ -58,7 +61,6 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         self.container_path = container_path
         self.params = deepcopy(params)
         self.trusted = trusted
-        self.public_url = public_url
         self.manifest = manifest
         self.access = deepcopy(access)
         self.primary = self.params.get('primary', False)
@@ -79,7 +81,7 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = []
         for field in ['owner', 'storage-type', 'backend-id', 'container-path', 'trusted',
-                      'container-path', 'public-url', 'local-path', 'access', 'location',
+                      'container-path', 'local-path', 'access', 'location',
                       'read-only']:
             if fields.get(field, None):
                 array_repr += [f"{field}={fields[field]!r}"]
@@ -127,6 +129,13 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         backend = StorageBackend.types()[self.storage_type]
         manifest.apply_schema(backend.SCHEMA)
 
+        if self.client.is_local_storage(self.storage_type):
+            location = manifest.fields['location']
+            # warn user if location doesn't point to existing directory
+            if not os.path.isdir(location):
+                logger.warning('Storage location "%s" does not point to existing directory',
+                               location)
+
     def promote_to_primary(self):
         """
         Sets primary param to True.
@@ -164,7 +173,6 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             storage_type=storage_type,
             container_path=PurePosixPath(params['container-path']),
             trusted=params.get('trusted', False),
-            public_url=params.get('public-url'),
             params=params,
             client=client,
             manifest=manifest,
@@ -183,8 +191,6 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
         if self.trusted:
             fields['trusted'] = True
-        if self.public_url:
-            fields['public-url'] = self.public_url
         if self.access:
             fields['access'] = deepcopy(self.access)
 

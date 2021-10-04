@@ -100,7 +100,7 @@ storage primitives.
 * :class:`~wildland.storage_backends.local_cached.BaseCached` - Cached storage backed by local
   files.
 
-* :class:`~wildland.storage_backends.date_proxy.DateProxyStorageBackend` - Proxy storage that
+* :class:`~wildland.storage_backends.timeline.TimelineStorageBackend` - Proxy storage that
   re-organizes the files into directories based on their modification date.
 
 * :class:`~wildland.storage_backends.delegate.DelegateProxyStorageBackend` - Proxy storage that
@@ -188,7 +188,7 @@ following classes, working with inner storage in very different ways.
 
 * :class:`~wildland.storage_backends.delegate.DelegateProxyStorageBackend` - a simple and
   clean example, accesses inner storage directly.
-* :class:`~wildland.storage_backends.date_proxy.DateProxyStorageBackend` - manipulates paths
+* :class:`~wildland.storage_backends.timeline.TimelineStorageBackend` - manipulates paths
   to create a `timeline` view of container contents.
 * :class:`~plugins.encrypted.wildland_encrypted.backend.EncryptedStorageBackend` - utilizes access
   to inner storage directly and via FUSE.

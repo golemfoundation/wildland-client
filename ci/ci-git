@@ -51,3 +51,13 @@ time -p chronic grep 'plugin' "$ROOT"/privategit/README.md
 
 # Unmount the container
 time -p chronic wl container unmount PrivateGit
+
+# Test storage template creation
+wl template create git --url https://gitlab.com/wildland/wildland-tutorials.git git-temp
+wl container create git-template --path /template --template git-temp
+wl container mount git-template
+
+# Verify that the template creation is working
+time -p chronic tree "$ROOT"/template
+
+wl container unmount git-template

@@ -193,7 +193,7 @@ def delete(obj: ContextObj, name, force, cascade, delete_keys):
 
     # Check if this is the only manifest with such owner
     other_count = 0
-    for other_user in obj.client.load_all(WildlandObject.Type.USER):
+    for other_user in obj.client.get_local_users():
         if other_user.local_path != user.local_path and other_user.owner == user.owner:
             other_count += 1
 
@@ -267,10 +267,13 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     Takes a user or bridge manifest as pointed towards by path (can be local file path, url,
     wildland url), imports its public keys, copies the manifest itself.
     :param obj: ContextObj
-    :param path: (potentially ambiguous) path to manifest to be imported
+    :param path_or_dict: (potentially ambiguous) path to manifest to be imported
+    or dictionary with manifest fields of link object (see `Link.to_manifest_fields`)
     :return: tuple of local path to copied manifest , url to manifest (local or remote, depending on
         input)
     """
+
+    local_url = False
 
     # TODO: Accepting paths (string) should be deprecated and force using link objects
     if isinstance(path_or_dict, dict):
@@ -291,7 +294,8 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
         if Path(path).exists():
             file_data = Path(path).read_bytes()
             file_name = Path(path).stem
-            file_url = obj.client.local_url(Path(path).absolute())
+            file_url = None
+            local_url = True
         elif obj.client.is_url(path):
             try:
                 file_data = obj.client.read_from_url(path, use_aliases=True)
@@ -320,7 +324,7 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     if import_type == WildlandObject.Type.USER:
         imported_user = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.USER,
                                                      pubkey=manifest.fields['pubkeys'][0])
-        for user in obj.client.load_all(WildlandObject.Type.USER):
+        for user in obj.client.get_local_users():
             if user.owner == imported_user.owner:
                 if not force:
                     click.echo(f'User {user.owner} already exists. Skipping import.')
@@ -339,6 +343,9 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     else:
         msg = f'Created: {str(destination)}'
     click.echo(msg)
+
+    if local_url:
+        file_url = obj.client.local_url(Path(destination).absolute())
 
     return destination, file_url
 
@@ -456,6 +463,7 @@ def _do_process_imported_manifest(
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
 
+
 def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                     wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
                     only_first: bool):
@@ -570,7 +578,7 @@ def user_refresh(obj: ContextObj, name):
     if name:
         user_list = [obj.client.load_object_from_name(WildlandObject.Type.USER, name)]
     else:
-        user_list = obj.client.load_all(WildlandObject.Type.USER)
+        user_list = obj.client.get_local_users()
 
     refresh_users(obj, user_list)
 
@@ -583,7 +591,7 @@ def refresh_users(obj: ContextObj, user_list: Optional[List[User]] = None):
     user_fingerprints = [user.owner for user in user_list] if user_list is not None else None
 
     users_to_refresh: Dict[str, Union[dict, str]] = dict()
-    for bridge in obj.client.load_all(WildlandObject.Type.BRIDGE):
+    for bridge in obj.client.get_local_bridges():
         if user_fingerprints is not None and \
                 obj.client.session.sig.fingerprint(bridge.user_pubkey) not in user_fingerprints:
             continue

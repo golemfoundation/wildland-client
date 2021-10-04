@@ -25,7 +25,6 @@ from pathlib import Path, PurePosixPath
 from typing import List, Dict, Any
 
 import os
-import uuid
 import click
 import yaml
 
@@ -36,7 +35,6 @@ from ..storage import StorageBackend
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..user import User
 from ..publish import Publisher
-from ..manifest.manifest import Manifest
 from ..manifest.template import TemplateManager, StorageTemplate
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import modify_manifest, add_fields
@@ -128,8 +126,10 @@ def unmount(ctx: click.Context, path: str, forest_names):
 
 
 @forest_.command(short_help='Bootstrap Wildland Forest')
-@click.argument('user', metavar='USER', required=True)
 @click.argument('storage_template', required=True)
+@click.option('--owner', '--user', metavar='USER', required=False,
+              default='@default-owner',
+              help='User for signing')
 @click.option('--access', metavar='USER', required=False, multiple=True,
               help='Name of users to encrypt the container with. Can be used multiple times. '
                    'If not set, the container is unencrypted.')
@@ -138,17 +138,16 @@ def unmount(ctx: click.Context, path: str, forest_names):
               help='Set manifests local directory. Must be an absolute path.')
 @click.pass_context
 def create(ctx: click.Context,
-           user: str,
            storage_template: str,
+           owner: str = '@default-owner',
            manifest_local_dir: str = '/.manifests/',
            access: List[str] = None):
     """
-    Bootstrap a new Forest for given USER.
-    You must have private key of that user in order to use this command.
+    Bootstrap a new Forest. If owner is not specified, @default-owner is used.
+    You must have a private key of the owner in order to use this command.
 
     \b
     Arguments:
-      USER                  name of the user who owns the Forest (mandatory)
       STORAGE_TEMPLATE      storage template used to create Forest containers
 
     Description
@@ -166,23 +165,26 @@ def create(ctx: click.Context,
 
     """
     _bootstrap_forest(ctx,
-                     user,
-                     storage_template,
-                     manifest_local_dir,
-                     access)
+                      owner,
+                      storage_template,
+                      manifest_local_dir,
+                      access)
 
 
 def _bootstrap_forest(ctx: click.Context,
-                     user: str,
-                     manifest_storage_template_name: str,
-                     manifest_local_dir: str = '/',
-                     access: List[str] = None):
+                      user: str,
+                      manifest_storage_template_name: str,
+                      manifest_local_dir: str = '/',
+                      access: List[str] = None):
 
     obj: ContextObj = ctx.obj
 
     # Load users manifests
     try:
         forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
+        if user == '@default-owner':
+            # retrieve owner's name from path
+            user = forest_owner.paths[0].parts[-1]
     except WildlandError as we:
         raise CliError(f'User [{user}] could not be loaded. {we}') from we
 
@@ -252,15 +254,9 @@ def _bootstrap_forest(ctx: click.Context,
 
             link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.container.yaml'}
 
-            if not storage.public_url:
-                fields = storage.to_manifest_fields(inline=True)
-                if not storage.access:
-                    fields['access'] = access_list
-            else:
-                fields = {
-                    'object': 'storage', 'type': 'http', 'version': Manifest.CURRENT_VERSION,
-                    'backend-id': str(uuid.uuid4()), 'owner': catalog_container.owner,
-                    'url': storage.public_url, 'access': storage.access or access_list}
+            fields = storage.to_manifest_fields(inline=True)
+            if not storage.access:
+                fields['access'] = access_list
 
             link_obj['storage'] = fields
 

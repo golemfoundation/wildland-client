@@ -52,7 +52,8 @@ def test_pseudomanifest_create(cli, base_dir):
         pseudomanifest_content_bytes = fb.read()
 
     assert pseudomanifest_content_bytes.decode() == \
-f'''object: container
+f'''# All YAML comments will be discarded when the manifest is saved
+object: container
 owner: '0xaaa'
 paths:
 - /.uuid/{container.uuid}
@@ -227,7 +228,8 @@ def test_pseudomanifest_edit(cli, base_dir, tmp_path):
     uuid_path = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container').uuid_path
 
     pseudomanifest_content = \
-f'''object: container
+f'''# All YAML comments will be discarded when the manifest is saved
+object: container
 owner: '0xaaa'
 paths:
 - {uuid_path}
@@ -266,7 +268,8 @@ access:
 '''
 
     expexted_content = \
-f'''object: container
+f'''# All YAML comments will be discarded when the manifest is saved
+object: container
 owner: '0xaaa'
 paths:
 - {uuid_path}
