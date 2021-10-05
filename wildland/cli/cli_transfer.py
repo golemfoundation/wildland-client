@@ -48,7 +48,7 @@ def put(obj: ContextObj, local_file, wlpath):
     data = local_file.read()
     search = Search(obj.client, wlpath, obj.client.config.aliases)
     try:
-        search.write_file(data)
+        search.write_file(data, True)
     except PathError as ex:
         raise CliError(f"Path error: {ex}") from ex
 
