@@ -164,6 +164,7 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
     root_logger = logging.getLogger()
     for h in root_logger.handlers:
         if h.name == "console":
+            # pylint: disable=global-statement
             global RootStreamHandler
-            RootStreamHandler = h
+            RootStreamHandler = h  # type: ignore
             break

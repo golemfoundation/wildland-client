@@ -57,16 +57,20 @@ from ..user import User
 
 
 def wrap_output(func):
+    """
+    Decorator wrapping output into progressbar streams
+
+    It has to be used when using progressbar inside a cli function like mount/unmount
+    """
     def wrapper_func(*args, **kwargs):
-        progressbar.streams.wrap(stdout=True, stderr=True)
+        progressbar.streams.wrap(stderr=True)
         # https://github.com/WoLpH/python-progressbar/issues/254
-        sys.stdout.isatty = progressbar.streams.original_stdout.isatty
-        sys.stderr.isatty = progressbar.streams.original_stderr.isatty
-        wildland.log.RootStreamHandler.setStream(stream=progressbar.streams.stdout)
+        sys.stderr.isatty = progressbar.streams.original_stderr.isatty  # type: ignore
+        wildland.log.RootStreamHandler.setStream(stream=progressbar.streams.stderr)
 
         func(*args, **kwargs)
 
-        progressbar.streams.unwrap(stdout=True, stderr=True)
+        progressbar.streams.unwrap(stderr=True)
         wildland.log.RootStreamHandler.setStream(stream=sys.stderr)
     return wrapper_func
 
