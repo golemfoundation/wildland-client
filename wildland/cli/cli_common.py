@@ -229,7 +229,7 @@ def _sign_and_save(
             f.write(signed_data)
         click.echo(f'Saved: {path}')
     else:
-        sys.stdout.buffer.write(signed_data.decode())
+        sys.stdout.buffer.write(signed_data)
 
 
 @click.command(short_help='verify manifest signature')
