@@ -22,7 +22,7 @@ Storage templates management
 """
 
 import types
-from typing import Optional, Sequence, Type, List, Dict
+from typing import Optional, Sequence, Type
 import functools
 import click
 
@@ -34,7 +34,6 @@ from ..exc import WildlandError
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
-from ..utils import load_yaml
 from ..utils import format_command_options
 
 
@@ -236,29 +235,25 @@ def template_edit(obj: ContextObj, editor: Optional[str], input_template: str):
     """
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
     try:
-        template_bytes = template_manager.get_template_bytes(input_template)
-        data = b'# All YAML comments will be discarded when the manifest is saved\n' \
-               + template_bytes
-        original_data = data
-
-        edited_file = click.edit(data.decode(), editor=editor, extension='.yaml',
+        original_data = template_manager.get_template_bytes(input_template)
+        edited_file = click.edit(original_data.decode(), editor=editor, extension='.yaml',
                                  require_save=False)
         assert edited_file
         data = edited_file.encode()
-        edited_json: List[Dict] = load_yaml(edited_file)
 
         if original_data == data:
             click.echo('No changes detected, not saving.')
             return
 
-        for template_data in edited_json:
+        edited_yaml = template_manager.get_jinja_yaml(edited_file)
+        for template_data in edited_yaml:
             storage_type = template_data['type']
             if not storage_type or not StorageBackend.is_type_supported(storage_type):
                 raise WildlandError(f'Unrecognized storage type: {storage_type}')
             backend = StorageBackend.types()[storage_type]
             backend.SCHEMA.validate(template_data)
 
-        template_manager.save_template_content(input_template, edited_json)
+        template_manager.save_template_content(input_template, edited_file)
     except FileNotFoundError:
         click.secho(f'Could not find template: {input_template}', fg="red")
     except SchemaError as e:

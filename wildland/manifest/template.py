@@ -25,11 +25,11 @@ Templates for manifests.
 
 import re
 import uuid
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
+from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError, Environment, BaseLoader
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland import container
@@ -314,14 +314,13 @@ class TemplateManager:
         data = path.read_bytes()
         return data
 
-    def save_template_content(self, input_template: str, content: List[Dict]):
+    def save_template_content(self, input_template: str, content: str):
         """
-        Saves content of a storage template's .jinja file. Assumes that the content to save
-        is correct.
+        Saves content of a storage template's .jinja file.
 
         Args:
             input_template (str): either path to template's file or its name
-            content (List[Dict]): content to be saved inside template's file
+            content (str): content to be saved inside template's file
         """
         path = Path(input_template)
         if not self.is_valid_template_file_path(path):
@@ -329,4 +328,17 @@ class TemplateManager:
             path = self.get_file_path(input_template)
 
         with open(path, 'w') as file:
-            yaml.dump(content, file)
+            file.write(content)
+
+    @staticmethod
+    def get_jinja_yaml(jinja_template: str):
+        """
+        Mocks all jinja2 expressions so that content can be correctly interpreted as yaml syntax.
+        Returns content as parsed yaml file.
+        """
+        edited_template = Environment(loader=BaseLoader()).from_string(jinja_template)
+        mocked_fields = dict(uuid='123', categories=['category1', 'category2'], title='test',
+                             paths=['path1/', 'path2/'], local_path='local_path/', owner='user')
+        mocked_template = edited_template.render(mocked_fields)
+
+        return yaml_parser.load(mocked_template)

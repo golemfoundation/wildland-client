@@ -4471,7 +4471,7 @@ def test_storage_template_edit(cli, base_dir):
     editor = f'sed -i s,{storage_dir},/new/storage/,g'
     cli('template', 'edit', 'name_template', '--editor', editor)
     with open(name_template_file_path, 'r') as f:
-        template_yaml = load_yaml(f)
+        template_yaml = yaml_parser.load(f)
         assert template_yaml[0]['location'] == \
                '/new/storage/{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
 
@@ -4479,7 +4479,7 @@ def test_storage_template_edit(cli, base_dir):
     editor = f'sed -i s,{storage_dir},/new/storage/,g'
     cli('template', 'edit', path_template_file_path, '--editor', editor)
     with open(path_template_file_path, 'r') as f:
-        template_yaml = load_yaml(f)
+        template_yaml = yaml_parser.load(f)
         assert template_yaml[0]['location'] == \
                '/new/storage/{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
 
