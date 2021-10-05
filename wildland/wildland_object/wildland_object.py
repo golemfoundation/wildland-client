@@ -140,14 +140,14 @@ class WildlandObject(abc.ABC):
         """
         Returns Wildland Object Type
         """
-        if not self._class_to_type:
+        if not WildlandObject._class_to_type:
             # Using @cache decorator from functools seems more elegant but mypy doesn't really
             # like it, especially when you want to combine it with @property decorator.
             # Implemeting your own cachedproperty decorator for this case would be an overkill tho
             # ref: https://github.com/python/mypy/issues/1362
-            self._class_to_type = {v: k for k, v in self._subclasses.items()}
+            WildlandObject._class_to_type = {v: k for k, v in self._subclasses.items()}
 
-        return self._class_to_type[self.__class__]
+        return WildlandObject._class_to_type[self.__class__]
 
     @property
     def local_path(self):
