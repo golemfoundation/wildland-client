@@ -436,9 +436,7 @@ class Search:
 
             for manifest_path, subcontainer_data in children_iter:
                 # load only containers or bridges
-                if not str(manifest_path).endswith(f'{WildlandObject.Type.CONTAINER.value}.yaml') \
-                        and not str(manifest_path)\
-                        .endswith(f'{WildlandObject.Type.BRIDGE.value}.yaml'):
+                if not self._is_container_or_bridge(manifest_path):
                     continue
                 try:
                     container_or_bridge = step.client.load_subcontainer_object(
@@ -461,6 +459,19 @@ class Search:
                         part, manifest_path, storage_backend,
                         container_or_bridge,
                         step)
+
+    @staticmethod
+    def _is_container_or_bridge(manifest_path: PurePosixPath) -> bool:
+        """
+        Return true if path contains container or bridge specifier or if there is no object type
+        in the path at all.
+        """
+        object_name = manifest_path.parts[-1]
+        object_type = object_name.split('.')[-2]
+        return (object_type not in [t.value for t in WildlandObject.Type]
+                and object_name.endswith('.yaml')) \
+               or object_name.endswith(f'{WildlandObject.Type.CONTAINER.value}.yaml') \
+               or object_name.endswith(f'{WildlandObject.Type.BRIDGE.value}.yaml')
 
     # pylint: disable=no-self-use
 
