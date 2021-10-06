@@ -175,11 +175,12 @@ class AliasedGroup(click.Group):
             formatter.write_dl((cmd_name, ', '.join(sorted(aliases_reversed[cmd_name])))
                 for cmd_name in sorted(aliases_reversed))
 
+    # pylint: disable=unidiomatic-typecheck
     def add_command(self, cmd, name=None):
-        if type(cmd) == click.Command:
-            cmd.__class__ = CommandRequiredOptionsFirst
-        elif type(cmd) == click.Group:
+        if type(cmd) is click.Group:
             cmd.__class__ = GroupRequiredOptionsFirst
+        elif type(cmd) is click.Command:
+            cmd.__class__ = CommandRequiredOptionsFirst
         return super().add_command(cmd, name)
 
     def format_options(self, ctx, formatter):

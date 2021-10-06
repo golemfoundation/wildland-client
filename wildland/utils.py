@@ -81,13 +81,19 @@ def format_options_required_first(command: Union[click.Command, click.Group], ct
 
 
 class CommandRequiredOptionsFirst(click.Command):
-
+    """
+    Custom :class:`click.Command` class with handling help message formatting (first displays
+    required options).
+    """
     def format_options(self, ctx, formatter):
         format_options_required_first(self, ctx, formatter)
 
 
 class GroupRequiredOptionsFirst(click.Group):
-
+    """
+        Custom :class:`click.Group` class with handling help message formatting (first displays
+        required options).
+    """
     def format_options(self, ctx, formatter):
         format_options_required_first(self, ctx, formatter)
         self.format_commands(ctx, formatter)
