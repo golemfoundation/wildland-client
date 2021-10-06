@@ -36,6 +36,8 @@ import click
 from click.exceptions import get_text_stderr
 
 from ..exc import WildlandError
+from ..utils import format_options_required_first, CommandRequiredOptionsFirst, \
+    GroupRequiredOptionsFirst
 
 
 class CliError(WildlandError, click.ClickException):
@@ -172,6 +174,17 @@ class AliasedGroup(click.Group):
         with formatter.section('Aliases'):
             formatter.write_dl((cmd_name, ', '.join(sorted(aliases_reversed[cmd_name])))
                 for cmd_name in sorted(aliases_reversed))
+
+    def add_command(self, cmd, name=None):
+        if type(cmd) == click.Command:
+            cmd.__class__ = CommandRequiredOptionsFirst
+        elif type(cmd) == click.Group:
+            cmd.__class__ = GroupRequiredOptionsFirst
+        return super().add_command(cmd, name)
+
+    def format_options(self, ctx, formatter):
+        format_options_required_first(self, ctx, formatter)
+        self.format_commands(ctx, formatter)
 
 
 def aliased_group(name=None, **kwargs) -> Callable[[Callable], AliasedGroup]:

@@ -45,6 +45,7 @@ from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
+from ..utils import CommandRequiredOptionsFirst
 
 logger = get_logger('cli-storage')
 
@@ -98,6 +99,7 @@ def _make_create_command(backend: Type[StorageBackend]):
         params=params,
         callback=callback,
         context_settings={'show_default': True})
+    command.__class__ = CommandRequiredOptionsFirst
     return command
 
 
