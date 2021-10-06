@@ -110,6 +110,16 @@ Alternatively you can generate docs without using Docker:
 
 You should add docstrings to all of the public methods, classes and modules.
 
+
+Local run
+~~~~~~~~~
+.. code-block:: console
+
+   python3 -m http.server 8001 --directory _build/html
+
+go to http://0.0.0.0:8001/
+
+
 .. _reStructuredText: https://en.wikipedia.org/wiki/ReStructuredText
 .. _Sphinx: https://en.wikipedia.org/wiki/Sphinx_(documentation_generator)
 .. _docstrings: https://www.python.org/dev/peps/pep-0008/#documentation-strings
