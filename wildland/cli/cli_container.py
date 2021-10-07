@@ -561,20 +561,6 @@ def _republish_container(client: Client, container: Container) -> None:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
 
 
-def sync_id(container: Container) -> str:
-    """
-    Return unique sync job ID for a container.
-    """
-    return container.owner + '|' + container.uuid
-
-
-def _do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
-             one_shot: bool, unidir: bool) -> str:
-    kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
-              'unidirectional': unidir, 'source': source, 'target': target}
-    return client.run_sync_command('start', **kwargs)
-
-
 def wl_path_for_container(client: Client, container: Container,
                           user_paths: Optional[Iterable[Iterable[PurePosixPath]]] = None) -> str:
     """
@@ -611,12 +597,12 @@ def _cache_sync(client: Client, container: Container, storages: List[Storage], v
             click.echo(f'Using cache at: {primary.params["location"]}')
         src = storages[1]  # [1] is the non-cache (old primary)
         cname = wl_path_for_container(client, container, user_paths)
-        status = client.run_sync_command('job-status', job_id=sync_id(container))
+        status = client.run_sync_command('job-status', job_id=container.sync_id)
         if not status:  # sync not running for this container
             # start bidirectional sync (this also performs an initial one-shot sync)
             # this happens in the background, user can see sync status/progress using `wl sync`
-            _do_sync(client, cname, sync_id(container), src.params, primary.params,
-                     one_shot=False, unidir=False)
+            client.do_sync(cname, container.sync_id, src.params, primary.params,
+                           one_shot=False, unidir=False)
 
 
 def prepare_mount(obj: ContextObj,
@@ -1007,7 +993,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
         for storage_id in all_cache_ids:
             container = obj.fs_client.get_container_from_storage_id(storage_id)
-            obj.client.run_sync_command('stop', job_id=sync_id(container))
+            obj.client.run_sync_command('stop', job_id=container.sync_id)
             obj.fs_client.unmount_storage(storage_id)
 
     elif not undo_save:
@@ -1183,18 +1169,6 @@ def add_mount_watch(obj: ContextObj, container_names):
     mount_watch(obj, container_names)
 
 
-def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
-    """
-    Helper function to find a storage by listed id or type.
-    """
-    try:
-        return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
-    except IndexError:
-        # pylint: disable=raise-missing-from
-        raise WildlandError(f'Storage {id_or_type} not found')
-
-
 @container_.command('sync', short_help='start syncing a container')
 @click.argument('cont', metavar='CONTAINER')
 @click.option('--target-storage', help='specify target storage. Default: first non-local storage'
@@ -1218,42 +1192,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
 
     client = obj.client
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-
-    all_storages = list(client.all_storages(container))
-    cache = client.cache_storage(container)
-    if cache:
-        all_storages.append(cache)
-
-    if source_storage:
-        source = _get_storage_by_id_or_type(source_storage, all_storages)
-    else:
-        try:
-            source = [storage for storage in all_storages
-                      if client.is_local_storage(storage.params['type'])][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No local storage backend found')
-
-    default_remotes = client.config.get('default-remote-for-container')
-
-    if target_storage:
-        target = _get_storage_by_id_or_type(target_storage, all_storages)
-        default_remotes[container.uuid] = target.backend_id
-        client.config.update_and_save({'default-remote-for-container': default_remotes})
-    else:
-        target_remote_id = default_remotes.get(container.uuid, None)
-        try:
-            target = [storage for storage in all_storages
-                      if target_remote_id == storage.backend_id
-                      or (not target_remote_id and
-                          not client.is_local_storage(storage.params['type']))][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No remote storage backend found: specify --target-storage.')
-
-    response = _do_sync(client, cont, sync_id(container), source.params, target.params,
-                        one_shot, unidir=False)
-
+    source = client.get_local_storage(container, source_storage)
+    target = client.get_remote_storage(container, target_storage)
+    response = client.do_sync(cont, container.sync_id, source.params, target.params,
+                              one_shot, unidir=False)
     click.echo(response)
 
     if one_shot:
@@ -1263,10 +1205,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
         else:
             while True:
                 time.sleep(1)
-                status, response = client.run_sync_command('job-status', job_id=sync_id(container))
+                status, response = client.run_sync_command('job-status', job_id=container.sync_id)
                 if status == SyncerStatus.STOPPED.value:
                     click.echo('One-shot sync finished.')
-                    client.run_sync_command('stop', job_id=sync_id(container))
+                    client.run_sync_command('stop', job_id=container.sync_id)
                     break
                 if status == SyncerStatus.ERROR.value:
                     click.echo(response)
@@ -1281,7 +1223,7 @@ def stop_syncing_container(obj: ContextObj, cont):
     Stop sync process for the given container.
     """
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    response = obj.client.run_sync_command('stop', job_id=sync_id(container))
+    response = obj.client.run_sync_command('stop', job_id=container.sync_id)
     click.echo(response)
 
 

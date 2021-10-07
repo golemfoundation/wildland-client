@@ -698,12 +698,27 @@ def test_storage_delete_inline_many_in_one(monkeypatch, cli, base_dir):
         f.write(yaml.safe_dump(documents[1]))
 
     monkeypatch.setattr('sys.stdin.readline', lambda: "n")
-    cli('storage', 'delete', str(backend_id), '--container', 'Container')
-    assert backend_id in container_path.read_text()
+    with pytest.raises(WildlandError, match='Duplicate backend-id found! Aborting...'):
+        cli('storage', 'delete', str(backend_id), '--container', 'Container')
 
-    monkeypatch.setattr('sys.stdin.readline', lambda: "y")
-    cli('storage', 'delete', str(backend_id), '--container', 'Container')
-    assert backend_id not in container_path.read_text()
+
+# pylint: disable=unused-argument
+def test_storage_delete_sync(cli, base_dir, sync):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage0', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+
+    container_path = base_dir / 'containers/Container.container.yaml'
+    with open(container_path, 'r+') as f:
+        documents = list(yaml.safe_load_all(f))
+        backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    result = cli('storage', 'delete', str(backend_id), '--container', 'Container', capture=True)
+    assert "Outdated storage for container" in result.splitlines()[0]
 
 
 def test_storage_delete_cascade(cli, base_dir):
