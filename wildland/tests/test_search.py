@@ -769,6 +769,24 @@ paths:
         assert "Manifest owner does not have access to signing key" in logs
 
 
+def test_put_create_directory(base_dir, cli):
+    os.mkdir(base_dir / 'transfer')
+    os.mkdir(base_dir / 'storage1')
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    cli('container', 'create', 'Container1', '--path', '/path1')
+    cli('storage', 'create', 'local', '--container', 'Container1',
+        '--location', base_dir / 'storage1')
+
+    (base_dir / 'transfer/file.txt').write_text('testdata')
+
+
+    cli('put', (base_dir / 'transfer/file.txt'), '0xaaa:/path1:/new/dir/file.txt')
+    output = cli('get', '0xaaa:/path1:/new/dir/file.txt', capture=True)
+    assert output == 'testdata'
+
+
 def test_search_two_containers(base_dir, cli):
     os.mkdir(base_dir / 'storage1')
 
