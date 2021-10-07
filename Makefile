@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-IN_DOCKER := $(shell if test -v WL_ENV; then echo 1; else echo 0; fi)
+IN_DOCKER := $(shell if test -z $(WL_ENV); then echo 0; else echo 1; fi)
 
 ifeq ($(IN_DOCKER), 1)
 VENV_BIN=/home/user/env/bin

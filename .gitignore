@@ -4,3 +4,4 @@ htmlcov
 env/
 *.egg-info
 build/
+artifacts/
