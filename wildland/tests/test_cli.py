@@ -3466,7 +3466,6 @@ backends:
     assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
-
 def test_container_mount_container_without_storage(cli, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -3543,6 +3542,17 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
         '--without-subcontainers')
 
     assert control_client.calls['unmount']['storage_id'] == 102
+
+
+# pylint: disable=unused-argument
+def test_container_unmount_all(base_dir, sync, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    data = _cache_setup(cli, base_dir, ['c1', 'c2'], 'User')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', data[0][0], data[1][0], '--with-cache')
+    cli('container', 'unmount', '--all')
+    result = cli('status', capture=True)
+    assert result == 'Mounted containers:\n\n\nNo sync jobs running\n'
 
 
 def test_container_create_missing_params(cli):

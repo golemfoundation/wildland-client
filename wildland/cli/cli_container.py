@@ -912,31 +912,50 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
               help='Do not unmount subcontainers.')
 @click.option('--undo-save', '-u', 'undo_save', is_flag=True, default=False,
               help='Undo mount --save option.')
+@click.option('--all', 'unmount_all', is_flag=True, default=False,
+              help='Unmount all mounted storages.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: bool,
-            container_names: Sequence[str]) -> None:
+            unmount_all: bool, container_names: Sequence[str]) -> None:
     """
     Unmount a container given by name, path to container's manifest or by one of its paths (using
     ``--path``). Repeat the argument to unmount multiple containers.
     """
     _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers,
-             undo_save=undo_save)
+             undo_save=undo_save, unmount_all=unmount_all)
 
 
 @wrap_output
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
-             with_subcontainers: bool = True, undo_save: bool = False) -> None:
+             with_subcontainers: bool = True, undo_save: bool = False,
+             unmount_all: bool = False) -> None:
 
     obj.fs_client.ensure_mounted()
 
-    if bool(container_names) + bool(path) != 1:
+    if unmount_all and (undo_save or not with_subcontainers or len(container_names) > 0
+                        or bool(path)):
+        raise click.UsageError('--all cannot be used with other options')
+
+    if bool(container_names) + bool(path) != 1 and not unmount_all:
         raise click.UsageError('Specify either container or --path')
 
     if undo_save and path:
         raise click.UsageError('Specify either --undo-save or --path. Cannot unsave a container '
             'specified by --path. Only containers specified by name or path to manifest can be '
             'saved and unsaved')
+
+    if unmount_all:
+        ids = obj.fs_client.get_mounted_storage_ids()
+        if len(ids) > 0:
+            click.echo(f'Unmounting {len(ids)} storages')
+            for ident in ids:
+                obj.fs_client.unmount_storage(ident)
+            click.echo('Stopping all sync jobs')
+            obj.client.run_sync_command('stop-all')
+        else:
+            click.echo('No storages to unmount')
+        return
 
     fails: List[str] = []
     all_storage_ids = []
