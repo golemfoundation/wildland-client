@@ -74,12 +74,11 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
 
     callback = functools.partial(_do_create, backend=backend, create=create)
 
-    command = click.Command(
+    command = CommandRequiredOptionsFirst(
         name=backend.TYPE,
         help=f'Create {backend.TYPE} storage template',
         params=params,
         callback=callback)
-    command.__class__ = CommandRequiredOptionsFirst
     return command
 
 
