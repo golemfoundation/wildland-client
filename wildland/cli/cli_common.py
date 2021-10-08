@@ -34,6 +34,9 @@ from typing import Callable, List, Any, Optional, Dict, Tuple
 
 import click
 import yaml
+import progressbar
+
+import wildland.log
 
 from wildland import __version__
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -51,6 +54,25 @@ from ..manifest.schema import SchemaError
 from ..exc import WildlandError
 from ..storage import Storage
 from ..user import User
+
+
+def wrap_output(func):
+    """
+    Decorator wrapping output into progressbar streams
+
+    It has to be used when using progressbar inside a cli function like mount/unmount
+    """
+    def wrapper_func(*args, **kwargs):
+        progressbar.streams.wrap(stderr=True)
+        # https://github.com/WoLpH/python-progressbar/issues/254
+        sys.stderr.isatty = progressbar.streams.original_stderr.isatty  # type: ignore
+        wildland.log.RootStreamHandler.setStream(stream=progressbar.streams.stderr)
+
+        func(*args, **kwargs)
+
+        progressbar.streams.unwrap(stderr=True)
+        wildland.log.RootStreamHandler.setStream(stream=sys.stderr)
+    return wrapper_func
 
 
 def find_manifest_file(client: Client, name: str, manifest_type: Optional[str]) -> Path:
@@ -207,7 +229,7 @@ def _sign_and_save(
             f.write(signed_data)
         click.echo(f'Saved: {path}')
     else:
-        sys.stdout.buffer.write(signed_data.decode())
+        sys.stdout.buffer.write(signed_data)
 
 
 @click.command(short_help='verify manifest signature')

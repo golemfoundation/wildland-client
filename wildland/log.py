@@ -28,12 +28,13 @@ Logging
 import logging
 import logging.config
 
+RootStreamHandler = logging.StreamHandler()
+
 
 def get_logger(name):
     """
     Simple logger
     """
-    logging.basicConfig(format='%(levelname)s:%(name)s:%(message)s')
     logger = logging.getLogger(name)
     return logger
 
@@ -158,3 +159,12 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         config['root']['handlers'].append('file')
 
     logging.config.dictConfig(config)
+
+    # fixme: is logging allowing handler instance inside dictConfig?
+    root_logger = logging.getLogger()
+    for h in root_logger.handlers:
+        if h.name == "console":
+            # pylint: disable=global-statement
+            global RootStreamHandler
+            RootStreamHandler = h  # type: ignore
+            break

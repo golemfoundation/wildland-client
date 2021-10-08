@@ -50,7 +50,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options
+    check_if_any_options, wrap_output
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
@@ -95,7 +95,7 @@ def get_counter(msg):
         msg, ": ",
         Counter()
     ]
-    counter = progressbar.ProgressBar(widgets=widgets, redirect_stderr=True)
+    counter = progressbar.ProgressBar(widgets=widgets)
     return counter
 
 
@@ -812,6 +812,7 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
 
 
 @profile()
+@wrap_output
 def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
@@ -836,7 +837,6 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         containers = counter(client.load_containers_from(
             container_name, include_manifests_catalog=manifests_catalog))
         counter.start()
-
         counter = get_counter(f"Checking container references (from '{container_name}')")
         reordered, exc_msg = client.ensure_mount_reference_container(
             containers, callback_iter_func=counter)
@@ -924,6 +924,7 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: boo
              undo_save=undo_save)
 
 
+@wrap_output
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
              with_subcontainers: bool = True, undo_save: bool = False) -> None:
 
