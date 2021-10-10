@@ -229,11 +229,16 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     if 'encrypted' in storage:
                         filtered_storages.append('encrypted')
                         continue
-                    filtered_storage_obj = WildlandObject.from_fields(
-                        self.fill_storage_fields(storage), self.client)
+                    filtered_storage_obj = None
+                    try:
+                        filtered_storage_obj = WildlandObject.from_fields(
+                            self.fill_storage_fields(storage), self.client)
+                    except WildlandError as e:
+                        logger.error(str(e))
                     if filtered_storage_obj:
                         filtered_storages.append(filtered_storage_obj.to_repr_fields(
                             include_sensitive=False))
+
             fields["backends"]["storage"] = filtered_storages
         return fields
 
