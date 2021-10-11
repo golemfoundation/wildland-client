@@ -16,3 +16,4 @@ services:
     volumes:
       - ..:/home/user/wildland-client:ro
       - ../artifacts:/home/user/wildland-client/artifacts:rw
+      - ../.mypy_cache:/home/user/wildland-client/.mypy_cache:rw
