@@ -37,7 +37,6 @@ import tempfile
 import click
 import daemon
 import progressbar
-import yaml
 
 from progressbar.widgets import FormatWidgetMixin, TimeSensitiveWidgetBase
 from click import ClickException
@@ -57,6 +56,7 @@ from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
+from ..utils import yaml_parser
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
@@ -323,7 +323,7 @@ def _container_info(client, container, users_and_bridge_paths):
 
     click.secho("Sensitive fields are hidden.", fg="yellow")
     click.echo(container.local_path)
-    data = yaml.dump(container_fields, encoding='utf-8', sort_keys=False)
+    data = yaml_parser.dump(container_fields, encoding='utf-8', sort_keys=False)
     click.echo(data.decode())
 
 
@@ -537,7 +537,7 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
         idxs_to_delete = []
         container_manifest = find_manifest_file(
             ctx.obj.client, input_file, 'container').read_bytes()
-        container_yaml = list(yaml.safe_load_all(container_manifest))[1]
+        container_yaml = list(yaml_parser.safe_load_all(container_manifest))[1]
         storages_obj = container_yaml.get('backends', {}).get('storage', {})
         for s in del_storage:
             if s.isnumeric():

@@ -26,31 +26,88 @@ General Wildland utility functions.
 import yaml
 
 
+class YAMLParserError(yaml.YAMLError):
+    """
+    Base exception for YamlParser
+    """
+
+
 class DisallowDuplicateKeyLoader(yaml.SafeLoader):
     """
     Alternate Yaml loader that raises error on duplicate keys.
     """
+
     def construct_mapping(self, node, deep=False):
         mapping = []
         for key_node, _ in node.value:
             key = self.construct_object(key_node, deep=deep)
             if key in mapping:
-                raise yaml.YAMLError(f'Duplicate key {key} encountered')
+                raise YAMLParserError(f'Duplicate key {key} encountered')
             mapping.append(key)
         return super().construct_mapping(node, deep)
 
 
-def load_yaml(stream):
+class YamlParser:
     """
-    Load a yaml data stream, raising yaml.YAMLError on duplicate keys
-    (unlike pyYAML default behaviour).
+    Yaml Parser on top of pyyaml
     """
-    return yaml.load(stream, Loader=DisallowDuplicateKeyLoader)
+
+    # We currently have only static methods. This could change in the future.
+
+    @staticmethod
+    def safe_load(data):
+        """
+        Parse the first YAML document in a stream
+        and produce the corresponding Python object.
+
+        Resolve only basic YAML tags. This is known
+        to be safe for untrusted input.
+        """
+        return yaml.safe_load(data)
+
+    @staticmethod
+    def safe_load_all(data):
+        """
+        Parse all YAML documents in a stream
+        and produce corresponding Python objects.
+
+        Resolve only basic YAML tags. This is known
+        to be safe for untrusted input.
+        """
+        return yaml.safe_load_all(data)
+
+    @staticmethod
+    def load(stream):
+        """
+        Load a yaml data stream, raising YAMLParserError on duplicate keys
+        (unlike pyYAML default behaviour).
+        """
+        return yaml.load(stream, Loader=DisallowDuplicateKeyLoader)
+
+    @staticmethod
+    def load_all(stream):
+        """
+        Load a yaml data stream, which can consist of multiple yaml documents,
+        raising YAMLParserError on duplicate keys (unlike pyYAML default behaviour).
+        """
+        return yaml.load_all(stream, Loader=DisallowDuplicateKeyLoader)
+
+    @staticmethod
+    def dump(data, stream=None, **kwargs):
+        """
+        Serialize a Python object into a YAML stream.
+        If stream is None, return the produced string instead.
+        """
+        return yaml.dump(data, stream, **kwargs)
+
+    @staticmethod
+    def safe_dump(data, stream=None, **kwargs):
+        """
+        Serialize a Python object into a YAML stream.
+        Produce only basic YAML tags.
+        If stream is None, return the produced string instead.
+        """
+        return yaml.safe_dump(data, stream=stream, **kwargs)
 
 
-def load_yaml_all(stream):
-    """
-    Load a yaml data stream, which can consist of multiple yaml documents,
-    raising yaml.YAMLError on duplicate keys (unlike pyYAML default behaviour).
-    """
-    return yaml.load_all(stream, Loader=DisallowDuplicateKeyLoader)
+yaml_parser = YamlParser()

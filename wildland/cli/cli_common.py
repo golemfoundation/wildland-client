@@ -33,7 +33,6 @@ from pathlib import Path
 from typing import Callable, List, Any, Optional, Dict, Tuple
 
 import click
-import yaml
 import progressbar
 
 import wildland.log
@@ -52,6 +51,7 @@ from ..manifest.manifest import (
 )
 from ..manifest.schema import SchemaError
 from ..exc import WildlandError
+from ..utils import yaml_parser
 from ..storage import Storage
 from ..user import User
 
@@ -289,7 +289,7 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
             raise CliError(
                 f"Manifest cannot be loaded: {me}\n"
                 f"You can dump a manifest without verification using --no-decrypt") from me
-        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
+        data = yaml_parser.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     else:
         data = path.read_bytes()
         if HEADER_SEPARATOR in data:
@@ -339,7 +339,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
                 raise CliError(f"Expected {manifest_type} manifest, but for argument '{input_file}'"
                                f" {actual_manifest_type} manifest was found."
                                f"\nConsider using: wl {actual_manifest_type} edit {input_file}")
-        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
+        data = yaml_parser.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     except ManifestError:
         data = path.read_bytes()
 
@@ -439,9 +439,9 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
         inline=False)
     modified_manifest = Manifest.from_fields(manifest_fields)
 
-    orig_manifest_data = yaml.safe_dump(
+    orig_manifest_data = yaml_parser.safe_dump(
         orig_manifest.fields, encoding='utf-8', sort_keys=False)
-    modified_manifest_data = yaml.safe_dump(
+    modified_manifest_data = yaml_parser.safe_dump(
         modified_manifest.fields, encoding='utf-8', sort_keys=False)
 
     if orig_manifest_data == modified_manifest_data:
