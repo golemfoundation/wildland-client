@@ -5,6 +5,8 @@ set -ex
 . /home/user/env/bin/activate
 . ci/install-inplace git
 
+WL='python3 -m coverage run -p ./wl'
+
 #setup
 ROOT="$HOME/wildland"
 MNT_DIR_1="git-mnt-1"
@@ -13,11 +15,11 @@ MNT_PATH_1="$ROOT/$MNT_DIR_1"
 MNT_PATH_2="$ROOT/$MNT_DIR_2"
 
 # Create and mount a Git container
-wl user create git-user
+$WL user create git-user
 mkdir /tmp/git_repo
-wl container create Git --path "/$MNT_DIR_1"
-wl storage create git --container Git --url https://gitlab.com/wildland/wildland-tutorials.git
-wl start
+$WL container create Git --path "/$MNT_DIR_1"
+$WL storage create git --container Git --url https://gitlab.com/wildland/wildland-tutorials.git
+$WL start
 
 # List full tree
 time -p chronic tree "$ROOT"
@@ -39,12 +41,12 @@ time -p test -f "$MNT_PATH_1"/src/scenarios/kartoteka/Kartoteka-HOWTO.md
 time -p chronic grep 'tutorials' "$MNT_PATH_1"/README.md
 
 # Unmount the container
-time -p chronic wl container unmount Git
+time -p chronic $WL container unmount Git
 
 # Create and mount a container for a private repo
-wl container create PrivateGit --path "/$MNT_DIR_2"
-wl storage create git --container PrivateGit --url https://gitlab.com/wildland/ci-example-project.git --username wildland-bot --password $PERSONAL_GITLAB_TOKEN
-wl container mount PrivateGit
+$WL container create PrivateGit --path "/$MNT_DIR_2"
+$WL storage create git --container PrivateGit --url https://gitlab.com/wildland/ci-example-project.git --username wildland-bot --password $PERSONAL_GITLAB_TOKEN
+$WL container mount PrivateGit
 
 # Check whether a directory exists
 time -p test -d "$MNT_PATH_2"/New\ directory
@@ -56,14 +58,14 @@ time -p test -f "$MNT_PATH_2"/README.md
 time -p chronic grep 'plugin' "$MNT_PATH_2"/README.md
 
 # Unmount the container
-time -p chronic wl container unmount PrivateGit
+time -p chronic $WL container unmount PrivateGit
 
 # Test storage template creation
-wl template create git --url https://gitlab.com/wildland/wildland-tutorials.git git-temp
-wl container create git-template --path /template --template git-temp
-wl container mount git-template
+$WL template create git --url https://gitlab.com/wildland/wildland-tutorials.git git-temp
+$WL container create git-template --path /template --template git-temp
+$WL container mount git-template
 
 # Verify that the template creation is working
 time -p chronic tree "$ROOT"/template
 
-wl container unmount git-template
+$WL container unmount git-template

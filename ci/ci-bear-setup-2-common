@@ -2,8 +2,8 @@
 time -p ./ci/bear-sqlite-generator --max-tags=5 /tmp/bear.sqlite
 
 # Create a Bear macro-container and mount it
-${WL_CLI} user create User
-${WL_CLI} container create BearDB --path /bear
-${WL_CLI} storage create bear-db --container BearDB --inline --path /tmp/bear.sqlite --trusted
+${WL} user create User
+${WL} container create BearDB --path /bear
+${WL} storage create bear-db --container BearDB --inline --path /tmp/bear.sqlite --trusted
 ${WL_START_CMD}
 

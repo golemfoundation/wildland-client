@@ -5,8 +5,6 @@ set -ex
 . /home/user/env/bin/activate
 . ci/install-inplace ipfs
 
-WL='python3 -m coverage run -p ./wl'
-
 # Setup
 ROOT="$HOME/wildland"
 MNT_DIR_1="ipfs-mnt-1"
@@ -34,6 +32,8 @@ while ! ipfs diag sys &>/dev/null; do
 done
 
 HASH=$(ipfs add -r "$DATA_DIR_1" | grep -E 'Qm.{44} ipfs-data$' -o | head -c 46)
+
+WL='python3 -m coverage run -p ./wl'
 
 # Wildland
 

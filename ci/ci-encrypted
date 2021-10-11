@@ -13,7 +13,7 @@ mkdir -p /tmp/minio-data/the-bucket/
 
 MINIO_ACCESS_KEY='dmr' MINIO_SECRET_KEY='/.,/.,/.,' /tmp/minio server /tmp/minio-data &
 
-WL='python3 -m coverage run ./wl'
+WL='python3 -m coverage run -p ./wl'
 
 # Wildland
 

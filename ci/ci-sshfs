@@ -16,14 +16,16 @@ mkdir $FILES
 . /home/user/env/bin/activate
 . ci/install-inplace sshfs
 
-wl user create User
-wl container create sshfs --path "/$MNT_DIR_1"
-wl storage create sshfs --container sshfs --host 127.0.0.1 \
+WL='python3 -m coverage run -p ./wl'
+
+$WL user create User
+$WL container create sshfs --path "/$MNT_DIR_1"
+$WL storage create sshfs --container sshfs --host 127.0.0.1 \
      --path ./files --ssh-user user --ssh-identity $HOME/.ssh/id_rsa
 
 # Test the backend
-wl start
-wl container mount sshfs
+$WL start
+$WL container mount sshfs
 
 mkdir ~/files/testdir
 echo 1234 > "$FILES"/testdir/testfile
@@ -36,10 +38,10 @@ time -p chronic /bin/sh -c 'echo abcd > '$MNT_PATH_1'/testdir/test2'
 time -p chronic grep abcd "$FILES"/testdir/test2
 
 # Test template creation
-wl template create sshfs --host 127.0.0.1 \
+$WL template create sshfs --host 127.0.0.1 \
      --path ./files --ssh-user user --ssh-identity $HOME/.ssh/id_rsa sshfs-temp
-wl container create sshfs-temp --template sshfs-temp --path /sshfst
-wl container mount sshfs-temp
+$WL container create sshfs-temp --template sshfs-temp --path /sshfst
+$WL container mount sshfs-temp
 
 time -p chronic tree ~/wildland/
 time -p chronic ls -l ~/wildland/sshfst/testdir
