@@ -263,7 +263,7 @@ def verify(ctx: click.Context, input_file):
 
 @click.command(short_help='verify and dump contents of specified file')
 @click.option('--decrypt/--no-decrypt', '-d/-n', default=True,
-              help='decrypt manifest (if applicable)')
+              help='verify and decrypt manifest (if applicable)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
@@ -282,7 +282,12 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
     path = find_manifest_file(obj.client, input_file, manifest_type)
 
     if decrypt:
-        manifest = Manifest.from_file(path, obj.client.session.sig)
+        try:
+            manifest = Manifest.from_file(path, obj.client.session.sig)
+        except ManifestError as me:
+            raise CliError(
+                f"Manifest cannot be loaded: {me}\n"
+                f"You can dump a manifest without verification using --no-decrypt") from me
         data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     else:
         data = path.read_bytes()
