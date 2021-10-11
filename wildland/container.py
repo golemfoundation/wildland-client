@@ -217,6 +217,8 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         This function provides filtered sensitive and unneeded fields for representation
         """
         fields = self.to_manifest_fields(inline=True)
+        if self.local_path:
+            fields.update({"local-path": str(self.local_path)})
         if not include_sensitive:
             # Remove sensitive fields
             # for backends, we only keep some useful info
@@ -228,11 +230,16 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     if 'encrypted' in storage:
                         filtered_storages.append('encrypted')
                         continue
-                    filtered_storage_obj = WildlandObject.from_fields(
-                        self.fill_storage_fields(storage), self.client)
+                    filtered_storage_obj = None
+                    try:
+                        filtered_storage_obj = WildlandObject.from_fields(
+                            self.fill_storage_fields(storage), self.client)
+                    except WildlandError as e:
+                        logger.error(str(e))
                     if filtered_storage_obj:
                         filtered_storages.append(filtered_storage_obj.to_repr_fields(
                             include_sensitive=False))
+
             fields["backends"]["storage"] = filtered_storages
         return fields
 

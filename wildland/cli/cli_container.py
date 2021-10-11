@@ -861,7 +861,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
                     remount, with_subcontainers, None, list_all, only_subcontainers)
                 current_params.extend(mount_params)
             except WildlandError as ex:
-                fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
+                fails.append(f'Cannot mount container {container}: {str(ex)}')
 
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)

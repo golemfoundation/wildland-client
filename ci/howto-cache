@@ -37,7 +37,8 @@ categories: []
 backends:
   storage:
   - type: $storage_type
-    backend-id: $storage_uuid"
+    backend-id: $storage_uuid
+local-path: /home/user/.config/wildland/containers/cache-test.container.yaml"
 
 run wl container info cache-test
 
@@ -106,6 +107,7 @@ backends:
   storage:
   - type: $storage_type
     backend-id: $storage_uuid
+local-path: /home/user/.config/wildland/containers/cache-test.container.yaml
 cache:
   type: local
   backend_id: $cache_uuid
@@ -182,7 +184,8 @@ categories: []
 backends:
   storage:
   - type: $storage_type
-    backend-id: $storage_uuid"
+    backend-id: $storage_uuid
+local-path: /home/user/.config/wildland/containers/cache-test.container.yaml"
 
 run wl c info cache-test
 
