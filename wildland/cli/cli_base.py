@@ -178,9 +178,9 @@ class AliasedGroup(click.Group):
     # pylint: disable=unidiomatic-typecheck
     def add_command(self, cmd, name=None):
         if type(cmd) is click.Group:
-            cmd.__class__ = GroupRequiredOptionsFirst
+            cmd = GroupRequiredOptionsFirst.from_group(cmd)
         elif type(cmd) is click.Command:
-            cmd.__class__ = CommandRequiredOptionsFirst
+            cmd = CommandRequiredOptionsFirst.from_command(cmd)
         return super().add_command(cmd, name)
 
     def format_options(self, ctx, formatter):
