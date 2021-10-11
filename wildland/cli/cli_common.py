@@ -427,7 +427,11 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
     fields = manifest.fields
     for edit_func in edit_funcs:
         fields = edit_func(fields, **kwargs)
-    modified_manifest = Manifest.from_fields(fields)
+
+    # required to enforce field order
+    manifest_fields = WildlandObject.from_fields(fields, obj.client).to_manifest_fields(
+        inline=False)
+    modified_manifest = Manifest.from_fields(manifest_fields)
 
     orig_manifest_data = yaml.safe_dump(
         orig_manifest.fields, encoding='utf-8', sort_keys=False)

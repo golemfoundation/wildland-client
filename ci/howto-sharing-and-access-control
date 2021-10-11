@@ -45,15 +45,15 @@ run wl container create mycontainer
 
 mycontainer_uuid=$(wl container dump mycontainer | grep '/.uuid/' | cut -d / -f 3)
 
-expected="object: container
+expected="version: '1'
+object: container
 owner: '$alice_userid'
 paths:
 - /.uuid/$mycontainer_uuid
-backends:
-  storage: []
 title: null
 categories: []
-version: '1'"
+backends:
+  storage: []"
 run wl container dump mycontainer
 
 expected="Error: Secret key not found: $bob_userid"
@@ -79,17 +79,17 @@ run wl container modify --no-encrypt-manifest mycontainer
 expected_pcre="signature: \|
   $alice_userid:.*
 ---
+version: '1'
 object: container
 owner: '$alice_userid'
 paths:
 - /.uuid/$mycontainer_uuid
-backends:
-  storage: \[\]
 title: null
 categories: \[\]
-version: '1'
 access:
-- user: '\*'"
+- user: '\*'
+backends:
+  storage: \[\]"
 run cat ~/.config/wildland/containers/mycontainer.container.yaml
 
 expected="Created: /home/user/.config/wildland/containers/unencrypted-container.container.yaml"
@@ -98,17 +98,17 @@ run wl container create unencrypted-container --no-encrypt-manifest
 expected_pcre="signature: \|
   $alice_userid:.*
 ---
+version: '1'
 object: container
 owner: '$alice_userid'
 paths:
 - /.uuid/$UUID_PCRE
-backends:
-  storage: \[\]
 title: null
 categories: \[\]
-version: '1'
 access:
-- user: '\*'"
+- user: '\*'
+backends:
+  storage: \[\]"
 run cat ~/.config/wildland/containers/unencrypted-container.container.yaml
 
 expected="Created: /home/user/.config/wildland/containers/alice-and-bob.container.yaml"
@@ -234,6 +234,7 @@ run bash -c "echo 'It works!' > ~/wildland/hello/world/Hello-World.md"
 expected_pcre="signature: \|
   $caroline_userid:.*
 ---
+version: '1'
 object: user
 owner: '$caroline_userid'
 paths:
@@ -249,6 +250,8 @@ manifests-catalog:
 - object: link
   file: /.manifests.yaml
   storage:
+    object: storage
+    type: webdav
     access:
     - user: '\*'
     base_path: /.manifests/$UUID_PCRE
@@ -256,16 +259,13 @@ manifests-catalog:
       login: userro
       password: passwordro
     read-only: true
-    type: webdav
     url: http://localhost:8081/
     backend-id: $UUID_PCRE
-    object: storage
     manifest-pattern:
       type: glob
       path: /\*.yaml
 pubkeys:
-- .*
-version: '1'"
+- .*"
 run cat ~/.config/wildland/users/caroline.user.yaml
 
 

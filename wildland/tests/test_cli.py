@@ -1559,15 +1559,15 @@ def test_container_multi_modification(cli, cli_fail, base_dir):
 
 def test_container_create_no_path(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Sky', '--category', '/colors/blue')
+    cli('container', 'create', 'Sky', '--category', '/colors/blue', '--no-encrypt-manifest')
 
     with open(base_dir / 'containers/Sky.container.yaml') as f:
         data = f.read()
 
     assert "owner: '0xaaa'" in data
-    assert "categories:\\n- /colors/blue" in data
-    assert "title: Sky\\n" in data
-    assert "paths:\\n- /.uuid/" in data
+    assert "categories:\n- /colors/blue" in data
+    assert "title: Sky\n" in data
+    assert "paths:\n- /.uuid/" in data
 
 
 def test_container_update(cli, base_dir):

@@ -198,16 +198,17 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                 cleaned_backends.append(deepcopy(cache.storage))
 
         fields: Dict[str, Any] = {
+            "version": Manifest.CURRENT_VERSION,
             "object": WildlandObject.Type.CONTAINER.value,
             "owner": self.owner,
             "paths": [str(p) for p in self.paths],
-            "backends": {'storage': cleaned_backends},
             "title": self.title,
             "categories": [str(cat) for cat in self.categories],
-            "version": Manifest.CURRENT_VERSION
+            "access": self.access,
+            "backends": {'storage': cleaned_backends},
         }
-        if self.access:
-            fields['access'] = self.access
+        if not self.access:
+            del fields['access']
         self.SCHEMA.validate(fields)
         return fields
 

@@ -25,15 +25,15 @@ bob_userid=$(get_userid bob)
 expected="Created: /home/user/.config/wildland/containers/s3-photos.container.yaml"
 run wl container create s3-photos
 
-expected_pcre="object: container
+expected_pcre="version: '1'
+object: container
 owner: '$USERID_PCRE'
 paths:
 - /.uuid/$UUID_PCRE
-backends:
-  storage: \[\]
 title: null
 categories: \[\]
-version: '1'"
+backends:
+  storage: \[\]"
 run wl container dump s3-photos
 s3_photos_uuid=$(get_container_uuid s3-photos)
 

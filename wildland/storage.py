@@ -182,12 +182,12 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
     def to_manifest_fields(self, inline: bool) -> dict:
         fields: Dict[str, Any] = {
-            **self.params,
+            'version': Manifest.CURRENT_VERSION,
             'object': 'storage',
             'owner': self.owner,
             'type': self.storage_type,
             'container-path': str(self.container_path),
-            'version': Manifest.CURRENT_VERSION
+            **self.params,
         }
 
         if self.trusted:
@@ -232,7 +232,10 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         from old_uuid to new_uuid
         """
         new_params = deepcopy(self.params)
+
         del new_params['backend-id']
+        del new_params['container-path']
+
         new_storage = Storage(
             container_path=PurePosixPath(str(self.container_path).replace(
                 old_uuid, new_uuid)),

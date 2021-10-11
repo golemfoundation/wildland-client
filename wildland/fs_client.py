@@ -302,18 +302,19 @@ class WildlandFSClient:
         """
 
         pseudo_manifest_params = {
+            'version': Manifest.CURRENT_VERSION,
             'object': 'container',
             'owner': storage.owner,
             'paths': [str(p) for p in container.paths],
             'title': container.title or 'null',
             'categories': [str(p) for p in container.categories],
-            'version': storage.params.get('version', 'null'),
             'access': storage.params.get('access', [])
         }
         storage_manifest = Manifest.from_fields(pseudo_manifest_params)
         pseudomanifest_content = storage_manifest.original_data.decode('utf-8')
 
         params = {
+            'version': Manifest.CURRENT_VERSION,
             'type': 'pseudomanifest',
             'content': pseudomanifest_content,
             'base-dir': str(self.base_dir),
@@ -321,7 +322,6 @@ class WildlandFSClient:
             'backend-id': storage.backend_id,
             'owner': storage.owner,
             'container-path': str(container.paths[0]),
-            'version': Manifest.CURRENT_VERSION
         }
         return Storage(storage.owner, PseudomanifestStorageBackend.TYPE, container.uuid_path,
                        trusted=True, params=params, client=container.client)
