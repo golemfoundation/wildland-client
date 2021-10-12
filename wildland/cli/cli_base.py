@@ -28,6 +28,7 @@ Wildland command-line interface - base module.
 import collections
 import sys
 import traceback
+import types
 from pathlib import Path
 from typing import List, Tuple, Callable, Optional, IO
 from gettext import gettext
@@ -36,8 +37,8 @@ import click
 from click.exceptions import get_text_stderr
 
 from ..exc import WildlandError
-from ..utils import format_options_required_first, CommandRequiredOptionsFirst, \
-    GroupRequiredOptionsFirst
+from ..utils import format_options_required_first, format_multi_command_options, \
+    format_command_options
 
 
 class CliError(WildlandError, click.ClickException):
@@ -178,9 +179,10 @@ class AliasedGroup(click.Group):
     # pylint: disable=unidiomatic-typecheck
     def add_command(self, cmd, name=None):
         if type(cmd) is click.Group:
-            cmd = GroupRequiredOptionsFirst.from_group(cmd)
+            setattr(cmd, "format_options", types.MethodType(format_multi_command_options, cmd))
         elif type(cmd) is click.Command:
-            cmd = CommandRequiredOptionsFirst.from_command(cmd)
+            setattr(cmd, "format_options", types.MethodType(format_command_options, cmd))
+
         return super().add_command(cmd, name)
 
     def format_options(self, ctx, formatter):

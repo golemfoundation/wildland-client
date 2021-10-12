@@ -25,6 +25,7 @@
 Storage object
 """
 
+import types
 from typing import Iterable, List, Optional, Sequence, Tuple, Type, Union
 from pathlib import Path, PurePosixPath
 import functools
@@ -45,7 +46,7 @@ from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
-from ..utils import CommandRequiredOptionsFirst
+from ..utils import format_command_options
 
 logger = get_logger('cli-storage')
 
@@ -93,12 +94,13 @@ def _make_create_command(backend: Type[StorageBackend]):
 
     callback = functools.partial(_do_create, backend=backend)
 
-    command = CommandRequiredOptionsFirst(
+    command = click.Command(
         name=backend.TYPE,
         help=f'Create {backend.TYPE} storage',
         params=params,
         callback=callback,
         context_settings={'show_default': True})
+    setattr(command, "format_options", types.MethodType(format_command_options, command))
     return command
 
 
