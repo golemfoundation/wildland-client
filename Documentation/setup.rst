@@ -43,6 +43,12 @@ applies to both host and docker environments. The Makefile will
 automatically detect whether you're using one of the Docker images
 from ``docker/`` directory and execute appropiate commands.
 
+The python packages are split into three requirements files:
+
+* ``requirements.base`` — currently not to be used directly
+* ``requirements.ci`` — used for automated and manual tests running
+* ``requirements.dev`` — used for development and production (while in 0.x.y version)
+
 
 Run tests
 ---------

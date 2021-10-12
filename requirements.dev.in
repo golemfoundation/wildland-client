@@ -1,12 +1,15 @@
 -r requirements.base.in
 
-# Development / local testing
-
+# Testing
 pip-tools
 pytest
 pytest-cov
 pylint==2.8.3
 mypy
 python-lorem
-psutil
 pyinstrument
+
+# Documentation
+sphinx
+sphinx-autodoc-typehints
+colorama

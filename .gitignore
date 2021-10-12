@@ -6,3 +6,4 @@ env/
 build/
 artifacts/
 .mypy_cache
+/*.log
