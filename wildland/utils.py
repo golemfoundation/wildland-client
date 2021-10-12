@@ -22,7 +22,9 @@
 """
 General Wildland utility functions.
 """
+from typing import Union
 
+import click
 import yaml
 
 
@@ -54,3 +56,44 @@ def load_yaml_all(stream):
     raising yaml.YAMLError on duplicate keys (unlike pyYAML default behaviour).
     """
     return yaml.load_all(stream, Loader=DisallowDuplicateKeyLoader)
+
+
+def format_options_required_first(command: Union[click.Command, click.Group], ctx, formatter):
+    """
+    Get all options from command and write it to formatter. First it writes required options, then
+    non-required
+    """
+    required_options = []
+    non_required_options = []
+    for param in command.get_params(ctx):
+        record = param.get_help_record(ctx)
+        if record is not None:
+            if param.required:
+                required_options.append(record)
+            else:
+                non_required_options.append(record)
+
+    with formatter.section('Options'):
+        if required_options:
+            formatter.write_dl(required_options)
+        if non_required_options:
+            formatter.write_dl(non_required_options)
+
+
+def format_command_options(self, ctx: click.Context,
+                           formatter: click.HelpFormatter) -> None:
+    """
+    Handles help message formatting (first displays required options).
+    """
+
+    format_options_required_first(self, ctx, formatter)
+
+
+def format_multi_command_options(self, ctx: click.Context,
+                                 formatter: click.HelpFormatter) -> None:
+    """
+    Handles help message formatting (first displays required options).
+    """
+
+    format_options_required_first(self, ctx, formatter)
+    self.format_commands(ctx, formatter)

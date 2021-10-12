@@ -21,6 +21,7 @@
 Storage templates management
 """
 
+import types
 from typing import Optional, Sequence, Type
 import functools
 import click
@@ -32,6 +33,7 @@ from ..exc import WildlandError
 
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
+from ..utils import format_command_options
 
 
 @aliased_group('template', short_help='storage templates management')
@@ -78,6 +80,7 @@ def _make_create_command(backend: Type[StorageBackend], create: bool):
         help=f'Create {backend.TYPE} storage template',
         params=params,
         callback=callback)
+    setattr(command, "format_options", types.MethodType(format_command_options, command))
     return command
 
 
