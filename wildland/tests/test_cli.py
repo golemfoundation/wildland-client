@@ -1259,7 +1259,7 @@ def test_container_edit_duplicate_backend_ids(cli, base_dir):
     manifest = base_dir / 'containers/Container.container.yaml'
 
     with open(manifest) as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
