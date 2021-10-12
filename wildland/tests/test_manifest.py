@@ -386,7 +386,7 @@ key2: "value2"
     assert manifest_2.fields['key2'] == 'value2'
 
 
-def test_parse_anchors_not_allowed(sig, owner):
+def test_parse_anchors_not_allowed():
     test_data = '''
 object: test
 owner: other owner
@@ -397,5 +397,5 @@ a1: &x1
   field2: *x0
 '''.encode()
 
-    with pytest.raises(YAMLParserError, match=f"Anchor 'x0' encountered"):
+    with pytest.raises(YAMLParserError, match="Anchor 'x0' encountered"):
         yaml_parser.load(test_data)
