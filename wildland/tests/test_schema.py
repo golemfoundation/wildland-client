@@ -147,8 +147,10 @@ def test_validate_user():
 
     u = user()
     u['manifests-catalog'] = [container()]
+    del u['manifests-catalog'][0]['owner']
+    del u['manifests-catalog'][0]['version']
     schema.validate(u)
 
-    u['manifests-catalog'][0]['version'] = '2'
+    u['manifests-catalog'][0]['version'] = 'tomato'
     with pytest.raises(SchemaError, match=r"not valid"):
         schema.validate(u)

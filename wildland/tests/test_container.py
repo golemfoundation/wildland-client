@@ -168,3 +168,17 @@ def test_storage_cache(client):
     storages = list(container.load_storages())
     assert 'storage1' not in storages[0].params['location']
     assert storages[0].params['location'] == '/test'
+
+
+def test_manifest_catalog_format(client):
+    user = client.load_object_from_name(WildlandObject.Type.USER, 'User')
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
+    fields = container.to_manifest_fields(inline=False)
+
+    user.add_catalog_entry(fields)
+
+    user_fields = user.to_manifest_fields(inline=False)
+
+    assert user_fields['manifests-catalog'][0]['object'] == 'container'
+    assert 'version' not in user_fields['manifests-catalog'][0]
+    assert 'owner' not in user_fields['manifests-catalog'][0]

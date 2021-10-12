@@ -44,7 +44,7 @@ from ..cli.cli_common import del_nested_fields
 from ..cli.cli_container import _resolve_container
 from ..client import Client
 from ..exc import WildlandError
-from ..manifest.manifest import ManifestError, Manifest
+from ..manifest.manifest import ManifestError
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..utils import load_yaml, load_yaml_all
 from ..wildland_object.wildland_object import WildlandObject
@@ -2342,8 +2342,6 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'object': 'container',
-            'version': Manifest.CURRENT_VERSION,
-            'owner': '0xbbb',
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'containers'),
@@ -2482,8 +2480,6 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'object': 'container',
-            'version': Manifest.CURRENT_VERSION,
-            'owner': '0xbbb',
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'containers'),
@@ -2586,9 +2582,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
         documents = list(yaml.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
-            'owner': '0xbbb',
             'object': 'container',
-            'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'other-catalog'),
@@ -2664,9 +2658,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
         documents = list(yaml.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
-            'owner': '0xbbb',
             'object': 'container',
-            'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'other-catalog'),
@@ -2732,9 +2724,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
         documents = list(yaml.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
-            'owner': '0xaaa',
             'object': 'container',
-            'version': Manifest.CURRENT_VERSION,
             'backends': {'storage': [{
                 'type': 'local',
                 'location': str(base_dir / 'user-catalog'),
@@ -4439,10 +4429,8 @@ def _create_user_manifest(owner: str, path: str = '/PATH',
     if catalog_path:
         catalog_entry = f'''
 - object: container
-  owner: '{owner}'
   paths:
   - /manifests
-  version: '1'
   backends:
     storage:
     - owner: '{owner}'
