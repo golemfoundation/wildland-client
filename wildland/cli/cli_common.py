@@ -104,6 +104,7 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     if isinstance(obj, Container):
         for backend in obj.load_storages(include_url=False):
             backend.validate()
+        obj.validate()
     elif isinstance(obj, Storage):
         obj.validate()
 

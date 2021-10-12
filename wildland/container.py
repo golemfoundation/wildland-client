@@ -459,6 +459,15 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
 
         return new_container
 
+    def validate(self):
+        """
+        Validate container. This is not done automatically because we might want to load a
+        container having wrong fields.
+        """
+        # calling 'get_all_storages' will raise an exception if duplicate backend-id has been
+        # inserted while editing the container
+        self.client.get_all_storages(self)
+
 
 class ContainerStub:
     """
