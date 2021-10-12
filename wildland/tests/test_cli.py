@@ -1249,6 +1249,30 @@ def test_container_edit_encryption(cli, base_dir):
     assert '"FAILURE"' not in data
 
 
+def test_container_edit_duplicate_backend_ids(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH1',
+        '--container', 'Container', '--inline')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH2',
+        '--container', 'Container', '--inline')
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        documents = list(load_yaml_all(f))
+    backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
+    backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
+
+    with mock.patch('click.confirm', return_value=False) as m:
+        editor = f"sed -i s,{backend_id2},{backend_id1},g"
+        with pytest.raises(subprocess.CalledProcessError) as exception_info:
+            wl_call_output(base_dir, 'container', 'edit', 'Container', '--editor', editor)
+            m.assert_called()
+        assert "Invalid manifest: Duplicate backend-id found! Aborting..." in \
+               exception_info.value.stdout.decode()
+
+
 def test_container_modify_remount(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
