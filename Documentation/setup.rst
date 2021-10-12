@@ -78,7 +78,7 @@ Usage:
     docker-compose run --service-ports wildland-client
 
 To create and mount the example containers, run ``wl-example``. wildland-client
-is mounted in ``/home/user/wildland`` and the log is in ``/tmp/wlfuse.log``.
+is mounted in ``/home/user/wildland`` and the log is in ``~/.local/share/wildland/wl-fuse.log``.
 
 The python packages will be reinstalled as a part of an entrypoint. You can still
 re-install them manually by running ``make`` without having to terminate the docker 

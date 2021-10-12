@@ -132,13 +132,11 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
         """
         Configure logging module.
         """
-
-        log_path = args.log or '/tmp/wlfuse.log'
+        log_path = args.log or f"{os.path.expanduser('~')}/.local/share/wildland/wl-fuse.log"
         if log_path == '-':
             init_logging(console=True)
         else:
             init_logging(console=False, file_path=log_path)
-
 
     def install_debug_handler(self):
         """Decorate all python-fuse entry points"""
