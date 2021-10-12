@@ -47,6 +47,32 @@ class DisallowDuplicateKeyLoader(yaml.SafeLoader):
         return super().construct_mapping(node, deep)
 
 
+class FrozenAnchorsDict(dict):
+    """
+    Dict object preventing setitem.
+
+    This is YAML oriented with anchors usage message when trying
+    to set an item. This is to be used as a replacement of anchors
+    attribute for a yaml.Loader instance.
+    """
+
+    def __setitem__(self, key, value):
+        """
+        Override dict setitem method in order to prevent any add of anchors
+        """
+        raise YAMLParserError(f"Anchor '{key}' encountered")
+
+
+class DisallowAnchorAndDuplicateKeyLoader(DisallowDuplicateKeyLoader):
+    """
+    Alternate Yaml loader that raises error on duplicate keys and usage of anchors
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.anchors = FrozenAnchorsDict()
+
+
 class YamlParser:
     """
     Yaml Parser on top of pyyaml
@@ -79,18 +105,18 @@ class YamlParser:
     @staticmethod
     def load(stream):
         """
-        Load a yaml data stream, raising YAMLParserError on duplicate keys
+        Load a yaml data stream, raising YAMLParserError on duplicate keys and anchors
         (unlike pyYAML default behaviour).
         """
-        return yaml.load(stream, Loader=DisallowDuplicateKeyLoader)
+        return yaml.load(stream, Loader=DisallowAnchorAndDuplicateKeyLoader)
 
     @staticmethod
     def load_all(stream):
         """
         Load a yaml data stream, which can consist of multiple yaml documents,
-        raising YAMLParserError on duplicate keys (unlike pyYAML default behaviour).
+        raising YAMLParserError on duplicate keys and anchors (unlike pyYAML default behaviour).
         """
-        return yaml.load_all(stream, Loader=DisallowDuplicateKeyLoader)
+        return yaml.load_all(stream, Loader=DisallowAnchorAndDuplicateKeyLoader)
 
     @staticmethod
     def dump(data, stream=None, **kwargs):
