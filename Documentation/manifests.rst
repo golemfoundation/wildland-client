@@ -298,12 +298,19 @@ Example:
       storage:
         - file:///path/to/storage11.yaml
         - file:///path/to/storage12.yaml
-        - type: local
-          path: '/path/to/storage'
-          owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
-          container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+        - location: /home/user/my_local_container_storage
+          backend-id: 54e62924-3c65-4bbb-a82c-2b89a05af99b
+          object: storage
+          type: local
+        - location: /home/user/my_dropbox_container_storage
+          app-key: fbct8l3dt8aq25m
+          refresh-token: t9XizOh056UBAAAAAAAAAU2Rvmq1eMRwZAXOmfln8CURovLkhjY5nht-PnAp38FI
+          backend-id: 674817fa-3b91-4c6e-afb5-7ab4b9e23109
+          object: storage
+          type: dropbox
 
-In every category directory, every other category will be mounted.
+In every category directory, every other category will be mounted. Please note that for a given container,
+each ``backend-id`` attribute of storages is unique.
 
 Fields:
 
