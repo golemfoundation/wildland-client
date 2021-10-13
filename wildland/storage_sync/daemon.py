@@ -24,12 +24,11 @@
 Wildland sync daemon.
 """
 import os
-import multiprocessing
-import os
 import signal
 import threading
 
 from pathlib import Path, PurePosixPath
+from queue import Queue
 from typing import List, Optional, Dict, Tuple, Set
 
 import click
@@ -57,10 +56,10 @@ class SyncJob:
     """
     def __init__(self, job_id: str, container_name: str, syncer: BaseSyncer, source: StorageBackend,
                  target: StorageBackend, continuous: bool, unidirectional: bool,
-                 event_queue: multiprocessing.Queue, control_handler: ControlHandler):
+                 event_queue: Queue, control_handler: ControlHandler):
         self.syncer = syncer
-        self.stop_event = multiprocessing.Event()
-        self.worker = multiprocessing.Process(target=self._worker)
+        self.stop_event = threading.Event()
+        self.worker = threading.Thread(target=self._worker)
         self.container_name = container_name
         self.source = source
         self.target = target
@@ -119,7 +118,6 @@ class SyncJob:
         # TODO: one-shot sync is not interruptible currently, there's no safe way to abort
         # see issue #580
         self.worker.join()
-        self.worker.close()
 
     def status(self) -> str:
         """
@@ -181,7 +179,7 @@ class SyncDaemon:
     """
     def __init__(self, base_dir: Optional[str] = None, socket_path: Optional[str] = None,
                  log_path: Optional[str] = None):
-        self.lock = multiprocessing.Lock()
+        self.lock = threading.Lock()
         self.jobs: Dict[str, SyncJob] = dict()
         self.log_path = log_path
         self.base_dir = PurePosixPath(base_dir) if base_dir else None
@@ -194,12 +192,13 @@ class SyncDaemon:
         else:
             self.socket_path = Path(config.get('sync-socket-path'))
 
-        self.event_queue: multiprocessing.Queue = multiprocessing.Queue()
+        self.event_queue: Queue = Queue()
         self.event_thread = threading.Thread(target=self._event_thread_proc, daemon=True)
+        self.event_thread.name = 'events'
 
         # these are jobs queued for removal from the event thread
         self.stop_queue: Set[str] = set()
-        self.stop_event = multiprocessing.Event()
+        self.stop_event = threading.Event()
 
         self.control_server = ControlServer()
         self.control_server.register_commands(self)
@@ -390,13 +389,14 @@ class SyncDaemon:
             for job in self.jobs.values():
                 job.stop()
 
-        self.event_queue.close()  # so event thread can exit
+        # self.event_queue.close()  # so event thread can exit
         self.control_server.stop()
 
     def main(self):
         """
         Main server loop.
         """
+        threading.current_thread().name = 'main'
         self.init_logging()
         signal.signal(signal.SIGTERM, self.stop)
         signal.signal(signal.SIGINT, self.stop)
