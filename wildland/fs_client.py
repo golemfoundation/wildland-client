@@ -673,6 +673,12 @@ class WildlandFSClient:
             if path_regex.match(str(path)):
                 yield path
 
+    def get_mounted_storage_ids(self) -> List[int]:
+        """
+        Return list of all mounted storage IDs.
+        """
+        return list(self.get_info())
+
     def should_remount(self, container: Container, storage: Storage,
                        user_paths: Iterable[Iterable[PurePosixPath]]) -> bool:
         """

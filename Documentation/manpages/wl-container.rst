@@ -356,12 +356,16 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-unmount
 .. _wl-container-unmount:
 
-:command:`wl container unmount [--path] [--with-subcontainers/--without-subcontainers] [--undo-save] <container>`
------------------------------------------------------------------------------------------------------------------
+:command:`wl container unmount [--path] [--all] [--with-subcontainers/--without-subcontainers] [--undo-save] <container>`
+-------------------------------------------------------------------------------------------------------------------------
 
 .. option:: --path <path>
 
    Mount path to search for.
+
+.. option:: --all
+
+   Unmount all mounted storages.
 
 .. option:: -w, --with-subcontainers
 
