@@ -312,6 +312,7 @@ class SyncDaemon:
                     # we wait here to avoid race condition (client thinks that a job
                     # is stopped but we still have it in the jobs list)
                     self.stop_event.wait()
+                    self.stop_event.clear()
                     if job_id in self.stop_queue:
                         # we're good, job is clean to remove
                         self.stop_queue.remove(job_id)
