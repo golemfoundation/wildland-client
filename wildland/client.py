@@ -39,7 +39,6 @@ from subprocess import Popen
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union, Any
 from urllib.parse import urlparse, quote
 
-import yaml
 import requests
 
 from wildland.bridge import Bridge
@@ -62,6 +61,7 @@ from .exc import WildlandError
 from .search import Search
 from .storage_driver import StorageDriver
 from .log import get_logger
+from .utils import yaml_parser
 
 logger = get_logger('client')
 
@@ -1002,7 +1002,7 @@ class Client:
 
         # use custom caching that dumps *container_url_or_dict* to yaml,
         # because dict is not hashable (and there is no frozendict in python)
-        cache_key = yaml.dump(container_url_or_dict), owner, trusted
+        cache_key = yaml_parser.dump(container_url_or_dict), owner, trusted
         if cache_key in self._select_reference_storage_cache:
             return self._select_reference_storage_cache[cache_key]
 

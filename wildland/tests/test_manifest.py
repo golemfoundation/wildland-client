@@ -30,6 +30,7 @@ import pytest
 
 from ..manifest.manifest import Manifest, Header, ManifestError
 from ..manifest.sig import SodiumSigContext
+from ..utils import yaml_parser, YAMLParserError
 
 
 @pytest.fixture(scope='session')
@@ -137,6 +138,7 @@ key2: "value2"
     with pytest.raises(ManifestError, match='Manifest owner does not have access to signing key'):
         Manifest.from_bytes(data, sig)
 
+
 def test_parse_guess_manifest_type_bridge(sig, owner):
     test_data = f'''
 owner: "{owner}"
@@ -148,6 +150,7 @@ key2: "value2"
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
     manifest = Manifest.from_bytes(data, sig)
     assert manifest.fields['object'] == 'bridge'
+
 
 def test_parse_guess_manifest_type_container(sig, owner):
     test_data = f'''
@@ -162,6 +165,7 @@ key2: "value2"
     manifest = Manifest.from_bytes(data, sig)
     assert manifest.fields['object'] == 'container'
 
+
 def test_parse_guess_manifest_type_storage(sig, owner):
     test_data = f'''
 owner: "{owner}"
@@ -173,6 +177,7 @@ key2: "value2"
     data = make_header(sig, owner, test_data) + b'\n---\n' + test_data
     manifest = Manifest.from_bytes(data, sig)
     assert manifest.fields['object'] == 'storage'
+
 
 def test_parse_guess_manifest_type_user(sig, owner):
     test_data = f'''
@@ -342,10 +347,10 @@ def test_encrypt_catalog(sig, owner):
         'object': 'user',
         'key': 'VALUE',
         'manifests-catalog': [
-                {'key3': 'VALUE3'},
-                {'key2': 'VALUE2',
-                 'access': [{'user': additional_owner}]}
-            ]
+            {'key3': 'VALUE3'},
+            {'key2': 'VALUE2',
+             'access': [{'user': additional_owner}]}
+        ]
     }
     encrypted_data = Manifest.encrypt(test_data, sig)
     assert 'owner' in encrypted_data
@@ -379,3 +384,18 @@ key2: "value2"
     assert manifest_2.fields['owner'] == owner
     assert manifest_2.fields['key1'] == 'value1'
     assert manifest_2.fields['key2'] == 'value2'
+
+
+def test_parse_anchors_not_allowed():
+    test_data = '''
+object: test
+owner: other owner
+a0: &x0
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+a1: &x1
+  field1: *x0
+  field2: *x0
+'''.encode()
+
+    with pytest.raises(YAMLParserError, match="Anchor 'x0' encountered"):
+        yaml_parser.load(test_data)

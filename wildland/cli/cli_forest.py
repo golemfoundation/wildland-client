@@ -26,7 +26,6 @@ from typing import List, Dict, Any
 
 import os
 import click
-import yaml
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_storage import do_create_storage_from_templates
@@ -34,6 +33,7 @@ from ..container import Container
 from ..storage import StorageBackend
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..user import User
+from ..utils import YAMLParserError
 from ..publish import Publisher
 from ..manifest.template import TemplateManager, StorageTemplate
 from .cli_base import aliased_group, ContextObj, CliError
@@ -284,7 +284,7 @@ def _resolve_storage_templates(obj, template_name: str) -> List[StorageTemplate]
         tpl_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
 
         return tpl_manager.get_template_file_by_name(template_name).templates
-    except (WildlandError, yaml.YAMLError) as err:
+    except (WildlandError, YAMLParserError) as err:
         raise CliError(f'Could not load [{template_name}] storage template. {err}') from err
 
 

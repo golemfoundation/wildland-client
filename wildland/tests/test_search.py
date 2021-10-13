@@ -31,7 +31,6 @@ import shutil
 from functools import partial
 from unittest import mock
 
-import yaml
 import pytest
 
 from .utils import PartialDict, str_re
@@ -43,8 +42,9 @@ from ..storage_backends.file_subcontainers import FileSubcontainersMixin
 from ..wlpath import WildlandPath, PathError
 from ..search import Search
 from ..config import Config
-from ..utils import load_yaml_all
+from ..utils import yaml_parser
 from ..exc import WildlandError
+
 
 ## Path
 
@@ -324,9 +324,9 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Load user and container manifest
     with open(base_dir / 'containers/C.User2.container.yaml') as f:
-        container_dict = list(load_yaml_all(f))[1]
+        container_dict = list(yaml_parser.load_all(f))[1]
     with open(base_dir / 'users/User2.user.yaml') as f:
-        user_dict = list(load_yaml_all(f))[1]
+        user_dict = list(yaml_parser.load_all(f))[1]
 
     # Remove original continer manifest (so that search doesn't use it)
     (base_dir / 'containers/C.User2.container.yaml').unlink()
@@ -336,7 +336,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Save the new container to storage, sign
     with open(user_path, 'w') as f:
-        yaml.dump(user_dict, f)
+        yaml_parser.dump(user_dict, f)
     cli('user', 'sign', '-i', user_path)
 
     # Create bridge manifest

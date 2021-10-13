@@ -5,7 +5,8 @@ Manifests
 
 A Wildland manifest is a YAML multi-document in a specific format. It consists
 of a header, and the manifest body, separated by the standard YAML document
-separator (``---``).
+separator (``---``). Contrary to the YAML format, duplicate keys and anchors
+usage are not allowed.
 
 Header
 ------
