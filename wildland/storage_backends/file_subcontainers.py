@@ -280,7 +280,7 @@ class FileSubcontainersMixin(StorageBackend):
         sub_path = path.relative_to(part)
         if '{object-type}' in part:
             for object_type in WildlandObject.Type:
-                full_file_name = part.replace('{object-type}', object_type.value)
+                full_file_name = part.replace('{object-type}', object_type.value) / sub_path
                 yield from self._find_manifest_files(prefix, PurePosixPath(full_file_name))
         elif '*' in part:
             # This is a glob part, use readdir()

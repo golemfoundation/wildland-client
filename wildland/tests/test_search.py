@@ -488,6 +488,17 @@ def test_glob_simple():
         'foo2': {
             'bar.yaml': None,
         },
+        'foo3': {
+            'bar.user.yaml': None,
+            'bar.bridge.yaml': None,
+            'bar.container.yaml': None,
+            'bar.yaml': None,
+        },
+        'container': {
+            'bar.yaml': None,
+            'baz.yaml': None,
+            'README.txt': None,
+        },
     })
 
     assert list(backend._find_manifest_files(PurePosixPath('.'),
@@ -502,6 +513,23 @@ def test_glob_simple():
         PurePosixPath('foo/bar.yaml'),
         PurePosixPath('foo/baz.yaml'),
         PurePosixPath('foo2/bar.yaml'),
+        PurePosixPath('foo3/bar.user.yaml'),
+        PurePosixPath('foo3/bar.bridge.yaml'),
+        PurePosixPath('foo3/bar.container.yaml'),
+        PurePosixPath('foo3/bar.yaml'),
+        PurePosixPath('container/bar.yaml'),
+        PurePosixPath('container/baz.yaml'),
+    ]
+    assert list(backend._find_manifest_files(PurePosixPath('.'),
+                                             PurePosixPath('{object-type}/*.yaml'))) == [
+        PurePosixPath('container/bar.yaml'),
+        PurePosixPath('container/baz.yaml'),
+    ]
+    assert list(backend._find_manifest_files(PurePosixPath('.'),
+                                             PurePosixPath('*/*.{object-type}.yaml'))) == [
+        PurePosixPath('foo3/bar.user.yaml'),
+        PurePosixPath('foo3/bar.bridge.yaml'),
+        PurePosixPath('foo3/bar.container.yaml'),
     ]
 
 
