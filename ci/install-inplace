@@ -6,7 +6,7 @@
 
 # This file must be _sourced_ (not executed) inside a script
 # You can also source it with an argument, to install just one plugin, like:
-#   . ci/instal-inplace dropbox
+#   . ci/install-inplace dropbox
 
 
 INSTALL_PATH=$(python3 -c 'import sys;print(sys.path[-1])')

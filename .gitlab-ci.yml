@@ -157,6 +157,7 @@ dropbox-test-legacy:
     - ./ci/ci-dropbox "$DROPBOX_TEST_ACCESS_TOKEN"
 
 dropbox-test:
+  allow_failure: true
   extends: .plugin_test
   allow_failure: true
   script:
