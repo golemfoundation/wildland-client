@@ -106,6 +106,13 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         """ Container UUID"""
         return self.uuid_path.name
 
+    @property
+    def sync_id(self) -> str:
+        """
+        Return unique sync job ID for a container.
+        """
+        return self.owner + '|' + self.uuid
+
     def _ensure_uuid(self) -> PurePosixPath:
         """
         Find or create an UUID path for this container.
@@ -191,16 +198,17 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                 cleaned_backends.append(deepcopy(cache.storage))
 
         fields: Dict[str, Any] = {
+            "version": Manifest.CURRENT_VERSION,
             "object": WildlandObject.Type.CONTAINER.value,
             "owner": self.owner,
             "paths": [str(p) for p in self.paths],
-            "backends": {'storage': cleaned_backends},
             "title": self.title,
             "categories": [str(cat) for cat in self.categories],
-            "version": Manifest.CURRENT_VERSION
+            "access": self.access,
+            "backends": {'storage': cleaned_backends},
         }
-        if self.access:
-            fields['access'] = self.access
+        if not self.access:
+            del fields['access']
         self.SCHEMA.validate(fields)
         return fields
 
@@ -209,6 +217,8 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         This function provides filtered sensitive and unneeded fields for representation
         """
         fields = self.to_manifest_fields(inline=True)
+        if self.local_path:
+            fields.update({"local-path": str(self.local_path)})
         if not include_sensitive:
             # Remove sensitive fields
             # for backends, we only keep some useful info
@@ -220,11 +230,16 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     if 'encrypted' in storage:
                         filtered_storages.append('encrypted')
                         continue
-                    filtered_storage_obj = WildlandObject.from_fields(
-                        self.fill_storage_fields(storage), self.client)
+                    filtered_storage_obj = None
+                    try:
+                        filtered_storage_obj = WildlandObject.from_fields(
+                            self.fill_storage_fields(storage), self.client)
+                    except WildlandError as e:
+                        logger.error(str(e))
                     if filtered_storage_obj:
                         filtered_storages.append(filtered_storage_obj.to_repr_fields(
                             include_sensitive=False))
+
             fields["backends"]["storage"] = filtered_storages
         return fields
 
@@ -443,6 +458,15 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                                                storage_name=new_name)
 
         return new_container
+
+    def validate(self):
+        """
+        Validate container. This is not done automatically because we might want to load a
+        container having wrong fields.
+        """
+        # calling 'get_all_storages' will raise an exception if duplicate backend-id has been
+        # inserted while editing the container
+        self.client.get_all_storages(self)
 
 
 class ContainerStub:

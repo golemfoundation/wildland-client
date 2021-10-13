@@ -236,6 +236,16 @@ class SyncDaemon:
         """
         return self.stop_sync(job_id)
 
+    @control_command('stop-all')
+    def control_stop_all(self, _handler):
+        """
+        Stop all sync jobs.
+        """
+        with self.lock:
+            for job in self.jobs.values():
+                job.stop()
+            self.jobs.clear()
+
     @control_command('status')
     def control_status(self, _handler) -> List[str]:
         """

@@ -31,6 +31,7 @@ from copy import deepcopy
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .log import get_logger
+from .exc import WildlandError
 from .storage_backends.base import StorageBackend
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
@@ -181,12 +182,12 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
 
     def to_manifest_fields(self, inline: bool) -> dict:
         fields: Dict[str, Any] = {
-            **self.params,
+            'version': Manifest.CURRENT_VERSION,
             'object': 'storage',
             'owner': self.owner,
             'type': self.storage_type,
             'container-path': str(self.container_path),
-            'version': Manifest.CURRENT_VERSION
+            **self.params,
         }
 
         if self.trusted:
@@ -231,7 +232,10 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         from old_uuid to new_uuid
         """
         new_params = deepcopy(self.params)
+
         del new_params['backend-id']
+        del new_params['container-path']
+
         new_storage = Storage(
             container_path=PurePosixPath(str(self.container_path).replace(
                 old_uuid, new_uuid)),
@@ -241,3 +245,15 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
             client=self.client,
             trusted=self.trusted)
         return new_storage
+
+
+def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
+    """
+    Helper function to find a storage by listed id or type.
+    """
+    try:
+        return [storage for storage in storages
+                if id_or_type in (storage.backend_id, storage.params['type'])][0]
+    except IndexError:
+        # pylint: disable=raise-missing-from
+        raise WildlandError(f'Storage {id_or_type} not found')

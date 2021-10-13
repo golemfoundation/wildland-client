@@ -37,7 +37,6 @@ import tempfile
 import click
 import daemon
 import progressbar
-import yaml
 
 from progressbar.widgets import FormatWidgetMixin, TimeSensitiveWidgetBase
 from click import ClickException
@@ -50,13 +49,14 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
 from .cli_common import sign, verify, edit as base_edit, modify_manifest, add_fields, del_fields, \
     set_fields, del_nested_fields, find_manifest_file, dump as base_dump, check_options_conflict, \
-    check_if_any_options
+    check_if_any_options, wrap_output
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
+from ..utils import yaml_parser
 from ..remounter import Remounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
@@ -95,7 +95,7 @@ def get_counter(msg):
         msg, ": ",
         Counter()
     ]
-    counter = progressbar.ProgressBar(widgets=widgets, redirect_stderr=True)
+    counter = progressbar.ProgressBar(widgets=widgets)
     return counter
 
 
@@ -323,7 +323,7 @@ def _container_info(client, container, users_and_bridge_paths):
 
     click.secho("Sensitive fields are hidden.", fg="yellow")
     click.echo(container.local_path)
-    data = yaml.dump(container_fields, encoding='utf-8', sort_keys=False)
+    data = yaml_parser.dump(container_fields, encoding='utf-8', sort_keys=False)
     click.echo(data.decode())
 
 
@@ -537,7 +537,7 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
         idxs_to_delete = []
         container_manifest = find_manifest_file(
             ctx.obj.client, input_file, 'container').read_bytes()
-        container_yaml = list(yaml.safe_load_all(container_manifest))[1]
+        container_yaml = list(yaml_parser.safe_load_all(container_manifest))[1]
         storages_obj = container_yaml.get('backends', {}).get('storage', {})
         for s in del_storage:
             if s.isnumeric():
@@ -559,20 +559,6 @@ def _republish_container(client: Client, container: Container) -> None:
         Publisher(client, user).republish_container(container)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
-
-
-def sync_id(container: Container) -> str:
-    """
-    Return unique sync job ID for a container.
-    """
-    return container.owner + '|' + container.uuid
-
-
-def _do_sync(client: Client, container_name: str, job_id: str, source: dict, target: dict,
-             one_shot: bool, unidir: bool) -> str:
-    kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
-              'unidirectional': unidir, 'source': source, 'target': target}
-    return client.run_sync_command('start', **kwargs)
 
 
 def wl_path_for_container(client: Client, container: Container,
@@ -611,12 +597,12 @@ def _cache_sync(client: Client, container: Container, storages: List[Storage], v
             click.echo(f'Using cache at: {primary.params["location"]}')
         src = storages[1]  # [1] is the non-cache (old primary)
         cname = wl_path_for_container(client, container, user_paths)
-        status = client.run_sync_command('job-status', job_id=sync_id(container))
+        status = client.run_sync_command('job-status', job_id=container.sync_id)
         if not status:  # sync not running for this container
             # start bidirectional sync (this also performs an initial one-shot sync)
             # this happens in the background, user can see sync status/progress using `wl sync`
-            _do_sync(client, cname, sync_id(container), src.params, primary.params,
-                     one_shot=False, unidir=False)
+            client.do_sync(cname, container.sync_id, src.params, primary.params,
+                           one_shot=False, unidir=False)
 
 
 def prepare_mount(obj: ContextObj,
@@ -826,6 +812,7 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
 
 
 @profile()
+@wrap_output
 def _mount(obj: ContextObj, container_names: Sequence[str],
            remount: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
@@ -850,7 +837,6 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         containers = counter(client.load_containers_from(
             container_name, include_manifests_catalog=manifests_catalog))
         counter.start()
-
         counter = get_counter(f"Checking container references (from '{container_name}')")
         reordered, exc_msg = client.ensure_mount_reference_container(
             containers, callback_iter_func=counter)
@@ -875,7 +861,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
                     remount, with_subcontainers, None, list_all, only_subcontainers)
                 current_params.extend(mount_params)
             except WildlandError as ex:
-                fails.append(f'Cannot mount container {container.uuid}: {str(ex)}')
+                fails.append(f'Cannot mount container {container}: {str(ex)}')
 
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)
@@ -926,30 +912,50 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
               help='Do not unmount subcontainers.')
 @click.option('--undo-save', '-u', 'undo_save', is_flag=True, default=False,
               help='Undo mount --save option.')
+@click.option('--all', 'unmount_all', is_flag=True, default=False,
+              help='Unmount all mounted storages.')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=False)
 @click.pass_obj
 def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: bool,
-            container_names: Sequence[str]) -> None:
+            unmount_all: bool, container_names: Sequence[str]) -> None:
     """
     Unmount a container given by name, path to container's manifest or by one of its paths (using
     ``--path``). Repeat the argument to unmount multiple containers.
     """
     _unmount(obj, container_names=container_names, path=path, with_subcontainers=with_subcontainers,
-             undo_save=undo_save)
+             undo_save=undo_save, unmount_all=unmount_all)
 
 
+@wrap_output
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
-             with_subcontainers: bool = True, undo_save: bool = False) -> None:
+             with_subcontainers: bool = True, undo_save: bool = False,
+             unmount_all: bool = False) -> None:
 
     obj.fs_client.ensure_mounted()
 
-    if bool(container_names) + bool(path) != 1:
+    if unmount_all and (undo_save or not with_subcontainers or len(container_names) > 0
+                        or bool(path)):
+        raise click.UsageError('--all cannot be used with other options')
+
+    if bool(container_names) + bool(path) != 1 and not unmount_all:
         raise click.UsageError('Specify either container or --path')
 
     if undo_save and path:
         raise click.UsageError('Specify either --undo-save or --path. Cannot unsave a container '
             'specified by --path. Only containers specified by name or path to manifest can be '
             'saved and unsaved')
+
+    if unmount_all:
+        ids = obj.fs_client.get_mounted_storage_ids()
+        if len(ids) > 0:
+            click.echo(f'Unmounting {len(ids)} storages')
+            for ident in ids:
+                obj.fs_client.unmount_storage(ident)
+            click.echo('Stopping all sync jobs')
+            obj.client.run_sync_command('stop-all')
+        else:
+            click.echo('No storages to unmount')
+        return
 
     fails: List[str] = []
     all_storage_ids = []
@@ -1007,7 +1013,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
         for storage_id in all_cache_ids:
             container = obj.fs_client.get_container_from_storage_id(storage_id)
-            obj.client.run_sync_command('stop', job_id=sync_id(container))
+            obj.client.run_sync_command('stop', job_id=container.sync_id)
             obj.fs_client.unmount_storage(storage_id)
 
     elif not undo_save:
@@ -1183,18 +1189,6 @@ def add_mount_watch(obj: ContextObj, container_names):
     mount_watch(obj, container_names)
 
 
-def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Storage:
-    """
-    Helper function to find a storage by listed id or type.
-    """
-    try:
-        return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
-    except IndexError:
-        # pylint: disable=raise-missing-from
-        raise WildlandError(f'Storage {id_or_type} not found')
-
-
 @container_.command('sync', short_help='start syncing a container')
 @click.argument('cont', metavar='CONTAINER')
 @click.option('--target-storage', help='specify target storage. Default: first non-local storage'
@@ -1218,42 +1212,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
 
     client = obj.client
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-
-    all_storages = list(client.all_storages(container))
-    cache = client.cache_storage(container)
-    if cache:
-        all_storages.append(cache)
-
-    if source_storage:
-        source = _get_storage_by_id_or_type(source_storage, all_storages)
-    else:
-        try:
-            source = [storage for storage in all_storages
-                      if client.is_local_storage(storage.params['type'])][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No local storage backend found')
-
-    default_remotes = client.config.get('default-remote-for-container')
-
-    if target_storage:
-        target = _get_storage_by_id_or_type(target_storage, all_storages)
-        default_remotes[container.uuid] = target.backend_id
-        client.config.update_and_save({'default-remote-for-container': default_remotes})
-    else:
-        target_remote_id = default_remotes.get(container.uuid, None)
-        try:
-            target = [storage for storage in all_storages
-                      if target_remote_id == storage.backend_id
-                      or (not target_remote_id and
-                          not client.is_local_storage(storage.params['type']))][0]
-        except IndexError:
-            # pylint: disable=raise-missing-from
-            raise WildlandError('No remote storage backend found: specify --target-storage.')
-
-    response = _do_sync(client, cont, sync_id(container), source.params, target.params,
-                        one_shot, unidir=False)
-
+    source = client.get_local_storage(container, source_storage)
+    target = client.get_remote_storage(container, target_storage)
+    response = client.do_sync(cont, container.sync_id, source.params, target.params,
+                              one_shot, unidir=False)
     click.echo(response)
 
     if one_shot:
@@ -1263,10 +1225,10 @@ def sync_container(obj: ContextObj, target_storage, source_storage, one_shot, no
         else:
             while True:
                 time.sleep(1)
-                status, response = client.run_sync_command('job-status', job_id=sync_id(container))
+                status, response = client.run_sync_command('job-status', job_id=container.sync_id)
                 if status == SyncerStatus.STOPPED.value:
                     click.echo('One-shot sync finished.')
-                    client.run_sync_command('stop', job_id=sync_id(container))
+                    client.run_sync_command('stop', job_id=container.sync_id)
                     break
                 if status == SyncerStatus.ERROR.value:
                     click.echo(response)
@@ -1281,7 +1243,7 @@ def stop_syncing_container(obj: ContextObj, cont):
     Stop sync process for the given container.
     """
     container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, cont)
-    response = obj.client.run_sync_command('stop', job_id=sync_id(container))
+    response = obj.client.run_sync_command('stop', job_id=container.sync_id)
     click.echo(response)
 
 

@@ -29,11 +29,9 @@ from typing import Tuple, Optional, Dict
 import re
 from pathlib import Path
 
-import yaml
-
 from .schema import Schema
 from .sig import SigContext, SigError
-from ..utils import load_yaml
+from ..utils import yaml_parser, YAMLParserError
 from ..exc import WildlandError
 from ..log import get_logger
 
@@ -88,7 +86,7 @@ class Manifest:
         Return manifest's bytes data.
         """
         if not self._original_data:
-            self._original_data = yaml.dump(self._fields, encoding='utf-8', sort_keys=False)
+            self._original_data = yaml_parser.dump(self._fields, encoding='utf-8', sort_keys=False)
         return self._original_data
 
     def copy_to_unsigned(self) -> 'Manifest':
@@ -97,7 +95,7 @@ class Manifest:
         and similar potentially destructive changes.
         """
         manifest = self.__class__.from_unsigned_bytes(
-            yaml.dump(self._fields, encoding='utf-8', sort_keys=False))
+            yaml_parser.dump(self._fields, encoding='utf-8', sort_keys=False))
         return manifest
 
     @property
@@ -147,7 +145,7 @@ class Manifest:
                 keys_to_encrypt.extend(pubkeys)
 
         keys_to_encrypt = set(keys_to_encrypt)
-        data_to_encrypt = yaml.dump(fields, sort_keys=False).encode()
+        data_to_encrypt = yaml_parser.dump(fields, sort_keys=False).encode()
         try:
             encrypted_data, encrypted_keys = sig.encrypt(data_to_encrypt, keys_to_encrypt)
         except SigError as se:
@@ -203,7 +201,7 @@ class Manifest:
             except SigError as se:
                 raise ManifestError('Cannot decrypt manifest.') from se
 
-            fields = yaml.safe_load(decrypted_raw)
+            fields = yaml_parser.safe_load(decrypted_raw)
 
         return fields
 
@@ -377,8 +375,8 @@ class Manifest:
 
         rest_str = data.decode('utf-8')
         try:
-            fields = load_yaml(rest_str)
-        except yaml.YAMLError as e:
+            fields = yaml_parser.load(rest_str)
+        except YAMLParserError as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e
         if sig:
             fields = cls.decrypt(fields, sig)
@@ -401,7 +399,7 @@ class Manifest:
 
         if encrypt:
             fields = Manifest.encrypt(fields, sig_context)
-            data = yaml.dump(fields, encoding='utf-8', sort_keys=False)
+            data = yaml_parser.dump(fields, encoding='utf-8', sort_keys=False)
 
         owner = self._fields['owner']
         signature = sig_context.sign(owner, data,
@@ -542,12 +540,12 @@ class Manifest:
     @classmethod
     def _parse_yaml(cls, data: bytes, sig: SigContext, decrypt: bool = True):
         try:
-            fields = load_yaml(data.decode('utf-8'))
+            fields = yaml_parser.load(data.decode('utf-8'))
             if decrypt:
                 fields = cls.decrypt(fields, sig)
             fields = cls.update_manifest_version(fields)
             return fields
-        except (ValueError, yaml.YAMLError) as e:
+        except (ValueError, YAMLParserError) as e:
             raise ManifestError('Manifest parse error: {}'.format(e)) from e
 
 

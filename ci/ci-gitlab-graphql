@@ -5,67 +5,69 @@ pip install . plugins/gitlab-graphql
 
 # Setup
 ROOT="$HOME/wildland"
+MNT_DIR_1="gitlab-mnt-1"
+MNT_DIR_2="gitlab-mnt-2"
 
 # Create and mount a gitlab-graphql container with a specified project path
 wl user create gitlab-user
-wl container create GitLab --path /gitlab
+wl container create GitLab --path "/$MNT_DIR_1"
 wl storage create gitlab-graphql --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN --project-path wildland/ci-example-project
 wl start
 wl container mount --with-subcontainers GitLab
 
 # List full tree
-time -p chronic tree $ROOT
+time -p chronic tree "$ROOT"
 
 # List /wildland directory
-time -p chronic ls $ROOT
+time -p chronic ls "$ROOT"
 
 # List contents of the project directory
-time -p chronic ls $ROOT/projects/ci\ example\ project/
+time -p chronic ls "$ROOT"/projects/ci\ example\ project/
 
 # List contents of the timeline directory for the project
-time -p test -d $ROOT/timeline/2021/06/16
+time -p test -d "$ROOT"/timeline/2021/06/16
 
 # Checking the categories permutation
-time -p test -d $ROOT/projects/ci\ example\ project/@labels/feature/
+time -p test -d "$ROOT"/projects/ci\ example\ project/@labels/feature/
 
 # Labels with 2 issues
-time -p test -f $ROOT/labels/backends/issue\ 1/issue\ 1.md
-time -p test -f $ROOT/labels/backends/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/labels/backends/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/labels/backends/issue\ 2/issue\ 2.md
 
 # Labes with a single issue
-time -p test -f $ROOT/labels/feature/issue\ 1/issue\ 1.md
-time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/labels/feature/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/labels/welcome/issue\ 2/issue\ 2.md
 
 # Read contents of files
-time -p chronic grep 'issue' $ROOT/projects/ci\ example\ project/issue\ 2/issue\ 2.md
+time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/issue\ 2/issue\ 2.md
 
 # Unmount the container
 time -p chronic wl container unmount GitLab
 
 # Create and mount a gitlab-graphql container without a specified project path
-wl container create GitLab-no-path --path /gitlab
+wl container create GitLab-no-path --path "/$MNT_DIR_2"
 wl storage create gitlab-graphql --container GitLab-no-path --personal-token $PERSONAL_GITLAB_TOKEN
 wl container mount --with-subcontainers GitLab-no-path
 
 # List contents of the project directory
-time -p chronic ls $ROOT/projects/ci\ example\ project/
+time -p chronic ls "$ROOT"/projects/ci\ example\ project/
 
 # List contents of the timeline directory for the project
-time -p test -d $ROOT/timeline/2021/06/16
+time -p test -d "$ROOT"/timeline/2021/06/16
 
 # Checking the categories permutation
-time -p test -d $ROOT/projects/ci\ example\ project/@labels/feature/
+time -p test -d "$ROOT"/projects/ci\ example\ project/@labels/feature/
 
 # Labels with 2 issues
-time -p test -f $ROOT/labels/backends/issue\ 1/issue\ 1.md
-time -p test -f $ROOT/labels/backends/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/labels/backends/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/labels/backends/issue\ 2/issue\ 2.md
 
 # Labes with a single issue
-time -p test -f $ROOT/labels/feature/issue\ 1/issue\ 1.md
-time -p test -f $ROOT/labels/welcome/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/labels/feature/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/labels/welcome/issue\ 2/issue\ 2.md
 
 # Read contents of files
-time -p chronic grep 'issue' $ROOT/projects/ci\ example\ project/issue\ 2/issue\ 2.md
+time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/issue\ 2/issue\ 2.md
 
 # Unmount the container
 time -p chronic wl container unmount GitLab-no-path

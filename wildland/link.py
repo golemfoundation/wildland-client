@@ -93,8 +93,8 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     def to_manifest_fields(self, inline: bool):
         return {
             'object': 'link',
-            'storage': self.storage_driver.storage_backend.params,
-            'file': str(self.file_path)
+            'file': str(self.file_path),
+            'storage': self.storage_driver.storage_backend.params
         }
 
     def to_repr_fields(self, include_sensitive: bool = False) -> dict:

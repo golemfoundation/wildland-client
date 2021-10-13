@@ -6,18 +6,24 @@ set -ex
 pip install .
 
 ROOT="$HOME/wildland"
+STORAGE="/home/user/storage"
+MNT_DIR_1="webdav-mnt-1"
+MNT_DIR_2="webdav-mnt-2"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
+MNT_PATH_2="$ROOT/$MNT_DIR_2"
+CATEGORY_PATH_1="$ROOT/ci-test"
 
 # Setup
-mkdir -p /home/user/storage
+mkdir -p "$STORAGE"
 sudo /etc/init.d/apache2 start
 
-mkdir -p /home/user/storage/foo
-echo foobar > /home/user/storage/foo/file1.txt
-echo text > /home/user/storage/file2.txt
+mkdir -p "$STORAGE"/foo
+echo foobar > "$STORAGE"/foo/file1.txt
+echo text > "$STORAGE"/file2.txt
 
 # Wildland
 ./wl user create User1
-./wl container create Container1 --path /webdav\
+./wl container create Container1 --path "/$MNT_DIR_1" \
                                  --category /ci-test
 ./wl storage create webdav --container Container1 \
                            --login 'user' \
@@ -27,31 +33,30 @@ echo text > /home/user/storage/file2.txt
 
 # Test files and directories
 tree $ROOT
-time -p test -f $ROOT/ci-test/Container1/file2.txt
-time -p chronic grep 'text' $ROOT/ci-test/Container1/file2.txt
-time -p test -f $ROOT/webdav/file2.txt
-time -p chronic grep 'text' $ROOT/webdav/file2.txt
+time -p test -f "$CATEGORY_PATH_1"/Container1/file2.txt
+time -p chronic grep 'text' "$CATEGORY_PATH_1"/Container1/file2.txt
+time -p test -f "$MNT_PATH_1"/file2.txt
+time -p chronic grep 'text' "$MNT_PATH_1"/file2.txt
 
-time -p test -d $ROOT/ci-test/Container1/foo
-time -p test -d $ROOT/webdav/foo
+time -p test -d "$CATEGORY_PATH_1"/Container1/foo
+time -p test -d "$MNT_PATH_1"/foo
 
-time -p test -f $ROOT/ci-test/Container1/foo/file1.txt
-time -p chronic grep 'foobar' $ROOT/ci-test/Container1/foo/file1.txt
-time -p test -f $ROOT/webdav/foo/file1.txt
-time -p chronic grep 'foobar' $ROOT/webdav/foo/file1.txt
+time -p test -f "$CATEGORY_PATH_1"/Container1/foo/file1.txt
+time -p chronic grep 'foobar' "$CATEGORY_PATH_1"/Container1/foo/file1.txt
+time -p test -f "$MNT_PATH_1"/foo/file1.txt
+time -p chronic grep 'foobar' "$MNT_PATH_1"/foo/file1.txt
 
 # Cleanup
-rm -rf /home/user/storage
+rm -rf "$STORAGE"
 
 # Test template creation
 ./wl template create webdav --login 'user' \
-                          --password 'password' \
-                          --url 'http://localhost:8081/' webdav-temp
-./wl container create webdav-temp --template webdav-temp --path /webdavt
+                            --password 'password' \
+                            --url 'http://localhost:8081/' webdav-temp
+./wl container create webdav-temp --template webdav-temp --path "/$MNT_DIR_2"
 ./wl container mount webdav-temp
 
 # Verify the template creation works
-tree $ROOT/wedavt
+tree "$MNT_PATH_2"
 
 ./wl stop
-                   

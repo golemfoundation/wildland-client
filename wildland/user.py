@@ -197,13 +197,13 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         if inline:
             raise WildlandError('User manifest cannot be inlined.')
         result = {
+                'version': Manifest.CURRENT_VERSION,
                 'object': 'user',
                 'owner': self.owner,
                 'paths': [str(p) for p in self.paths],
                 'manifests-catalog': [deepcopy(cached_object.manifest)
                                       for cached_object in self._manifests_catalog],
                 'pubkeys': self.pubkeys.copy(),
-                'version': Manifest.CURRENT_VERSION
             }
         self.SCHEMA.validate(result)
         return result

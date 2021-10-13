@@ -5,11 +5,15 @@ pip install . plugins/git
 
 #setup
 ROOT="$HOME/wildland"
+MNT_DIR_1="git-mnt-1"
+MNT_DIR_2="git-mnt-2"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
+MNT_PATH_2="$ROOT/$MNT_DIR_2"
 
 # Create and mount a Git container
 wl user create git-user
 mkdir /tmp/git_repo
-wl container create Git --path /git
+wl container create Git --path "/$MNT_DIR_1"
 wl storage create git --container Git --url https://gitlab.com/wildland/wildland-tutorials.git
 wl start
 
@@ -20,34 +24,34 @@ time -p chronic tree "$ROOT"
 time -p chronic ls "$ROOT"
 
 # List contents of the repo directory
-time -p chronic ls "$ROOT"/git
+time -p chronic ls "$MNT_PATH_1"
 
 # Check contents of the drafts directory for the project
-time -p test -d "$ROOT"/git/drafts
+time -p test -d "$MNT_PATH_1"/drafts
 
 # Check whether files are under correct directories
-time -p test -f "$ROOT"/git/README.md
-time -p test -f "$ROOT"/git/src/scenarios/kartoteka/Kartoteka-HOWTO.md
+time -p test -f "$MNT_PATH_1"/README.md
+time -p test -f "$MNT_PATH_1"/src/scenarios/kartoteka/Kartoteka-HOWTO.md
 
 # Read contents of files
-time -p chronic grep 'tutorials' "$ROOT"/git/README.md
+time -p chronic grep 'tutorials' "$MNT_PATH_1"/README.md
 
 # Unmount the container
 time -p chronic wl container unmount Git
 
 # Create and mount a container for a private repo
-wl container create PrivateGit --path /privategit
+wl container create PrivateGit --path "/$MNT_DIR_2"
 wl storage create git --container PrivateGit --url https://gitlab.com/wildland/ci-example-project.git --username wildland-bot --password $PERSONAL_GITLAB_TOKEN
 wl container mount PrivateGit
 
 # Check whether a directory exists
-time -p test -d "$ROOT"/privategit/New\ directory
+time -p test -d "$MNT_PATH_2"/New\ directory
 
 # Check whether README can be found
-time -p test -f "$ROOT"/privategit/README.md
+time -p test -f "$MNT_PATH_2"/README.md
 
 # Check the contents of the README
-time -p chronic grep 'plugin' "$ROOT"/privategit/README.md
+time -p chronic grep 'plugin' "$MNT_PATH_2"/README.md
 
 # Unmount the container
 time -p chronic wl container unmount PrivateGit

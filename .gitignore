@@ -4,3 +4,5 @@ htmlcov
 env/
 *.egg-info
 build/
+artifacts/
+.mypy_cache
