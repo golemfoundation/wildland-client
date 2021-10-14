@@ -7,7 +7,7 @@ REQUIREMENTS_ENV=$(WL_ENV)
 PIP_INSTALL_FLAGS=
 else
 VENV_BIN=./env/bin
-REQUIREMENTS_ENV=ci
+REQUIREMENTS_ENV=dev
 PIP_INSTALL_FLAGS=-e
 endif
 
@@ -36,11 +36,9 @@ compile: env
 .PHONY: env
 ifeq ($(IN_DOCKER), 1)
 env:
-	$(VENV_BIN)/python3 -m pip install --upgrade pip
 	$(VENV_BIN)/pip install -r requirements.$(REQUIREMENTS_ENV).txt
 else
 env:
 	python3 -m venv env/
-	$(VENV_BIN)/python3 -m pip install --upgrade pip
 	$(VENV_BIN)/pip install -r requirements.$(REQUIREMENTS_ENV).txt
 endif
