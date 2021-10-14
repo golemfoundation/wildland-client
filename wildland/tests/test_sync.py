@@ -677,7 +677,7 @@ def test_sync_events_oneshot(base_dir, sync, cli):
     client.do_sync(container_name, job_id, source.params, target.params, one_shot=True,
                    unidir=False)
     assert_state(client, job_id, SyncState.ONE_SHOT)
-    assert_state(client, job_id, SyncState.SYNCED)
+    wait_for_state(client, job_id, SyncState.SYNCED)
 
 
 # pylint: disable=unused-argument
@@ -690,8 +690,7 @@ def test_sync_events_continuous_pre(base_dir, sync, cli):
     client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
                    unidir=False)
     assert_state(client, job_id, SyncState.ONE_SHOT)
-    assert_state(client, job_id, SyncState.RUNNING)
-    assert_state(client, job_id, SyncState.SYNCED)
+    wait_for_state(client, job_id, SyncState.SYNCED)
 
 
 # pylint: disable=unused-argument
@@ -703,7 +702,7 @@ def test_sync_events_continuous_post(base_dir, sync, cli):
     client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
                    unidir=False)
     assert_state(client, job_id, SyncState.ONE_SHOT)  # initial sync
-    assert_state(client, job_id, SyncState.SYNCED)
+    wait_for_state(client, job_id, SyncState.SYNCED)
     make_file(path1, 'test data')
     assert_state(client, job_id, SyncState.RUNNING)  # handling events
     # there can be some more RUNNING events before this
@@ -715,13 +714,15 @@ def test_sync_events_oneshot_error(base_dir, sync, cli):
     container_name = 'sync_events_oneshot_error'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
-    shutil.rmtree(path1.parent)
+    make_file(path1, 'test data')
+    os.chmod(path1, 0o000)
     client.do_sync(container_name, job_id, source.params, target.params, one_shot=True,
                    unidir=False)
     assert_state(client, job_id, SyncState.ONE_SHOT)
     wait_for_event(client, lambda ev: ev.type == SyncErrorEvent.type and
                    ev.job_id == job_id and
-                   'No such file or directory' in ev.value)
+                   'Permission denied' in ev.value)
+    os.chmod(path1, 0o600)
 
 
 # pylint: disable=unused-argument
@@ -734,10 +735,10 @@ def test_sync_events_continuous_error(base_dir, sync, cli):
                    unidir=False)
     assert_state(client, job_id, SyncState.ONE_SHOT)
     wait_for_state(client, job_id, SyncState.SYNCED)
-    shutil.rmtree(path1.parent)
+    client.run_sync_command('test-error', job_id=job_id)
     wait_for_event(client, lambda ev: ev.type == SyncErrorEvent.type and
                    ev.job_id == job_id and
-                   'No such file or directory' in ev.value)
+                   'Test sync exception' in ev.value)
 
 
 # pylint: disable=unused-argument
@@ -773,15 +774,15 @@ def test_sync_events_continuous_pre_conflict(base_dir, sync, cli):
 # pylint: disable=unused-argument
 def test_sync_events_continuous_post_conflict(base_dir, sync, cli):
     container_name = 'sync_events_continuous_post_conflict'
-    client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
+    client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
 
     make_file(path1, 'test data 1')
     client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
                    unidir=False)
     assert_state(client, job_id, SyncState.ONE_SHOT)
-    assert_state(client, job_id, SyncState.RUNNING)
-    assert_state(client, job_id, SyncState.SYNCED)
+    wait_for_state(client, job_id, SyncState.SYNCED)
     make_file(path1, 'test data 2')
+    make_file(path2, 'test data 3')
     wait_for_event(client, lambda ev: ev.type == SyncConflictEvent.type and
                    ev.job_id == job_id and
                    'Conflict detected on testfile' in ev.value)

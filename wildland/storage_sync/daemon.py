@@ -59,6 +59,7 @@ class SyncJob:
                  event_queue: Queue, control_handler: ControlHandler):
         self.syncer = syncer
         self.stop_event = threading.Event()
+        self.test_error = False
         self.worker = threading.Thread(target=self._worker)
         self.container_name = container_name
         self.source = source
@@ -119,6 +120,15 @@ class SyncJob:
         # see issue #580
         self.worker.join()
 
+    def cause_error(self):
+        """
+        Cause an exception in the sync worker (for test purposes).
+        The exception is WildlandError('Test sync exception')
+        """
+        assert self.continuous
+        self.test_error = True
+        self.stop()
+
     def status(self) -> str:
         """
         Status of this sync job as human-readable string.
@@ -157,6 +167,8 @@ class SyncJob:
             if self.continuous:
                 self.syncer.start_sync()
                 self.stop_event.wait()
+                if self.test_error:
+                    raise WildlandError('Test sync exception')
             else:
                 self.syncer.one_shot_sync(self.unidirectional)
         except Exception as ex:
@@ -339,6 +351,14 @@ class SyncDaemon:
         Stop syncing storages.
         """
         return self.stop_sync(job_id)
+
+    @control_command('test-error')
+    def control_test_error(self, _handler, job_id: str):
+        """
+        Cause an exception in the specified job (for test purposes).
+        The exception is WildlandError('Test sync exception')
+        """
+        self.jobs[job_id].cause_error()
 
     @control_command('stop-all')
     def control_stop_all(self, _handler):

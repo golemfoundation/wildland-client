@@ -45,6 +45,18 @@
                 }
             }
         },
+        "test-error": {
+            "description": "Cause an error in the specified job (for test purposes)",
+            "type": "object",
+            "required": ["job-id"],
+            "additionalProperties": false,
+            "properties": {
+                "job-id": {
+                    "type": "string",
+                    "description": "unique sync job ID, currently container_owner|container_uuid"
+                }
+            }
+        },
         "stop-all": {
             "description": "Stop all sync jobs",
             "type": "object",
