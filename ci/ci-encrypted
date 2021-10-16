@@ -5,6 +5,13 @@ set -ex
 . /home/user/env/bin/activate
 . ci/install-inplace
 
+# pytest
+
+pytest -v \
+       --cov plugins/encrypted/wildland_encrypted \
+       plugins/encrypted
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
+
 # Minio
 
 curl -so /tmp/minio https://dl.min.io/server/minio/release/linux-amd64/minio

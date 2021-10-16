@@ -100,6 +100,11 @@ bear-test:
   script:
     - ./ci/wildland-test-runner.sh ./ci/ci-bear
 
+categorization-proxy-test:
+  extends: .plugin_test
+  script:
+    - ./ci/ci-categorization-proxy
+
 gitlab-test:
   extends: .plugin_test
   script:
@@ -167,6 +172,11 @@ googledrive-test:
   extends: .plugin_test
   script:
     - ./ci/ci-googledrive "$GOOGLEDRIVE_TEST_ACCESS_TOKEN"
+
+zip-archive-test:
+  extends: .plugin_test
+  script:
+    - ./ci/ci-zip-archive
 
 howto-quick-start-test:
   stage: test

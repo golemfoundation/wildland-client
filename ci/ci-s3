@@ -5,7 +5,12 @@ set -ex
 . /home/user/env/bin/activate
 . ci/install-inplace s3
 
-WL='python3 -m coverage run -p ./wl'
+# pytest
+
+pytest -v \
+       --cov plugins/s3/wildland_s3 \
+       plugins/s3
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
 
 # Setup
 ROOT="$HOME/wildland"
@@ -28,6 +33,8 @@ printf "move_me" > "$MINIO_DATA_DIR"/floating
 
 
 MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --console-address :9001 /tmp/minio-data &
+
+WL='python3 -m coverage run -p ./wl'
 
 # Wildland
 

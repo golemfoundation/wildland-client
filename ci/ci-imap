@@ -5,7 +5,12 @@ set -ex
 . /home/user/env/bin/activate
 . ci/install-inplace imap
 
-WL='python3 -m coverage run -p ./wl'
+# pytest
+
+pytest -v \
+       --cov plugins/imap/wildland_imap \
+       plugins/imap
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
 
 # Setup
 ROOT="$HOME/wildland"
@@ -22,6 +27,8 @@ for sender in 1 2 3; do
     done
 done
 # Create and mount an IMAP container
+WL='python3 -m coverage run -p ./wl'
+
 sudo /etc/init.d/dovecot start
 
 sudo chmod 0666 /dev/fuse
