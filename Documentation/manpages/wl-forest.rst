@@ -8,7 +8,7 @@
 Synopsis
 ========
 
-| :command:`wl forest create <user> [<storage-template>]`
+| :command:`wl forest create [--owner <user>] <storage-template>`
 | :command:`wl forest mount []`
 | :command:`wl forest unmount []`
 
@@ -25,14 +25,13 @@ Commands
 .. program:: wl-forest-create
 .. _wl-forest-create:
 
-:command:`wl forest create <user> [<storage-template>]`
+:command:`wl forest create [<storage-template>]`
 -------------------------------------------------------
 
-Bootstrap a new Forest for given `<user>`.
+Bootstrap a new Forest. If --owner option is not specified, it is created for `@default-owner`.
 You must have private key of that user in order to use this command.
 
 Arguments:
-| USER                  name of the user who owns the Forest (mandatory)
 | STORAGE_TEMPLATE      storage template used to create Forest containers
 
 Description
@@ -49,6 +48,10 @@ After the container is created, the following steps take place:
 
    Allow an additional user access to containers created using this command. By default,
    those the containers are unencrypted unless at least one USER is passed using this option.
+
+.. option:: --owner USER, --user USER
+
+   Name of the user who owns the Forest. Default: `@default-owner`
 
 .. option:: --manifest-local-dir PATH
 

@@ -60,7 +60,8 @@ Saved: /home/user/.config/wildland/users/office.user.yaml"
 run wl user modify --add-pubkey-user yatima --add-pubkey-user inoshiro office
 
 
-expected_pcre="object: user
+expected_pcre="version: '1'
+object: user
 owner: '$USERID_PCRE'
 paths:
 - /users/office
@@ -68,8 +69,7 @@ manifests-catalog: \[\]
 pubkeys:
 - $PUBKEY_PCRE
 - $PUBKEY_PCRE
-- $PUBKEY_PCRE
-version: '1'"
+- $PUBKEY_PCRE"
 run wl user dump office
 
 
@@ -98,17 +98,17 @@ Created: /home/user/.config/wildland/bridges/office.bridge.yaml"
 run wl user import ~/Downloads/office.user.yaml
 
 
-expected_pcre="object: container
+expected_pcre="version: '1'
+object: container
 owner: '$USERID_PCRE'
 paths:
 - /.uuid/$UUID_PCRE
-backends:
-  storage: \[\]
 title: null
 categories: \[\]
-version: '1'
 access:
-- user: '$USERID_PCRE'"
+- user: '$USERID_PCRE'
+backends:
+  storage: \[\]"
 run wl dump ~/Downloads/access-test.container.yaml
 
 wl start

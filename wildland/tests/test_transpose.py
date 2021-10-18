@@ -162,7 +162,7 @@ def setup(base_dir, cli):
     #creating the user, forest and the reference container
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', '/tmp/location', 'mylocal')
-    cli('forest', 'create', 'User', 'mylocal')
+    cli('forest', 'create', '--owner', 'User', 'mylocal')
     cli('container', 'create', 'referenceContainer', '--path', '/path',
         '--category', '/cat/one', '--category', '/cat/two')
     cli('storage', 'create', 'local', 'referenceStorage',

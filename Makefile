@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-IN_DOCKER := $(shell if test -v WL_ENV; then echo 1; else echo 0; fi)
+IN_DOCKER := $(shell if test -z $(WL_ENV); then echo 0; else echo 1; fi)
 
 ifeq ($(IN_DOCKER), 1)
 VENV_BIN=/home/user/env/bin
@@ -7,7 +7,7 @@ REQUIREMENTS_ENV=$(WL_ENV)
 PIP_INSTALL_FLAGS=
 else
 VENV_BIN=./env/bin
-REQUIREMENTS_ENV=dev
+REQUIREMENTS_ENV=ci
 PIP_INSTALL_FLAGS=-e
 endif
 

@@ -1,5 +1,8 @@
 FROM wildland-client-base:latest
 
+# Maintainers:
+#   Michal Kluczek <michal@wildland.io>
+
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 ENV WL_ENV=gcp

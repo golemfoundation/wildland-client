@@ -29,14 +29,13 @@ from typing import List, Optional, Union
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-import yaml
 from jinja2 import Template, TemplateError, StrictUndefined, UndefinedError
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland import container
 from .manifest import Manifest
 from ..client import Client
-from ..utils import load_yaml
+from ..utils import yaml_parser, YAMLParserError
 from ..exc import WildlandError
 from ..storage import Storage
 from ..storage_backends.base import StorageBackend
@@ -83,7 +82,7 @@ class StorageTemplate:
 
     def __init__(self, source_data: Union[str, dict]):
         if isinstance(source_data, dict):
-            source_data = yaml.dump(source_data)
+            source_data = yaml_parser.dump(source_data)
 
         assert isinstance(source_data, str)  # satisfy mypy
         self.template = Template(source=source_data, undefined=StrictUndefined)
@@ -109,7 +108,7 @@ class StorageTemplate:
         except UndefinedError as ex:
             raise ValueError(str(ex)) from ex
 
-        data = load_yaml(raw_data)
+        data = yaml_parser.load(raw_data)
         data['owner'] = cont.owner
         data['container-path'] = str(cont.paths[0])
         data['backend-id'] = str(uuid.uuid4())
@@ -172,8 +171,8 @@ class TemplateFile:
 
         with self.file_path.open() as f:
             try:
-                yaml_ds = load_yaml(f)
-            except yaml.YAMLError as ye:
+                yaml_ds = yaml_parser.load(f)
+            except YAMLParserError as ye:
                 raise ye
             if yaml_ds is None:
                 raise WildlandError(f'Failed to parse template file [{self.file_path}].')
@@ -245,7 +244,7 @@ class TemplateManager:
                 except TemplateError:
                     logger.warning('failed to load template file %s', file)
                     continue
-                except (yaml.YAMLError, WildlandError) as err:
+                except (YAMLParserError, WildlandError) as err:
                     logger.warning(err)
                     continue
 
@@ -280,12 +279,12 @@ class TemplateManager:
 
         if target_path.exists():
             with open(target_path, 'r') as f:
-                yaml_contents = list(load_yaml(f))
+                yaml_contents = list(yaml_parser.load(f))
 
         yaml_contents.append(params)
 
         with open(target_path, 'w') as f:
-            yaml.dump(yaml_contents, f)
+            yaml_parser.dump(yaml_contents, f)
 
         return target_path
 

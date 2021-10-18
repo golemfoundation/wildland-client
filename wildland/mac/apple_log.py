@@ -42,7 +42,7 @@ class apple_log(logging.StreamHandler):
 
     def emit(self, record):
         text = self.format(record)
-        log_message(text)
+        log_message(record.levelno, text)
 
     @staticmethod
     def configure():

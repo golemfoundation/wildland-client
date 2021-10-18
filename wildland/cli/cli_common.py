@@ -33,7 +33,9 @@ from pathlib import Path
 from typing import Callable, List, Any, Optional, Dict, Tuple
 
 import click
-import yaml
+import progressbar
+
+import wildland.log
 
 from wildland import __version__
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -49,8 +51,28 @@ from ..manifest.manifest import (
 )
 from ..manifest.schema import SchemaError
 from ..exc import WildlandError
+from ..utils import yaml_parser
 from ..storage import Storage
 from ..user import User
+
+
+def wrap_output(func):
+    """
+    Decorator wrapping output into progressbar streams
+
+    It has to be used when using progressbar inside a cli function like mount/unmount
+    """
+    def wrapper_func(*args, **kwargs):
+        progressbar.streams.wrap(stderr=True)
+        # https://github.com/WoLpH/python-progressbar/issues/254
+        sys.stderr.isatty = progressbar.streams.original_stderr.isatty  # type: ignore
+        wildland.log.RootStreamHandler.setStream(stream=progressbar.streams.stderr)
+
+        func(*args, **kwargs)
+
+        progressbar.streams.unwrap(stderr=True)
+        wildland.log.RootStreamHandler.setStream(stream=sys.stderr)
+    return wrapper_func
 
 
 def find_manifest_file(client: Client, name: str, manifest_type: Optional[str]) -> Path:
@@ -82,6 +104,7 @@ def validate_manifest(manifest: Manifest, manifest_type, client: Client):
     if isinstance(obj, Container):
         for backend in obj.load_storages(include_url=False):
             backend.validate()
+        obj.validate()
     elif isinstance(obj, Storage):
         obj.validate()
 
@@ -207,7 +230,7 @@ def _sign_and_save(
             f.write(signed_data)
         click.echo(f'Saved: {path}')
     else:
-        sys.stdout.buffer.write(signed_data.decode())
+        sys.stdout.buffer.write(signed_data)
 
 
 @click.command(short_help='verify manifest signature')
@@ -241,7 +264,7 @@ def verify(ctx: click.Context, input_file):
 
 @click.command(short_help='verify and dump contents of specified file')
 @click.option('--decrypt/--no-decrypt', '-d/-n', default=True,
-              help='decrypt manifest (if applicable)')
+              help='verify and decrypt manifest (if applicable)')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
 def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
@@ -260,8 +283,13 @@ def dump(ctx: click.Context, input_file, decrypt, **_callback_kwargs):
     path = find_manifest_file(obj.client, input_file, manifest_type)
 
     if decrypt:
-        manifest = Manifest.from_file(path, obj.client.session.sig)
-        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
+        try:
+            manifest = Manifest.from_file(path, obj.client.session.sig)
+        except ManifestError as me:
+            raise CliError(
+                f"Manifest cannot be loaded: {me}\n"
+                f"You can dump a manifest without verification using --no-decrypt") from me
+        data = yaml_parser.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     else:
         data = path.read_bytes()
         if HEADER_SEPARATOR in data:
@@ -311,7 +339,7 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
                 raise CliError(f"Expected {manifest_type} manifest, but for argument '{input_file}'"
                                f" {actual_manifest_type} manifest was found."
                                f"\nConsider using: wl {actual_manifest_type} edit {input_file}")
-        data = yaml.dump(manifest.fields, encoding='utf-8', sort_keys=False)
+        data = yaml_parser.dump(manifest.fields, encoding='utf-8', sort_keys=False)
     except ManifestError:
         data = path.read_bytes()
 
@@ -405,11 +433,15 @@ def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[C
     fields = manifest.fields
     for edit_func in edit_funcs:
         fields = edit_func(fields, **kwargs)
-    modified_manifest = Manifest.from_fields(fields)
 
-    orig_manifest_data = yaml.safe_dump(
+    # required to enforce field order
+    manifest_fields = WildlandObject.from_fields(fields, obj.client).to_manifest_fields(
+        inline=False)
+    modified_manifest = Manifest.from_fields(manifest_fields)
+
+    orig_manifest_data = yaml_parser.safe_dump(
         orig_manifest.fields, encoding='utf-8', sort_keys=False)
-    modified_manifest_data = yaml.safe_dump(
+    modified_manifest_data = yaml_parser.safe_dump(
         modified_manifest.fields, encoding='utf-8', sort_keys=False)
 
     if orig_manifest_data == modified_manifest_data:

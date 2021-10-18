@@ -57,7 +57,7 @@ wl bridge create --owner User --target-user User --target-user-location \
   file://$HOME/.config/wildland/users/User.user.yaml --path /forests/User self_bridge
 
 ## forest
-wl forest create User simple
+wl forest create --owner User simple
 
 # publish containers to forest
 wl c publish work-qubesos

@@ -1,5 +1,8 @@
 FROM wildland-client-base:latest
 
+# Maintainers:
+#   Michal Kluczek <michal@wildland.io>
+
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 ENV WL_ENV=ci
@@ -62,4 +65,4 @@ USER root
 # Entrypoint
 
 USER user
-ENTRYPOINT ["./docker/entrypoint.ci.sh"]
+ENTRYPOINT ["bash", "./docker/entrypoint.ci.sh"]

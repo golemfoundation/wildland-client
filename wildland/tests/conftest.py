@@ -32,9 +32,9 @@ from typing import List
 from unittest import mock
 
 import pytest
-import yaml
 
 from .fuse_env import FuseEnv
+from ..utils import yaml_parser
 from ..cli import cli_main
 from ..control_client import ControlClient, ControlClientUnableToConnectError
 from ..search import Search
@@ -50,7 +50,7 @@ def base_dir():
     try:
         os.mkdir(base_dir / 'wildland')
         with open(base_dir / 'config.yaml', 'w') as f:
-            yaml.dump({
+            yaml_parser.dump({
                 'mount-dir': str(base_dir / 'wildland'),
                 'dummy': True,
             }, f)

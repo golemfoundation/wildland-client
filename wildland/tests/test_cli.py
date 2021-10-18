@@ -36,7 +36,6 @@ from unittest import mock
 from click.exceptions import UsageError
 
 import pytest
-import yaml
 
 from .test_sync import wait_for_file, wait_for_deletion, make_file
 from ..cli.cli_base import CliError
@@ -46,7 +45,7 @@ from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError, Manifest
 from ..storage_backends.file_subcontainers import FileSubcontainersMixin
-from ..utils import load_yaml, load_yaml_all
+from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
 
 
@@ -66,8 +65,8 @@ def strip_yaml(line):
 
     >>> obj1 = {'outer': [{'key2': 'value2'}]}
     >>> obj2 = {'outer': [{'key1': 'value1', 'key2': 'value2'}]}
-    >>> dump1 = yaml.safe_dump(obj1, default_flow_style=False)
-    >>> dump2 = yaml.safe_dump(obj2, default_flow_style=False)
+    >>> dump1 = yaml_parser.safe_dump(obj1, default_flow_style=False)
+    >>> dump2 = yaml_parser.safe_dump(obj2, default_flow_style=False)
     >>> print(dump1)
     outer:
     - key2: value2
@@ -634,7 +633,7 @@ def test_storage_delete_inline(cli, base_dir):
 
     container_path = base_dir / 'containers/Container.container.yaml'
     with open(container_path) as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     with pytest.raises(CliError, match='Inline storage cannot be deleted'):
@@ -658,17 +657,17 @@ def test_storage_delete_inline_multiple_containers(cli, base_dir):
 
     container_0_path = base_dir / 'containers/Container0.container.yaml'
     with open(container_0_path) as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
     # replace backend-id in Container1
     container_1_path = base_dir / 'containers/Container1.container.yaml'
     with open(container_1_path, 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         documents[1]['backends']['storage'][0]['backend-id'] = backend_id
         f.seek(0)
         f.write('signature: |\n  dummy.0xaaa\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
 
     with pytest.raises(CliError, match='(...)(please specify container name with --container)'):
         cli('storage', 'delete', str(backend_id))
@@ -690,20 +689,35 @@ def test_storage_delete_inline_many_in_one(monkeypatch, cli, base_dir):
 
     container_path = base_dir / 'containers/Container.container.yaml'
     with open(container_path, 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         backend_id = documents[1]['backends']['storage'][0]['backend-id']
         documents[1]['backends']['storage'][1]['backend-id'] = backend_id
         f.seek(0)
         f.write('signature: |\n  dummy.0xaaa\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
 
     monkeypatch.setattr('sys.stdin.readline', lambda: "n")
-    cli('storage', 'delete', str(backend_id), '--container', 'Container')
-    assert backend_id in container_path.read_text()
+    with pytest.raises(WildlandError, match='Duplicate backend-id found! Aborting...'):
+        cli('storage', 'delete', str(backend_id), '--container', 'Container')
 
-    monkeypatch.setattr('sys.stdin.readline', lambda: "y")
-    cli('storage', 'delete', str(backend_id), '--container', 'Container')
-    assert backend_id not in container_path.read_text()
+
+# pylint: disable=unused-argument
+def test_storage_delete_sync(cli, base_dir, sync):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage0', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/PATH',
+        '--container', 'Container', '--inline')
+
+    container_path = base_dir / 'containers/Container.container.yaml'
+    with open(container_path, 'r+') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+        backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    result = cli('storage', 'delete', str(backend_id), '--container', 'Container', capture=True)
+    assert "Outdated storage for container" in result.splitlines()[0]
 
 
 def test_storage_delete_cascade(cli, base_dir):
@@ -801,7 +815,7 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -841,7 +855,7 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
     backend_id3 = documents[1]['backends']['storage'][2]['backend-id']
 
     control_client.expect('paths', {
@@ -896,7 +910,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -997,7 +1011,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -1097,7 +1111,7 @@ def test_container_create_access(cli, base_dir):
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
         base_data = f.read().split('\n', 3)[-1]
-        data = yaml.safe_load(base_data)
+        data = yaml_parser.safe_load(base_data)
 
     assert 'encrypted' in data.keys()
     assert len(data['encrypted']['encrypted-keys']) == 2
@@ -1171,7 +1185,7 @@ def test_container_duplicate_mount(cli, base_dir, control_client):
     cli('container', 'duplicate', '--new-name', 'Duplicate', 'Container')
 
     with open(base_dir / 'containers/Duplicate.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -1232,6 +1246,30 @@ def test_container_edit_encryption(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         data = f.read()
     assert '"FAILURE"' not in data
+
+
+def test_container_edit_duplicate_backend_ids(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH1',
+        '--container', 'Container', '--inline')
+    cli('storage', 'create', 'local', 'Inlined', '--location', '/PATH2',
+        '--container', 'Container', '--inline')
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        documents = list(yaml_parser.load_all(f))
+    backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
+    backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
+
+    with mock.patch('click.confirm', return_value=False) as m:
+        editor = f"sed -i s,{backend_id2},{backend_id1},g"
+        with pytest.raises(subprocess.CalledProcessError) as exception_info:
+            wl_call_output(base_dir, 'container', 'edit', 'Container', '--editor', editor)
+            m.assert_called()
+        assert "Invalid manifest: Duplicate backend-id found! Aborting..." in \
+               exception_info.value.stdout.decode()
 
 
 def test_container_modify_remount(cli, base_dir):
@@ -1354,7 +1392,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
         '--update-user', '--no-encrypt-manifest')
 
     with open(base_dir / 'containers/Catalog.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     catalog_dir = Path(documents[1]['backends']['storage'][0]['location'])
 
@@ -1495,13 +1533,13 @@ def test_container_modify_access(cli, base_dir):
 
     cli('container', 'modify', 'Container', '--add-access', 'User2')
     base_data = manifest_path.read_text().split('\n', 3)[-1]
-    data = yaml.safe_load(base_data)
+    data = yaml_parser.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 2
 
     # works with container name and wl path
     cli('container', 'modify', ':/PATH:', '--del-access', 'User2')
     base_data = manifest_path.read_text().split('\n', 3)[-1]
-    data = yaml.safe_load(base_data)
+    data = yaml_parser.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 1
 
     cli('container', 'modify', 'Container', '--no-encrypt-manifest')
@@ -1544,15 +1582,15 @@ def test_container_multi_modification(cli, cli_fail, base_dir):
 
 def test_container_create_no_path(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Sky', '--category', '/colors/blue')
+    cli('container', 'create', 'Sky', '--category', '/colors/blue', '--no-encrypt-manifest')
 
     with open(base_dir / 'containers/Sky.container.yaml') as f:
         data = f.read()
 
     assert "owner: '0xaaa'" in data
-    assert "categories:\\n- /colors/blue" in data
-    assert "title: Sky\\n" in data
-    assert "paths:\\n- /.uuid/" in data
+    assert "categories:\n- /colors/blue" in data
+    assert "title: Sky\n" in data
+    assert "paths:\n- /.uuid/" in data
 
 
 def test_container_update(cli, base_dir):
@@ -1620,7 +1658,7 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
 
     cli('container', 'create', 'unpublished', '--template', 'rw')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'rw')
 
     output = []
 
@@ -1654,7 +1692,7 @@ def test_container_delete_unpublish(cli, tmp_path):
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', os.fspath(tmp_path), 'myforest')
-    cli('forest', 'create', 'User', 'myforest')
+    cli('forest', 'create', 'myforest')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage',
         '--location', os.fspath(tmp_path),
@@ -1764,7 +1802,7 @@ def test_published_container_dump(cli, tmp_path, base_dir):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
-    cli('forest', 'create', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--owner', 'Alice', 'forest-tpl')
 
     # Auto publish
     cli('container', 'create', 'AliceContainer', '--path', '/MY/ALICE')
@@ -1857,14 +1895,14 @@ def test_container_delete_umount(cli, base_dir, control_client):
     cli('container', 'mount', 'Container')
 
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
 
     backend_id = documents[1]['backend-id']
 
     (base_dir / 'storage/Storage.storage.yaml').unlink()
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2023,7 +2061,7 @@ def test_container_mount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2122,7 +2160,7 @@ def _cache_setup(cli, base_dir, container_names, user_name, subcont_path: str = 
                 '--location', storage_dir)
 
         with open(base_dir / f'containers/{name}.container.yaml') as f:
-            documents = list(load_yaml_all(f))
+            documents = list(yaml_parser.load_all(f))
 
         uuid_path = documents[1]['paths'][0]
         uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2145,9 +2183,9 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key, mount_cmd=Non
         cache_manifest = base_dir / 'cache' / f'{user_key}.{uuid}.storage.yaml'
         assert cache_manifest.exists()
         with open(cache_manifest) as f:
-            doc = list(load_yaml_all(f))
+            doc = list(yaml_parser.load_all(f))
             # parse dummy encryption
-            doc = list(load_yaml_all(doc[1]['encrypted']['encrypted-data']))
+            doc = list(yaml_parser.load_all(doc[1]['encrypted']['encrypted-data']))
             cache_id = doc[0]['backend-id']
             owner = doc[0]['owner']
 
@@ -2157,7 +2195,7 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key, mount_cmd=Non
         assert cache_id in backends
 
         with open(base_dir / 'config.yaml') as f:
-            config = load_yaml(f)
+            config = yaml_parser.load(f)
         assert owner == config['@default-owner']
 
         _sync_check(storage_dir, cache_dir)
@@ -2313,7 +2351,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents_container = list(load_yaml_all(f))
+        documents_container = list(yaml_parser.load_all(f))
 
     uuid_path = documents_container[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2323,7 +2361,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
 
     # add manifest catalog entry container
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'object': 'container',
@@ -2340,7 +2378,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
         })
         f.seek(0)
         f.write('signature: |\n  dummy.0xbbb\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -2403,7 +2441,7 @@ def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents_container = list(load_yaml_all(f))
+        documents_container = list(yaml_parser.load_all(f))
 
     uuid_path = documents_container[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2453,7 +2491,7 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents_container = list(load_yaml_all(f))
+        documents_container = list(yaml_parser.load_all(f))
 
     uuid_path = documents_container[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2463,7 +2501,7 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
 
     # add manifest catalog entry container
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'object': 'container',
@@ -2480,7 +2518,7 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
         })
         f.seek(0)
         f.write('signature: |\n  dummy.0xbbb\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
 
     control_client.expect('paths', {})
     control_client.expect('mount')
@@ -2568,7 +2606,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     os.mkdir(base_dir / 'other-catalog')
     # add container to manifests catalog
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xbbb',
@@ -2585,7 +2623,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
         })
         f.seek(0)
         f.write('signature: |\n  dummy.0xbbb\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
     cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH', '--no-publish')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
@@ -2646,7 +2684,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     os.mkdir(base_dir / 'other-catalog')
     # add container to manifests catalog
     with open(base_dir / 'users/Other.user.yaml', 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xbbb',
@@ -2663,7 +2701,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
         })
         f.seek(0)
         f.write('signature: |\n  dummy.0xbbb\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
     cli('container', 'create', 'Container', '--owner', 'Other', '--path', '/PATH', '--no-publish')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
         '--container', 'Container')
@@ -2714,7 +2752,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
     os.mkdir(base_dir / 'user-catalog')
     # add container to manifests catalog
     with open(base_dir / 'users/User.user.yaml', 'r+') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         documents[1]['manifests-catalog'].append({
             'paths': ['/.uuid/1111-2222-3333-4444'],
             'owner': '0xaaa',
@@ -2731,7 +2769,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
         })
         f.seek(0)
         f.write('signature: |\n  dummy.0xaaa\n---\n')
-        f.write(yaml.safe_dump(documents[1]))
+        f.write(yaml_parser.safe_dump(documents[1]))
 
     # move user manifest out of the default path, so the bridge would be the only way to access it
     os.rename(base_dir / 'users/Other.user.yaml', base_dir / 'user-Other.user.yaml')
@@ -2803,10 +2841,10 @@ def test_container_mount_glob(cli, base_dir, control_client):
     command = control_client.calls['mount']['items']
 
     with open(base_dir / 'containers/Container1.container.yaml') as f:
-        documents_container1 = list(load_yaml_all(f))
+        documents_container1 = list(yaml_parser.load_all(f))
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents_container2 = list(load_yaml_all(f))
+        documents_container2 = list(yaml_parser.load_all(f))
 
     uuid_path1 = documents_container1[1]['paths'][0]
     uuid1 = get_container_uuid_from_uuid_path(uuid_path1)
@@ -2873,7 +2911,7 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
     cli('container', 'mount', '--save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = load_yaml(f)
+        config = yaml_parser.load(f)
     assert config['default-containers'] == ['Container']
 
     # Will not add the same container twice
@@ -2881,13 +2919,13 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
     cli('container', 'mount', '--save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = load_yaml(f)
+        config = yaml_parser.load(f)
     assert config['default-containers'] == ['Container']
 
     # Get UUID and backend ID
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2912,7 +2950,7 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
     cli('container', 'umount', '--undo-save', 'Container')
 
     with open(base_dir / 'config.yaml') as f:
-        config = load_yaml(f)
+        config = yaml_parser.load(f)
     assert config['default-containers'] == []
 
     assert control_client.calls['unmount']['storage_id'] == 102
@@ -2938,7 +2976,7 @@ def test_container_umount_undo_save_by_container_names(cli, base_dir, control_cl
     cli('container', 'mount', '--save', *container_names)
 
     with open(base_dir / 'config.yaml') as f:
-        config = load_yaml(f)
+        config = yaml_parser.load(f)
     assert config['default-containers'] == container_names
 
     # Get UUID and backend ID
@@ -2949,7 +2987,7 @@ def test_container_umount_undo_save_by_container_names(cli, base_dir, control_cl
 
     for i in range(number_of_containers):
         with open(base_dir / f'containers/Container{i}.container.yaml') as f:
-            documents = list(load_yaml_all(f))
+            documents = list(yaml_parser.load_all(f))
 
         uuid_path = documents[1]['paths'][0]
         uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -2977,7 +3015,7 @@ def test_container_umount_undo_save_by_container_names(cli, base_dir, control_cl
     cli('container', 'umount', '--undo-save', *container_names)
 
     with open(base_dir / 'config.yaml') as f:
-        config = load_yaml(f)
+        config = yaml_parser.load(f)
     assert config['default-containers'] == []
 
     assert control_client.calls['unmount']['storage_id'] == 102 + (number_of_containers - 1) * 5
@@ -3016,7 +3054,7 @@ def test_container_umount_save_non_existing(cli, base_dir, control_client):
             cli('container', 'umount', '--undo-save', c[0])
 
         with open(base_dir / 'config.yaml') as f:
-            config_yaml = load_yaml(f)
+            config_yaml = yaml_parser.load(f)
         assert config_yaml['default-containers'] == c[1]
 
 
@@ -3029,7 +3067,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
         '--container', 'Container', '--inline')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -3110,7 +3148,7 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -3146,7 +3184,7 @@ def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
         '--container', 'Container', '--subcontainer-manifest', '/subcontainer.yaml')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path1 = documents[1]['paths'][0]
     uuid1 = get_container_uuid_from_uuid_path(uuid_path1)
@@ -3427,7 +3465,6 @@ backends:
     assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
-
 def test_container_mount_container_without_storage(cli, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -3445,7 +3482,7 @@ def test_container_unmount(cli, base_dir, control_client):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -3506,6 +3543,17 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
     assert control_client.calls['unmount']['storage_id'] == 102
 
 
+# pylint: disable=unused-argument
+def test_container_unmount_all(base_dir, sync, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    data = _cache_setup(cli, base_dir, ['c1', 'c2'], 'User')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', data[0][0], data[1][0], '--with-cache')
+    cli('container', 'unmount', '--all')
+    result = cli('status', capture=True)
+    assert result == 'Mounted containers:\n\n\nNo sync jobs running\n'
+
+
 def test_container_create_missing_params(cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
 
@@ -3525,7 +3573,7 @@ def test_container_extended_paths(cli, control_client, base_dir):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
 
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
@@ -3965,7 +4013,7 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
 
     with open(base_dir / 'containers/AliceContainer.container.yaml') as f:
         cont_data = f.read().split('\n', 4)[-1]
-        cont_yaml = load_yaml(cont_data)
+        cont_yaml = yaml_parser.load(cont_data)
 
     container_id = cont_yaml['paths'][0][7:]
     assert cont_yaml['backends']['storage'][2]['type'] == 'local-dir-cached'
@@ -3974,7 +4022,7 @@ def test_cli_container_sync_tg_remote(base_dir, sync, cli):
     with open(base_dir / 'config.yaml') as f:
         data = f.read()
 
-    config = load_yaml(data)
+    config = yaml_parser.load(data)
     default_storage = config["default-remote-for-container"]
     assert default_storage[container_id] == backend_id
 
@@ -4078,7 +4126,7 @@ def test_dump(tmpdir):
             '--container', 'AliceContainer', '--location', storage1_data, '--access', 'Alice')
 
     dump_container = wl_call_output(base_config_dir, 'container', 'dump', 'AliceContainer').decode()
-    yaml_container = yaml.safe_load(dump_container)
+    yaml_container = yaml_parser.safe_load(dump_container)
     assert 'enc' not in dump_container
     assert '/Alice' in dump_container
 
@@ -4087,7 +4135,7 @@ def test_dump(tmpdir):
     os.unlink(base_config_dir / f'keys/{alice_key}.sec')
 
     dump_container = wl_call_output(base_config_dir, 'container', 'dump', 'AliceContainer').decode()
-    yaml_container = yaml.safe_load(dump_container)
+    yaml_container = yaml_parser.safe_load(dump_container)
 
     assert 'encrypted' in dump_container
     assert yaml_container['object'] == 'container'
@@ -4129,7 +4177,7 @@ def test_cli_storage_template_create(cli, base_dir):
     cli('template', 'create', 'local', '--location', '/foo', 't1')
 
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
-        read_data = load_yaml(f)
+        read_data = yaml_parser.load(f)
         assert read_data == [{
             'type': 'local',
             'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
@@ -4152,7 +4200,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         '--access', 'UserA', '--access', 'UserB', 't1')
 
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
-        read_data = load_yaml(f)
+        read_data = yaml_parser.load(f)
         assert read_data == [{
             'type': 'local',
             'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
@@ -4164,7 +4212,7 @@ def test_cli_storage_template_create_custom_access(cli, base_dir):
         '--access', '*', 't2')
 
     with open(base_dir / 'templates/t2.template.jinja', 'r') as f:
-        read_data = load_yaml(f)
+        read_data = yaml_parser.load(f)
         assert read_data == [{
             'type': 'local',
             'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
@@ -4197,7 +4245,7 @@ def test_appending_to_existing_storage_template(cli, base_dir):
     cli('template', 'add', 'local', '--location', '/bar', '--read-only', 't1')
 
     with open(base_dir / 'templates/t1.template.jinja', 'r') as f:
-        read_data = load_yaml(f)
+        read_data = yaml_parser.load(f)
         assert read_data == [{
             'type': 'local',
             'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
@@ -4246,7 +4294,7 @@ def test_local_storage_template(cli, base_dir):
     cli('template', 'create', 'local', '--location', storage_dir, 'template')
 
     with open(base_dir / 'templates/template.template.jinja') as f:
-        t1_jinja = load_yaml(f)
+        t1_jinja = yaml_parser.load(f)
 
     assert len(t1_jinja) == 1
     assert t1_jinja[0] == {
@@ -4269,7 +4317,7 @@ def test_delegated_template(cli, base_dir):
         f'file://{base_dir}/containers/Container.container.yaml', 'delegated_template')
 
     with open(base_dir / 'templates/delegated_template.template.jinja') as f:
-        template_jinja = load_yaml(f)
+        template_jinja = yaml_parser.load(f)
 
     assert len(template_jinja) == 1
     storage_template = template_jinja[0]
@@ -4284,7 +4332,7 @@ def test_delegated_template(cli, base_dir):
         'delegated_container')
 
     with open(base_dir / 'containers/delegated_container.container.yaml') as f:
-        delegated_container_manifest = list(load_yaml_all(f))
+        delegated_container_manifest = list(yaml_parser.load_all(f))
     assert len(delegated_container_manifest) == 2
     assert delegated_container_manifest[0] == {
         'signature': 'dummy.0xaaa\n'
@@ -4331,7 +4379,7 @@ def test_proxy_storage_template(cli, base_dir):
         f'file://{base_dir}/containers/Container.container.yaml', 'timeline')
 
     with open(base_dir / 'templates/timeline.template.jinja') as f:
-        template_jinja = load_yaml(f)
+        template_jinja = yaml_parser.load(f)
 
     assert len(template_jinja) == 1
     assert template_jinja[0] == {
@@ -4345,7 +4393,7 @@ def test_proxy_storage_template(cli, base_dir):
         'timeline')
 
     with open(base_dir / 'containers/timeline.container.yaml') as f:
-        dateproxy_container_manifest = list(load_yaml_all(f))
+        dateproxy_container_manifest = list(yaml_parser.load_all(f))
     assert len(dateproxy_container_manifest) == 2
     assert dateproxy_container_manifest[0] == {
         'signature': 'dummy.0xaaa\n'
@@ -4704,12 +4752,12 @@ def test_only_subcontainers(cli, base_dir, control_client):
 
     # Extract containers auto-generated UUIDs
     with open(base_dir / 'containers/Parent.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
         uuid_path_parent = documents[1]['paths'][0]
         backend_id_parent = documents[1]['backends']['storage'][0]['backend-id']
 
     with open(base_dir / 'containers/Child.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
         uuid_path_child = documents[1]['paths'][0]
         backend_id_child = documents[1]['backends']['storage'][0]['backend-id']
 
@@ -4853,7 +4901,7 @@ def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir):
         '--container', 'Container')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
     uuid_path  = documents[1]['paths'][0]
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
@@ -4911,7 +4959,7 @@ def test_file_find_with_unmocked_client(cli, base_dir, tmpdir):
         assert f.readlines() == ['foo']
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
     uuid_path  = documents[1]['paths'][0]
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
 
@@ -4945,12 +4993,13 @@ def test_file_find_with_unmocked_client(cli, base_dir, tmpdir):
 
 def test_forest_create(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
     cli('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert catalog_path.exists()
@@ -4958,11 +5007,21 @@ def test_forest_create(cli, tmp_path):
     catalog_dirs = list(catalog_path.glob('*'))
 
     assert len(catalog_dirs) == 1
-
-    uuid_dir = str(catalog_dirs[0])
+    first_catalog = catalog_dirs[0]
+    uuid_dir = str(first_catalog)
 
     assert Path(f'{uuid_dir}/forest-owner.yaml').exists()
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
+    with open(Path(first_catalog / 'forest-owner.yaml')) as f:
+        stringified_file = ''.join(f.readlines())
+        assert "owner: '0xaaa'" in stringified_file
+
+    cli('forest', 'create', '--owner', 'Bob', 'forest-tpl')
+    catalog_dirs = list(catalog_path.glob('*'))
+    catalog_dirs.remove(first_catalog)
+    with open(Path(catalog_dirs[0] / 'forest-owner.yaml')) as f:
+        stringified_file = ''.join(f.readlines())
+        assert "owner: '0xbbb'" in stringified_file
 
 
 def test_forest_bridge_to(cli, tmp_path, base_dir):
@@ -4970,7 +5029,7 @@ def test_forest_bridge_to(cli, tmp_path, base_dir):
     cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--manifest-pattern', '/{path}.yaml', 'forest-tpl')
-    cli('forest', 'create', '--access', '*', 'Bob', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Bob', 'forest-tpl')
 
     cli('bridge', 'create', 'Bridge', '--target-user', 'Bob', '--path', '/Bridge/To/Bob')
 
@@ -4992,7 +5051,7 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Alice',
         '--target-user-location', f'file:///{base_dir}/users/Alice.user.yaml',
         '--path', '/forests/Alice', 'self_bridge')
-    cli('forest', 'create', '--access', '*', 'Alice', 'rw')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'rw')
     cli('container', 'publish', 'mycapsule')
 
     control_client.expect('paths', {})
@@ -5006,7 +5065,7 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     catalog_uuid_dir = str(catalog_dirs[0])
 
     with open(f'{catalog_uuid_dir}/.manifests.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
     entry_uuid_path = documents[1]['paths'][0]
     entry_uuid = get_container_uuid_from_uuid_path(entry_uuid_path)
     entry_backend_id = documents[1]['backends']['storage'][0]['backend-id']
@@ -5015,7 +5074,7 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     bridge_placeholder_uuid = '7262381c-6b06-5398-864f-afb4f63f24d8'
 
     with open(base_dir / 'containers/mycapsule.container.yaml') as f:
-        documents = list(load_yaml_all(f))
+        documents = list(yaml_parser.load_all(f))
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
     backend_id = documents[1]['backends']['storage'][0]['backend-id']
@@ -5090,7 +5149,7 @@ def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
         '--read-only', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     catalog_dirs = list(catalog_path.glob('*'))
@@ -5099,14 +5158,14 @@ def test_forest_create_check_for_published_catalog(cli, tmp_path):
     assert Path(f'{uuid_dir}/.manifests.yaml').exists()
 
     with open(uuid_dir / '.manifests.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     published_path = uuid_dir / (Path(data["paths"][0]).name + '.yaml')
 
     assert published_path.exists()
 
     with open(str(published_path)) as f:
-        data2 = list(yaml.safe_load_all(f))[1]
+        data2 = list(yaml_parser.safe_load_all(f))[1]
 
     assert data == data2
 
@@ -5117,7 +5176,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
         'forest-tpl')
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert catalog_path.exists()
@@ -5129,7 +5188,7 @@ def test_forest_user_catalog_objects(cli, tmp_path, base_dir):
     uuid_dir = str(catalog_dirs[0].resolve())
 
     with open(base_dir / 'users/Alice.user.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     catalog = data['manifests-catalog']
 
@@ -5150,7 +5209,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
         'forest-tpl')
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest', 'forest-tpl')
 
-    cli('forest', 'create', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     assert catalog_path.exists()
@@ -5162,7 +5221,7 @@ def test_forest_encrypted_catalog_objects(cli, tmp_path, base_dir):
     uuid_dir = str(catalog_dirs[0].resolve())
 
     with open(base_dir / 'users/Alice.user.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     catalog = data['manifests-catalog']
 
@@ -5185,13 +5244,13 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
     assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
@@ -5207,13 +5266,13 @@ def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         '--manifest-pattern', '/foo.yaml', 'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
     assert storage[0]['manifest-pattern'] == {'type': 'glob', 'path': '/foo.yaml'}
@@ -5230,13 +5289,13 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
     assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
@@ -5253,13 +5312,13 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
     cli('template', 'add', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-tpl')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-tpl')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-tpl')
 
     catalog_path = Path(f'/{tmp_path}/wl-forest/.manifests/')
     uuid_dir = list(catalog_path.glob('*'))[0].resolve()
 
     with open(uuid_dir / '.manifests.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
     assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
@@ -5272,7 +5331,7 @@ def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
     cli('template', 'create', 'local', '--location', f'{tmp_path}/wl-forest',
         'forest-template')
 
-    cli('forest', 'create', '--access', '*', 'Alice', 'forest-template')
+    cli('forest', 'create', '--access', '*', '--owner', 'Alice', 'forest-template')
 
     shutil.copy(Path(f'{base_dir}/users/Alice.user.yaml'), Path(f'{tmp_path}/Alice.yaml'))
 
@@ -5285,7 +5344,7 @@ def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):
     cli('user', 'import', f'{tmp_path}/Alice.yaml')
 
     with open(base_dir / 'bridges/Alice.bridge.yaml') as f:
-        data = list(yaml.safe_load_all(f))[1]
+        data = list(yaml_parser.safe_load_all(f))[1]
 
     assert data['user']['object'] == 'link'
     assert data['user']['file'] == '/forest-owner.yaml'
@@ -5313,7 +5372,8 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
         '--login', 'foo-login',
         '--password', 'foo-password', 'forest-template')
 
-    wl_call(base_config_dir, 'forest', 'create', '--access', '*', 'Alice', 'forest-template')
+    wl_call(base_config_dir, 'forest', 'create', '--access', '*', '--owner', 'Alice',
+            'forest-template')
 
     shutil.copy(Path(f'{base_config_dir}/users/Alice.user.yaml'),
                 Path(f'{shared_user_manifests}/Alice.yaml'))
@@ -5353,7 +5413,7 @@ def test_storage_dropbox_params(cli, base_dir):
         '--token', 'foo-token')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['location'] == '/foo-location'
@@ -5370,7 +5430,7 @@ def test_storage_dropbox_params(cli, base_dir):
         '--token', 'foo-token')
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['location'] == '/foo-location'
@@ -5391,7 +5451,7 @@ def test_storage_dropbox_params_with_refresh_token(cli, base_dir):
         '--refresh-token', 'foo-token')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['location'] == '/foo-location'
@@ -5410,7 +5470,7 @@ def test_storage_dropbox_params_with_refresh_token(cli, base_dir):
         '--refresh-token', 'foo-token')
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['location'] == '/foo-location'
@@ -5432,7 +5492,7 @@ def test_storage_googledrive_params(cli, base_dir):
         '--skip-interaction')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
@@ -5450,7 +5510,7 @@ def test_storage_googledrive_params(cli, base_dir):
         '--skip-interaction')
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['credentials'] == {"token": "foo", "refresh_token": "foo", "token_uri": "foo",
@@ -5471,7 +5531,7 @@ def test_storage_webdav_params(cli, base_dir):
         '--password', 'foo-password')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['url'] == 'http://foo-location.com'
@@ -5490,7 +5550,7 @@ def test_storage_webdav_params(cli, base_dir):
         '--password', 'foo-password')
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['url'] == 'http://foo-location.com'
@@ -5514,7 +5574,7 @@ def test_storage_s3_params(cli, base_dir):
         '--with-index')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['s3_url'] == 's3://foo-location'
@@ -5536,7 +5596,7 @@ def test_storage_s3_params(cli, base_dir):
         '--secret-key', 'foo-secret-key')
 
     with open(base_dir / 'containers/Container2.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['s3_url'] == 's3://foo-location'
@@ -5558,7 +5618,7 @@ def test_storage_http_params(cli, base_dir):
         '--url', 'http://foo-location.com')
 
     with open(base_dir / 'containers/Container.container.yaml') as f:
-        documents = list(yaml.safe_load_all(f))
+        documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
     assert storage['url'] == 'http://foo-location.com'

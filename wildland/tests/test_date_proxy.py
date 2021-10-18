@@ -26,7 +26,6 @@ from pathlib import Path, PurePosixPath
 import os
 from datetime import datetime
 import uuid
-import yaml
 
 import pytest
 
@@ -34,6 +33,7 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .helpers import treewalk
 from ..client import Client
 from ..manifest.manifest import Manifest
+from ..utils import yaml_parser
 
 
 def test_timeline_with_url(cli, base_dir):
@@ -138,7 +138,7 @@ def container(cli, base_dir, data_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     # this needs to be saved, so client.get_all() will see it
     with (base_dir / 'containers/macro.container.yaml').open('w') as f:
-        f.write(yaml.dump({
+        f.write(yaml_parser.dump({
             'object': 'container',
             'owner': '0xaaa',
             'version': Manifest.CURRENT_VERSION,
@@ -248,7 +248,7 @@ def old_container(cli, base_dir, data_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     # this needs to be saved, so client.get_all() will see it
     with (base_dir / 'containers/macro.container.yaml').open('w') as f:
-        f.write(yaml.dump({
+        f.write(yaml_parser.dump({
             'object': 'container',
             'owner': '0xaaa',
             'version': Manifest.CURRENT_VERSION,

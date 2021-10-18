@@ -29,11 +29,9 @@ from typing import Dict, Any
 import os
 import types
 
-import yaml
-
 from .manifest.schema import Schema, SchemaError
 from .exc import WildlandError
-from .utils import load_yaml
+from .utils import yaml_parser
 from .log import get_logger
 
 logger = get_logger('config')
@@ -112,7 +110,7 @@ class Config:
         Save fields from current ctx to the yaml file.
         """
         with open(self.path, 'w') as f:
-            yaml.dump(self.file_fields, f, sort_keys=False)
+            yaml_parser.dump(self.file_fields, f, sort_keys=False)
 
     @classmethod
     def update_obsolete(cls, file_fields):
@@ -175,7 +173,7 @@ class Config:
         path = base_dir / cls.filename
         if os.path.exists(path):
             with open(path, 'r') as f:
-                file_fields = load_yaml(f)
+                file_fields = yaml_parser.load(f)
                 if not file_fields:
                     file_fields = {}
         else:

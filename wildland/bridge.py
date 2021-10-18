@@ -81,12 +81,12 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         if inline:
             raise WildlandError('Bridge manifest cannot be inlined.')
         result = {
+            "version": Manifest.CURRENT_VERSION,
             "object": WildlandObject.Type.BRIDGE.value,
             "owner": self.owner,
+            "paths": [str(p) for p in self.paths],
             "user": deepcopy(self.user_location),
             "pubkey": self.user_pubkey,
-            "paths": [str(p) for p in self.paths],
-            "version": Manifest.CURRENT_VERSION
         }
         self.SCHEMA.validate(result)
         return result

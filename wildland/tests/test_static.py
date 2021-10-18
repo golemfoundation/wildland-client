@@ -24,7 +24,9 @@
 
 import os
 import uuid
-import yaml
+
+from ..utils import yaml_parser
+
 
 def storage(content):
     return {
@@ -34,9 +36,11 @@ def storage(content):
         'content': content
     }
 
+
 def test_static_empty(env):
     env.mount_storage(['/static'], storage({}))
     assert sorted(os.listdir(env.mnt_dir / 'static')) == []
+
 
 def test_static_fuse(env):
     env.mount_storage(['/static'], storage({
@@ -53,6 +57,7 @@ def test_static_fuse(env):
     assert (env.mnt_dir / 'static/dir/bar.txt').read_text() == 'bar data'
     assert (env.mnt_dir / 'static/dir/foo.txt').read_text() == 'foo2 data'
 
+
 def test_cli(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -63,7 +68,7 @@ def test_cli(base_dir, cli):
         '--container', 'Container', '--no-inline', '--no-encrypt-manifest')
     with open(base_dir / 'storage/Storage.storage.yaml') as f:
         data = f.read()
-    manifest = yaml.load(data.split('---')[1])
+    manifest = yaml_parser.load(data.split('---')[1])
 
     assert 'content' in manifest
     assert manifest['content'] == {

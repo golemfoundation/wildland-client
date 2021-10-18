@@ -7,7 +7,9 @@ pip install . plugins/s3/
 
 # Setup
 ROOT="$HOME/wildland"
+MNT_DIR_1="s3-mnt-1"
 MNT_DIR_2="s3-mnt-2"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
 MNT_PATH_2="$ROOT/$MNT_DIR_2"
 MINIO_DATA_DIR="/tmp/minio-data/the-bucket"
 
@@ -15,12 +17,12 @@ MINIO_DATA_DIR="/tmp/minio-data/the-bucket"
 
 curl -so /tmp/minio https://dl.min.io/server/minio/release/linux-amd64/minio
 chmod +x /tmp/minio
-mkdir -p /tmp/minio-data/the-bucket/subdir
+mkdir -p "$MINIO_DATA_DIR"/subdir
 
-printf "foo" > /tmp/minio-data/the-bucket/file
-printf "bar" > /tmp/minio-data/the-bucket/subdir/file
-printf "copy_me" > /tmp/minio-data/the-bucket/abbott
-printf "move_me" > /tmp/minio-data/the-bucket/floating
+printf "foo" > "$MINIO_DATA_DIR"/file
+printf "bar" > "$MINIO_DATA_DIR"/subdir/file
+printf "copy_me" > "$MINIO_DATA_DIR"/abbott
+printf "move_me" > "$MINIO_DATA_DIR"/floating
 
 
 MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --console-address :9001 /tmp/minio-data &
@@ -28,31 +30,31 @@ MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --consol
 # Wildland
 
 wl user create s3-user
-wl container create s3-con --path /s3
+wl container create s3-con --path "/$MNT_DIR_1"
 wl storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
 wl start --container s3-con
 
 # Test files
 
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/file) == "foo" ]]'
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/file) == "bar" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/file) == "foo" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/subdir/file) == "bar" ]]'
 
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/abbott) == "copy_me" ]]'
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/floating) == "move_me" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/abbott) == "copy_me" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/floating) == "move_me" ]]'
 
-time -p chronic /bin/bash -c '$(cp ~/wildland/s3/abbott ~/wildland/s3/costello)'
-time -p chronic /bin/bash -c '$(mv ~/wildland/s3/floating ~/wildland/s3/subdir/im_new)'
+time -p chronic /bin/bash -c '$(cp '$MNT_PATH_1'/abbott '$MNT_PATH_1'/costello)'
+time -p chronic /bin/bash -c '$(mv '$MNT_PATH_1'/floating '$MNT_PATH_1'/subdir/im_new)'
 
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/costello) == "copy_me" ]]'
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/im_new) == "move_me" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/costello) == "copy_me" ]]'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/subdir/im_new) == "move_me" ]]'
 
-time -p chronic /bin/bash -c '$(mv ~/wildland/s3/subdir/im_new ~/wildland/s3/subdir/still_same_dir)'
-time -p chronic /bin/bash -c '[[ $(cat ~/wildland/s3/subdir/still_same_dir) == "move_me" ]]'
+time -p chronic /bin/bash -c '$(mv '$MNT_PATH_1'/subdir/im_new '$MNT_PATH_1'/subdir/still_same_dir)'
+time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/subdir/still_same_dir) == "move_me" ]]'
 
-time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/floating ]]'
-time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/im_new ]]'
+time -p chronic /bin/bash -c '[[ ! -f '$MNT_PATH_1'/floating ]]'
+time -p chronic /bin/bash -c '[[ ! -f '$MNT_PATH_1'/subdir/im_new ]]'
 
-time -p chronic /bin/bash -c '$(rm ~/wildland/s3/abbott)'
+time -p chronic /bin/bash -c '$(rm '$MNT_PATH_1'/abbott)'
 
 time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/abbott ]]'
 
@@ -86,6 +88,3 @@ time -p test -f "$MNT_PATH_2"/tempfile
 time -p test -f "$MNT_PATH_2"/subdir/tempfile
 time -p test -f "$MNT_PATH_2"/abbott
 time -p test -f "$MNT_PATH_2"/floating
-
-tree "$ROOT"
-

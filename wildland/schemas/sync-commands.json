@@ -45,6 +45,11 @@
                 }
             }
         },
+        "stop-all": {
+            "description": "Stop all sync jobs",
+            "type": "object",
+            "additionalProperties": false
+        },
         "job-status": {
             "description": "Return status of a sync job",
             "type": "object",
