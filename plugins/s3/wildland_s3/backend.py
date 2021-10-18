@@ -388,7 +388,11 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         for dir_path in all_s3_dirs:
             yield dir_path, Attr.dir()
 
-    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    @property
+    def can_have_children(self) -> bool:
+        return True
+
+    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
 
         for res_path, res_obj in super().get_children(query_path):

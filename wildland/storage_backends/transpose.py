@@ -186,6 +186,10 @@ class TransposeStorageBackend(StorageBackend):
     def clear_cache(self) -> None:
         self.reference.clear_cache()
 
+    @property
+    def can_have_children(self) -> bool:
+        return self.reference.can_have_children
+
     def get_children(self, client: Client = None, query_path: PurePosixPath = PurePosixPath('*'),):
         subcontainer_list = self.reference.get_children(client)
 

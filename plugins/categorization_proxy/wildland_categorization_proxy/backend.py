@@ -69,7 +69,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
             "reference-container": {
                 "$ref": "/schemas/types.json#reference-container",
                 "description": "Container to be used, either as URL or as an inlined manifest",
-                },
+            },
             "with-unclassified-category": {
                 "type": "boolean",
                 "description": "Create unclassified directory holding all of the untagged "
@@ -138,7 +138,11 @@ class CategorizationProxyStorageBackend(StorageBackend):
     def open(self, path: PurePosixPath, flags: int) -> File:
         return self.inner.open(path, flags)
 
-    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    @property
+    def can_have_children(self) -> bool:
+        return True
+
+    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)
         dir_path = PurePosixPath('')

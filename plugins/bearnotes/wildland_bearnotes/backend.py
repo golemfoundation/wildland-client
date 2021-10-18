@@ -33,7 +33,7 @@ from functools import partial
 from pathlib import PurePosixPath, Path
 from typing import Iterable, Optional, List, Set, Dict, Tuple
 
-import bear # pylint: disable=import-error,wrong-import-order
+import bear  # pylint: disable=import-error,wrong-import-order
 import click
 
 from wildland.storage_backends.base import StorageBackend
@@ -146,7 +146,7 @@ class BearDB:
                 del self.conn_refcount[self.path]
                 del self.conn_cache[self.path]
                 del self.conn_locks[self.path]
-#               self.db.close()
+            #               self.db.close()
             self.db = None
             self.db_lock = None
 
@@ -183,6 +183,7 @@ class BearDB:
 
         with self.db_lock:
             return self.db.get_note(ident)
+
 
 class BearDBWatcher(SimpleStorageWatcher):
     """
@@ -266,11 +267,11 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
 
         paths = [f'/.uuid/{ident}']
         categories = get_note_categories(tags)
-        if len (title) == 0:
+        if len(title) == 0:
             title = f"{ident}"
         return ContainerStub({
             'object': 'container',
-            'title': '"' + title.replace ('/', '_') + '"',
+            'title': '"' + title.replace('/', '_') + '"',
             'paths': paths,
             'categories': categories,
             'backends': {'storage': [{
@@ -281,7 +282,11 @@ class BearDBStorageBackend(GeneratedStorageMixin, StorageBackend):
             }]}
         })
 
-    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    @property
+    def can_have_children(self) -> bool:
+        return True
+
+    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         for ident, title, tags, _timestamp in \
                 self.bear_db.get_notes_with_metadata():
