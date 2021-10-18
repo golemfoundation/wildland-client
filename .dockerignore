@@ -2,6 +2,12 @@
 .*cache
 /build/
 /env/
-__pycache__
+**__pycache__
 htmlcov
-.mypy_cache
+.vscode
+**.mypy_cache
+.git
+artifacts
+docker/storage
+**.pytest_cache
+docker/storage
