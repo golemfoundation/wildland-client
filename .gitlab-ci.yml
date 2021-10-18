@@ -112,13 +112,13 @@ gitlab-test:
 
 git-test:
   extends: .plugin_test
-    script:
-      - ./ci/ci-git
+  script:
+    - ./ci/ci-git
 
 gitlab-graphql-test:
   extends: .plugin_test
-    script:
-      - ./ci/ci-gitlab-graphql
+  script:
+    - ./ci/ci-gitlab-graphql
 
 imap-test:
   extends: .plugin_test
@@ -162,7 +162,6 @@ dropbox-test-legacy:
     - ./ci/ci-dropbox "$DROPBOX_TEST_ACCESS_TOKEN"
 
 dropbox-test:
-  allow_failure: true
   extends: .plugin_test
   allow_failure: true
   script:
