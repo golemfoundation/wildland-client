@@ -194,7 +194,7 @@ class Search:
 
         raise FileNotFoundError
 
-    def write_file(self, data: bytes):
+    def write_file(self, data: bytes, create_parents: bool = False):
         """
         Read a file under the Wildland path.
         """
@@ -211,6 +211,8 @@ class Search:
                 continue
             try:
                 with StorageDriver(storage_backend) as driver:
+                    if create_parents:
+                        driver.makedirs(self.wlpath.file_path.parent)
                     return driver.write_file(self.wlpath.file_path.relative_to('/'), data)
             except FileNotFoundError:
                 continue

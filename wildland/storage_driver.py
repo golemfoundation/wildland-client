@@ -91,7 +91,6 @@ class StorageDriver:
         """
         Write a file to StorageBackend, using FUSE commands. Returns ``(StorageBackend, relpath)``.
         """
-
         try:
             self.storage_backend.getattr(relpath)
         except FileNotFoundError:
@@ -126,6 +125,9 @@ class StorageDriver:
             try:
                 attr = self.storage_backend.getattr(path)
             except FileNotFoundError:
+                # verify that we are not trying to create the '/' path
+                if path.is_absolute():
+                    path = path.relative_to('/')
                 self.storage_backend.mkdir(path, mode)
             else:
                 if not attr.is_dir():
