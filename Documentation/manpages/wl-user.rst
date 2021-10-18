@@ -32,6 +32,14 @@ Commands
 
 List all known users.
 
+.. option :: --verbose, -v
+
+   When this flag is passed, a more detailed output will be displayed.
+   
+.. option :: --list-secret-keys, -K
+
+   Only display users for which the private key is available.
+
 .. program:: wl-user-create
 .. _wl-user-create:
 

@@ -193,6 +193,74 @@ def test_user_list(cli, base_dir):
     result = cli('users', 'list', capture=True)
     assert result.splitlines() == ok
 
+def test_user_list_verbose(cli, base_dir):
+    #pylint: disable=line-too-long
+    cli('user', 'create', 'User1', '--key', '0xaaa',
+        '--path', '/users/Foo', '--path', '/users/Bar')
+    cli('template', 'create', 'local', '--location', '/tmp/location', 'mylocal')
+    cli('forest', 'create', '--owner', 'User1', 'mylocal')
+
+    verbose = [
+        str(base_dir / 'users/User1.user.yaml') + r' \(@default\) \(@default-owner\)',
+        '  owner: 0xaaa',
+        '  private and public keys available',
+        '   no bridges to user available',
+        '   user path: /users/Foo',
+        '   user path: /users/Bar',
+        r"   container: {'object': 'link', 'file': '\/\.manifests\.yaml', 'storage': {'location': '\/tmp\/location\/\.manifests\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', 'read-only': False, 'type': 'local', 'backend-id': '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', 'object': 'storage', 'manifest-pattern': \{'type': 'glob', 'path': '\/\*\.yaml'\}, 'access': \[\{'user': '0xaaa'\}\]\}\}",
+        '',
+    ]
+
+    verbose_result1 = cli('user', 'list', '--verbose', capture=True)
+    verbose_result2 = cli('user', 'list', '-v', capture=True)
+    for index, value in enumerate(verbose):
+        assert re.match(value, verbose_result1.splitlines()[index])
+        assert re.match(value, verbose_result2.splitlines()[index])
+
+def test_user_list_secret_keys(tmpdir):
+    base_config_dir = tmpdir / '.wildland'
+    os.mkdir(base_config_dir)
+
+    user1_output = wl_call_output(base_config_dir, 'user', 'create', 'user1')
+    user1_key = user1_output.decode().splitlines()[0].split(' ')[2]
+    user2_output = wl_call_output(base_config_dir, 'user', 'create', 'user2')
+    user2_key = user2_output.decode().splitlines()[0].split(' ')[2]
+
+    Path(f'{base_config_dir}/keys/{user2_key}.sec').unlink()
+
+    both_users = wl_call_output(base_config_dir, 'user', 'list')
+    secret_key_users = wl_call_output(base_config_dir, 'user', 'list', '--list-secret-keys')
+
+    all_users = [
+        str(base_config_dir / 'users/user1.user.yaml'),
+        f'  owner: {user1_key}',
+        '  private and public keys available',
+        '   no bridges to user available',
+        '   user path: /users/user1',
+        '',
+        str(base_config_dir / 'users/user2.user.yaml'),
+        f'  owner: {user2_key}',
+        '  only public key available',
+        '   no bridges to user available',
+        '   user path: /users/user2',
+        ''
+    ]
+
+    private_key = [
+        str(base_config_dir / 'users/user1.user.yaml'),
+        f'  owner: {user1_key}',
+        '  private and public keys available',
+        '   no bridges to user available',
+        '   user path: /users/user1',
+        ''
+    ]
+
+    for index, value in enumerate(all_users):
+        assert re.match(value, both_users.decode().splitlines()[index])
+
+    for index, value in enumerate(private_key):
+        assert re.match(value, secret_key_users.decode().splitlines()[index])
+
 
 def test_user_list_encrypted_catalog(base_dir):
     wl_call(base_dir, 'user', 'create', '--path', '/USER', 'User')
@@ -213,7 +281,7 @@ manifests-catalog:
 
     wl_call(base_dir, 'user', 'sign', 'User')
 
-    output = wl_call_output(base_dir, 'user', 'list').decode()
+    output = wl_call_output(base_dir, 'user', 'list', '-v').decode()
     assert 'enc' not in output
     assert 'dummy' in output
 
