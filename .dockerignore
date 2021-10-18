@@ -1,6 +1,9 @@
 *.egg-info
 .*cache
+.dockerignore
+.gitignore
 /build/
+build
 /env/
 **__pycache__
 htmlcov
@@ -11,3 +14,8 @@ artifacts
 docker/storage
 **.pytest_cache
 docker/storage
+**.pytest_cache
+.coverage
+.coverage.*
+*.cover
+*.log
