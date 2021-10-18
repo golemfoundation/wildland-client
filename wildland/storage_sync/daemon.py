@@ -23,6 +23,7 @@
 """
 Wildland sync daemon.
 """
+import os
 import signal
 import threading
 
@@ -44,7 +45,7 @@ from wildland.log import get_logger
 
 logger = get_logger('sync-daemon')
 
-DEFAULT_LOG_PATH = '/tmp/wl-sync.log'
+DEFAULT_LOG_PATH = f"{os.path.expanduser('~')}/.local/share/wildland/wl-fuse.log"
 
 
 class SyncJob:
