@@ -169,6 +169,7 @@ class NaiveSyncer(BaseSyncer):
             for path in missing_files:
                 self._sync_file(backend1, backend2, path)
 
+        # this won't overwrite an ERROR state, see the property setter
         self.state = SyncState.SYNCED
 
     def _sync_file(self, source_storage: StorageBackend, target_storage: StorageBackend,
@@ -464,6 +465,7 @@ class NaiveSyncer(BaseSyncer):
                     self.state = SyncState.ERROR
                     break
 
+        # this won't overwrite an ERROR state, see the property setter
         self.state = SyncState.SYNCED
 
     def stop_sync(self):
