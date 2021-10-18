@@ -207,7 +207,7 @@ def test_user_list_verbose(cli, base_dir):
         '   no bridges to user available',
         '   user path: /users/Foo',
         '   user path: /users/Bar',
-        r"   container: {'object': 'link', 'file': '\/\.manifests\.yaml', 'storage': {'location': '\/tmp\/location\/\.manifests\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', 'read-only': False, 'type': 'local', 'backend-id': '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', 'object': 'storage', 'manifest-pattern': \{'type': 'glob', 'path': '\/\*\.yaml'\}, 'access': \[\{'user': '0xaaa'\}\]\}\}",
+        r"   container: {'object': 'link', 'file': '\/\.manifests\.yaml', 'storage': {'object': 'storage', 'type': 'local', 'location': '\/tmp\/location\/\.manifests\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'.*}, 'access': \[\{'user': '0xaaa'\}\]\}\}",
         '',
     ]
 
