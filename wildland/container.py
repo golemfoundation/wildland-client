@@ -210,15 +210,19 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         if not self.access:
             del fields['access']
         self.SCHEMA.validate(fields)
+        if inline:
+            del fields['owner']
+            del fields['version']
         return fields
 
     def to_repr_fields(self, include_sensitive: bool = False) -> dict:
         """
         This function provides filtered sensitive and unneeded fields for representation
         """
-        fields = self.to_manifest_fields(inline=True)
+        fields = self.to_manifest_fields(inline=False)
         if self.local_path:
             fields.update({"local-path": str(self.local_path)})
+
         if not include_sensitive:
             # Remove sensitive fields
             # for backends, we only keep some useful info

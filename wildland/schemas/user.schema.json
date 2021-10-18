@@ -22,7 +22,7 @@
             "items": {
                 "oneOf": [
                     { "$ref": "/schemas/types.json#manifest-url" },
-                    { "$ref": "/schemas/container.schema.json" },
+                    { "$ref": "/schemas/container.schema.json#definitions/container-inline" },
                     { "$ref": "/schemas/types.json#encrypted" }
                 ]
             },

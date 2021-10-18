@@ -333,6 +333,8 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Inline the container manifest inside user manifest
     user_dict['manifests-catalog'] = [container_dict]
+    del user_dict['manifests-catalog'][0]['owner']
+    del user_dict['manifests-catalog'][0]['version']
 
     # Save the new container to storage, sign
     with open(user_path, 'w') as f:
@@ -539,8 +541,6 @@ pubkeys:
 - key.0xbbb
 manifests-catalog:
  - object: container
-   owner: '0xfff'
-   version: '1'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:
@@ -548,8 +548,6 @@ manifests-catalog:
      - object: storage
        type: local
        location: {storage_path}
-       owner: '0xfff'
-       container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob
@@ -616,8 +614,6 @@ pubkeys:
 - key.0xbbb
 manifests-catalog:
  - object: container
-   owner: '0xfff'
-   version: '1'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
    backends:
@@ -625,8 +621,6 @@ manifests-catalog:
      - object: storage
        type: local
        location: {storage_path}
-       owner: '0xfff'
-       container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob
@@ -1154,17 +1148,13 @@ paths:
 - /users/Remote
 manifests-catalog:
  - object: container
-   owner: '0xddd'
    paths:
     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
-   version: '1'
    backends:
     storage:
      - object: storage
        type: local
        location: {storage_path_catalog}
-       owner: '0xddd'
-       container-path: /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob

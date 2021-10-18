@@ -249,10 +249,16 @@ class Manifest:
         return fields
 
     @classmethod
-    def update_obsolete(cls, fields: dict):
+    def update_obsolete(cls, fields: dict, is_inline: bool = False):
         """
         Update fields obsolete in V1.
         """
+        if is_inline:
+            if 'version' in fields:
+                del fields['version']
+            if 'owner' in fields:
+                del fields['owner']
+
         if 'type' in fields and 'object' not in fields:
             fields['object'] = 'storage'
 
@@ -279,11 +285,11 @@ class Manifest:
         if 'backends' in fields and 'storage' in fields['backends']:
             for storage in fields['backends']['storage']:
                 if isinstance(storage, dict):
-                    cls.update_obsolete(storage)
+                    cls.update_obsolete(storage, is_inline=True)
         if 'manifests-catalog' in fields:
             for container in fields['manifests-catalog']:
                 if isinstance(container, dict):
-                    cls.update_obsolete(container)
+                    cls.update_obsolete(container, is_inline=True)
         if fields.get('object') == 'link':
             storage = fields.get('storage')
             if isinstance(storage, dict):

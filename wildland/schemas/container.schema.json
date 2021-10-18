@@ -1,51 +1,80 @@
 {
     "title": "Container manifest",
     "type": "object",
+    "$comment": "when adding additional properties, the property should be added within container-basic-fields field and added as a stub here and to container-inline definition",
+    "allOf": [{"$ref": "#/definitions/container-basic-fields"}],
     "required": ["object", "owner", "paths", "backends", "version"],
-    "dependencies": {
-        "categories": ["title"]
-    },
     "properties": {
-        "object": { "const": "container"},
-        "version": { "$ref": "/schemas/types.json#version"},
+        "version": {"$ref": "/schemas/types.json#version"},
         "owner": { "$ref": "/schemas/types.json#fingerprint" },
-        "paths": {
-            "type": "array",
-            "items": { "$ref": "/schemas/types.json#abs-path" },
-            "minItems": 1,
-            "description": "list of paths for this container, should start with a unique /.uuid/UUID path"
-        },
-        "title": {
-            "type": ["string", "null"],
-            "description": "Title of the container."
-        },
-        "categories": {
-            "type": "array",
-            "items": { "$ref": "/schemas/types.json#abs-path" },
-            "minItems": 0,
-            "description": "list of categories for this container. Requires title property."
-        },
-        "backends": {
+        "object": {},
+        "paths": {},
+        "title": {},
+        "categories": {},
+        "backends": {},
+        "access": {}
+    },
+    "definitions": {
+        "container-basic-fields": {
+            "required": ["object", "paths", "backends"],
+            "title": "Inline container manifest",
             "type": "object",
-            "required": ["storage"],
+            "dependencies": {
+                "categories": ["title"]
+            },
             "properties": {
-                "storage": {
+                "object": { "const": "container"},
+                "paths": {
                     "type": "array",
-                    "items": {
-                        "oneOf": [
-                            { "$ref": "/schemas/types.json#manifest-url" },
-                            { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" },
-                            { "$ref": "/schemas/types.json#encrypted" }
-                        ]
+                    "items": { "$ref": "/schemas/types.json#abs-path" },
+                    "minItems": 1,
+                    "description": "list of paths for this container, should start with a unique /.uuid/UUID path"
+                },
+                "title": {
+                    "type": ["string", "null"],
+                    "description": "Title of the container."
+                },
+                "categories": {
+                    "type": "array",
+                    "items": { "$ref": "/schemas/types.json#abs-path" },
+                    "minItems": 0,
+                    "description": "list of categories for this container. Requires title property."
+                },
+                "backends": {
+                    "type": "object",
+                    "required": ["storage"],
+                    "properties": {
+                        "storage": {
+                            "type": "array",
+                            "items": {
+                                "oneOf": [
+                                    { "$ref": "/schemas/types.json#manifest-url" },
+                                    { "$ref": "/schemas/storage.schema.json#definitions/storage-inline" },
+                                    { "$ref": "/schemas/types.json#encrypted" }
+                                ]
+                            },
+                            "description": "list of storage backend URLs, or inlined storage manifests"
+                        }
                     },
-                    "description": "list of storage backend URLs, or inlined storage manifests"
+                    "additionalProperties": false
+                },
+                "access": {
+                    "$ref": "/schemas/types.json#access",
+                    "description": "access control; by default manifests are encrypted to their owner"
                 }
+            }
+        },
+        "container-inline": {
+            "allOf": [{"$ref": "#/definitions/container-basic-fields"}],
+            "properties": {
+                "object": {},
+                "paths": {},
+                "title": {},
+                "categories": {},
+                "backends": {},
+                "access": {}
             },
             "additionalProperties": false
-        },
-        "access": {
-            "$ref": "/schemas/types.json#access",
-            "description": "access control; by default manifests are encrypted to their owner"
         }
     },
     "additionalProperties": false
