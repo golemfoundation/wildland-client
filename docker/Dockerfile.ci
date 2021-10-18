@@ -9,10 +9,10 @@ ENV WL_ENV=ci
 
 # TODO: Shouldn't sshfs be part of base? For some reason sshfs tests were excluded from CI
 RUN apt-get -qy update && apt-get install -y \
-        python3-pip \
-        python3-venv \
-        libfuse-dev \
-        pkg-config \
+        python3-pip=20.3.4-4 \
+        python3-venv=3.9.2-3 \
+        libfuse-dev=2.9.9-5 \
+        pkg-config=0.29.2-1 \
         dovecot-imapd \
         git \
         netcat \
