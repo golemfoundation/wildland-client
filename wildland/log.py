@@ -25,8 +25,11 @@
 Logging
 """
 
+import os
 import logging
 import logging.config
+
+from .exc import WildlandError
 
 RootStreamHandler = logging.StreamHandler()
 
@@ -158,7 +161,16 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
         }
         config['root']['handlers'].append('file')
 
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        except OSError as e:
+            raise WildlandError("Failed to initialize logging file") from e
+
     logging.config.dictConfig(config)
+
+    if file_path:
+        # logging does not provide a way to specify file permission
+        os.chmod(file_path, 0o640)
 
     # fixme: is logging allowing handler instance inside dictConfig?
     root_logger = logging.getLogger()

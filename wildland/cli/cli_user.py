@@ -135,8 +135,12 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
 
 @user_.command('list', short_help='list users', alias=['ls'])
+@click.option('--verbose', '-v', is_flag=True,
+              help='Show extended output')
+@click.option('--list-secret-keys', '-K', is_flag=True,
+              help='Show users with private key available only')
 @click.pass_obj
-def list_(obj: ContextObj):
+def list_(obj: ContextObj, verbose, list_secret_keys):
     """
     Display known users.
     """
@@ -147,6 +151,10 @@ def list_(obj: ContextObj):
 
     for user, bridge_paths in obj.client.load_users_with_bridge_paths(only_default_user=True):
         path_string = str(user.local_path)
+        if list_secret_keys:
+            if not obj.client.session.sig.is_private_key_available(user.owner):
+                continue
+
         if user.owner == default_user:
             path_string += ' (@default)'
             if default_override:
@@ -167,10 +175,11 @@ def list_(obj: ContextObj):
                 click.echo(f'   bridge path: {bridge_path}')
         for user_path in user.paths:
             click.echo(f'   user path: {user_path}')
-        for user_container in user.get_catalog_descriptions():
-            click.echo(f'   container: {user_container}')
-        click.echo()
 
+        if verbose:
+            for user_container in user.get_catalog_descriptions():
+                click.echo(f'   container: {user_container}')
+        click.echo()
 
 @user_.command('delete', short_help='delete a user', alias=['rm'])
 @click.pass_obj

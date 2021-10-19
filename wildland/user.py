@@ -26,7 +26,7 @@ User manifest and user management
 """
 
 from pathlib import PurePosixPath
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from copy import deepcopy
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -45,6 +45,15 @@ class _CatalogCache:
         self.manifest = manifest
         self.cached_object = cached_object
 
+    def get_raw_object(self, client, owner: str):
+        """
+        Retrieve raw object (to be used in to_manifest_fields or similar methods).
+        """
+        if isinstance(self.manifest, str) or self.manifest.get('object', None) == 'link':
+            return self.manifest
+        container = self.get(client, owner)
+        return container.to_manifest_fields(inline=True)
+
     def get(self, client, owner: str):
         """
         Retrieve a cached container object or construct it if needed (for construction it needs
@@ -52,6 +61,10 @@ class _CatalogCache:
         """
         if not self.cached_object:
             try:
+                if isinstance(self.manifest, dict) and\
+                        self.manifest.get('object', None) == 'container':
+                    self.manifest['owner'] = owner
+                    self.manifest['version'] = Manifest.CURRENT_VERSION
                 self.cached_object = client.load_object_from_url_or_dict(
                     WildlandObject.Type.CONTAINER, self.manifest, owner)
             except (PermissionError, FileNotFoundError) as ex:
@@ -184,8 +197,9 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
         for cached_object in self._manifests_catalog:
             yield str(cached_object.manifest)
 
-    def add_catalog_entry(self, path: str):
-        """Add a path to a container to user's manifests catalog."""
+    def add_catalog_entry(self, path: Union[str, dict]):
+        """Add a path to a container or a dict with container/link fields to user's manifests
+        catalog."""
         self._manifests_catalog.append(_CatalogCache(path))
 
     @property
@@ -196,15 +210,17 @@ class User(WildlandObject, obj_type=WildlandObject.Type.USER):
     def to_manifest_fields(self, inline: bool) -> dict:
         if inline:
             raise WildlandError('User manifest cannot be inlined.')
-        result = {
+        result: Dict[Any, Any] = {
                 'version': Manifest.CURRENT_VERSION,
                 'object': 'user',
                 'owner': self.owner,
                 'paths': [str(p) for p in self.paths],
-                'manifests-catalog': [deepcopy(cached_object.manifest)
-                                      for cached_object in self._manifests_catalog],
+                'manifests-catalog': list(),
                 'pubkeys': self.pubkeys.copy(),
             }
+        for cached_object in self._manifests_catalog:
+            result['manifests-catalog'].append(cached_object.get_raw_object(
+                self.client, self.owner))
         self.SCHEMA.validate(result)
         return result
 

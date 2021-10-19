@@ -1,15 +1,15 @@
 # Core
 
 fuse-python>=1.0.0
-jsonschema
-pyyaml
+jsonschema==4.1.0
+pyyaml==5.4.1
 click>=8.0  # smarter `show_default`: https://github.com/pallets/click/issues/1538
-entrypoints
-pynacl
+entrypoints==0.3
+pynacl==1.4.0
 graphlib-backport; python_version < '3.9'
-progressbar2
-jinja2
-yq
+progressbar2==3.54.0
+jinja2==3.0.2
+yq==2.12.2
 
 # Storage
 
@@ -27,7 +27,8 @@ python-daemon
 pyxdg
 pybear @ https://github.com/golemfoundation/pybear/archive/7af236fef1bce0466188b00f8e96b5a269e38959.zip
 dropbox
-gitpython
+# FIXME https://github.com/gitpython-developers/GitPython/issues/1349
+gitpython==3.1.18
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib

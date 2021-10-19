@@ -209,7 +209,7 @@ To install your all of the plugins available, run:
 
   python3 -m venv env/
   . ./env/bin/activate
-  pip install -r requirements.txt
+  pip install -r requirements.dev.txt
   pip install -e . plugins/*
 
 To check whether your newly implemented plugin was registered correctly, run:

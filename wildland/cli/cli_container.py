@@ -1158,7 +1158,7 @@ def mount_watch(obj: ContextObj, container_names):
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
-        init_logging(False, '/tmp/wl-mount-watch.log')
+        init_logging(False, f"{os.path.expanduser('~')}/.local/share/wildland/wl-mount-watch.log")
         remounter.run()
 
 

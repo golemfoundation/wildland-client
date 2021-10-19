@@ -95,6 +95,6 @@ socket and accepts JSON-encoded commands according to the schema defined in
 Command-line options:
 
 * ``-b, --base-dir=DIR``: base directory for Wildland configuration.
-* ``-l, --log-path=PATH``: log to a file (`-` means stderr), default: /tmp/wl-sync.log
+* ``-l, --log-path=PATH``: log to a file (`-` means stderr), default: ~/.local/share/wildland/wl-sync.log
 * ``-s, --socket-path=PATH``: listen on a given socket path, default is specified in the Wildland
   config (`sync-socket-path` value).

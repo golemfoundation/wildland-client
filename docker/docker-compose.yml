@@ -33,7 +33,7 @@ services:
       - "8080:8080"
       - "4554:4554"
     volumes:
-      - ..:/home/user/wildland-client:ro
+      - ..:/home/user/wildland-client:rw
       - ~/.config/wildland:/home/user/.config/wildland:rw
       - ./storage:/home/user/storage:rw
 

@@ -43,6 +43,12 @@ applies to both host and docker environments. The Makefile will
 automatically detect whether you're using one of the Docker images
 from ``docker/`` directory and execute appropiate commands.
 
+The python packages are split into three requirements files:
+
+* ``requirements.base`` — currently not to be used directly
+* ``requirements.ci`` — used for automated and manual tests running
+* ``requirements.dev`` — used for development and production (while in 0.x.y version)
+
 
 Run tests
 ---------
@@ -78,7 +84,7 @@ Usage:
     docker-compose run --service-ports wildland-client
 
 To create and mount the example containers, run ``wl-example``. wildland-client
-is mounted in ``/home/user/wildland`` and the log is in ``/tmp/wlfuse.log``.
+is mounted in ``/home/user/wildland`` and the log is in ``~/.local/share/wildland/wl-fuse.log``.
 
 The python packages will be reinstalled as a part of an entrypoint. You can still
 re-install them manually by running ``make`` without having to terminate the docker 
