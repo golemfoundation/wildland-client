@@ -29,6 +29,7 @@ from pathlib import PurePosixPath
 from wildland.wildland_object.wildland_object import WildlandObject
 from .storage_driver import StorageDriver
 from .exc import WildlandError
+from .manifest.manifest import Manifest
 from .manifest.schema import Schema
 
 
@@ -40,10 +41,12 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     def __init__(self,
                  file_path: Union[str, PurePosixPath],
                  storage=None,
+                 storage_owner=None,
                  storage_backend=None,
                  storage_driver=None,
                  file_bytes: Optional[bytes] = None):
         super().__init__()
+        self.storage_owner = storage_owner
         assert storage or storage_backend or storage_driver
         if storage_driver:
             self.storage_driver = storage_driver
@@ -75,26 +78,37 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest=None, **kwargs):
-        # this method is currently unused, due to manual handling of Link objects
-        storage = client.load_object_from_dict(WildlandObject.Type.STORAGE, fields['storage'])
-        storage_driver = StorageDriver.from_storage(storage)
+        if not isinstance(fields['storage'], dict):
+            raise ValueError('Incorrect Link object format')
+        if 'version' not in fields['storage']:
+            fields['storage']['version'] = Manifest.CURRENT_VERSION
+        storage_obj = client.load_object_from_dict(
+            WildlandObject.Type.STORAGE, fields['storage'],
+            expected_owner=fields.get("storage-owner", None) or kwargs.get('expected_owner', None)
+        )
+        storage_driver = StorageDriver.from_storage(storage_obj)
+
         return cls(
             file_path=PurePosixPath(fields['file']),
+            storage_owner=fields.get("storage-owner", None),
+            storage=storage_obj,
             storage_driver=storage_driver,
             file_bytes=None
         )
 
     @classmethod
-    def from_manifest(cls, manifest, client,
-                      object_type=None, **kwargs):
+    def from_manifest(cls, manifest, client, object_type=None, **kwargs):
         raise WildlandError('Link object cannot be an independent manifest')
 
     def to_manifest_fields(self, inline: bool):
-        return {
+        fields = {
             'object': 'link',
             'file': str(self.file_path),
             'storage': self.storage_driver.storage_backend.params
         }
+        if self.storage_owner:
+            fields["storage-owner"] = self.storage_owner
+        return fields
 
     def to_repr_fields(self, include_sensitive: bool = False) -> dict:
         """

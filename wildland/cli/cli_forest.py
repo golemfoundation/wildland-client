@@ -252,7 +252,6 @@ def _bootstrap_forest(ctx: click.Context,
                            Path('.manifests.container.yaml'))
 
         for storage in obj.client.all_storages(container=catalog_container):
-
             link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.container.yaml'}
 
             fields = storage.to_manifest_fields(inline=True)
@@ -260,6 +259,8 @@ def _bootstrap_forest(ctx: click.Context,
                 fields['access'] = access_list
 
             link_obj['storage'] = fields
+            if storage.owner != forest_owner.owner:
+                link_obj['storage-owner'] = storage.owner
 
             modify_manifest(ctx, str(forest_owner.local_path), edit_funcs=[add_fields],
                             to_add={'manifests-catalog': [link_obj]})
