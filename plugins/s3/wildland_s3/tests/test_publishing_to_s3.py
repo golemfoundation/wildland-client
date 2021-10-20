@@ -85,7 +85,7 @@ def test_container_publish_to_s3(monkeypatch, cli):
     cli('storage', 'create', 's3', 'S3Storage',
         '--container', 'Container',
         '--inline',
-        '--manifest-pattern', '/{path}.yaml',
+        '--manifest-pattern', '/{path}.{object-type}.yaml',
         '--s3-url', 's3://foo-location/path',
         '--endpoint-url', 'http://foo-location.com',
         '--access-key', 'foo-access-key',

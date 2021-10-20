@@ -43,8 +43,8 @@ container (and associated storage) for ``/path/one``.
   manifests.
 
   The default pattern uses the container path directly, meaning we would look
-  for ``/path/two.yaml`` file in the container. However, if the pattern is more
-  complex, for instance ``/manifests/*.yaml``, we would list all files in the
+  for ``/path/two.container.yaml`` file in the container. However, if the pattern is more
+  complex, for instance ``/manifests/*.{object-type}.yaml``, we would list all files in the
   ``/manifests/`` directory.
 
 * We determine the files based on ``manifest-pattern``, and examine them.

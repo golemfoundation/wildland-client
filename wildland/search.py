@@ -440,8 +440,8 @@ class Search:
                 try:
                     container_or_bridge = step.client.load_subcontainer_object(
                         step.container, storage, subcontainer_data)
-                except ManifestError as me:
-                    logger.warning('%s: cannot load subcontainer %s: %s', part, manifest_path, me)
+                except (ManifestError, WildlandError) as e:
+                    logger.warning('%s: cannot load subcontainer %s: %s', part, manifest_path, e)
                     continue
 
                 if isinstance(container_or_bridge, Container):

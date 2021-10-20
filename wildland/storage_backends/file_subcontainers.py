@@ -60,7 +60,7 @@ class FileSubcontainersMixin(StorageBackend):
     """
     # pylint: disable=abstract-method
 
-    DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/*.yaml'}
+    DEFAULT_MANIFEST_PATTERN = {'type': 'glob', 'path': '/*.{object-type}.yaml'}
 
     @classmethod
     def cli_options(cls) -> List[click.Option]:
@@ -117,7 +117,8 @@ class FileSubcontainersMixin(StorageBackend):
             Iterator[PurePosixPath]:
         pattern = self.params['manifest-pattern']['path']
 
-        path_pattern = pattern.replace('*', container_uuid_path.name)
+        path_pattern = pattern.replace('*', container_uuid_path.name)\
+            .replace('{object-type}', 'container')
 
         paths = container_expanded_paths or (container_uuid_path,)
         for path in paths:
@@ -185,8 +186,8 @@ class FileSubcontainersMixin(StorageBackend):
             # we publish only a single manifest for a storage, under `/.uuid/` path
             container_manifest = next(self._get_relpaths(container.uuid_path))
             relpath = container_manifest.with_name(
-                container_manifest.name.removesuffix('.yaml')
-                + f'.{backend.backend_id}.yaml'
+                container_manifest.name.removesuffix('.container.yaml')
+                + f'.{backend.backend_id}.container.yaml'
             )
             assert relpath not in storage_relpaths
             storage_relpaths[relpath] = backend
@@ -277,7 +278,11 @@ class FileSubcontainersMixin(StorageBackend):
 
         part = path.parts[0]
         sub_path = path.relative_to(part)
-        if '*' in part:
+        if '{object-type}' in part:
+            for object_type in WildlandObject.Type:
+                full_file_name = part.replace('{object-type}', object_type.value) / sub_path
+                yield from self._find_manifest_files(prefix, PurePosixPath(full_file_name))
+        elif '*' in part:
             # This is a glob part, use readdir()
             try:
                 names = list(self.readdir(prefix))

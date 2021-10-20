@@ -147,7 +147,7 @@ def setup(base_dir, cli):
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
-        '--manifest-pattern', '/{path}.yaml',
+        '--manifest-pattern', '/{path}.{object-type}.yaml',
         '--trusted', '--no-inline')
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest',
@@ -172,12 +172,12 @@ def setup(base_dir, cli):
     # TODO copy storage manifest as well
     # (and make sure storage manifests are resolved in the local context)
     shutil.copyfile(base_dir / 'containers/Container2.container.yaml',
-                    base_dir / 'storage1/other/path.yaml')
+                    base_dir / 'storage1/other/path.container.yaml')
 
     content = (base_dir / 'containers/Container2.container.yaml').read_text()
     content = content[content.index('---'):]
-    (base_dir / 'storage1/unsigned.yaml').write_text(content)
-    (base_dir / 'storage2/unsigned.yaml').write_text(content)
+    (base_dir / 'storage1/unsigned.container.yaml').write_text(content)
+    (base_dir / 'storage2/unsigned.container.yaml').write_text(content)
 
 
 @pytest.fixture
@@ -306,7 +306,7 @@ def test_read_file_traverse_user(cli, base_dir, client):
     cli('bridge', 'create', '--owner', 'User',
         '--target-user', 'User2',
         '--target-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
-        '--file-path', base_dir / 'storage1/users/User2.yaml',
+        '--file-path', base_dir / 'storage1/users/User2.bridge.yaml',
         'User2')
 
     with open(base_dir / 'storage3/file.txt', 'w') as f:
@@ -345,7 +345,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
     cli('bridge', 'create', '--owner', 'User',
         '--target-user', 'User2',
         '--target-user-location', 'file://localhost' + str(user_path),
-        '--file-path', base_dir / 'storage1/users/User2.yaml',
+        '--file-path', base_dir / 'storage1/users/User2.bridge.yaml',
         'User2')
 
     # Try reading file
@@ -359,7 +359,7 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
 ## Manifest pattern
 
-@pytest.fixture(params=['/manifests/*.yaml', '/manifests/{path}.yaml'])
+@pytest.fixture(params=['/manifests/*.{object-type}.yaml', '/manifests/{path}.{object-type}.yaml'])
 def setup_pattern(request, base_dir, cli):
     os.mkdir(base_dir / 'storage1')
 
@@ -380,17 +380,19 @@ def setup_pattern(request, base_dir, cli):
 
     os.mkdir(base_dir / 'storage1/manifests/')
     shutil.copyfile(base_dir / 'containers/Container2.container.yaml',
-                    base_dir / 'storage1/manifests/path1.yaml')
+                    base_dir / 'storage1/manifests/path1.container.yaml')
     shutil.copyfile(base_dir / 'containers/Container3.container.yaml',
-                    base_dir / 'storage1/manifests/path2.yaml')
+                    base_dir / 'storage1/manifests/path2.container.yaml')
     if '{path}' in request.param:
         os.mkdir(base_dir / 'storage1/manifests/.uuid/')
         shutil.copyfile(
             base_dir / 'containers/Container2.container.yaml',
-            base_dir / 'storage1/manifests/.uuid/0000000000-0000-0000-2222-000000000000.yaml')
+            base_dir /
+            'storage1/manifests/.uuid/0000000000-0000-0000-2222-000000000000.container.yaml')
         shutil.copyfile(
             base_dir / 'containers/Container3.container.yaml',
-            base_dir / 'storage1/manifests/.uuid/0000000000-0000-0000-3333-000000000000.yaml')
+            base_dir /
+            'storage1/manifests/.uuid/0000000000-0000-0000-3333-000000000000.container.yaml')
     # prevent loading them directly from config dir
     os.unlink(base_dir / 'containers/Container2.container.yaml')
     os.unlink(base_dir / 'containers/Container3.container.yaml')
@@ -488,6 +490,17 @@ def test_glob_simple():
         'foo2': {
             'bar.yaml': None,
         },
+        'foo3': {
+            'bar.user.yaml': None,
+            'bar.bridge.yaml': None,
+            'bar.container.yaml': None,
+            'bar.yaml': None,
+        },
+        'container': {
+            'bar.yaml': None,
+            'baz.yaml': None,
+            'README.txt': None,
+        },
     })
 
     assert list(backend._find_manifest_files(PurePosixPath('.'),
@@ -502,6 +515,23 @@ def test_glob_simple():
         PurePosixPath('foo/bar.yaml'),
         PurePosixPath('foo/baz.yaml'),
         PurePosixPath('foo2/bar.yaml'),
+        PurePosixPath('foo3/bar.user.yaml'),
+        PurePosixPath('foo3/bar.bridge.yaml'),
+        PurePosixPath('foo3/bar.container.yaml'),
+        PurePosixPath('foo3/bar.yaml'),
+        PurePosixPath('container/bar.yaml'),
+        PurePosixPath('container/baz.yaml'),
+    ]
+    assert list(backend._find_manifest_files(PurePosixPath('.'),
+                                             PurePosixPath('{object-type}/*.yaml'))) == [
+        PurePosixPath('container/bar.yaml'),
+        PurePosixPath('container/baz.yaml'),
+    ]
+    assert list(backend._find_manifest_files(PurePosixPath('.'),
+                                             PurePosixPath('*/*.{object-type}.yaml'))) == [
+        PurePosixPath('foo3/bar.user.yaml'),
+        PurePosixPath('foo3/bar.bridge.yaml'),
+        PurePosixPath('foo3/bar.container.yaml'),
     ]
 
 
@@ -551,7 +581,7 @@ manifests-catalog:
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob
-        path: /manifests/{{path}}/*.yaml
+        path: /manifests/{{path}}/*.{{object-type}}yaml
 '''.encode()
 
     remote_user_file.write_bytes(user_data)
@@ -624,7 +654,7 @@ manifests-catalog:
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob
-        path: /manifests/{{path}}/*.yaml
+        path: /manifests/{{path}}/*.{{object-type}}yaml
 '''.encode()
 
     remote_user_file.write_bytes(user_data)
@@ -698,7 +728,7 @@ backends:
      backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
      manifest-pattern:
       type: glob
-      path: /manifests/{{path}}/*.yaml
+      path: /manifests/{{path}}/*.{{object-type}}yaml
 '''.encode()
 
     catalog_storage_path = base_dir / 'storage_catalog'
@@ -908,24 +938,24 @@ def two_users_catalog(base_dir, cli, control_client):
     manifest = container_with_files(
         'Dummy2', 'dummy2-catalog', ['/.catalog', '/.uuid/00000000-2222-0000-0000-000000000000'],
         base_dir / 'catalog2',
-        {'containers/c1.yaml': manifest_dummy2_c1,
-         'containers/c2.yaml': manifest_dummy2_c2,
-         f'.uuid/{uuid_dummy2_c1}.yaml': manifest_dummy2_c1,
-         f'.uuid/{uuid_dummy2_c2}.yaml': manifest_dummy2_c2},
-        s_args=('--manifest-pattern', '/{path}.yaml'),
+        {'containers/c1.container.yaml': manifest_dummy2_c1,
+         'containers/c2.container.yaml': manifest_dummy2_c2,
+         f'.uuid/{uuid_dummy2_c1}.container.yaml': manifest_dummy2_c1,
+         f'.uuid/{uuid_dummy2_c2}.container.yaml': manifest_dummy2_c2},
+        s_args=('--manifest-pattern', '/{path}.{object-type}.yaml'),
     )
-    entry_path = (base_dir / 'manifests/dummy2-catalog.yaml')
+    entry_path = (base_dir / 'manifests/dummy2-catalog.container.yaml')
     entry_path.write_text(manifest)
     cli('user', 'modify', 'Dummy2', '--add-catalog-entry', f'file://{entry_path}')
 
     manifest = container_with_files(
         'Dummy3', 'dummy3-catalog', ['/.catalog', '/.uuid/00000000-3333-0000-0000-000000000000'],
         base_dir / 'catalog3',
-        {'c1.yaml': manifest_dummy3_c1,
-         'c2.yaml': manifest_dummy3_c2},
+        {'c1.container.yaml': manifest_dummy3_c1,
+         'c2.container.yaml': manifest_dummy3_c2},
         s_args=('--manifest-pattern', '/*.yaml'),
     )
-    entry_path = (base_dir / 'manifests/dummy3-catalog.yaml')
+    entry_path = (base_dir / 'manifests/dummy3-catalog.container.yaml')
     entry_path.write_text(manifest)
     cli('user', 'modify', 'Dummy3', '--add-catalog-entry', f'file://{entry_path}')
 
@@ -933,28 +963,28 @@ def two_users_catalog(base_dir, cli, control_client):
     container_with_files(
         'KnownUser', 'catalog-known', ['/.catalog', '/.uuid/00000000-1111-0000-0000-000000000000'],
         base_dir / 'catalog-known', {},
-        s_args=('--manifest-pattern', '/{path}.yaml'),
+        s_args=('--manifest-pattern', '/{path}.{object-type}.yaml'),
         c_args=('--update-user',),
     )
     (base_dir / 'catalog-known/users').mkdir()
     cli('bridge', 'create', '--owner', 'KnownUser',
         '--target-user', 'Dummy2',
         '--path', '/users/User2',
-        '--target-user-location', f'file://{base_dir}/manifests/user2.yaml',
-        '--file-path', f'{base_dir}/catalog-known/users/User2.yaml')
+        '--target-user-location', f'file://{base_dir}/manifests/user2.user.yaml',
+        '--file-path', f'{base_dir}/catalog-known/users/User2.bridge.yaml')
     cli('bridge', 'create', '--owner', 'KnownUser',
         '--target-user', 'Dummy3',
         '--path', '/users/User3',
-        '--target-user-location', f'file://{base_dir}/manifests/user3.yaml',
-        '--file-path', f'{base_dir}/catalog-known/users/User3.yaml')
+        '--target-user-location', f'file://{base_dir}/manifests/user3.user.yaml',
+        '--file-path', f'{base_dir}/catalog-known/users/User3.bridge.yaml')
 
     # all manifests done; now move them out of standard WL config,
     # so Search() will really have some work to do
 
-    shutil.move(base_dir / 'users/Dummy2.user.yaml', base_dir / 'manifests/user2.yaml')
-    shutil.move(base_dir / 'users/Dummy3.user.yaml', base_dir / 'manifests/user3.yaml')
+    shutil.move(base_dir / 'users/Dummy2.user.yaml', base_dir / 'manifests/user2.user.yaml')
+    shutil.move(base_dir / 'users/Dummy3.user.yaml', base_dir / 'manifests/user3.user.yaml')
     # container manifests are already published to relevant catalog, remove them
-    for f in (base_dir / 'containers').glob('dummy*.yaml'):
+    for f in (base_dir / 'containers').glob('dummy*.container.yaml'):
         f.unlink()
 
 
@@ -1023,8 +1053,8 @@ def test_get_watch_params_not_mounted(control_client, client2):
     assert len(patterns) == 3
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User2.yaml'),
-        str_re(r'^/.users/0xbbb:/.backends/00000000-2222-0000-.*/containers/c1.yaml'),
+        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User2.{object-type}.yaml'),
+        str_re(r'^/.users/0xbbb:/.backends/00000000-2222-0000-.*/containers/c1.{object-type}.yaml'),
         str_re(r'^/.users/0xbbb:/.backends/00000000-2222-1111-.*/test1.txt'),
     ]
     assert sorted(patterns) == expected_patterns_re
@@ -1063,8 +1093,8 @@ def test_get_watch_params_mounted1_pattern_path(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User2.yaml'),
-        str_re(r'^/.users/0xbbb:/.backends/00000000-2222-0000-.*/containers/c1.yaml'),
+        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User2.{object-type}.yaml'),
+        str_re(r'^/.users/0xbbb:/.backends/00000000-2222-0000-.*/containers/c1.{object-type}.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
     assert mount_cmds[0][0].owner == '0xbbb'
@@ -1085,7 +1115,7 @@ def test_get_watch_params_pattern_star(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User3.yaml'),
+        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User3.{object-type}.yaml'),
         str_re(r'^/.users/0xccc:/.backends/00000000-3333-0000-.*/\*\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
@@ -1105,7 +1135,7 @@ def test_get_watch_params_wildcard_pattern_star(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User3.yaml'),
+        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User3.{object-type}.yaml'),
         str_re(r'^/.users/0xccc:/.backends/00000000-3333-0000-.*/\*\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
@@ -1125,8 +1155,8 @@ def test_get_watch_params_wildcard_pattern_path(control_client, client2):
     assert len(patterns) == 2
 
     expected_patterns_re = [
-        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User2.yaml'),
-        str_re(r'^/.users/0xbbb:/.backends/00000000-2222-0000-.*/.uuid/\*\.yaml'),
+        str_re(r'^/.users/0xaaa:/.backends/00000000-1111-0000-.*/users/User2.{object-type}.yaml'),
+        str_re(r'^/.users/0xbbb:/.backends/00000000-2222-0000-.*/.uuid/\*\.{object-type}\.yaml'),
     ]
     assert sorted(patterns) == expected_patterns_re
 
@@ -1158,7 +1188,7 @@ manifests-catalog:
        backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e2'
        manifest-pattern:
         type: glob
-        path: '/{{path}}.yaml'
+        path: '/{{path}}.{{object-type}}.yaml'
 '''.encode()
 
     storage_path_cont = base_dir / 'storage_container'
@@ -1183,7 +1213,7 @@ backends:
     backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a89e3'
 '''
 
-    with open(storage_path_catalog / 'path.yaml', 'w') as f:
+    with open(storage_path_catalog / 'path.container.yaml', 'w') as f:
         f.write(container_data)
 
     with open(storage_path_cont / 'file.txt', 'w') as f:

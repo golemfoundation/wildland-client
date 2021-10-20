@@ -43,7 +43,7 @@ Create a new bridge manifest. At least one of --target-user and --target-user-lo
 
    User which to whom the bridge is pointing. This must be an existing user in your wildland directory together with its pubkey.
    If this is provided and --target-user-location is skipped, an attempt to locate the user manifest
-   in user's manifest catalog (under the canonical ``forest-owner.yaml`` form) will be made, and if
+   in user's manifest catalog (under the canonical ``forest-owner.user.yaml`` form) will be made, and if
    this fails, local path to user manifest will be used.
    If this is omitted, user located at --target-user-location will be used.
 

@@ -417,13 +417,13 @@ manifest serving as a Manifests catalog may look like this:
      storage:
      - type: http
        manifest-pattern:
-         path: /{path}.yaml
+         path: /{path}.{object-type}.yaml
          type: glob
        read-only: true
        url: https://example.com/my-manifests-catalog
      - type: webdav
        manifest-pattern:
-         path: /{path}.yaml
+         path: /{path}.{object-type}.yaml
          type: glob
        url: https://example.com/dav/my-manifests-catalog
        credentials:

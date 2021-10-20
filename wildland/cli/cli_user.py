@@ -376,8 +376,8 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
     """
     Mounts containers of the given user's manifests-catalog and attempts to find that user's
     manifest file within that catalog.
-    The user manifest file is expected to be named 'forest-owner.yaml' and be placed in the root
-    directory of a storage.
+    The user manifest file is expected to be named 'forest-owner.user.yaml' and be placed in the
+    root directory of a storage.
 
     :param obj: ContextObj
     :param user: User
@@ -391,7 +391,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
         for storage_candidate in all_storages:
             with StorageDriver.from_storage(storage_candidate) as driver:
                 try:
-                    file_candidate = PurePosixPath('forest-owner.yaml')
+                    file_candidate = PurePosixPath('forest-owner.user.yaml')
                     file_content = driver.read_file(file_candidate)
 
                     # Ensure you're able to load this object

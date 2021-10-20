@@ -240,14 +240,14 @@ paths:
 - /users/caroline
 manifests-catalog:
 - object: link
-  file: /.manifests.yaml
+  file: /.manifests.container.yaml
   storage:
     encrypted:
       encrypted-data: .*
       encrypted-keys:
       - .*
 - object: link
-  file: /.manifests.yaml
+  file: /.manifests.container.yaml
   storage:
     object: storage
     type: webdav
@@ -262,7 +262,7 @@ manifests-catalog:
     backend-id: $UUID_PCRE
     manifest-pattern:
       type: glob
-      path: /\*.yaml
+      path: /\*.{object-type}.yaml
 pubkeys:
 - .*"
 run cat ~/.config/wildland/users/caroline.user.yaml

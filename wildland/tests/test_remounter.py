@@ -91,12 +91,12 @@ def setup(base_dir, cli, control_client):
     cli('storage', 'create', 'local', 'Storage3',
         '--location', base_dir / 'storage3',
         '--container', 'C.User2', '--no-inline',
-        '--manifest-pattern', '/.manifests/*.yaml')
+        '--manifest-pattern', '/.manifests/*.{object-type}.yaml')
 
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'manifests/Container1.yaml')
+                base_dir / 'manifests/Container1.container.yaml')
     shutil.copy(base_dir / 'containers/Container2.container.yaml',
-                base_dir / 'manifests/Container2.yaml')
+                base_dir / 'manifests/Container2.container.yaml')
 
     catalog_path = f'/.users/0xaaa/.uuid/0000000000-1111-0000-0000-000000000000/' \
         f'.backends/{DUMMY_BACKEND_UUID0}'
@@ -218,22 +218,22 @@ def test_single_path(cli, client, control_client, base_dir):
     # simulate mounted container
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'wildland/.manifests/Container1.yaml')
+                base_dir / 'wildland/.manifests/Container1.container.yaml')
 
-    pattern = '/.manifests/Container1.yaml'
+    pattern = '/.manifests/Container1.container.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
                                  [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
     def modify_container():
         cli('container', 'modify', '--no-remount', '--add-path', '/new/path', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     # initial mount
     remounter.expect_action(
@@ -259,32 +259,32 @@ def test_single_path(cli, client, control_client, base_dir):
     remounter.check()
     assert control_client.calls['add-watch'] == {
         'storage_id': 0,
-        'pattern': 'Container1.yaml'}
+        'pattern': 'Container1.container.yaml'}
 
 
 def test_glob_with_broken(client, control_client, base_dir):
     # simulate mounted container
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container2.container.yaml',
-                base_dir / 'wildland/.manifests/Container2.yaml')
+                base_dir / 'wildland/.manifests/Container2.container.yaml')
     # initially broken Container1 manifest
-    with open(base_dir / 'wildland/.manifests/Container1.yaml', 'w') as f:
+    with open(base_dir / 'wildland/.manifests/Container1.container.yaml', 'w') as f:
         f.write('broken manifest')
 
-    pattern = '/.manifests/Container*.yaml'
+    pattern = '/.manifests/Container*.container.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
                                  [str(base_dir / ('wildland' + pattern))],
-                                 additional_patterns=['/.manifests/Other*.yaml'],
+                                 additional_patterns=['/.manifests/Other*.container.yaml'],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
     def fix_manifest():
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     # initial mount
     remounter.expect_action(
@@ -310,16 +310,16 @@ def test_glob_with_broken(client, control_client, base_dir):
     remounter.check()
     assert control_client.all_calls['add-watch'] == [
         {'storage_id': 0,
-         'pattern': 'Other*.yaml'},
+         'pattern': 'Other*.container.yaml'},
         {'storage_id': 0,
-         'pattern': 'Container*.yaml'},
+         'pattern': 'Container*.container.yaml'},
     ]
 
 
 def test_glob_add_remove(cli, client, control_client, base_dir):
     # simulate mounted container
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
-    pattern = '/.manifests/Container*.yaml'
+    pattern = '/.manifests/Container*.container.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
                                  [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
@@ -327,18 +327,18 @@ def test_glob_add_remove(cli, client, control_client, base_dir):
     # initial events
     control_client.queue_event([])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'delete', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'delete', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
     def add_manifest():
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     def del_manifest():
-        (base_dir / 'wildland/.manifests/Container1.yaml').unlink()
+        (base_dir / 'wildland/.manifests/Container1.container.yaml').unlink()
 
     remounter.expect_action([], [], add_manifest)
     # after adding conatiner
@@ -361,16 +361,16 @@ def test_add_remove_storage(cli, client, control_client, base_dir):
     # simulate mounted container
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'wildland/.manifests/Container1.yaml')
-    pattern = '/.manifests/Container1.yaml'
+                base_dir / 'wildland/.manifests/Container1.container.yaml')
+    pattern = '/.manifests/Container1.container.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
                                  [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -379,13 +379,13 @@ def test_add_remove_storage(cli, client, control_client, base_dir):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
                 '--container', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     def del_storage():
         cli('container', 'modify', '--no-remount', '--del-storage', '1',
             'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     remounter.expect_action([ExpectedMount(
             '0xaaa',
@@ -415,16 +415,16 @@ def test_modify_storage(cli, client, control_client, base_dir):
     # simulate mounted container
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                base_dir / 'wildland/.manifests/Container1.yaml')
-    pattern = '/.manifests/Container1.yaml'
+                base_dir / 'wildland/.manifests/Container1.container.yaml')
+    pattern = '/.manifests/Container1.container.yaml'
     remounter = RemounterWrapper(client, client.fs_client,
                                  [str(base_dir / ('wildland' + pattern))],
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -435,7 +435,7 @@ def test_modify_storage(cli, client, control_client, base_dir):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage3'),
                 '--container', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     def switch_primary():
         """change storages order without changing anything else"""
@@ -444,7 +444,7 @@ def test_modify_storage(cli, client, control_client, base_dir):
             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage1'),
                 '--container', 'Container1')
         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-                    base_dir / 'wildland/.manifests/Container1.yaml')
+                    base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     remounter.expect_action([ExpectedMount(
             '0xaaa',
@@ -505,7 +505,7 @@ def search_mock():
 
 
 def test_wlpath_single(cli, client, search_mock, control_client):
-    search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
+    search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
 
     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
@@ -524,11 +524,11 @@ def test_wlpath_single(cli, client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -556,11 +556,11 @@ def test_wlpath_single(cli, client, search_mock, control_client):
     remounter.check()
     assert control_client.calls['add-watch'] == {
         'storage_id': 0,
-        'pattern': 'Container1.yaml'}
+        'pattern': 'Container1.container.yaml'}
 
 
 def test_wlpath_delete_container(client, search_mock, control_client):
-    search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
+    search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
 
     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
     c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
@@ -577,15 +577,15 @@ def test_wlpath_delete_container(client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'}])
     # modify should also cause the WL path to be re-evaluated
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'delete', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'}])
+        {'watch-id': 1, 'type': 'delete', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -611,11 +611,12 @@ def test_wlpath_delete_container(client, search_mock, control_client):
     remounter.check()
     assert control_client.calls['add-watch'] == {
         'storage_id': 0,
-        'pattern': 'Container1.yaml'}
+        'pattern': 'Container1.container.yaml'}
 
 
 def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
-    search_mock.watch_params = ([], {'/.manifests/Container1.yaml', '/.manifests/Container2.yaml'})
+    search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml',
+                                     '/.manifests/Container2.container.yaml'})
 
     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
     c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
@@ -637,17 +638,17 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
-        {'watch-id': 1, 'type': 'create', 'path': 'Container2.yaml',
-         'pattern': 'Container2.yaml'},
+        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
+        {'watch-id': 1, 'type': 'create', 'path': 'Container2.container.yaml',
+         'pattern': 'Container2.container.yaml'},
     ])
     # modify should also cause the WL path to be re-evaluated
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container2.yaml',
-         'pattern': 'Container2.yaml'}
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container2.container.yaml',
+         'pattern': 'Container2.container.yaml'}
     ])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
@@ -688,14 +689,14 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
     assert sorted(control_client.all_calls['add-watch'],
                   key=lambda c: c['pattern']) == [
         {'storage_id': 0,
-         'pattern': 'Container1.yaml'},
+         'pattern': 'Container1.container.yaml'},
         {'storage_id': 0,
-         'pattern': 'Container2.yaml'},
+         'pattern': 'Container2.container.yaml'},
     ]
 
 
 def test_wlpath_iterate_error(cli, client, search_mock, control_client):
-    search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
+    search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
 
     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
 
@@ -711,16 +712,16 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
+        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
     ])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
     ])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
     ])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
@@ -743,7 +744,7 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
     remounter.check()
     assert control_client.calls['add-watch'] == {
         'storage_id': 0,
-        'pattern': 'Container1.yaml'
+        'pattern': 'Container1.container.yaml'
     }
     # not really expected in this test
     assert 'info' not in control_client.calls
@@ -752,7 +753,7 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
 
 def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_client):
     # pylint: disable=protected-access
-    search_mock.watch_params = ([], {'/.manifests/Container1.yaml'})
+    search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
 
     with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
         cli('storage', 'create', 'local', 'Catalog1',
@@ -780,17 +781,17 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
+        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
     ])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container2.yaml',
-         'pattern': 'Container2.yaml'},
+        {'watch-id': 1, 'type': 'create', 'path': 'Container2.container.yaml',
+         'pattern': 'Container2.container.yaml'},
     ])
     # old pattern should still work
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.yaml',
-         'pattern': 'Container1.yaml'},
+        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+         'pattern': 'Container1.container.yaml'},
     ])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
@@ -798,12 +799,12 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
     def change_watch_params():
         control_client.expect('mount')
         search_mock.watch_params = ([(catalog_container, [catalog_s0], [], None)],
-                                    {'/.manifests/Container2.yaml'})
+                                    {'/.manifests/Container2.container.yaml'})
 
     def fail_mount():
         control_client.expect('mount', ControlClientError('mount failed'))
         search_mock.watch_params = ([(catalog_container, [catalog_s1], [], None)],
-                                    {'/.manifests/Container3.yaml'})
+                                    {'/.manifests/Container3.container.yaml'})
 
     # initial mount
     remounter.expect_action(
@@ -830,11 +831,11 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
     assert control_client.all_calls['add-watch'] == [
         {
             'storage_id': 0,
-            'pattern': 'Container1.yaml'
+            'pattern': 'Container1.container.yaml'
         },
         {
             'storage_id': 0,
-            'pattern': 'Container2.yaml'
+            'pattern': 'Container2.container.yaml'
         },
     ]
 
