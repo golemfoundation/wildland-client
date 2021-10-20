@@ -632,9 +632,9 @@ def assert_state(client: Client, job_id: str, state: SyncState):
 
 def wait_for_event(client: Client, predicate: Callable[[SyncEvent], bool]):
     while True:
-        event = next(client.get_sync_event())
-        if predicate(event):
-            break
+        for event in client.get_sync_event():
+            if predicate(event):
+                return
 
 
 def wait_for_state(client: Client, job_id: str, state: SyncState):
