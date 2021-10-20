@@ -13,7 +13,9 @@ Synopsis
 | :command:`wl template list [--show-filenames]`
 | :command:`wl template create <storage_type> [<storage_params>] NAME`
 | :command:`wl template add <storage_type> [<storage_params>] NAME`
-| :command:`wl template remove NAME`
+| :command:`wl template remove NAME [NAME ...]`
+| :command:`wl template edit [--editor] PATH/NAME`
+| :command:`wl template dump PATH/NAME`
 
 Description
 ===========
@@ -86,8 +88,8 @@ Display known storage templates.
 .. program:: wl-template-remove
 .. _wl-template-remove:
 
-:command:`wl template remove NAME`
-------------------------------------------
+:command:`wl template remove NAME [NAME ...]`
+---------------------------------------------
 
 Delete a storage template from local filesystem.
 
@@ -505,3 +507,27 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/git.rsti
+
+.. program:: wl-template-edit
+.. _wl-template-edit:
+
+:command:`wl template edit PATH/NAME`
+----------------------------------------
+
+Edit template in an external tool. If you provide template name, command will find its location and
+open that file. You can also provide the path directly. After editing, command will validate edited
+file and if everything is fine it will be saved.
+
+.. option:: --editor <editor>
+
+   Use custom editor instead of the one configured with usual :envvar:`VISUAL`
+   or :envvar:`EDITOR` variables.
+
+.. program:: wl-template-dump
+.. _wl-template-dump:
+
+:command:`wl template dump PATH/NAME`
+----------------------------------------
+
+The command will output a template file's contents. If you provide template name, command will find its
+location and open that file. You can also provide the path directly.

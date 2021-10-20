@@ -71,8 +71,8 @@ Unless ``--key`` is provided, the command will generate a new key pair.
 .. program:: wl-user-delete
 .. _wl-user-delete:
 
-:command:`wl user delete [--force] [--cascade] [--delete-keys] NAME`
---------------------------------------------------------------------
+:command:`wl user delete [--force] [--cascade] [--delete-keys] NAME [NAME ...]`
+-------------------------------------------------------------------------------
 
 Delete a user from local filesystem.
 

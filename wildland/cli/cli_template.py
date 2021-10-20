@@ -28,6 +28,7 @@ import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj, CliError
+from ..manifest.schema import SchemaError
 from ..manifest.template import TemplateManager
 from ..exc import WildlandError
 
@@ -185,24 +186,83 @@ def template_list(obj: ContextObj, show_filenames: bool):
                 click.echo(f"    {tpl}")
 
 
-@template.command('remove', short_help='remove storage template', alias=['rm', 'd'])
-@click.argument('name', required=True)
+@template.command('remove', short_help='remove storage template', alias=['rm', 'delete'])
+@click.argument('names', metavar='NAME', nargs=-1, required=True)
 @click.pass_obj
-def template_del(obj: ContextObj, name: str):
+def template_del(obj: ContextObj, names):
     """
     Remove a storage template set.
     """
 
     template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
-    try:
-        template_manager.remove_storage_template(name)
-    except FileNotFoundError as fnf:
-        raise CliError(f'Template [{name}] does not exist.') from fnf
-    except WildlandError as ex:
-        raise CliError(f'Failed to delete template: {ex}') from ex
+    error_messages = ''
+    for name in names:
+        try:
+            template_manager.remove_storage_template(name)
+            click.echo(f'Deleted [{name}] storage template.')
+        except FileNotFoundError:
+            error_messages += f'Template [{name}] does not exist.\n'
+        except WildlandError as ex:
+            error_messages += f'{ex}\n'
 
-    click.echo(f'Deleted [{name}] storage template.')
+    if error_messages:
+        raise CliError(f'Some templates could not be deleted:\n{error_messages.strip()}')
+
+
+@template.command('dump', short_help='dump contents of a storage template')
+@click.argument('input_template', metavar='PATH/NAME')
+@click.pass_obj
+def template_dump(obj: ContextObj, input_template: str):
+    """
+    Dump contents of a storage template's .jinja file.
+    """
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
+
+    try:
+        template_bytes = template_manager.get_template_bytes(input_template)
+        click.echo(template_bytes.decode())
+    except FileNotFoundError:
+        click.echo(f'Could not find template: {input_template}')
+
+
+@click.command('edit', short_help='edit template in an external tool')
+@click.option('--editor', metavar='EDITOR', help='custom editor')
+@click.argument('input_template', metavar='PATH/NAME')
+@click.pass_obj
+def template_edit(obj: ContextObj, editor: Optional[str], input_template: str):
+    """
+    Edit template's .jinja file in an external tool. After editing, validate it.
+    """
+    template_manager = TemplateManager(obj.client.dirs[WildlandObject.Type.TEMPLATE])
+    try:
+        original_data = template_manager.get_template_bytes(input_template)
+        edited_file = click.edit(original_data.decode(), editor=editor, extension='.yaml',
+                                 require_save=False)
+        assert edited_file
+        data = edited_file.encode()
+
+        if original_data == data:
+            click.echo('No changes detected, not saving.')
+            return
+
+        edited_yaml = template_manager.get_jinja_yaml(edited_file)
+        for template_data in edited_yaml:
+            storage_type = template_data['type']
+            if not storage_type or not StorageBackend.is_type_supported(storage_type):
+                raise WildlandError(f'Unrecognized storage type: {storage_type}')
+            backend = StorageBackend.types()[storage_type]
+            backend.SCHEMA.validate(template_data)
+
+        template_manager.save_template_content(input_template, edited_file)
+    except FileNotFoundError:
+        click.secho(f'Could not find template: {input_template}', fg="red")
+    except SchemaError as e:
+        click.secho(f'Incorrectly formatted template: {e}', fg="red")
+    except Exception as e:
+        click.secho(f'Error occurred when editing template: {e}', fg="red")
 
 
 _add_create_commands(_create, create=True)
 _add_create_commands(_append, create=False)
+template.add_command(template_dump)
+template.add_command(template_edit)

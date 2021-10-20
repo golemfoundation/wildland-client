@@ -662,7 +662,7 @@ def test_storage_delete_force(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         base_data = f.read().split('\n', 4)[-1]
 
-    with pytest.raises(CliError, match='Storage is still used'):
+    with pytest.raises(CliError, match=r'.*Storage is still used'):
         cli('storage', 'delete', '--no-cascade', 'Storage')
 
     cli('storage', 'delete', '--no-cascade', '--force', 'Storage')
@@ -684,7 +684,7 @@ def test_storage_delete_force_broken_manifest(cli, base_dir):
     with open(base_dir / 'containers/Container.container.yaml') as f:
         base_data = f.read().split('\n', 4)[-1]
 
-    with pytest.raises(ManifestError):
+    with pytest.raises(CliError):
         cli('storage', 'delete', 'Storage')
 
     cli('storage', 'delete', '--force', 'Storage')
@@ -3523,6 +3523,7 @@ backends:
     assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
+
 def test_container_mount_container_without_storage(cli, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -4500,6 +4501,57 @@ def test_proxy_storage_malformed_template(cli, base_dir):
 
     with pytest.raises(WildlandError, match='Type of the storage missing in given template'):
         cli('container', 'create', '--storage-template', 'template', '--no-encrypt-manifest', 'tmp')
+
+
+def test_storage_template_dump(cli, base_dir):
+    storage_dir = base_dir / 'storage_dir'
+    template_file_path = f'{base_dir}/templates/template.template.jinja'
+    os.mkdir(storage_dir)
+    cli('template', 'create', 'local', '--location', storage_dir, 'template')
+    with open(template_file_path, 'r') as f:
+        jinja_output = ''.join(f.readlines()).strip()
+        dump_output = wl_call_output(base_dir, 'template', 'dump', 'template').decode().strip()
+        assert jinja_output == dump_output
+
+
+def test_storage_template_edit(cli, base_dir):
+    storage_dir = base_dir / 'storage_dir'
+    name_template_file_path = f'{base_dir}/templates/name_template.template.jinja'
+    path_template_file_path = f'{base_dir}/templates/path_template.template.jinja'
+
+    os.mkdir(storage_dir)
+    cli('template', 'create', 'local', '--location', storage_dir, 'name_template')
+    cli('template', 'create', 'local', '--location', storage_dir, 'path_template')
+    cli('template', 'create', 'local', '--location', storage_dir, 'bad_storage_template')
+    cli('template', 'create', 'local', '--location', storage_dir, 'bad_formatting_template')
+
+    # test for editing template's storage location based by template name
+    editor = f'sed -i s,{storage_dir},/new/storage/,g'
+    cli('template', 'edit', 'name_template', '--editor', editor)
+    with open(name_template_file_path, 'r') as f:
+        template_yaml = yaml_parser.load(f)
+        assert template_yaml[0]['location'] == \
+               '/new/storage/{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
+
+    # test for editing template's storage location based by template path
+    editor = f'sed -i s,{storage_dir},/new/storage/,g'
+    cli('template', 'edit', path_template_file_path, '--editor', editor)
+    with open(path_template_file_path, 'r') as f:
+        template_yaml = yaml_parser.load(f)
+        assert template_yaml[0]['location'] == \
+               '/new/storage/{{ local_dir if local_dir is defined else "" }}/{{ uuid }}'
+
+    # test for editing template provided incorrect storage type
+    editor = 'sed -i s,local,bad_storage,g'
+    bad_storage_output = wl_call_output(base_dir, 'template', 'edit', 'bad_storage_template',
+                                        '--editor', editor)
+    assert 'Unrecognized storage type' in bad_storage_output.decode()
+
+    # test for editing template provided incorrect formatting
+    editor = 'sed -i s,location,locations,g'
+    bad_formatting_output = wl_call_output(base_dir, 'template', 'edit', 'bad_formatting_template',
+                                           '--editor', editor)
+    assert 'Incorrectly formatted template' in bad_formatting_output.decode()
 
 
 def test_different_default_user(cli, base_dir):

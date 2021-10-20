@@ -359,7 +359,7 @@ def info(obj: ContextObj, name):
     _container_info(obj.client, container, users_and_bridge_paths)
 
 
-@container_.command('delete', short_help='delete a container', alias=['rm'])
+@container_.command('delete', short_help='delete a container', alias=['rm', 'remove'])
 @click.pass_obj
 @click.option('--force', '-f', is_flag=True,
               help='delete even when using local storage manifests; ignore errors on parse')
@@ -372,75 +372,87 @@ def delete(obj: ContextObj, names, force: bool, cascade: bool, no_unpublish: boo
     """
     Delete a container.
     """
-    # TODO: also consider detecting user-container link (i.e. user's main container).
 
+    error_messages = ''
     for name in names:
         try:
-            container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
-        except ManifestError as ex:
-            if force:
-                logger.warning('Failed to load manifest: %s', ex)
-                try:
-                    path = obj.client.find_local_manifest(WildlandObject.Type.CONTAINER, name)
-                    if path:
-                        click.echo(f'Deleting file {path}')
-                        path.unlink()
-                except ManifestError:
-                    # already removed
-                    pass
-                if cascade:
-                    logger.warning('Unable to cascade remove: manifest failed to load.')
-                return
-            logger.warning('Failed to load manifest, cannot delete: %s', ex)
-            click.echo('Use --force to force deletion.')
+            _delete(obj, name, force, cascade, no_unpublish)
+        except Exception as e:
+            error_messages += f'{e}\n'
+
+    if error_messages:
+        raise CliError(f'Some containers could not be deleted:\n{error_messages.strip()}')
+
+
+def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish: bool):
+    # TODO: also consider detecting user-container link (i.e. user's main container).
+
+    try:
+        container = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER, name)
+    except ManifestError as ex:
+        if force:
+            logger.warning('Failed to load manifest: %s', ex)
+            try:
+                path = obj.client.find_local_manifest(WildlandObject.Type.CONTAINER, name)
+                if path:
+                    click.echo(f'Deleting file {path}')
+                    path.unlink()
+            except ManifestError:
+                # already removed
+                pass
+            if cascade:
+                logger.warning('Unable to cascade remove: manifest failed to load.')
             return
+        logger.warning('Failed to load manifest, cannot delete: %s', ex)
+        click.echo('Use --force to force deletion.')
+        return
 
-        if not container.local_path:
-            raise CliError('Can only delete a local manifest')
+    if not container.local_path:
+        raise CliError('Can only delete a local manifest')
 
-        # unmount if mounted
+    # unmount if mounted
+    try:
+        for mount_path in obj.fs_client.get_unique_storage_paths(container):
+            storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
+
+            if storage_id:
+                obj.fs_client.unmount_storage(storage_id)
+
+            for storage_id in obj.fs_client.find_all_subcontainers_storage_ids(container):
+                obj.fs_client.unmount_storage(storage_id)
+    except ControlClientUnableToConnectError:
+        pass
+
+    _delete_cache(obj.client, container)
+
+    has_local = False
+
+    for backend in container.load_raw_backends(include_inline=False):
+        path = obj.client.parse_file_url(backend, container.owner)
+        if path and path.exists():
+            if cascade:
+                click.echo('Deleting storage: {}'.format(path))
+                path.unlink()
+            else:
+                click.echo('Container refers to a local manifest: {}'.format(path))
+                has_local = True
+
+    if has_local and not force:
+        raise CliError('Container refers to local manifests, not deleting '
+                       '(use --force or --cascade)')
+
+    # unpublish
+    if not no_unpublish:
         try:
-            for mount_path in obj.fs_client.get_unique_storage_paths(container):
-                storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
-
-                if storage_id:
-                    obj.fs_client.unmount_storage(storage_id)
-
-                for storage_id in obj.fs_client.find_all_subcontainers_storage_ids(container):
-                    obj.fs_client.unmount_storage(storage_id)
-        except ControlClientUnableToConnectError:
+            click.echo(f'Unpublishing container {container.uuid_path}...')
+            user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+            Publisher(obj.client, user).unpublish_container(container)
+        except WildlandError:
+            # not published
             pass
 
-        _delete_cache(obj.client, container)
-
-        has_local = False
-
-        for backend in container.load_raw_backends(include_inline=False):
-            path = obj.client.parse_file_url(backend, container.owner)
-            if path and path.exists():
-                if cascade:
-                    click.echo('Deleting storage: {}'.format(path))
-                    path.unlink()
-                else:
-                    click.echo('Container refers to a local manifest: {}'.format(path))
-                    has_local = True
-
-        if has_local and not force:
-            raise CliError('Container refers to local manifests, not deleting '
-                           '(use --force or --cascade)')
-
-        # unpublish
-        if not no_unpublish:
-            try:
-                click.echo(f'Unpublishing container {container.uuid_path}...')
-                user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-                Publisher(obj.client, user).unpublish_container(container)
-            except WildlandError:
-                # not published
-                pass
-
-        click.echo(f'Deleting: {container.local_path}')
-        container.local_path.unlink()
+    click.echo(f'Deleting: {container.local_path}')
+    container.local_path.unlink()
 
 
 container_.add_command(sign)
