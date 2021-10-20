@@ -207,7 +207,7 @@ def test_user_list_verbose(cli, base_dir):
         '   no bridges to user available',
         '   user path: /users/Foo',
         '   user path: /users/Bar',
-        r"   container: {'object': 'link', 'file': '\/\.manifests\.yaml', 'storage': {'object': 'storage', 'type': 'local', 'location': '\/tmp\/location\/\.manifests\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'.*}, 'access': \[\{'user': '0xaaa'\}\]\}\}",
+        r"   container: {'object': 'link', 'file': '\/\.manifests\.container\.yaml', 'storage': {'object': 'storage', 'type': 'local', 'location': '\/tmp\/location\/\.manifests\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'.*}, 'access': \[\{'user': '0xaaa'\}\]\}\}",
         '',
     ]
 
