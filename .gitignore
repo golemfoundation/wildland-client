@@ -6,4 +6,5 @@ env/
 build/
 artifacts/
 .mypy_cache
+.pytest_cache
 /*.log
