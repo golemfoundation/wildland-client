@@ -95,10 +95,10 @@ pytest:
     reports:
       cobertura: artifacts/coverage.xml
 
-bear-test:
+bearnotes-test:
   extends: .plugin_test
   script:
-    - ./ci/wildland-test-runner.sh ./ci/ci-bear
+    - ./ci/wildland-test-runner.sh ./ci/ci-bearnotes
 
 categorization-proxy-test:
   extends: .plugin_test
