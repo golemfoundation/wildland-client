@@ -136,4 +136,4 @@ def test_link_repr(client, cli):
     dict_link['storage']['version'] = '1.0'
     link = Link.parse_fields(fields=dict_link, client=client)
 
-    assert repr(link) == 'link(file_path=/.manifests.yaml)'
+    assert repr(link) == 'link(file_path=/.manifests.container.yaml)'
