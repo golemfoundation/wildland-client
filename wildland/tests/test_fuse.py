@@ -769,11 +769,11 @@ def test_watch(env, storage_type):
 
     event = collect_all_events(env)
     expected_event = [{
-        'type': 'create',
+        'type': 'CREATE',
         'path': 'file1.txt',
         'storage-id': 1,
         'watch-id': watch_id},
-        {'type': 'modify',
+        {'type': 'MODIFY',
          'path': 'file1.txt',
          'storage-id': 1,
          'watch-id': watch_id}]
@@ -787,7 +787,7 @@ def test_watch(env, storage_type):
 
     event = env.recv_event()
     assert event == [{
-        'type': 'modify',
+        'type': 'MODIFY',
         'path': 'file1.txt',
         'storage-id': 1,
         'watch-id': watch_id,
@@ -798,7 +798,7 @@ def test_watch(env, storage_type):
     os.unlink(env.mnt_dir / 'container1/file1.txt')
     event = env.recv_event()
     assert event == [{
-        'type': 'delete',
+        'type': 'DELETE',
         'path': 'file1.txt',
         'storage-id': 1,
         'watch-id': watch_id,
@@ -825,9 +825,9 @@ def test_watch_local_file(local_env):
     with open(local_env.test_dir / 'storage/storage1/file1.txt', 'w'):
         pass
     event = collect_all_events(local_env)
-    assert event == [{'type': 'create', 'path': 'file1.txt',
+    assert event == [{'type': 'CREATE', 'path': 'file1.txt',
                       'storage-id': 1, 'watch-id': watch_id},
-                     {'type': 'modify', 'path': 'file1.txt',
+                     {'type': 'MODIFY', 'path': 'file1.txt',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     # Append to file (generates a 'modify' event after close)
@@ -835,14 +835,14 @@ def test_watch_local_file(local_env):
     with open(local_env.test_dir / 'storage/storage1/file1.txt', 'a') as f:
         f.write('hello')
     event = local_env.recv_event()
-    assert event == [{'type': 'modify', 'path': 'file1.txt',
+    assert event == [{'type': 'MODIFY', 'path': 'file1.txt',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     # Delete file (generates a 'delete' event)
 
     os.unlink(local_env.test_dir / 'storage/storage1/file1.txt')
     event = local_env.recv_event()
-    assert event == [{'type': 'delete', 'path': 'file1.txt',
+    assert event == [{'type': 'DELETE', 'path': 'file1.txt',
                       'storage-id': 1, 'watch-id': watch_id}]
 
 
@@ -852,48 +852,48 @@ def test_watch_local_dir(local_env):
     os.mkdir(local_env.test_dir / 'storage/storage1/dir1')
 
     event = local_env.recv_event()
-    assert event == [{'type': 'create', 'path': 'dir1',
+    assert event == [{'type': 'CREATE', 'path': 'dir1',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     with open(local_env.test_dir / 'storage/storage1/dir1/file1.txt', 'w'):
         pass
 
     event = collect_all_events(local_env)
-    assert event == [{'type': 'create', 'path': 'dir1/file1.txt',
+    assert event == [{'type': 'CREATE', 'path': 'dir1/file1.txt',
                       'storage-id': 1, 'watch-id': watch_id},
-                     {'type': 'modify', 'path': 'dir1/file1.txt',
+                     {'type': 'MODIFY', 'path': 'dir1/file1.txt',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     os.rename(local_env.test_dir / 'storage/storage1/dir1',
               local_env.test_dir / 'storage/storage1/dir2')
 
     event = collect_all_events(local_env)
-    assert event == [{'type': 'delete', 'path': 'dir1',
+    assert event == [{'type': 'DELETE', 'path': 'dir1',
                       'storage-id': 1, 'watch-id': watch_id},
-                     {'type': 'create', 'path': 'dir2',
+                     {'type': 'CREATE', 'path': 'dir2',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     with open(local_env.test_dir / 'storage/storage1/dir2/file3.txt', 'w'):
         pass
 
     event = collect_all_events(local_env)
-    assert event == [{'type': 'create', 'path': 'dir2/file3.txt',
+    assert event == [{'type': 'CREATE', 'path': 'dir2/file3.txt',
                       'storage-id': 1, 'watch-id': watch_id},
-                     {'type': 'modify', 'path': 'dir2/file3.txt',
+                     {'type': 'MODIFY', 'path': 'dir2/file3.txt',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     os.remove(local_env.test_dir / 'storage/storage1/dir2/file1.txt')
     os.remove(local_env.test_dir / 'storage/storage1/dir2/file3.txt')
 
     event = collect_all_events(local_env)
-    assert event == [{'type': 'delete', 'path': 'dir2/file1.txt',
+    assert event == [{'type': 'DELETE', 'path': 'dir2/file1.txt',
                       'storage-id': 1, 'watch-id': watch_id},
-                     {'type': 'delete', 'path': 'dir2/file3.txt',
+                     {'type': 'DELETE', 'path': 'dir2/file3.txt',
                       'storage-id': 1, 'watch-id': watch_id}]
 
     os.rmdir(local_env.test_dir / 'storage/storage1/dir2')
     event = local_env.recv_event()
-    assert event == [{'type': 'delete', 'path': 'dir2',
+    assert event == [{'type': 'DELETE', 'path': 'dir2',
                       'storage-id': 1, 'watch-id': watch_id}]
 
 

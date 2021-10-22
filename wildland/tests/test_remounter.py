@@ -226,7 +226,7 @@ def test_single_path(cli, client, control_client, base_dir):
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -278,7 +278,7 @@ def test_glob_with_broken(client, control_client, base_dir):
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -327,9 +327,9 @@ def test_glob_add_remove(cli, client, control_client, base_dir):
     # initial events
     control_client.queue_event([])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'delete', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'DELETE', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -368,9 +368,9 @@ def test_add_remove_storage(cli, client, control_client, base_dir):
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -422,9 +422,9 @@ def test_modify_storage(cli, client, control_client, base_dir):
                                  control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml'}])
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
 
@@ -524,10 +524,10 @@ def test_wlpath_single(cli, client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
@@ -577,14 +577,14 @@ def test_wlpath_delete_container(client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'}])
     # modify should also cause the WL path to be re-evaluated
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'}])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'delete', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'}])
     # interrupt after processing all events
     control_client.queue_event(TerminateRemounter())
@@ -638,16 +638,16 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
-        {'watch-id': 1, 'type': 'create', 'path': 'Container2.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container2.container.yaml',
          'pattern': 'Container2.container.yaml'},
     ])
     # modify should also cause the WL path to be re-evaluated
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container2.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container2.container.yaml',
          'pattern': 'Container2.container.yaml'}
     ])
     # interrupt after processing all events
@@ -712,15 +712,15 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
     ])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
     ])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
     ])
     # interrupt after processing all events
@@ -781,16 +781,16 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
     ])
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'create', 'path': 'Container2.container.yaml',
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container2.container.yaml',
          'pattern': 'Container2.container.yaml'},
     ])
     # old pattern should still work
     control_client.queue_event([
-        {'watch-id': 1, 'type': 'modify', 'path': 'Container1.container.yaml',
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
          'pattern': 'Container1.container.yaml'},
     ])
     # interrupt after processing all events

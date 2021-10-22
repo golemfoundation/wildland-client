@@ -36,7 +36,7 @@ from typing import List, Dict, Iterable, Optional, Set, Union
 
 from .conflict import ConflictResolver, Resolved
 from .storage_backends.base import Attr, File, StorageBackend
-from .storage_backends.watch import FileEvent, StorageWatcher
+from .storage_backends.watch import FileEvent, StorageWatcher, FileEventType
 from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
 from .manifest.schema import Schema
@@ -190,6 +190,7 @@ class WildlandFSBase:
 
         if collected_errors:
             raise WildlandError(collected_errors)
+
     @control_command('unmount')
     def control_unmount(self, _handler, storage_id: int):
         if storage_id not in self.storages:
@@ -349,7 +350,7 @@ class WildlandFSBase:
             attr.timestamp  # ctime
         ))
 
-    def _notify_storage_watches(self, event_type, relpath, storage_id):
+    def _notify_storage_watches(self, event_type: FileEventType, relpath, storage_id):
         with self.mount_lock:
             if storage_id not in self.storage_watches:
                 return
@@ -416,7 +417,7 @@ class WildlandFSBase:
 
         logger.info('notify watch: %s: %s', watch, events)
         data = [{
-            'type': event.type,
+            'type': event.type.name,
             'path': str(event.path),
             'watch-id': watch.id,
             'storage-id': watch.storage_id,
@@ -470,7 +471,7 @@ class WildlandFSBase:
               resolved_path: Optional[Resolved] = None,
               parent=False,
               modify=False,
-              event_type=None,
+              event_type: Optional[FileEventType] = None,
               **kwargs):
         """
         Proxy a call to the corresponding Storage.
@@ -483,7 +484,7 @@ class WildlandFSBase:
           modify: if true, this is an operation that should not be proxied
           to read-only storage.
 
-          event_type: event to notify about (create, update, delete).
+          event_type: event to notify about (FileEventType).
         """
 
         path = PurePosixPath(path)
@@ -547,11 +548,11 @@ class WildlandFSBase:
 
     def release(self, path: str, flags: int, obj: File) -> None:
         # Notify if the file was created, or open for writing.
-        event_type: Optional[str] = None
+        event_type: Optional[FileEventType] = None
         if obj.created:
-            event_type = 'create'
+            event_type = FileEventType.CREATE
         elif flags & (os.O_RDWR | os.O_WRONLY):
-            event_type = 'modify'
+            event_type = FileEventType.MODIFY
         return self.proxy('release', path, flags, obj, event_type=event_type)
 
     def flush(self, *args) -> None:
@@ -581,10 +582,10 @@ class WildlandFSBase:
         return -errno.ENOSYS
 
     def chmod(self, path, mode):
-        return self.proxy('chmod', path, mode, modify=True, event_type='update')
+        return self.proxy('chmod', path, mode, modify=True, event_type=FileEventType.MODIFY)
 
     def chown(self, path, uid, gid):
-        return self.proxy('chown', path, uid, gid, modify=True, event_type='update')
+        return self.proxy('chown', path, uid, gid, modify=True, event_type=FileEventType.MODIFY)
 
     def getxattr(self, *args):
         return -errno.ENOSYS
@@ -599,7 +600,8 @@ class WildlandFSBase:
         return -errno.ENOSYS
 
     def mkdir(self, path, mode):
-        return self.proxy('mkdir', path, mode, parent=True, modify=True, event_type='create')
+        return self.proxy('mkdir', path, mode, parent=True, modify=True,
+                          event_type=FileEventType.CREATE)
 
     def mknod(self, *args):
         return -errno.ENOSYS
@@ -625,10 +627,10 @@ class WildlandFSBase:
 
         return self.proxy('rename', move_from, dst_relative,
                           resolved_path=resolved_from, parent=False, modify=True,
-                          event_type='update')
+                          event_type=FileEventType.MODIFY)
 
     def rmdir(self, path):
-        return self.proxy('rmdir', path, modify=True, event_type='delete')
+        return self.proxy('rmdir', path, modify=True, event_type=FileEventType.DELETE)
 
     def setxattr(self, *args):
         return -errno.ENOSYS
@@ -640,14 +642,14 @@ class WildlandFSBase:
         return -errno.ENOSYS
 
     def truncate(self, path, length):
-        return self.proxy('truncate', path, length, modify=True, event_type='modify')
+        return self.proxy('truncate', path, length, modify=True, event_type=FileEventType.MODIFY)
 
     def unlink(self, path):
-        return self.proxy('unlink', path, modify=True, event_type='delete')
+        return self.proxy('unlink', path, modify=True, event_type=FileEventType.DELETE)
 
     def utimens(self, path: str, atime: Timespec, mtime: Timespec):
         return self.proxy('utimens', path, atime, mtime, modify=True,
-                          event_type='modify')
+                          event_type=FileEventType.MODIFY)
 
 
 class WildlandFSConflictResolver(ConflictResolver):

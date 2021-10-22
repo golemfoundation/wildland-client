@@ -39,7 +39,7 @@ from .base import StorageBackend, File, Attr, verify_local_access
 from .file_subcontainers import FileSubcontainersMixin
 from ..fs_utils import flags_to_mode
 from ..manifest.schema import Schema
-from .watch import StorageWatcher, FileEvent
+from .watch import StorageWatcher, FileEvent, FileEventType
 from ..log import get_logger
 
 __all__ = ['LocalStorageBackend']
@@ -80,7 +80,7 @@ class LocalFile(File):
 
     def release(self, flags):
         if self.changed and self.ignore_callback:
-            self.ignore_callback('modify', self.path)
+            self.ignore_callback(FileEventType.MODIFY, self.path)
         return self.file.close()
 
     def fgetattr(self) -> Attr:
@@ -193,7 +193,7 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
 
     def create(self, path: PurePosixPath, flags: int, mode: int=0o666):
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('create', path)
+            self.watcher_instance.ignore_event(FileEventType.CREATE, path)
             return LocalFile(path, self._path(path), flags, mode,
                              ignore_callback=self.watcher_instance.ignore_event)
         return LocalFile(path, self._path(path), flags, mode)
@@ -209,17 +209,17 @@ class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
 
     def unlink(self, path: PurePosixPath) -> None:
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('delete', path)
+            self.watcher_instance.ignore_event(FileEventType.DELETE, path)
         os.unlink(self._path(path))
 
     def mkdir(self, path: PurePosixPath, mode: int = 0o777) -> None:
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('create', path)
+            self.watcher_instance.ignore_event(FileEventType.CREATE, path)
         os.makedirs(self._path(path), mode, exist_ok=True)
 
     def rmdir(self, path: PurePosixPath) -> None:
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('delete', path)
+            self.watcher_instance.ignore_event(FileEventType.DELETE, path)
         os.rmdir(self._path(path))
 
     def chmod(self, path: PurePosixPath, mode: int) -> None:
@@ -278,9 +278,9 @@ class LocalStorageWatcher(StorageWatcher):
 
         self.lock = threading.Lock()
 
-        self.ignore_list: List[Tuple[str, str]] = []
+        self.ignore_list: List[Tuple[FileEventType, str]] = []
 
-    def ignore_event(self, event_type: str, path: PurePosixPath):
+    def ignore_event(self, event_type: FileEventType, path: PurePosixPath):
         # path should be the relative path
         with self.lock:
             self.ignore_list.append((event_type, str(path)))
@@ -334,14 +334,14 @@ class LocalStorageWatcher(StorageWatcher):
                     inotify_simple.flags.MOVED_TO in event_flags:
                 if inotify_simple.flags.ISDIR in event_flags:
                     self._watch_dir(path)
-                event_type = 'create'
+                event_type = FileEventType.CREATE
             elif inotify_simple.flags.DELETE in event_flags or \
                     inotify_simple.flags.MOVED_FROM in event_flags:
                 if inotify_simple.flags.ISDIR in event_flags:
                     self.watches = {key: val for key, val in self.watches.items() if val != path}
-                event_type = 'delete'
+                event_type = FileEventType.DELETE
             elif inotify_simple.flags.CLOSE_WRITE in event_flags:
-                event_type = 'modify'
+                event_type = FileEventType.MODIFY
             else:
                 continue
 
@@ -353,6 +353,6 @@ class LocalStorageWatcher(StorageWatcher):
                     self.ignore_list.remove(ev)
                     continue
 
-            results.append(FileEvent(path=relative_path, type=event_type))
+            results.append(FileEvent(event_type, relative_path))
         self.clear_cache()
         return results

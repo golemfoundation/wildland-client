@@ -36,7 +36,7 @@ from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.local_cached import LocalCachedStorageBackend, \
     LocalDirectoryCachedStorageBackend
 from ..storage_backends.base import StorageBackend, verify_local_access, OptionalError
-from ..storage_backends.watch import FileEvent
+from ..storage_backends.watch import FileEvent, FileEventType
 
 
 @pytest.fixture(params=[LocalStorageBackend, LocalCachedStorageBackend,
@@ -109,7 +109,7 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
     backend.mkdir(PurePosixPath('newdir'))
 
     time.sleep(1)
-    assert received_events == [FileEvent('create', PurePosixPath('newdir'))]
+    assert received_events == [FileEvent(FileEventType.CREATE, PurePosixPath('newdir'))]
     received_events.clear()
 
     with backend.create(PurePosixPath('newdir/testfile'), flags=os.O_CREAT):
@@ -118,9 +118,9 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
     time.sleep(1)
     # either create or create and modify are correct
     assert received_events in [
-        [FileEvent('create', PurePosixPath('newdir/testfile'))],
-        [FileEvent('create', PurePosixPath('newdir/testfile')),
-         FileEvent('modify', PurePosixPath('newdir/testfile'))]]
+        [FileEvent(FileEventType.CREATE, PurePosixPath('newdir/testfile'))],
+        [FileEvent(FileEventType.CREATE, PurePosixPath('newdir/testfile')),
+         FileEvent(FileEventType.MODIFY, PurePosixPath('newdir/testfile'))]]
 
     received_events.clear()
 
@@ -128,19 +128,19 @@ def test_watcher_not_ignore_own(tmpdir, storage_backend, cleanup):
         file.write(b'bbbb', 0)
 
     time.sleep(1)
-    assert received_events == [FileEvent('modify', PurePosixPath('newdir/testfile'))]
+    assert received_events == [FileEvent(FileEventType.MODIFY, PurePosixPath('newdir/testfile'))]
     received_events.clear()
 
     backend.unlink(PurePosixPath('newdir/testfile'))
 
     time.sleep(1)
-    assert received_events == [FileEvent('delete', PurePosixPath('newdir/testfile'))]
+    assert received_events == [FileEvent(FileEventType.DELETE, PurePosixPath('newdir/testfile'))]
     received_events.clear()
 
     backend.rmdir(PurePosixPath('newdir'))
 
     time.sleep(1)
-    assert received_events == [FileEvent('delete', PurePosixPath('newdir'))]
+    assert received_events == [FileEvent(FileEventType.DELETE, PurePosixPath('newdir'))]
 
 
 def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
@@ -167,7 +167,7 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
     # we can allow one superflous modify event, if file creation was parsed as two events and not
     # one
     assert received_events in [
-        [], [FileEvent(type='modify', path=PurePosixPath('newdir/testfile'))]]
+        [], [FileEvent(FileEventType.MODIFY, PurePosixPath('newdir/testfile'))]]
 
     assert watcher.ignore_list == []
 
@@ -178,7 +178,7 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
 
     time.sleep(1)
 
-    assert received_events == [FileEvent('create', PurePosixPath('anotherdir'))]
+    assert received_events == [FileEvent(FileEventType.CREATE, PurePosixPath('anotherdir'))]
 
 
 def test_hashing_short(tmpdir, storage_backend):

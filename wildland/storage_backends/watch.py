@@ -24,7 +24,7 @@
 """
 Watching for changes.
 """
-
+from enum import Enum
 from typing import Optional, List, Callable, Dict
 from pathlib import PurePosixPath
 import threading
@@ -37,14 +37,34 @@ from ..log import get_logger
 logger = get_logger('watch')
 
 
+class FileEventType(Enum):
+    """
+    File change event type.
+    """
+    CREATE = 1
+    DELETE = 2
+    MODIFY = 3
+
+    def __repr__(self):
+        return str(self.name)
+
+    def __str__(self):
+        return self.__repr__()
+
+
 @dataclass
 class FileEvent:
     """
     File change event.
     """
-
-    type: str  # 'create', 'delete', 'modify'
+    type: FileEventType
     path: PurePosixPath
+
+    def __repr__(self):
+        return f'{self.type.name} {self.path}'
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class StorageWatcher(metaclass=abc.ABCMeta):
@@ -57,7 +77,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         self.stop_event = threading.Event()
         self.thread = threading.Thread(name='Watch', target=self._run)
 
-    def ignore_event(self, event_type: str, path):  # pylint: disable=unused-argument
+    def ignore_event(self, event_type: FileEventType, path):  # pylint: disable=unused-argument
         """
         Invoked by the backend to specify incoming ignorable event.
         """
@@ -190,9 +210,9 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         current_paths = set(current_info)
         new_paths = set(new_info)
         for path in current_paths - new_paths:
-            yield FileEvent('delete', path)
+            yield FileEvent(FileEventType.DELETE, path)
         for path in new_paths - current_paths:
-            yield FileEvent('create', path)
+            yield FileEvent(FileEventType.CREATE, path)
         for path in current_paths & new_paths:
             if current_info[path] != new_info[path]:
-                yield FileEvent('modify', path)
+                yield FileEvent(FileEventType.MODIFY, path)

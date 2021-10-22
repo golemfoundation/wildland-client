@@ -37,6 +37,7 @@ from .cached import CachedStorageMixin, DirectoryCachedStorageMixin
 from .buffered import FullBufferedFile, PagedFile, File
 from .base import StorageBackend, Attr, verify_local_access
 from .local import LocalStorageWatcher
+from .watch import FileEventType
 from ..manifest.schema import Schema
 from ..log import get_logger
 
@@ -61,7 +62,7 @@ class LocalCachedFile(FullBufferedFile):
 
     def write_full(self, data: bytes) -> int:
         if self.ignore_callback:
-            self.ignore_callback('modify', self.local_path)
+            self.ignore_callback(FileEventType.MODIFY, self.local_path)
         with open(self.os_path, 'wb') as f:
             return f.write(data)
 
@@ -159,7 +160,7 @@ class BaseCached(StorageBackend):
         if local.exists():
             raise IOError(errno.EEXIST, str(path))
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('create', path)
+            self.watcher_instance.ignore_event(FileEventType.CREATE, path)
 
         local.write_bytes(b'')
 
@@ -179,19 +180,19 @@ class BaseCached(StorageBackend):
 
     def unlink(self, path: PurePosixPath):
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('delete', path)
+            self.watcher_instance.ignore_event(FileEventType.DELETE, path)
         self._local(path).unlink()
         self.clear_cache()
 
     def mkdir(self, path: PurePosixPath, mode: int = 0o777):
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('create', path)
+            self.watcher_instance.ignore_event(FileEventType.CREATE, path)
         self._local(path).mkdir(mode)
         self.clear_cache()
 
     def rmdir(self, path: PurePosixPath):
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('delete', path)
+            self.watcher_instance.ignore_event(FileEventType.DELETE, path)
         self._local(path).rmdir()
         self.clear_cache()
 
@@ -205,8 +206,8 @@ class BaseCached(StorageBackend):
 
     def rename(self, move_from: PurePosixPath, move_to: PurePosixPath):
         if self.ignore_own_events and self.watcher_instance:
-            self.watcher_instance.ignore_event('create', move_to)
-            self.watcher_instance.ignore_event('delete', move_from)
+            self.watcher_instance.ignore_event(FileEventType.CREATE, move_to)
+            self.watcher_instance.ignore_event(FileEventType.DELETE, move_from)
 
         os.rename(self._local(move_from), self._local(move_to))
         self.clear_cache()

@@ -44,6 +44,7 @@ from .control_client import ControlClient, ControlClientUnableToConnectError
 from .entity.fileinfo import FileInfo
 from .manifest.manifest import Manifest
 from .storage_backends.pseudomanifest import PseudomanifestStorageBackend
+from .storage_backends.watch import FileEventType
 from .log import get_logger
 
 logger = get_logger('fs_client')
@@ -65,7 +66,7 @@ class WatchEvent:
     A file change event.
     """
 
-    event_type: str  # create, modify, delete
+    event_type: FileEventType
     pattern: str  # pattern that generated this event
     path: PurePosixPath  # absolute path in Wildland namespace
 
@@ -876,7 +877,7 @@ class WildlandFSClient:
                     for file_path in glob.glob(str(local_path)):
                         fs_path = PurePosixPath('/') / Path(file_path).relative_to(
                             self.mount_dir)
-                        initial.append(WatchEvent('create', pattern, fs_path))
+                        initial.append(WatchEvent(FileEventType.CREATE, pattern, fs_path))
                 if initial:
                     yield initial
 
@@ -885,7 +886,7 @@ class WildlandFSClient:
                 for event in events:
                     watch_id = event['watch-id']
                     storage_path, pattern = watches[watch_id]
-                    event_type = event['type']
+                    event_type = FileEventType[event['type']]
                     path = PurePosixPath(event['path'])
                     watch_events.append(WatchEvent(event_type, pattern, storage_path / path))
                 yield watch_events

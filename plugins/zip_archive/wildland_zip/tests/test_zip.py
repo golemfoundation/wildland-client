@@ -98,7 +98,7 @@ def test_zip_watch(base_dir, env, storage):
     ])
     event = env.recv_event()
     assert event == [
-        {'type': 'delete', 'path': 'file3.txt', 'watch-id': watch_id, 'storage-id': 1},
-        {'type': 'create', 'path': 'file4.txt', 'watch-id': watch_id, 'storage-id': 1},
-        {'type': 'modify', 'path': 'file2.txt', 'watch-id': watch_id, 'storage-id': 1},
+        {'type': 'DELETE', 'path': 'file3.txt', 'watch-id': watch_id, 'storage-id': 1},
+        {'type': 'CREATE', 'path': 'file4.txt', 'watch-id': watch_id, 'storage-id': 1},
+        {'type': 'MODIFY', 'path': 'file2.txt', 'watch-id': watch_id, 'storage-id': 1},
     ]

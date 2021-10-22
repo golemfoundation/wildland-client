@@ -32,7 +32,7 @@ from pathlib import PurePosixPath, Path
 from contextlib import suppress
 
 from wildland.storage import StorageBackend
-from wildland.storage_backends.watch import FileEvent, StorageWatcher
+from wildland.storage_backends.watch import FileEvent, StorageWatcher, FileEventType
 from wildland.storage_backends.base import OptionalError, HashMismatchError
 from wildland.storage_sync.base import BaseSyncer, SyncConflict, SyncState,  SyncConflictEvent, \
     SyncErrorEvent
@@ -432,7 +432,7 @@ class NaiveSyncer(BaseSyncer):
 
                     obj_path = event.path
 
-                    if event.type == 'delete':
+                    if event.type == FileEventType.DELETE:
                         old_source_hash = self.storage_hashes[source_storage].get(obj_path)
                         is_dir = obj_path not in self.storage_hashes[source_storage]
 
@@ -456,9 +456,9 @@ class NaiveSyncer(BaseSyncer):
                         for target_storage in self.storage_watchers:
                             if target_storage == source_storage:
                                 continue
-                            if event.type == 'create':
+                            if event.type == FileEventType.CREATE:
                                 self._create_object(source_storage, target_storage, obj_path)
-                            elif event.type == 'modify':
+                            elif event.type == FileEventType.MODIFY:
                                 self._sync_file(source_storage, target_storage, obj_path)
                 except Exception as e:
                     self.notify_event(SyncErrorEvent(str(e)))

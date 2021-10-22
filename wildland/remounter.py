@@ -35,6 +35,7 @@ from wildland.exc import WildlandError
 from wildland.fs_client import WildlandFSClient, WatchEvent
 from wildland.search import Search
 from wildland.storage import Storage
+from wildland.storage_backends.watch import FileEventType
 from wildland.wlpath import WildlandPath
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.log import get_logger
@@ -229,7 +230,7 @@ class Remounter:
                 self.main_paths[event.path])
 
         # Handle delete: unmount if the file was mounted.
-        if event.event_type == 'delete':
+        if event.event_type == FileEventType.DELETE:
             # Stop tracking the file
             if event.path in self.main_paths:
                 del self.main_paths[event.path]
@@ -241,7 +242,7 @@ class Remounter:
                 logger.info('  (not mounted)')
 
         # Handle create/modify:
-        if event.event_type in ['create', 'modify']:
+        if event.event_type in [FileEventType.CREATE, FileEventType.MODIFY]:
             local_path = self.fs_client.mount_dir / event.path.relative_to('/')
             container = self.client.load_object_from_file_path(
                 WildlandObject.Type.CONTAINER, local_path)
