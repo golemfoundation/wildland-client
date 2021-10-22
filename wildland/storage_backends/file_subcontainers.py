@@ -111,7 +111,7 @@ class FileSubcontainersMixin(StorageBackend):
         If False `get_children` have to return empty collection or raise error.
         If True `get_children` can return an empty or non-empty collection.
         """
-        return True
+        return 'manifest-pattern' in self.params
 
     def has_child(self, container_uuid_path: PurePosixPath) -> bool:
         """

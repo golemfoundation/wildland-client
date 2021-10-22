@@ -1055,7 +1055,7 @@ class Client:
                     # Encrypted storage backend does not support subcontainers
                     # enumeration in general case. See #419 for details.
                     continue
-                if not backend.supports_publish and not backend.can_have_children:
+                if not backend.can_have_children:
                     # Storage backend does not support subcontainers, skip mounting
                     continue
                 with backend:

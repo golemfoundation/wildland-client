@@ -426,7 +426,7 @@ class Search:
         except NotImplementedError:
             logger.warning('Storage %s does not support watching', storage.params["type"])
 
-        if not storage_backend.supports_publish and not storage_backend.can_have_children:
+        if not storage_backend.can_have_children:
             logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
                            storage.params["type"], part)
             return

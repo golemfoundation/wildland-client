@@ -157,7 +157,9 @@ def setup(base_dir, cli):
         '--path', '/unsigned')
     cli('storage', 'create', 'local', 'Storage2',
         '--location', base_dir / 'storage2',
-        '--container', 'Container2', '--no-inline')
+        '--container', 'Container2',
+        '--subcontainer-manifest', '/unsigned.yaml',
+        '--no-inline')
 
     cli('container', 'create', 'C.User2',
         '--path', '/.uuid/0000000000-2222-0000-1111-000000000000',
