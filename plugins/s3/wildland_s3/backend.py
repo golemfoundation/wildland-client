@@ -274,6 +274,9 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
     def cli_create(cls, data):
         result = super(S3StorageBackend, cls).cli_create(data)
         base_url = urlparse(data['s3_url']).path.lstrip('/')
+        # ensuring that the s3_url entered by the user contains a trailing slash
+        if not data['s3_url'].endswith('/'):
+            data['s3_url'] = data['s3_url']+'/'
         result.update({
             's3_url': data['s3_url'],
             'base_url': base_url,
