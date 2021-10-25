@@ -208,10 +208,17 @@ class FileChildrenMixin(StorageBackend):
         for backend in container.load_storages(include_inline=False):
             # we publish only a single manifest for a storage, under `/.uuid/` path
             container_manifest = next(self._get_relpaths(container.uuid_path))
-            relpath = container_manifest.with_name(
-                container_manifest.name.removesuffix('.container.yaml')
-                + f'.{backend.backend_id}.container.yaml'
-            )
+
+            name = container_manifest.name
+
+            if container_manifest.name.endswith('.container.yaml'):
+                name = name.removesuffix('.container.yaml')\
+                       + f'.{backend.backend_id}.container.yaml'
+            else:
+                name = name.removesuffix('.yaml')\
+                       + f'.{backend.backend_id}.yaml'
+
+            relpath = container_manifest.with_name(name)
             assert relpath not in storage_relpaths
             storage_relpaths[relpath] = backend
             container.add_storage_from_obj(
