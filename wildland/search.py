@@ -427,8 +427,8 @@ class Search:
             logger.warning('Storage %s does not support watching', storage.params["type"])
 
         if not storage_backend.can_have_children:
-            logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
-                           storage.params["type"], part)
+            logger.debug('Storage %s does not support subcontainers - cannot look for %s inside',
+                         storage.params["type"], part)
             return
         with storage_backend:
             children_iter = storage_backend.get_children(step.client, part)
