@@ -88,3 +88,13 @@ time -p test -f "$MNT_PATH_2"/tempfile
 time -p test -f "$MNT_PATH_2"/subdir/tempfile
 time -p test -f "$MNT_PATH_2"/abbott
 time -p test -f "$MNT_PATH_2"/floating
+
+# Checking whether a trailing slash is automatically appended to the url entered by the user
+./wl container rm s3-temp-con
+./wl template create s3 --access-key 'dmr' --secret-key '/.,/.,/.,'  --s3-url s3://the-bucket --endpoint-url 'http://127.0.0.1:9000' s3-template-slash
+./wl container create s3-temp-con2 --path "/$MNT_DIR_2" --template s3-template-slash
+./wl container mount s3-temp-con2
+
+url=$(./wl container dump s3-temp-con2 | grep 's3_url' | cut -c 13-)
+var="s3://the-bucket/"
+if [ "$url" != "$var" ]; then exit 1; fi
