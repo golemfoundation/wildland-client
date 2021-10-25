@@ -4999,8 +4999,13 @@ def test_import_user_existing(cli, base_dir, tmpdir):
     cli('user', 'create', 'Bob', '--key', '0xbbb')
     cli('user', 'import', str(destination))
 
-    # nothing should be imported if the user already exists locally
+    # nothing should be imported if the user already exists locally but bridge should be created
     assert len(os.listdir(base_dir / 'users')) == 2
+    assert Path(base_dir / 'bridges/Bob.bridge.yaml').exists()
+
+    # bridge already exists, it shouldn't import another one
+    cli('user', 'import', str(destination))
+    assert len(os.listdir(base_dir / 'bridges')) == 1
 
 
 def test_only_subcontainers(cli, base_dir, control_client):

@@ -282,8 +282,11 @@ def _remove_suffix(s: str, suffix: str) -> str:
     return s
 
 
-def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
-                        force: bool = False) -> Tuple[Optional[Path], Optional[str]]:
+def _do_import_manifest(obj, path_or_dict,
+                        manifest_owner: Optional[str] = None,
+                        force: bool = False,
+                        paths: Optional[List[PurePosixPath]] = None,
+                        default_user: Optional[str] = None) -> Tuple[Optional[Path], Optional[str]]:
     """
     Takes a user or bridge manifest as pointed towards by path (can be local file path, url,
     wildland url), imports its public keys, copies the manifest itself.
@@ -348,7 +351,13 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
         for user in obj.client.get_local_users():
             if user.owner == imported_user.owner:
                 if not force:
-                    click.echo(f'User {user.owner} already exists. Skipping import.')
+                    if any(user.owner == b.user_id for b in obj.client.get_local_bridges()):
+                        click.echo(f"User {user.owner} and theirs bridge already exist. "
+                                   f"Skipping import.")
+                    elif default_user:
+                        file_path = obj.client.local_url(Path(user.manifest.local_path).absolute())
+                        _do_process_imported_manifest(obj, user.manifest.local_path,
+                                                      file_path, paths, default_user)
                     return None, None
 
                 click.echo(f'User {user.owner} already exists. Forcing user import.')
@@ -408,7 +417,7 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
 
 def _do_process_imported_manifest(
         obj: ContextObj, copied_manifest_path: Path, user_manifest_location: str,
-        paths: List[PurePosixPath], default_user: str):
+        paths: Optional[List[PurePosixPath]], default_user: str):
     """
     Perform followup actions after importing a manifest: create a Bridge manifest for a user,
     import a Bridge manifest's target user
@@ -486,7 +495,9 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
     posix_paths = [PurePosixPath(p) for p in paths]
 
     if wl_obj_type == WildlandObject.Type.USER:
-        copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
+        copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url,
+                                                                 paths=posix_paths,
+                                                                 default_user=default_user)
         if not copied_manifest_path or not manifest_url:
             return
         try:
