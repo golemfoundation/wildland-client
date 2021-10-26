@@ -5686,7 +5686,7 @@ def test_storage_s3_params(cli, base_dir):
         documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
-    assert storage['s3_url'] == 's3://foo-location'
+    assert storage['s3_url'] == 's3://foo-location/'
     assert storage['endpoint_url'] == 'http://foo-location.com'
     assert storage['credentials']['access-key'] == 'foo-access-key'
     assert storage['credentials']['secret-key'] == 'foo-secret-key'
@@ -5708,7 +5708,7 @@ def test_storage_s3_params(cli, base_dir):
         documents = list(yaml_parser.safe_load_all(f))
         storage = documents[1]['backends']['storage'][0]
 
-    assert storage['s3_url'] == 's3://foo-location'
+    assert storage['s3_url'] == 's3://foo-location/'
     assert storage['endpoint_url'] == 'http://foo-location.com'
     assert storage['credentials']['access-key'] == 'foo-access-key'
     assert storage['credentials']['secret-key'] == 'foo-secret-key'
