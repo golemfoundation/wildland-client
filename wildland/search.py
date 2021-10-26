@@ -95,7 +95,7 @@ class Step:
                 self.bridge == other.bridge and
                 self.user == other.user and
                 self.container == other.container
-        )
+                )
 
     def __hash__(self):
         return hash((
@@ -104,6 +104,7 @@ class Step:
             self.bridge,
             self.container
         ))
+
 
 class Search:
     """
@@ -122,10 +123,10 @@ class Search:
     _resolve_cache: Dict[Tuple[Union[str, Step], PurePosixPath], Iterable[Step]] = {}
 
     def __init__(self,
-            client: wildland.client.Client,
-            wlpath: WildlandPath,
-            aliases: Mapping[str, str] = types.MappingProxyType({}),
-            fs_client: Optional[WildlandFSClient] = None):
+                 client: wildland.client.Client,
+                 wlpath: WildlandPath,
+                 aliases: Mapping[str, str] = types.MappingProxyType({}),
+                 fs_client: Optional[WildlandFSClient] = None):
         self.client = client
         self.wlpath = wlpath
         self.aliases = aliases
@@ -342,7 +343,7 @@ class Search:
             if next_step in seen:
                 continue
             seen.add(next_step)
-            yield from self._resolve_rest(next_step, i+1)
+            yield from self._resolve_rest(next_step, i + 1)
         self._resolve_cache[cache_key] = seen
 
     def _find_storage(self, step: Step) -> Tuple[Storage, StorageBackend]:
@@ -388,9 +389,8 @@ class Search:
             if container.owner == owner and (
                     str(part) == '*' or
                     part in container.expanded_paths):
-
                 logger.debug('%s: local container: %s', part,
-                            container.local_path)
+                             container.local_path)
                 yield Step(
                     owner=self.initial_owner,
                     client=self.client,
@@ -403,7 +403,7 @@ class Search:
         for bridge in self.local_bridges:
             if bridge.owner == owner and (str(part) == '*' or part in bridge.paths):
                 logger.debug('%s: local bridge manifest: %s', part,
-                            bridge.local_path)
+                             bridge.local_path)
                 yield from self._bridge_step(
                     self.client, owner, part, None, None, bridge, step)
 
@@ -428,13 +428,12 @@ class Search:
         except NotImplementedError:
             logger.warning('Storage %s does not support watching', storage.params["type"])
 
+        if not storage_backend.can_have_children:
+            logger.debug('Storage %s does not support subcontainers - cannot look for %s inside',
+                         storage.params["type"], part)
+            return
         with storage_backend:
-            try:
-                children_iter = storage_backend.get_children(step.client, part)
-            except NotImplementedError:
-                logger.warning('Storage %s does not subcontainers - cannot look for %s inside',
-                            storage.params["type"], part)
-                return
+            children_iter = storage_backend.get_children(step.client, part)
 
             for manifest_path, subcontainer_data in children_iter:
                 try:

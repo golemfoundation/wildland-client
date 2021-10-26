@@ -103,6 +103,16 @@ class FileSubcontainersMixin(StorageBackend):
         return 'manifest-pattern' in self.params \
                and self.params['manifest-pattern']['type'] == 'glob'
 
+    @property
+    def can_have_children(self) -> bool:
+        """
+        Check if storage can have subcontainers.
+
+        If False `get_children` have to return empty collection or raise error.
+        If True `get_children` can return an empty or non-empty collection.
+        """
+        return 'manifest-pattern' in self.params
+
     def has_child(self, container_uuid_path: PurePosixPath) -> bool:
         """
         Check if the given container is subcontainer of this storage.
@@ -247,7 +257,7 @@ class FileSubcontainersMixin(StorageBackend):
             driver.makedirs(relpath.parent)
             driver.write_file(relpath, client.session.dump_object(container))
 
-    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
         """
         List all subcontainers provided by this storage.

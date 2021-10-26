@@ -175,6 +175,10 @@ class TimelineStorageBackend(CachedStorageMixin, StorageBackend):
 
         return self.inner.open(inner_path, flags)
 
+    @property
+    def can_have_children(self) -> bool:
+        return True
+
     def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         ns = uuid.UUID(self.backend_id)

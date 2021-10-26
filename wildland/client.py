@@ -1081,6 +1081,9 @@ class Client:
                     # Encrypted storage backend does not support subcontainers
                     # enumeration in general case. See #419 for details.
                     continue
+                if not backend.can_have_children:
+                    # Storage backend does not support subcontainers, skip mounting
+                    continue
                 with backend:
                     for _, subcontainer in backend.get_children(self):
                         yield self.load_subcontainer_object(container, storage, subcontainer)

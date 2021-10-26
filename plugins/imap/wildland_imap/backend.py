@@ -89,7 +89,11 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def watcher(self):
         return ImapStorageWatcher(self)
 
-    def get_children(self, client = None, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    @property
+    def can_have_children(self) -> bool:
+        return True
+
+    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
         for msg in self.client.all_messages_env():
             yield self._make_msg_container(msg)
@@ -171,16 +175,15 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
                 'type': 'delegate',
                 'reference-container': 'wildland:@default:@parent-container:',
                 'subdirectory': subcontainer_path
-                }]}
+            }]}
         })
-
 
     @classmethod
     def cli_options(cls):
         return [
             click.Option(['--host'], metavar='HOST',
-                          help='imap server host name',
-                          required=True),
+                         help='imap server host name',
+                         required=True),
             click.Option(['--login'], metavar='LOGIN',
                          help='imap account name / login',
                          required=True),
@@ -193,7 +196,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             click.Option(['--ssl/--no-ssl'], metavar='SSL',
                          default=True,
                          help='use encrypted connection')
-            ]
+        ]
 
     @classmethod
     def cli_create(cls, data):
@@ -203,4 +206,4 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
             'password': data['password'],
             'folder': data['folder'],
             'ssl': data['ssl']
-            }
+        }

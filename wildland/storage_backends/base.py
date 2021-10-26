@@ -628,6 +628,16 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         return False
 
+    @property
+    def can_have_children(self) -> bool:
+        """
+        Check if storage can have subcontainers.
+
+        If False `get_children` have to return empty collection or raise error.
+        If True `get_children` can return an empty or non-empty collection.
+        """
+        return False
+
     def has_child(self, container_uuid_path: PurePosixPath) -> bool:
         """
         Check if the given container is subcontainer of this storage.
