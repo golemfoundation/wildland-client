@@ -43,7 +43,7 @@ class BaseCachedStorageMixin(metaclass=abc.ABCMeta):
     Base class for caching mixins.
     """
 
-    CACHE_TIMEOUT = 3.
+    DEFAULT_CACHE_TIMEOUT = 3.
 
     def __init__(self, *_args, **kwargs):
         # Silence mypy: https://github.com/python/mypy/issues/5887
@@ -51,6 +51,19 @@ class BaseCachedStorageMixin(metaclass=abc.ABCMeta):
         self.getattr_cache: Dict[PurePosixPath, Attr] = {}
         self.readdir_cache: Dict[PurePosixPath, Set[str]] = {}
         self.cache_lock = threading.Lock()
+        self._cache_timeout = self.DEFAULT_CACHE_TIMEOUT
+
+    @property
+    def cache_timeout(self) -> float:
+        """
+        Cache timeout.
+        """
+        return self._cache_timeout
+
+    @cache_timeout.setter
+    def cache_timeout(self, value: float) -> None:
+        assert value >= 0.
+        self._cache_timeout = value
 
     def _update_cache(self, path: PurePosixPath, attr: Optional[Attr]) -> None:
         if attr is None:
@@ -137,7 +150,7 @@ class CachedStorageMixin(BaseCachedStorageMixin):
         for path, attr in info:
             self._update_cache(path, attr)
 
-        self.expiry = time.time() + self.CACHE_TIMEOUT
+        self.expiry = time.time() + self.cache_timeout
 
     def update_cache(self, path: PurePosixPath, attr: Optional[Attr]) -> None:
         """
@@ -264,7 +277,7 @@ class DirectoryCachedStorageMixin(BaseCachedStorageMixin):
         else:
             self.readdir_cache[path] = names
 
-        self.dir_expiry[path] = time.time() + self.CACHE_TIMEOUT
+        self.dir_expiry[path] = time.time() + self.cache_timeout
 
     def clear_cache(self) -> None:
         """

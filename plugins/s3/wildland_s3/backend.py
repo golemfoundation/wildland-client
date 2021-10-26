@@ -550,7 +550,8 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
         return None
 
     def start_bulk_writing(self) -> None:
-        pass  # TODO how to properly handle bulk writing?
+        self.clear_cache()
+        self.cache_timeout = float('inf')
 
     def stop_bulk_writing(self) -> None:
         self.clear_cache()
