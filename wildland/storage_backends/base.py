@@ -310,7 +310,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
 
         hasher = hashlib.md5()
-        params_for_hash = dict((k, str(v)) for (k, v) in params.items() if k != 'storage')
+        params_for_hash = dict((k, str(v)) for (k, v) in params.items())
         hasher.update(json.dumps(params_for_hash, sort_keys=True).encode('utf-8'))
 
         return str(UUID(hasher.hexdigest()))

@@ -158,7 +158,7 @@ def setup(base_dir, cli):
     cli('storage', 'create', 'local', 'Storage2',
         '--location', base_dir / 'storage2',
         '--container', 'Container2',
-        '--subcontainer-manifest', '/unsigned.yaml',
+        '--subcontainer-manifest', '/unsigned.container.yaml',
         '--no-inline')
 
     cli('container', 'create', 'C.User2',
