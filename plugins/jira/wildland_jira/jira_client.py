@@ -94,7 +94,7 @@ class JiraClient:
                 labels=issue['fields']['labels'],
                 status=issue['fields']['status']['name'],
                 project_name=issue['fields']['project']['name'],
-                description=issue['fields']['description']
+                description=issue['fields']['description'] or ''
             ))
         return to_return
 
