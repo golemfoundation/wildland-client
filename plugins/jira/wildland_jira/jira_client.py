@@ -21,7 +21,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Wildland storage backend exposing Jira issues
+Jira client wrapping functions responsible for communication with Jira API
 """
 import urllib.parse
 from dataclasses import dataclass
@@ -57,21 +57,22 @@ class JiraClient:
     Fetches and parses Jira issues
     """
 
-    def __init__(self, site_url: str, username: str, personal_token: str, project_names: Optional[List[str]] = None):
+    def __init__(self, site_url: str, username: str, personal_token: str,
+                 project_names: Optional[List[str]] = None):
         if project_names is None:
             project_names = []
         self.headers = {"Authorization": f'Basic {encode_basic_auth(username, personal_token)}'}
         self.projects_names: Optional[List[str]] = project_names
         self.url = site_url if site_url.endswith('/') else f'{site_url}/'
 
-    def run_query(self, path: str, params: Dict[str, Union[str, List[str]]]):
+    def run_query(self, path: str, params: Dict[str, Union[str, int, List[str]]]):
         """
         A simple method that performs queries passed to it and returns a response from the server.
         """
         logger.debug('Querying the Jira server')
-        params = stringify_query_params(params)
+        params_str = stringify_query_params(params)
 
-        uri = f'{self.url}{path}{params}'
+        uri = f'{self.url}{path}{params_str}'
         request = requests.get(uri, headers=self.headers)
         if request.status_code == 200:
             return request.json()
@@ -102,17 +103,17 @@ class JiraClient:
         """
         Fetches all issues in given workspace.
         """
-        params = {
+        params: Dict[str, Union[str, int, List[str]]] = {
             'fields': ['summary', 'description', 'labels', 'project', 'updated', 'status'],
             'orderBy': '+summary',
             'maxResults': 100,
         }
 
-        if len(self.projects_names):
+        if isinstance(self.projects_names, list) and len(self.projects_names):
             params['jql'] = f'projects={urllib.parse.quote(",".join(self.projects_names))}'
 
         has_next_page = True
-        parsed_issues = []
+        parsed_issues: List[CompactIssue] = []
         while has_next_page:
             params['startAt'] = len(parsed_issues)
             response = self.run_query('search', params)
@@ -120,5 +121,5 @@ class JiraClient:
             # TODO: 'total' can be missing in cases when calculating its value is too expensive
             has_next_page = len(parsed_issues) < response['total']
 
-        logger.warn(f'Number of fetched items: {len(parsed_issues)}')
+        logger.debug('Number of fetched issues: %d', len(parsed_issues))
         return parsed_issues

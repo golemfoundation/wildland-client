@@ -1,25 +1,61 @@
+# Wildland Project
+#
+# Copyright (C) 2021 Golem Foundation
+#
+# Authors:
+#                 Dominik Gonciarz <dominik.gonciarz@besidethepark.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+Common helpers for Jira plugin
+"""
+
 import base64
 from typing import Union, List, Dict
 
 
-def _stringify_param(key, params):
-    value_str = ','.join(params[key]) if isinstance(params[key], list) else params[key]
+def _stringify_param(key: str, value: Union[str, List[str]]):
+    """
+    stringify_query_params helper; encodes key and corresponding value into a string
+    """
+    value_str = ','.join(value) if isinstance(value, list) else value
     param_str = f'{key}={value_str}'
     return param_str
 
 
-def stringify_query_params(params: Dict[str, Union[str, List[str]]]) -> str:
+def stringify_query_params(params: Dict[str, Union[str, int, List[str]]]) -> str:
+    """
+    Encodes dictionary of parameters into an url params string
+    """
     if len(params) == 0:
         return ''
 
-    return '?' + '&'.join([_stringify_param(key, params) for key in params])
+    return '?' + '&'.join([_stringify_param(key, params[key]) for key in params])
 
 
 def encode_basic_auth(username: str, personal_token: str) -> str:
+    """
+    Constructs Jira Basic authorization token; which is base64 encoded string of the form:
+    'username:personal_token'
+    """
     assert username is not None and len(username)
     assert personal_token is not None and len(personal_token)
 
     basic_token = f'{username}:{personal_token}'
-    basic_token = base64.b64encode(basic_token.encode('utf-8'))
+    encoded_basic_token = base64.b64encode(basic_token.encode('utf-8'))
 
-    return str(basic_token, "utf-8")
+    return str(encoded_basic_token, "utf-8")
