@@ -31,6 +31,7 @@ from typing import Dict, List, Optional, Union
 import dateutil.parser
 import requests
 
+from wildland.exc import WildlandError
 from wildland.log import get_logger
 from .utils import stringify_query_params, encode_basic_auth
 
@@ -118,7 +119,13 @@ class JiraClient:
             params['startAt'] = len(parsed_issues)
             response = self.run_query('search', params)
             parsed_issues.extend(self.parse_issue_list(response['issues']))
-            # TODO: 'total' can be missing in cases when calculating its value is too expensive
+            if response.get('total') is None:
+                # 'total' can be missing in cases when calculating its value is too expensive
+                # https://docs.atlassian.com/software/jira/docs/api/REST/8.13.12/#pagination
+                raise WildlandError(
+                    'Unable to continue fetching issues because its total number is unknown. Try '
+                    'with a smaller number of projects')
+
             has_next_page = len(parsed_issues) < response['total']
 
         logger.debug('Number of fetched issues: %d', len(parsed_issues))
