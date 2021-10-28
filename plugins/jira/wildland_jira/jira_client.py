@@ -23,7 +23,6 @@
 """
 Jira client wrapping functions responsible for communication with Jira API
 """
-import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -33,7 +32,7 @@ import requests
 
 from wildland.exc import WildlandError
 from wildland.log import get_logger
-from .utils import stringify_query_params, encode_basic_auth
+from .utils import stringify_query_params, encode_basic_auth, encode_projects_to_jql
 
 logger = get_logger('JiraClient')
 
@@ -65,6 +64,22 @@ class JiraClient:
         self.headers = {"Authorization": f'Basic {encode_basic_auth(username, personal_token)}'}
         self.projects_names: Optional[List[str]] = project_names
         self.url = site_url if site_url.endswith('/') else f'{site_url}/'
+        self.validate_project_names()
+
+    def validate_project_names(self):
+        """
+        Validates whether Jira recognises projects with given names.
+        """
+        if not isinstance(self.projects_names, list) or len(self.projects_names) < 1:
+            return
+        all_projects = self.run_query('project', {'browseArchive': 'true'})
+        all_projects_names = map(lambda project: project['name'], all_projects)
+        unmatched_names = set(self.projects_names).difference(all_projects_names)
+        if len(unmatched_names) == 0:
+            return
+        error = 'Projects with the following names could not be found: {}.'.format(
+            ', '.join(unmatched_names))
+        raise Exception(error)
 
     def run_query(self, path: str, params: Dict[str, Union[str, int, List[str]]]):
         """
@@ -111,7 +126,7 @@ class JiraClient:
         }
 
         if isinstance(self.projects_names, list) and len(self.projects_names):
-            params['jql'] = f'projects={urllib.parse.quote(",".join(self.projects_names))}'
+            params['jql'] = encode_projects_to_jql(self.projects_names)
 
         has_next_page = True
         parsed_issues: List[CompactIssue] = []

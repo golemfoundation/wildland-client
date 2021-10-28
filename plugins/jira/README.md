@@ -31,7 +31,7 @@ wl storage create jira --container jira-container \
                        [--project-name <project-name>] \
                        [--project-name <project-name>]
 ```
-- `--workspace-url` parameter specifies address of the REST endpoint of your _Jira Work Management Cloud site_ which will be queried for issues. For example https://<your site name>.atlassian.net/rest/api/2. The plugin works with version 2 and 3 of the API.    
+- `--workspace-url` parameter specifies address of the REST endpoint of your _Jira Work Management Cloud site_ which will be queried for issues. For example https://{your site name}.atlassian.net/rest/api/2. The plugin works only with version v2 of Jira REST API.    
 - `--username` parameter specifies Jira username  
 - `--personal-token` parameter specifies your Personal Access Token generated in the previous steps.  
 - `--project-name` is optional, multiple can be provided; when defined, only issues associated with the project (or projects) will be mounted. By default, all issues from the projects accessible by the user in the given _Jira Work Management Cloud site_ will be exposed.
@@ -43,8 +43,12 @@ To expose the issues, use the following command:
 wl container mount --with-subcontainers jira-container
 ```
 
+### Compatibility
+The plugin works with version v2 of Jira REST API. At the moment of the creation of this plugin, v3 [is still in beta][3].
+
 [1]: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/
 [2]: https://id.atlassian.com/manage/api-tokens
+[3]: https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version
 
 
 

@@ -26,6 +26,7 @@ Common helpers for Jira plugin
 
 import base64
 from typing import Union, List, Dict
+from urllib.parse import quote
 
 
 def _stringify_param(key: str, value: Union[str, List[str]]):
@@ -45,6 +46,15 @@ def stringify_query_params(params: Dict[str, Union[str, int, List[str]]]) -> str
         return ''
 
     return '?' + '&'.join([_stringify_param(key, params[key]) for key in params])
+
+
+def encode_projects_to_jql(project_name: List[str]):
+    """
+    Produces JQL query from the list of project names
+    """
+    encoded_names = [f'project="{name}"' for name in project_name]
+    query = " OR ".join(encoded_names)
+    return quote(query)
 
 
 def encode_basic_auth(username: str, personal_token: str) -> str:
