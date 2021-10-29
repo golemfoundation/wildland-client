@@ -431,8 +431,8 @@ class NaiveSyncer(BaseSyncer):
         """
         Process storage events originating from a given source_storage.
         """
-        self.state = SyncState.RUNNING
         with self.lock:
+            self.state = SyncState.RUNNING
             for event in events:
                 try:
                     logger.debug("%s: handling event %s for object %s occurring in "
@@ -474,8 +474,8 @@ class NaiveSyncer(BaseSyncer):
                     self.state = SyncState.ERROR
                     break
 
-        # this won't overwrite an ERROR state, see the property setter
-        self.state = SyncState.SYNCED
+            # this won't overwrite an ERROR state, see the property setter
+            self.state = SyncState.SYNCED
 
     def stop_sync(self):
         """
