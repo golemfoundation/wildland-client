@@ -304,13 +304,13 @@ class GoCryptFS(EncryptedFSRunner):
     def run(self, cleartextdir: PurePosixPath, inner_storage: StorageBackend):
         self.cleartextdir = cleartextdir
         self._write_config(inner_storage)
-        out, sp = self.run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
+        _, err, sp = self.run_binary(['-passfile'], ['--', self.ciphertextdir, self.cleartextdir])
         if sp.returncode != 0:
             errmsg = "Failed to mount %s encrypted filesystem"
             logger.error(errmsg, self.binary)
-            if len(out.decode()) > 0:
-                logger.error(out.decode())
-            raise WildlandFSError("Can't mount gocryptfs")
+            if len(err.decode()) > 0:
+                logger.error(err.decode())
+            raise WildlandFSError(f"Can't mount gocryptfs. Reason: {err.decode()}")
 
     @classmethod
     def init(cls, tempdir: PurePosixPath, ciphertextdir: PurePosixPath, _) -> 'GoCryptFS':
@@ -322,10 +322,10 @@ class GoCryptFS(EncryptedFSRunner):
         """
         gcfs = cls(tempdir, ciphertextdir, None)
         gcfs.password = generate_password(30)
-        out, sp = gcfs.run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
+        _, err, sp = gcfs.run_binary(['-init', '-passfile'], ['--', gcfs.ciphertextdir])
         if sp.returncode != 0:
             msg = "Failed to initialize encrypted filesystem. Reason: %s"
-            raise WildlandFSError(msg % out.decode())
+            raise WildlandFSError(msg % err.decode())
         with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.conf') as tf:
             gcfs.config = tf.read()
         with open(PurePosixPath(gcfs.ciphertextdir) / 'gocryptfs.diriv', 'rb') as bf:
@@ -343,13 +343,13 @@ class GoCryptFS(EncryptedFSRunner):
         except FileExistsError:
             pass
         cmd = [self.binary] + cmd1 + [passwordpipe] + cmd2
-        sp = Popen(cmd, stdout=PIPE)
+        sp = Popen(cmd, stdout=PIPE, stderr=PIPE)
         with open(passwordpipe, 'w') as f:
             f.write(self.password)
             f.flush()
-        out, _ = sp.communicate()
+        out, err = sp.communicate()
         os.unlink(passwordpipe)
-        return out, sp
+        return out, err, sp
 
 
 class FileOnAMount(LocalFile):
