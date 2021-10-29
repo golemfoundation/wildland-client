@@ -55,7 +55,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
         "properties": {
             "workspace_url": {
                 "$ref": "/schemas/types.json#http-url",
-                "description": "address of the Jira Work Management Cloud site"
+                "description": "address of the v2 REST endpoint of your Jira Work Management "
+                               "Cloud site"
             },
             "username": {
                 "type": "string",
@@ -70,7 +71,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
                 "items": {
                     "type": "string"
                 },
-                "description": "(optional) (multiple) names of projects within your Jira Work Management Cloud site."
+                "description": "(optional) (multiple) names of projects within your Jira Work "
+                               "Management Cloud site."
             }
         }
     })
@@ -194,7 +196,7 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
         return [
             click.Option(
                 ['--workspace-url'], required=True,
-                help='address of the Jira Work Management Cloud site'),
+                help='address of the v2 REST endpoint of your Jira Work Management Cloud site'),
             click.Option(
                 ['--username'], required=True,
                 help='Jira username'),

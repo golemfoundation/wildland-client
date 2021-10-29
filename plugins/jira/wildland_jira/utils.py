@@ -29,7 +29,7 @@ from typing import Union, List, Dict
 from urllib.parse import quote
 
 
-def _stringify_param(key: str, value: Union[str, List[str]]):
+def _stringify_param(key: str, value: Union[str, int, List[str]]):
     """
     stringify_query_params helper; encodes key and corresponding value into a string
     """
