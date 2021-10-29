@@ -160,7 +160,7 @@ def _do_create(
     storage = Storage(
         storage_type=backend.TYPE,
         owner=container_obj.owner,
-        container_path=container_mount_path,
+        container=container_obj,
         params=params,
         client=obj.client,
         trusted=params.get('trusted', trusted),
@@ -171,7 +171,7 @@ def _do_create(
     # e.g., reference container is available
     obj.client.load_object_from_url_or_dict(WildlandObject.Type.STORAGE,
                                             storage.to_manifest_fields(inline=False),
-                                            storage.owner)
+                                            storage.owner, container=container_obj)
     click.echo(f'Adding storage {storage.backend_id} to container.')
     obj.client.add_storage_to_container(container_obj, storage, inline, name)
     click.echo(f'Saved container {container_obj.local_path}')

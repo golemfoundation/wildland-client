@@ -388,8 +388,7 @@ class Client:
             if 'version' not in link_dict['storage']:
                 link_dict['storage']['version'] = Manifest.CURRENT_VERSION
             storage_obj = self.load_object_from_dict(
-                WildlandObject.Type.STORAGE, link_dict['storage'], expected_owner=expected_owner,
-                container_path='/')
+                WildlandObject.Type.STORAGE, link_dict['storage'], expected_owner=expected_owner)
             storage_backend = StorageBackend.from_params(storage_obj.params, deduplicate=True)
         elif isinstance(link_dict['storage'], StorageBackend):
             storage_backend = link_dict['storage']
@@ -403,7 +402,7 @@ class Client:
                               object_type: Union[WildlandObject.Type, None],
                               dictionary: dict,
                               expected_owner: Optional[str] = None,
-                              container_path: Optional[Union[str, PurePosixPath]] = None):
+                              container: Optional[Container] = None):
         """
         Load Wildland object from a dict.
         :param dictionary: dict containing object data
@@ -411,8 +410,7 @@ class Client:
         On mismatch of expected and actual type, a WildlandError will be raised.
         :param expected_owner: expected owner. On mismatch of expected and actual owner,
         a WildlandError will be raised.
-        :param container_path: if object is STORAGE, will be passed to it as container_path. Ignored
-        otherwise.
+        :param container: used if object is STORAGE. Ignored otherwise.
         """
         if 'encrypted' in dictionary.keys():
             raise ManifestDecryptionKeyUnavailableError()
@@ -437,14 +435,19 @@ class Client:
             # be handled by Link objects
             if 'object' not in dictionary:
                 dictionary['object'] = 'storage'
-            if 'container-path' not in dictionary and container_path:
-                dictionary['container-path'] = str(container_path)
+            if 'container-path' not in dictionary:
+                container_path = '/'  # Dummy container path for Link objects
+
+                if container:
+                    container_path = str(container.get_primary_publish_path())
+
+                dictionary['container-path'] = container_path
 
             local_owners = self.config.get('local-owners')
 
         wl_object = WildlandObject.from_fields(dictionary, self, object_type,
-                                               container_path=container_path,
-                                               local_owners=local_owners)
+                                               local_owners=local_owners,
+                                               container=container)
         return wl_object
 
     def load_object_from_url(self, object_type: WildlandObject.Type, url: str,
@@ -507,7 +510,7 @@ class Client:
     def load_object_from_url_or_dict(self, object_type: WildlandObject.Type,
                                      obj: Union[str, dict],
                                      owner: str, expected_owner: Optional[str] = None,
-                                     container_path: Optional[str] = None):
+                                     container: Optional[Container] = None):
         """
         A convenience wrapper for loading objects from either URL or dict. Returns a Wildland
         object.
@@ -515,15 +518,14 @@ class Client:
         :param object_type: expected object type
         :param owner: owner in whose context we should resolve URLs
         :param expected_owner: expected owner
-        :param container_path: if loading a STORAGE object of dict type, this container path
-        will be filled in if the dict does not contain it already.
+        :param container: used if loading a STORAGE object of dict type
         """
         if isinstance(obj, str):
             return self.load_object_from_url(object_type, obj, owner, expected_owner)
 
         if isinstance(obj, collections.abc.Mapping):
             return self.load_object_from_dict(object_type, obj, expected_owner=owner,
-                                              container_path=container_path)
+                                              container=container)
         raise ValueError(f'{obj} is neither url nor dict')
 
     def load_object_from_name(self, object_type: WildlandObject.Type, name: str):
@@ -912,7 +914,7 @@ class Client:
                 if object_type == WildlandObject.Type.CONTAINER:
                     name = object_.uuid
                 elif object_type == WildlandObject.Type.STORAGE:
-                    name = object_.container_path.name
+                    name = object_.get_unique_publish_id()
                 else:
                     name = object_.owner
 
@@ -950,7 +952,7 @@ class Client:
         Return cache storage for the given container.
         """
         for cache in self.caches:
-            if cache.container_path == container.uuid_path and \
+            if cache.container and cache.container.uuid_path == container.uuid_path and \
                     cache.params['original-owner'] == container.owner:
                 return cache
         return None

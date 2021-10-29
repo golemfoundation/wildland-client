@@ -1771,6 +1771,12 @@ def test_storage_publish_unpublish(cli, tmp_path, base_dir):
     cli('storage', 'create', 'local', 'some-storage', '--no-inline',
         '--location', '/foo/bar', '--container', 'some-container')
 
+    with open(base_dir / 'containers/some-container.container.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    uuid_path = documents[1]['paths'][0]
+    container_uuid = get_container_uuid_from_uuid_path(uuid_path)
+
     with open(base_dir / 'storage/some-storage.storage.yaml') as f:
         documents = list(yaml_parser.safe_load_all(f))
 
@@ -1778,7 +1784,7 @@ def test_storage_publish_unpublish(cli, tmp_path, base_dir):
 
     cli('storage', 'publish', 'some-storage')
 
-    storage_path = uuid_dir / f'.uuid/{backend_id}.yaml'
+    storage_path = uuid_dir / f'.uuid/{container_uuid}.{backend_id}.yaml'
 
     assert storage_path.exists()
 
