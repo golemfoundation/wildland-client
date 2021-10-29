@@ -12,7 +12,7 @@ export DEBIAN_FRONTEND="noninteractive"
 sudo chmod 666 /dev/fuse
 
 MOUNT_DIR="$HOME/wildland"
-mkdir "$MOUNT_DIR"
+mkdir -p "$MOUNT_DIR"
 
 sudo service apache2 start
 
