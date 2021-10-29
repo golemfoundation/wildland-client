@@ -228,18 +228,18 @@ class FileChildrenMixin(StorageBackend):
     def _fetch_from_uuid_path(self,
                               client: Client,
                               driver: StorageDriver,
-                              uuid_path: PurePosixPath,
-                              uuid: str) -> \
+                              primary_publish_path: PurePosixPath,
+                              unique_publish_id: str) -> \
             Set[PurePosixPath]:
         old_relpaths_to_remove = set()
         try:
-            old_object_manifest_data = driver.read_file(uuid_path)
+            old_object_manifest_data = driver.read_file(primary_publish_path)
         except FileNotFoundError:
             pass
         else:
             old_object = client.load_object_from_bytes(None, old_object_manifest_data)
 
-            if not old_object.get_unique_publish_id() == uuid:
+            if not old_object.get_unique_publish_id() == unique_publish_id:
                 # we just downloaded this file from manifest's primary uuid path, so
                 # things are very wrong here
                 raise WildlandError(

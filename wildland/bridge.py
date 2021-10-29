@@ -63,7 +63,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         self.user_id = user_id
         self.manifest = manifest
         self.client = client
-        self.paths = list(paths)
+        self.paths: List[PurePosixPath] = list(paths)
 
     def get_unique_publish_id(self) -> str:
         return f'{self.user_id}.bridge'
