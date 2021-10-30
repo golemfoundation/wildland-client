@@ -82,13 +82,19 @@ pytest:
       cobertura: artifacts/coverage.xml
   coverage: '/TOTAL.*\s(\d+)%/'
 
+transpose-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-transpose
+
 .plugin_test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   after_script:
     - /home/user/env/bin/python3 -m coverage combine
     - /home/user/env/bin/python3 -m coverage xml -o artifacts/coverage.xml
-    - /home/user/env/bin/python3 -m coverage report --include=plugins/${CI_JOB_NAME%-test}/*
+    - /home/user/env/bin/python3 -m coverage report --include=plugins/${CI_JOB_NAME%-test*}/*
     - sed -i -e '/<source><\/source>/d' artifacts/coverage.xml
   coverage: '/TOTAL.*\s(\d+)%/'
   artifacts:
@@ -139,11 +145,6 @@ s3-test:
   extends: .plugin_test
   script:
     - ./ci/ci-s3
-
-transpose-test:
-    extends: .plugin_test
-    script:
-      - ./ci/ci-transpose
 
 webdav-test:
     extends: .plugin_test

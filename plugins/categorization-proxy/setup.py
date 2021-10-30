@@ -20,12 +20,13 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="wildland-zip",
+    name="wildland-categorization-proxy",
     version="0.1",
     packages=find_packages(),
     entry_points={
         'wildland.storage_backends': [
-            'zip_archive = wildland_zip.backend:ZipArchiveStorageBackend',
+            ('categorization-proxy = '
+             'wildland_categorization_proxy.backend:CategorizationProxyStorageBackend'),
         ]
     }
 )

@@ -31,9 +31,9 @@ $WL storage create static --file "Bye.md=Bye World!" --container container2
 # creating a transpose container to modify the categories of the containers
 $WL container create transpose
 $WL storage create transpose --container transpose --reference-container-url wildland::/.manifests: --rules '{"match-with":"/category/one", "replace-with": "/replaced/one"}' --rules '{"match-category-regex": "/timeline", "replace-with": "/t"}' --rules '{"match-category-regex": "/(.*)", "replace-with": "/prefix/\\1"}' --conflict all-apply
- $WL --debug container mount transpose
+$WL --debug container mount transpose
  
- tree $ROOT
+tree $ROOT
  
 # checking if the modified categories exist
 time -p chronic ls "$ROOT"/prefix
