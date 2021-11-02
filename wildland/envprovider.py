@@ -44,5 +44,5 @@ class EnvProvider:
         environment object.
         """
         if EnvProvider.__instance is None:
-                EnvProvider.__instance = WLEnv()
+            EnvProvider.__instance = WLEnv()
         return EnvProvider.__instance
