@@ -291,20 +291,20 @@ Create encrypted storage for a given container. Please read details below to und
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/gitlab-graphql.rsti
 
-.. program:: wl-storage-create-git
-.. _wl-storage-create-git:
-
-:command:`wl storage create git --container <container> --url <url> [--username <username>] [--password <password>] [--no-publish] <storage>`
----------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-.. include:: include/storages/jira.rsti
-
 .. program:: wl-storage-create-jira
 .. _wl-storage-create-jira:
 
 :command:`wl storage create jira --container <container> --workspace-url <url> --username <username> --personal-token <personal-token> [--project-name <project-name>] <storage>`
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/jira.rsti
+
+.. program:: wl-storage-create-git
+.. _wl-storage-create-git:
+
+:command:`wl storage create git --container <container> --url <url> [--username <username>] [--password <password>] [--no-publish] <storage>`
+---------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/git.rsti
