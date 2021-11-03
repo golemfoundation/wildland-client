@@ -531,13 +531,6 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
     return to_del_nested
 
 
-def sync_id(container: Container) -> str:
-    """
-    Return unique sync job ID for a container.
-    """
-    return container.owner + '|' + container.uuid
-
-
 def wl_path_for_container(client: Client, container: Container,
                           user_paths: Optional[Iterable[Iterable[PurePosixPath]]] = None) -> str:
     """
