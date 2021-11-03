@@ -643,8 +643,8 @@ class WildlandFSClient:
         }
         return self.info_cache
 
-    def get_unique_storage_paths(self, container: Optional[Container] = None) \
-            -> Iterable[PurePosixPath]:
+    def get_unique_storage_paths(self, container: Optional[Container] = None,
+                                 include_pseudomanifest: bool = False) -> Iterable[PurePosixPath]:
         """
         Return list of unique mount paths, i.e.:
 
@@ -662,11 +662,20 @@ class WildlandFSClient:
         paths = self.get_paths()
 
         if container:
-            pattern = fr'^/.users/{container.owner}{self.bridge_separator}' \
-                      fr'/.backends/{container.uuid}/[0-9a-z-]+$'
+            if include_pseudomanifest:
+                pattern = fr'^/.users/{container.owner}{self.bridge_separator}/.backends' \
+                          fr'/{container.uuid}/[0-9a-z-]+(-pseudomanifest/' \
+                           r'.manifest.wildland.yaml)?$'
+            else:
+                pattern = fr'^/.users/{container.owner}{self.bridge_separator}' \
+                          fr'/.backends/{container.uuid}/[0-9a-z-]+$'
         else:
-            pattern = fr'^/.users/[0-9a-z-]+{self.bridge_separator}' \
-                      r'/.backends/[0-9a-z-]+/[0-9a-z-]+$'
+            if include_pseudomanifest:
+                pattern = fr'^/.users/[0-9a-z-]+{self.bridge_separator}/.backends' \
+                          r'/[0-9a-z-]+/[0-9a-z-]+(-pseudomanifest/.manifest.wildland.yaml)?$'
+            else:
+                pattern = fr'^/.users/[0-9a-z-]+{self.bridge_separator}' \
+                          r'/.backends/[0-9a-z-]+/[0-9a-z-]+$'
 
         path_regex = re.compile(pattern)
 

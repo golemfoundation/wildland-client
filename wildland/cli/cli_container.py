@@ -1055,7 +1055,7 @@ def _collect_storage_ids_by_container_name(obj: ContextObj, container_name: str,
     cache_ids = []
     containers = callback_iter_func(obj.client.load_containers_from(container_name))
     for container in containers:
-        unique_storage_paths = obj.fs_client.get_unique_storage_paths(container)
+        unique_storage_paths = obj.fs_client.get_unique_storage_paths(container, True)
 
         cache = obj.client.cache_storage(container)
         for mount_path in unique_storage_paths:
