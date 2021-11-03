@@ -54,6 +54,7 @@ USERID_PCRE="0x[0-9a-f]{64}"
 UUID_PCRE="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 PUBKEY_PCRE="[0-9A-Za-z+\/]+"
 ENCRYPTED_PCRE="[0-9A-Za-z+\/=]+"
+SPACE_OR_NBSP="[\x{0020}\x{00A0}]{1}"
 
 # run the command, collect its output and, if $expected is set, compare with
 # $expected variable content; clear $expected afterwards, to avoid confusion
