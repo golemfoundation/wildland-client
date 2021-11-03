@@ -30,13 +30,15 @@ run wl bridge ls
 
 run wl forest mount :/mydirs/ariadne:
 
-expected="/home/user/wildland/mydirs/
+expected_pcre="/home/user/wildland/mydirs/
 └── ariadne:/
-    └── forests/
-        └── pandora:/
-            └── WILDLAND-FOREST.txt
+    ├── forests/
+    │$SPACE_OR_NBSP$SPACE_OR_NBSP └── pandora:/
+    │$SPACE_OR_NBSP$SPACE_OR_NBSP     └── WILDLAND-FOREST.txt
+    └── users/
+[\s\S]+?
 
-3 directories, 1 file"
+\d+ directories, \d+ files"
 run tree -F ~/wildland/mydirs/
 
 run wl forest mount :/mydirs/ariadne:/forests/pandora:
@@ -46,7 +48,7 @@ expected_pcre="(?s)/home/user/wildland/mydirs/ariadne:/forests/pandora:/
 .*
 └── ux/
 
-\d* directories, 1 file"
+\d+ directories, 1 file"
 run tree -F -L 1 ~/wildland/mydirs/ariadne:/forests/pandora:/
 
 ## Creating containers and forests
