@@ -151,7 +151,7 @@ class SyncJob:
             ret += ' [one-shot]'
 
         if self.current_item and self.state in [SyncState.RUNNING, SyncState.ONE_SHOT]:
-            ret += f'\n   ({self.current_item})'
+            ret += f'\n   currently syncing: {self.current_item}'
 
         try:
             if len(self._conflicts) > 0:
