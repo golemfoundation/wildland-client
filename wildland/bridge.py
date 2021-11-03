@@ -32,7 +32,7 @@ from uuid import UUID, uuid5
 
 from wildland.container import Container
 from wildland.manifest.manifest import Manifest
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from wildland.manifest.schema import Schema
 from wildland.exc import WildlandError
 
@@ -41,7 +41,7 @@ from wildland.exc import WildlandError
 BRIDGE_PLACEHOLDER_UUID_NS = UUID('4a9a69d0-6f32-4ab5-8d4e-c198bf582554')
 
 
-class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
+class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
     """
     Bridge object: a wrapper for user manifests.
     """
@@ -61,9 +61,35 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         self.user_location = deepcopy(user_location)
         self.user_pubkey = user_pubkey
         self.user_id = user_id
-        self.paths: List[PurePosixPath] = list(paths)
         self.manifest = manifest
         self.client = client
+        self.paths: List[PurePosixPath] = list(paths)
+
+    def get_unique_publish_id(self) -> str:
+        return f'{self.user_id}.bridge'
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        return PurePosixPath('/.uuid/') / self.get_unique_publish_id()
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return [self.get_primary_publish_path()] + self.paths.copy()
+
+    @staticmethod
+    def create_safe_bridge_paths(user_id, paths) -> List[PurePosixPath]:
+        """
+        Creates safe (ie. obscure) bridge path which will not conflict with other potentially
+        existing, user-defined paths which could cause mailicious forest to be mounted without
+        user's awareness.
+        """
+        safe_paths = []
+
+        for path in paths:
+            if path.is_relative_to('/'):
+                path = path.relative_to('/')
+
+            safe_paths.append(PurePosixPath(f'/forests/{user_id}-' + '_'.join(path.parts)))
+
+        return safe_paths
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
@@ -115,7 +141,7 @@ class Bridge(WildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                 'type': 'static',
                 'backend-id': str(uuid),
                 'content': {
-                    'WILDLAND-FOREST.txt': \
+                    'WILDLAND-FOREST.txt':
                         f'This directory holds forest of user {self.user_id}.\n'
                         f'Use \'wl forest mount\' command to get access to it.\n',
                 }

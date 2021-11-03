@@ -39,12 +39,11 @@ import pytest
 
 from .test_sync import wait_for_file, wait_for_deletion, make_file
 from ..cli.cli_base import CliError
-from ..cli.cli_common import del_nested_fields
-from ..cli.cli_container import _resolve_container
+from ..cli.cli_common import del_nested_fields, resolve_object
 from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
-from ..storage_backends.file_subcontainers import FileSubcontainersMixin
+from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
 
@@ -85,6 +84,15 @@ def strip_yaml(line):
     """
 
     return line.strip('\n -')
+
+# Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
+
+def wl_call(base_config_dir, *args, **kwargs):
+    subprocess.check_call(['wl', '--base-dir', base_config_dir, *args], **kwargs)
+
+
+def wl_call_output(base_config_dir, *args, **kwargs):
+    return subprocess.check_output(['wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 def get_container_uuid_from_uuid_path(uuid_path):
@@ -140,7 +148,6 @@ def test_edit(cli, cli_fail, base_dir):
 
 
 # Users
-
 
 def test_user_create(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -1515,7 +1522,7 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     # Mock inbuilt string to pass startswith() check.
     # This is done to allow testing the is_url() logic but with local file.
     #
-    # def _resolve_container(ctx: click.Context, path, callback, **callback_kwargs):
+    # def resolve_object(ctx: click.Context, path, obj_type, callback, save_manifest **cb_kwargs):
     #    if client.is_url(path) and not path.startswith('file:'):
     class MyStr(str):
         def __init__(self, *_args):
@@ -1529,10 +1536,11 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
 
             return super().startswith(_str)
 
-    def _cb(ctx, path, callback, **callback_kwargs):
-        return _resolve_container(ctx, MyStr(path), callback, **callback_kwargs)
+    def _cb(ctx, path, obj_type, callback, save_manifest=True, **callback_kwargs):
+        return resolve_object(ctx, MyStr(path), obj_type,
+                              callback, save_manifest, **callback_kwargs)
 
-    monkeypatch.setattr("wildland.cli.cli_container._resolve_container", _cb)
+    monkeypatch.setattr("wildland.cli.cli_common.resolve_object", _cb)
 
     # Modify it again, although this time use file:// URL (and auto-re-publish)
     cli('container', 'modify', '--title', 'another thing',
@@ -1714,6 +1722,157 @@ def test_container_update(cli, base_dir):
     assert str(storage_path) in data
 
 
+def test_bridge_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Alice', 'alice-forest')
+
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('template', 'create', 'local', 'bob-forest',
+        '--location', f'{tmp_path}/bob-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Bob', 'bob-forest')
+
+    cli('bridge', 'create', '--owner', 'Bob',
+                            '--target-user', 'Alice',
+                            '--path', '/forests/alice',
+                            'bridge-to-alice')
+
+    cli('bridge', 'publish', 'bridge-to-alice')
+
+    uuid_dir = list(Path(f'/{tmp_path}/bob-forest/.manifests/').glob('*'))[0].resolve()
+
+    bridge_path = uuid_dir / '.uuid/0xaaa.bridge.yaml'
+    assert bridge_path.exists()
+
+    bridge_path = uuid_dir / 'forests/alice.yaml'
+    assert bridge_path.exists()
+
+    original_bridge = (base_dir / 'bridges/bridge-to-alice.bridge.yaml').read_text()
+    published_bridge = bridge_path.read_text()
+
+    assert original_bridge == published_bridge
+
+    cli('bridge', 'unpublish', 'bridge-to-alice')
+
+    assert not bridge_path.exists()
+
+    # Try again without 'bridge' context
+
+    cli('publish', base_dir / 'bridges/bridge-to-alice.bridge.yaml')
+
+    bridge_path = uuid_dir / '.uuid/0xaaa.bridge.yaml'
+    assert bridge_path.exists()
+
+    bridge_path = uuid_dir / 'forests/alice.yaml'
+    assert bridge_path.exists()
+
+
+def test_user_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('container', 'create', 'alice-catalog',
+        '--template', 'alice-forest', '--local-dir', '/.manifests', '--path', '/.manifests')
+
+    catalog_local_file = (base_dir / 'containers/alice-catalog.container.yaml')
+    cli('user', 'modify', '--add-catalog-entry', f'file://{str(catalog_local_file)}', 'Alice')
+
+    cli('user', 'publish', 'Alice')
+
+    uuid_dir = list(Path(f'/{tmp_path}/alice-forest/.manifests/').glob('*'))[0].resolve()
+    user_path = uuid_dir / 'forest-owner.yaml'
+
+    assert user_path.exists()
+
+    original_user = (base_dir / 'users/Alice.user.yaml').read_text()
+    published_user = user_path.read_text()
+
+    assert original_user == published_user
+
+    cli('user', 'unpublish', 'Alice')
+
+    assert not user_path.exists()
+
+
+def test_storage_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Alice', 'alice-forest')
+
+    uuid_dir = list(Path(f'/{tmp_path}/alice-forest/.manifests/').glob('*'))[0].resolve()
+
+    cli('container', 'create', 'some-container', '--path', '/some/container',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'some-storage', '--no-inline',
+        '--location', '/foo/bar', '--container', 'some-container')
+
+    with open(base_dir / 'containers/some-container.container.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    uuid_path = documents[1]['paths'][0]
+    container_uuid = get_container_uuid_from_uuid_path(uuid_path)
+
+    with open(base_dir / 'storage/some-storage.storage.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    backend_id = documents[1]['backend-id']
+
+    cli('storage', 'publish', 'some-storage')
+
+    storage_path = uuid_dir / f'.uuid/{container_uuid}.{backend_id}.yaml'
+
+    assert storage_path.exists()
+
+    original_storage = (base_dir / 'storage/some-storage.storage.yaml').read_text()
+    published_storage = storage_path.read_text()
+
+    assert original_storage == published_storage
+
+    cli('storage', 'unpublish', 'some-storage')
+
+    assert not storage_path.exists()
+
+
+def test_container_with_storage_publish_unpublish(cli, tmp_path, base_dir):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('template', 'create', 'local', 'alice-forest',
+        '--location', f'{tmp_path}/alice-forest', '--manifest-pattern', '/{path}.yaml')
+    cli('forest', 'create', '--owner', 'Alice', 'alice-forest')
+
+    uuid_dir = list(Path(f'/{tmp_path}/alice-forest/.manifests/').glob('*'))[0].resolve()
+
+    cli('container', 'create', 'some-container', '--path', '/some/container',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'some-storage', '--no-inline',
+        '--location', '/foo/bar', '--container', 'some-container')
+
+    with open(base_dir / 'containers/some-container.container.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    uuid_path = documents[1]['paths'][0]
+    container_uuid = get_container_uuid_from_uuid_path(uuid_path)
+
+    with open(base_dir / 'storage/some-storage.storage.yaml') as f:
+        documents = list(yaml_parser.safe_load_all(f))
+
+    backend_id = documents[1]['backend-id']
+
+    cli('container', 'publish', 'some-container')
+
+    container_path = uuid_dir / f'.uuid/{container_uuid}.yaml'
+    assert container_path.exists()
+
+    storage_path = uuid_dir / f'.uuid/{container_uuid}.{backend_id}.yaml'
+    assert storage_path.exists()
+
+    cli('container', 'unpublish', 'some-container')
+
+    assert not container_path.exists()
+    assert not storage_path.exists()
+
+
 def test_container_publish_unpublish(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
@@ -1768,9 +1927,10 @@ def test_publish_warning(monkeypatch, cli, tmp_path, base_dir, control_client):
     output = []
 
     def capture(*args):
-        output.extend(args)
+        # Resolve '%s %s %s' % ('foo', 'bar', 'baz')
+        output.extend([args[0] % args[1:]])
 
-    monkeypatch.setattr('wildland.cli.cli_container.logger.warning', capture)
+    monkeypatch.setattr('wildland.cli.cli_common.LOGGER.warning', capture)
     cli('container', 'publish', 'mycapsule')
     assert any((o.startswith("Some local containers (or container updates) "
                              "are not published:") for o in output))
@@ -1895,7 +2055,7 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Re-publishing container /.uuid/' in out_lines[1]
+    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
 
     result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
@@ -3961,16 +4121,6 @@ def test_bridge_create(cli, base_dir):
     assert '- /Third' in data
 
 
-# Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
-
-def wl_call(base_config_dir, *args, **kwargs):
-    subprocess.check_call(['wl', '--base-dir', base_config_dir, *args], **kwargs)
-
-
-def wl_call_output(base_config_dir, *args, **kwargs):
-    return subprocess.check_output(['wl', '--base-dir', base_config_dir, *args], **kwargs)
-
-
 # container-sync
 
 
@@ -4815,7 +4965,7 @@ def test_import_bridge_wl_path(cli, base_dir, tmpdir):
     assert 'owner: \'0xddd\'' in bridge_data
     assert f'file://localhost{bob_manifest_location}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
-    assert re.match(r'[\S\s]+paths:\n- /forests/0xaaa-IMPORT[\S\s]+', bridge_data)
+    assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-IMPORT[\S\s]+', bridge_data)
 
     assert (base_dir / 'users/Bob.user.yaml').read_bytes() == bob_user_manifest
 
@@ -5423,8 +5573,8 @@ def test_forest_user_ensure_manifest_pattern_tc_1(cli, tmp_path):
         data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_forest_user_ensure_manifest_pattern_tc_2(cli, tmp_path):
@@ -5468,8 +5618,8 @@ def test_forest_user_ensure_manifest_pattern_tc_3(cli, tmp_path):
         data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tmp_path):
@@ -5491,8 +5641,8 @@ def test_forest_user_ensure_manifest_pattern_non_inline_storage_template(cli, tm
         data = list(yaml_parser.safe_load_all(f))[1]
 
     storage = data['backends']['storage']
-    assert storage[0]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
-    assert storage[1]['manifest-pattern'] == FileSubcontainersMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[0]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
+    assert storage[1]['manifest-pattern'] == FileChildrenMixin.DEFAULT_MANIFEST_PATTERN
 
 
 def test_import_forest_user_with_bridge_link_object(cli, tmp_path, base_dir):

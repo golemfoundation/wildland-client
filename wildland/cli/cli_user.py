@@ -37,7 +37,7 @@ from ..user import User
 from .cli_base import aliased_group, ContextObj, CliError
 from ..wlpath import WILDLAND_URL_PREFIX
 from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
-    check_if_any_options, check_options_conflict
+    check_if_any_options, check_options_conflict, publish, unpublish
 from ..exc import WildlandError
 from ..manifest.schema import SchemaError
 from ..manifest.sig import SigError
@@ -406,24 +406,6 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
     return None
 
 
-def _sanitize_imported_paths(paths: List[PurePosixPath], owner: str) -> List[PurePosixPath]:
-    """
-    Accept a list of imported paths (either from a user or a bridge manifest) and return only
-    the first one with sanitized (safe) path.
-    """
-    if not paths:
-        raise CliError('No paths found to sanitize')
-
-    path = paths[0]
-
-    if path.is_relative_to('/'):
-        path = path.relative_to('/')
-
-    safe_path = f'/forests/{owner}-' + '_'.join(path.parts)
-
-    return [PurePosixPath(safe_path)]
-
-
 def _do_process_imported_manifest(
         obj: ContextObj, copied_manifest_path: Path, user_manifest_location: str,
         paths: List[PurePosixPath], default_user: str):
@@ -455,12 +437,14 @@ def _do_process_imported_manifest(
                 'storage': storage.to_manifest_fields(inline=True)
             }
 
+        fingerprint = obj.client.session.sig.fingerprint(user.primary_pubkey)
+
         bridge = Bridge(
             owner=default_user,
             user_location=user_location,
             user_pubkey=user.primary_pubkey,
-            user_id=obj.client.session.sig.fingerprint(user.primary_pubkey),
-            paths=(paths if paths else _sanitize_imported_paths(user.paths, user.owner)),
+            user_id=fingerprint,
+            paths=(paths or Bridge.create_safe_bridge_paths(fingerprint, user.paths)),
             client=obj.client
         )
 
@@ -468,18 +452,14 @@ def _do_process_imported_manifest(
         bridge_path = obj.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name)
         click.echo(f'Created: {bridge_path}')
     else:
-        bridge = WildlandObject.from_manifest(manifest, obj.client, WildlandObject.Type.BRIDGE)
-
-        original_bridge_owner = bridge.owner
+        bridge = WildlandObject.from_manifest(
+            manifest, obj.client, WildlandObject.Type.BRIDGE)
 
         # adjust imported bridge
         if default_user:
             bridge.owner = default_user
 
-        if paths:
-            bridge.paths = list(paths)
-        else:
-            bridge.paths = _sanitize_imported_paths(bridge.paths, original_bridge_owner)
+        bridge.paths = list(paths) or Bridge.create_safe_bridge_paths(bridge.user_id, bridge.paths)
 
         copied_manifest_path.write_bytes(obj.session.dump_object(bridge))
         _do_import_manifest(obj, bridge.user_location, bridge.owner)
@@ -539,12 +519,15 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
         copied_files = []
         try:
             for bridge in bridges:
+                fingerprint = obj.client.session.sig.fingerprint(bridge.user_pubkey)
+
                 new_bridge = Bridge(
                     owner=default_user,
                     user_location=deepcopy(bridge.user_location),
                     user_pubkey=bridge.user_pubkey,
-                    user_id=obj.client.session.sig.fingerprint(bridge.user_pubkey),
-                    paths=(posix_paths or _sanitize_imported_paths(bridge.paths, bridge.owner)),
+                    user_id=fingerprint,
+                    paths=(posix_paths or
+                           Bridge.create_safe_bridge_paths(fingerprint, bridge.paths)),
                     client=obj.client
                 )
                 bridge_name = name.replace(':', '_').replace('/', '_')
@@ -636,6 +619,8 @@ user_.add_command(sign)
 user_.add_command(verify)
 user_.add_command(edit)
 user_.add_command(dump)
+user_.add_command(publish)
+user_.add_command(unpublish)
 
 
 @user_.command(short_help='modify user manifest')

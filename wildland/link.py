@@ -76,8 +76,7 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest=None, **kwargs):
         # this method is currently unused, due to manual handling of Link objects
-        storage = client.load_object_from_dict(WildlandObject.Type.STORAGE, fields['storage'],
-                                               container_path='/')
+        storage = client.load_object_from_dict(WildlandObject.Type.STORAGE, fields['storage'])
         storage_driver = StorageDriver.from_storage(storage)
         return cls(
             file_path=PurePosixPath(fields['file']),

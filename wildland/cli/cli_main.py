@@ -114,6 +114,8 @@ main.add_command(cli_common.sign)
 main.add_command(cli_common.verify)
 main.add_command(cli_common.edit)
 main.add_command(cli_common.dump)
+main.add_command(cli_common.publish)
+main.add_command(cli_common.unpublish)
 
 main.add_command(cli_transfer.get)
 main.add_command(cli_transfer.put)

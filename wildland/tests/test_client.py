@@ -63,7 +63,7 @@ def test_add_storage(client, owner):
     storage = Storage(
         storage_type='local',
         owner=owner,
-        container_path=container.paths[0],
+        container=container,
         params={},
         client=client,
         trusted=True,
@@ -95,7 +95,7 @@ def test_add_storage_not_inline(client, owner):
     storage = Storage(
         storage_type='local',
         owner=owner,
-        container_path=container.paths[0],
+        container=container,
         params={},
         client=client,
         trusted=True,
@@ -127,7 +127,7 @@ def test_add_storage_link(client, owner, tmpdir):
     storage = Storage(
         storage_type='local',
         owner=owner,
-        container_path=container.paths[0],
+        container=container,
         params={},
         client=client,
         trusted=True,

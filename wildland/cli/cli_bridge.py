@@ -35,7 +35,7 @@ from wildland.bridge import Bridge
 from wildland.link import Link
 from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj, CliError
-from .cli_common import sign, verify, edit, dump
+from .cli_common import sign, verify, edit, dump, publish, unpublish
 from .cli_user import import_manifest, find_user_manifest_within_catalog
 from ..log import get_logger
 
@@ -108,18 +108,20 @@ def create(obj: ContextObj,
             location_link = Link(file, storage=storage)
             location = location_link.to_manifest_fields(inline=True)
 
+    fingerprint = obj.client.session.sig.fingerprint(target_user.primary_pubkey)
+
     if user_paths:
         paths = [PurePosixPath(p) for p in user_paths]
     else:
-        click.echo(
-            "Using user's default paths: {}".format([str(p) for p in target_user.paths]))
-        paths = list(target_user.paths)
+        paths = target_user.paths
+
+        click.echo("Using user's default paths: {}".format([str(p) for p in target_user.paths]))
 
     bridge = Bridge(
         owner=owner_user.owner,
         user_location=location,
         user_pubkey=target_user.primary_pubkey,
-        user_id=obj.client.session.sig.fingerprint(target_user.primary_pubkey),
+        user_id=fingerprint,
         paths=paths,
         client=obj.client
     )
@@ -185,3 +187,5 @@ bridge_.add_command(sign)
 bridge_.add_command(verify)
 bridge_.add_command(edit)
 bridge_.add_command(dump)
+bridge_.add_command(publish)
+bridge_.add_command(unpublish)

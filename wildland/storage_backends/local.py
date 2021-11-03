@@ -36,7 +36,7 @@ import click
 import inotify_simple
 
 from .base import StorageBackend, File, Attr, verify_local_access
-from .file_subcontainers import FileSubcontainersMixin
+from .file_children import FileChildrenMixin
 from ..fs_utils import flags_to_mode
 from ..manifest.schema import Schema
 from .watch import StorageWatcher, FileEvent, FileEventType
@@ -118,7 +118,7 @@ class LocalFile(File):
         self.file.flush()
 
 
-class LocalStorageBackend(FileSubcontainersMixin, StorageBackend):
+class LocalStorageBackend(FileChildrenMixin, StorageBackend):
     """Local, file-based storage"""
     SCHEMA = Schema({
         "type": "object",

@@ -68,11 +68,11 @@ Example implementation of a ``get_children()`` method would look like this::
 File-based subcontainers
 ------------------------
 
-Some storage backends (at the moment, those implementing the FileSubcontainersMixin, such as local
+Some storage backends (at the moment, those implementing the FileChildrenMixin, such as local
 storage or s3 storage) can also provide a manifest-pattern parameter to specify the location
 of files pointing to subcontainer objects (container or bridge manifest .yaml files).
 
-Two types of manifest-pattern are supported by FileSubcontainersMixin: glob ( a simplified
+Two types of manifest-pattern are supported by FileChildrenMixin: glob ( a simplified
 pattern-matching expression) and list (a list of files).
 
 .. code-block:: yaml

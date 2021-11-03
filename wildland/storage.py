@@ -29,7 +29,7 @@ from pathlib import PurePosixPath
 from typing import Dict, Any, Optional, List
 from copy import deepcopy
 
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .log import get_logger
 from .exc import WildlandError
 from .storage_backends.base import StorageBackend
@@ -40,7 +40,7 @@ from .container import Container
 logger = get_logger('storage')
 
 
-class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
+class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
     """
     A data transfer object representing Wildland storage.
     """
@@ -50,16 +50,16 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
     def __init__(self,
                  owner: str,
                  storage_type: str,
-                 container_path: PurePosixPath,
                  trusted: bool,
                  params: Dict[str, Any],
                  client,
+                 container: Container = None,
                  manifest: Manifest = None,
                  access: Optional[List[dict]] = None):
         super().__init__()
         self.owner = owner
         self.storage_type = storage_type
-        self.container_path = container_path
+        self.container = container
         self.params = deepcopy(params)
         self.trusted = trusted
         self.manifest = manifest
@@ -88,6 +88,17 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
                 array_repr += [f"{field}={fields[field]!r}"]
         str_repr = "storage(" + ", ".join(array_repr) + ")"
         return str_repr
+
+    def get_unique_publish_id(self) -> str:
+        assert self.container, 'Storages without Container are not publishable'
+
+        return f'{self.container.get_unique_publish_id()}.{self.backend_id}'
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        return PurePosixPath('/.uuid/') / self.get_unique_publish_id()
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return [self.get_primary_publish_path()]
 
     @property
     def backend_id(self):
@@ -169,24 +180,37 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         else:
             params['is-local-owner'] = False
 
+        # Create a dummy container that contains only information known to the Storage
+        container = Container(
+            owner=params['owner'],
+            paths=[PurePosixPath(params['container-path'])],
+            backends=[fields],
+            client=client
+        )
+
         return cls(
             owner=params['owner'],
             storage_type=storage_type,
-            container_path=PurePosixPath(params['container-path']),
             trusted=params.get('trusted', False),
             params=params,
             client=client,
             manifest=manifest,
+            container=container,
             access=params.get('access')
         )
 
     def to_manifest_fields(self, inline: bool) -> dict:
+        container_path = None
+
+        if self.container:
+            container_path = str(self.container.get_primary_publish_path())
+
         fields: Dict[str, Any] = {
             'version': Manifest.CURRENT_VERSION,
             'object': 'storage',
             'owner': self.owner,
             'type': self.storage_type,
-            'container-path': str(self.container_path),
+            'container-path': container_path,
             **self.params,
         }
 
@@ -236,14 +260,22 @@ class Storage(WildlandObject, obj_type=WildlandObject.Type.STORAGE):
         del new_params['backend-id']
         del new_params['container-path']
 
+        container: Optional[Container] = None
+
+        if self.container:
+            container_fields = self.container.to_manifest_fields(inline=False)
+            container_fields['paths'][0] = PurePosixPath(
+                str(self.container.get_primary_publish_path()).replace(old_uuid, new_uuid)
+            )
+            container = Container.parse_fields(container_fields, self.client)
+
         new_storage = Storage(
-            container_path=PurePosixPath(str(self.container_path).replace(
-                old_uuid, new_uuid)),
             storage_type=self.storage_type,
             owner=self.owner,
             params=new_params,
             client=self.client,
-            trusted=self.trusted)
+            trusted=self.trusted,
+            container=container)
         return new_storage
 
 

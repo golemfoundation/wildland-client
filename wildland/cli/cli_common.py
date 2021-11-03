@@ -29,8 +29,9 @@ import re
 import logging
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import Callable, List, Any, Optional, Dict, Tuple
+from typing import Callable, List, Any, Optional, Dict, Tuple, Union
 
 import click
 import progressbar
@@ -38,7 +39,7 @@ import progressbar
 import wildland.log
 
 from wildland import __version__
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .cli_base import ContextObj, CliError
 from ..client import Client
 from ..container import Container
@@ -54,7 +55,10 @@ from ..exc import WildlandError
 from ..utils import yaml_parser
 from ..storage import Storage
 from ..user import User
+from ..publish import Publisher
+from ..log import get_logger
 
+LOGGER = get_logger('cli-common')
 
 def wrap_output(func):
     """
@@ -188,8 +192,9 @@ def _get_expected_manifest_type(ctx: click.Context) -> Optional[str]:
     > wl edit ... -> None
     """
     manifest_type = ctx.parent.command.name if ctx.parent else None
-    if manifest_type == 'wl':
-        manifest_type = None
+    if manifest_type not in ['container', 'storage', 'user', 'bridge']:
+        return None
+
     return manifest_type
 
 
@@ -385,6 +390,100 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
         remount_container(obj, path)
 
     return True
+
+
+@click.command(short_help='publish a manifest')
+@click.argument('file', metavar='NAME or PATH')
+@click.pass_context
+def publish(ctx: click.Context, file: str):
+    """
+    Publish Wildland Object manifest to a publishable storage from manifests catalog.
+    """
+    wl_object = _get_publishable_object_from_file_or_path(ctx, file)
+    assert isinstance(wl_object.manifest, Manifest)
+    user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+
+    click.echo(f'Publishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
+    Publisher(ctx.obj.client, user).publish(wl_object)
+
+    # check if all objects are published
+    not_published = Publisher.list_unpublished_objects(ctx.obj.client, wl_object.type)
+    n_objects = len(list(ctx.obj.client.dirs[wl_object.type].glob('*.yaml')))
+
+    # if all objects of the given type are unpublished DO NOT print warning
+    if not_published and len(not_published) != n_objects:
+        LOGGER.warning(
+            "Some local %ss (or %s updates) are not published:\n%s",
+            wl_object.type.value,
+            wl_object.type.value,
+            '\n'.join(sorted(not_published))
+        )
+
+
+@click.command(short_help='unpublish a manifest')
+@click.argument('file', metavar='NAME or PATH')
+@click.pass_context
+def unpublish(ctx: click.Context, file: str):
+    """
+    Unpublish Wildland Object manifest from all matchin manifest catalogs.
+    """
+    wl_object = _get_publishable_object_from_file_or_path(ctx, file)
+    assert isinstance(wl_object.manifest, Manifest)
+    user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+
+    click.echo(f'Unpublishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
+    Publisher(ctx.obj.client, user).unpublish(wl_object)
+
+
+def republish_object(client: Client, wl_object: PublishableWildlandObject):
+    """
+    Republishes wildland object
+    This method is to be used by cli_* components but not as a command itself.
+    """
+    obj_type = wl_object.type.value
+
+    try:
+        assert isinstance(wl_object.manifest, Manifest)
+        user = client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+        click.echo(f'Re-publishing {obj_type}: [{wl_object.get_primary_publish_path()}]')
+        Publisher(client, user).republish(wl_object)
+    except WildlandError as ex:
+        raise WildlandError(f"Failed to republish {obj_type}: {ex}") from ex
+
+
+def _get_publishable_object_from_file_or_path(
+        ctx: click.Context,
+        path: str
+        ) -> PublishableWildlandObject:
+    obj: ContextObj = ctx.obj
+
+    manifest_type = _get_expected_manifest_type(ctx)
+
+    if manifest_type is None:
+        # Publish command was used without parent context (ie. wl publish)
+        # Only absolute paths to manifest file are supported
+        manifest_path = obj.client.find_local_manifest(None, path)
+
+        if not manifest_path:
+            raise click.ClickException(f'Manifest not found: {path}. Consider using the command '
+                                       'including specific context (eg. wl container <cmd>)')
+
+        manifest = Manifest.from_file(manifest_path, obj.client.session.sig)
+        manifest_type = manifest.fields['object']  # In case publish was called via wl publish <f>
+        path = str(manifest_path)
+
+    wl_object = obj.client.load_object_from_name(
+        WildlandObject.Type(manifest_type),
+        path
+    )
+
+    if not isinstance(wl_object, PublishableWildlandObject):
+        raise CliError(f'{manifest_type} is not a publishable object')
+
+    if not isinstance(wl_object.manifest, Manifest):
+        raise CliError('Publishable Wildland Object must have a manifest')
+
+    return wl_object
 
 
 def remount_container(ctx_obj: ContextObj, path: Path):
@@ -591,3 +690,82 @@ def check_options_conflict(option_name: str, add_option: List[str], del_option: 
         for c in conflicts:
             message += f'\n  --add-{option_name} {c} and --del-{option_name} {c}'
         raise CliError(message)
+
+
+def resolve_object(
+        ctx: click.Context,
+        path: str,
+        obj_type: WildlandObject.Type,
+        callback: Union[click.core.Command, Callable[..., Any]],
+        save_manifest: bool = True,
+        **callback_kwargs: Any
+        ) -> Tuple[PublishableWildlandObject, bool]:
+    """
+    Resolve Wildland Object and its Manifest from either an URL, WL Path or Local file.
+
+    This is a helper method used by specific cli contexts (e.g. container, bridge, etc.) to allow
+    editing, modifying or dumping remote Wildland Objects (ie. the ones that are not stored on
+    user's local machine).
+
+    If the given path is an URL or WL Path, the Manifest file will be fetched from the remote
+    server and stored in a temporary directory. Afterwards the callback function is going to be
+    executed on that file using Context.invoke() helper where one of the arguments to the callback
+    function is going to be the path to the Manifest file, including callback_kwargs, ie.:
+
+        ctx.invoke(callback, pass_ctx=ctx, input_file=<path_to_manifest>, **callback_kwargs)
+
+    Examples of valid callbacks are: modify_manifest(), edit() or dump() methods.
+
+    If save_manifest parameter was set to True and the path was not pointing at  a local file,
+    the Manifest of Wildland Object is stored  persistently in Wildland Config directory.
+
+    @return Resolved Wildland Object and Boolean which is True if the Manifest has been modified
+    """
+
+    client: Client = ctx.obj.client
+
+    if client.is_url(path) and not path.startswith('file:'):
+        wl_object = client.load_object_from_url(
+            obj_type, path, client.config.get('@default'))
+        if wl_object.manifest is None:
+            raise WildlandError(f'Manifest for the given path [{path}] was not found')
+
+        if wl_object.local_path:
+            # modify local manifest
+            manifest_modified = ctx.invoke(callback, pass_ctx=ctx,
+                                           input_file=str(wl_object.local_path), **callback_kwargs)
+            wl_object = client.load_object_from_name(
+                obj_type, str(wl_object.local_path))
+        else:
+            # download, modify and optionally save manifest
+            with tempfile.NamedTemporaryFile(suffix=".tmp.{WildlandObject.Type.value}.yaml") as f:
+                f.write(wl_object.manifest.to_bytes())
+                f.flush()
+
+                manifest_modified = ctx.invoke(
+                    callback, pass_ctx=ctx, input_file=f.name, **callback_kwargs)
+
+                with open(f.name, 'rb') as file:
+                    data = file.read()
+
+                wl_object = client.load_object_from_bytes(obj_type, data)
+
+                if save_manifest:
+                    path = client.save_new_object(obj_type, wl_object)
+                    click.echo(f'Created: {path}')
+    else:
+        # modify local manifest
+        local_path = client.find_local_manifest(obj_type, path)
+
+        if local_path:
+            path = str(local_path)
+
+        manifest_modified = ctx.invoke(callback, pass_ctx=ctx, input_file=path, **callback_kwargs)
+
+        wl_object = client.load_object_from_name(obj_type, path)
+
+    if callback not in [edit, modify_manifest]:
+        assert manifest_modified is None
+        manifest_modified = False
+
+    return wl_object, manifest_modified

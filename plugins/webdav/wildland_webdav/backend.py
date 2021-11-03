@@ -39,7 +39,7 @@ import click
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
-from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
+from wildland.storage_backends.file_children import FileChildrenMixin
 from wildland.manifest.schema import Schema
 
 
@@ -98,7 +98,7 @@ class PagedWebdavFile(PagedFile):
         return resp.content
 
 
-class WebdavStorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBackend):
+class WebdavStorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
     """
     WebDAV storage.
     """

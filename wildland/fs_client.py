@@ -324,7 +324,7 @@ class WildlandFSClient:
             'owner': storage.owner,
             'container-path': str(container.paths[0]),
         }
-        return Storage(storage.owner, PseudomanifestStorageBackend.TYPE, container.uuid_path,
+        return Storage(storage.owner, PseudomanifestStorageBackend.TYPE, container=container,
                        trusted=True, params=params, client=container.client)
 
     def unmount_storage(self, storage_id: int) -> None:

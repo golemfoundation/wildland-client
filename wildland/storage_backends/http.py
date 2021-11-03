@@ -36,7 +36,7 @@ import click
 from lxml import etree
 import requests
 
-from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
+from wildland.storage_backends.file_children import FileChildrenMixin
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
@@ -76,7 +76,7 @@ class PagedHttpFile(FullBufferedFile):
         raise IOError(errno.EROFS, str(self.url))
 
 
-class HttpStorageBackend(FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend):
+class HttpStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
     A read-only HTTP storage that gets its information from directory listings.
     """

@@ -39,7 +39,7 @@ from treelib import Tree
 from wildland.storage_backends.base import StorageBackend, Attr
 from wildland.storage_backends.buffered import File, FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
-from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
+from wildland.storage_backends.file_children import FileChildrenMixin
 from wildland.manifest.schema import Schema
 from wildland.log import get_logger
 from .drive_client import DriveClient
@@ -106,7 +106,7 @@ class DriveFile(FullBufferedFile):
 
 
 class DriveStorageBackend(
-    FileSubcontainersMixin, DirectoryCachedStorageMixin, StorageBackend
+    FileChildrenMixin, DirectoryCachedStorageMixin, StorageBackend
 ):
     """
     Google Drive storage supporting both read and write operations.

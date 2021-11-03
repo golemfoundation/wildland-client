@@ -44,7 +44,7 @@ import click
 
 from wildland.link import Link
 from wildland.storage_backends.base import StorageBackend, Attr
-from wildland.storage_backends.file_subcontainers import FileSubcontainersMixin
+from wildland.storage_backends.file_children import FileChildrenMixin
 from wildland.storage_backends.buffered import File, FullBufferedFile, PagedFile
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.manifest.schema import Schema
@@ -156,7 +156,7 @@ class PagedS3File(PagedFile):
         return response['Body'].read()
 
 
-class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBackend):
+class S3StorageBackend(FileChildrenMixin, CachedStorageMixin, StorageBackend):
     """
     Amazon S3 storage.
     """

@@ -188,6 +188,8 @@ man_pages = [
     ('manpages/wl-verify', 'wl-verify', 'Verify signatures', [author], 1),
     ('manpages/wl-edit', 'wl-edit', 'Edit manifests', [author], 1),
     ('manpages/wl-dump', 'wl-dump', 'Dump manifests', [author], 1),
+    ('manpages/wl-publish', 'wl-publish', 'Publish manifests', [author], 1),
+    ('manpages/wl-unpublish', 'wl-unpublish', 'Unpublish manifests', [author], 1),
 
     ('manpages/wl-start', 'wl-start', 'Mount the whole Wildland FUSE filesystem', [author], 1),
     ('manpages/wl-stop', 'wl-stop', 'Unmount the whole Wildland FUSE filesystem', [author], 1),

@@ -38,7 +38,7 @@ from ..client import Client
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.local import LocalStorageBackend
 from ..storage_backends.generated import GeneratedStorageMixin, FuncFileEntry, FuncDirEntry
-from ..storage_backends.file_subcontainers import FileSubcontainersMixin
+from ..storage_backends.file_children import FileChildrenMixin
 from ..wlpath import WildlandPath, PathError
 from ..search import Search
 from ..config import Config
@@ -462,7 +462,7 @@ def test_container_with_storage_path(base_dir, cli):
 ## Wildcard matching
 
 
-class BackendTest(GeneratedStorageMixin, FileSubcontainersMixin, StorageBackend):
+class BackendTest(GeneratedStorageMixin, FileChildrenMixin, StorageBackend):
     """
     A data-driven storage backend for tests.
     """

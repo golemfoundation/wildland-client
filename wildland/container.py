@@ -30,13 +30,12 @@ import uuid
 from typing import Optional, List, Union, Any, Dict
 import itertools
 
-from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
 from .manifest.manifest import Manifest, ManifestError
 from .manifest.schema import Schema
 from .wlpath import WildlandPath
 from .exc import WildlandError
 from .log import get_logger
-
 
 logger = get_logger('user')
 
@@ -45,9 +44,11 @@ class _StorageCache:
     """
     Helper class representing a cached storage object.
     """
-    def __init__(self, storage, cached_storage=None):
+
+    def __init__(self, storage, container, cached_storage=None):
         self.storage = storage
         self.cached_backend = cached_storage
+        self.container = container
 
     def get(self, client, owner):
         """
@@ -56,14 +57,14 @@ class _StorageCache:
         """
         if not self.cached_backend:
             self.cached_backend = client.load_object_from_url_or_dict(
-                WildlandObject.Type.STORAGE, self.storage, owner)
+                WildlandObject.Type.STORAGE, self.storage, owner, container=self.container)
         return self.cached_backend
 
     def __eq__(self, other):
         return self.storage == other.storage
 
 
-class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
+class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINER):
     """Wildland container"""
     SCHEMA = Schema('container')
 
@@ -93,7 +94,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         self.is_manifests_catalog = False
 
         self._uuid_path = self._ensure_uuid()
-        self._storage_cache = [_StorageCache(self.fill_storage_fields(b))
+        self._storage_cache = [_StorageCache(self.fill_storage_fields(b), self)
                                for b in deepcopy(backends)]
 
     @property
@@ -123,6 +124,15 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         path = PurePosixPath('/.uuid/') / str(uuid.uuid4())
         self.paths.insert(0, path)
         return path
+
+    def get_unique_publish_id(self) -> str:
+        return self.uuid
+
+    def get_primary_publish_path(self) -> PurePosixPath:
+        return self.uuid_path
+
+    def get_publish_paths(self) -> List[PurePosixPath]:
+        return self.expanded_paths
 
     def __str__(self):
         return self.to_str()
@@ -237,7 +247,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                     filtered_storage_obj = None
                     try:
                         filtered_storage_obj = WildlandObject.from_fields(
-                            self.fill_storage_fields(storage), self.client)
+                            self.fill_storage_fields(storage), self.client, container=self)
                     except WildlandError as e:
                         logger.error(str(e))
                     if filtered_storage_obj:
@@ -248,7 +258,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         return fields
 
     @property
-    def expanded_paths(self):
+    def expanded_paths(self) -> List[PurePosixPath]:
         """
         Paths expanded by the set of paths generated from title and categories (if provided).
 
@@ -410,10 +420,10 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                                                 link.storage_driver)
                         return
                     self._storage_cache[idx] = _StorageCache(self.fill_storage_fields(
-                        storage.to_manifest_fields(inline=True)))
+                        storage.to_manifest_fields(inline=True)), self)
                 else:
                     if new_url:
-                        self._storage_cache[idx] = _StorageCache(new_url)
+                        self._storage_cache[idx] = _StorageCache(new_url, self)
                     elif cache.storage.startswith('file://'):
                         self.client.save_object(
                             WildlandObject.Type.STORAGE, storage,
@@ -424,7 +434,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
         else:
             if inline:
                 self._storage_cache.append(_StorageCache(
-                    self.fill_storage_fields(storage.to_manifest_fields(inline=True))))
+                    self.fill_storage_fields(storage.to_manifest_fields(inline=True)), self))
             else:
                 if new_url:
                     new_path = new_url
@@ -434,7 +444,7 @@ class Container(WildlandObject, obj_type=WildlandObject.Type.CONTAINER):
                         storage_path = self.client.save_new_object(
                             WildlandObject.Type.STORAGE, storage, storage_name)
                     new_path = self.client.local_url(storage_path)
-                self._storage_cache.append(_StorageCache(new_path))
+                self._storage_cache.append(_StorageCache(new_path, self))
 
     def clear_storages(self):
         """Remove all storages"""
@@ -478,6 +488,7 @@ class ContainerStub:
     Helper Wildland Object, representing a subcontainer that has not yet been completely filled
     with data from parent container.
     """
+
     def __init__(self, fields: dict):
         self.fields = fields
 

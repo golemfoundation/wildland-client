@@ -91,6 +91,7 @@ class Step:
     def __eq__(self, other):
         if not isinstance(other, Step):
             return NotImplemented
+
         return (self.owner == other.owner and
                 self.bridge == other.bridge and
                 self.user == other.user and
@@ -433,7 +434,12 @@ class Search:
                          storage.params["type"], part)
             return
         with storage_backend:
-            children_iter = storage_backend.get_children(step.client, part)
+            try:
+                children_iter = storage_backend.get_children(step.client, part)
+            except NotImplementedError:
+                logger.warning('Storage %s does not support subcontainers - cannot look for %s '
+                               'inside', storage.params["type"], part)
+                return
 
             for manifest_path, subcontainer_data in children_iter:
                 try:

@@ -132,7 +132,7 @@ Mixins
 .. autoclass:: wildland.storage_backends.generated.GeneratedStorageMixin
    :members:
 
-.. autoclass:: wildland.storage_backends.file_subcontainers.FileSubcontainersMixin
+.. autoclass:: wildland.storage_backends.file_children.FileChildrenMixin
    :members:
 
 
