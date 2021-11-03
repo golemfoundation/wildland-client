@@ -1954,6 +1954,34 @@ def test_container_delete_unpublish(cli, tmp_path):
     assert not tuple(tmp_path.glob('*.container.yaml'))
 
 
+def test_container_delete_unpublished_cache(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--manifest-pattern', '/*.{object-type}.yaml')
+
+    cli('container', 'publish', 'Container')
+
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
+
+    cli('container', 'unpublish', 'Container')
+
+    with open(base_dir / 'containers/.unpublished') as file:
+        lines = file.readlines()
+        assert lines == [str(base_dir / 'containers/Container.container.yaml\n')]
+
+    cli('container', 'delete', 'Container')
+
+    with open(base_dir / 'containers/.unpublished') as file:
+        lines = file.readlines()
+        assert len(lines) == 0
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+
 def test_container_publish_rewrite(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', os.fspath(tmp_path), 'myforest')

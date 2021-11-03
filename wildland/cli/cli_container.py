@@ -383,8 +383,6 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
     except ControlClientUnableToConnectError:
         pass
 
-    _delete_cache(obj.client, container)
-
     has_local = False
 
     for backend in container.load_raw_backends(include_inline=False):
@@ -410,6 +408,8 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
         except WildlandError:
             # not published
             pass
+
+    _delete_cache(obj.client, container)
 
     click.echo(f'Deleting: {container.local_path}')
     container.local_path.unlink()
@@ -698,6 +698,13 @@ def _delete_cache(client: Client, container: Container) -> bool:
     """
     Delete cache associated with the container. Returns True if cache was present.
     """
+    user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+    Publisher(client, user).remove_from_cache(container)
+
+    if container.local_path:
+        user.remove_catalog_entry(client.local_url(container.local_path))
+        client.save_object(WildlandObject.Type.USER, user)
+
     cache = client.cache_storage(container)
     if cache:
         click.echo(f'Deleting cache: {cache.local_path}')
