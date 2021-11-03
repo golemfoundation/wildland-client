@@ -25,7 +25,7 @@ Common helpers for Jira plugin
 """
 
 import base64
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Literal, Optional
 from urllib.parse import quote
 
 
@@ -35,7 +35,7 @@ def _stringify_param(key: str, value: Union[str, int, List[str]]):
     """
     value_str = ','.join(value) if isinstance(value, list) else value
     param_str = f'{key}={value_str}'
-    return param_str
+    return quote(param_str)
 
 
 def stringify_query_params(params: Dict[str, Union[str, int, List[str]]]) -> str:
@@ -48,12 +48,33 @@ def stringify_query_params(params: Dict[str, Union[str, int, List[str]]]) -> str
     return '?' + '&'.join([_stringify_param(key, params[key]) for key in params])
 
 
-def encode_projects_to_jql(project_name: List[str]):
+def _stringify_jql_param(key: str, value: Union[str, int, List[str]]):
     """
-    Produces JQL query from the list of project names
+    encode_dict_to_jql helper; encodes key and corresponding value into a string
     """
-    encoded_names = [f'project="{name}"' for name in project_name]
-    query = " OR ".join(encoded_names)
+    if isinstance(value, list):
+        value_str = ' OR '.join([f'{key}="{v}"' for v in value])
+        value_str = f'({value_str})'
+    else:
+        value_str = f'{key}="{value}"'
+
+    return value_str
+
+
+def encode_dict_to_jql(params: Optional[Dict[str, Union[str, int, List[str]]]],
+                       order_by: str,
+                       order_dir: Literal["ASC", "DESC"]):
+    """
+    Produces JQL query from the dict of parameters and sorting
+    """
+    if params is None:
+        params = []
+    if order_by is None:
+        order_by = 'updatedDate'
+    if order_dir is None:
+        order_dir = 'DESC'
+    encoded_names = [_stringify_jql_param(name, params[name]) for name in params]
+    query = " AND ".join(encoded_names) + f' order by {order_by} {order_dir}'
     return quote(query)
 
 

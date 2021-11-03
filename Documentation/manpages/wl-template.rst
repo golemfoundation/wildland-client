@@ -231,8 +231,8 @@ Delete a storage template from local filesystem.
 .. program:: wl-template-create-jira
 .. _wl-template-create-jira:
 
-:command:`wl template create jira --workspace-url <url> --username <username> --personal-token <personal-token> [--project-name <project-name>] NAME`
------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl template create jira --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] NAME`
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/jira.rsti
@@ -510,9 +510,8 @@ Delete a storage template from local filesystem.
 
 .. program:: wl-template-add-jira
 .. _wl-template-add-jira:
-
-:command:`wl template add jira --workspace-url <url> --username <username> --personal-token <personal-token> [--project-name <project-name>] NAME`
---------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl template add jira --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] NAME`
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/jira.rsti
