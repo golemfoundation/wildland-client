@@ -489,6 +489,10 @@ class S3StorageBackend(FileSubcontainersMixin, CachedStorageMixin, StorageBacken
         if not path.parts:
             raise IOError(errno.EPERM, str(path))
 
+        children = self.readdir(path)
+        if len(children) > 0:
+            raise IOError(errno.ENOTEMPTY, str(path))
+
         self.s3_dirs.remove(path)
         self.client.delete_object(
             Bucket=self.bucket,
