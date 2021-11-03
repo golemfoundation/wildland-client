@@ -43,7 +43,7 @@ class JiraFileEntry(FileEntry):
         self.client = client
 
         self.attr = Attr(
-            size=len(self.issue.description),
+            size=len(str(self.issue.description).encode('utf-8')),
             timestamp=int(datetime.timestamp(issue.updated_at)),
             mode=stat.S_IFREG | 0o444
         )
