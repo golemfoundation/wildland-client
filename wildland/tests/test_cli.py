@@ -1365,6 +1365,43 @@ def test_container_modify_remount(cli, base_dir):
     assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
 
 
+def test_container_pointed_container_modify_remount(cli, base_dir):
+    dir_1 = Path(f'{base_dir}/storage/dir_1')
+    dir_2 = Path(f'{base_dir}/storage/dir_2')
+    file_1 = dir_1 / 'file_1.txt'
+    file_2 = dir_2 / 'file_2.txt'
+    Path(f'{base_dir}/storage').mkdir()
+    dir_1.mkdir()
+    dir_2.mkdir()
+    file_1.touch()
+    file_2.touch()
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('start')
+    cli('container', 'create', 'SourceContainer', '--path', '/SOURCE')
+    cli('container', 'create', 'PointingContainer', '--path', '/POINT')
+    cli('storage', 'create', 'local', 'SourceStorage', '--location', f'{base_dir}/storage/dir_1',
+        '--container', 'SourceContainer')
+    cli('storage', 'create', 'delegate', '--reference-container-url',
+        f'file://{base_dir}/containers/SourceContainer.container.yaml',
+        '--container', 'PointingContainer')
+    cli('container', 'mount', 'PointingContainer')
+    mount_path = base_dir / 'wildland'
+    assert (mount_path / 'POINT').exists()
+    assert len(list((mount_path / 'POINT').glob('*'))) == 2
+    assert (mount_path / 'POINT' / 'file_1.txt').exists()
+
+    editor = r'sed -i s,dir_1,dir_2,g'
+
+    cli('container', 'edit', 'SourceContainer', '--editor', editor)
+    cli('container', 'unmount', 'PointingContainer')
+    cli('container', 'mount', 'PointingContainer')
+
+    assert len(list((mount_path / 'POINT').glob('*'))) == 2
+    assert not (mount_path / 'POINT' / 'file_1.txt').exists()
+    assert (mount_path / 'POINT' / 'file_2.txt').exists()
+
+
 def test_container_add_path(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
