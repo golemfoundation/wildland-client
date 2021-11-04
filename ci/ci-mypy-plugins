@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+set -ex
+
+. /home/user/env/bin/activate
+pip install . plugins/*
+mypy \
+    --install-types \
+    --non-interactive \
+    --junit-xml artifacts/wildland-mypy-plugins.xml plugins
