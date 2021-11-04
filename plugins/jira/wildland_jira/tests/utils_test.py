@@ -23,11 +23,16 @@
 """
 Unit tests for jira plugin utils
 """
-from ..utils import stringify_query_params, encode_dict_to_jql
+from typing import Dict, Union, Optional, Literal
+
+from ..utils import stringify_query_params, encode_dict_to_jql, ParamValueType
 
 
 def test_stringify_query_params():
-    args = {
+    """
+    checks whether dictionaries are properly encoded to url parameters
+    """
+    args: Dict[str, Dict[str, Union[str, int, ParamValueType]]] = {
         'empty': {},
         'single_str': {'orderBy': 'updated'},
         'multiple_str': {'orderBy': 'updated', 'after': 'b362hs2',
@@ -51,17 +56,38 @@ def test_stringify_query_params():
 
 
 def test_stringify_jql_dict():
-    args = {
+    """
+    checks whether dictionaries of parameters are properly encoded to JQL
+    """
+
+    params: Dict[str, Dict[str, ParamValueType]] = {
         'empty': {},
-        'empty_order': {'order_by': 'assignee', 'order_dir': 'ASC'},
-        'single_str': {'params': {'project': 'Personal'}},
-        'multiple_str': {'params': {'project': 'Personal', 'assignee': 'b362hs2'}},
-        'single_list': {'params': {'project': ['Personal', 'jira extension']}},
-        'parameters_list_mix': {'params': {'project': ['Personal', 'jira extension'],
-                                           'fields': ['description', 'labels', 'project'],
-                                           'orderBy': 'updated',
-                                           'after': 'b362hs2', 'maxResults': 100}}
+        'empty_order': {},
+        'single_str': {'project': 'Personal'},
+        'multiple_str': {'project': 'Personal', 'assignee': 'b362hs2'},
+        'single_list': {'project': ['Personal', 'jira extension']},
+        'parameters_list_mix': {'project': ['Personal', 'jira extension'],
+                                'fields': ['description', 'labels', 'project'],
+                                'orderBy': 'updated', 'after': 'b362hs2', 'maxResults': 100}
     }
+    order_by: Dict[str, Optional[str]] = {
+        'empty': None,
+        'empty_order': 'assignee',
+        'single_str': None,
+        'multiple_str': None,
+        'single_list': None,
+        'parameters_list_mix': None,
+    }
+
+    order_dir: Dict[str, Union[Literal['ASC'], Literal['DESC'], None]] = {
+        'empty': None,
+        'empty_order': 'ASC',
+        'single_str': None,
+        'multiple_str': None,
+        'single_list': None,
+        'parameters_list_mix': None,
+    }
+
     expected = {
         'empty': '%20order%20by%20updatedDate%20DESC',
         'empty_order': '%20order%20by%20assignee%20ASC',
@@ -76,7 +102,7 @@ def test_stringify_jql_dict():
                                '%22updated%22%20AND%20after%3D%22b362hs2%22%20AND%20maxResults%3D'
                                '%22100%22%20order%20by%20updatedDate%20DESC'}
 
-    for key in args:
-        assert expected[key] == encode_dict_to_jql(args[key].get('params'),
-                                                   order_by=args[key].get('order_by'),
-                                                   order_dir=args[key].get('order_dir'))
+    for key in params:
+        assert expected[key] == encode_dict_to_jql(params[key],
+                                                   order_by=order_by[key],
+                                                   order_dir=order_dir[key])

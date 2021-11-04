@@ -28,8 +28,10 @@ import base64
 from typing import Union, List, Dict, Literal, Optional
 from urllib.parse import quote
 
+ParamValueType = Union[str, int, List[str]]
 
-def _stringify_param(key: str, value: Union[str, int, List[str]]):
+
+def _stringify_param(key: str, value: ParamValueType):
     """
     stringify_query_params helper; encodes key and corresponding value into a string
     """
@@ -38,7 +40,7 @@ def _stringify_param(key: str, value: Union[str, int, List[str]]):
     return quote(param_str)
 
 
-def stringify_query_params(params: Dict[str, Union[str, int, List[str]]]) -> str:
+def stringify_query_params(params: Dict[str, ParamValueType]) -> str:
     """
     Encodes dictionary of parameters into an url params string
     """
@@ -48,7 +50,7 @@ def stringify_query_params(params: Dict[str, Union[str, int, List[str]]]) -> str
     return '?' + '&'.join([_stringify_param(key, params[key]) for key in params])
 
 
-def _stringify_jql_param(key: str, value: Union[str, int, List[str]]):
+def _stringify_jql_param(key: str, value: ParamValueType):
     """
     encode_dict_to_jql helper; encodes key and corresponding value into a string
     """
@@ -61,14 +63,14 @@ def _stringify_jql_param(key: str, value: Union[str, int, List[str]]):
     return value_str
 
 
-def encode_dict_to_jql(params: Optional[Dict[str, Union[str, int, List[str]]]],
-                       order_by: str,
-                       order_dir: Literal["ASC", "DESC"]):
+def encode_dict_to_jql(params: Optional[Dict[str, ParamValueType]] = None,
+                       order_by: Optional[str] = None,
+                       order_dir: Optional[Literal["ASC", "DESC"]] = None):
     """
     Produces JQL query from the dict of parameters and sorting
     """
     if params is None:
-        params = []
+        params = {}
     if order_by is None:
         order_by = 'updatedDate'
     if order_dir is None:

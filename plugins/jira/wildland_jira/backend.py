@@ -76,7 +76,7 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
                                "Management Cloud site."
             },
             "limit": {
-                "type": "string",
+                "type": "integer",
                 "description": "(optional) maximum amount of issues to be fetched starting from "
                                "the most recently updated"
             }
@@ -90,7 +90,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
             username=self.params.get('username'),
             project_names=self.params.get('project_name'),
             personal_token=self.params.get('personal_token'),
-            site_url=self.params['workspace_url']
+            site_url=self.params['workspace_url'],
+            limit=self.params['limit']
         )
         self.all_issues: List[CompactIssue] = []
 
@@ -225,4 +226,5 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
             'username': data['username'],
             'personal_token': data['personal_token'],
             'project_name': list(data['project_name']),
+            'limit': list(data['limit']),
         }

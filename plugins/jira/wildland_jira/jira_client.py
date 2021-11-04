@@ -32,7 +32,7 @@ import requests
 
 from wildland.exc import WildlandError
 from wildland.log import get_logger
-from .utils import stringify_query_params, encode_basic_auth, encode_dict_to_jql
+from .utils import stringify_query_params, encode_basic_auth, encode_dict_to_jql, ParamValueType
 
 logger = get_logger('JiraClient')
 
@@ -57,7 +57,7 @@ class JiraClient:
     Fetches and parses Jira issues
     """
 
-    def __init__(self, site_url: str, username: str, personal_token: str,
+    def __init__(self, site_url: str, limit: int, username: Optional[str], personal_token: Optional[str],
                  project_names: Optional[List[str]] = None):
         if project_names is None:
             project_names = []
@@ -66,6 +66,7 @@ class JiraClient:
             self.headers["Authorization"] = f'Basic {encode_basic_auth(username, personal_token)}'
         self.projects_names: Optional[List[str]] = project_names
         self.url = site_url if site_url.endswith('/') else f'{site_url}/'
+        self.limit = limit
         self.validate_project_names()
 
     def validate_project_names(self):
@@ -121,7 +122,7 @@ class JiraClient:
         """
         Fetches all issues in given workspace.
         """
-        params: Dict[str, Union[str, int, List[str]]] = {
+        params: Dict[str, ParamValueType] = {
             'fields': ['summary', 'description', 'labels', 'project', 'updated', 'status'],
             'maxResults': 100,
         }
@@ -133,7 +134,7 @@ class JiraClient:
 
         has_next_page = True
         parsed_issues: List[CompactIssue] = []
-        while has_next_page:
+        while has_next_page and len(parsed_issues) <= self.limit:
             params['startAt'] = len(parsed_issues)
             response = self.run_query('search', params)
             parsed_issues.extend(self.parse_issue_list(response['issues']))

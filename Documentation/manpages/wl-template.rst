@@ -510,6 +510,7 @@ Delete a storage template from local filesystem.
 
 .. program:: wl-template-add-jira
 .. _wl-template-add-jira:
+
 :command:`wl template add jira --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] NAME`
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

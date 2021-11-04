@@ -295,7 +295,7 @@ Create encrypted storage for a given container. Please read details below to und
 .. _wl-storage-create-jira:
 
 :command:`wl storage create jira --container <container> --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] <storage>`
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/jira.rsti
