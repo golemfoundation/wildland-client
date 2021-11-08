@@ -348,8 +348,14 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
         for user in obj.client.get_local_users():
             if user.owner == imported_user.owner:
                 if not force:
-                    click.echo(f'User {user.owner} already exists. Skipping import.')
-                    return None, None
+                    if any(user.owner == b.user_id for b in obj.client.get_local_bridges()):
+                        click.echo(f"User {user.owner} and their bridge already exist. "
+                                   f"Skipping import.")
+                        return None, None
+
+                    click.echo(f"User {user.owner} already exists. Creating their bridge.")
+                    file_path = obj.client.local_url(Path(user.manifest.local_path).absolute())
+                    return user.manifest.local_path, file_path
 
                 click.echo(f'User {user.owner} already exists. Forcing user import.')
                 user_exists = True
