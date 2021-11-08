@@ -178,13 +178,13 @@ class GitlabClient:
         ref_link = issue.attributes['references']['full']
 
         markdown_text = f""">  \n
-> created at: `{created_at}`  
-> labels: `{labels}`  
-> milestone: `{milestone}`  
-> epic: `{epic}`  
-> author: [{author}]({author_url})  
-> assignees: `{assignees}`  
-> web_url: [{ref_link}]({web_url})  
+> created at: `{created_at}`
+> labels: `{labels}`
+> milestone: `{milestone}`
+> epic: `{epic}`
+> author: [{author}]({author_url})
+> assignees: `{assignees}`
+> web_url: [{ref_link}]({web_url})
 
 ## description
 {description}
