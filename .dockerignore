@@ -19,3 +19,5 @@ docker/storage
 .coverage.*
 *.cover
 *.log
+.vscode
+.dockerignore
