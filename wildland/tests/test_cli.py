@@ -1949,7 +1949,7 @@ def test_container_delete_unpublish(cli, tmp_path):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    cli('container', 'delete', 'Container')
+    cli('container', 'delete', 'Container', '--cascade')
 
     assert not tuple(tmp_path.glob('*.container.yaml'))
 
@@ -1973,7 +1973,7 @@ def test_container_delete_unpublished_cache(cli, tmp_path, base_dir):
         lines = file.readlines()
         assert lines == [str(base_dir / 'containers/Container.container.yaml\n')]
 
-    cli('container', 'delete', 'Container')
+    cli('container', 'delete', 'Container', '--cascade')
 
     with open(base_dir / 'containers/.unpublished') as file:
         lines = file.readlines()

@@ -370,6 +370,15 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
     if not container.local_path:
         raise CliError('Can only delete a local manifest')
 
+    user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
+    has_catalog_entry = user.has_catalog_entry(obj.client.local_url(container.local_path))
+
+    if has_catalog_entry and not cascade and not force:
+        logger.warning('User has catalog entry associated with this container.')
+        click.echo('Use --cascade to delete all content associated with this container or --force '
+                   'to force deletion')
+        return
+
     # unmount if mounted
     try:
         for mount_path in obj.fs_client.get_unique_storage_paths(container):
@@ -403,13 +412,29 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
     if not no_unpublish:
         try:
             click.echo(f'Unpublishing container: [{container.get_primary_publish_path()}]')
-            user = obj.client.load_object_from_name(WildlandObject.Type.USER, container.owner)
             Publisher(obj.client, user).unpublish(container)
         except WildlandError:
             # not published
             pass
 
-    _delete_cache(obj.client, container)
+    if cascade:
+        try:
+            Publisher(obj.client, user).remove_from_cache(container)
+        except WildlandError as e:
+            if not force:
+                logger.warning('Failed to remove container from cache, cannot delete: %s', e)
+                click.echo('Use --force to force deletion.')
+                return
+
+        try:
+            if container.local_path:
+                user.remove_catalog_entry(obj.client.local_url(container.local_path))
+                obj.client.save_object(WildlandObject.Type.USER, user)
+        except WildlandError as e:
+            if not force:
+                logger.warning('Failed to remove catalog entry, cannot delete: %s', e)
+                click.echo('Use --force to force deletion.')
+                return
 
     click.echo(f'Deleting: {container.local_path}')
     container.local_path.unlink()
@@ -698,13 +723,6 @@ def _delete_cache(client: Client, container: Container) -> bool:
     """
     Delete cache associated with the container. Returns True if cache was present.
     """
-    user = client.load_object_from_name(WildlandObject.Type.USER, container.owner)
-    Publisher(client, user).remove_from_cache(container)
-
-    if container.local_path:
-        user.remove_catalog_entry(client.local_url(container.local_path))
-        client.save_object(WildlandObject.Type.USER, user)
-
     cache = client.cache_storage(container)
     if cache:
         click.echo(f'Deleting cache: {cache.local_path}')
