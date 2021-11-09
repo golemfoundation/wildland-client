@@ -35,7 +35,7 @@ import requests
 
 from wildland.log import get_logger
 
-logger = get_logger('GitlabClientQl')
+logger = get_logger('GitlabQLClient')
 
 
 @dataclass(frozen=True)

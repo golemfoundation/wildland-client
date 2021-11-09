@@ -142,6 +142,7 @@ class CachedStorageMixin(BaseCachedStorageMixin):
             self._refresh()
 
     def _refresh(self) -> None:
+        logger.debug('refresh')
         self.getattr_cache.clear()
         self.readdir_cache.clear()
         self.readdir_cache[PurePosixPath('.')] = set()

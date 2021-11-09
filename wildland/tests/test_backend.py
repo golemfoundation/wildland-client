@@ -26,9 +26,10 @@ import os
 import io
 import sqlite3
 import time
-from typing import Callable, List, Tuple
+from typing import Callable, Dict, Iterable, List, Set, Tuple
 from pathlib import PurePosixPath, Path
 from unittest.mock import patch
+from dataclasses import dataclass
 
 import pytest
 
@@ -164,7 +165,7 @@ def test_watcher_ignore_own(tmpdir, storage_backend, cleanup):
 
     time.sleep(1)
 
-    # we can allow one superflous modify event, if file creation was parsed as two events and not
+    # we can allow one superfluous modify event, if file creation was parsed as two events and not
     # one
     assert received_events in [
         [], [FileEvent(FileEventType.MODIFY, PurePosixPath('newdir/testfile'))]]
@@ -338,21 +339,329 @@ def test_local_access_file(tmp_path):
 
 def test_read_only_flags(tmpdir, storage_backend):
     backend, storage_dir = make_storage(tmpdir, storage_backend)
-    file_path = Path('testfile')
-    disk_path = Path(storage_dir / 'testfile')
+    file_path = PurePosixPath('testfile')
+    disk_path = PurePosixPath(storage_dir / 'testfile')
 
     file = backend.create(file_path, flags=os.O_CREAT)
     file.release(0)
 
-    assert disk_path.exists()
+    try:
+        with open(disk_path):
+            pass
+    except FileNotFoundError:
+        pytest.fail(f'{disk_path} does not exist')
 
     with backend.open(file_path, flags=os.O_RDWR) as f:
         f.write(b'test data', offset=0)
 
-    assert disk_path.read_bytes() == b'test data'
+    with open(disk_path, 'r') as f:
+        assert f.read() == 'test data'
 
     with backend.open(file_path, flags=os.O_RDONLY) as f:
         with pytest.raises((io.UnsupportedOperation, OptionalError)):
             f.write(b'other data', offset=0)
 
         assert f.read() == b'test data'
+
+
+def test_local_dir_cached(tmpdir):
+    backend, storage_dir = make_storage(tmpdir, LocalDirectoryCachedStorageBackend)
+
+    # Make sure that the cache will not expire automatically during the test due to the timeout
+    # (don't assume the default value is long enough)
+
+    timeout_seconds = 3.0
+    backend.cache_timeout = timeout_seconds
+
+    # Create sample test tree with the text files and directories
+
+    entries = {
+        'dir': None,
+        'dir/text_file_main': 'text file in main dir',
+        'dir/subdir0': None,
+        'dir/subdir0/text_file_00': 'file-00',
+        'dir/subdir0/text_file_01': 'file-01',
+        'dir/subdir0/subdir00': None,
+        'dir/subdir0/subdir00/text_file_000': 'Wildland000',
+        'dir/subdir0/subdir00/text_file_001': 'Wildland001',
+        'dir/subdir0/subdir01': None,
+        'dir/subdir0/subdir02': None,
+        'dir/subdir0/subdir02/text_file_020': 'hello',
+        'dir/subdir0/subdir02/text_file_021': 'world',
+        'dir/subdir0/subdir02/text_file_022': '!!',
+        'dir/subdir1': None,
+        'dir/subdir1/subdir10': None,
+        'dir/subdir1/subdir11': None,
+        'dir/subdir1/subdir12': None,
+        'dir/subdir2': None,
+        'dir/subdir2/subdir20': None,
+        'dir/subdir2/subdir21': None,
+        'dir/subdir2/subdir22': None,
+        'dir/subdir2/subdir22/text_file_220': 'file 220',
+        'dir/subdir2/subdir22/text_file_221': 'file 221',
+    }
+
+    for path_str, content in entries.items():
+        path = PurePosixPath(path_str)
+        storage_path_str = str(storage_dir / path)
+
+        if content:
+            file = backend.create(path, flags=os.O_CREAT)
+            file.write(bytes(content, encoding='utf8'), 0)
+            file.release(os.O_RDWR)
+            assert os.path.isfile(storage_path_str)
+        else:
+            backend.mkdir(PurePosixPath(path))
+            assert os.path.isdir(storage_path_str)
+
+    # Make sure that the cache is initially empty
+
+    assert backend.readdir_cache == {}
+    assert sorted(backend.getattr_cache.keys()) == []
+    assert sorted(backend.dir_expiry.keys()) == []
+
+    # Define the test scenario by specifying both: sequence of the directories to be readdir()'ed
+    # and the respective caches' content
+
+    @dataclass
+    class ExpectedCacheState:
+        dir_path: PurePosixPath
+        expected_listing: Iterable[str]
+        expected_readdir_cache: Dict[PurePosixPath, Set[str]]
+        expected_getattr_cache: Iterable[PurePosixPath]
+        expected_dir_expiry: Iterable[PurePosixPath]
+
+    steps = (
+        # step 1
+        ExpectedCacheState(
+            dir_path=PurePosixPath('dir'),
+            expected_listing=['text_file_main', 'subdir0', 'subdir1', 'subdir2'],
+            expected_readdir_cache={
+                # Only already referred directories are cached (NOT recursively!)
+                PurePosixPath('dir'): {
+                    'text_file_main', 'subdir0', 'subdir1', 'subdir2'
+                }
+            },
+            expected_getattr_cache=[
+                PurePosixPath('dir/text_file_main'),
+                PurePosixPath('dir/subdir0'),
+                PurePosixPath('dir/subdir1'),
+                PurePosixPath('dir/subdir2')
+            ],
+            expected_dir_expiry=[PurePosixPath('dir')]
+        ),
+        # step 2
+        ExpectedCacheState(
+            dir_path=PurePosixPath('dir/subdir0/subdir00'),
+            expected_listing=['text_file_000', 'text_file_001'],
+            expected_readdir_cache={
+                PurePosixPath('dir'): {
+                    'text_file_main', 'subdir0', 'subdir1', 'subdir2'
+                },
+                PurePosixPath('dir/subdir0/subdir00'): {
+                    'text_file_000', 'text_file_001'
+                }
+            },
+            expected_getattr_cache=[
+                PurePosixPath('dir/text_file_main'),
+                PurePosixPath('dir/subdir0'),
+                PurePosixPath('dir/subdir1'),
+                PurePosixPath('dir/subdir2'),
+                # Notice that the following entry is NOT in the cache:
+                # PurePosixPath('dir/subdir0/subdir00'),
+                PurePosixPath('dir/subdir0/subdir00/text_file_000'),
+                PurePosixPath('dir/subdir0/subdir00/text_file_001')
+            ],
+            expected_dir_expiry=[
+                PurePosixPath('dir'),
+                PurePosixPath('dir/subdir0/subdir00')
+            ]
+        ),
+        # step 3
+        ExpectedCacheState(
+            dir_path=PurePosixPath('.'),
+            expected_listing=['dir'],
+            expected_readdir_cache={
+                PurePosixPath('dir'): {
+                    'text_file_main', 'subdir0', 'subdir1', 'subdir2'
+                },
+                PurePosixPath('dir/subdir0/subdir00'): {
+                    'text_file_000', 'text_file_001'
+                },
+                PurePosixPath('.'): {
+                    'dir'
+                }
+            },
+            expected_getattr_cache=[
+                PurePosixPath('dir/text_file_main'),
+                PurePosixPath('dir/subdir0'),
+                PurePosixPath('dir/subdir1'),
+                PurePosixPath('dir/subdir2'),
+                PurePosixPath('dir/subdir0/subdir00/text_file_000'),
+                PurePosixPath('dir/subdir0/subdir00/text_file_001'),
+                PurePosixPath('dir')
+            ],
+            expected_dir_expiry=[
+                PurePosixPath('dir'),
+                PurePosixPath('dir/subdir0/subdir00'),
+                PurePosixPath('.')
+            ]
+        ),
+        # step 4
+        ExpectedCacheState(
+            dir_path=PurePosixPath('dir/subdir2/subdir22'),
+            expected_listing=['text_file_220', 'text_file_221'],
+            expected_readdir_cache={
+                PurePosixPath('dir'): {
+                    'text_file_main', 'subdir0', 'subdir1', 'subdir2'
+                },
+                PurePosixPath('dir/subdir0/subdir00'): {
+                    'text_file_000', 'text_file_001'
+                },
+                PurePosixPath('.'): {
+                    'dir'
+                },
+                PurePosixPath('dir/subdir2/subdir22'): {
+                    'text_file_220', 'text_file_221'
+                },
+            },
+            expected_getattr_cache=[
+                PurePosixPath('dir/text_file_main'),
+                PurePosixPath('dir/subdir0'),
+                PurePosixPath('dir/subdir1'),
+                PurePosixPath('dir/subdir2'),
+                PurePosixPath('dir/subdir0/subdir00/text_file_000'),
+                PurePosixPath('dir/subdir0/subdir00/text_file_001'),
+                PurePosixPath('dir'),
+                PurePosixPath('dir/subdir2/subdir22/text_file_220'),
+                PurePosixPath('dir/subdir2/subdir22/text_file_221')
+            ],
+            expected_dir_expiry=[
+                PurePosixPath('dir'),
+                PurePosixPath('dir/subdir0/subdir00'),
+                PurePosixPath('.'),
+                PurePosixPath('dir/subdir2/subdir22')
+            ]
+        )
+    )
+
+    # Iterate all of the test scenario steps for the first time
+
+    for step in steps:
+        listing = backend.readdir(step.dir_path)
+        assert sorted(listing) == sorted(step.expected_listing)
+        assert backend.readdir_cache == step.expected_readdir_cache
+        assert sorted(backend.getattr_cache.keys()) == sorted(step.expected_getattr_cache)
+        assert sorted(backend.dir_expiry.keys()) == sorted(step.expected_dir_expiry)
+
+    # Modify 'dir/subdir0/subdir02/text_file_022' to make sure that the cache will be cleared up
+    # (all operations that might change the result invalidate ALL of the caches)
+
+    file = backend.open(PurePosixPath('dir/subdir0/subdir02/text_file_022'), os.O_RDWR)
+    file.write(b'mars', 0)
+    file.release(os.O_RDWR)
+
+    with open(storage_dir / 'dir/subdir0/subdir02/text_file_022') as file:
+        assert file.read() == 'mars'
+
+    assert backend.readdir_cache == {}
+    assert sorted(backend.getattr_cache.keys()) == []
+    assert sorted(backend.dir_expiry.keys()) == []
+
+    # Iterate all of the test scenario steps for the second time. Each directory is visited twice to
+    # make sure that the cache is actually being used when readdir() is called for the second time.
+
+    with patch.object(LocalDirectoryCachedStorageBackend, 'info_dir',
+                      wraps=backend.info_dir) as info_dir_mock:
+        for step in steps:
+            listing = backend.readdir(step.dir_path)
+            assert sorted(listing) == sorted(step.expected_listing)
+            assert backend.readdir_cache == step.expected_readdir_cache
+            assert sorted(backend.getattr_cache.keys()) == sorted(step.expected_getattr_cache)
+            assert sorted(backend.dir_expiry.keys()) == sorted(step.expected_dir_expiry)
+
+            number_of_info_dir_calls = len(info_dir_mock.mock_calls)
+            info_dir_mock.assert_called_with(step.dir_path)
+
+            # Make sure that the cache is being used during the second readdir() call
+            repeated_listing = backend.readdir(step.dir_path)
+            assert sorted(listing) == sorted(repeated_listing)
+            assert number_of_info_dir_calls == len(info_dir_mock.mock_calls)
+
+    # Add one more file without using backend's create() API
+
+    new_file_path = 'dir/new_text_file'
+    with open(storage_dir / new_file_path, 'w') as f:
+        f.write('new file!')
+
+    assert os.path.isfile(storage_dir / new_file_path)
+
+    # Remove one file to check whether the cache is properly refreshed
+
+    file_path_to_remove = storage_dir / 'dir/text_file_main'
+    os.remove(file_path_to_remove)
+    assert not os.path.exists(file_path_to_remove)
+
+    # Make the cache expire (+1 to make sure it actually expired)
+
+    time.sleep(timeout_seconds + 1)
+
+    with patch.object(LocalDirectoryCachedStorageBackend, 'info_dir',
+                      wraps=backend.info_dir) as info_dir_mock:
+        # Updates the readdir() cache (among the others) under the hood
+        attr = backend.getattr('dir/subdir2')
+        info_dir_mock.assert_called_once_with(PurePosixPath('dir'))
+        assert attr.is_dir()
+        # Make sure it uses cache instead of calling info_dir() again
+        backend.getattr('dir/subdir2')
+        info_dir_mock.assert_called_once_with(PurePosixPath('dir'))
+
+    assert backend.readdir_cache == {
+        # 'dir/text_file_main' was correctly removed + 'dir/new_text_file' was correctly added
+        PurePosixPath('dir'): {
+            'subdir0', 'subdir1', 'subdir2', 'new_text_file'
+        },
+        PurePosixPath('dir/subdir0/subdir00'): {
+            'text_file_000', 'text_file_001'
+        },
+        PurePosixPath('dir/subdir2/subdir22'): {
+            'text_file_220', 'text_file_221'
+        },
+        PurePosixPath('.'): {
+            'dir'
+        }
+    }
+
+    assert sorted(backend.getattr_cache.keys()) == [
+        PurePosixPath('dir'),
+        PurePosixPath('dir/new_text_file'),
+        PurePosixPath('dir/subdir0'),
+        PurePosixPath('dir/subdir0/subdir00/text_file_000'),
+        PurePosixPath('dir/subdir0/subdir00/text_file_001'),
+        PurePosixPath('dir/subdir1'),
+        PurePosixPath('dir/subdir2'),
+        PurePosixPath('dir/subdir2/subdir22/text_file_220'),
+        PurePosixPath('dir/subdir2/subdir22/text_file_221')
+    ]
+
+    assert sorted(backend.dir_expiry.keys()) == [
+            PurePosixPath('.'),
+            PurePosixPath('dir'),
+            PurePosixPath('dir/subdir0/subdir00'),
+            PurePosixPath('dir/subdir2/subdir22')
+    ]
+
+    # Outdated cache entries
+
+    assert backend.dir_expiry[PurePosixPath('.')] < time.time()
+    assert backend.dir_expiry[PurePosixPath('dir/subdir0/subdir00')] < time.time()
+    assert backend.dir_expiry[PurePosixPath('dir/subdir2/subdir22')] < time.time()
+
+    # Up-to-date cache entries
+
+    assert backend.dir_expiry[PurePosixPath('dir')] > time.time()
+
+    # Read 'dir/subdir2/subdir22' content to refresh cache expiration time
+
+    backend.readdir(PurePosixPath('dir/subdir2/subdir22'))
+    assert backend.dir_expiry[PurePosixPath('dir/subdir2/subdir22')] > time.time()
