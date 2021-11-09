@@ -321,15 +321,20 @@ class BaseSyncer(metaclass=abc.ABCMeta):
         if self._event_callback and type(event) in self._event_types:
             self._event_callback(event, self._event_context)
 
-    def set_filtered_events(self, filtered_types: List[str]):
+    def set_active_events(self, event_types: List[str]):
         """
-        Set which event types should be ignored and not sent to the notification callback.
+        Set which event types should be sent to the notification callback.
+        Empty list means all event types.
         Types should be named as in SyncEvent.type field.
         """
-        if not filtered_types:
-            filtered_types = []
-        self._event_types = [cls for cls in SyncEvent.__subclasses__()
-                             if cls.type not in filtered_types]
+        if not event_types:
+            event_types = []
+
+        if len(event_types) == 0:
+            self._event_types = SyncEvent.__subclasses__()
+        else:
+            self._event_types = [cls for cls in SyncEvent.__subclasses__()
+                                 if cls.type in event_types]
 
     @property
     def active_event_types(self) -> List[Type[SyncEvent]]:

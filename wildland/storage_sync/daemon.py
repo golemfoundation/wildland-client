@@ -278,7 +278,7 @@ class SyncDaemon:
         logger.debug('Event thread exiting')
 
     def start_sync(self, container_name: str, job_id: str, continuous: bool, unidirectional: bool,
-                   source: dict, target: dict, filtered_types: List[str],
+                   source: dict, target: dict, active_events: List[str],
                    control_handler: ControlHandler) -> str:
         """
         Start syncing storages, or do a one-shot sync.
@@ -289,7 +289,8 @@ class SyncDaemon:
         :param unidirectional: If true, only sync from `source` to `target`.
         :param source: Source storage params.
         :param target: Target storage params.
-        :param filtered_types: List of sync event types to be filtered out (ignored).
+        :param active_events: List of sync event types to be sent to the notification callback.
+                              Empty list means all events.
         :param control_handler: ControlServer's handler to be associated with the job
                                 (used to send event notifications).
         :return: Response message.
@@ -320,10 +321,10 @@ class SyncDaemon:
                                               unidirectional=unidirectional,
                                               can_require_mount=False)
 
-            if not filtered_types:
-                filtered_types = []
-            logger.debug('Setting event filters for %s to %s', job_id, filtered_types)
-            syncer.set_filtered_events(filtered_types)
+            if not active_events:
+                active_events = []
+            logger.debug('Setting event filters for %s to %s', job_id, active_events)
+            syncer.set_active_events(active_events)
             self.jobs[job_id] = SyncJob(job_id, container_name, syncer, source_backend,
                                         target_backend, continuous, unidirectional,
                                         self.event_queue, control_handler)
@@ -366,9 +367,9 @@ class SyncDaemon:
         """
         Start syncing storages, or do a one-shot sync.
         """
-        filtered: List[str] = kwargs['filtered'] if 'filtered' in kwargs else []
+        events: List[str] = kwargs['active-events'] if 'active-events' in kwargs else []
         return self.start_sync(container_name, job_id, continuous, unidirectional, source, target,
-                               filtered, handler)
+                               events, handler)
 
     @control_command('stop')
     def control_stop(self, _handler, job_id: str) -> str:
@@ -377,16 +378,16 @@ class SyncDaemon:
         """
         return self.stop_sync(job_id)
 
-    @control_command('filter-events')
-    def control_filter_events(self, _handler, job_id: str, event_types: List[str]):
+    @control_command('active-events')
+    def control_active_events(self, _handler, job_id: str, active_events: List[str]):
         """
-        Set which sync events should be ignored for a job.
+        Set which sync events should be active for a job (empty means all).
         """
         with self.lock:
             try:
                 job = self.jobs[job_id]
-                logger.debug('Setting event filters for %s to %s', job_id, event_types)
-                job.syncer.set_filtered_events(event_types)
+                logger.debug('Setting event filters for %s to %s', job_id, active_events)
+                job.syncer.set_active_events(active_events)
             except KeyError:
                 # pylint: disable=raise-missing-from
                 raise WildlandError(f'Sync for job {job_id} is not running')

@@ -636,7 +636,7 @@ def wait_for_event(client: Client, predicate: Callable[[SyncEvent], bool],
         fail_types = []
     while True:
         for event in client.get_sync_event():
-            if event.type in fail_types and fail_value in event.value:
+            if event.type in fail_types and fail_value and fail_value in event.value:
                 pytest.fail(f'Unexpected sync event: {event}')
             if predicate(event):
                 return
@@ -878,7 +878,7 @@ def test_sync_events_filter(base_dir, sync, cli):
     client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
 
     client.do_sync(container_name, job_id, source.params, target.params, one_shot=False,
-                   unidir=False, filtered_event_types=['progress'])
+                   unidir=False, active_events=['state', 'error', 'conflict'])
 
     wait_for_state(client, job_id, SyncState.SYNCED, fail_types=['progress'])
     make_file(path1, 'test data')
@@ -886,7 +886,7 @@ def test_sync_events_filter(base_dir, sync, cli):
     wait_for_state(client, job_id, SyncState.SYNCED, fail_types=['progress'])
 
     # re-enable all events
-    client.run_sync_command('filter-events', job_id=job_id, event_types=[])
+    client.run_sync_command('active-events', job_id=job_id, active_events=[])
     make_file(path1, 'testfile1')
     make_file(path2, 'testfile2')
     wait_for_event(client, lambda ev: ev.type == SyncConflictEvent.type and
@@ -899,7 +899,7 @@ def test_sync_events_filter(base_dir, sync, cli):
     wait_for_state(client, job_id, SyncState.SYNCED)
 
     # disable multiple events
-    client.run_sync_command('filter-events', job_id=job_id, event_types=['progress', 'conflict'])
+    client.run_sync_command('active-events', job_id=job_id, active_events=['state', 'error'])
     make_file(path1, 'new testfile1')
     make_file(path2, 'new testfile2')
     # there can be queued PROGRESS events for files that were sent before we changed filtering,
