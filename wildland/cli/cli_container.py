@@ -57,6 +57,7 @@ from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..utils import yaml_parser
 from ..remounter import Remounter
+from ..subcontainer_remounter import SubcontainerRemounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
 from ..storage_sync.base import BaseSyncer, SyncConflict
@@ -1233,6 +1234,32 @@ def stop_mount_watch():
     Stop watching for manifest files inside Wildland.
     """
     terminate_daemon(MW_PIDFILE, "Mount-watch not running.")
+    
+@container_.command('subcontainer-mount-watch', short_help='mount container and watch its subcontainers for changes')
+@click.argument('container_name', metavar='CONTAINER', nargs=1, required=True)
+@click.pass_obj
+def subcontaier_mount_watch(obj: ContextObj, container_name):
+    """
+    Watch for manifest files inside Wildland, and keep the filesystem mount
+    state in sync.
+    """
+    
+    obj.fs_client.ensure_mounted()
+    client = obj.client
+
+    container = next(client.load_containers_from(container_name))
+    storages = list(obj.client.all_storages(container=container))
+    assert len(storages) == 1
+    storage = storages[0]
+#    storages = list(obj.client.all_storages(container=container))
+#    assert len(storages) == 1
+#    storage = storages[0]
+        
+    remounter = SubcontainerRemounter(obj.client, obj.fs_client, container, storage)
+    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
+                              stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
+        init_logging(False, f"{os.path.expanduser('~')}/.local/share/wildland/wl-mount-watch.log")
+        remounter.run()
 
 
 @container_.command('add-mount-watch', short_help='mount container')
