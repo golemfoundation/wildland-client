@@ -72,6 +72,13 @@ pytest:
   script:
     - export PYTEST_ADDOPTS="--color=yes"
     - ./ci/ci-pytest
+  after_script:
+    - /home/user/env/bin/python3 -m coverage combine
+    - /home/user/env/bin/python3 -m coverage xml -o artifacts/coverage.xml
+    - /home/user/env/bin/python3 -m coverage html -d artifacts/htmlcov
+    - /home/user/env/bin/python3 -m coverage report --include=wildland/* --omit=wildland/storage_backends/transpose.py
+    - sed -i -e '/<source><\/source>/d' artifacts/coverage.xml
+  coverage: '/TOTAL.*\s(\d+)%/'
   artifacts:
     when: always
     paths:
@@ -80,13 +87,21 @@ pytest:
     reports:
       junit: artifacts/wildland.xml
       cobertura: artifacts/coverage.xml
-  coverage: '/TOTAL.*\s(\d+)%/'
 
 transpose-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-transpose
+  after_script:
+    - /home/user/env/bin/python3 -m coverage combine
+    - /home/user/env/bin/python3 -m coverage xml -o artifacts/coverage.xml
+    - /home/user/env/bin/python3 -m coverage report --include=wildland/storage_backends/transpose.py
+    - sed -i -e '/<source><\/source>/d' artifacts/coverage.xml
+  coverage: '/TOTAL.*\s(\d+)%/'
+  artifacts:
+    reports:
+      cobertura: artifacts/coverage.xml
 
 .plugin_test:
   stage: test

@@ -6,7 +6,15 @@ ROOT="$HOME/wildland"
 MANIFEST_CATALOG="/home/user/catalog"
 
 . /home/user/env/bin/activate
-pip install .
+
+# pytest
+
+pytest -v \
+       --cov wildland.storage_backends.transpose \
+       wildland/tests/test_transpose.py
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
+
+# Setup
 
 WL='python3 -m coverage run -p ./wl'
 
@@ -32,9 +40,9 @@ $WL storage create static --file "Bye.md=Bye World!" --container container2
 $WL container create transpose
 $WL storage create transpose --container transpose --reference-container-url wildland::/.manifests: --rules '{"match-with":"/category/one", "replace-with": "/replaced/one"}' --rules '{"match-category-regex": "/timeline", "replace-with": "/t"}' --rules '{"match-category-regex": "/(.*)", "replace-with": "/prefix/\\1"}' --conflict all-apply
 $WL --debug container mount transpose
- 
+
 tree $ROOT
- 
+
 # checking if the modified categories exist
 time -p chronic ls "$ROOT"/prefix
 time -p test -d "$ROOT"/prefix/replaced/one
