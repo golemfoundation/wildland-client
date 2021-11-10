@@ -243,6 +243,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.ignore_own_events = False
 
         self.watcher_instance = None
+        self.subcontainer_watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
         self.hash_db: Optional[HashDb] = None
         self._persistent_db: Optional[KVStore] = None  # generic persistent storage
@@ -393,6 +394,29 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.ignore_own_events = False
 
+    def start_subcontainer_watcher(self, handler, ignore_own_events=None):
+
+        if self.subcontainer_watcher_instance:
+            raise StorageError("Watcher already exists")
+
+        self.subcontainer_watcher_instance = self.subcontainer_watcher()  # pylint: disable=assignment-from-none
+
+        if not self.subcontainer_watcher_instance:
+            return None
+
+        self.subcontainer_watcher_instance.start(handler)
+
+        return self.subcontainer_watcher_instance
+
+    def stop_subcontainer_watcher(self):
+        if not self.subcontainer_watcher_instance:
+            return
+
+        self.subcontainer_watcher_instance.stop()
+
+        self.subcontainer_watcher_instance = None
+        # self.ignore_own_events = False
+
     def watcher(self):
         """
         Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
@@ -411,6 +435,17 @@ class StorageBackend(metaclass=abc.ABCMeta):
             logger.warning("Using simple storage watcher - it can be very inefficient.")
             from ..storage_backends.watch import SimpleStorageWatcher
             return SimpleStorageWatcher(self, interval=int(self.params['watcher-interval']))
+        return None
+
+    def subcontainer_watcher(self):
+        """
+        TODO
+        """
+        if 'watcher-interval' in self.params:
+            # pylint: disable=import-outside-toplevel, cyclic-import
+            logger.warning("Using simple subcontainer watcher - it can be very inefficient.")
+            from ..storage_backends.watch import SubcontainerWatcher
+            return SubcontainerWatcher(self, interval=int(self.params['watcher-interval']))
         return None
 
     def set_config_dir(self, config_dir):

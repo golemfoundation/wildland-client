@@ -31,9 +31,9 @@ from typing import List, Optional, Tuple, Iterable, Dict, Set
 
 from wildland.cli.cli_common import prepare_remount
 from wildland.client import Client
-from wildland.container import Container
+from wildland.container import Container, ContainerStub
 from wildland.exc import WildlandError
-from wildland.fs_client import WildlandFSClient, WatchEvent
+from wildland.fs_client import WildlandFSClient, WatchEvent, WatchSubcontainerEvent
 from wildland.search import Search
 from wildland.storage import Storage
 from wildland.storage_backends.watch import FileEventType
@@ -72,24 +72,27 @@ class Remounter:
     """
 
     def __init__(self, client: Client, fs_client: WildlandFSClient,
-                 container_names: List[str], additional_patterns: Optional[List[str]] = None):
+                 container_names: List[str] = None, additional_patterns: Optional[List[str]] = None,
+                 container=None, storage=None):
         self.client = client
         self.fs_client = fs_client
+        self.storage = storage
+        self.container = container
 
         self.patterns: List[str] = []
         self.wlpaths: List[WildlandPath] = []
         # patterns to watch WL paths
         self.wlpath_patterns: Dict[str, List[WildlandPath]] = {}
 
-        if additional_patterns:
-            self.patterns.extend(additional_patterns)
-        for name in container_names:
-            if WildlandPath.match(name):
-                self.wlpaths.append(WildlandPath.from_str(name))
-                continue
-            path = Path(os.path.expanduser(name)).resolve()
-            relpath = path.relative_to(self.fs_client.mount_dir)
-            self.patterns.append(str(PurePosixPath('/') / relpath))
+        # if additional_patterns:
+        #     self.patterns.extend(additional_patterns)
+        # for name in container_names:
+        #     if WildlandPath.match(name):
+        #         self.wlpaths.append(WildlandPath.from_str(name))
+        #         continue
+        #     path = Path(os.path.expanduser(name)).resolve()
+        #     relpath = path.relative_to(self.fs_client.mount_dir)
+        #     self.patterns.append(str(PurePosixPath('/') / relpath))
 
         # Queued operations
         self.to_mount: List[Tuple[Container,
@@ -136,17 +139,41 @@ class Remounter:
         self.wlpath_patterns = patterns
         return patterns_changed
 
+    # def run(self):
+    #     """
+    #     Run the main loop.
+    #     """
+    #
+    #     self.init_wlpath_patterns()
+    #     while True:
+    #         patterns = self.patterns + list(self.wlpath_patterns.keys())
+    #         logger.info('Using patterns: %r', patterns)
+    #         for events in self.fs_client.watch(patterns, with_initial=True):
+    #             any_wlpath_changed = self.handle_events(events)
+    #
+    #             self.unmount_pending()
+    #             self.mount_pending()
+    #
+    #             if any_wlpath_changed:
+    #                 # recalculate wlpath patterns
+    #                 if self.init_wlpath_patterns():
+    #                     logger.info('wlpath patterns changed, re-registering watches')
+    #                     break
+
     def run(self):
         """
         Run the main loop.
         """
 
-        self.init_wlpath_patterns()
+        # self.backend.start_subcontainer_watcher()
+
+        # self.init_wlpath_patterns()
         while True:
-            patterns = self.patterns + list(self.wlpath_patterns.keys())
-            logger.debug('Using patterns: %r', patterns)
-            for events in self.fs_client.watch(patterns, with_initial=True):
-                any_wlpath_changed = self.handle_events(events)
+            # patterns = self.patterns + list(self.wlpath_patterns.keys())
+            # logger.info('Using patterns: %r', patterns)
+            for events in self.fs_client.watch_subcontainers(self.storage.params, with_initial=True):
+                for event in events:
+                    self.handle_subcontainer_event(event)
 
                 self.unmount_pending()
                 self.mount_pending()
@@ -154,7 +181,7 @@ class Remounter:
                 if any_wlpath_changed:
                     # recalculate wlpath patterns
                     if self.init_wlpath_patterns():
-                        logger.debug('wlpath patterns changed, re-registering watches')
+                        logger.info('wlpath patterns changed, re-registering watches')
                         break
 
     def handle_events(self, events) -> bool:
@@ -257,6 +284,41 @@ class Remounter:
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_container_path(
                 container.owner, container.paths[0])
+            self.handle_changed_container(container)
+
+    def handle_subcontainer_event(self, event: WatchSubcontainerEvent):
+        """
+        Handle a single file change event. Queue mount/unmount operations in
+        self.to_mount and self.to_unmount.
+        """
+
+        logger.info('Event %s: %s', event.event_type, event.path)
+
+        if event.event_type == FileEventType.DELETE:
+            # Find out if we've already seen the file, and can match it to a
+            # mounted storage.
+            storage_id: Optional[int] = None
+            if event.path in self.main_paths:
+                storage_id = self.fs_client.find_storage_id_by_path(self.main_paths[event.path])
+
+            # Stop tracking the file
+            if event.path in self.main_paths:
+                del self.main_paths[event.path]
+
+            if storage_id is not None:
+                logger.info('  (unmount %d)', storage_id)
+                self.to_unmount.append(storage_id)
+            else:
+                logger.info('  (not mounted)')
+
+        if event.event_type in [FileEventType.CREATE, FileEventType.MODIFY]:
+            container = self.client.load_subcontainer_object(
+                self.container, self.storage, event.subcontainer)
+
+            # Start tracking the file
+            self.main_paths[event.path] = self.fs_client.get_user_container_path(
+                container.owner, container.paths[0])
+
             self.handle_changed_container(container)
 
     def handle_changed_container(self, container: Container):

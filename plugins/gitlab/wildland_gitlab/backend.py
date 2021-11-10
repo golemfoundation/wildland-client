@@ -149,7 +149,7 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         assert self.all_compact_issues is not None
         for issue in self.all_compact_issues:
             yield self._make_issue_container(issue)
-        logger.debug('subcontainers succesfully created')
+        logger.debug('subcontainers successfully created')
 
     @classmethod
     def _get_issue_categories(cls, issue: CompactIssue) -> List[str]:
@@ -175,8 +175,7 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         if issue.labels:
             for label in issue.labels:
                 to_append = PurePosixPath('/labels')
-                l = label.split('::')
-                for part in l:
+                for part in label.split('::'):
                     to_append = to_append / PurePosixPath(part)
                 paths.append(to_append)
 

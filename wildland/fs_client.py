@@ -24,12 +24,13 @@
 """
 Wildland FS client
 """
+import ast
 import itertools
 import os
 import time
 from pathlib import Path, PurePosixPath
 import subprocess
-from typing import Callable, Dict, List, Optional, Iterable, Tuple, Iterator
+from typing import Callable, Dict, List, Optional, Iterable, Tuple, Iterator, Union
 import json
 import sys
 import hashlib
@@ -38,7 +39,8 @@ import glob
 import re
 
 from .cli.cli_exc import CliError
-from .container import Container
+from .container import Container, ContainerStub
+from .link import Link
 from .storage import Storage
 from .exc import WildlandError
 from .control_client import ControlClient, ControlClientUnableToConnectError
@@ -70,6 +72,17 @@ class WatchEvent:
     event_type: FileEventType
     pattern: str  # pattern that generated this event
     path: PurePosixPath  # absolute path in Wildland namespace
+
+
+@dataclasses.dataclass
+class WatchSubcontainerEvent:
+    """
+    A file change event.
+    """
+
+    event_type: FileEventType
+    path: PurePosixPath  # absolute path in Wildland namespace
+    subcontainer: Union[Link, ContainerStub]
 
 
 class WildlandFSError(WildlandError):
@@ -899,8 +912,7 @@ class WildlandFSClient:
         try:
             watches = {}
             for pattern in patterns:
-                found = list(self.find_all_storage_ids_for_path(
-                    PurePosixPath(pattern)))
+                found = list(self.find_all_storage_ids_for_path(PurePosixPath(pattern)))
                 if not found:
                     raise WildlandError(f"couldn't resolve to storage: {pattern}")
                 for storage_id, storage_path, relpath in found:
@@ -928,6 +940,36 @@ class WildlandFSClient:
                     event_type = FileEventType[event['type']]
                     path = PurePosixPath(event['path'])
                     watch_events.append(WatchEvent(event_type, pattern, storage_path / path))
+                yield watch_events
+        except GeneratorExit:
+            pass
+        finally:
+            client.disconnect()
+
+    def watch_subcontainers(self, backend_params, with_initial=False) -> Iterator[List[WatchSubcontainerEvent]]:
+        """
+        TODO
+        """
+
+        client = ControlClient()
+        client.connect(self.socket_path)
+        try:
+            # watches = {}
+            for sb in [backend_params]:
+                # logger.debug('watching %d:%s', storage_id, relpath)
+                watch_id = client.run_command('add-subcontainer-watch', backend_param=sb)
+                # watches[watch_id] = (storage_path, pattern)
+
+            for events in client.iter_events():
+                watch_events = []
+                for event in events:
+                    watch_id = event['watch-id']
+                    # storage_path, pattern = watches[watch_id]
+                    event_type = FileEventType[event['type']]
+                    path = PurePosixPath(event['path'])
+                    fields = ast.literal_eval(event['subcontainer'])
+                    subcontainer = ContainerStub(fields)
+                    watch_events.append(WatchSubcontainerEvent(event_type, path, subcontainer))
                 yield watch_events
         except GeneratorExit:
             pass

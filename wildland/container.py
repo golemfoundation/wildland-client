@@ -503,6 +503,15 @@ class ContainerStub:
     def __init__(self, fields: dict):
         self.fields = fields
 
+    def __eq__(self, other):
+        return self.fields == other.fields
+
+    def __repr__(self):
+        return str(self.fields)
+
+    def __str__(self):
+        return self.__repr__()
+
     @classmethod
     def from_manifest(cls, manifest: Manifest):
         """

@@ -25,13 +25,15 @@
 Watching for changes.
 """
 from enum import Enum
-from typing import Optional, List, Callable, Dict
+from typing import Optional, List, Callable, Dict, Union
 from pathlib import PurePosixPath
 import threading
 from dataclasses import dataclass
 import abc
 
 from .base import StorageBackend, Attr
+from ..container import ContainerStub
+from ..link import Link
 from ..log import get_logger
 
 logger = get_logger('watch')
@@ -216,3 +218,80 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         for path in current_paths & new_paths:
             if current_info[path] != new_info[path]:
                 yield FileEvent(FileEventType.MODIFY, path)
+
+
+@dataclass
+class SubcontainerEvent:
+    """
+    Subcontainer change event.
+    """
+    type: FileEventType
+    path: PurePosixPath
+    subcontainer: Union[Link, ContainerStub]
+
+    def __repr__(self):
+        return f'{self.type.name} {self.path} {str(self.subcontainer)}'
+
+    def __str__(self):
+        return self.__repr__()
+
+
+class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
+    """
+    TODO
+    """
+
+    def __init__(self, backend: StorageBackend, interval: int = 10):
+        super().__init__()
+        self.backend = backend
+        self.token = None
+        self.info: Dict[PurePosixPath, Attr] = {}
+        self.interval = interval
+        self.counter = 0  # for naive implementation of get_token()
+
+    def get_token(self):
+        """
+        Retrieve token to be compared, such as file modification info.
+        """
+        self.counter += 1
+        return self.counter
+
+    def init(self):
+        self.token = self.get_token()
+        self.info = self._get_info()
+
+    def wait(self) -> Optional[List[SubcontainerEvent]]:
+        self.stop_event.wait(self.interval)
+        new_token = self.get_token()
+        if new_token != self.token:
+            logger.debug('storage changed...')
+            self.backend.clear_cache()
+            new_info = self._get_info()
+            result = list(self._compare_info(self.info, new_info))
+
+            self.token = new_token
+            self.info = new_info
+            if result:
+                logger.debug('subcontainer changes detected')
+                return result
+            logger.debug('subcontainer no changes detected')
+            return None
+        return None
+
+    def shutdown(self):
+        pass
+
+    def _get_info(self) -> dict[PurePosixPath, Union[Link, ContainerStub]]:
+        return dict(self.backend.get_children())
+
+    @staticmethod
+    def _compare_info(current_info, new_info):
+        current_paths = set(current_info)
+        new_paths = set(new_info)
+        for path in current_paths - new_paths:
+            yield SubcontainerEvent(FileEventType.DELETE, path, current_info[path])
+        for path in new_paths - current_paths:
+            yield SubcontainerEvent(FileEventType.CREATE, path, new_info[path])
+        for path in current_paths & new_paths:
+            if current_info[path] != new_info[path]:
+                yield SubcontainerEvent(FileEventType.MODIFY, path, new_info[path])

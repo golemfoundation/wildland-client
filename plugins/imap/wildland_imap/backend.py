@@ -32,7 +32,7 @@ import uuid
 import click
 
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.watch import SimpleStorageWatcher
+from wildland.storage_backends.watch import SimpleStorageWatcher, SubcontainerWatcher
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
 from wildland.container import ContainerStub
@@ -43,6 +43,20 @@ logger = get_logger('storage-imap')
 
 
 class ImapStorageWatcher(SimpleStorageWatcher):
+    """
+    A watcher for IMAP server. This implementation just queries
+    the server and reports an update if message list has changed.
+    """
+
+    def __init__(self, backend: 'ImapStorageBackend'):
+        super().__init__(backend)
+        self.client = backend.client
+
+    def get_token(self):
+        return self.client.refresh_if_needed()
+
+
+class ImapSubcontainerWatcher(SubcontainerWatcher):
     """
     A watcher for IMAP server. This implementation just queries
     the server and reports an update if message list has changed.
@@ -89,6 +103,9 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def watcher(self):
         return ImapStorageWatcher(self)
 
+    def subcontainer_watcher(self):
+        return ImapSubcontainerWatcher(self)
+
     @property
     def can_have_children(self) -> bool:
         return True
@@ -113,7 +130,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _msg_contents(self, e: MessageEnvelopeData):
         # This little method should populate the message directory
-        # with message parts decomposed into MIME attachements.
+        # with message parts decomposed into MIME attachments.
         for part in self.client.get_message(e.msg_uid):
             yield StaticFileEntry(part.attachment_name,
                                   part.content,
