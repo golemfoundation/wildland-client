@@ -16,7 +16,7 @@ class SubcontainerRemounter:
     """
     TODO
     """
-    
+
     def __init__(self, client: Client, fs_client: WildlandFSClient,
                  containers_storage: Dict[Container, Storage]):
         self.containers_storage = containers_storage
@@ -38,7 +38,7 @@ class SubcontainerRemounter:
         
         while True:
             for events in self.fs_client.watch_subcontainers(
-                    self.client, self.containers_storage, with_initial=True):
+self.client, self.containers_storage, with_initial=True):
                 for event in events:
                     self.handle_subcontainer_event(event)
                 self.unmount_pending()
@@ -101,7 +101,7 @@ class SubcontainerRemounter:
                 self.to_unmount.append(storage_id)
 
             for storage in storages:
-                if self.fs_client.should_remount(container, storage, user_paths):
+                if self.fs_client.q(container, storage, user_paths):
                     logger.info('  (remounting: %s)', storage.backend_id)
                     storages_to_remount.append(storage)
                 else:

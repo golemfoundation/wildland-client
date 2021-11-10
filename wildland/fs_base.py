@@ -329,7 +329,9 @@ class WildlandFSBase:
 
     @control_command('add-subcontainer-watch')
     def control_add_subcontainer_watch(self, handler: ControlHandler, backend_param: Dict[str, Any],
-                                       with_initial: bool = False, ignore_own: bool = False):
+with_initial: bool = False, ignore_own: bool = False,
+                                       params: Optional[dict] = None):
+
         backend = StorageBackend.from_params(backend_param, deduplicate=True)
         for storage_id, storage_backend in self.storages.items():
             if storage_backend == backend:
@@ -339,7 +341,8 @@ class WildlandFSBase:
             raise ValueError  # TODO
         with self.mount_lock:
             return self._add_subcontainer_watch(
-                ident, handler, with_initial=with_initial, ignore_own=ignore_own)
+ident, handler, with_initial=with_initial, ignore_own=ignore_own, params=params)
+
 
     @control_command('breakpoint')
     def control_breakpoint(self, _handler):
@@ -413,6 +416,43 @@ class WildlandFSBase:
 
             if watcher:
                 logger.debug('starting watcher for storage %d', storage_id)
+                self.watchers[storage_id] = watcher
+
+        return watch.id
+
+    def _add_subcontainer_watch(self, storage_id: int, handler: ControlHandler,
+ with_initial: bool = False, ignore_own: bool = False,
+                                params: Optional[dict] = None):
+                                
+        assert self.mount_lock.locked()
+
+        watch = Watch(
+            id=self.watch_counter,
+            storage_id=storage_id,
+            pattern="",
+            handler=handler,
+        )
+        logger.info('adding watch: %s', watch)
+        self.watches[watch.id] = watch
+        if storage_id not in self.storage_watches:
+            self.storage_watches[storage_id] = set()
+
+        self.storage_watches[storage_id].add(watch.id)
+        self.watch_counter += 1
+
+        handler.on_close(lambda: self._cleanup_watch(watch.id))
+
+        # Start a watch thread, but only if the storage provides watcher() method
+        if len(self.storage_watches[storage_id]) == 1:
+
+            def watch_handler(events):
+                return self._watch_subcontainer_handler(storage_id, events)
+            watcher = self.storages[storage_id].start_subcontainer_watcher(
+ watch_handler, with_initial=with_initial, ignore_own_events=ignore_own,
+                params=params)
+
+            if watcher:
+                logger.info('starting watcher for storage %d', storage_id)
                 self.watchers[storage_id] = watcher
 
         return watch.id
@@ -512,6 +552,7 @@ class WildlandFSBase:
         data = [{
             'type': event.type.name,
             'path': str(event.path),
+            'subcontainer': str(event.subcontainer),
             'watch-id': watch.id,
             'storage-id': watch.storage_id,
         } for event in events]

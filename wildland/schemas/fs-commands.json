@@ -100,6 +100,10 @@
                 "ignore-own": {
                     "type": "boolean",
                     "description": "should the watcher ignore events caused by storage's own activity"
+                },
+                "params": {
+                    "type": "object",
+                    "description": "TODO"
                 }
             }
         },

@@ -103,7 +103,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def watcher(self):
         return ImapStorageWatcher(self)
 
-    def subcontainer_watcher(self,  params: Optional[dict] = None):
+    def subcontainer_watcher(self):
         return ImapSubcontainerWatcher(self)
 
     @property
