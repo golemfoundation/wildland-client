@@ -1177,51 +1177,16 @@ def mount_watch(obj: ContextObj, container_names):
     """
 
     obj.fs_client.ensure_mounted()
+    if os.path.exists(MW_PIDFILE):
+        raise ClickException("Mount-watch already running; use stop-mount-watch to stop it "
+                             "or add-mount-watch to watch more containers.")
+    if container_names:
+        with open(MW_DATA_FILE, 'w') as file:
+            file.truncate(0)
+            file.write("\n".join(container_names))
 
-    _mount(obj, container_names, save=False)
+    remounter = Remounter(obj.client, obj.fs_client, container_names)
 
-    # # fails: List[str] = []
-    # all_storage_ids = []
-    # all_cache_ids = []
-    # # storage_ids: List[int] = []
-    # # if container_names:
-    # for container_name in container_names:
-    #     counter = get_counter(f"Loading containers (from '{container_name}')")
-    #     try:
-    #         storage_ids, cache_ids = _collect_storage_ids_by_container_name(
-    #             obj, container_name, counter, with_subcontainers=False)
-    #         all_storage_ids.extend(storage_ids)
-    #         all_cache_ids.extend(cache_ids)
-    #     except WildlandError as ex:
-    #         pass
-    #         # fails.append(str(ex))
-    #
-    # assert len(all_storage_ids) == 1
-    #
-    # for storage_id in all_storage_ids:
-    #     container = obj.fs_client.get_container_from_storage_id(storage_id)
-    assert len(container_names) == 1
-    container = next(obj.client.load_containers_from(container_names[0]))
-    storages = list(obj.client.all_storages(container=container))
-    assert len(storages) == 1
-    storage = storages[0]
-    # if fails:
-    #     fails = ['Failed to load some container manifests:'] + fails
-    # else:
-    #     counter = get_counter(f"Loading containers (from '{path}')")
-    #     storage_ids, cache_ids = _collect_storage_ids_by_container_path(
-    #         obj, PurePosixPath(path), counter, with_subcontainers=True)
-    #     all_storage_ids.extend(storage_ids)
-    #     all_cache_ids.extend(cache_ids)
-
-    # if os.path.exists(MW_PIDFILE):
-    #     raise ClickException("Mount-watch already running; use stop-mount-watch to stop it "
-    #                          "or add-mount-watch to watch more containers.")
-    # if container_names:
-    #     with open(MW_DATA_FILE, 'w') as file:
-    #         file.truncate(0)
-    #         file.write("\n".join(container_names))
-    remounter = Remounter(obj.client, obj.fs_client, container=container, storage=storage)
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         init_logging(False, f"{os.path.expanduser('~')}/.local/share/wildland/wl-mount-watch.log")
@@ -1234,28 +1199,29 @@ def stop_mount_watch():
     Stop watching for manifest files inside Wildland.
     """
     terminate_daemon(MW_PIDFILE, "Mount-watch not running.")
-    
-@container_.command('subcontainer-mount-watch', short_help='mount container and watch its subcontainers for changes')
-@click.argument('container_name', metavar='CONTAINER', nargs=1, required=True)
+
+
+@container_.command('subcontainer-mount-watch',
+                    short_help='mount container and watch its subcontainers for changes')
+@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def subcontaier_mount_watch(obj: ContextObj, container_name):
+def subcontainer_mount_watch(obj: ContextObj, container_names):
     """
     Watch for manifest files inside Wildland, and keep the filesystem mount
     state in sync.
     """
     
     obj.fs_client.ensure_mounted()
-    client = obj.client
 
-    container = next(client.load_containers_from(container_name))
-    storages = list(obj.client.all_storages(container=container))
-    assert len(storages) == 1
-    storage = storages[0]
-#    storages = list(obj.client.all_storages(container=container))
-#    assert len(storages) == 1
-#    storage = storages[0]
-        
-    remounter = SubcontainerRemounter(obj.client, obj.fs_client, container, storage)
+    _mount(obj, container_names, save=False)
+
+    containers_storage: Dict[Container, Storage] = {
+        container: obj.client.select_storage(container)
+        for container_name in container_names
+        for container in obj.client.load_containers_from(container_name)
+    }
+
+    remounter = SubcontainerRemounter(obj.client, obj.fs_client, containers_storage)
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
         init_logging(False, f"{os.path.expanduser('~')}/.local/share/wildland/wl-mount-watch.log")

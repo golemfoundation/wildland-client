@@ -81,7 +81,9 @@ class WatchSubcontainerEvent:
     """
 
     event_type: FileEventType
-    path: PurePosixPath  # absolute path in Wildland namespace
+    container: Container
+    storage: Storage
+    path: PurePosixPath
     subcontainer: Union[Link, ContainerStub]
 
 
@@ -946,7 +948,8 @@ class WildlandFSClient:
         finally:
             client.disconnect()
 
-    def watch_subcontainers(self, backend_params, with_initial=False) -> Iterator[List[WatchSubcontainerEvent]]:
+    def watch_subcontainers(self, containers_storages: Dict[Container, Storage],
+                            with_initial=False) -> Iterator[List[WatchSubcontainerEvent]]:
         """
         TODO
         """
@@ -954,22 +957,25 @@ class WildlandFSClient:
         client = ControlClient()
         client.connect(self.socket_path)
         try:
-            # watches = {}
-            for sb in [backend_params]:
-                # logger.debug('watching %d:%s', storage_id, relpath)
-                watch_id = client.run_command('add-subcontainer-watch', backend_param=sb)
-                # watches[watch_id] = (storage_path, pattern)
+            watches = {}
+            for container, storage in containers_storages.items():
+                params = storage.params
+                logger.debug(f'watching for subcontainers: storage {params["backend-id"]}')
+                watch_id = client.run_command(
+                    'add-subcontainer-watch', backend_param=params, with_initial=with_initial)
+                watches[watch_id] = (container, storage)
 
             for events in client.iter_events():
                 watch_events = []
                 for event in events:
-                    watch_id = event['watch-id']
-                    # storage_path, pattern = watches[watch_id]
                     event_type = FileEventType[event['type']]
+                    watch_id = event['watch-id']
+                    container, storage = watches[watch_id]
                     path = PurePosixPath(event['path'])
                     fields = ast.literal_eval(event['subcontainer'])
                     subcontainer = ContainerStub(fields)
-                    watch_events.append(WatchSubcontainerEvent(event_type, path, subcontainer))
+                    watch_events.append(WatchSubcontainerEvent(
+                        event_type, container, storage, path, subcontainer))
                 yield watch_events
         except GeneratorExit:
             pass

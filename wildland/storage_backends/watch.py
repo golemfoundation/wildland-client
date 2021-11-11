@@ -86,13 +86,13 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         if not self.handler:
             return
 
-    def start(self, handler: Callable[[List[FileEvent]], None]):
+    def start(self, handler: Callable[[List[FileEvent]], None], with_initial: bool = False):
         """
         Start the watcher on a separate thread.
         """
 
         self.handler = handler
-        self.init()
+        self.init(with_initial)
         self.thread.start()
 
     def _run(self):
@@ -115,7 +115,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         self.shutdown()
 
     @abc.abstractmethod
-    def init(self) -> None:
+    def init(self, with_initial: bool) -> None:
         """
         Initialize the watcher. This will be called synchronously (before
         starting a separate thread).
@@ -160,7 +160,7 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         self.counter += 1
         return self.counter
 
-    def init(self):
+    def init(self, _with_initial: bool = False):
         self.token = self.get_token()
         self.info = self._get_info()
 
@@ -256,9 +256,10 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         self.counter += 1
         return self.counter
 
-    def init(self):
+    def init(self, with_initial: bool = False):
         self.token = self.get_token()
-        self.info = self._get_info()
+        if not with_initial:
+            self.info = self._get_info()
 
     def wait(self) -> Optional[List[SubcontainerEvent]]:
         self.stop_event.wait(self.interval)

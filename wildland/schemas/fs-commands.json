@@ -91,7 +91,11 @@
             "properties": {
                 "backend-param": {
                     "type": "object",
-                    "description": ""
+                    "description": "TODO"
+                },
+                "with-initial": {
+                    "type": "boolean",
+                    "description": "TODO"
                 },
                 "ignore-own": {
                     "type": "boolean",

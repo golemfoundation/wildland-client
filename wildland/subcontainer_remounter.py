@@ -1,24 +1,25 @@
-import time
-from wildland.wildland_object.wildland_object import WildlandObject
-from wildland.fs_client import WildlandFSClient
+from pathlib import PurePosixPath
+from typing import List, Tuple, Iterable, Optional, Dict
+
 from wildland.client import Client
-from wildland.container import Container, ContainerStub
-from wildland.storage import Storage
-from wildland.fs_client import WildlandFSClient, WatchEvent, WatchSubcontainerEvent
-from wildland.storage_backends.watch import FileEventType
-from .storage_backends.base import StorageBackend
+from wildland.container import Container
+from wildland.fs_client import WildlandFSClient, WatchSubcontainerEvent
 from wildland.log import get_logger
+from wildland.storage import Storage
+from wildland.storage_backends.watch import FileEventType
+from .exc import WildlandError
 
 logger = get_logger('subcontainer_remounter')
 
+
 class SubcontainerRemounter:
     """
+    TODO
     """
     
     def __init__(self, client: Client, fs_client: WildlandFSClient,
-                 container: WildlandObject.Type.CONTAINER, storage: Storage):
-        self.container = container
-        self.storage = storage
+                 containers_storage: Dict[Container, Storage]):
+        self.containers_storage = containers_storage
         self.client = client
         self.fs_client = fs_client
         
@@ -30,28 +31,18 @@ class SubcontainerRemounter:
         
         self.main_paths: Dict[PurePosixPath, PurePosixPath] = {}
 
-        
-#        self.backends = {}
-#
-#        for storage in storages:
-#            backend = StorageBackend.from_params(storage.params, deduplicate=True)
-#            get_children = backend.get_children(client = self.client)
-#            self.backends[backend] = get_children
-        
-
     def run(self):
         """
         Run the main loop.
         """
         
         while True:
-            for events in self.fs_client.watch_subcontainers(self.storage.params, with_initial=True):
+            for events in self.fs_client.watch_subcontainers(
+                    self.containers_storage, with_initial=True):
                 for event in events:
                     self.handle_subcontainer_event(event)
-                    
                 self.unmount_pending()
                 self.mount_pending()
-
 
     def handle_subcontainer_event(self, event: WatchSubcontainerEvent):
         """
@@ -61,8 +52,7 @@ class SubcontainerRemounter:
         logger.info('Event %s: %s', event.event_type, event.path)
 
         if event.event_type == FileEventType.DELETE:
-            # Find out if we've already seen the file, and can match it to a
-            # mounted storage.
+            # Find out if we've already seen the file, and can match it to a mounted storage.
             storage_id: Optional[int] = None
             if event.path in self.main_paths:
                 storage_id = self.fs_client.find_storage_id_by_path(self.main_paths[event.path])
@@ -79,7 +69,7 @@ class SubcontainerRemounter:
 
         if event.event_type in [FileEventType.CREATE, FileEventType.MODIFY]:
             container = self.client.load_subcontainer_object(
-                self.container, self.storage, event.subcontainer)
+                event.container, event.storage, event.subcontainer)
 
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_container_path(
