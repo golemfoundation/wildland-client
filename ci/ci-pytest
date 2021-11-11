@@ -10,3 +10,4 @@ pytest -v \
     --ignore=plugins \
     --ignore=wildland/tests/test_transpose.py \
     "$@"
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
