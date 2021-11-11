@@ -4,8 +4,8 @@ set -ex
 
 . /home/user/env/bin/activate
 
-python3 -m coverage run -m \
-    pytest -v \
+pytest -v \
+    --cov wildland \
     --junitxml=artifacts/wildland.xml \
     --ignore=plugins \
     --ignore=wildland/tests/test_transpose.py \
