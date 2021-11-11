@@ -214,7 +214,7 @@ class BearGenerator:
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--notes-count', default=5000, type=int, help="How many notes to generate (%(default)s)")
+parser.add_argument('--notes-count', default=4000, type=int, help="How many notes to generate (%(default)s)")
 parser.add_argument('--max-tags', default=10, type=int, help="Max tags for each note (%(default)s)")
 parser.add_argument('database', help="Bear SQLite database path to be created")
 

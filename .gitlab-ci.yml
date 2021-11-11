@@ -72,6 +72,13 @@ pytest:
   script:
     - export PYTEST_ADDOPTS="--color=yes"
     - ./ci/ci-pytest
+  after_script:
+    - /home/user/env/bin/python3 -m coverage combine
+    - /home/user/env/bin/python3 -m coverage xml -o artifacts/coverage.xml
+    - /home/user/env/bin/python3 -m coverage html -d artifacts/htmlcov
+    - /home/user/env/bin/python3 -m coverage report --include=wildland/* --omit=wildland/storage_backends/transpose.py
+    - sed -i -e '/<source><\/source>/d' artifacts/coverage.xml
+  coverage: '/TOTAL.*\s(\d+)%/'
   artifacts:
     when: always
     paths:
@@ -80,93 +87,111 @@ pytest:
     reports:
       junit: artifacts/wildland.xml
       cobertura: artifacts/coverage.xml
-  coverage: '/TOTAL.*\s(\d+)%/'
 
-bear-test:
+transpose-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/wildland-test-runner.sh ./ci/ci-bear
+    - ./ci/ci-transpose
+  after_script:
+    - /home/user/env/bin/python3 -m coverage combine
+    - /home/user/env/bin/python3 -m coverage xml -o artifacts/coverage.xml
+    - /home/user/env/bin/python3 -m coverage report --include=wildland/storage_backends/transpose.py
+    - sed -i -e '/<source><\/source>/d' artifacts/coverage.xml
+  coverage: '/TOTAL.*\s(\d+)%/'
+  artifacts:
+    reports:
+      cobertura: artifacts/coverage.xml
 
-gitlab-test:
+.plugin_test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
+  after_script:
+    - /home/user/env/bin/python3 -m coverage combine
+    - /home/user/env/bin/python3 -m coverage xml -o artifacts/coverage.xml
+    - /home/user/env/bin/python3 -m coverage report --include=plugins/${CI_JOB_NAME%-test*}/*
+    - sed -i -e '/<source><\/source>/d' artifacts/coverage.xml
+  coverage: '/TOTAL.*\s(\d+)%/'
+  artifacts:
+    reports:
+      cobertura: artifacts/coverage.xml
+
+bearnotes-test:
+  extends: .plugin_test
+  script:
+    - ./ci/wildland-test-runner.sh ./ci/ci-bearnotes
+
+categorization-proxy-test:
+  extends: .plugin_test
+  script:
+    - ./ci/ci-categorization-proxy
+
+gitlab-test:
+  extends: .plugin_test
   script:
     - ./ci/ci-gitlab
 
 git-test:
-    stage: test
-    image: $CONTAINER_TEST_IMAGE
-    script:
-      - ./ci/ci-git
+  extends: .plugin_test
+  script:
+    - ./ci/ci-git
 
 gitlab-graphql-test:
-    stage: test
-    image: $CONTAINER_TEST_IMAGE
-    script:
-      - ./ci/ci-gitlab-graphql
+  extends: .plugin_test
+  script:
+    - ./ci/ci-gitlab-graphql
 
 imap-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
+  extends: .plugin_test
   script:
     - ./ci/ci-imap
 
 ipfs-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
+  extends: .plugin_test
   script:
     - ./ci/ci-ipfs
 
 sshfs-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
+  extends: .plugin_test
   script:
     - ./ci/ci-sshfs
 
 s3-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
+  extends: .plugin_test
   script:
     - ./ci/ci-s3
-    
-transpose-test:
-    stage: test
-    image: $CONTAINER_TEST_IMAGE
-    script:
-      - ./ci/ci-transpose
 
 webdav-test:
-    stage: test
-    image: $CONTAINER_TEST_IMAGE
+    extends: .plugin_test
     script:
       - ./ci/ci-webdav
 
 encrypted-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
+  extends: .plugin_test
   script:
     - ./ci/ci-encrypted
 
 dropbox-test-legacy:
+  extends: .plugin_test
   allow_failure: true
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-dropbox "$DROPBOX_TEST_ACCESS_TOKEN"
 
 dropbox-test:
+  extends: .plugin_test
   allow_failure: true
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
   script:
     - ./ci/ci-dropbox "" "$DROPBOX_TEST_APP_KEY" "$DROPBOX_TEST_REFRESH_TOKEN"
 
 googledrive-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
+  extends: .plugin_test
   script:
     - ./ci/ci-googledrive "$GOOGLEDRIVE_TEST_ACCESS_TOKEN"
+
+zip-archive-test:
+  extends: .plugin_test
+  script:
+    - ./ci/ci-zip-archive
 
 howto-quick-start-test:
   stage: test

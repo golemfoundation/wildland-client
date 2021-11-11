@@ -3,7 +3,7 @@
 set -ex
 
 . /home/user/env/bin/activate
-pip install .
+. ci/install-inplace webdav
 
 ROOT="$HOME/wildland"
 STORAGE="/home/user/storage"
@@ -21,15 +21,17 @@ mkdir -p "$STORAGE"/foo
 echo foobar > "$STORAGE"/foo/file1.txt
 echo text > "$STORAGE"/file2.txt
 
+WL='python3 -m coverage run -p ./wl'
+
 # Wildland
-./wl user create User1
-./wl container create Container1 --path "/$MNT_DIR_1" \
+$WL user create User1
+$WL container create Container1 --path "/$MNT_DIR_1" \
                                  --category /ci-test
-./wl storage create webdav --container Container1 \
+$WL storage create webdav --container Container1 \
                            --login 'user' \
                            --password 'password' \
                            --url 'http://localhost:8081/'
-./wl start
+$WL start
 
 # Test files and directories
 tree $ROOT
@@ -50,13 +52,13 @@ time -p chronic grep 'foobar' "$MNT_PATH_1"/foo/file1.txt
 rm -rf "$STORAGE"
 
 # Test template creation
-./wl template create webdav --login 'user' \
+$WL template create webdav --login 'user' \
                             --password 'password' \
                             --url 'http://localhost:8081/' webdav-temp
-./wl container create webdav-temp --template webdav-temp --path "/$MNT_DIR_2"
-./wl container mount webdav-temp
+$WL container create webdav-temp --template webdav-temp --path "/$MNT_DIR_2"
+$WL container mount webdav-temp
 
 # Verify the template creation works
 tree "$MNT_PATH_2"
 
-./wl stop
+$WL stop

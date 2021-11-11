@@ -8,7 +8,7 @@ set -ex
 
 # Mount all containers
 refresh
-time -p chronic "$WL_CLI" container mount --with-subcontainers BearDB
+time -p chronic $WL container mount --with-subcontainers BearDB
 
 # List contents of macro-container
 refresh
@@ -28,8 +28,8 @@ time -p chronic ls -l $WL_MOUNT_POINT/
 
 # Remount all containers
 refresh
-time -p chronic $WL_CLI container mount --with-subcontainers BearDB
+time -p chronic $WL container mount --with-subcontainers BearDB
 
 # Unmount all containers
 refresh
-time -p chronic $WL_CLI container unmount --with-subcontainers BearDB
+time -p chronic $WL container unmount --with-subcontainers BearDB

@@ -1,7 +1,11 @@
+#!/usr/bin/env bash
+
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/gitlab
+. ci/install-inplace gitlab
+
+WL='python3 -m coverage run -p ./wl'
 
 #setup
 ROOT="$HOME/wildland"
@@ -9,11 +13,11 @@ MNT_DIR_1="gitlab-mnt-1"
 MNT_DIR_2="gitlab-mnt-2"
 
 # Create and mount two GitLab containers: with and without specified project ID
-wl user create gitlab-user
-wl container create GitLab-p --path "/$MNT_DIR_1"
-wl storage create gitlab --container GitLab-p --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617
-wl start
-wl container mount --with-subcontainers GitLab-p
+$WL user create gitlab-user
+$WL container create GitLab-p --path "/$MNT_DIR_1"
+$WL storage create gitlab --container GitLab-p --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617
+$WL start
+$WL container mount --with-subcontainers GitLab-p
 
 # List full tree
 time -p chronic tree "$ROOT"
@@ -42,13 +46,13 @@ time -p test -f "$ROOT"/labels/welcome/issue\ 2/issue\ 2.md
 time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/issue\ 2/issue\ 2.md
 
 # Unmount the container
-time -p chronic wl container unmount GitLab-p
+time -p chronic $WL container unmount GitLab-p
 
-wl container create GitLab --path "/$MNT_DIR_2"
-wl storage create gitlab --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN
+$WL container create GitLab --path "/$MNT_DIR_2"
+$WL storage create gitlab --container GitLab --personal-token $PERSONAL_GITLAB_TOKEN
 
 # Mount a GitLab container (without specified project ID)
-wl container mount --with-subcontainers GitLab
+$WL container mount --with-subcontainers GitLab
 
 # List contents of the timeline directory for the project
 time -p test -d "$ROOT"/timeline/2021/06/16
@@ -58,14 +62,14 @@ time -p test -f "$ROOT"/labels/feature/issue\ 1/issue\ 1.md
 time -p test -f "$ROOT"/labels/welcome/issue\ 2/issue\ 2.md
 
 # Unmount the container
-time -p chronic wl container unmount GitLab
+time -p chronic $WL container unmount GitLab
 
 # Test storage template creation
-wl template create gitlab --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617 mygitlab
-wl container create gitlab-template --template mygitlab
-wl container mount gitlab-template
+$WL template create gitlab --personal-token $PERSONAL_GITLAB_TOKEN --projectid 27483617 mygitlab
+$WL container create gitlab-template --template mygitlab
+$WL container mount gitlab-template
 
 # Verify that the template creation is working
 time -p chronic tree $ROOT
 
-wl container unmount gitlab-template
+$WL container unmount gitlab-template

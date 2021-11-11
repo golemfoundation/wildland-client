@@ -3,9 +3,11 @@
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/*
+
 pytest -v \
-    --cov wildland --cov-report term --cov-report html:artifacts/htmlcov \
-    --cov-report xml:artifacts/coverage.xml \
+    --cov wildland \
     --junitxml=artifacts/wildland.xml \
+    --ignore=plugins \
+    --ignore=wildland/tests/test_transpose.py \
     "$@"
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest

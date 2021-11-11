@@ -1,0 +1,30 @@
+
+# "install" wildland in the current python venv, using source in place
+# This makes the docker see the changes in the source code without restarting
+# the container.
+# This also helps with collecting test coverage data.
+
+# This file must be _sourced_ (not executed) inside a script
+# You can also source it with an argument, to install just one plugin, like:
+#   . ci/install-inplace dropbox
+
+
+INSTALL_PATH=$(python3 -c 'import sys;print(sys.path[-1])')
+
+install_mod() {
+    python3 $1/setup.py egg_info -e "$INSTALL_PATH"
+    if [ -n "$PYTHONPATH" ]; then
+        export PYTHONPATH="$PYTHONPATH:$1"
+    else
+        export PYTHONPATH="$1"
+    fi
+}
+
+install_mod "$PWD"
+if [ -n "$1" ]; then
+    install_mod "$PWD/plugins/$1"
+else
+    for plugin in plugins/*; do
+        install_mod "$PWD/$plugin"
+    done
+fi

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -ex
+
+. /home/user/env/bin/activate
+. ci/install-inplace
+
+# pytest
+
+pytest -v \
+       --cov plugins/categorization-proxy/wildland_categorization_proxy \
+       plugins/categorization-proxy
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest

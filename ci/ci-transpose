@@ -6,33 +6,43 @@ ROOT="$HOME/wildland"
 MANIFEST_CATALOG="/home/user/catalog"
 
 . /home/user/env/bin/activate
-pip install .
+
+# pytest
+
+pytest -v \
+       --cov wildland.storage_backends.transpose \
+       wildland/tests/test_transpose.py
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
+
+# Setup
+
+WL='python3 -m coverage run -p ./wl'
 
 mkdir -p "$MANIFEST_CATALOG"
 
 # creating an user
-wl user create user1
-wl start
+$WL user create user1
+$WL start
 
 # creating a template and a forest
-wl template create local --location "$MANIFEST_CATALOG" mylocal
-wl forest create --owner user1 mylocal
+$WL template create local --location "$MANIFEST_CATALOG" mylocal
+$WL forest create --owner user1 mylocal
 
 # creating an example container
-wl container create container1 --title "container1" --category /category/one --category /category/two --category /timeline/2021/07/25
-wl storage create static --file "Hello.md=Hello World!" --container container1
+$WL container create container1 --title "container1" --category /category/one --category /category/two --category /timeline/2021/07/25
+$WL storage create static --file "Hello.md=Hello World!" --container container1
 
 # creating another example container
-wl container create container2 --title "container2" --category /category/one --category /category/three --category /timeline/2021/08/16
-wl storage create static --file "Bye.md=Bye World!" --container container2
+$WL container create container2 --title "container2" --category /category/one --category /category/three --category /timeline/2021/08/16
+$WL storage create static --file "Bye.md=Bye World!" --container container2
 
 # creating a transpose container to modify the categories of the containers
-wl container create transpose
-wl storage create transpose --container transpose --reference-container-url wildland::/.manifests: --rules '{"match-with":"/category/one", "replace-with": "/replaced/one"}' --rules '{"match-category-regex": "/timeline", "replace-with": "/t"}' --rules '{"match-category-regex": "/(.*)", "replace-with": "/prefix/\\1"}' --conflict all-apply
- wl --debug container mount transpose
- 
- tree $ROOT
- 
+$WL container create transpose
+$WL storage create transpose --container transpose --reference-container-url wildland::/.manifests: --rules '{"match-with":"/category/one", "replace-with": "/replaced/one"}' --rules '{"match-category-regex": "/timeline", "replace-with": "/t"}' --rules '{"match-category-regex": "/(.*)", "replace-with": "/prefix/\\1"}' --conflict all-apply
+$WL --debug container mount transpose
+
+tree $ROOT
+
 # checking if the modified categories exist
 time -p chronic ls "$ROOT"/prefix
 time -p test -d "$ROOT"/prefix/replaced/one
@@ -48,5 +58,5 @@ time -p test -f "$ROOT"/prefix/t/2021/08/16/container2/Bye.md
 # checking the content of the files
 time -p chronic grep 'Hello' "$ROOT"/prefix/category/two/container1/Hello.md
 
-wl stop
+$WL stop
  

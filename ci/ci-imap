@@ -1,9 +1,16 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -ex
 
 . /home/user/env/bin/activate
-pip install . plugins/*
+. ci/install-inplace imap
+
+# pytest
+
+pytest -v \
+       --cov plugins/imap/wildland_imap \
+       plugins/imap
+mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
 
 # Setup
 ROOT="$HOME/wildland"
@@ -20,16 +27,18 @@ for sender in 1 2 3; do
     done
 done
 # Create and mount an IMAP container
+WL='python3 -m coverage run -p ./wl'
+
 sudo /etc/init.d/dovecot start
 
 sudo chmod 0666 /dev/fuse
 
-wl user create User
-wl container create  Imap --path "/$MNT_DIR_1"
-wl storage create imap --container Imap --host 127.0.0.1 --login user \
+$WL user create User
+$WL container create  Imap --path "/$MNT_DIR_1"
+$WL storage create imap --container Imap --host 127.0.0.1 --login user \
      --password test --trusted --no-ssl
-wl start
-wl container mount --with-subcontainers Imap
+$WL start
+$WL container mount --with-subcontainers Imap
 
 # List full tree
 time -p chronic tree "$ROOT"
@@ -46,5 +55,5 @@ time -p chronic grep 'Test number 2' "$ROOT"/users/sender2@dev.null/sender/Test\
 time -p chronic grep 'Test number 1' "$ROOT"/timeline/2020/01/01/Test\ 1*/main_body.txt
 
 # Unmount container
-time -p chronic wl container unmount Imap
+time -p chronic $WL container unmount Imap
 
