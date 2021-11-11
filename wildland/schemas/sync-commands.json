@@ -30,6 +30,34 @@
                 "unidirectional": {
                     "type": "boolean",
                     "description": "perform one-way sync if true, two-way if false"
+                },
+                "active-events": {
+                    "type": "array",
+                    "description": "array of sync event types that should be active (empty means all)",
+                    "items": {
+                        "type": "string",
+                        "description": "SyncEvent.type value"
+                    }
+                }
+            }
+        },
+        "active-events": {
+            "description": "Set which types of sync events will be active for a job",
+            "type": "object",
+            "required": ["job-id", "active-events"],
+            "additionalProperties": false,
+            "properties": {
+                "job-id": {
+                    "type": "string",
+                    "description": "unique sync job ID, currently container_owner|container_uuid"
+                },
+                "active-events": {
+                    "type": "array",
+                    "description": "array of sync event types that should be active (empty means all)",
+                    "items": {
+                        "type": "string",
+                        "description": "SyncEvent.type value"
+                    }
                 }
             }
         },

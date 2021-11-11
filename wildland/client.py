@@ -1368,12 +1368,14 @@ class Client:
         return storage
 
     def do_sync(self, container_name: str, job_id: str, source: dict, target: dict,
-                one_shot: bool, unidir: bool) -> str:
+                one_shot: bool, unidir: bool, active_events: List[str] = None) -> str:
         """
         Start sync between source and target storages
         """
         kwargs = {'container_name': container_name, 'job_id': job_id, 'continuous': not one_shot,
                   'unidirectional': unidir, 'source': source, 'target': target}
+        if active_events:
+            kwargs['active-events'] = active_events
         return self.run_sync_command('start', **kwargs)
 
     def wait_for_sync(self, job_id: str, stop_on_finish: bool = True) -> Tuple[str, bool]:

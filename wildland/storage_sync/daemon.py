@@ -40,8 +40,9 @@ from wildland.log import init_logging
 from wildland.control_server import ControlServer, control_command, ControlHandler
 from wildland.manifest.schema import Schema
 from wildland.storage_backends.base import StorageBackend, OptionalError
+from wildland.storage_backends.watch import FileEvent
 from wildland.storage_sync.base import BaseSyncer, SyncState, SyncEvent, SyncStateEvent, \
-    SyncConflictEvent, SyncErrorEvent
+    SyncConflictEvent, SyncErrorEvent, SyncProgressEvent
 from wildland.log import get_logger
 
 logger = get_logger('sync-daemon')
@@ -71,6 +72,7 @@ class SyncJob:
         self.control_handler = control_handler
         # daemon manages fields below because they come from the event queue
         self._state = SyncState.STOPPED
+        self._current_item: Optional[FileEvent] = None
         self._conflicts: List[str] = []
         self._error: Optional[str] = None
 
@@ -102,6 +104,16 @@ class SyncJob:
     def error(self, value: str):
         """Error setter."""
         self._error = value
+
+    @property
+    def current_item(self) -> Optional[FileEvent]:
+        """Current item (file/directory) being synced."""
+        return self._current_item
+
+    @current_item.setter
+    def current_item(self, value: FileEvent):
+        """Current item setter."""
+        self._current_item = value
 
     def start(self):
         """
@@ -137,6 +149,9 @@ class SyncJob:
               f'{"->" if self.unidirectional else "<->"} {str(self.target)}'
         if not self.continuous:
             ret += ' [one-shot]'
+
+        if self.current_item and self.state in [SyncState.RUNNING, SyncState.ONE_SHOT]:
+            ret += f'\n   currently syncing: {self.current_item}'
 
         try:
             if len(self._conflicts) > 0:
@@ -245,6 +260,8 @@ class SyncDaemon:
                 logger.debug('Sync event (%s): %s', job_id, event)
                 if isinstance(event, SyncStateEvent):
                     job.state = event.state
+                elif isinstance(event, SyncProgressEvent):
+                    job.current_item = FileEvent(event.event_type, event.path)
                 elif isinstance(event, SyncConflictEvent):
                     job.add_conflict(event.value)
                 elif isinstance(event, SyncErrorEvent):
@@ -261,7 +278,8 @@ class SyncDaemon:
         logger.debug('Event thread exiting')
 
     def start_sync(self, container_name: str, job_id: str, continuous: bool, unidirectional: bool,
-                   source: dict, target: dict, control_handler: ControlHandler) -> str:
+                   source: dict, target: dict, active_events: List[str],
+                   control_handler: ControlHandler) -> str:
         """
         Start syncing storages, or do a one-shot sync.
 
@@ -271,6 +289,8 @@ class SyncDaemon:
         :param unidirectional: If true, only sync from `source` to `target`.
         :param source: Source storage params.
         :param target: Target storage params.
+        :param active_events: List of sync event types to be sent to the notification callback.
+                              Empty list means all events.
         :param control_handler: ControlServer's handler to be associated with the job
                                 (used to send event notifications).
         :return: Response message.
@@ -301,6 +321,10 @@ class SyncDaemon:
                                               unidirectional=unidirectional,
                                               can_require_mount=False)
 
+            if not active_events:
+                active_events = []
+            logger.debug('Setting event filters for %s to %s', job_id, active_events)
+            syncer.set_active_events(active_events)
             self.jobs[job_id] = SyncJob(job_id, container_name, syncer, source_backend,
                                         target_backend, continuous, unidirectional,
                                         self.event_queue, control_handler)
@@ -338,12 +362,14 @@ class SyncDaemon:
 
     @control_command('start')
     def control_start(self, handler: ControlHandler, container_name: str, job_id: str,
-                      continuous: bool, unidirectional: bool, source: dict, target: dict) -> str:
+                      continuous: bool, unidirectional: bool, source: dict, target: dict,
+                      **kwargs) -> str:
         """
         Start syncing storages, or do a one-shot sync.
         """
+        events: List[str] = kwargs['active-events'] if 'active-events' in kwargs else []
         return self.start_sync(container_name, job_id, continuous, unidirectional, source, target,
-                               handler)
+                               events, handler)
 
     @control_command('stop')
     def control_stop(self, _handler, job_id: str) -> str:
@@ -351,6 +377,20 @@ class SyncDaemon:
         Stop syncing storages.
         """
         return self.stop_sync(job_id)
+
+    @control_command('active-events')
+    def control_active_events(self, _handler, job_id: str, active_events: List[str]):
+        """
+        Set which sync events should be active for a job (empty means all).
+        """
+        with self.lock:
+            try:
+                job = self.jobs[job_id]
+                logger.debug('Setting event filters for %s to %s', job_id, active_events)
+                job.syncer.set_active_events(active_events)
+            except KeyError:
+                # pylint: disable=raise-missing-from
+                raise WildlandError(f'Sync for job {job_id} is not running')
 
     @control_command('test-error')
     def control_test_error(self, _handler, job_id: str):

@@ -34,8 +34,8 @@ from contextlib import suppress
 from wildland.storage import StorageBackend
 from wildland.storage_backends.watch import FileEvent, StorageWatcher, FileEventType
 from wildland.storage_backends.base import OptionalError, HashMismatchError
-from wildland.storage_sync.base import BaseSyncer, SyncConflict, SyncState,  SyncConflictEvent, \
-    SyncErrorEvent
+from wildland.storage_sync.base import BaseSyncer, SyncConflict, SyncState, SyncConflictEvent, \
+    SyncErrorEvent, SyncProgressEvent
 from wildland.log import get_logger
 
 BLOCK_SIZE = 1024 ** 2
@@ -102,6 +102,9 @@ class NaiveSyncer(BaseSyncer):
         self.conflicts.append(conflict)
         self.notify_event(SyncConflictEvent(str(conflict)))
 
+    def _progress(self, event_type: FileEventType, path: PurePosixPath):
+        self.notify_event(SyncProgressEvent(event_type, path))
+
     def one_shot_sync(self, unidirectional: bool = False):
         """
         Initialize watcher state, especially hashes of all objects in watched storages.
@@ -131,6 +134,7 @@ class NaiveSyncer(BaseSyncer):
             for path in missing_dirs:
                 logger.debug("%s: creating directory %s in storage %s",
                              self.log_prefix, path, backend2.backend_id)
+                self._progress(FileEventType.CREATE, path)
                 try:
                     backend2.mkdir(path)
                 except (FileExistsError, NotADirectoryError):
@@ -160,6 +164,7 @@ class NaiveSyncer(BaseSyncer):
                         try:
                             logger.debug("%s: removing file %s in backend %s",
                                          self.log_prefix, path, backend1.backend_id)
+                            self._progress(FileEventType.DELETE, path)
                             backend1.unlink(path)
                         except (FileNotFoundError, OptionalError, PermissionError) as ex:
                             logger.warning(
@@ -180,6 +185,8 @@ class NaiveSyncer(BaseSyncer):
         logger.debug("%s: attempting to sync file %s in storages %s and %s",
                      self.log_prefix, path, source_storage.backend_id,
                      target_storage.backend_id)
+        self._progress(FileEventType.MODIFY, path)
+
         try:
             source_hash = source_storage.get_hash(path)
         except (FileNotFoundError, IsADirectoryError):
@@ -291,6 +298,7 @@ class NaiveSyncer(BaseSyncer):
         for file_path, attr in source_storage.walk(path):
             if attr.is_dir():
                 with suppress(FileExistsError):
+                    self._progress(FileEventType.CREATE, file_path)
                     target_storage.mkdir(file_path)
             else:
                 self._sync_file(source_storage, target_storage, file_path)
@@ -301,6 +309,7 @@ class NaiveSyncer(BaseSyncer):
         """
         logger.debug("%s: attempting to remove directory %s in storages %s",
                      self.log_prefix, dir_path, storage.backend_id)
+        self._progress(FileEventType.DELETE, dir_path)
         paths_to_remove = sorted(
             [(path, attr.is_dir()) for path, attr in storage.walk(dir_path)],
             key=lambda x: x[0], reverse=True)
@@ -391,7 +400,6 @@ class NaiveSyncer(BaseSyncer):
 
             if path in self.storage_hashes[target_storage]:
                 del self.storage_hashes[target_storage][path]
-            return
 
     def _create_object(self, source_storage: StorageBackend, target_storage: StorageBackend,
                        path: PurePosixPath):
@@ -402,6 +410,7 @@ class NaiveSyncer(BaseSyncer):
         logger.debug("%s: attempting to sync file %s created in storage %s into "
                      "storage %s", self.log_prefix, path,
                      source_storage.backend_id, target_storage.backend_id)
+        self._progress(FileEventType.CREATE, path)
         try:
             is_dir = source_storage.getattr(path).is_dir()
         except FileNotFoundError:
@@ -422,8 +431,8 @@ class NaiveSyncer(BaseSyncer):
         """
         Process storage events originating from a given source_storage.
         """
-        self.state = SyncState.RUNNING
         with self.lock:
+            self.state = SyncState.RUNNING
             for event in events:
                 try:
                     logger.debug("%s: handling event %s for object %s occurring in "
@@ -441,7 +450,7 @@ class NaiveSyncer(BaseSyncer):
                                 continue
 
                             old_target_hash = self.storage_hashes[target_storage].get(obj_path)
-
+                            self._progress(FileEventType.DELETE, obj_path)
                             if old_source_hash == old_target_hash:
                                 self._remove_object(source_storage, target_storage, obj_path,
                                                     is_dir, old_source_hash)
@@ -465,8 +474,8 @@ class NaiveSyncer(BaseSyncer):
                     self.state = SyncState.ERROR
                     break
 
-        # this won't overwrite an ERROR state, see the property setter
-        self.state = SyncState.SYNCED
+            # this won't overwrite an ERROR state, see the property setter
+            self.state = SyncState.SYNCED
 
     def stop_sync(self):
         """
