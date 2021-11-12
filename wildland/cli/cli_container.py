@@ -1210,7 +1210,7 @@ def subcontainer_mount_watch(obj: ContextObj, container_names):
     Watch for manifest files inside Wildland, and keep the filesystem mount
     state in sync.
     """
-    
+
     obj.fs_client.ensure_mounted()
 
     _mount(obj, container_names, save=False)

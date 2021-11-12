@@ -230,3 +230,11 @@ class TimelineStorageBackend(CachedStorageMixin, StorageBackend):
             owner=self.params['owner'])
         ref_categories = ref_container.categories
         return {'ref-categories': ref_categories}
+
+    def get_subcontainer_watch_params(self, client):
+        ref_container = client.load_object_from_url(
+            object_type=WildlandObject.Type.CONTAINER,
+            url=self.reference,
+            owner=self.params['owner'])
+        ref_categories = ref_container.categories
+        return {'ref-categories': ref_categories}

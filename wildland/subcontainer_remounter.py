@@ -101,7 +101,7 @@ self.client, self.containers_storage, with_initial=True):
                 self.to_unmount.append(storage_id)
 
             for storage in storages:
-                if self.fs_client.q(container, storage, user_paths):
+                if self.fs_client.should_remount(container, storage, user_paths):
                     logger.info('  (remounting: %s)', storage.backend_id)
                     storages_to_remount.append(storage)
                 else:

@@ -295,7 +295,7 @@ class LocalStorageWatcher(StorageWatcher):
                 wd = self.inotify.add_watch(dir_path, self.watch_flags)
                 self.watches[wd] = dir_path
 
-    def init(self, with_initial: bool = False) -> None:
+    def init(self) -> None:
         # pylint: disable=attribute-defined-outside-init
         self.inotify = inotify_simple.INotify()
         self._watch_dir(self.path)

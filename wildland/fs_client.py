@@ -963,7 +963,7 @@ class WildlandFSClient:
         finally:
             client.disconnect()
 
- def watch_subcontainers(self, wl_client, containers_storages: Dict[Container, Storage],
+    def watch_subcontainers(self, wl_client, containers_storages: Dict[Container, Storage],
                             with_initial=False) -> Iterator[List[WatchSubcontainerEvent]]:
         """
         TODO
@@ -975,7 +975,7 @@ class WildlandFSClient:
             watches = {}
             for container, storage in containers_storages.items():
                 params = storage.params
-sb = StorageBackend.from_params(params, deduplicate=True)
+                sb = StorageBackend.from_params(params, deduplicate=True)
                 watching_params = sb.get_subcontainer_watch_params(wl_client)
                 logger.debug(f'watching for subcontainers: storage {params["backend-id"]}')
                 watch_id = client.run_command(
@@ -985,18 +985,22 @@ sb = StorageBackend.from_params(params, deduplicate=True)
                     params=watching_params
                 )
                 watches[watch_id] = (container, storage)
-
+                
             for events in client.iter_events():
                 watch_events = []
                 for event in events:
                     event_type = FileEventType[event['type']]
                     watch_id = event['watch-id']
                     container, storage = watches[watch_id]
+                    params = storage.params
+                    sb = StorageBackend.from_params(params, deduplicate=True)
                     path = PurePosixPath(event['path'])
-                    fields = ast.literal_eval(event['subcontainer'])
-                    subcontainer = ContainerStub(fields)
-                    watch_events.append(WatchSubcontainerEvent(
-                        event_type, container, storage, path, subcontainer))
+                    all_children = sb.get_children(wl_client)
+                    for subcontainer_path, subcontainer in all_children:
+                        if subcontainer_path == path:
+                            watch_events.append(WatchSubcontainerEvent(
+                                event_type, container, storage, path, subcontainer))
+                            break
                 yield watch_events
         except GeneratorExit:
             pass

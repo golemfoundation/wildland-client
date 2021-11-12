@@ -421,7 +421,7 @@ ident, handler, with_initial=with_initial, ignore_own=ignore_own, params=params)
         return watch.id
 
     def _add_subcontainer_watch(self, storage_id: int, handler: ControlHandler,
- with_initial: bool = False, ignore_own: bool = False,
+                                with_initial: bool = False, ignore_own: bool = False,
                                 params: Optional[dict] = None):
                                 
         assert self.mount_lock.locked()
@@ -552,7 +552,6 @@ ident, handler, with_initial=with_initial, ignore_own=ignore_own, params=params)
         data = [{
             'type': event.type.name,
             'path': str(event.path),
-            'subcontainer': str(event.subcontainer),
             'watch-id': watch.id,
             'storage-id': watch.storage_id,
         } for event in events]
