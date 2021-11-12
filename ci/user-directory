@@ -25,7 +25,7 @@ run wl forest create --access='*' mywebdav
 run wl container create \
     --template mywebdav \
     --path /mycontainer \
-    --no-encrypt-manifest
+    --no-encrypt-manifest mycontainer
 
 cp ~/.config/wildland/users/alice.user.yaml ~/Downloads/
 
@@ -70,4 +70,91 @@ run wl start
 run wl bridge import "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
 run wl forest mount "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
 
-tree ~/wildland
+run tree -a ~/wildland
+
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/bob
+
+### 7. Create container with access restricted to Alice
+
+run wl forest create --access='*' mywebdav
+
+run wl container create bob-and-alice --path /very/secret --storage-template mywebdav \
+  --access "wildland:$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
+
+expected_pcre="(?:(Loading containers \(from ':\/very\/secret:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/very\/secret:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/very\/secret:'\): [0-9]*)*"\
+"(Mounting one storage)*)"
+run wl c mount :/very/secret:
+
+run bash -c "echo 'It works!' > ~/wildland/very/secret/Hello-World.md"
+
+run wl container publish bob-and-alice
+
+cp ~/.config/wildland/users/bob.user.yaml ~/Downloads/
+
+### 8. Add bob to the directory
+
+switch_user directory
+run wl user import --path /forests/bob --path /users/bob ~/Downloads/bob.user.yaml
+
+run wl bridge publish bob
+
+### 9. Mount Bob's container shared with Alice
+
+switch_user alice
+run wl start
+run wl bridge import --path /forests/bob \
+  "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/bob:"
+run wl forest mount "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/bob:"
+
+run tree -a ~/wildland
+
+### 10. Check that we have access to Bob's shared file
+
+cd ~/wildland/forests/bob\:/very/secret/
+expected="It works!"
+run cat Hello-World.md
+
+### 11. Import ariadne and give access to a new container for directory and marmarek then remove this access.
+
+run wl user import --path /forests/directory https://wildland.local/public/forest-owner.user.yaml
+run wl user import --path /mydirs/ariadne https://ariadne.wildland.io
+
+run wl container create mycontainer2
+run wl container modify mycontainer2 \
+  --add-access "$dir_userid" \
+  --add-access '0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{ariadne.wildland.io}:/users/marmarek:'
+
+expected_pcre="version: '1'
+object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+title: null
+categories: \[\]
+access:
+- user: '$USERID_PCRE'
+- user-path: 'wildland:$USERID_PCRE@https{ariadne.wildland.io}:/users/marmarek:'
+backends:
+  storage: \[\]"
+run wl container dump mycontainer2
+
+run wl container modify mycontainer2 --del-access \
+  '0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{ariadne.wildland.io}:/users/marmarek:'
+
+expected_pcre="version: '1'
+object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+title: null
+categories: \[\]
+access:
+- user: '$USERID_PCRE'
+backends:
+  storage: \[\]"
+run wl container dump mycontainer2

@@ -873,6 +873,7 @@ class Client:
         """
         path = path or obj.local_path
         assert path is not None
+
         if object_type == WildlandObject.Type.USER:
             data = self.session.dump_user(obj, path)
         else:
@@ -1398,3 +1399,25 @@ class Client:
             self.stop_sync(job_id)
 
         return msg, success
+
+    def load_pubkeys_from_access(self, access_list, default_owner):
+        """
+        Load and set pubkeys from provided access list. Default owner is provided
+        in order to load user access provided as WLPath.
+        """
+        for access in access_list:
+            if access.get("user-path", None):
+                search = Search(client=self, wlpath=access["user-path"],
+                                aliases={'default': default_owner})
+                bridge = list(search.read_bridge())[0]
+                user = self.load_object_from_url_or_dict(object_type=WildlandObject.Type.USER,
+                                                         obj=bridge.user_location,
+                                                         owner=bridge.user_id)
+                self.recognize_users_and_bridges([user], [bridge])
+            elif access.get("user", None):
+                if access["user"] == "*":
+                    continue
+                user = self.load_object_from_name(WildlandObject.Type.USER, access["user"])
+            else:
+                raise WildlandError(f"Unknown access entry: {access}")
+            access["pubkeys"] = self.session.sig.get_all_pubkeys(user.owner)

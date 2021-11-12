@@ -135,15 +135,24 @@ class Manifest:
         keys_to_encrypt = sig.get_all_pubkeys(owner)
         if 'access' in fields.keys():
             for data_dict in fields['access']:
-                user = data_dict['user']
+                pubkeys = None
+                user = data_dict.get('user', None)
+                user_path = data_dict.get('user-path', None)
+                if not user and not user_path:
+                    raise ManifestError(f"Unknown field access {data_dict}")
                 if user == '*':
                     return fields
                 if user == owner:
+                    data_dict.pop("pubkeys", None)
                     continue
-                pubkeys = sig.get_all_pubkeys(user)
+                if data_dict.get("pubkeys", None):
+                    pubkeys = data_dict["pubkeys"]
+                elif user:
+                    pubkeys = sig.get_all_pubkeys(user)
                 if not pubkeys:
-                    raise ManifestError(f'Cannot encrypt to {user}.')
+                    raise ManifestError(f'Cannot encrypt to "{user if user else user_path}"')
                 keys_to_encrypt.extend(pubkeys)
+                data_dict.pop("pubkeys", None)
 
         keys_to_encrypt = set(keys_to_encrypt)
         data_to_encrypt = yaml_parser.dump(fields, sort_keys=False).encode()
@@ -397,7 +406,6 @@ class Manifest:
         If attach_pubkey is true, attach the public key to the signature.
         Can force not encrypting, if needed.
         """
-
         if self.header is not None:
             self.header = None
 
@@ -409,8 +417,7 @@ class Manifest:
             data = yaml_parser.dump(fields, encoding='utf-8', sort_keys=False)
 
         owner = self._fields['owner']
-        signature = sig_context.sign(owner, data,
-                                     only_use_primary_key=only_use_primary_key)
+        signature = sig_context.sign(owner, data, only_use_primary_key=only_use_primary_key)
 
         self._original_data = data
         self._fields = fields

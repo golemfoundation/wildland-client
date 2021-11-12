@@ -60,6 +60,7 @@ from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
 from ..storage_sync.base import BaseSyncer, SyncConflict
 from ..tests.profiling.profilers import profile
+from ..wlpath import WildlandPath
 
 try:
     RUNTIME_DIR = Path(BaseDirectory.get_runtime_dir())
@@ -180,8 +181,14 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
             raise CliError(f'Could not load [{storage_template}] storage template. {we}') from we
 
     if access:
-        access_list = [{'user': obj.client.load_object_from_name(
-            WildlandObject.Type.USER, user).owner} for user in access]
+        access_list = []
+        for a in access:
+            if WildlandPath.WLPATH_RE.match(a):
+                access_list.append({"user-path": WildlandPath.from_str(
+                    a).to_str(with_prefix=True)})
+            else:
+                access_list.append({"user": obj.client.load_object_from_name(
+                    WildlandObject.Type.USER, a).owner})
     elif not encrypt_manifest:
         access_list = [{'user': '*'}]
     else:
@@ -446,6 +453,7 @@ container_.add_command(cli_common.verify)
 container_.add_command(cli_common.publish)
 container_.add_command(cli_common.unpublish)
 
+
 @container_.command(short_help='modify container manifest')
 @click.option('--add-path', metavar='PATH', multiple=True, help='path to add')
 @click.option('--del-path', metavar='PATH', multiple=True, help='path to remove')
@@ -476,16 +484,31 @@ def modify(ctx: click.Context,
     unless publish is False.
     """
     _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
-                  del_access, encrypt_manifest, no_encrypt_manifest, del_storage)
+                  del_access, encrypt_manifest,
+                  no_encrypt_manifest, del_storage)
 
-    add_access_owners = [
-        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
-        for user in add_access]
+    add_access_owners = []
+    for a in add_access:
+        if WildlandPath.WLPATH_RE.match(a):
+            add_access_owners.append(
+                {'user-path': WildlandPath.from_str(a).to_str(with_prefix=True)}
+            )
+        else:
+            add_access_owners.append(
+                {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, a).owner}
+            )
     to_add = {'paths': add_path, 'categories': add_category, 'access': add_access_owners}
 
-    del_access_owners = [
-        {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
-        for user in del_access]
+    del_access_owners = []
+    for a in del_access:
+        if WildlandPath.WLPATH_RE.match(a):
+            del_access_owners.append(
+                {'user-path': WildlandPath.from_str(a).to_str(with_prefix=True)}
+            )
+        else:
+            del_access_owners.append(
+                {'user': ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, a).owner}
+            )
     to_del = {'paths': del_path, 'categories': del_category, 'access': del_access_owners}
 
     to_del_nested = _get_storages_idx_to_del(ctx, del_storage, input_file)

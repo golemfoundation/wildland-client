@@ -125,13 +125,13 @@ class Search:
 
     def __init__(self,
                  client: wildland.client.Client,
-                 wlpath: WildlandPath,
+                 wlpath: Union[WildlandPath, str],
                  aliases: Mapping[str, str] = types.MappingProxyType({}),
                  fs_client: Optional[WildlandFSClient] = None):
         self.client = client
-        self.wlpath = wlpath
+        self.wlpath = WildlandPath.from_str(wlpath) if isinstance(wlpath, str) else wlpath
         self.aliases = aliases
-        self.initial_owner = self._subst_alias(wlpath.owner or '@default')
+        self.initial_owner = self._subst_alias(self.wlpath.owner or '@default')
         self.fs_client = fs_client
 
         self.local_containers = list(self.client.load_all(WildlandObject.Type.CONTAINER))
