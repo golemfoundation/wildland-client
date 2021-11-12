@@ -25,15 +25,14 @@
 Watching for changes.
 """
 from enum import Enum
-from typing import Optional, List, Callable, Dict, Union
+from typing import Optional, List, Callable, Dict
 from pathlib import PurePosixPath
 import threading
 from dataclasses import dataclass
 import abc
+import os
 
 from .base import StorageBackend, Attr
-from ..container import ContainerStub
-from ..link import Link
 from ..log import get_logger
 
 logger = get_logger('watch')
@@ -227,10 +226,9 @@ class SubcontainerEvent:
     """
     type: FileEventType
     path: PurePosixPath
-    subcontainer: Union[Link, ContainerStub]
 
     def __repr__(self):
-        return f'{self.type.name} {self.path} {str(self.subcontainer)}'
+        return f'{self.type.name} {self.path}'
 
     def __str__(self):
         return self.__repr__()
@@ -282,17 +280,23 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     def shutdown(self):
         pass
 
-    def _get_info(self) -> dict[PurePosixPath, Union[Link, ContainerStub]]:
-        return dict(self.backend.get_children())
+    def _get_info(self):
+        to_return = []
+        paths = self.backend.get_children(paths_only = True)
+        for path in paths:
+            mtime = os.path.getmtime(path)
+            to_return.append((path, mtime))
+        return to_return
 
     @staticmethod
     def _compare_info(current_info, new_info):
         current_paths = set(current_info)
         new_paths = set(new_info)
         for path in current_paths - new_paths:
-            yield SubcontainerEvent(FileEventType.DELETE, path, current_info[path])
+            yield SubcontainerEvent(FileEventType.DELETE, path)
         for path in new_paths - current_paths:
-            yield SubcontainerEvent(FileEventType.CREATE, path, new_info[path])
-        for path in current_paths & new_paths:
-            if current_info[path] != new_info[path]:
-                yield SubcontainerEvent(FileEventType.MODIFY, path, new_info[path])
+            yield SubcontainerEvent(FileEventType.CREATE, path)
+        for path, mtime in current_paths:
+            for new_path, new_mtime in current_paths:
+                if path == new_path and mtime != new_mtime:
+                    yield SubcontainerEvent(FileEventType.MODIFY, path, new_info[path])

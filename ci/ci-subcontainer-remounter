@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -ex
+
+ROOT="$HOME/wildland"
+TREE_ROOT="tmroot"
+TREE_DIR="$ROOT/$TREE_ROOT"
+
+. /home/user/env/bin/activate
+pip install .
+mkdir -p /tmp/reference
+echo test1 > /tmp/reference/test1.txt
+
+# creating an user
+wl user create user1
+wl start
+
+#creating a local container to be used as the reference container for the timeline storage
+wl c create local_reference --path /reference
+wl s create local --location /tmp/refcon --container local_reference
+
+uuid=$(./wl container dump local_reference | grep '/.uuid/' | cut -d / -f 3 )
+
+#creating a timeline container that utilizes the local container as its reference
+wl c create timeline_container --path /timelinecon
+wl s create timeline --container timeline_container --reference-container-url wildland::/.uuid/$uuid: --watcher-interval 10 --timeline-root /tmroot
+
+#mounting both of the containers
+wl c mount local_reference
+wl c mount timeline_container
+
+#checking that the CREATE events are detected and new containers are being created and mounted
+echo test2 > /tmp/reference/test2.txt
+
+sleep 10
+tree "$TREE_DIR"
+
+#checking that the DELETE events are detected and new containers are being created and mounted
+rm /tmp/reference/test2.txt
+
+sleep 10
+tree "$TREE_DIR"
+
+

@@ -195,7 +195,7 @@ def test_transpose_get_children(client):
     transpose_container_storage = client.select_storage(transpose_container)
     transpose_backend = StorageBackend.from_params(transpose_container_storage.params)
 
-    transpose_children = list(transpose_backend.get_children(client))
+    transpose_children = list(transpose_backend.get_children(client = client, paths_only = False))
 
     child = transpose_children[0]
     expected_paths = []
