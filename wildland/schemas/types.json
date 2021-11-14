@@ -21,7 +21,7 @@
     },
     "wildland-url": {
         "type": "string",
-        "description": "Wildland URL (must begin with wildland: and containt at least three parts separated by ':'; example URLs: wildland::/data/books: ; wildland:@default:/data/books:/file.txt",
+        "description": "Wildland URL (must begin with wildland: and contain at least three parts separated by ':'; example URLs: wildland::/data/books: ; wildland:@default:/data/books:/file.txt",
         "pattern": "^wildland:.*:.+:.*$"
     },
     "linked-file": {
