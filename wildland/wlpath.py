@@ -147,7 +147,16 @@ class WildlandPath:
         split = s.split(':')
         self.parts += [PurePosixPath(p) for p in split if p != ""]
 
-    def __str__(self):
+    def has_explicit_or_default_owner(self) -> bool:
+        """
+        Check if WildlandPath has explicit owner or default, i.e., not alias.
+        """
+        return self.owner is None or self.owner == '@default' or self.owner.startswith('0x')
+
+    def to_str(self, with_prefix=False):
+        """
+        Return string representation
+        """
         s = ''
         if self.owner is not None:
             s += self.owner
@@ -156,10 +165,9 @@ class WildlandPath:
         s += ':' + ':'.join(str(p) for p in self.parts) + ':'
         if self.file_path is not None:
             s += str(self.file_path)
+        if with_prefix:
+            s = WILDLAND_URL_PREFIX + s
         return s
 
-    def has_explicit_or_default_owner(self) -> bool:
-        """
-        Check if WildlandPath has explicit owner or default, i.e., not alias.
-        """
-        return self.owner is None or self.owner == '@default' or self.owner.startswith('0x')
+    def __str__(self):
+        return self.to_str()
