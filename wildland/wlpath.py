@@ -24,8 +24,7 @@
 """
 Wildland path class
 """
-
-
+import urllib.parse
 from pathlib import PurePosixPath
 from typing import List, Optional
 import re
@@ -53,7 +52,9 @@ class WildlandPath:
     - owner (optional): owner determining the first container's namespace, if omitted @default
       will be used
     - hint (optional, requires owner): hint to the location of first container's namespace;
-      takes the form of protocol{address}, for example https{demo.wildland.io/demo.user.yaml}
+      takes the form of protocol{address} where address is a percent-encoded URL.
+      For example 'https{demo.wildland.io/demo.user.yaml}' or with an alternative
+      port 'https{wildland.lan%3A8081}'
     - parts: intermediate parts, identifying bridges or containers on the path
     - file_path (optional): path to file in the last container
     """
@@ -114,7 +115,8 @@ class WildlandPath:
             hint = None
         elif cls.HINT_RE.match(split[0]):
             owner, hint = split[0].split('@', 1)
-            hint = 'https://' + hint[6:-1]  # change the https{ ... } syntax to resolvable URL
+            # change the https{ ... } syntax to resolvable URL
+            hint = 'https://' + urllib.parse.unquote(hint[6:-1])
         else:
             if '@https' in split[0] and '0x' not in split[0]:
                 raise PathError('Hint field requires explicit owner: {!r}'.format(split[0]))
