@@ -226,5 +226,5 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
             'username': data['username'],
             'personal_token': data['personal_token'],
             'project_name': list(data['project_name']),
-            'limit': list(data['limit']),
+            'limit': data['limit'],
         }

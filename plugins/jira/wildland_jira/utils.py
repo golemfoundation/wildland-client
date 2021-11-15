@@ -37,7 +37,7 @@ def _stringify_param(key: str, value: ParamValueType):
     """
     value_str = ','.join(value) if isinstance(value, list) else value
     param_str = f'{key}={value_str}'
-    return quote(param_str)
+    return param_str
 
 
 def stringify_query_params(params: Dict[str, ParamValueType]) -> str:
@@ -56,7 +56,8 @@ def _stringify_jql_param(key: str, value: ParamValueType):
     """
     if isinstance(value, list):
         value_str = ' OR '.join([f'{key}="{v}"' for v in value])
-        value_str = f'({value_str})'
+        if len(value) > 1:
+            value_str = f'({value_str})'
     else:
         value_str = f'{key}="{value}"'
 
@@ -77,7 +78,7 @@ def encode_dict_to_jql(params: Optional[Dict[str, ParamValueType]] = None,
         order_dir = 'DESC'
     encoded_names = [_stringify_jql_param(name, params[name]) for name in params]
     query = " AND ".join(encoded_names) + f' order by {order_by} {order_dir}'
-    return quote(query)
+    return query
 
 
 def encode_basic_auth(username: str, personal_token: str) -> str:

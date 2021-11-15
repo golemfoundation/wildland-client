@@ -57,8 +57,8 @@ class JiraClient:
     Fetches and parses Jira issues
     """
 
-    def __init__(self, site_url: str, limit: int, username: Optional[str], personal_token: Optional[str],
-                 project_names: Optional[List[str]] = None):
+    def __init__(self, site_url: str, limit: int, username: Optional[str],
+                 personal_token: Optional[str], project_names: Optional[List[str]] = None):
         if project_names is None:
             project_names = []
         self.headers = {}
@@ -134,8 +134,10 @@ class JiraClient:
 
         has_next_page = True
         parsed_issues: List[CompactIssue] = []
-        while has_next_page and len(parsed_issues) <= self.limit:
+        while has_next_page and len(parsed_issues) < self.limit:
             params['startAt'] = len(parsed_issues)
+            if params['maxResults'] > self.limit - len(parsed_issues):
+                params['maxResults'] = self.limit - len(parsed_issues)
             response = self.run_query('search', params)
             parsed_issues.extend(self.parse_issue_list(response['issues']))
             if response.get('total') is None:

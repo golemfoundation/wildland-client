@@ -44,12 +44,12 @@ def test_stringify_query_params():
     }
     expected = {
         'empty': '',
-        'single_str': '?orderBy%3Dupdated',
-        'multiple_str': '?orderBy%3Dupdated&after%3Db362hs2&jql%3Dproject%3DPersonal%20OR'
-                        '%20project%3D%22jira%20extension%22',
-        'single_list': '?fields%3Ddescription%2Clabels%2Cproject',
-        'parameters_list_mix': '?fields%3Ddescription%2Clabels%2Cproject&expand%3Dschema%2C'
-                               'names&orderBy%3Dupdated&after%3Db362hs2&maxResults%3D100',
+        'single_str': '?orderBy=updated',
+        'multiple_str': '?orderBy=updated&after=b362hs2&jql=project=Personal OR'
+                        ' project="jira extension"',
+        'single_list': '?fields=description,labels,project',
+        'parameters_list_mix': '?fields=description,labels,project&expand=schema,'
+                               'names&orderBy=updated&after=b362hs2&maxResults=100',
     }
     for key in args:
         assert expected[key] == stringify_query_params(args[key])
@@ -89,18 +89,15 @@ def test_stringify_jql_dict():
     }
 
     expected = {
-        'empty': '%20order%20by%20updatedDate%20DESC',
-        'empty_order': '%20order%20by%20assignee%20ASC',
-        'single_str': 'project%3D%22Personal%22%20order%20by%20updatedDate%20DESC',
-        'multiple_str': 'project%3D%22Personal%22%20AND%20assignee%3D%22b362hs2%22%20order%20by'
-                        '%20updatedDate%20DESC',
-        'single_list': '%28project%3D%22Personal%22%20OR%20project%3D%22jira%20extension%22%29'
-                       '%20order%20by%20updatedDate%20DESC',
-        'parameters_list_mix': '%28project%3D%22Personal%22%20OR%20project%3D%22jira%20extension'
-                               '%22%29%20AND%20%28fields%3D%22description%22%20OR%20fields%3D'
-                               '%22labels%22%20OR%20fields%3D%22project%22%29%20AND%20orderBy%3D'
-                               '%22updated%22%20AND%20after%3D%22b362hs2%22%20AND%20maxResults%3D'
-                               '%22100%22%20order%20by%20updatedDate%20DESC'}
+        'empty': ' order by updatedDate DESC',
+        'empty_order': ' order by assignee ASC',
+        'single_str': 'project="Personal" order by updatedDate DESC',
+        'multiple_str': 'project="Personal" AND assignee="b362hs2" order by updatedDate DESC',
+        'single_list': '(project="Personal" OR project="jira extension") order by updatedDate DESC',
+        'parameters_list_mix': '(project="Personal" OR project="jira extension") AND ('
+                               'fields="description" OR fields="labels" OR fields="project") AND '
+                               'orderBy="updated" AND after="b362hs2" AND maxResults="100" order '
+                               'by updatedDate DESC'}
 
     for key in params:
         assert expected[key] == encode_dict_to_jql(params[key],
