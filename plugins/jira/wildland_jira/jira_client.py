@@ -136,7 +136,7 @@ class JiraClient:
         parsed_issues: List[CompactIssue] = []
         while has_next_page and len(parsed_issues) < self.limit:
             params['startAt'] = len(parsed_issues)
-            if params['maxResults'] > self.limit - len(parsed_issues):
+            if int(params['maxResults']) > self.limit - len(parsed_issues):
                 params['maxResults'] = self.limit - len(parsed_issues)
             response = self.run_query('search', params)
             parsed_issues.extend(self.parse_issue_list(response['issues']))

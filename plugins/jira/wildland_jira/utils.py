@@ -26,7 +26,6 @@ Common helpers for Jira plugin
 
 import base64
 from typing import Union, List, Dict, Literal, Optional
-from urllib.parse import quote
 
 ParamValueType = Union[str, int, List[str]]
 
