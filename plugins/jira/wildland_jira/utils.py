@@ -31,6 +31,9 @@ ParamValueType = Union[str, int, List[str]]
 
 
 class ParamDict(TypedDict, total=False):
+    """
+    Dataclass to hold parameters allowed by jira rest api
+    """
     fields: List[str]
     maxResults: int
     jql: str

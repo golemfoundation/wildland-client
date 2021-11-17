@@ -28,8 +28,8 @@ time -p chronic ls "$ROOT"/projects/"$PROJECT_NAME"
 
 # Checking the categories permutation
 time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@labels/Documentacao/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -d "$ROOT"/labels/Documentacao/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@labels/bugfix/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -d "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@statuses/To\ Do/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 time -p test -d "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 
