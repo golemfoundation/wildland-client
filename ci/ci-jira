@@ -7,11 +7,13 @@ pip install . plugins/jira
 ROOT="$HOME/wildland"
 MNT_DIR_1="jira-mnt-1"
 MNT_DIR_2="jira-mnt-2"
+WORKSPACE_API_URL='https://wookhash.atlassian.net/rest/api/2'
+PROJECT_NAME='Jira Test'
 
 # Create and mount two Jira containers: with and without specified project
 wl user create jira-user
 wl container create jira-p --path "/$MNT_DIR_1"
-wl storage create jira --container jira-p --workspace-url https://wookhash.atlassian.net/rest/api/2 --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --project-name "Jira Test"
+wl storage create jira --container jira-p --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --project-name "Jira Test"
 wl start
 wl container mount --with-subcontainers jira-p
 
@@ -22,38 +24,34 @@ time -p chronic tree "$ROOT"
 time -p chronic ls "$ROOT"
 
 # List contents of the project directory
-time -p chronic ls "$ROOT"/projects/Jira\ Test
-
-# List contents of the timeline directory for the project
-time -p test -d "$ROOT"/timeline/2021/11/10
+time -p chronic ls "$ROOT"/projects/"$PROJECT_NAME"
 
 # Checking the categories permutation
-time -p test -d "$ROOT"/projects/Jira\ Test/@labels/Documentacao/
+time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@labels/Documentacao/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -d "$ROOT"/labels/Documentacao/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@statuses/To\ Do/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -d "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 
 # Read contents of files
-time -p chronic grep 'primis in faucibus' $ROOT/projects/Jira\ Test/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p chronic grep 'primis in faucibus' $ROOT/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 
 # Unmount the container
 time -p chronic wl container unmount jira-p
 
 wl container create jira-a --path "/$MNT_DIR_2"
-wl storage create jira --container jira-a --workspace-url https://wookhash.atlassian.net/rest/api/2 --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN
+wl storage create jira --container jira-a --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN
 
 # Mount a Jira container (without specified project ID)
 wl container mount --with-subcontainers jira-a
 
-# List contents of the timeline directory for the project
-time -p test -d "$ROOT"/timeline/2021/11/09
-
-#labes with a single issue
-time -p test -f "$ROOT"/labels/welcome/@statuses/Done/Phaethon\ aethereus/Phaethon\ aethereus.md
-time -p test -f "$ROOT"/labels/bugfix/@timeline/2021/11/10/Anser\ anser/Anser\ anser.md
+time -p test -f "$ROOT"/labels/welcome/@statuses/To\ Do/Phaethon\ aethereus/Phaethon\ aethereus.md
 
 # Unmount the container
 time -p chronic wl container unmount jira-a
 
 # Test storage template creation
-wl template create jira --workspace-url https://wookhash.atlassian.net/rest/api/2 --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --limit 10 myjira
+wl template create jira --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --limit 10 myjira
 
 wl container create jira-template --template myjira
 wl container mount jira-template
