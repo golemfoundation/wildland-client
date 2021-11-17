@@ -25,9 +25,20 @@ Common helpers for Jira plugin
 """
 
 import base64
-from typing import Union, List, Dict, Literal, Optional
+from typing import Union, List, Dict, Literal, Optional, TypedDict
 
 ParamValueType = Union[str, int, List[str]]
+
+
+class ParamDict(TypedDict, total=False):
+    fields: List[str]
+    maxResults: int
+    jql: str
+    startAt: int
+    browseArchive: str
+    orderBy: str
+    after: str
+    expand: List[str]
 
 
 def _stringify_param(key: str, value: ParamValueType):
@@ -39,14 +50,14 @@ def _stringify_param(key: str, value: ParamValueType):
     return param_str
 
 
-def stringify_query_params(params: Dict[str, ParamValueType]) -> str:
+def stringify_query_params(params: ParamDict) -> str:
     """
     Encodes dictionary of parameters into an url params string
     """
     if len(params) == 0:
         return ''
 
-    return '?' + '&'.join([_stringify_param(key, params[key]) for key in params])
+    return '?' + '&'.join([_stringify_param(key, params[key]) for key in params])  # type: ignore
 
 
 def _stringify_jql_param(key: str, value: ParamValueType):

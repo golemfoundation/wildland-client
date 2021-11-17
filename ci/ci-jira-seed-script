@@ -1,6 +1,5 @@
 #!/bin/bash
 # SEEDS JIRA PROJECT WITH DATA REQUIRED BY INTEGRATION TESTS FOR WILDLAND'S JIRA PLUGIN
-# Tests also assume that the project will be named "Jira Test"
 # The script requires four parameters: jira username and token, workspace url, either id or key of project to seed
 
 function Help()

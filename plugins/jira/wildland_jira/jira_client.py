@@ -25,14 +25,14 @@ Jira client wrapping functions responsible for communication with Jira API
 """
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 import dateutil.parser
 import requests
 
 from wildland.exc import WildlandError
 from wildland.log import get_logger
-from .utils import stringify_query_params, encode_basic_auth, encode_dict_to_jql, ParamValueType
+from .utils import stringify_query_params, encode_basic_auth, encode_dict_to_jql, ParamDict
 
 logger = get_logger('JiraClient')
 
@@ -84,7 +84,7 @@ class JiraClient:
             ', '.join(unmatched_names))
         raise Exception(error)
 
-    def run_query(self, path: str, params: Dict[str, Union[str, int, List[str]]]):
+    def run_query(self, path: str, params: ParamDict):
         """
         A simple method that performs queries passed to it and returns a response from the server.
         """
@@ -122,9 +122,11 @@ class JiraClient:
         """
         Fetches all issues in given workspace.
         """
-        params: Dict[str, ParamValueType] = {
+        params: ParamDict = {
             'fields': ['summary', 'description', 'labels', 'project', 'updated', 'status'],
             'maxResults': 100,
+            'startAt': 0,
+            'jql': ''
         }
 
         if isinstance(self.projects_names, list) and len(self.projects_names):
@@ -136,7 +138,7 @@ class JiraClient:
         parsed_issues: List[CompactIssue] = []
         while has_next_page and len(parsed_issues) < self.limit:
             params['startAt'] = len(parsed_issues)
-            if int(params['maxResults']) > self.limit - len(parsed_issues):
+            if params['maxResults'] > self.limit - len(parsed_issues):
                 params['maxResults'] = self.limit - len(parsed_issues)
             response = self.run_query('search', params)
             parsed_issues.extend(self.parse_issue_list(response['issues']))

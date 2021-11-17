@@ -25,14 +25,14 @@ Unit tests for jira plugin utils
 """
 from typing import Dict, Union, Optional, Literal
 
-from ..utils import stringify_query_params, encode_dict_to_jql, ParamValueType
+from ..utils import stringify_query_params, encode_dict_to_jql, ParamValueType, ParamDict
 
 
 def test_stringify_query_params():
     """
     checks whether dictionaries are properly encoded to url parameters
     """
-    args: Dict[str, Dict[str, Union[str, int, ParamValueType]]] = {
+    args: Dict[str, ParamDict] = {
         'empty': {},
         'single_str': {'orderBy': 'updated'},
         'multiple_str': {'orderBy': 'updated', 'after': 'b362hs2',

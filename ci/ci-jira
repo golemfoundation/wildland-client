@@ -13,7 +13,7 @@ PROJECT_NAME='Jira Test'
 # Create and mount two Jira containers: with and without specified project
 wl user create jira-user
 wl container create jira-p --path "/$MNT_DIR_1"
-wl storage create jira --container jira-p --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --project-name "Jira Test"
+wl storage create jira --container jira-p --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --project-name "$PROJECT_NAME"
 wl start
 wl container mount --with-subcontainers jira-p
 
