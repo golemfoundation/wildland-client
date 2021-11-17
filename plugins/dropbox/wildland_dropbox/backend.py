@@ -39,7 +39,7 @@ from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.cached import DirectoryCachedStorageMixin
 from wildland.storage_backends.file_children import FileChildrenMixin
 from wildland.manifest.schema import Schema
-from wildland.cli.cli_base import CliError
+from wildland.cli.cli_exc import CliError
 from wildland.log import get_logger
 from .dropbox_client import DropboxClient
 

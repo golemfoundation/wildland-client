@@ -38,8 +38,8 @@ from click.exceptions import UsageError
 import pytest
 
 from .test_sync import wait_for_file, wait_for_deletion, make_file
-from ..cli.cli_base import CliError
 from ..cli.cli_common import del_nested_fields, resolve_object
+from ..cli.cli_exc import CliError
 from ..client import Client
 from ..exc import WildlandError
 from ..manifest.manifest import ManifestError

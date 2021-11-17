@@ -30,27 +30,11 @@ import sys
 import traceback
 import types
 from pathlib import Path
-from typing import List, Tuple, Callable, Optional, IO
-from gettext import gettext
-
+from typing import List, Tuple, Callable
 import click
-from click.exceptions import get_text_stderr
 
-from ..exc import WildlandError
 from ..utils import format_options_required_first, format_multi_command_options, \
     format_command_options
-
-
-class CliError(WildlandError, click.ClickException):
-    """
-    User error during CLI command execution
-    """
-    def show(self, file: Optional[IO] = None) -> None:
-        if file is None:
-            file = get_text_stderr()
-
-        click.secho(
-            gettext("Error: {message}").format(message=self.format_message()), file=file, fg="red")
 
 
 # pylint: disable=no-self-use

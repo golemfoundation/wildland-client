@@ -46,7 +46,8 @@ import wildland.cli.cli_common as cli_common
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import aliased_group, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj
+from .cli_exc import CliError
 from .cli_storage import do_create_storage_from_templates
 from ..container import Container
 from ..exc import WildlandError

@@ -36,7 +36,8 @@ from ..user import User
 from ..utils import YAMLParserError
 from ..publish import Publisher
 from ..manifest.template import TemplateManager, StorageTemplate
-from .cli_base import aliased_group, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj
+from .cli_exc import CliError
 from .cli_common import modify_manifest, add_fields
 from .cli_container import _mount as mount_container
 from .cli_container import _unmount as unmount_container
