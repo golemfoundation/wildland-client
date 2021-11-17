@@ -1,3 +1,4 @@
+from .wildland_result import WildlandResult
 from ..wlenv import WLEnv
 from typing import List, Tuple, Optional
 from dataclasses import dataclass, field
@@ -39,23 +40,6 @@ class WLObject:
     def fromJSON(cls):
         # used for deserializing
         pass
-
-
-@dataclass
-class WLError:
-    error_code: int  # need to agree the explicit meaning
-    error_description: str  # human-readable description suitable for console or log output
-    is_recoverable: bool
-    offender_type: Optional[str]  # i.e. WLContainer, WLFile
-    offender_id: Optional[str]
-    diagnostic_info: str  # diagnostic information we can dump to logs (i.e. Python backtrace
-    # converted to str which is useful for a developer debugging the issue, but not for the user
-
-
-class WildlandResult:
-    def __init__(self):
-        self.success: bool = True
-        self.errors: List[WLError] = []
 
 
 @dataclass

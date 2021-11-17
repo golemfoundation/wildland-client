@@ -30,6 +30,7 @@ from typing import Optional
 
 from .wlenv import WLEnv
 
+
 class EnvProvider:
     """
     Provider class for platform specific environment data.
