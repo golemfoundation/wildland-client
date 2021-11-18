@@ -7,8 +7,8 @@ pip install . plugins/jira
 ROOT="$HOME/wildland"
 MNT_DIR_1="jira-mnt-1"
 MNT_DIR_2="jira-mnt-2"
-WORKSPACE_API_URL='https://wookhash.atlassian.net/rest/api/2'
-PROJECT_NAME='Jira Test'
+WORKSPACE_API_URL='https://wildland-test.atlassian.net/rest/api/2'
+PROJECT_NAME='Test Project'
 
 # Create and mount two Jira containers: with and without specified project
 wl user create jira-user
@@ -25,13 +25,16 @@ time -p chronic ls "$ROOT"
 
 # List contents of the project directory
 time -p chronic ls "$ROOT"/projects/"$PROJECT_NAME"
+time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@statuses
+time -p test -d "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"
+time -p test -d "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"
 
 # Checking the categories permutation
-time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@labels/bugfix/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -d "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@statuses/To\ Do/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -d "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -f "$ROOT"/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -f "$ROOT"/projects/"$PROJECT_NAME"/@labels/bugfix/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -f "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -f "$ROOT"/projects/"$PROJECT_NAME"/@statuses/To\ Do/Aegypius\ occipitalis/Aegypius\ occipitalis.md
+time -p test -f "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 
 # Read contents of files
 time -p chronic grep 'primis in faucibus' $ROOT/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
