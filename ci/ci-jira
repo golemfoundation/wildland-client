@@ -8,7 +8,7 @@ ROOT="$HOME/wildland"
 MNT_DIR_1="jira-mnt-1"
 MNT_DIR_2="jira-mnt-2"
 WORKSPACE_API_URL='https://wildland-test.atlassian.net/rest/api/2'
-PROJECT_NAME='Test Project'
+PROJECT_NAME='Test project'
 
 # Create and mount two Jira containers: with and without specified project
 wl user create jira-user
