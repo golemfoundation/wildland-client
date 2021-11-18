@@ -25,10 +25,11 @@ ImapClient is a module delivering an IMAP mailbox representation
 for wildland imap backend. The representation is read-only,
 update-sensitive and includes primitive caching support.
 """
-
+import locale
 import time
 import mimetypes
 import imaplib
+from contextlib import contextmanager
 from dataclasses import dataclass
 from email.message import Message
 from threading import Lock
@@ -310,6 +311,18 @@ class ImapClient:
 
         return rv
 
+    @contextmanager
+    def _setlocale(self, loc: str):
+        """
+        Context for temporary locale change.
+        Not thread-safe, _local_lock must be held.
+        """
+        saved = locale.setlocale(locale.LC_ALL)
+        try:
+            yield locale.setlocale(locale.LC_ALL, loc)
+        finally:
+            locale.setlocale(locale.LC_ALL, saved)
+
     def _register_envelope(self, msg_id: int, env: Envelope):
         """
         Create sender and timeline cache entries, based on raw envelope of received message.
@@ -325,11 +338,23 @@ class ImapClient:
             sub = decode_header(env.subject.decode())
             subject = _decode_text(sub)
 
+        recv_time = env.date
+        if not recv_time:
+            # IMAP envelope contains no timestamp, try to read one from actual mail header
+            msg = self._load_raw_message(msg_id)
+            with self._setlocale('C'):
+                try:
+                    recv_time = datetime.strptime(msg['Delivery-date'],
+                                                  '%a, %d %b %Y %H:%M:%S %z')
+                except ValueError:
+                    # failed to parse, need some default value
+                    recv_time = datetime.fromtimestamp(0)
+
         recipients = set()
         for addr in [env.to, env.cc, env.bcc]:
             recipients |= self._parse_address(addr)
 
-        hdr = MessageEnvelopeData(msg_id, list(senders), list(recipients), subject, env.date)
+        hdr = MessageEnvelopeData(msg_id, list(senders), list(recipients), subject, recv_time)
         self._envelope_cache[msg_id] = hdr
         self._all_ids.add(msg_id)
 
