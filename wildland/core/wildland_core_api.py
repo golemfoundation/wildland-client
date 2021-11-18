@@ -1,18 +1,8 @@
-from .wildland_core_api import WildlandResult, WildlandCoreApi, WLUser, WLBridge, \
-    WLStorageBackend, WLStorage, WLContainer, WLError, WLObject, WLTemplateFile, ModifyMethod
-from ..client import Client
-from ..user import User
-from ..container import Container
-from ..bridge import Bridge
-from ..storage import Storage
-from ..wildland_object.wildland_object import WildlandObject
-from ..manifest.manifest import ManifestError
-from ..manifest.sig import SigError
-from copy import deepcopy
-
+import abc
 from ..wlenv import WLEnv
-from typing import List, Tuple, Optional, Callable, Any, TypeVar
-from pathlib import PurePosixPath
+from typing import List, Tuple, Optional, Callable
+from dataclasses import dataclass, field
+from enum import Enum
 
 # For the purposes of communicating with wildland core, we shall use unique object ids,
 # with syntax same as with current WL paths:
@@ -24,100 +14,124 @@ from pathlib import PurePosixPath
 
 # All helper objects should be dataclasses with fields with only simple types or lists of such types
 
-# Style goal: All methods must be <15 functional lines of code; if more, refactor
 
-# TODO: core should have its own tests, possibly test_cli should be remade to test WildlandCore, and
-# TODO cli should get its own, simple tests with mocked
-
-def wrap_exception(exc: Exception, is_recoverable: bool = False) -> WLError:
-    if isinstance(exc, ManifestError):
-        # TODO: more elaborate error reporting
-        err_code = 1
-    elif isinstance(exc, SigError):
-        err_code = 2
-    else:
-        err_code = 999
-    error = WLError(error_code=err_code,
-                    error_description=str(exc), is_recoverable=is_recoverable)
-    return error
+class ModifyMethod(Enum):
+    ADD = 'add'
+    DELETE = 'delete'
+    SET = 'set'
 
 
-class WildlandCore(WildlandCoreApi):
-    # All user-facing methods should be wrapped in wildland_result_wrapper or otherwise assure
-    # they wrap all exceptions in WildlandResult
-    def __init__(self, client: Client):
-        # TODO: once cli is decoupled from client, this should take more raw params
-        self.client = client
+@dataclass
+class WLObject:
+    owner: str
+    id: str
 
-    # client = Client(dummy=dummy, base_dir=base_dir)
-    # ctx.obj = ContextObj(client)
+    def toJSON(self):
+        # used for serializing, e.g. into other languages
+        pass
 
-    # private methods
-    def _user_to_wluser(self, user: User) -> WLUser:
-        # TODO: optimize for possible lazy loading of catalog manifests
-        wl_user = WLUser(
-            owner=user.owner,
-            id=f'{user.owner}:',
-            private_key_available=self.client.session.sig.is_private_key_available(user.owner),
-            published=False,  # TODO
-            pubkeys=deepcopy(user.pubkeys),
-            paths=[str(p) for p in user.paths],
-            local_path=str(user.local_path) if user.local_path else None,
-            manifest_catalog_description=[c for c in user.get_catalog_descriptions()],
-            # manifest_catalog_ids=[container.uuid_path for container in user.load_catalog(False)],
-        )
-        # TODO: currently loading user's catalog messes up their catalog descriptions, which is not
-        # ideal, but it's an old bug, not introduced by WLCore
-        return wl_user
+    @classmethod
+    def fromJSON(cls):
+        # used for deserializing
+        pass
 
-    @staticmethod
-    def _container_to_wlcontainer(container: Container) -> WLContainer:
-        wl_container = WLContainer(
-            owner=container.owner,
-            id=str(container.uuid_path),
-            published=False,  # TODO
-            paths=[str(p) for p in container.paths],
-            title=container.title,
-            categories=[str(c) for c in container.categories],
-            access_ids=[],  # TODO
-            storage_ids=[],  # TODO
-            storage_description=[],  # TODO
-            local_path=str(container.local_path) if container.local_path else None
-        )
-        return wl_container
 
-    @staticmethod
-    def _bridge_to_wl_bridge(bridge: Bridge) -> WLBridge:
-        wl_bridge = WLBridge(
-            owner=bridge.owner,
-            id=str(bridge.paths[0]),  # TODO
-            user_pubkey=bridge.user_pubkey,
-            user_id=bridge.user_id,
-            published=False,  # TODO
-            user_location_description="",  # TODO
-            paths=[str(p) for p in bridge.paths],
-            local_path=str(bridge.local_path) if bridge.local_path else None
-        )
-        return wl_bridge
+@dataclass
+class WLError:
+    error_code: int  # need to agree the explicit meaning
+    error_description: str  # human-readable description suitable for console or log output
+    is_recoverable: bool
+    offender_type: Optional[str] = None  # i.e. WLContainer, WLFile
+    offender_id: Optional[str] = None
+    diagnostic_info: Optional[str] = None  # diagnostic information we can dump to logs (i.e. Python
+    # backtrace converted to str which is useful for a developer debugging the issue, but not
+    # for the user
 
-    @staticmethod
-    def _storage_to_wl_storage(storage: Storage) -> WLStorage:
-        wl_storage = WLStorage(
-            owner=storage.owner,
-            id=str(storage.container_path),  # TODO
-            storage_type=storage.storage_type,
-            published=False,  # TODO
-            container="",  # TODO
-            trusted=storage.trusted,
-            primary=storage.primary,
-            access_ids=[],  # TODO
-            local_path=str(storage.local_path) if storage.local_path else None
-        )
-        return wl_storage
 
-    # TODO: remove WLStorageBackend
+# TODO: codify error codes: they need to be all documented nicely
+# temporary list is available in implementation in func wrap_exception
+
+class WildlandResult:
+    def __init__(self):
+        self.errors: List[WLError] = []
+
+    @property
+    def success(self):
+        for e in self.errors:
+            if not e.is_recoverable:
+                return False
+        return True
+
+
+@dataclass
+class WLUser(WLObject):
+    private_key_available: bool
+    published: bool
+    pubkeys: List[str] = field(default_factory=list)
+    paths: List[str] = field(default_factory=list)
+    manifest_catalog_ids: List[str] = field(default_factory=list)  # list of Container ids
+    manifest_catalog_description: List[str] = field(default_factory=list)  # human-readable
+    local_path: Optional[str] = None
+    # descriptions of manifest catalog entries
+
+
+@dataclass
+class WLContainer(WLObject):
+    published: bool
+    paths: List[str] = field(default_factory=list)
+    title: Optional[str] = None
+    categories: List[str] = field(default_factory=list)
+    access_ids: List[str] = field(default_factory=list)  # list of user ids
+    storage_ids: List[str] = field(default_factory=list)  # list of storage ids
+    storage_description: List[str] = field(default_factory=list)  # human-readable
+    local_path: Optional[str] = None
+    # descriptions of storage entries
+
+
+@dataclass
+class WLStorage(WLObject):
+    storage_type: str
+    published: bool
+    container: str  # container id
+    trusted: bool
+    primary: bool
+    access_ids: List[str] = field(default_factory=list)  # list of user ids
+    local_path: Optional[str] = None
+
+
+@dataclass
+class WLBridge(WLObject):
+    user_pubkey: str
+    user_id: str
+    published: bool
+    user_location_description: str
+    paths: List[str] = field(default_factory=list)
+    local_path: Optional[str] = None
+
+
+@dataclass
+class WLStorageBackend:
+    name: str
+    description: str
+    supported_fields: List[str]
+    field_descriptions: List[str]
+    required_fields: List[str] = field(default_factory=list)
+    local_path: Optional[str] = None
+
+
+@dataclass
+class WLTemplateFile:
+    name: str
+    templates: List[str] = field(default_factory=list)
+    template_descriptions: List[str] = field(default_factory=list)
+    local_path: Optional[str] = None
+
+
+class WildlandCoreApi(metaclass=abc.ABCMeta):
+    # All methods must wrap any exceptions in WildlandResult
 
     # GENERAL METHODS
+    @abc.abstractmethod
     def object_info(self, yaml_data: str) -> Tuple[WildlandResult, Optional[WLObject]]:
         """
         This method parses yaml data and returns an appropriate WLObject; to perform any further
@@ -125,34 +139,16 @@ class WildlandCore(WildlandCoreApi):
         :param yaml_data: yaml string with object data; has to be appropriately signed
         :return: WildlandResult and WLObject of appropriate type
         """
-        wildland_result = WildlandResult()
-        try:
-            obj = self.client.load_object_from_bytes(None, yaml_data.encode())
-        except Exception as ex:
-            wildland_result.errors.append(wrap_exception(ex, False))
-            return wildland_result, None
-        if isinstance(obj, User):
-            return wildland_result, self._user_to_wluser(obj)
-        elif isinstance(obj, Container):
-            return wildland_result, self._container_to_wlcontainer(obj)
-        elif isinstance(obj, Bridge):
-            return wildland_result, self._bridge_to_wl_bridge(obj)
-        elif isinstance(obj, Storage):
-            return wildland_result, self._storage_to_wl_storage(obj)
-        # TODO: Add error code: unknown object
-        error = WLError(error_code=700, error_description="Unknown object type encountered",
-                        is_recoverable=False, diagnostic_info=yaml_data)
-        wildland_result.errors.append(error)
-        return wildland_result, None
 
+    @abc.abstractmethod
     def object_sign(self, object_data: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Sign Wildland manifest data.
         :param object_data: object data to sign.
         :return: tuple of WildlandResult and string data (if signing was successful)
         """
-        # TODO
 
+    @abc.abstractmethod
     def object_verify(self, object_data: str, verify_signature: bool = True) -> WildlandResult:
         """
         Verify if the data provided is a correct Wildland object manifest.
@@ -160,8 +156,8 @@ class WildlandCore(WildlandCoreApi):
         :param verify_signature: should we also check if the signature is correct; default: True
         :rtype: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def put_file(self, local_file_path: str, wl_path: str) -> WildlandResult:
         """
         Put a file under Wildland path
@@ -169,8 +165,8 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def put_data(self, data_bytes: bytes, wl_path: str) -> WildlandResult:
         """
         Put a file under Wildland path
@@ -178,8 +174,8 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def get_file(self, local_file_path: str, wl_path: str) -> WildlandResult:
         """
         Get a file, given its Wildland path. Saves to a file.
@@ -187,16 +183,16 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def get_data(self, wl_path: str) -> Tuple[WildlandResult, Optional[bytes]]:
         """
         Get a file, given its Wildland path. Returns data.
         :param wl_path: Wildland path
         :return: Tuple of WildlandResult and bytes (if successful)
         """
-        # TODO
 
+    @abc.abstractmethod
     def start_wl(self, remount: bool = False, single_threaded: bool = False,
                  skip_default: bool = False, skip_forest: bool = False,
                  default_user: Optional[str] = None,
@@ -212,15 +208,15 @@ class WildlandCore(WildlandCoreApi):
          mounted container
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def stop_wl(self) -> WildlandResult:
         """
         Unmount the Wildland filesystem.
         """
-        # TODO
 
     # USER METHODS
+    @abc.abstractmethod
     def user_create(self, paths: Optional[List[str]],
                     key: Optional[str],
                     additional_keys: Optional[List[str]]) -> \
@@ -233,22 +229,15 @@ class WildlandCore(WildlandCoreApi):
         :param additional_keys: list of additional public keys that this user owns
         :return: Tuple of WildlandResult , WLUser (if creation was successful)
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_list(self) -> Tuple[WildlandResult, List[WLUser]]:
         """
         List all known users.
         :return: WildlandResult, List of WLUsers
         """
-        wildland_result = WildlandResult()
-        result_list = []
-        try:
-            for user in self.client.load_all(WildlandObject.Type.USER):
-                result_list.append(self._user_to_wluser(user))
-        except Exception as ex:
-            wildland_result.errors.append(wrap_exception(ex))
-        return wildland_result, result_list
 
+    @abc.abstractmethod
     def user_delete(self, user_id: str, cascade: bool = False,
                     force: bool = False, delete_keys: bool = False) -> WildlandResult:
         """
@@ -259,15 +248,15 @@ class WildlandCore(WildlandCoreApi):
         :param delete_keys: also remove user keys
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_export(self, user_id: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Get raw user information (the manifest contents, decrypted as much as possible)
         :param user_id: user_id (fingerprint) of the user
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_import_from_path(self, path_or_url: str, paths: List[str], object_owner: Optional[str],
                               only_first: bool = False) -> Tuple[WildlandResult, Optional[WLUser]]:
         """
@@ -281,8 +270,8 @@ class WildlandCore(WildlandCoreApi):
             WL container paths)
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_import_from_data(self, yaml_data: str, paths: List[str],
                               object_owner: Optional[str]) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
@@ -295,8 +284,8 @@ class WildlandCore(WildlandCoreApi):
             created bridge manifests
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_refresh(self, user_ids: Optional[List[str]] = None,
                      callback: Callable[[str], None] = None) -> WildlandResult:
         """
@@ -306,8 +295,8 @@ class WildlandCore(WildlandCoreApi):
         :param callback: function to be called before each refreshed user
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_modify(self, user_id: str, manifest_field: str, operation: ModifyMethod,
                     modify_data: List[str]) -> WildlandResult:
         """
@@ -321,25 +310,25 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_publish(self, user_id) -> WildlandResult:
         """
         Publish the given user.
         :param user_id: fingerprint of the user to be published
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def user_unpublish(self, user_id) -> WildlandResult:
         """
         Unpublish the given user.
         :param user_id: fingerprint of the user to be unpublished
         :return: WildlandResult
         """
-        # TODO
 
     # BRIDGES
+    @abc.abstractmethod
     def bridge_create(self, paths: Optional[List[str]], owner: Optional[str] = None,
                       target_user: Optional[str] = None, target_user_url: Optional[str] = None,
                       file_path: Optional[str] = None) -> Tuple[WildlandResult, Optional[WLBridge]]:
@@ -355,37 +344,30 @@ class WildlandCore(WildlandCoreApi):
         :param file_path: file path to create the bridge under
         :return: tuple of WildlandResult and, if successful, the created WLBridge
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_list(self) -> Tuple[WildlandResult, List[WLBridge]]:
         """
         List all known bridges.
         :return: WildlandResult, List of WLBridges
         """
-        wildland_result = WildlandResult()
-        result_list = []
-        try:
-            for bridge in self.client.load_all(WildlandObject.Type.BRIDGE):
-                result_list.append(self._bridge_to_wl_bridge(bridge))
-        except Exception as ex:
-            wildland_result.errors.append(wrap_exception(ex))
-        return wildland_result, result_list
 
+    @abc.abstractmethod
     def bridge_delete(self, bridge_id: str) -> WildlandResult:
         """
         Delete provided bridge.
         :param bridge_id: Bridge ID (in the form of user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_export(self, bridge_id: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Get raw bridge information (the manifest contents, decrypted as much as possible)
         :param bridge_id: bridge_id of the bridge (provided as user_id:/.uuid/bridge_uuid
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_import(self, path_or_url: str, paths: List[str], object_owner: Optional[str],
                       only_first: bool = False) -> Tuple[WildlandResult, Optional[WLBridge]]:
         """
@@ -399,8 +381,8 @@ class WildlandCore(WildlandCoreApi):
             WL container paths)
         :return: tuple of WildlandResult, imported WLBridge (if import was successful
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_import_from_data(self, yaml_data: str, paths: List[str],
                                 object_owner: Optional[str]) -> \
             Tuple[WildlandResult, Optional[WLBridge]]:
@@ -413,8 +395,8 @@ class WildlandCore(WildlandCoreApi):
             created bridge manifests
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_modify(self, bridge_id: str, manifest_field: str, operation: ModifyMethod,
                       modify_data: List[str]) -> WildlandResult:
         """
@@ -426,25 +408,25 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_publish(self, bridge_id) -> WildlandResult:
         """
         Publish the given bridge.
         :param bridge_id: id of the bridge to be published (user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def bridge_unpublish(self, bridge_id) -> WildlandResult:
         """
         Unpublish the given bridge.
         :param bridge_id: id of the bridge to be unpublished (user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        # TODO
 
     # CONTAINERS
+    @abc.abstractmethod
     def container_create(self, paths: List[str],
                          access_user_ids: Optional[List[str]] = None,
                          encrypt_manifest: bool = True,
@@ -465,15 +447,15 @@ class WildlandCore(WildlandCoreApi):
         :param name: name of the container to be created, used in naming container file
         :return: Tuple of WildlandResult and, if successful, the created WLContainer
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_list(self) -> Tuple[WildlandResult, List[WLContainer]]:
         """
         List all known containers.
         :return: WildlandResult, List of WLContainers
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_delete(self, container_id: str, cascade: bool = False,
                          force: bool = False) -> WildlandResult:
         """
@@ -483,16 +465,16 @@ class WildlandCore(WildlandCoreApi):
         :param force: delete even when using local storage manifests; ignore errors on parse
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_export(self, container_id: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Get raw container information (the manifest contents, decrypted as much as possible)
         :param container_id: container_id of the container
         (provided as user_id:/.uuid/container_uuid)
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_duplicate(self, container_id: str, file_path: Optional[str] = None) -> \
             Tuple[WildlandResult, Optional[WLContainer]]:
         """
@@ -503,8 +485,8 @@ class WildlandCore(WildlandCoreApi):
         automatically
         :return: WildlandResult and, if duplication was successful, the new container
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_import_from_data(self, yaml_data: str, overwrite: bool = True) -> \
             Tuple[WildlandResult, Optional[WLContainer]]:
         """
@@ -514,8 +496,8 @@ class WildlandCore(WildlandCoreApi):
         default: True. If this is False and the container already exists, this operation will fail.
         :return: tuple of WildlandResult, imported WLContainer (if import was successful)
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_create_cache(self, container_id: str, storage_template_name: str) \
             -> WildlandResult:
         """
@@ -527,8 +509,8 @@ class WildlandCore(WildlandCoreApi):
         :return: WildlandResult
         :rtype:
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_delete_cache(self, container_id: str) -> WildlandResult:
         """
         Delete cache storage for container.
@@ -536,8 +518,8 @@ class WildlandCore(WildlandCoreApi):
         userid:/.uuid/container_uuid)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_mount_watch(self, container_ids: List[str]) -> WildlandResult:
         """
         Watch for manifest files inside Wildland, and keep the filesystem mount
@@ -547,8 +529,8 @@ class WildlandCore(WildlandCoreApi):
         :param container_ids:
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_modify(self, container_id: str, manifest_field: str, operation: ModifyMethod,
                          modify_data: List[str]) -> WildlandResult:
         """
@@ -564,24 +546,24 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_publish(self, container_id) -> WildlandResult:
         """
         Publish the given container.
         :param container_id: id of the container to be published (user_id:/.uuid/container_uuid)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_unpublish(self, container_id) -> WildlandResult:
         """
         Unpublish the given container.
         :param container_id: id of the container to be unpublished (user_id:/.uuid/container_uuid)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def container_find(self, path: str) -> \
             Tuple[WildlandResult, List[Tuple[WLContainer, WLStorage]]]:
         """
@@ -590,17 +572,17 @@ class WildlandCore(WildlandCoreApi):
         :return: tuple of WildlandResult and list of tuples of WLContainer, WLStorage that contain
         the provided path
         """
-        # TODO
 
     # STORAGES
 
+    @abc.abstractmethod
     def supported_storage_backends(self) -> Tuple[WildlandResult, List[WLStorageBackend]]:
         """
         List all supported storage backends.
         :return: WildlandResult and a list of supported storage backends.
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_create(self, backend_type: str, backend_params: List[str],
                        container_id: str, trusted: bool = False, inline: bool = True,
                        watcher_interval: Optional[int] = 0,
@@ -624,8 +606,8 @@ class WildlandCore(WildlandCoreApi):
         :return: Tuple of WildlandResult and, if creation was successful, WLStorage that was
         created
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_create_from_template(self, template_name: str, container_id: str,
                                      local_dir: Optional[str] = None):
         """
@@ -635,15 +617,15 @@ class WildlandCore(WildlandCoreApi):
         :param local_dir: str to be passed to template renderer as a parameter, can be used by
         template creators
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_list(self) -> Tuple[WildlandResult, List[WLStorage]]:
         """
         List all known storages.
         :return: WildlandResult, List of WLStorages
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_delete(self, storage_id: str, cascade: bool = True,
                        force: bool = False) -> WildlandResult:
         """
@@ -654,16 +636,16 @@ class WildlandCore(WildlandCoreApi):
         :param force: delete even if used by containers or if manifest cannot be loaded
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_export(self, storage_id: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Get raw storage information (the manifest contents, decrypted as much as possible)
         :param storage_id: storage_id of the storage (provided as
         user_id:/.uuid/container_uuid/.uuid/storage_uuid)
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_import_from_data(self, yaml_data: str, overwrite: bool = True) -> \
             Tuple[WildlandResult, Optional[WLStorage]]:
         """
@@ -674,8 +656,8 @@ class WildlandCore(WildlandCoreApi):
          operation will fail.
         :return: tuple of WildlandResult, imported WLStorage (if import was successful)
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_modify(self, storage_id: str, manifest_field: str, operation: ModifyMethod,
                        modify_data: List[str]) -> WildlandResult:
         """
@@ -689,8 +671,8 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_publish(self, storage_id) -> WildlandResult:
         """
         Publish the given storage.
@@ -698,8 +680,8 @@ class WildlandCore(WildlandCoreApi):
          (user_id:/.uuid/container_uuid:/.uuid/storage_uuid)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def storage_unpublish(self, storage_id) -> WildlandResult:
         """
         Unpublish the given storage.
@@ -707,10 +689,10 @@ class WildlandCore(WildlandCoreApi):
          (user_id:/.uuid/container_uuid:/.uuid/storage_uuid)
         :return: WildlandResult
         """
-        # TODO
 
     # TEMPLATES
 
+    @abc.abstractmethod
     def template_create(self, backend_type: str, backend_params: List[str], template_name: str,
                         read_only: bool = False, default_cache: bool = False,
                         watcher_interval: Optional[int] = 0,
@@ -734,29 +716,29 @@ class WildlandCore(WildlandCoreApi):
         :return: Tuple of WildlandResult and, if creation was successful, WLTemplate that was
         created
         """
-        # TODO
 
+    @abc.abstractmethod
     def template_list(self) -> Tuple[WildlandResult, List[WLTemplateFile]]:
         """
         List all known templates.
         :return: WildlandResult, List of WLTemplateFiles
         """
-        # TODO
 
+    @abc.abstractmethod
     def template_delete(self, template_name: str) -> WildlandResult:
         """
         Delete a template
         :param template_name: name of template to be deleted.
         """
-        # TODO
 
+    @abc.abstractmethod
     def template_export(self, template_name: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Return (if possible) contents of the provided template
         :param template_name: name of the template
         """
-        # TODO
 
+    @abc.abstractmethod
     def template_import(self, template_name: str, template_data: str) -> WildlandResult:
         """
         Import template from provided data.
@@ -764,10 +746,10 @@ class WildlandCore(WildlandCoreApi):
         will be replaced
         :param template_data: jinja template data
         """
-        # TODO
 
     # FORESTS
 
+    @abc.abstractmethod
     def forest_create(self, storage_template: str, user_id: str,
                       access_user_ids: Optional[List[str]] = None, encrypt: bool = True,
                       manifests_local_dir: Optional[str] = '/.manifests') -> WildlandResult:
@@ -782,10 +764,10 @@ class WildlandCore(WildlandCoreApi):
         :param manifests_local_dir: manifests local directory. Must be an absolute path
         :return: WildlandResult
         """
-        # TODO
 
     # MOUNTING
 
+    @abc.abstractmethod
     def mount(self, paths_or_names: List[str], include_children: bool = True,
               include_parents: bool = True, remount: bool = True,
               import_users: bool = True, manifests_catalog: bool = False,
@@ -808,14 +790,14 @@ class WildlandCore(WildlandCoreApi):
         contains the list of containers that were not mounted for various reasons (from errors to
         being already mounted)
         """
-        # TODO
 
+    @abc.abstractmethod
     def unmount_all(self) -> WildlandResult:
         """
         Unmount all mounted containers.
         """
-        # TODO
 
+    @abc.abstractmethod
     def unmount_by_mount_path(self, paths: List[str], include_children: bool = True) -> \
             WildlandResult:
         """
@@ -824,8 +806,8 @@ class WildlandCore(WildlandCoreApi):
         :param include_children: should subcontainers/children be unmounted (default: true)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def unmount_by_path_or_name(self, path_or_name: List[str], include_children: bool = True) -> \
             WildlandResult:
         """
@@ -836,11 +818,10 @@ class WildlandCore(WildlandCoreApi):
         :param include_children: should subcontainers/children be unmounted (default: true)
         :return: WildlandResult
         """
-        # TODO
 
+    @abc.abstractmethod
     def mount_status(self) -> Tuple[WildlandResult, List[WLContainer]]:
         """
         List all mounted containers
         :return: tuple of WildlandResult and mounted WLContainers
         """
-        # TODO
