@@ -637,8 +637,8 @@ class WildlandFSBase:
     def setxattr(self, *args):
         return -errno.ENOSYS
 
-    def statfs(self, *args):
-        return -errno.ENOSYS
+    def statfs(self):
+        return os.statvfs(".")
 
     def symlink(self, *args):
         return -errno.ENOSYS
