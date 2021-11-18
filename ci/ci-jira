@@ -27,14 +27,11 @@ time -p chronic ls "$ROOT"
 time -p chronic ls "$ROOT"/projects/"$PROJECT_NAME"
 time -p test -d "$ROOT"/projects/"$PROJECT_NAME"/@statuses
 time -p test -d "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"
-time -p test -d "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"
 
 # Checking the categories permutation
 time -p test -f "$ROOT"/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 time -p test -f "$ROOT"/projects/"$PROJECT_NAME"/@labels/bugfix/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 time -p test -f "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -f "$ROOT"/projects/"$PROJECT_NAME"/@statuses/To\ Do/Aegypius\ occipitalis/Aegypius\ occipitalis.md
-time -p test -f "$ROOT"/statuses/To\ Do/@projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 
 # Read contents of files
 time -p chronic grep 'primis in faucibus' $ROOT/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
@@ -48,7 +45,7 @@ wl storage create jira --container jira-a --workspace-url $WORKSPACE_API_URL --u
 # Mount a Jira container (without specified project ID)
 wl container mount --with-subcontainers jira-a
 
-time -p test -f "$ROOT"/labels/welcome/@statuses/To\ Do/Phaethon\ aethereus/Phaethon\ aethereus.md
+time -p test -f "$ROOT"/labels/welcome/@projects/"$PROJECT_NAME"/Phaethon\ aethereus/Phaethon\ aethereus.md
 
 # Unmount the container
 time -p chronic wl container unmount jira-a
