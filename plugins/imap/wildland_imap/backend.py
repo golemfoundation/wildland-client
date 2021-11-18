@@ -107,7 +107,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         logger.info("_root() requested for %s", self.backend_id)
         for envelope in self.client.all_messages_env():
             yield FuncDirEntry(self._id_for_message(envelope),
-                               partial(self._msg_contents, envelope))
+                               partial(self._msg_contents, envelope),
+                               int(envelope.recv_time.replace(tzinfo=timezone.utc).timestamp()))
 
     def _msg_contents(self, e: MessageEnvelopeData):
         # This little method should populate the message directory
