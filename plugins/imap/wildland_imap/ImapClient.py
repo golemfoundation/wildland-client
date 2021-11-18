@@ -319,8 +319,11 @@ class ImapClient:
         for addr in [env.sender, env.from_]:
             senders |= self._parse_address(addr)
 
-        sub = decode_header(env.subject.decode())
-        subject = _decode_text(sub)
+        if not env.subject:
+            subject = '<NO SUBJECT>'
+        else:
+            sub = decode_header(env.subject.decode())
+            subject = _decode_text(sub)
 
         recipients = set()
         for addr in [env.to, env.cc, env.bcc]:
