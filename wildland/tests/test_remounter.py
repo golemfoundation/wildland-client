@@ -171,9 +171,10 @@ class RemounterWrapper(Remounter):
                     storage_id = expected_b[1]
                 # register as mounted - backend specific path
                 uuid = get_container_uuid_from_uuid_path(str(expected.paths[0]))
+                path = f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}'
                 self.control_client.add_storage_paths(
                     expected_b[1],
-                    [f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}']
+                    [path, path + '/.manifest.wildland.yaml']
                 )
 
                 # calculate storage tag, so params/paths change will be detected
@@ -185,13 +186,18 @@ class RemounterWrapper(Remounter):
             if storage_id is not None:
                 self.control_client.add_storage_paths(
                     storage_id,
-                    [f'/.users/{expected.owner}:{path}' for path in expected.paths]
+                    [create_path(path)
+                     for path in expected.paths
+                     for create_path in
+                     (lambda p: f'/.users/{expected.owner}:{p}',
+                      lambda p: f'/.users/{expected.owner}:{p}/.manifest.wildland.yaml')
+                     ]
                 )
         self.to_mount.clear()
 
         # check to_unmount
-        # for each storage id we have one None value for corresponding pseudomanifest storage id
-        to_unmount_with_nons = to_unmount + [None] * len(to_unmount)
+        # for each storage id we have one more id for corresponding pseudomanifest storage id
+        to_unmount_with_nons = to_unmount * 2
         assert len(self.to_unmount) == len(to_unmount_with_nons), \
             f'call {self.call_counter-1}: expected {to_unmount_with_nons}, actual {self.to_unmount}'
         assert set(self.to_unmount) == set(to_unmount_with_nons), \
