@@ -186,11 +186,11 @@ class RemounterWrapper(Remounter):
             if storage_id is not None:
                 self.control_client.add_storage_paths(
                     storage_id,
-                    [create_path(path)
-                     for path in expected.paths
+                    [create_path(expected_path, expected.owner)
+                     for expected_path in expected.paths
                      for create_path in
-                     (lambda p: f'/.users/{expected.owner}:{p}',
-                      lambda p: f'/.users/{expected.owner}:{p}/.manifest.wildland.yaml')
+                     (lambda p, owner: f'/.users/{owner}:{p}',
+                      lambda p, owner: f'/.users/{owner}:{p}/.manifest.wildland.yaml')
                      ]
                 )
         self.to_mount.clear()
