@@ -201,9 +201,11 @@ class Remounter:
 
             for main_path in self.wlpath_main_paths.get(wlpath, set()).difference(new_main_paths):
                 storage_id = self.fs_client.find_storage_id_by_path(main_path)
+                pseudo_storage_id = self.fs_client.find_storage_id_by_path(
+                    main_path / '.manifest.wildland.yaml')
                 if storage_id is not None:
                     logger.info('  (unmount %d)', storage_id)
-                    self.to_unmount.append(storage_id)
+                    self.to_unmount += [storage_id, pseudo_storage_id]
                 else:
                     logger.info('  (not mounted)')
         except Exception:
@@ -222,24 +224,26 @@ class Remounter:
 
         logger.info('Event %s: %s', event.event_type, event.path)
 
-        # Find out if we've already seen the file, and can match it to a
-        # mounted storage.
+        # Find out if we've already seen the file, and can match it to an mounted storage.
         storage_id: Optional[int] = None
+        pseudo_storage_id: Optional[int] = None
+
         if event.path in self.main_paths:
-            storage_id = self.fs_client.find_storage_id_by_path(
-                self.main_paths[event.path])
+            storage_id = self.fs_client.find_storage_id_by_path(self.main_paths[event.path])
+            pseudo_storage_id = self.fs_client.find_storage_id_by_path(
+                self.main_paths[event.path] / '.manifest.wildland.yaml')
 
         # Handle delete: unmount if the file was mounted.
         if event.event_type == FileEventType.DELETE:
+            if storage_id is not None:
+                logger.info('  (unmount %d)', storage_id)
+                self.to_unmount += [storage_id, pseudo_storage_id]
+            else:
+                logger.info('  (not mounted)')
+
             # Stop tracking the file
             if event.path in self.main_paths:
                 del self.main_paths[event.path]
-
-            if storage_id is not None:
-                logger.info('  (unmount %d)', storage_id)
-                self.to_unmount.append(storage_id)
-            else:
-                logger.info('  (not mounted)')
 
         # Handle create/modify:
         if event.event_type in [FileEventType.CREATE, FileEventType.MODIFY]:
@@ -271,9 +275,11 @@ class Remounter:
             for path in self.fs_client.get_orphaned_container_storage_paths(
                     container, storages):
                 storage_id = self.fs_client.find_storage_id_by_path(path)
+                pseudo_storage_id = self.fs_client.find_storage_id_by_path(
+                    path / '.manifest.wildland.yaml')
                 assert storage_id is not None
                 logger.info('  (removing orphan %s @ id: %d)', path, storage_id)
-                self.to_unmount.append(storage_id)
+                self.to_unmount += [storage_id, pseudo_storage_id]
 
             for storage in storages:
                 if self.fs_client.should_remount(container, storage, user_paths):

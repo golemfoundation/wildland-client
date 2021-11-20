@@ -190,10 +190,12 @@ class RemounterWrapper(Remounter):
         self.to_mount.clear()
 
         # check to_unmount
-        assert len(self.to_unmount) == len(to_unmount), \
-            f'call {self.call_counter-1}: expected {to_unmount}, actual {self.to_unmount}'
-        assert set(self.to_unmount) == set(to_unmount), \
-            f'call {self.call_counter-1}: expected {to_unmount}, actual {self.to_unmount}'
+        # for each storage id we have one None value for corresponding pseudomanifest storage id
+        to_unmount_with_nons = to_unmount + [None] * len(to_unmount)
+        assert len(self.to_unmount) == len(to_unmount_with_nons), \
+            f'call {self.call_counter-1}: expected {to_unmount_with_nons}, actual {self.to_unmount}'
+        assert set(self.to_unmount) == set(to_unmount_with_nons), \
+            f'call {self.call_counter-1}: expected {to_unmount_with_nons}, actual {self.to_unmount}'
         for storage_id in to_unmount:
             self.control_client.del_storage(storage_id)
         self.to_unmount.clear()
