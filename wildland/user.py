@@ -216,7 +216,8 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         self._manifests_catalog.append(_CatalogCache(path))
 
     def remove_catalog_entry(self, path: Union[str, dict]):
-        """Remove a catalog entry based on path. Returns True if operation was successful."""
+        """Remove a catalog entry (provided asn url string or a dict). Returns True if operation
+         was successful."""
         for catalog in self._manifests_catalog:
             if catalog.manifest == path:
                 self._manifests_catalog.remove(catalog)

@@ -417,23 +417,23 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
             # not published
             pass
 
-    if cascade:
-        try:
-            Publisher(obj.client, user).remove_from_cache(container)
-        except WildlandError as e:
-            if not force:
-                logger.warning('Failed to remove container from cache, cannot delete: %s', e)
-                click.echo('Use --force to force deletion.')
-                return
+    try:
+        Publisher(obj.client, user).remove_from_cache(container)
+    except WildlandError as e:
+        logger.warning('Failed to remove container from cache: %s', e)
+        if not force:
+            click.echo('Cannot remove container. Use --force to force deletion.')
+            return
 
+    if cascade:
         try:
             if container.local_path:
                 user.remove_catalog_entry(obj.client.local_url(container.local_path))
                 obj.client.save_object(WildlandObject.Type.USER, user)
         except WildlandError as e:
+            logger.warning('Failed to remove catalog entry: %s', e)
             if not force:
-                logger.warning('Failed to remove catalog entry, cannot delete: %s', e)
-                click.echo('Use --force to force deletion.')
+                click.echo('Cannot remove container. Use --force to force deletion.')
                 return
 
     click.echo(f'Deleting: {container.local_path}')
