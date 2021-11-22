@@ -111,17 +111,21 @@ run() {
 
 switch_user() {
     new_user="$1"
-    current_user=$(wl user dump @default-owner | grep /users/ | cut -f 3 -d /)
+    current_user=$(wl user dump @default-owner | grep /users/ | cut -f 3 -d / || :)
     if [ "$new_user" = "$current_user" ]; then
         echo "Already at $new_user" >&2
         return
     fi
-    if [ -d ~/.config/wildland-$current_user ]; then
-        echo "Something went wrong, ~/.config/wildland-$current_user already exists" >&2
-        exit 1
+    if [ -n "$current_user" ]; then
+        if [ -d ~/.config/wildland-$current_user ]; then
+            echo "Something went wrong, ~/.config/wildland-$current_user already exists" >&2
+            exit 1
+        fi
+        wl stop 2>/dev/null || :
+        mv -f ~/.config/wildland ~/.config/wildland-$current_user
+    else
+        rm -rf ~/.config/wildland
     fi
-    wl stop 2>/dev/null || :
-    mv -f ~/.config/wildland ~/.config/wildland-$current_user
     if [ -d ~/.config/wildland-$new_user ]; then
         mv -f ~/.config/wildland-$new_user ~/.config/wildland
     else
