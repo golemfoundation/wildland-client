@@ -29,12 +29,13 @@ import locale
 import time
 import mimetypes
 import imaplib
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from email.message import Message
 from threading import Lock
 from typing import List, Set, Dict, Tuple, Iterable
 from email.header import decode_header
+from email.message import Message
 from email.parser import BytesParser
 from email import policy
 from datetime import datetime
@@ -232,20 +233,19 @@ class ImapClient:
         rv: List[MessagePart] = list()
 
         msg = self._load_raw_message(msg_id)
-        subj = msg['Subject']
-        subj = _decode_text(subj)
 
         body = msg.get_body(('html', 'plain'))
         if body:
-            content = body.get_payload(decode=True)
             charset = body.get_content_charset()
-        else:
-            content = "This message contains no decodable body part."
+            if not charset:
+                charset = 'utf-8'
 
-        if not charset:
-            charset = 'utf-8'
-        content = content.decode(charset)
-        content = bytes(content, charset)
+            content = body.get_payload(decode=True)
+            content = content.decode(charset)
+            content = bytes(content, charset)
+        else:
+            content = b'This message contains no decodable body part.'
+
         ctype = body.get_content_type()
         rv.append(MessagePart('main_body' +
                               mimetypes.guess_extension(ctype),
@@ -257,10 +257,10 @@ class ImapClient:
             if not charset:
                 charset = 'utf-8'
             if content is str:
-                content = bytes(content, 'utf-8')
-            part = MessagePart(att.get_filename(),
-                               att.get_content_type(),
-                               content)
+                content = bytes(content, charset)
+            filename = att.get_filename() or str(uuid.uuid4())
+
+            part = MessagePart(filename, att.get_content_type(), content)
             rv.append(part)
         return rv
 
@@ -311,8 +311,9 @@ class ImapClient:
 
         return rv
 
+    @staticmethod
     @contextmanager
-    def _setlocale(self, loc: str):
+    def _setlocale(loc: str):
         """
         Context for temporary locale change.
         Not thread-safe, _local_lock must be held.
@@ -337,6 +338,8 @@ class ImapClient:
         else:
             sub = decode_header(env.subject.decode())
             subject = _decode_text(sub)
+            if '\0' in subject:
+                subject = subject.replace('\0', '')
 
         recv_time = env.date
         if not recv_time:
