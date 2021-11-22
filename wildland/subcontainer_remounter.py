@@ -38,7 +38,7 @@ class SubcontainerRemounter:
         
         while True:
             for events in self.fs_client.watch_subcontainers(
-                    self.containers_storage, with_initial=True):
+                    self.client, self.containers_storage, with_initial=True):
                 for event in events:
                     self.handle_subcontainer_event(event)
                 self.unmount_pending()

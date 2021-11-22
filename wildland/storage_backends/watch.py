@@ -281,11 +281,15 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         pass
 
     def _get_info(self):
-        to_return = []
-        paths = self.backend.get_children(paths_only = True)
+        to_return = {}
+        paths = self.backend.get_children(paths_only=True)
+        logger.debug("watcher %s", str(self.backend))
         for path in paths:
-            mtime = os.path.getmtime(path)
-            to_return.append((path, mtime))
+            if os.path.exists(path):
+                mtime = os.path.getmtime(path)
+                to_return[path] = mtime
+            else:
+                to_return[path] = None
         return to_return
 
     @staticmethod
@@ -296,7 +300,7 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
             yield SubcontainerEvent(FileEventType.DELETE, path)
         for path in new_paths - current_paths:
             yield SubcontainerEvent(FileEventType.CREATE, path)
-        for path, mtime in current_paths:
-            for new_path, new_mtime in current_paths:
-                if path == new_path and mtime != new_mtime:
-                    yield SubcontainerEvent(FileEventType.MODIFY, path, new_info[path])
+        for path in current_paths.intersection(new_paths):
+            if current_info[path] != new_info[path]:
+                yield SubcontainerEvent(FileEventType.MODIFY, path)
+

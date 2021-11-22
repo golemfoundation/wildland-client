@@ -46,6 +46,7 @@ from .exc import WildlandError
 from .control_client import ControlClient, ControlClientUnableToConnectError
 from .entity.fileinfo import FileInfo
 from .manifest.manifest import Manifest
+from .storage_backends.base import StorageBackend
 from .storage_backends.pseudomanifest import PseudomanifestStorageBackend
 from .storage_backends.watch import FileEventType
 from .log import get_logger
@@ -949,12 +950,12 @@ class WildlandFSClient:
         finally:
             client.disconnect()
 
-    def watch_subcontainers(self, containers_storages: Dict[Container, Storage],
+    def watch_subcontainers(self, wl_client, containers_storages: Dict[Container, Storage],
                             with_initial=False) -> Iterator[List[WatchSubcontainerEvent]]:
         """
         TODO
         """
-
+        print("HAHA")
         client = ControlClient()
         client.connect(self.socket_path)
         try:
@@ -968,16 +969,22 @@ class WildlandFSClient:
 
             for events in client.iter_events():
                 watch_events = []
+                print("###")
                 for event in events:
+                    print(f'new event')
                     event_type = FileEventType[event['type']]
                     watch_id = event['watch-id']
                     container, storage = watches[watch_id]
                     params = storage.params
                     sb = StorageBackend.from_params(params, deduplicate=True)
+                    print("fs client", sb)
                     path = PurePosixPath(event['path'])
                     all_children = sb.get_children(wl_client)
+                    print(f'child: {list(all_children)}')
                     for subcontainer_path, subcontainer in all_children:
+                        print(subcontainer_path, path)
                         if subcontainer_path == path:
+                            print(f'ok')
                             watch_events.append(WatchSubcontainerEvent(
                                 event_type, container, storage, path, subcontainer))
                             break

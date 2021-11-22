@@ -25,7 +25,7 @@ Wildland storage backend exposing read only IMAP mailbox
 """
 from functools import partial
 from pathlib import PurePosixPath
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Set, Tuple, Optional
 from datetime import timezone
 
 import uuid
@@ -174,8 +174,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         ns = uuid.UUID(self.backend_id)
         return str(uuid.uuid3(ns, str(env.msg_uid)))
 
-    def _make_msg_container(self, env: MessageEnvelopeData, paths_only: bool) ->
-        Tuple[PurePosixPath, ContainerStub] or PurePosixPath:
+    def _make_msg_container(self, env: MessageEnvelopeData, paths_only: bool) \
+            -> Tuple[PurePosixPath, ContainerStub] or PurePosixPath:
         """
         Create a container manifest for a single mail message.
         """

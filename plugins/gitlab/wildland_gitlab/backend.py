@@ -200,9 +200,8 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         """
         return str(uuid.uuid3(uuid.UUID(self.backend_id), str(issue.ident)))
 
-    def _make_issue_container(self, issue: CompactIssue,
-                              paths_only: bool) ->
-        Tuple[PurePosixPath, ContainerStub] or PurePosixPath:
+    def _make_issue_container(self, issue: CompactIssue, paths_only: bool) \
+            -> Tuple[PurePosixPath, ContainerStub] or PurePosixPath:
         """
         Creates a separate subcontainer for each of the issues fetched from the server
         """
