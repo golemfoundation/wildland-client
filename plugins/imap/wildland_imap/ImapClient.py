@@ -32,13 +32,14 @@ import imaplib
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from threading import Lock
-from typing import List, Set, Dict, Tuple, Iterable
+from datetime import datetime
 from email.header import decode_header
 from email.message import Message
 from email.parser import BytesParser
 from email import policy
-from datetime import datetime
+from threading import Lock
+from typing import List, Set, Dict, Tuple, Iterable
+
 from imapclient import IMAPClient
 from imapclient.response_types import Envelope, Address
 
@@ -234,7 +235,8 @@ class ImapClient:
 
         msg = self._load_raw_message(msg_id)
 
-        body = msg.get_body(('html', 'plain'))
+        # msg is actually of type EmailMessage, but parser.parsebytes signature returns Message...
+        body = msg.get_body(('html', 'plain'))  # type: ignore
         if body:
             charset = body.get_content_charset()
             if not charset:
@@ -247,11 +249,11 @@ class ImapClient:
             content = b'This message contains no decodable body part.'
 
         ctype = body.get_content_type()
-        rv.append(MessagePart('main_body' +
-                              mimetypes.guess_extension(ctype),
-                              ctype, content))
+        rv.append(MessagePart('main_body' + (mimetypes.guess_extension(ctype) or ''),
+                              ctype,
+                              content))
 
-        for att in msg.iter_attachments():
+        for att in msg.iter_attachments():  # type: ignore
             content = att.get_payload(decode=True)
             charset = att.get_content_charset()
             if not charset:
