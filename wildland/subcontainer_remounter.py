@@ -1,3 +1,28 @@
+# Wildland Project
+#
+# Copyright (C) 2020 Golem Foundation
+#
+# Authors:
+#                   Piotr Bartman <prbartman@invisiblethingslab.com>
+#                   Maja Kostacinska <maja@wildland.io>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""
+TODO: add copyright message and fill in the docstrings
+"""
 from pathlib import PurePosixPath
 from typing import List, Tuple, Iterable, Optional, Dict
 
@@ -22,23 +47,23 @@ class SubcontainerRemounter:
         self.containers_storage = containers_storage
         self.client = client
         self.fs_client = fs_client
-        
+
         self.to_mount: List[Tuple[Container,
                             Iterable[Storage],
                             Iterable[Iterable[PurePosixPath]],
                             Optional[Container]]] = []
         self.to_unmount: List[int] = []
-        
+
         self.main_paths: Dict[PurePosixPath, PurePosixPath] = {}
 
     def run(self):
         """
         Run the main loop.
         """
-        
+
         while True:
             for events in self.fs_client.watch_subcontainers(
-self.client, self.containers_storage, with_initial=True):
+                    self.client, self.containers_storage, with_initial=True):
                 for event in events:
                     self.handle_subcontainer_event(event)
                 self.unmount_pending()
@@ -109,7 +134,7 @@ self.client, self.containers_storage, with_initial=True):
 
             if storages_to_remount:
                 self.to_mount.append((container, storages_to_remount, user_paths, None))
-    
+
     def unmount_pending(self):
         """
         Unmount queued containers.

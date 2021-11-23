@@ -394,7 +394,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.ignore_own_events = False
 
-    def start_subcontainer_watcher(self, handler, with_initial=False, ignore_own_events=None):
+    def start_subcontainer_watcher(self, handler):
 
         if self.subcontainer_watcher_instance:
             raise StorageError("Watcher already exists")
@@ -404,7 +404,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if not self.subcontainer_watcher_instance:
             return None
 
-        self.subcontainer_watcher_instance.start(handler, with_initial)
+        self.subcontainer_watcher_instance.start(handler)
 
         return self.subcontainer_watcher_instance
 
@@ -445,19 +445,8 @@ class StorageBackend(metaclass=abc.ABCMeta):
             # pylint: disable=import-outside-toplevel, cyclic-import
             logger.warning("Using simple subcontainer watcher - it can be very inefficient.")
             from ..storage_backends.watch import SubcontainerWatcher
-            return SubcontainerWatcher(self, interval=int(self.params['watcher-interval']))
-        return None
-
-    def subcontainer_watcher(self, params: Optional[dict] = None):
-        """
-        TODO
-        """
-        if 'watcher-interval' in self.params:
-            # pylint: disable=import-outside-toplevel, cyclic-import
-            logger.warning("Using simple subcontainer watcher - it can be very inefficient.")
-            from ..storage_backends.watch import SubcontainerWatcher
             return SubcontainerWatcher(
-                self, interval=int(self.params['watcher-interval']), params=params)
+                self, interval=int(self.params['watcher-interval']))
         return None
 
     def set_config_dir(self, config_dir):

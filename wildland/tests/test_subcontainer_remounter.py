@@ -31,12 +31,8 @@ from unittest import mock
 
 import pytest
 
-from wildland.wildland_object.wildland_object import WildlandObject
 from ..client import Client
 from ..container import Container
-from ..control_client import ControlClientError
-from ..manifest.manifest import ManifestError
-from ..remounter import Remounter
 from ..storage import Storage
 from ..subcontainer_remounter import SubcontainerRemounter
 

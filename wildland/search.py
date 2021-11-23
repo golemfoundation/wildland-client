@@ -434,7 +434,9 @@ class Search:
                          storage.params["type"], part)
             return
         with storage_backend:
-            children_iter = storage_backend.get_children(client = step.client, query_path = part, paths_only = False)
+            children_iter = storage_backend.get_children(client = step.client,
+                                                         query_path = part,
+                                                         paths_only = False)
 
             for manifest_path, subcontainer_data in children_iter:
                 try:

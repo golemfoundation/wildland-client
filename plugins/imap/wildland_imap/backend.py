@@ -25,7 +25,7 @@ Wildland storage backend exposing read only IMAP mailbox
 """
 from functools import partial
 from pathlib import PurePosixPath
-from typing import Iterable, List, Set, Tuple, Optional
+from typing import Iterable, List, Set, Tuple
 from datetime import timezone
 
 import uuid

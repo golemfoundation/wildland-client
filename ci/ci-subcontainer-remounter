@@ -17,7 +17,7 @@ wl start
 
 #creating a local container to be used as the reference container for the timeline storage
 wl c create local_reference --path /reference
-wl s create local --location /tmp/refcon --container local_reference
+wl s create local --location /tmp/reference --container local_reference
 
 uuid=$(./wl container dump local_reference | grep '/.uuid/' | cut -d / -f 3 )
 
@@ -28,17 +28,27 @@ wl s create timeline --container timeline_container --reference-container-url wi
 #mounting both of the containers
 wl c mount local_reference
 wl c mount timeline_container
+wl c subcontainer-mount-watch timeline_container
+
+# ensuring that the expected file is present in the timeline tree
+cd
+cd wildland/tmroot
+if find . -name 'test1.txt' -type f; then echo 'expected file found'; else exit 1; fi
+cd
 
 #checking that the CREATE events are detected and new containers are being created and mounted
 echo test2 > /tmp/reference/test2.txt
-
-sleep 10
-tree "$TREE_DIR"
+sleep 15
+cd wildland/tmroot
+if find . -name 'test1.txt' -type f; then echo 'expected file found'; else exit 1; fi
+if find . -name 'test2.txt' -type f; then echo 'expected file found'; else exit 1; fi
+cd
 
 #checking that the DELETE events are detected and new containers are being created and mounted
 rm /tmp/reference/test2.txt
-
-sleep 10
-tree "$TREE_DIR"
-
-
+sleep 15
+cd wildland/tmroot
+if find . -name 'test1.txt' -type f; then echo 'expected file found'; else exit 1; fi
+output=$(find . -name 'test2.txt' -type f)
+if output==''; then echo 'file removed correctly'; else exit 1; fi
+cd

@@ -123,7 +123,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')):
+    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*'),
+                     paths_only: bool = False):
         """
         Returns a list of categorized subcontainers for issues
         """
@@ -131,7 +132,7 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
         assert isinstance(self.all_issues, list)
 
         for issue in self.all_issues:
-            yield self._make_issue_container(issue)
+            yield self._make_issue_container(issue, paths_only)
 
         logger.debug('subcontainers successfully created')
 
@@ -180,7 +181,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
         """
         return str(uuid.uuid3(uuid.UUID(self.backend_id), str(issue.id)))
 
-    def _make_issue_container(self, issue: CompactIssue) -> Tuple[PurePosixPath, ContainerStub]:
+    def _make_issue_container(self, issue: CompactIssue,
+                              paths_only: bool) -> Tuple[PurePosixPath, ContainerStub]:
         """
         Creates a separate subcontainer for each of the issues fetched from the server
         """
@@ -188,16 +190,18 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
         paths = [f'/.uuid/{issue_uuid}']
         categories = self._get_issue_categories(issue)
         subcontainer_path = '/' + issue_uuid
-        return PurePosixPath(subcontainer_path), ContainerStub({
-            'paths': paths,
-            'title': issue.title,
-            'categories': categories,
-            'backends': {'storage': [{
-                'type': 'delegate',
-                'reference-container': 'wildland:@default:@parent-container:',
-                'subdirectory': subcontainer_path
-            }]}
-        })
+        if not paths_only:
+            return PurePosixPath(subcontainer_path), ContainerStub({
+                'paths': paths,
+                'title': issue.title,
+                'categories': categories,
+                'backends': {'storage': [{
+                    'type': 'delegate',
+                    'reference-container': 'wildland:@default:@parent-container:',
+                    'subdirectory': subcontainer_path
+                }]}
+            })
+        return PurePosixPath(subcontainer_path)
 
     @classmethod
     def cli_options(cls):

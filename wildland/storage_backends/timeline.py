@@ -224,6 +224,10 @@ class TimelineStorageBackend(CachedStorageMixin, StorageBackend):
                 yield PurePosixPath(self.root + '/' + date + '/' + name)
 
     def get_subcontainer_watch_params(self, client):
+        """
+        Returns the categories of the reference container to be
+        used in the process of subcontainer mount watching
+        """
         ref_container = client.load_object_from_url(
             object_type=WildlandObject.Type.CONTAINER,
             url=self.reference,

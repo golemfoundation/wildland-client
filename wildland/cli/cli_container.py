@@ -27,7 +27,7 @@ Manage containers
 """
 from itertools import combinations
 from pathlib import PurePosixPath, Path
-from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple, Union, Dict
+from typing import Iterable, List, Optional, Sequence, Tuple, Dict
 import os
 import sys
 import re

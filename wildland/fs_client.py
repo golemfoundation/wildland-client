@@ -24,7 +24,6 @@
 """
 Wildland FS client
 """
-import ast
 import itertools
 import os
 import time
@@ -50,7 +49,6 @@ from .storage_backends.base import StorageBackend
 from .storage_backends.pseudomanifest import PseudomanifestStorageBackend
 from .storage_backends.watch import FileEventType
 from .log import get_logger
-from .wildland_object.wildland_object import WildlandObject
 
 logger = get_logger('fs_client')
 
@@ -968,24 +966,17 @@ class WildlandFSClient:
         """
         TODO
         """
-
         client = ControlClient()
         client.connect(self.socket_path)
         try:
             watches = {}
             for container, storage in containers_storages.items():
                 params = storage.params
-                sb = StorageBackend.from_params(params, deduplicate=True)
-                watching_params = sb.get_subcontainer_watch_params(wl_client)
-                logger.debug(f'watching for subcontainers: storage {params["backend-id"]}')
+                logger.debug('watching for subcontainers: storage %s', str({params["backend-id"]}))
                 watch_id = client.run_command(
-                    'add-subcontainer-watch',
-                    backend_param=params,
-                    with_initial=with_initial,
-                    params=watching_params
-                )
+                    'add-subcontainer-watch', backend_param=params, with_initial=with_initial)
                 watches[watch_id] = (container, storage)
-                
+
             for events in client.iter_events():
                 watch_events = []
                 for event in events:
@@ -995,11 +986,11 @@ class WildlandFSClient:
                     params = storage.params
                     sb = StorageBackend.from_params(params, deduplicate=True)
                     path = PurePosixPath(event['path'])
-                    all_children = sb.get_children(wl_client)
-                    for subcontainer_path, subcontainer in all_children:
-                        if subcontainer_path == path:
+                    all_children = list(sb.get_children(wl_client))
+                    for child in all_children:
+                        if child[0] == path:
                             watch_events.append(WatchSubcontainerEvent(
-                                event_type, container, storage, path, subcontainer))
+                                    event_type, container, storage, path, child[1]))
                             break
                 yield watch_events
         except GeneratorExit:

@@ -423,7 +423,7 @@ ident, handler, with_initial=with_initial, ignore_own=ignore_own, params=params)
     def _add_subcontainer_watch(self, storage_id: int, handler: ControlHandler,
                                 with_initial: bool = False, ignore_own: bool = False,
                                 params: Optional[dict] = None):
-                                
+
         assert self.mount_lock.locked()
 
         watch = Watch(
@@ -448,8 +448,7 @@ ident, handler, with_initial=with_initial, ignore_own=ignore_own, params=params)
             def watch_handler(events):
                 return self._watch_subcontainer_handler(storage_id, events)
             watcher = self.storages[storage_id].start_subcontainer_watcher(
- watch_handler, with_initial=with_initial, ignore_own_events=ignore_own,
-                params=params)
+                    watch_handler)
 
             if watcher:
                 logger.info('starting watcher for storage %d', storage_id)
