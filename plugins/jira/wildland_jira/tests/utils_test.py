@@ -79,7 +79,7 @@ def test_stringify_jql_dict():
         'parameters_list_mix': None,
     }
 
-    order_dir: Dict[str, Union[Literal['ASC'], Literal['DESC'], None]] = {
+    order_dir: Dict[str, Optional[Literal['ASC', 'DESC']]] = {
         'empty': None,
         'empty_order': 'ASC',
         'single_str': None,

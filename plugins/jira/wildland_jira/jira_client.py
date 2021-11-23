@@ -64,6 +64,8 @@ class JiraClient:
         self.headers = {}
         if username and personal_token:
             self.headers["Authorization"] = f'Basic {encode_basic_auth(username, personal_token)}'
+        elif username or personal_token:
+            logger.warn("Only one of [username, token] given. Authorization will be ignored.")
         self.projects_names: Optional[List[str]] = project_names
         self.url = site_url if site_url.endswith('/') else f'{site_url}/'
         self.limit = limit
@@ -82,7 +84,7 @@ class JiraClient:
             return
         error = 'Projects with the following names could not be found: {}.'.format(
             ', '.join(unmatched_names))
-        raise Exception(error)
+        raise WildlandError(error)
 
     def run_query(self, path: str, params: ParamDict):
         """

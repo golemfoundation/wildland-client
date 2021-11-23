@@ -40,6 +40,7 @@ from .jira_client import CompactIssue, JiraClient
 from .jira_file_entry import JiraFileEntry
 
 logger = get_logger('JiraBackend')
+DEFAULT_ISSUES_LIMIT = 1000
 
 
 class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
@@ -77,8 +78,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
             },
             "limit": {
                 "type": "integer",
-                "description": "(optional) maximum amount of issues to be fetched starting from "
-                               "the most recently updated"
+                "description": f"(optional) (default: {DEFAULT_ISSUES_LIMIT}) maximum amount of "
+                               f"issues to be fetched starting from the most recently updated. "
             }
         }
     })
@@ -214,13 +215,15 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
                 ['--project-name'], required=False, multiple=True,
                 help='(optional) (multiple) Jira projects names'),
             click.Option(
-                ['--limit'], required=False, default=1000,
-                help='(optional) maximum amount of issues to be fetched starting from the most '
-                     'recently updated')
+                ['--limit'], required=False, default=DEFAULT_ISSUES_LIMIT,
+                help=f'(optional) (default: {DEFAULT_ISSUES_LIMIT}) maximum amount of issues to '
+                     f'be fetched starting from the most recently updated')
         ]
 
     @classmethod
     def cli_create(cls, data):
+        if bool(data['personal_token']) ^ bool(data['username']):
+            raise TypeError('Only one of [token, user] provided. Expected either none or both.')
         return {
             'workspace_url': data['workspace_url'],
             'username': data['username'],

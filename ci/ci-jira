@@ -60,3 +60,16 @@ wl container mount jira-template
 time -p chronic tree $ROOT
 
 wl container unmount jira-template
+
+# Create and mount public project
+WORKSPACE_API_URL='https://jira.atlassian.com/rest/api/2'
+PROJECT_NAME='Atlassian Cloud'
+
+wl container create jira-pub --path "/$MNT_DIR_1"
+wl storage create jira --container jira-pub --workspace-url $WORKSPACE_API_URL --limit 10 --project-name "$PROJECT_NAME"
+wl container mount --with-subcontainers jira-pub
+
+# List full tree
+time -p chronic tree "$ROOT"
+
+wl container unmount jira-pub
