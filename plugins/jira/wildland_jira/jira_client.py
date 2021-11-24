@@ -65,7 +65,7 @@ class JiraClient:
         if username and personal_token:
             self.headers["Authorization"] = f'Basic {encode_basic_auth(username, personal_token)}'
         elif username or personal_token:
-            logger.warn("Only one of [username, token] given. Authorization will be ignored.")
+            logger.warning("Only one of [username, token] given. Authorization will be ignored.")
         self.projects_names: Optional[List[str]] = project_names
         self.url = site_url if site_url.endswith('/') else f'{site_url}/'
         self.limit = limit
@@ -77,7 +77,7 @@ class JiraClient:
         """
         if not isinstance(self.projects_names, list) or len(self.projects_names) < 1:
             return
-        all_projects = self.run_query('project', {'browseArchive': 'true'})
+        all_projects = self.run_query('project', {})
         all_projects_names = map(lambda project: project['name'], all_projects)
         unmatched_names = set(self.projects_names).difference(all_projects_names)
         if len(unmatched_names) == 0:

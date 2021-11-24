@@ -23,7 +23,7 @@
 """
 Unit tests for jira plugin utils
 """
-from typing import Dict, Union, Optional, Literal
+from typing import Dict, Optional, Literal
 
 from ..utils import stringify_query_params, encode_dict_to_jql, ParamValueType, ParamDict
 
