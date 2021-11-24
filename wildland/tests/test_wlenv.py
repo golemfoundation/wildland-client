@@ -120,7 +120,9 @@ def test_get_set_reset(base_dir):
 def test_default_remotes(base_dir):
     env = WLEnv(base_dir)
 
-    assert not env.get_default_remote_for_container('0000')[0].success
+    wlr, result = env.get_default_remote_for_container('0000')
+    assert not wlr.success
+    assert result is None
 
     assert env.set_default_remote_for_container('0000', '1111').success
     assert env.set_default_remote_for_container('2222', '3333').success
@@ -131,16 +133,22 @@ def test_default_remotes(base_dir):
     assert remote == '1111'
 
     assert env.remove_default_remote_for_container('2222', '4444').success
-    assert not env.get_default_remote_for_container('2222')[0].success
+    wlr, result = env.get_default_remote_for_container('2222')
+    assert not wlr.success
+    assert result is None
 
     assert env.reset_default_remotes().success
-    assert not env.get_default_remote_for_container('0000')[0].success
+    wlr, result = env.get_default_remote_for_container('0000')
+    assert not wlr.success
+    assert result is None
 
 
 def test_aliases(base_dir):
     env = WLEnv(base_dir)
 
-    assert not env.get_alias('superuser')[0].success
+    wlr, result = env.get_alias('superuser')
+    assert not wlr.success
+    assert result is None
 
     assert env.set_alias('superuser', '0xaaa').success
     assert env.set_alias('u1', '0xbbb').success
@@ -151,10 +159,14 @@ def test_aliases(base_dir):
     assert alias == '0xaaa'
 
     env.remove_aliases('u1', 'u2')
-    assert not env.get_alias('u1')[0].success
+    wlr, result = env.get_alias('u1')
+    assert not wlr.success
+    assert result is None
 
     assert env.reset_aliases().success
-    assert not env.get_alias('superuser')[0].success
+    wlr, result = env.get_alias('superuser')
+    assert not wlr.success
+    assert result is None
 
 
 def test_local_owners(base_dir):

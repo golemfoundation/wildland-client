@@ -57,7 +57,7 @@ class WLEnv:
         """
         return self.__reload(base_dir)
 
-    @wildland_result
+    @wildland_result()
     def __reload(self, base_dir: Optional[str] = None):
         base_dir = base_dir or self.base_dir
         self.config = self.load_config(base_dir)
@@ -70,7 +70,7 @@ class WLEnv:
         """
         return self.__reset(save)
 
-    @wildland_result
+    @wildland_result()
     def __reset(self, save: bool = False):
         if save:
             self.config.override_fields = {}
@@ -385,11 +385,12 @@ class WLEnv:
         """
         wlr, new_alias = self.__ignore_at(alias)
         if not wlr.success:
-            return wlr, None
-        return wildland_result(lambda a: self.config.aliases[a])(new_alias)
+            return wlr, new_alias
+        return wildland_result(default_output=None)(
+            lambda a: self.config.aliases[a])(new_alias)
 
     @staticmethod
-    @wildland_result
+    @wildland_result(default_output=None)
     def __ignore_at(alias: str):
         if alias[0] == '@':
             alias = alias[1:]
@@ -409,7 +410,7 @@ class WLEnv:
         return self._set_param_key_value('aliases', new_alias, user_key_fingerprint, save)
 
     @staticmethod
-    @wildland_result
+    @wildland_result(default_output=None)
     def __add_at(alias: str):
         if alias[0] != '@':
             alias = '@' + alias
@@ -422,7 +423,7 @@ class WLEnv:
         @param aliases: aliases, @ at the beginning is ignored
         @param save: if true, save the change to the config file.
         """
-        wlr, full_aliases = wildland_result(
+        wlr, full_aliases = wildland_result(default_output=[])(
             lambda als: ('@' + alias if alias[0] != '@' else alias for alias in als))(
             tuple(aliases))
         if not wlr.success:
@@ -469,7 +470,10 @@ class WLEnv:
         """
         Get local owners.
         """
-        return self._get_param('local-owners')
+        wlr, result = self._get_param('local-owners')
+        if result is None:
+            return wlr, []
+        return wlr, result
 
     def is_local_owner(self, user_key_fingerprint: str) -> Tuple[WildlandResult, Optional[bool]]:
         """
@@ -477,8 +481,8 @@ class WLEnv:
 
         @param user_key_fingerprint: fingerprints of user key
         """
-        return wildland_result(lambda key: key in self.config.get('local-owners'))(
-            user_key_fingerprint)
+        return wildland_result(default_output=None)(
+            lambda key: key in self.config.get('local-owners'))(user_key_fingerprint)
 
     def set_local_owners(self, *user_key_fingerprints: str, save: bool = True) -> WildlandResult:
         """
@@ -524,7 +528,10 @@ class WLEnv:
         """
         Get list of default containers.
         """
-        return self._get_param('default-containers')
+        wlr, result = self._get_param('default-containers')
+        if result is None:
+            return wlr, []
+        return wlr, result
 
     def is_default_container(self, container_name: str) -> Tuple[WildlandResult, Optional[bool]]:
         """
@@ -533,8 +540,8 @@ class WLEnv:
 
         @param container_name: fingerprints of user key
         """
-        return wildland_result(lambda name: name in self.config.get('default-containers'))(
-            container_name)
+        return wildland_result(default_output=None)(
+            lambda name: name in self.config.get('default-containers'))(container_name)
 
     def set_default_containers(self, *container_names: str, save: bool = True) -> WildlandResult:
         """
@@ -582,8 +589,8 @@ class WLEnv:
         Get a default remote storage (backend_id) for
         the container (given by container uuid).
         """
-        return wildland_result(lambda uuid: self.config.get('default-remote-for-container')[uuid])(
-            container_uuid)
+        return wildland_result(default_output=None)(
+            lambda uuid: self.config.get('default-remote-for-container')[uuid])(container_uuid)
 
     def set_default_remote_for_container(
             self, container_uuid: str, storage_backend_id: str, save: bool = True) \
@@ -649,37 +656,37 @@ class WLEnv:
     def __get_update_method(self, save: bool):
         return self.config.update_and_save if save else partial(self.config.override, dummy=False)
 
-    @wildland_result
+    @wildland_result(default_output=None)
     def _get_param(self, param: str):
         result = self.config.get(param)
-        return WildlandResult(), result  # handle None value
+        return result
 
-    @wildland_result
+    @wildland_result()
     def _set_param(self, param: str, value: Union[bool, str, List[str]], save: bool):
         config_update = self.__get_update_method(save)
         config_update({param: value})
 
-    @wildland_result
+    @wildland_result()
     def _set_absolute_path(self, param: str, path: str, save: bool):
         if not Path(path).is_absolute():
             raise ValueError("Given value is not absolute path.")
         config_update = self.__get_update_method(save)
         config_update({param: path})
 
-    @wildland_result
+    @wildland_result()
     def _reset_param(self, param: str, save: bool):
         default_value = self.config.default_fields[param]
         self.config.override({param: default_value})
         if save:
             self.config.remove_key_and_save(param)
 
-    @wildland_result
+    @wildland_result()
     def _add_values(self, param: str, *values: str, save: bool = True):
         file_values = self.config.get(param)
         extended_values = list(values) + file_values
         return self._set_param(param, extended_values, save)
 
-    @wildland_result
+    @wildland_result()
     def _remove_values(self,
                        param: str, *values: str,
                        error_code: int = -1,
@@ -713,7 +720,7 @@ class WLEnv:
             self._set_param(param, file_values, save)
         return wlr
 
-    @wildland_result
+    @wildland_result()
     def _set_param_key_value(self, param: str, key: str, value: str, save: bool):
         file_values = self.config.get(param)
         values = file_values.copy()
