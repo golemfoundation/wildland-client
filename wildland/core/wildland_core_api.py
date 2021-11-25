@@ -217,16 +217,26 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
 
     # USER METHODS
     @abc.abstractmethod
-    def user_create(self, paths: Optional[List[str]],
-                    key: Optional[str],
-                    additional_keys: Optional[List[str]]) -> \
+    def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
+        """
+        Generate a new encryption key, store it in an appropriate location and return key owner id
+        and public key generated.
+        """
+
+    @abc.abstractmethod
+    def user_remove_key(self, owner: str) -> WildlandResult:
+        """
+        Remove an existing encryption key.
+        """
+
+    @abc.abstractmethod
+    def user_create(self, name: str, keys: List[str], paths: List[str],) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
         """
         Create a user and return information about it
+        :param name: file name for the newly created file
+        :param keys: list of user's public keys, starting with their own key
         :param paths: list of user paths (paths must be absolute paths)
-        :param key: use existing key pair (provide a filename (without extension); it must be in
-                   WILDLAND_HOME/keys/ )
-        :param additional_keys: list of additional public keys that this user owns
         :return: Tuple of WildlandResult , WLUser (if creation was successful)
         """
 

@@ -8,11 +8,12 @@ from ..storage import Storage
 from ..wildland_object.wildland_object import WildlandObject
 from ..manifest.manifest import ManifestError
 from ..manifest.sig import SigError
+from ..manifest.schema import SchemaError
 from copy import deepcopy
 
-from ..wlenv import WLEnv
 from typing import List, Tuple, Optional, Callable, Any, TypeVar
 from pathlib import PurePosixPath
+import binascii
 
 # For the purposes of communicating with wildland core, we shall use unique object ids,
 # with syntax same as with current WL paths:
@@ -29,17 +30,25 @@ from pathlib import PurePosixPath
 # TODO: core should have its own tests, possibly test_cli should be remade to test WildlandCore, and
 # TODO cli should get its own, simple tests with mocked
 
+
 def wrap_exception(exc: Exception, is_recoverable: bool = False) -> WLError:
+    error_desc = str(exc)
     if isinstance(exc, ManifestError):
         # TODO: more elaborate error reporting
         err_code = 1
     elif isinstance(exc, SigError):
         err_code = 2
+    elif isinstance(exc, SchemaError):
+        err_code = 3
+    elif isinstance(exc, binascii.Error):
+        err_code = 101
+        error_desc = "Incorrect public key provided; provide key, not filename or path."
     else:
         err_code = 999
     error = WLError(error_code=err_code,
-                    error_description=str(exc), is_recoverable=is_recoverable)
+                    error_description=error_desc, is_recoverable=is_recoverable)
     return error
+# error code 100: incorrect input value
 
 
 class WildlandCore(WildlandCoreApi):
@@ -104,7 +113,7 @@ class WildlandCore(WildlandCoreApi):
     def _storage_to_wl_storage(storage: Storage) -> WLStorage:
         wl_storage = WLStorage(
             owner=storage.owner,
-            id=str(storage.container_path),  # TODO
+            id=str(storage.get_unique_publish_id()),  # TODO
             storage_type=storage.storage_type,
             published=False,  # TODO
             container="",  # TODO
@@ -221,19 +230,61 @@ class WildlandCore(WildlandCoreApi):
         # TODO
 
     # USER METHODS
-    def user_create(self, paths: Optional[List[str]],
-                    key: Optional[str],
-                    additional_keys: Optional[List[str]]) -> \
+    # TODO: when @prbartman's changes are finished, wrap everything into wlresult wrap
+    def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
+        """
+        Generate a new encryption key, store it in an appropriate location and return key owner id
+        and public key generated.
+        """
+        result = WildlandResult()
+        try:
+            owner, pubkey = self.client.session.sig.generate()
+        except Exception as ex:
+            result.errors.append(wrap_exception(ex))
+            owner, pubkey = None, None
+        return result, owner, pubkey
+
+    def user_remove_key(self, owner: str) -> WildlandResult:
+        """
+        Remove an existing encryption key.
+        """
+        wl_result = WildlandResult()
+        try:
+            self.client.session.sig.remove_key(owner)
+        except Exception as ex:
+            wl_result.errors.append(wrap_exception(ex))
+        return wl_result
+
+    def user_create(self, name: str, keys: List[str], paths: List[str],) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
         """
         Create a user and return information about it
+        :param name: file name for the newly created file
+        :param keys: list of user's public keys, starting with their own key
         :param paths: list of user paths (paths must be absolute paths)
-        :param key: use existing key pair (provide a filename (without extension); it must be in
-                   WILDLAND_HOME/keys/ )
-        :param additional_keys: list of additional public keys that this user owns
-        :return: Tuple of WildlandResult , WLUser (if creation was successful)
         """
-        # TODO
+        result = WildlandResult()
+
+        if not keys:
+            result.errors.append(WLError(100, "At least one public key must be provided", False))
+            return result, None
+
+        owner = self.client.session.sig.fingerprint(keys[0])
+        user = User(
+            owner=owner,
+            pubkeys=keys,
+            paths=[PurePosixPath(p) for p in paths],
+            manifests_catalog=[],
+            client=self.client)
+
+        try:
+            self.client.save_new_object(WildlandObject.Type.USER, user, name)
+        except Exception as ex:
+            result.errors.append(wrap_exception(ex))
+
+        user.add_user_keys(self.client.session.sig)
+        wl_user = self._user_to_wluser(user)
+        return result, wl_user
 
     def user_list(self) -> Tuple[WildlandResult, List[WLUser]]:
         """
