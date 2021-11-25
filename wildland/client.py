@@ -94,7 +94,7 @@ class Client:
         :param config_kwargs: Override select config options
         """
         if config is None:
-            config = EnvProvider.shared().load_config({'base_dir': base_dir})
+            config = EnvProvider.shared().load_config(base_dir)
             config.override(**config_kwargs)
         self.config = config
 

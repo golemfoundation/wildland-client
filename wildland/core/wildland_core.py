@@ -11,9 +11,10 @@ from ..manifest.sig import SigError
 from ..manifest.schema import SchemaError
 from copy import deepcopy
 
-from typing import List, Tuple, Optional, Callable, Any, TypeVar
 from pathlib import PurePosixPath
 import binascii
+from .wildland_result import WildlandResult
+from typing import List, Tuple, Optional, Callable
 
 # For the purposes of communicating with wildland core, we shall use unique object ids,
 # with syntax same as with current WL paths:
@@ -28,7 +29,7 @@ import binascii
 # Style goal: All methods must be <15 functional lines of code; if more, refactor
 
 # TODO: core should have its own tests, possibly test_cli should be remade to test WildlandCore, and
-# TODO cli should get its own, simple tests with mocked
+# TODO cli should get its own, simple tests with mocked methods
 
 
 def wrap_exception(exc: Exception, is_recoverable: bool = False) -> WLError:
@@ -123,8 +124,6 @@ class WildlandCore(WildlandCoreApi):
             local_path=str(storage.local_path) if storage.local_path else None
         )
         return wl_storage
-
-    # TODO: remove WLStorageBackend
 
     # GENERAL METHODS
     def object_info(self, yaml_data: str) -> Tuple[WildlandResult, Optional[WLObject]]:
@@ -230,7 +229,6 @@ class WildlandCore(WildlandCoreApi):
         # TODO
 
     # USER METHODS
-    # TODO: when @prbartman's changes are finished, wrap everything into wlresult wrap
     def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
         """
         Generate a new encryption key, store it in an appropriate location and return key owner id
@@ -599,6 +597,13 @@ class WildlandCore(WildlandCoreApi):
         :return: WildlandResult
         """
         # TODO
+
+    def container_stop_mount_watch(self, container_ids: List[str]) -> WildlandResult:
+        """
+        Stop watching for manifest files inside Wildland.
+        :param container_ids:
+        :return: WildlandResult
+        """
 
     def container_modify(self, container_id: str, manifest_field: str, operation: ModifyMethod,
                          modify_data: List[str]) -> WildlandResult:
