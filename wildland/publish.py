@@ -109,6 +109,12 @@ class Publisher:
         if published:
             self._cache(wl_object.type).remove(wl_object)
 
+    def remove_from_cache(self, wl_object: PublishableWildlandObject):
+        """
+        Remove a Wildland Object from cache.
+        """
+        self._cache(wl_object.type).remove(wl_object)
+
     @staticmethod
     def list_unpublished_objects(client: Client, obj_type: WildlandObject.Type) -> List[str]:
         """

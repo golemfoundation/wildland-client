@@ -1949,7 +1949,35 @@ def test_container_delete_unpublish(cli, tmp_path):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    cli('container', 'delete', 'Container')
+    cli('container', 'delete', 'Container', '--cascade')
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+
+def test_container_delete_unpublished_cache(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--manifest-pattern', '/*.{object-type}.yaml')
+
+    cli('container', 'publish', 'Container')
+
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
+
+    cli('container', 'unpublish', 'Container')
+
+    with open(base_dir / 'containers/.unpublished') as file:
+        lines = file.readlines()
+        assert lines == [str(base_dir / 'containers/Container.container.yaml\n')]
+
+    cli('container', 'delete', 'Container', '--cascade')
+
+    with open(base_dir / 'containers/.unpublished') as file:
+        lines = file.readlines()
+        assert len(lines) == 0
 
     assert not tuple(tmp_path.glob('*.container.yaml'))
 

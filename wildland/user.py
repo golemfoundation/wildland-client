@@ -215,6 +215,22 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         catalog."""
         self._manifests_catalog.append(_CatalogCache(path))
 
+    def remove_catalog_entry(self, path: Union[str, dict]):
+        """Remove a catalog entry (provided asn url string or a dict). Returns True if operation
+         was successful."""
+        for catalog in self._manifests_catalog:
+            if catalog.manifest == path:
+                self._manifests_catalog.remove(catalog)
+                return True
+        return False
+
+    def has_catalog_entry(self, path: Union[str, dict]):
+        """Returns true if a catalog entry is present in user's manifest"""
+        for catalog in self._manifests_catalog:
+            if catalog.manifest == path:
+                return True
+        return False
+
     @property
     def primary_pubkey(self):
         """Primary pubkey for signatures. User manifest needs to be signed with this key"""
