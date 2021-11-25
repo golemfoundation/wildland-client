@@ -330,10 +330,6 @@ class ConflictResolver(metaclass=abc.ABCMeta):
           res (Resolved): resolution result (if there is exactly one)
         """
 
-        if path == PurePosixPath('/'):
-            return Attr(
-                mode=stat.S_IFDIR | 0o555,
-            ), None
 
         m = re.match(self.CONFLICT_RE, path.name)
         ident: Optional[int]
@@ -369,6 +365,10 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             ), None
 
         if len(resolved) == 0:
+            if path == PurePosixPath('/'):
+                return Attr(
+                    mode=stat.S_IFDIR | 0o555,
+                ), None
             raise FileNotFoundError(errno.ENOENT, '')
 
         if len(resolved) == 1:
