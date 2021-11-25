@@ -151,6 +151,12 @@ ipfs-test:
   script:
     - ./ci/ci-ipfs
 
+jira-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/ci-jira
+
 sshfs-test:
   extends: .plugin_test
   script:
