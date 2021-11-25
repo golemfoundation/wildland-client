@@ -27,7 +27,8 @@ import functools
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import aliased_group, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj
+from .cli_exc import CliError
 from ..manifest.schema import SchemaError
 from ..manifest.template import TemplateManager
 from ..exc import WildlandError

@@ -40,7 +40,8 @@ import wildland.log
 
 from wildland import __version__
 from wildland.wildland_object.wildland_object import WildlandObject, PublishableWildlandObject
-from .cli_base import ContextObj, CliError
+from .cli_base import ContextObj
+from .cli_exc import CliError
 from ..client import Client
 from ..container import Container
 from ..manifest.sig import SigError

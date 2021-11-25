@@ -33,7 +33,8 @@ import uuid
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
-from .cli_base import aliased_group, ContextObj, CliError
+from .cli_base import aliased_group, ContextObj
+from .cli_exc import CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
     dump, check_if_any_options, check_options_conflict, publish, unpublish

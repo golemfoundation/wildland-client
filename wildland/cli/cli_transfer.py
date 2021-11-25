@@ -27,7 +27,8 @@ Transfer commands (get, put)
 
 import click
 
-from .cli_base import ContextObj, CliError
+from .cli_base import ContextObj
+from .cli_exc import CliError
 from ..wlpath import WildlandPath, PathError
 from ..search import Search
 

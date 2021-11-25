@@ -38,9 +38,9 @@ from wildland.manifest.template import TemplateManager
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
     aliased_group,
-    CliError,
     ContextObj,
 )
+from .cli_exc import CliError
 from . import (
     cli_common,
     cli_user,

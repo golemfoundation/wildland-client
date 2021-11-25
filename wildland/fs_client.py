@@ -36,7 +36,7 @@ import dataclasses
 import glob
 import re
 
-from .cli.cli_base import CliError
+from .cli.cli_exc import CliError
 from .container import Container
 from .storage import Storage
 from .exc import WildlandError

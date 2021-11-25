@@ -31,7 +31,7 @@ from pathlib import PurePosixPath
 import click
 
 from .base import StorageBackend, File, Attr
-from ..cli.cli_base import CliError
+from ..cli.cli_exc import CliError
 from ..exc import WildlandError
 from ..manifest.schema import Schema
 from ..log import get_logger
