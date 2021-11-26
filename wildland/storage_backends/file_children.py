@@ -266,7 +266,9 @@ class FileChildrenMixin(StorageBackend):
             except FileNotFoundError:
                 pass
             try:
-                driver.remove_empty_dir(relpath.parent)
+                for parent in relpath.parents:
+                    if not driver.remove_empty_dir(parent):
+                        break
             except FileNotFoundError:
                 pass
 

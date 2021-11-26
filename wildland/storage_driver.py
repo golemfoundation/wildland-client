@@ -116,15 +116,17 @@ class StorageDriver:
         """
         self.storage_backend.unlink(relpath)
 
-    def remove_empty_dir(self, relpath):
+    def remove_empty_dir(self, relpath) -> bool:
         """
-        Remove a directory if it is empty
+        Remove a directory if it is empty.
+        Returns False if dir was not empty so not deleted, True otherwise
         """
 
         if len(self.storage_backend.readdir(relpath)):
-            return
+            return False
 
         self.storage_backend.rmdir(relpath)
+        return True
 
     def makedirs(self, relpath, mode=0o755):
         """
