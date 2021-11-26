@@ -40,12 +40,15 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
 
     def __init__(self,
                  file_path: Union[str, PurePosixPath],
+                 client,
                  storage=None,
                  storage_owner=None,
                  storage_backend=None,
                  storage_driver=None,
                  file_bytes: Optional[bytes] = None):
         super().__init__()
+        self.file_path = PurePosixPath(file_path)
+        self.client = client
         self.storage_owner = storage_owner
         assert storage or storage_backend or storage_driver
         if storage_driver:
@@ -54,7 +57,6 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
             self.storage_driver = StorageDriver.from_storage(storage=storage)
         else:
             self.storage_driver = StorageDriver(storage_backend=storage_backend)
-        self.file_path = PurePosixPath(file_path)
         self.file_bytes = file_bytes
 
     def __str__(self):
@@ -90,6 +92,7 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
 
         return cls(
             file_path=PurePosixPath(fields['file']),
+            client=client,
             storage_owner=fields.get("storage-owner", None),
             storage=storage_obj,
             storage_driver=storage_driver,

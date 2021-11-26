@@ -106,7 +106,7 @@ def create(obj: ContextObj,
         else:
             storage, file = found_manifest
             file = '/' / file
-            location_link = Link(file, storage=storage)
+            location_link = Link(file, client=obj.client, storage=storage)
             location = location_link.to_manifest_fields(inline=True)
 
     fingerprint = obj.client.session.sig.fingerprint(target_user.primary_pubkey)
