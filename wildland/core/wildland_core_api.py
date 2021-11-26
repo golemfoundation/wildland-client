@@ -1,10 +1,31 @@
+# Wildland Project
+#
+# Copyright (C) 2021 Golem Foundation
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""
+API for Wildland Core
+"""
 import abc
-from ..wlenv import WLEnv
 from typing import List, Tuple, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from .wildland_result import WildlandResult
 
-# For the purposes of communicating with wildland core, we shall use unique object ids,
+# For the purposes of communicating with wildland core, we shall use unique object ids,h
 # with syntax same as with current WL paths:
 # 0xaaa:[/.uuid/000-000-000:/.uuid/000-000-000]
 # USERS: userid:
@@ -16,6 +37,9 @@ from enum import Enum
 
 
 class ModifyMethod(Enum):
+    """
+    Possible input values for various object modify methods
+    """
     ADD = 'add'
     DELETE = 'delete'
     SET = 'set'
@@ -23,48 +47,29 @@ class ModifyMethod(Enum):
 
 @dataclass
 class WLObject:
+    """
+    Generalized Wildland object
+    """
     owner: str
     id: str
 
     def toJSON(self):
-        # used for serializing, e.g. into other languages
-        pass
+        """
+        Used for serializing, e.g. into other languages
+        """
 
     @classmethod
     def fromJSON(cls):
-        # used for deserializing
-        pass
-
-
-@dataclass
-class WLError:
-    error_code: int  # need to agree the explicit meaning
-    error_description: str  # human-readable description suitable for console or log output
-    is_recoverable: bool
-    offender_type: Optional[str] = None  # i.e. WLContainer, WLFile
-    offender_id: Optional[str] = None
-    diagnostic_info: Optional[str] = None  # diagnostic information we can dump to logs (i.e. Python
-    # backtrace converted to str which is useful for a developer debugging the issue, but not
-    # for the user
-
-
-# TODO: codify error codes: they need to be all documented nicely
-# temporary list is available in implementation in func wrap_exception
-
-class WildlandResult:
-    def __init__(self):
-        self.errors: List[WLError] = []
-
-    @property
-    def success(self):
-        for e in self.errors:
-            if not e.is_recoverable:
-                return False
-        return True
+        """
+        Used for deserializing, e.g. from other languages
+        """
 
 
 @dataclass
 class WLUser(WLObject):
+    """
+    Wildland user
+    """
     private_key_available: bool
     published: bool
     pubkeys: List[str] = field(default_factory=list)
@@ -77,6 +82,9 @@ class WLUser(WLObject):
 
 @dataclass
 class WLContainer(WLObject):
+    """
+    Wildland container
+    """
     published: bool
     paths: List[str] = field(default_factory=list)
     title: Optional[str] = None
@@ -90,6 +98,9 @@ class WLContainer(WLObject):
 
 @dataclass
 class WLStorage(WLObject):
+    """
+    Wildland storage
+    """
     storage_type: str
     published: bool
     container: str  # container id
@@ -101,6 +112,9 @@ class WLStorage(WLObject):
 
 @dataclass
 class WLBridge(WLObject):
+    """
+    Wildland bridge
+    """
     user_pubkey: str
     user_id: str
     published: bool
@@ -111,6 +125,9 @@ class WLBridge(WLObject):
 
 @dataclass
 class WLStorageBackend:
+    """
+    Wildland storage backend
+    """
     name: str
     description: str
     supported_fields: List[str]
@@ -121,6 +138,9 @@ class WLStorageBackend:
 
 @dataclass
 class WLTemplateFile:
+    """
+    Wildland template file
+    """
     name: str
     templates: List[str] = field(default_factory=list)
     template_descriptions: List[str] = field(default_factory=list)
@@ -128,6 +148,9 @@ class WLTemplateFile:
 
 
 class WildlandCoreApi(metaclass=abc.ABCMeta):
+    """
+    Wildland Core API
+    """
     # All methods must wrap any exceptions in WildlandResult
 
     # GENERAL METHODS

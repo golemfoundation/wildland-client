@@ -16,29 +16,81 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
-
+"""
+Result of Wildland Core operations
+"""
 import ast
 import inspect
 import textwrap
 from dataclasses import dataclass
 from typing import Optional, List, Tuple, Union, Callable, Any
+import binascii
+
+from ..manifest.manifest import ManifestError
+from ..manifest.sig import SigError
+from ..manifest.schema import SchemaError
 
 
 @dataclass
 class WLError:
+    """
+    Representation of errors raised by Wildland Core
+    """
     error_code: int  # need to agree the explicit meaning
     error_description: str  # human-readable description suitable for console or log output
     is_recoverable: bool
-    offender_type: Optional[str]  # i.e. WLContainer, WLFile
-    offender_id: Optional[str]
-    diagnostic_info: str  # diagnostic information we can dump to logs (i.e. Python backtrace
-    # converted to str which is useful for a developer debugging the issue, but not for the user
+    offender_type: Optional[str] = None  # i.e. WLContainer, WLFile
+    offender_id: Optional[str] = None
+    diagnostic_info: Optional[str] = None  # diagnostic information we can dump to logs (i.e. Python
+    # backtrace converted to str which is useful for a developer debugging the issue, but not
+    # for the user
+
+    @classmethod
+    def from_exception(cls, exc: Exception, is_recoverable: bool = False):
+        """
+        Generate a WLError from an Exception.
+        :param exc: source Exception
+        :param is_recoverable: whether the error can be recovered from
+        """
+        # TODO: improve error reporting, add more information
+        error_desc = str(exc)
+        if isinstance(exc, ManifestError):
+            err_code = 1
+        elif isinstance(exc, SigError):
+            err_code = 2
+        elif isinstance(exc, SchemaError):
+            err_code = 3
+        elif isinstance(exc, binascii.Error):
+            err_code = 101
+            error_desc = "Incorrect public key provided; provide key, not filename or path."
+        else:
+            err_code = 999
+        error = cls(error_code=err_code, error_description=error_desc,
+                    is_recoverable=is_recoverable)
+        return error
+# Temporary documentation of additional error codes; to be organized and reqritten once needed
+# errors are collected:
+# 100 - at least one public key needed for user
+# 700 - unknown object type
 
 
 class WildlandResult:
+    """
+    Result of Wildland Core operation; contains list of errors and a simple helper function
+    to show whether there are any unrecoverable errors.
+    """
     def __init__(self):
-        self.success: bool = True
         self.errors: List[WLError] = []
+
+    @property
+    def success(self):
+        """
+        property that shows whether any unrecoverable errors occurred
+        """
+        for e in self.errors:
+            if not e.is_recoverable:
+                return False
+        return True
 
 
 def wildland_result(default_output=()):
@@ -75,9 +127,8 @@ def wildland_result(default_output=()):
             try:
                 func_result = func(*arg, **kwargs)
             except Exception as e:
-                wl_error = WLError(-1, str(e), False, None, None, "WL core error.")
+                wl_error = WLError.from_exception(e)
                 wl_result = WildlandResult()
-                wl_result.success = False
                 wl_result.errors.append(wl_error)
                 if default_output == ():
                     return wl_result

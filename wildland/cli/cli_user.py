@@ -163,7 +163,7 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
     # TODO: this used to use a client method called load_users_with_bridge_paths; perhaps this
     # will be obsolete soon?
 
-    bridges_from_default_user = dict()
+    bridges_from_default_user: Dict[str, List[str]] = dict()
     for bridge in bridges:
         if bridge.owner != default_user:
             continue

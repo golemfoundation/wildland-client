@@ -1,30 +1,37 @@
-from .wildland_core_api import WildlandResult, WildlandCoreApi, WLUser, WLBridge, \
-    WLStorageBackend, WLStorage, WLContainer, WLError, WLObject, WLTemplateFile, ModifyMethod
+# Wildland Project
+#
+# Copyright (C) 2021 Golem Foundation
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""
+Wildland core implementation
+"""
+from typing import List, Tuple, Optional, Callable
+from copy import deepcopy
+from pathlib import PurePosixPath
+
 from ..client import Client
 from ..user import User
 from ..container import Container
 from ..bridge import Bridge
 from ..storage import Storage
 from ..wildland_object.wildland_object import WildlandObject
-from ..manifest.manifest import ManifestError
-from ..manifest.sig import SigError
-from ..manifest.schema import SchemaError
-from copy import deepcopy
-
-from pathlib import PurePosixPath
-import binascii
-from .wildland_result import WildlandResult
-from typing import List, Tuple, Optional, Callable
-
-# For the purposes of communicating with wildland core, we shall use unique object ids,
-# with syntax same as with current WL paths:
-# 0xaaa:[/.uuid/000-000-000:/.uuid/000-000-000]
-# USERS: userid:
-# BRIDGES: ownerid:uuid
-# CONTAINERS: ownerid:uuid
-# STORAGES: ownerid:container_uuid:uuid
-
-# All helper objects should be dataclasses with fields with only simple types or lists of such types
+from .wildland_result import WildlandResult, WLError, wildland_result
+from .wildland_core_api import WildlandCoreApi, WLUser, WLBridge, \
+    WLStorageBackend, WLStorage, WLContainer, WLObject, WLTemplateFile, ModifyMethod
 
 # Style goal: All methods must be <15 functional lines of code; if more, refactor
 
@@ -32,35 +39,13 @@ from typing import List, Tuple, Optional, Callable
 # TODO cli should get its own, simple tests with mocked methods
 
 
-def wrap_exception(exc: Exception, is_recoverable: bool = False) -> WLError:
-    error_desc = str(exc)
-    if isinstance(exc, ManifestError):
-        # TODO: more elaborate error reporting
-        err_code = 1
-    elif isinstance(exc, SigError):
-        err_code = 2
-    elif isinstance(exc, SchemaError):
-        err_code = 3
-    elif isinstance(exc, binascii.Error):
-        err_code = 101
-        error_desc = "Incorrect public key provided; provide key, not filename or path."
-    else:
-        err_code = 999
-    error = WLError(error_code=err_code,
-                    error_description=error_desc, is_recoverable=is_recoverable)
-    return error
-# error code 100: incorrect input value
-
-
 class WildlandCore(WildlandCoreApi):
-    # All user-facing methods should be wrapped in wildland_result_wrapper or otherwise assure
+    """Wildland Core implementation"""
+    # All user-facing methods should be wrapped in wildland_result or otherwise assure
     # they wrap all exceptions in WildlandResult
     def __init__(self, client: Client):
         # TODO: once cli is decoupled from client, this should take more raw params
         self.client = client
-
-    # client = Client(dummy=dummy, base_dir=base_dir)
-    # ctx.obj = ContextObj(client)
 
     # private methods
     def _user_to_wluser(self, user: User) -> WLUser:
@@ -73,7 +58,7 @@ class WildlandCore(WildlandCoreApi):
             pubkeys=deepcopy(user.pubkeys),
             paths=[str(p) for p in user.paths],
             local_path=str(user.local_path) if user.local_path else None,
-            manifest_catalog_description=[c for c in user.get_catalog_descriptions()],
+            manifest_catalog_description=list(user.get_catalog_descriptions()),
             # manifest_catalog_ids=[container.uuid_path for container in user.load_catalog(False)],
         )
         # TODO: currently loading user's catalog messes up their catalog descriptions, which is not
@@ -126,6 +111,7 @@ class WildlandCore(WildlandCoreApi):
         return wl_storage
 
     # GENERAL METHODS
+    @wildland_result
     def object_info(self, yaml_data: str) -> Tuple[WildlandResult, Optional[WLObject]]:
         """
         This method parses yaml data and returns an appropriate WLObject; to perform any further
@@ -133,25 +119,24 @@ class WildlandCore(WildlandCoreApi):
         :param yaml_data: yaml string with object data; has to be appropriately signed
         :return: WildlandResult and WLObject of appropriate type
         """
-        wildland_result = WildlandResult()
-        try:
-            obj = self.client.load_object_from_bytes(None, yaml_data.encode())
-        except Exception as ex:
-            wildland_result.errors.append(wrap_exception(ex, False))
-            return wildland_result, None
+        return self.__object_info(yaml_data)
+
+    def __object_info(self, yaml_data):
+        obj = self.client.load_object_from_bytes(None, yaml_data.encode())
         if isinstance(obj, User):
-            return wildland_result, self._user_to_wluser(obj)
-        elif isinstance(obj, Container):
-            return wildland_result, self._container_to_wlcontainer(obj)
-        elif isinstance(obj, Bridge):
-            return wildland_result, self._bridge_to_wl_bridge(obj)
-        elif isinstance(obj, Storage):
-            return wildland_result, self._storage_to_wl_storage(obj)
-        # TODO: Add error code: unknown object
+            return self._user_to_wluser(obj)
+        if isinstance(obj, Container):
+            return self._container_to_wlcontainer(obj)
+        if isinstance(obj, Bridge):
+            return self._bridge_to_wl_bridge(obj)
+        if isinstance(obj, Storage):
+            return self._storage_to_wl_storage(obj)
+        result = WildlandResult()
         error = WLError(error_code=700, error_description="Unknown object type encountered",
-                        is_recoverable=False, diagnostic_info=yaml_data)
-        wildland_result.errors.append(error)
-        return wildland_result, None
+                        is_recoverable=False, offender_type=None, offender_id=None,
+                        diagnostic_info=yaml_data)
+        result.errors.append(error)
+        return result, None
 
     def object_sign(self, object_data: str) -> Tuple[WildlandResult, Optional[str]]:
         """
@@ -235,10 +220,12 @@ class WildlandCore(WildlandCoreApi):
         and public key generated.
         """
         result = WildlandResult()
+        owner: Optional[str]
+        pubkey: Optional[str]
         try:
             owner, pubkey = self.client.session.sig.generate()
         except Exception as ex:
-            result.errors.append(wrap_exception(ex))
+            result.errors.append(WLError.from_exception(ex))
             owner, pubkey = None, None
         return result, owner, pubkey
 
@@ -246,14 +233,13 @@ class WildlandCore(WildlandCoreApi):
         """
         Remove an existing encryption key.
         """
-        wl_result = WildlandResult()
-        try:
-            self.client.session.sig.remove_key(owner)
-        except Exception as ex:
-            wl_result.errors.append(wrap_exception(ex))
-        return wl_result
+        return self.__user_remove_key(owner)
 
-    def user_create(self, name: str, keys: List[str], paths: List[str],) -> \
+    @wildland_result
+    def __user_remove_key(self, owner: str):
+        self.client.session.sig.remove_key(owner)
+
+    def user_create(self, name: str, keys: List[str], paths: List[str]) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
         """
         Create a user and return information about it
@@ -261,9 +247,13 @@ class WildlandCore(WildlandCoreApi):
         :param keys: list of user's public keys, starting with their own key
         :param paths: list of user paths (paths must be absolute paths)
         """
-        result = WildlandResult()
+        return self.__user_create(name, keys, paths)
+
+    @wildland_result
+    def __user_create(self, name: str, keys: List[str], paths: List[str]):
 
         if not keys:
+            result = WildlandResult()
             result.errors.append(WLError(100, "At least one public key must be provided", False))
             return result, None
 
@@ -275,28 +265,24 @@ class WildlandCore(WildlandCoreApi):
             manifests_catalog=[],
             client=self.client)
 
-        try:
-            self.client.save_new_object(WildlandObject.Type.USER, user, name)
-        except Exception as ex:
-            result.errors.append(wrap_exception(ex))
-
+        self.client.save_new_object(WildlandObject.Type.USER, user, name)
         user.add_user_keys(self.client.session.sig)
         wl_user = self._user_to_wluser(user)
-        return result, wl_user
+        return wl_user
 
     def user_list(self) -> Tuple[WildlandResult, List[WLUser]]:
         """
         List all known users.
         :return: WildlandResult, List of WLUsers
         """
-        wildland_result = WildlandResult()
+        result = WildlandResult()
         result_list = []
         try:
             for user in self.client.load_all(WildlandObject.Type.USER):
                 result_list.append(self._user_to_wluser(user))
         except Exception as ex:
-            wildland_result.errors.append(wrap_exception(ex))
-        return wildland_result, result_list
+            result.errors.append(WLError.from_exception(ex))
+        return result, result_list
 
     def user_delete(self, user_id: str, cascade: bool = False,
                     force: bool = False, delete_keys: bool = False) -> WildlandResult:
@@ -411,14 +397,14 @@ class WildlandCore(WildlandCoreApi):
         List all known bridges.
         :return: WildlandResult, List of WLBridges
         """
-        wildland_result = WildlandResult()
+        result = WildlandResult()
         result_list = []
         try:
             for bridge in self.client.load_all(WildlandObject.Type.BRIDGE):
                 result_list.append(self._bridge_to_wl_bridge(bridge))
         except Exception as ex:
-            wildland_result.errors.append(wrap_exception(ex))
-        return wildland_result, result_list
+            result.errors.append(WLError.from_exception(ex))
+        return result, result_list
 
     def bridge_delete(self, bridge_id: str) -> WildlandResult:
         """
