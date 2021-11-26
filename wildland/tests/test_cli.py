@@ -4121,6 +4121,45 @@ def test_status_sync(base_dir, sync, cli):
     assert len(re.findall(pattern, result, re.MULTILINE)) == 1
 
 
+def test_container_with_root_path(cli, base_dir, tmpdir):
+    storage_dir = tmpdir / 'storage'
+    os.mkdir(storage_dir)
+    mount_dir = base_dir / 'wildland'
+
+    with open(storage_dir / 'hello.txt', 'w') as f:
+        f.write('hello')
+
+    cli('user', 'create', 'User')
+    cli('container', 'create', '--owner', 'User', '--path', '/', 'Cont')
+    cli('storage', 'create', 'local', '--container', 'Cont', '--location', storage_dir)
+    cli('start', '--skip-forest-mount', '-s')
+    cli('container', 'mount', 'Cont')
+
+    # check prepopulated file
+
+    assert (mount_dir / 'hello.txt').exists()
+
+    with open(mount_dir / 'hello.txt') as f:
+        assert f.read() == 'hello'
+
+    # create a new file in the root mountpoint
+
+    with open(mount_dir / 'world.txt', 'w') as f:
+        f.write('world')
+
+    assert (mount_dir / 'world.txt').exists()
+    assert (storage_dir / 'world.txt').exists()
+
+    with open(mount_dir / 'world.txt') as f:
+        assert f.read() == 'world'
+
+    # remove the above file from the root mountpoint
+
+    (mount_dir / 'world.txt').unlink()
+    assert not (mount_dir / 'world.txt').exists()
+    assert not (storage_dir / 'world.txt').exists()
+
+
 # Bridge
 
 
