@@ -37,6 +37,7 @@ from email.header import decode_header
 from email.message import Message
 from email.parser import BytesParser
 from email import policy
+from pathlib import PurePosixPath
 from threading import Lock
 from typing import List, Set, Dict, Tuple, Iterable
 
@@ -44,6 +45,7 @@ from imapclient import IMAPClient
 from imapclient.response_types import Envelope, Address
 
 from wildland.log import get_logger
+from wildland.storage_backends.kv_store import KVStore
 
 
 @dataclass(eq=True, frozen=True)
@@ -74,6 +76,44 @@ class MessagePart:
     content: bytes
 
 
+class LocalCache(KVStore):
+    """
+    Local cached data needed to construct the FS structure.
+    """
+
+    def __init__(self, db_path: PurePosixPath, backend_id: str):
+        super().__init__(db_path)
+        self.backend_id = backend_id
+        self.msg_ids: Set[int] = set()
+
+    def get_ids(self):
+        """
+        Get all message IDs from cached storage.
+        """
+        self.msg_ids = {int(x) for x in self.get_all_keys(self.backend_id)}
+
+    def add_msg(self, msg_id: int, envelope: MessageEnvelopeData):
+        """
+        Add a message to cached storage.
+        """
+        self.store_object(self.backend_id, str(msg_id), envelope)
+        self.msg_ids.add(msg_id)
+
+    def get_msg(self, msg_id: int) -> MessageEnvelopeData:
+        """
+        Get a message from cached storage.
+        """
+        return self.get_object(self.backend_id, str(msg_id))
+
+    def del_msg(self, msg_id: int):
+        """
+        Delete a message from cached storage.
+        """
+        mid = str(msg_id)
+        self.msg_ids.remove(msg_id)
+        self.del_object(self.backend_id, mid)
+
+
 class ImapClient:
     """
     IMAP protocol client implementation adding some additional
@@ -84,21 +124,20 @@ class ImapClient:
     # Avoid querying the server more often than that (seconds):
     QUERY_INTERVAL = 60
 
-    def __init__(self, host: str, login: str, password: str, folder: str, ssl: bool):
+    def __init__(self, backend_id: str, host: str, login: str, password: str, folder: str,
+                 ssl: bool):
         self.logger = get_logger('ImapClient')
+        self.backend_id = backend_id
         self.host = host
         self.ssl = ssl
         self.imap = None
         self.login = login
         self.password = password
         self.folder = folder
-        self._envelope_cache: Dict[int, MessageEnvelopeData] = dict()
+        self._envelope_cache = LocalCache(PurePosixPath('/tmp/imap.db'), self.backend_id)
 
         # message id: message contents (only populated when message content is requested)
         self._message_cache: Dict[int, List[MessagePart]] = dict()
-
-        # all ids retrieved
-        self._all_ids: Set[int] = set()
 
         # lock guarding access to local data structures
         self._local_lock = Lock()
@@ -124,11 +163,10 @@ class ImapClient:
 
         self.imap.login(self.login, self.password)
         self.imap.select_folder(self.folder, True)
-        self._envelope_cache = dict()
         self._message_cache = dict()
-        self._all_ids = set()
         self._mailbox_version = 0
         self._last_mailbox_query = 0
+        self._envelope_cache.get_ids()
 
         self._connected = True
         self.logger.debug('connected to IMAP server %s', self.host)
@@ -151,16 +189,16 @@ class ImapClient:
                     self.imap = None
                 self.logger.debug("ImapClient disconnected")
 
-    def all_messages_env(self) -> Iterable[MessageEnvelopeData]:
+    def all_envelopes(self) -> Iterable[MessageEnvelopeData]:
         """
         Provides iterable over collection of all envelopes fetched from server.
         """
         self.refresh_if_needed()
 
         with self._local_lock:
-            rv = self._envelope_cache.values()
-
-        return rv
+            ids = self._envelope_cache.msg_ids
+            for msg_id in ids:
+                yield self._envelope_cache.get_msg(msg_id)
 
     def refresh_if_needed(self) -> int:
         """
@@ -194,8 +232,7 @@ class ImapClient:
                         try:
                             self._invalidate_and_reread()
                         except Exception:
-                            self.logger.error("exception when refereshing mailbox",
-                                              exc_info=True)
+                            self.logger.error("exception when refereshing mailbox", exc_info=True)
                     else:
                         self.logger.warning('unknown response received: %s', reply)
             return self._mailbox_version
@@ -264,15 +301,14 @@ class ImapClient:
 
             part = MessagePart(filename, att.get_content_type(), content)
             rv.append(part)
+
         return rv
 
     def _del_msg(self, msg_id: int):
         """
         Remove message from local cache.
         """
-        if msg_id in self._envelope_cache:
-            del self._envelope_cache[msg_id]
-            self._all_ids.remove(msg_id)
+        self._envelope_cache.del_msg(msg_id)
 
         if msg_id in self._message_cache:
             del self._message_cache[msg_id]
@@ -362,25 +398,24 @@ class ImapClient:
             recipients |= self._parse_address(addr)
 
         hdr = MessageEnvelopeData(msg_id, list(senders), list(recipients), subject, recv_time)
-        self._envelope_cache[msg_id] = hdr
-        self._all_ids.add(msg_id)
+        self._envelope_cache.add_msg(msg_id, hdr)
 
     def _invalidate_and_reread(self):
         """
         Invalidate local message list. Reread and update index.
         """
         assert self.imap is not None
-        srv_msg_ids = self.imap.search('ALL')
-        ids_to_remove = self._all_ids - set(srv_msg_ids)
-        ids_to_add = set(srv_msg_ids) - self._all_ids
-        self.logger.debug('invalidate_and_reread ids_to_remove=%s ids_to_add=%s',
-                          str(ids_to_remove), str(ids_to_add))
+        srv_msg_ids = set(self.imap.search('ALL'))
+        cached_ids = self._envelope_cache.msg_ids
+        ids_to_remove = cached_ids - srv_msg_ids
+        ids_to_add = srv_msg_ids - cached_ids
+        self.logger.debug('invalidate: cached %d, server %d, remove %d, add %d',
+                          len(cached_ids), len(srv_msg_ids), len(ids_to_remove), len(ids_to_add))
+
         for mid in ids_to_remove:
-            self.logger.debug('removing from cache message %d', mid)
             self._del_msg(mid)
 
         for mid in ids_to_add:
-            self.logger.debug('adding to cache message %d', mid)
             self._prefetch_msg(mid)
 
         if len(ids_to_remove) + len(ids_to_add) > 0:
