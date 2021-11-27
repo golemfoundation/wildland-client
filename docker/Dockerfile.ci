@@ -53,6 +53,19 @@ RUN htpasswd -cb /home/user/test-webdav-passwords user password
 RUN htpasswd -b /home/user/test-webdav-passwords userro passwordro
 RUN a2ensite test-webdav
 
+# WebDav@apache with ssl
+
+RUN a2enmod ssl
+COPY ./docker/apache2-test-ssl.conf /etc/apache2/sites-available/test-ssl.conf
+RUN mkdir -p /etc/apache2/ssl
+RUN openssl req -x509 -subj /CN=wildland.local/ -addext "subjectAltName = DNS:wildland.local" -out /etc/apache2/ssl/wildland.local.crt -keyout /etc/apache2/ssl/wildland.local.key -nodes
+RUN a2ensite test-ssl
+
+RUN mkdir -p /usr/local/share/ca-certificates/
+RUN cp /etc/apache2/ssl/wildland.local.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
 # SSHFS
 
 RUN ssh-keygen -A
