@@ -1384,7 +1384,7 @@ def test_container_pointed_container_modify_remount(cli, base_dir):
     assert (mount_path / 'POINT' / 'file_2.txt').exists()
 
 
-def test_edit_unmount_removed_storage(base_dir, cli):
+def test_edit_unmounts_removed_storage(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage1', '--location', '/p1', '--container', 'Container')
@@ -1399,12 +1399,11 @@ def test_edit_unmount_removed_storage(base_dir, cli):
     assert result.count(pseudo) == 2
     assert result.count(local) == 2
 
-    cm_path = str(base_dir / 'containers/Container.container.yaml')
     editor = r"sed -i '/  - object: storage/{:a;N;/    - user: '*'/!ba};/    location: \/p2/d'"
     cli('container', 'edit', 'Container', '--editor', editor)
     result = cli('status', '-p', capture=True)
-    assert result.count(pseudo) == 1
     assert result.count(local) == 1
+    assert result.count(pseudo) == 1
 
 
 def test_container_modify_remount(cli, base_dir):
@@ -1432,7 +1431,7 @@ def test_container_modify_remount(cli, base_dir):
     assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
 
 
-def test_modify_unmount_removed_storage(base_dir, cli):
+def test_modify_unmounts_removed_storage(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage1', '--location', '/PATH', '--container', 'Container')
@@ -1450,8 +1449,8 @@ def test_modify_unmount_removed_storage(base_dir, cli):
     cm_path = str(base_dir / 'containers/Container.container.yaml')
     cli('container', 'modify', '--del-storage', '1', cm_path)
     result = cli('status', '-p', capture=True)
-    assert result.count(pseudo) == 1
     assert result.count(local) == 1
+    assert result.count(pseudo) == 1
 
 
 def test_container_add_path(cli, cli_fail, base_dir):
@@ -3794,7 +3793,6 @@ backends:
     assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
-
 def test_container_mount_container_without_storage(cli, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -3830,6 +3828,29 @@ def test_container_unmount(cli, base_dir, control_client):
 
     # /.users/{owner}:/.backends/{cont_uuid}/{backend_uuid} is always the primary path
     assert control_client.calls['unmount']['storage_id'] == 102
+
+
+def test_remount_unmounts_removed_storage(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/p1', '--container', 'Container')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/p2', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+
+    editor = r"sed -i '/  - object: storage/{:a;N;/    - user: '*'/!ba};/    location: \/p2/d'"
+    cli('container', 'edit', 'Container', '--no-remount', '--editor', editor)
+    cli('container', 'mount', 'Container')
+    result = cli('status', '-p', capture=True)
+    assert result.count(local) == 1
+    assert result.count(pseudo) == 1
 
 
 def test_container_other_signer(cli, base_dir):

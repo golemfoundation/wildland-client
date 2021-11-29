@@ -30,7 +30,7 @@ import logging
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable, List, Any, Optional, Dict, Tuple, Union
 
 import click
@@ -498,7 +498,42 @@ def remount_container(ctx_obj: ContextObj, path: Path):
         user_paths = ctx_obj.client.get_bridge_paths_for_user(container.owner)
         storages = ctx_obj.client.get_storages_to_mount(container)
 
-        ctx_obj.fs_client.mount_container(container, storages, user_paths, remount=True)
+        to_remount, to_unmount = prepare_remount(ctx_obj, container, storages, user_paths)
+        for storage_id in to_unmount:
+            ctx_obj.fs_client.unmount_storage(storage_id)
+
+        ctx_obj.fs_client.mount_container(container, to_remount, user_paths, remount=True)
+
+
+def prepare_remount(obj, container, storages, user_paths):
+    LOGGER.info('Prepare remount')
+    storages_to_remount = []
+    storages_to_unmount = []
+
+    for path in obj.fs_client.get_orphaned_container_storage_paths(
+            container, storages):
+        storage_id = obj.fs_client.find_storage_id_by_path(path)
+
+        pm_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
+        pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
+        if pseudo_storage_id is None:
+            pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
+            pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
+
+        assert storage_id is not None
+        assert pseudo_storage_id is not None
+        LOGGER.info('  Removing orphan %s @ id: %d', path, storage_id)
+
+        storages_to_unmount += [storage_id, pseudo_storage_id]
+
+    for storage in storages:
+        if obj.fs_client.should_remount(container, storage, user_paths):
+            LOGGER.info('  Remounting storage: %s', storage.backend_id)
+            storages_to_remount.append(storage)
+        else:
+            LOGGER.info('  Storage not changed: %s', storage.backend_id)
+
+    return storages_to_remount, storages_to_unmount
 
 
 def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],
