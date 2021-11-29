@@ -1347,31 +1347,6 @@ def test_container_edit_duplicate_backend_ids(cli, base_dir):
                exception_info.value.stdout.decode()
 
 
-def test_container_modify_remount(cli, base_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH', '--container', 'Container')
-    cli('start')
-    cli('container', 'mount', 'Container')
-    mount_path = base_dir / 'wildland'
-    assert (mount_path / 'PATH').exists()
-
-    cli('container', 'modify', '--add-path', '/AUTO_REMOUNTING', 'Container')
-    assert (mount_path / 'AUTO_REMOUNTING').exists()
-
-    cli('container', 'modify', '--no-remount', '--add-path', '/NEED_REMOUNTING', 'Container')
-    assert not (mount_path / 'NEED_REMOUNTING').exists()
-
-    cli('container', 'modify', '--add-category', '/remounted_cat', '--title', 'TITLE', 'Container')
-    assert (mount_path / 'remounted_cat' / 'TITLE').exists()
-
-    cli('container', 'modify', '--no-remount', '--add-category', '/not_remounted_cat', 'Container')
-    assert not (mount_path / 'not_remounted_cat').exists()
-
-    cli('container', 'modify', '--title', 'NEW', 'Container')
-    assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
-
-
 def test_container_pointed_container_modify_remount(cli, base_dir):
     dir_1 = Path(f'{base_dir}/storage/dir_1')
     dir_2 = Path(f'{base_dir}/storage/dir_2')
@@ -1407,6 +1382,76 @@ def test_container_pointed_container_modify_remount(cli, base_dir):
     assert len(list((mount_path / 'POINT').glob('*'))) == 2
     assert not (mount_path / 'POINT' / 'file_1.txt').exists()
     assert (mount_path / 'POINT' / 'file_2.txt').exists()
+
+
+def test_edit_unmount_removed_storage(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/p1', '--container', 'Container')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/p2', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+
+    cm_path = str(base_dir / 'containers/Container.container.yaml')
+    editor = r"sed -i '/  - object: storage/{:a;N;/    - user: '*'/!ba};/    location: \/p2/d'"
+    cli('container', 'edit', 'Container', '--editor', editor)
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 1
+    assert result.count(local) == 1
+
+
+def test_container_modify_remount(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH', '--container', 'Container')
+    cli('start')
+    cli('container', 'mount', 'Container')
+    mount_path = base_dir / 'wildland'
+    assert (mount_path / 'PATH').exists()
+
+    cli('container', 'modify', '--add-path', '/AUTO_REMOUNTING', 'Container')
+    assert (mount_path / 'AUTO_REMOUNTING').exists()
+
+    cli('container', 'modify', '--no-remount', '--add-path', '/NEED_REMOUNTING', 'Container')
+    assert not (mount_path / 'NEED_REMOUNTING').exists()
+
+    cli('container', 'modify', '--add-category', '/remounted_cat', '--title', 'TITLE', 'Container')
+    assert (mount_path / 'remounted_cat' / 'TITLE').exists()
+
+    cli('container', 'modify', '--no-remount', '--add-category', '/not_remounted_cat', 'Container')
+    assert not (mount_path / 'not_remounted_cat').exists()
+
+    cli('container', 'modify', '--title', 'NEW', 'Container')
+    assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
+
+
+def test_modify_unmount_removed_storage(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/PATH', '--container', 'Container')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/PATH', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+
+    cm_path = str(base_dir / 'containers/Container.container.yaml')
+    cli('container', 'modify', '--del-storage', '1', cm_path)
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 1
+    assert result.count(local) == 1
 
 
 def test_container_add_path(cli, cli_fail, base_dir):
