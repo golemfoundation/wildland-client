@@ -82,7 +82,7 @@ SRC="$TEST_DIRPATH/dir01/subdir00/123.txt" time -p chronic /bin/bash -c '[[ $(ca
 
 time -p chronic mv "$TEST_DIRPATH/dir01/subdir00" "$TEST_DIRPATH/dir02/subdir02"
 
-# Test getattr sycall
+# Test getattr syscall
 
 time -p chronic stat "$TEST_DIRPATH/123.txt"
 time -p chronic stat "$TEST_DIRPATH/456.txt"
@@ -126,6 +126,7 @@ SRC="$TEST_DIRPATH/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "f
 # ((FILE_SIZE==314572800))
 
 # Test storage template creation
+
 if [ -n "$ACCESS_TOKEN" ]; then
     $WL template create dropbox --token "$ACCESS_TOKEN" mydropbox
 else
@@ -135,15 +136,48 @@ $WL container create template-container --path "/$MNT_DIR_3" --template mydropbo
 $WL container mount template-container
 
 # Test simple directory/file adding
+
 time -p chronic mkdir -p "$MNT_PATH_3"/dir1
 time -p chronic mkdir -p "$MNT_PATH_3"/dir2
 time -p chronic echo "test file 1" > "$MNT_PATH_3"/file1
 time -p chronic echo "test file 2" > "$MNT_PATH_3"/dir1/file2
 
 # Test listing contents of said directory
+
 time -p chronic ls -a "$MNT_PATH_3"
 
 # Test checking file content
-time -p chronic cat "$MNT_PATH_3"/file1
+
+SRC="$MNT_PATH_3"/file1 time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "test file 1" ]]'
+
+# Create random file locally, copy it to the Wildland mountpoint, truncate the original file by
+# random number of bytes and copy it again to the Wildland mountpoint, check if the copied file
+# living in the Wildland's mountpoint has correct number of bytes to make sure no garbage is in the
+# end of the file (this is check against issue #607)
+
+MIN_FILE_BYTES=$((2 ** 10))  # 1 KiB
+MAX_FILE_BYTES=$((2 ** 20))  # 10 MiB
+ITERATIONS=100
+TMP_PATH="$(mktemp -d)"
+
+for ((n=0;n<$ITERATIONS;n++)); do
+    # create test file with random size from the range [MIN_FILE_BYTES;MAX_FILE_BYTES]
+    FILE_PATH="$TMP_PATH/test"
+    FILE_SIZE_BYTES=$(($MIN_FILE_BYTES + $RANDOM % ($MAX_FILE_BYTES - $MIN_FILE_BYTES + 1)))
+    time -p chronic base64 /dev/urandom | head -c $FILE_SIZE_BYTES > "$FILE_PATH"
+
+    # truncate the file locally to a random number of bytes from range [0;FILE_SIZE_BYTES]
+    NEW_FILE_SIZE_BYTES=$(($RANDOM % ($FILE_SIZE_BYTES + 1)))
+    time -p chronic truncate --size $NEW_FILE_SIZE_BYTES "$FILE_PATH"
+    SRC="$FILE_PATH" time -p chronic /bin/bash -c '[[ $(stat --printf="%s" "$SRC") == "$NEW_FILE_SIZE_BYTES" ]]'
+
+    # copy the truncated file back to the Wildland mountpoint and recheck if file size is correct
+    time -p chronic cp "$FILE_PATH" "$MNT_PATH_3"
+    SRC="$MNT_PATH_3/test" time -p chronic /bin/bash -c '[[ $(stat --printf="%s" "$SRC") == "$NEW_FILE_SIZE_BYTES" ]]'
+done
+
+time -p chronic rm -rf "$TMP_PATH"
+
+# Unmount container
 
 $WL c unmount template-container
