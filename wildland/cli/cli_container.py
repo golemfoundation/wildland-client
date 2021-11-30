@@ -499,6 +499,10 @@ def modify(ctx: click.Context,
             )
     to_add = {'paths': add_path, 'categories': add_category, 'access': add_access_owners}
 
+    container_access = _get_container_accesses(ctx, input_file)
+    if add_access_owners and {'user': '*'} in container_access:
+        raise CliError("Cannot add more access entry while access is set to '*'.")
+
     del_access_owners = []
     for a in del_access:
         if WildlandPath.WLPATH_RE.match(a):
@@ -578,6 +582,16 @@ def _get_storages_idx_to_del(ctx, del_storage, input_file):
         to_del_nested[('backends', 'storage')] = idxs_to_delete
 
     return to_del_nested
+
+
+def _get_container_accesses(ctx, input_file):
+    if not os.path.exists(input_file):
+        return []
+    container_manifest = cli_common.find_manifest_file(
+        ctx.obj.client, input_file, 'container').read_bytes()
+    container_yaml = list(yaml_parser.safe_load_all(container_manifest))[1]
+
+    return container_yaml.get('access', [])
 
 
 def wl_path_for_container(client: Client, container: Container,
