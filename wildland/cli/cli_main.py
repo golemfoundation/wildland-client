@@ -56,6 +56,7 @@ from ..log import init_logging
 from ..manifest.manifest import ManifestError
 from ..client import Client
 from .cli_common import wl_version
+from ..debug import start_debugpy_server_if_enabled
 
 
 logger = logging.getLogger('cli')
@@ -78,6 +79,7 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 @click.pass_context
 def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
     # pylint: disable=missing-docstring, unused-argument
+    start_debugpy_server_if_enabled()
     if not ctx.invoked_subcommand:
         if version:
             print(wl_version())

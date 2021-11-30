@@ -23,6 +23,7 @@ Welcome to Wildland's documentation!
    sync
    deprecated
    contributing
+   debugging
    plugins-howto
    release
 

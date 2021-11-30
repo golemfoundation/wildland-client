@@ -1,0 +1,17 @@
+version: '3'
+
+#############################################
+# This file is for development purposes only
+#
+# If you're intending to use Wildland as an
+# end user, use docker-compose.yaml in the
+# project's root directory instead.
+############################################
+
+services:
+  wildland-client:
+    ports:
+      - "5678:5678" # debugpy
+    environment:
+      DEBUGPY: "True"
+      DEBUGPY__WAIT: "False"
