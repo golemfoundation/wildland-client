@@ -139,7 +139,7 @@ class Manifest:
                 user = data_dict.get('user', None)
                 user_path = data_dict.get('user-path', None)
                 if not user and not user_path:
-                    raise ManifestError(f"Unknown field access {data_dict}")
+                    raise ManifestError(f"Unknown field in access: {data_dict}")
                 if user == '*':
                     return fields
                 if user == owner:
