@@ -205,8 +205,8 @@ def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_n
                         access_list.append({'user': obj.client.load_object_from_name(
                                 WildlandObject.Type.USER, a["user"]).owner})
                     elif a.get("user-path", None):
-                        access_list.append({'user-path': WildlandPath.from_str(
-                            a["user-path"]).to_str(with_prefix=True)})
+                        access_list.append(
+                            {'user-path': WildlandPath.get_canonical_form(a["user-path"])})
             except WildlandError as we:
                 raise CliError(f'User could not be loaded. {we}') from we
     else:

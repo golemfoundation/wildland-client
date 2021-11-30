@@ -184,8 +184,9 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
         access_list = []
         for a in access:
             if WildlandPath.WLPATH_RE.match(a):
-                access_list.append({"user-path": WildlandPath.from_str(
-                    a).to_str(with_prefix=True)})
+                # We use canonical form of a Wildland path because we want the whole
+                # path with prefix into manifest
+                access_list.append({"user-path": WildlandPath.get_canonical_form(a)})
             else:
                 access_list.append({"user": obj.client.load_object_from_name(
                     WildlandObject.Type.USER, a).owner})
@@ -491,7 +492,7 @@ def modify(ctx: click.Context,
     for a in add_access:
         if WildlandPath.WLPATH_RE.match(a):
             add_access_owners.append(
-                {'user-path': WildlandPath.from_str(a).to_str(with_prefix=True)}
+                {'user-path': WildlandPath.get_canonical_form(a)}
             )
         else:
             add_access_owners.append(
@@ -506,8 +507,10 @@ def modify(ctx: click.Context,
     del_access_owners = []
     for a in del_access:
         if WildlandPath.WLPATH_RE.match(a):
+            # We use canonical form of a Wildland path because we want the whole
+            # path with prefix into manifest
             del_access_owners.append(
-                {'user-path': WildlandPath.from_str(a).to_str(with_prefix=True)}
+                {'user-path': WildlandPath.get_canonical_form(a)}
             )
         else:
             del_access_owners.append(

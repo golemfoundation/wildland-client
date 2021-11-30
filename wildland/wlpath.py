@@ -173,3 +173,11 @@ class WildlandPath:
 
     def __str__(self):
         return self.to_str()
+
+    @classmethod
+    def get_canonical_form(cls, s: str) -> str:
+        """
+        Return string being canonical form representation of a Wildland path
+        """
+        wlpath = cls.from_str(s)
+        return wlpath.to_str(with_prefix=True)

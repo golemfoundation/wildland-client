@@ -158,7 +158,7 @@ def _do_create(
         for a in access:
             if WildlandPath.WLPATH_RE.match(a):
                 access_users.append(
-                    {'user-path': WildlandPath.from_str(a).to_str(with_prefix=True)}
+                    {'user-path': WildlandPath.get_canonical_form(a)}
                 )
             else:
                 access_users.append(
