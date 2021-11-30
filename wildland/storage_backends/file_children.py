@@ -294,7 +294,8 @@ class FileChildrenMixin(StorageBackend):
                 except FileNotFoundError:
                     continue
                 if not attr.is_dir():
-                    child_object_link = Link(file_path=child_path, storage_backend=self)
+                    child_object_link = Link(file_path=child_path, storage_backend=self,
+                                             client=client)
                     yield PurePosixPath(child_path), child_object_link
         elif manifest_pattern['type'] == 'glob':
             path = self._parse_glob_pattern(query_path)
@@ -302,7 +303,7 @@ class FileChildrenMixin(StorageBackend):
             for file_path in self._find_manifest_files(PurePosixPath('.'),
                                                        path.relative_to(PurePosixPath('/'))):
                 child_object_link = Link(file_path=PurePosixPath('/') / file_path,
-                                         storage_backend=self)
+                                         storage_backend=self, client=client)
                 yield file_path, child_object_link
 
     def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath)\

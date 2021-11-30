@@ -384,19 +384,7 @@ class Client:
 
     def load_link_object(self, link_dict: dict, expected_owner: Optional[str]) -> Link:
         """Load a Link object from a dictionary"""
-        if isinstance(link_dict['storage'], dict):
-            if 'version' not in link_dict['storage']:
-                link_dict['storage']['version'] = Manifest.CURRENT_VERSION
-            storage_obj = self.load_object_from_dict(
-                WildlandObject.Type.STORAGE, link_dict['storage'], expected_owner=expected_owner)
-            storage_backend = StorageBackend.from_params(storage_obj.params, deduplicate=True)
-        elif isinstance(link_dict['storage'], StorageBackend):
-            storage_backend = link_dict['storage']
-        else:
-            raise ValueError('Incorrect Link object format')
-
-        link = Link(file_path=link_dict['file'], storage_backend=storage_backend)
-        return link
+        return Link.parse_fields(link_dict, client=self, expected_owner=expected_owner)
 
     def load_object_from_dict(self,
                               object_type: Union[WildlandObject.Type, None],

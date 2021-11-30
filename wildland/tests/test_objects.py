@@ -27,7 +27,6 @@ import pytest
 
 from ..client import Client
 from ..wildland_object.wildland_object import WildlandObject
-from ..link import Link
 
 
 @pytest.fixture
@@ -131,9 +130,8 @@ def test_link_repr(client, cli):
     cli('forest', 'create', '--owner', 'Charlie', 'simple')
 
     user = client.load_object_from_name(WildlandObject.Type.USER, "Charlie")
-    dict_link = user.manifest.fields['manifests-catalog'][0]
-    dict_link['storage']['owner'] = user.owner
-    dict_link['storage']['version'] = '1.0'
-    link = Link.parse_fields(fields=dict_link, client=client)
+    link_dict = user.manifest.fields['manifests-catalog'][0]
+    link = client.load_link_object(
+        link_dict=link_dict, expected_owner=link_dict.get("storage-owner", None) or user.owner)
 
     assert repr(link) == 'link(file_path=/.manifests.container.yaml)'
