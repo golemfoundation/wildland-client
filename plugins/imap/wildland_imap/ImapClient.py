@@ -347,6 +347,8 @@ class ImapClient:
         if not recv_time:
             # IMAP envelope contains no timestamp, try to read one from actual mail header
             msg = self._load_raw_message(msg_id)
+            # We need the C locale because the format string below contains locale-dependant
+            # month name and current thread locale may not be what's expected (C).
             with self._setlocale('C'):
                 try:
                     recv_time = datetime.strptime(msg['Delivery-date'],
