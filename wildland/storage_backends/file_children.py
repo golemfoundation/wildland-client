@@ -265,6 +265,12 @@ class FileChildrenMixin(StorageBackend):
                 driver.remove_file(relpath)
             except FileNotFoundError:
                 pass
+            try:
+                for parent in relpath.parents:
+                    if not driver.remove_empty_dir(parent):
+                        break
+            except FileNotFoundError:
+                pass
 
     @staticmethod
     def _create_new_paths(client: Client,
