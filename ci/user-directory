@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Test simulating Ariadne-like user directory locally
+
+. ci/howto-test-lib.bash
+
+mkdir -p /home/user/storage/public
+mkdir -p ~/Downloads
+sudo /etc/init.d/apache2 start
+
+
+### 1. create Alice user
+
+switch_user alice
+
+run wl user create alice
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/alice
+
+run wl forest create --access='*' mywebdav
+
+# don't worry about manifest encryption, yet
+run wl container create \
+    --template mywebdav \
+    --path /mycontainer \
+    --no-encrypt-manifest
+
+cp ~/.config/wildland/users/alice.user.yaml ~/Downloads/
+
+### 2. Create directory
+
+switch_user directory
+
+run wl user create directory
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/directory
+
+run wl template add webdav mywebdav \
+    --login userro \
+    --password passwordro \
+    --read-only \
+    --url http://localhost:8081/directory
+
+run wl forest create --access='*' mywebdav
+
+dir_userid=$(get_userid directory)
+
+### 3. Add Alice to the directory
+
+run wl user import --path /forests/alice --path /users/alice ~/Downloads/alice.user.yaml
+
+run wl bridge publish alice
+
+### 4. Put directory user manifest in a public https dir
+
+run wl get :/.manifests:/forest-owner.user.yaml /home/user/storage/public/forest-owner.user.yaml
+
+### 5. Create Bob user
+
+switch_user bob
+run wl user create bob
+
+### 6. Mount Alice's container via a directory, with a wl path hint
+
+run wl start
+run wl bridge import "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
+run wl forest mount "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
+
+tree ~/wildland

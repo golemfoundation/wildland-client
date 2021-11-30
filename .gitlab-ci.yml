@@ -239,6 +239,12 @@ howto-cache-test:
     paths:
       - artifacts/sync-daemon.log
 
+user-directory-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/user-directory
+
 smoke-test:
   stage: test
   image: docker/compose:latest
