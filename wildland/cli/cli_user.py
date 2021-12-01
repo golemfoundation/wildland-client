@@ -46,6 +46,7 @@ from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
 from ..log import get_logger
+from ..core.wildland_objects_api import WLObjectType
 
 logger = get_logger('cli-user')
 
@@ -172,7 +173,8 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
         bridges_from_default_user[bridge.user_id].extend(bridge.paths)
 
     for user in users:
-        path_string = str(user.local_path)
+        _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.owner)
+        path_string = str(path)
         if list_secret_keys and not user.private_key_available:
             continue
         if user.owner == default_user:

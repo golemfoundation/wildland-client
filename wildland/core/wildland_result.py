@@ -29,17 +29,18 @@ import binascii
 from ..manifest.manifest import ManifestError
 from ..manifest.sig import SigError
 from ..manifest.schema import SchemaError
-
+from .wildland_objects_api import WLObjectType
 
 @dataclass
 class WLError:
     """
     Representation of errors raised by Wildland Core
     """
+
     error_code: int  # need to agree the explicit meaning
     error_description: str  # human-readable description suitable for console or log output
     is_recoverable: bool
-    offender_type: Optional[str] = None  # i.e. WLContainer, WLFile
+    offender_type: Optional[WLObjectType] = None
     offender_id: Optional[str] = None
     diagnostic_info: Optional[str] = None  # diagnostic information we can dump to logs (i.e. Python
     # backtrace converted to str which is useful for a developer debugging the issue, but not
