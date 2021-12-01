@@ -37,7 +37,6 @@ from email.header import decode_header
 from email.message import Message
 from email.parser import BytesParser
 from email import policy
-from pathlib import PurePosixPath
 from threading import Lock
 from typing import List, Set, Dict, Tuple, Iterable
 
@@ -375,7 +374,7 @@ class ImapClient:
             try:
                 sub = decode_header(env.subject.decode())
                 subject = _decode_text(sub)
-            except UnicodeDecodeError as e:
+            except UnicodeDecodeError:
                 self.logger.exception('Failed to decode subject:')
                 subject = str(env.subject)  # fall back to just interpret it as a string
 
