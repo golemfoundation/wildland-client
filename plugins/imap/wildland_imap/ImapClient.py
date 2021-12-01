@@ -372,10 +372,12 @@ class ImapClient:
         if not env.subject:
             subject = '<NO SUBJECT>'
         else:
-            sub = decode_header(env.subject.decode())
-            subject = _decode_text(sub)
-            if '\0' in subject:
-                subject = subject.replace('\0', '')
+            try:
+                sub = decode_header(env.subject.decode())
+                subject = _decode_text(sub)
+            except UnicodeDecodeError as e:
+                self.logger.exception('Failed to decode subject:')
+                subject = str(env.subject)  # fall back to just interpret it as a string
 
             for c in invalid_chars:
                 subject = subject.replace(c, '_')
