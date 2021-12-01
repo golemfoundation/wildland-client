@@ -115,25 +115,28 @@ run wl c find "/home/user/wildland/mydirs/ariadne:/forests/pandora:/docs/@arch/C
 # won't work without write access to pandora
 #run wl c edit wildland:<wladdr>
 # but dump will
-expected="object: container
-owner: '0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe'
-paths:
-- /.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb
-backends:
-  storage:
-  - reference-container: 'wildland:@default:/.infra:/home/joanna:'
-    subdirectory: /addressing
-    backend-id: 5570a6f5-857f-412b-8fa8-b5f6a83ea164
-    type: delegate
-    object: storage
-title: Container Addressing
-categories:
-- /docs
-- /arch
-- /persons/joanna
-version: '1'
-access:
-- user: '*'"
+expected_pcre="(?:"\
+"([0-9:,\[ \/]+MainThread\] \[search\] user's container manifest: container\(owner='0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe', paths=\['/.uuid/18c2857e-b4dd-4101-a0c0-f974c16e1f44', '/.manifests'\], backends=\[{'type': 'http', 'backend-id': '60d4bcc3-a960-42e7-8208-2743fb28b2dd'}, 'encrypted', 'encrypted'\], access=\[{'user': '\*'}\]\)\\n)*"\
+"([0-9:,\[ \/]+MainThread\] \[search\] /.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb: container manifest: link\(file_path=/.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb.yaml\))\\n)*"\
+"object: container\\n"\
+"owner: '0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe'\\n"\
+"paths:\\n"\
+"- /.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb\\n"\
+"backends:\\n"\
+"  storage:\\n"\
+"  - reference-container: 'wildland:@default:/.infra:/home/joanna:'\\n"\
+"    subdirectory: /addressing\\n"\
+"    backend-id: 5570a6f5-857f-412b-8fa8-b5f6a83ea164\\n"\
+"    type: delegate\\n"\
+"    object: storage\\n"\
+"title: Container Addressing\\n"\
+"categories:\\n"\
+"- /docs\\n"\
+"- /arch\\n"\
+"- /persons/joanna\\n"\
+"version: '1'\\n"\
+"access:\\n"\
+"- user: '\*'"
 run wl c dump wildland:0x1ea3909882be658d0ab69a822f7c923d12454ec024f4d8dd8f7113465167fcbe:/.uuid/1efd235c-6ab9-40e7-9db2-9dd5f08360cb:
 
 
