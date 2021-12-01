@@ -37,8 +37,9 @@ class KVStore:
     """
     Persistent key-value store backed by SQLite.
     """
-    def __init__(self, db_path: PurePosixPath):
-        self.db_path = db_path
+    def __init__(self, base_dir: PurePosixPath, backend_id: str):
+        self.db_path = base_dir / 'backend.db'
+        self.backend_id = backend_id
         self.lock = threading.Lock()
         self.db = sqlite3.connect(self.db_path, check_same_thread=False)
         self._create_data_table()
@@ -51,14 +52,14 @@ class KVStore:
                             'key TEXT NOT NULL, '
                             'value BLOB, PRIMARY KEY (backend_id, key))')
 
-    def get_object(self, backend_id: str, key: str) -> Any:
+    def get_object(self, key: str) -> Any:
         """
-        Retrieve object by key and backend ID.
+        Retrieve object by key.
         """
         with self.lock, self.db:
             cursor = self.db.cursor()
             cursor.execute('SELECT value FROM data WHERE backend_id = ? AND key = ?',
-                           (backend_id, key))
+                           (self.backend_id, key))
             val = cursor.fetchone()
             if not val:
                 return None
@@ -66,29 +67,29 @@ class KVStore:
             blob = val[0]
             return pickle.loads(blob)
 
-    def store_object(self, backend_id: str, key: str, value: Any):
+    def store_object(self, key: str, value: Any):
         """
-        Store object by key and backend ID.
+        Store object by key.
         """
         blob = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
         with self.lock, self.db:
             self.db.execute('INSERT OR REPLACE INTO data VALUES (?, ?, ?)',
-                            (backend_id, key, blob))
+                            (self.backend_id, key, blob))
 
-    def del_object(self, backend_id: str, key: str):
+    def del_object(self, key: str):
         """
         Delete stored object.
         """
         with self.lock, self.db:
             self.db.execute('DELETE FROM data WHERE backend_id = ? AND key = ?',
-                            (backend_id, key))
+                            (self.backend_id, key))
 
-    def get_all_keys(self, backend_id: str) -> Set[str]:
+    def get_all_keys(self) -> Set[str]:
         """
         Get all keys for given backend ID.
         """
         with self.lock, self.db:
             cursor = self.db.cursor()
             cursor.execute('SELECT key FROM data WHERE backend_id = ?',
-                           (backend_id,))
+                           (self.backend_id,))
             return {val[0] for val in cursor.fetchall()}

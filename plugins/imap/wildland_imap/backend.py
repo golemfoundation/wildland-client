@@ -67,7 +67,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.read_only = True
-        self.client = ImapClient(self.backend_id,
+        self.client = ImapClient(self.persistent_db,
                                  self.params['host'],
                                  self.params['login'],
                                  self.params['password'],

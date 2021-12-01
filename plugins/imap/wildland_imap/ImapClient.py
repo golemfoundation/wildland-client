@@ -76,42 +76,40 @@ class MessagePart:
     content: bytes
 
 
-class LocalCache(KVStore):
+class LocalCache:
     """
     Local cached data needed to construct the FS structure.
     """
 
-    def __init__(self, db_path: PurePosixPath, backend_id: str):
-        super().__init__(db_path)
-        self.backend_id = backend_id
+    def __init__(self, db: KVStore):
+        self.db = db
         self.msg_ids: Set[int] = set()
 
     def get_ids(self):
         """
         Get all message IDs from cached storage.
         """
-        self.msg_ids = {int(x) for x in self.get_all_keys(self.backend_id)}
+        self.msg_ids = {int(x) for x in self.db.get_all_keys()}
 
     def add_msg(self, msg_id: int, envelope: MessageEnvelopeData):
         """
         Add a message to cached storage.
         """
-        self.store_object(self.backend_id, str(msg_id), envelope)
+        self.db.store_object(str(msg_id), envelope)
         self.msg_ids.add(msg_id)
 
     def get_msg(self, msg_id: int) -> MessageEnvelopeData:
         """
         Get a message from cached storage.
         """
-        return self.get_object(self.backend_id, str(msg_id))
+        return self.db.get_object(str(msg_id))
 
     def del_msg(self, msg_id: int):
         """
         Delete a message from cached storage.
         """
-        mid = str(msg_id)
         self.msg_ids.remove(msg_id)
-        self.del_object(self.backend_id, mid)
+        self.db.del_object(str(msg_id))
 
 
 class ImapClient:
@@ -124,17 +122,16 @@ class ImapClient:
     # Avoid querying the server more often than that (seconds):
     QUERY_INTERVAL = 60
 
-    def __init__(self, backend_id: str, host: str, login: str, password: str, folder: str,
+    def __init__(self, backend_db: KVStore, host: str, login: str, password: str, folder: str,
                  ssl: bool):
         self.logger = get_logger('ImapClient')
-        self.backend_id = backend_id
         self.host = host
         self.ssl = ssl
         self.imap = None
         self.login = login
         self.password = password
         self.folder = folder
-        self._envelope_cache = LocalCache(PurePosixPath('/tmp/imap.db'), self.backend_id)
+        self._envelope_cache = LocalCache(backend_db)
 
         # message id: message contents (only populated when message content is requested)
         self._message_cache: Dict[int, List[MessagePart]] = dict()
