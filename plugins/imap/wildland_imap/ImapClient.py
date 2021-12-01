@@ -364,6 +364,7 @@ class ImapClient:
         Create sender and timeline cache entries, based on raw envelope of received message.
         """
 
+        invalid_chars = {'\0', '/', '\n'}
         senders = set()
         for addr in [env.sender, env.from_]:
             senders |= self._parse_address(addr)
@@ -375,6 +376,9 @@ class ImapClient:
             subject = _decode_text(sub)
             if '\0' in subject:
                 subject = subject.replace('\0', '')
+
+            for c in invalid_chars:
+                subject = subject.replace(c, '_')
 
         recv_time = env.date
         if not recv_time:
