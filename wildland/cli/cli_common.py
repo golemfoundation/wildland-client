@@ -498,20 +498,23 @@ def remount_container(ctx_obj: ContextObj, path: Path):
         user_paths = ctx_obj.client.get_bridge_paths_for_user(container.owner)
         storages = ctx_obj.client.get_storages_to_mount(container)
 
-        to_remount, to_unmount = prepare_remount(ctx_obj, container, storages, user_paths)
+        to_remount, to_unmount = prepare_remount(
+            ctx_obj, container, storages, user_paths, force_remount=True)
         for storage_id in to_unmount:
             ctx_obj.fs_client.unmount_storage(storage_id)
 
         ctx_obj.fs_client.mount_container(container, to_remount, user_paths, remount=True)
 
 
-def prepare_remount(obj, container, storages, user_paths):
+def prepare_remount(obj, container, storages, user_paths, force_remount=False):
+    """
+    Return storages to remount and storage IDs to unmount when remounting the container.
+    """
     LOGGER.info('Prepare remount')
     storages_to_remount = []
     storages_to_unmount = []
 
-    for path in obj.fs_client.get_orphaned_container_storage_paths(
-            container, storages):
+    for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
         storage_id = obj.fs_client.find_storage_id_by_path(path)
 
         pm_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
@@ -526,12 +529,16 @@ def prepare_remount(obj, container, storages, user_paths):
 
         storages_to_unmount += [storage_id, pseudo_storage_id]
 
-    for storage in storages:
-        if obj.fs_client.should_remount(container, storage, user_paths):
-            LOGGER.info('  Remounting storage: %s', storage.backend_id)
-            storages_to_remount.append(storage)
-        else:
-            LOGGER.info('  Storage not changed: %s', storage.backend_id)
+    if not force_remount:
+        for storage in storages:
+            if obj.fs_client.should_remount(container, storage, user_paths):
+                LOGGER.info('  Remounting storage: %s', storage.backend_id)
+                storages_to_remount.append(storage)
+            else:
+                LOGGER.info('  Storage not changed: %s', storage.backend_id)
+                print('  Storage not changed: %s', storage.backend_id)
+    else:
+        storages_to_remount = storages
 
     return storages_to_remount, storages_to_unmount
 

@@ -974,6 +974,19 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     ]
 
 
+def generate_pseudomanifest_paths(paths):
+    pm_dir = ['', '-pseudomanifest/.manifest.wildland.yaml']
+    pm_file = ['', '/.manifest.wildland.yaml']
+    expected_paths = {}
+    for j in range(2):
+        for i, ps in enumerate(paths):
+            expected_paths[ps[0] + pm_dir[j]] = [i + 1]
+            for p in ps[1:]:
+                expected_paths[p + pm_file[j]] = [i + 1]
+
+    return expected_paths
+
+
 def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -994,7 +1007,8 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
-    paths_1 = [
+    paths = [[], []]
+    paths[0] = [
         f'/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.uuid/{uuid}',
@@ -1003,7 +1017,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
         '/PATH',
     ]
 
-    paths_2 = [
+    paths[1] = [
         f'/.backends/{uuid}/{backend_id2}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
@@ -1017,20 +1031,12 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
     cli('container', 'modify', 'Container', '--del-storage', backend_id1)
 
-    control_client.expect('paths', {
-        f'/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.uuid/{uuid}': [1],
-        '/.users/0xaaa:/PATH': [1],
-        f'/.uuid/{uuid}': [1],
-        '/PATH': [1],
-        f'/.backends/{uuid}/{backend_id2}': [2],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}': [2],
-    })
+    expected_paths = generate_pseudomanifest_paths(paths)
+    control_client.expect('paths', expected_paths)
 
     control_client.expect('info', {
         '1': {
-            'paths': paths_1,
+            'paths': paths[0],
             'type': 'local',
             'extra': {
                 'tag': command[0]['extra']['tag'],
@@ -1038,7 +1044,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
             },
         },
         '2': {
-            'paths': paths_2,
+            'paths': paths[1],
             'type': 'local',
             'extra': {
                 'tag': command[1]['extra']['tag'],
@@ -1095,7 +1101,8 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
-    paths_1 = [
+    paths = [[], []]
+    paths[0] = [
         f'/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.uuid/{uuid}',
@@ -1104,7 +1111,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
         '/PATH',
     ]
 
-    paths_2 = [
+    paths[1] = [
         f'/.backends/{uuid}/{backend_id2}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
@@ -1118,20 +1125,12 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
 
     cli('container', 'modify', 'Container', '--del-storage', backend_id2)
 
-    control_client.expect('paths', {
-        f'/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.uuid/{uuid}': [1],
-        '/.users/0xaaa:/PATH': [1],
-        f'/.uuid/{uuid}': [1],
-        '/PATH': [1],
-        f'/.backends/{uuid}/{backend_id2}': [2],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}': [2],
-    })
+    expected_paths = generate_pseudomanifest_paths(paths)
+    control_client.expect('paths', expected_paths)
 
     control_client.expect('info', {
         '1': {
-            'paths': paths_1,
+            'paths': paths[0],
             'type': 'local',
             'extra': {
                 'tag': command[0]['extra']['tag'],
@@ -1139,7 +1138,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
             },
         },
         '2': {
-            'paths': paths_2,
+            'paths': paths[1],
             'type': 'local',
             'extra': {
                 'tag': command[1]['extra']['tag'],
