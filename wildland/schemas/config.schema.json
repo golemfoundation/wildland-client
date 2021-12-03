@@ -30,6 +30,10 @@
             "$ref": "/schemas/types.json#abs-path",
             "description": "FUSE mount path (default: $HOME/wildland)"
         },
+        "template-dir": {
+            "$ref": "/schemas/types.json#abs-path",
+            "description": "path to templates directory (default: $HOME/.config/wildland/templates)"
+        },
         "fs-socket-path": {
             "$ref": "/schemas/types.json#abs-path",
             "description": "Path to FUSE control socket (default: $XDG_RUNTIME_DIR/wlfuse.sock)"

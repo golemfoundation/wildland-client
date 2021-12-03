@@ -35,6 +35,7 @@ import click
 
 from ..utils import format_options_required_first, format_multi_command_options, \
     format_command_options
+from ..core.wildland_core import WildlandCore
 
 
 # pylint: disable=no-self-use
@@ -48,6 +49,7 @@ class ContextObj:
         self.mount_dir: Path = client.fs_client.mount_dir
         self.client = client
         self.session = client.session
+        self.wlcore = WildlandCore(self.client)
 
 
 class AliasedGroup(click.Group):

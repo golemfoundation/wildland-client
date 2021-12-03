@@ -46,6 +46,7 @@ from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
 from ..log import get_logger
+from ..core.wildland_objects_api import WLObjectType
 
 logger = get_logger('cli-user')
 
@@ -146,16 +147,36 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
     Display known users.
     """
 
-    default_user = obj.client.config.get('@default')
-    default_owner = obj.client.config.get('@default-owner')
-    default_override = (default_user != obj.client.config.get('@default', use_override=False))
+    # TODO: when WLEnv api is ready, this should use it and not client itself
+    default_user = obj.wlcore.client.config.get('@default')
+    default_owner = obj.wlcore.client.config.get('@default-owner')
+    default_override = (default_user != obj.wlcore.client.config.get(
+        '@default', use_override=False))
 
-    for user, bridge_paths in obj.client.load_users_with_bridge_paths(only_default_user=True):
-        path_string = str(user.local_path)
-        if list_secret_keys:
-            if not obj.client.session.sig.is_private_key_available(user.owner):
-                continue
+    result_users, users = obj.wlcore.user_list()
+    result_bridges, bridges = obj.wlcore.bridge_list()
 
+    if not result_bridges.success or not result_users.success:
+        click.echo('Failed to list users:')
+        for e in result_users.errors + result_bridges.errors:
+            click.echo(f'Error {e.error_code}: {e.error_description}')
+
+    # TODO: this used to use a client method called load_users_with_bridge_paths; perhaps this
+    # will be obsolete soon?
+
+    bridges_from_default_user: Dict[str, List[str]] = dict()
+    for bridge in bridges:
+        if bridge.owner != default_user:
+            continue
+        if bridge.user_id not in bridges_from_default_user:
+            bridges_from_default_user[bridge.user_id] = []
+        bridges_from_default_user[bridge.user_id].extend(bridge.paths)
+
+    for user in users:
+        _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.owner)
+        path_string = str(path)
+        if list_secret_keys and not user.private_key_available:
+            continue
         if user.owner == default_user:
             path_string += ' (@default)'
             if default_override:
@@ -164,23 +185,23 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
             path_string += ' (@default-owner)'
         click.echo(path_string)
         click.echo(f'  owner: {user.owner}')
-        if obj.client.session.sig.is_private_key_available(user.owner):
+        if user.private_key_available:
             click.echo('  private and public keys available')
         else:
             click.echo('  only public key available')
-
-        if not bridge_paths:
+        if user.owner not in bridges_from_default_user:
             click.echo('   no bridges to user available')
         else:
-            for bridge_path in bridge_paths:
+            for bridge_path in bridges_from_default_user[user.owner]:
                 click.echo(f'   bridge path: {bridge_path}')
         for user_path in user.paths:
             click.echo(f'   user path: {user_path}')
 
         if verbose:
-            for user_container in user.get_catalog_descriptions():
+            for user_container in user.manifest_catalog_description:
                 click.echo(f'   container: {user_container}')
         click.echo()
+
 
 @user_.command('delete', short_help='delete a user', alias=['rm', 'remove'])
 @click.pass_obj
