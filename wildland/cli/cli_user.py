@@ -27,7 +27,6 @@ Manage users
 from copy import deepcopy
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
-import binascii
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -40,8 +39,6 @@ from ..wlpath import WILDLAND_URL_PREFIX, WildlandPath
 from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
     check_if_any_options, check_options_conflict, publish, unpublish
 from ..exc import WildlandError
-from ..manifest.schema import SchemaError
-from ..manifest.sig import SigError
 from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
@@ -72,17 +69,24 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     """
     Create a new user manifest and save it.
     """
-
     if key:
-        try:
-            owner, pubkey = obj.session.sig.load_key(key)
-        except SigError as ex:
-            raise CliError(f'Failed to use provided key:\n  {ex}') from ex
-        click.echo(f'Using key: {owner}')
+        result, pubkey = obj.wlcore.user_get_public_key(key)
+        if not result.success:
+            raise CliError(f'Failed to use provided key:\n  {result}')
+        click.echo(f'Using key: {key}')
+        owner = key
     else:
-        owner, pubkey = obj.session.sig.generate()
+        result, owner, pubkey = obj.wlcore.user_generate_key()
+        if not result.success:
+            raise CliError(f'Failed to use provided key:\n  {result}')
         click.echo(f'Generated key: {owner}')
+    assert pubkey
 
+    keys = [pubkey]
+    if additional_pubkeys:
+        keys.extend(additional_pubkeys)
+
+    # do paths
     if paths:
         paths = list(paths)
     else:
@@ -92,44 +96,14 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
             paths = [f'/users/{owner}']
         click.echo(f'No path specified, using: {paths[0]}')
 
-    members = []
-    filtered_additional_keys = []
-    if not additional_pubkeys:
-        additional_pubkeys = []
+    result, user = obj.wlcore.user_create(name, keys, paths)
 
-    for p in additional_pubkeys:
-        if WildlandPath.WLPATH_RE.match(p):
-            members.append({"user-path": WildlandPath.get_canonical_form(p)})
-        else:
-            filtered_additional_keys.append(p)
+    if not result.success or not user:
+        if not key:
+            obj.wlcore.user_remove_key(owner)
+        raise CliError(f'Failed to create user: {result}')
 
-    user = User(
-        owner=owner,
-        pubkeys=[pubkey] + filtered_additional_keys,
-        paths=[PurePosixPath(p) for p in paths],
-        manifests_catalog=[],
-        client=obj.client,
-        members=members
-    )
-    error_on_save = False
-    try:
-        path = obj.client.save_new_object(WildlandObject.Type.USER, user, name)
-    except binascii.Error as ex:
-        # Separate error to provide some sort of readable feedback
-        # raised by SigContext.fingerprint through base64.b64decode
-        error_on_save = True
-        raise CliError(f'Failed to create user due to incorrect key provided (provide public '
-                       f'key, not path to key file): {ex}') from ex
-    except SchemaError as ex:
-        error_on_save = True
-        raise CliError(f'Failed to create user: {ex}') from ex
-    finally:
-        if error_on_save:
-            if not key:
-                # remove generated keys that will not be used due to failure at creating user
-                obj.session.sig.remove_key(owner)
-
-    user.add_user_keys(obj.session.sig)
+    _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.owner)
 
     click.echo(f'Created: {path}')
 

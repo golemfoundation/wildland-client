@@ -28,6 +28,7 @@ from ..user import User
 from ..container import Container
 from ..bridge import Bridge
 from ..storage import Storage
+from ..wlpath import WildlandPath
 from ..wildland_object.wildland_object import WildlandObject
 from .wildland_result import WildlandResult, WLError, wildland_result
 from .wildland_core_api import WildlandCoreApi, ModifyMethod
@@ -295,7 +296,20 @@ class WildlandCore(WildlandCoreApi):
         """
         raise NotImplementedError
 
-    def user_create(self, name: str, keys: List[str], paths: List[str]) -> \
+    def user_get_public_key(self, owner: str) -> Tuple[WildlandResult, Optional[str]]:
+        """
+        Return public key for the provided owner.
+        :param owner: owner fingerprint
+        :return: Tuple of WildlandResult and, if successful, this user's public key
+        """
+        return self.__user_get_pubkey(owner)
+
+    @wildland_result(default_output=None)
+    def __user_get_pubkey(self, owner):
+        _, pubkey = self.client.session.sig.load_key(owner)
+        return pubkey
+
+    def user_create(self, name: Optional[str], keys: List[str], paths: List[str]) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
         """
         Create a user and return information about it
@@ -305,21 +319,32 @@ class WildlandCore(WildlandCoreApi):
         """
         return self.__user_create(name, keys, paths)
 
-    @wildland_result
-    def __user_create(self, name: str, keys: List[str], paths: List[str]):
+    @wildland_result(default_output=None)
+    def __user_create(self, name: Optional[str], keys: List[str], paths: List[str]):
 
         if not keys:
             result = WildlandResult()
             result.errors.append(WLError(100, "At least one public key must be provided", False))
             return result, None
 
+        members = []
+        filtered_additional_keys = []
+        own_key = keys[0]
+
+        for k in keys:
+            if WildlandPath.WLPATH_RE.match(k):
+                members.append({"user-path": WildlandPath.get_canonical_form(k)})
+            else:
+                filtered_additional_keys.append(k)
+
         owner = self.client.session.sig.fingerprint(keys[0])
         user = User(
             owner=owner,
-            pubkeys=keys,
+            pubkeys=[own_key] + filtered_additional_keys,
             paths=[PurePosixPath(p) for p in paths],
             manifests_catalog=[],
-            client=self.client)
+            client=self.client,
+            members=members)
 
         self.client.save_new_object(WildlandObject.Type.USER, user, name)
         user.add_user_keys(self.client.session.sig)

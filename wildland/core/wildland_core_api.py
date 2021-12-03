@@ -183,7 +183,15 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_create(self, name: str, keys: List[str], paths: List[str],) -> \
+    def user_get_public_key(self, owner: str) -> Tuple[WildlandResult, Optional[str]]:
+        """
+        Return public key for the provided owner.
+        :param owner: owner fingerprint
+        :return: Tuple of WildlandResult and, if successful, this user's public key
+        """
+
+    @abc.abstractmethod
+    def user_create(self, name: Optional[str], keys: List[str], paths: List[str],) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
         """
         Create a user and return information about it

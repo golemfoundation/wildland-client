@@ -31,6 +31,7 @@ from ..manifest.sig import SigError
 from ..manifest.schema import SchemaError
 from .wildland_objects_api import WLObjectType
 
+
 @dataclass
 class WLError:
     """
@@ -92,6 +93,11 @@ class WildlandResult:
             if not e.is_recoverable:
                 return False
         return True
+
+    def __str__(self):
+        result = ""
+        for e in self.errors:
+            result += f"{e.error_code} - {e.error_description}\n"
 
 
 def wildland_result(default_output=()):
