@@ -34,6 +34,8 @@ from .wildland_result import WildlandResult, WLError, wildland_result
 from .wildland_core_api import WildlandCoreApi, ModifyMethod
 from .wildland_objects_api import WLUser, WLBridge, \
     WLStorageBackend, WLStorage, WLContainer, WLObject, WLTemplateFile, WLObjectType
+from ..envprovider import EnvProvider
+from ..wlenv import WLEnv
 
 # Style goal: All methods must be <15 functional lines of code; if more, refactor
 
@@ -46,8 +48,10 @@ class WildlandCore(WildlandCoreApi):
     # All user-facing methods should be wrapped in wildland_result or otherwise assure
     # they wrap all exceptions in WildlandResult
     def __init__(self, client: Client):
-        # TODO: once cli is decoupled from client, this should take more raw params
+        # TODO: once cli is decoupled from client, this should take more raw params and initialize
+        # config somewhat better
         self.client = client
+        self.env = WLEnv(base_dir=self.client.base_dir)
 
     # private methods
     def _user_to_wluser(self, user: User) -> WLUser:

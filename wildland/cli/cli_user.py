@@ -107,14 +107,17 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
     click.echo(f'Created: {path}')
 
-    for alias in ['@default', '@default-owner']:
-        if obj.client.config.get(alias) is None:
-            click.echo(f'Using {owner} as {alias}')
-            obj.client.config.update_and_save({alias: owner})
+    _, current_default = obj.wlcore.env.get_default_user()
+    if not current_default:
+        click.echo(f'Using {owner} as @default')
+        obj.wlcore.env.set_default_user(owner)
+    _, current_default_owner = obj.wlcore.env.get_default_owner()
+    if not current_default_owner:
+        click.echo(f'Using {owner} as @default-owner')
+        obj.wlcore.env.set_default_owner(owner)
 
     click.echo(f'Adding {owner} to local owners')
-    local_owners = obj.client.config.get('local-owners')
-    obj.client.config.update_and_save({'local-owners': [*local_owners, owner]})
+    obj.wlcore.env.add_local_owners(owner)
 
 
 @user_.command('list', short_help='list users', alias=['ls'])
