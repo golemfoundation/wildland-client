@@ -144,7 +144,7 @@ class WildlandCore(WildlandCoreApi):
         :param object_data: object data to sign.
         :return: tuple of WildlandResult and string data (if signing was successful)
         """
-        # TODO
+        raise NotImplementedError
 
     def object_verify(self, object_data: str, verify_signature: bool = True) -> WildlandResult:
         """
@@ -153,7 +153,7 @@ class WildlandCore(WildlandCoreApi):
         :param verify_signature: should we also check if the signature is correct; default: True
         :rtype: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def object_export(self, object_type: WLObjectType, object_id: str, decrypt: bool = True) -> \
             Tuple[WildlandResult, Optional[str]]:
@@ -163,6 +163,7 @@ class WildlandCore(WildlandCoreApi):
         :param object_type: type of the object
         :param decrypt: should the manifest be decrypted as much as possible
         """
+        raise NotImplementedError
 
     def object_check_published(self, object_type: WLObjectType, object_id: str) -> \
             Tuple[WildlandResult, Optional[bool]]:
@@ -173,6 +174,7 @@ class WildlandCore(WildlandCoreApi):
         :return: tuple of WildlandResult and publish status, if available
         :rtype:
         """
+        raise NotImplementedError
 
     def object_get_local_path(self, object_type: WLObjectType, object_id: str) -> \
             Tuple[WildlandResult, Optional[str]]:
@@ -200,7 +202,7 @@ class WildlandCore(WildlandCoreApi):
         :return: Wildland Result determining whether change was successful and, if it was, id of
         the modified object
         """
-        # TODO
+        raise NotImplementedError
 
     def put_file(self, local_file_path: str, wl_path: str) -> WildlandResult:
         """
@@ -209,7 +211,7 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def put_data(self, data_bytes: bytes, wl_path: str) -> WildlandResult:
         """
@@ -218,7 +220,7 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def get_file(self, local_file_path: str, wl_path: str) -> WildlandResult:
         """
@@ -227,7 +229,7 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def get_data(self, wl_path: str) -> Tuple[WildlandResult, Optional[bytes]]:
         """
@@ -235,7 +237,7 @@ class WildlandCore(WildlandCoreApi):
         :param wl_path: Wildland path
         :return: Tuple of WildlandResult and bytes (if successful)
         """
-        # TODO
+        raise NotImplementedError
 
     def start_wl(self, remount: bool = False, single_threaded: bool = False,
                  default_user: Optional[str] = None,
@@ -249,13 +251,13 @@ class WildlandCore(WildlandCoreApi):
          mounted container
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def stop_wl(self) -> WildlandResult:
         """
         Unmount the Wildland filesystem.
         """
-        # TODO
+        raise NotImplementedError
 
     # USER METHODS
     def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
@@ -291,7 +293,7 @@ class WildlandCore(WildlandCoreApi):
         :param private_key: bytes with private key
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def user_create(self, name: str, keys: List[str], paths: List[str]) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
@@ -348,7 +350,7 @@ class WildlandCore(WildlandCoreApi):
         :param delete_keys: also remove user keys
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def user_import_from_path(self, path_or_url: str, paths: List[str], bridge_owner: Optional[str],
                               only_first: bool = False) -> Tuple[WildlandResult, Optional[WLUser]]:
@@ -363,7 +365,7 @@ class WildlandCore(WildlandCoreApi):
             WL container paths)
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        # TODO
+        raise NotImplementedError
 
     def user_import_from_data(self, yaml_data: str, paths: List[str],
                               bridge_owner: Optional[str]) -> \
@@ -377,7 +379,7 @@ class WildlandCore(WildlandCoreApi):
             created bridge manifests
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        # TODO
+        raise NotImplementedError
 
     def user_refresh(self, user_ids: Optional[List[str]] = None,
                      callback: Callable[[str], None] = None) -> WildlandResult:
@@ -388,7 +390,7 @@ class WildlandCore(WildlandCoreApi):
         :param callback: function to be called before each refreshed user
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def user_modify(self, user_id: str, manifest_field: str, operation: ModifyMethod,
                     modify_data: List[str]) -> WildlandResult:
@@ -403,7 +405,7 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def user_publish(self, user_id) -> WildlandResult:
         """
@@ -411,7 +413,7 @@ class WildlandCore(WildlandCoreApi):
         :param user_id: fingerprint of the user to be published
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def user_unpublish(self, user_id) -> WildlandResult:
         """
@@ -419,7 +421,7 @@ class WildlandCore(WildlandCoreApi):
         :param user_id: fingerprint of the user to be unpublished
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     # BRIDGES
     def bridge_create(self, paths: Optional[List[str]], owner: Optional[str] = None,
@@ -438,7 +440,7 @@ class WildlandCore(WildlandCoreApi):
         automatically
         :return: tuple of WildlandResult and, if successful, the created WLBridge
         """
-        # TODO
+        raise NotImplementedError
 
     def bridge_list(self) -> Tuple[WildlandResult, List[WLBridge]]:
         """
@@ -460,7 +462,7 @@ class WildlandCore(WildlandCoreApi):
         :param bridge_id: Bridge ID (in the form of user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def bridge_import(self, path_or_url: str, paths: List[str], object_owner: Optional[str],
                       only_first: bool = False) -> Tuple[WildlandResult, Optional[WLBridge]]:
@@ -475,7 +477,7 @@ class WildlandCore(WildlandCoreApi):
             WL container paths)
         :return: tuple of WildlandResult, imported WLBridge (if import was successful
         """
-        # TODO
+        raise NotImplementedError
 
     def bridge_import_from_data(self, yaml_data: str, paths: List[str],
                                 object_owner: Optional[str]) -> \
@@ -489,7 +491,7 @@ class WildlandCore(WildlandCoreApi):
             created bridge manifests
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        # TODO
+        raise NotImplementedError
 
     def bridge_modify(self, bridge_id: str, manifest_field: str, operation: ModifyMethod,
                       modify_data: List[str]) -> WildlandResult:
@@ -502,7 +504,7 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def bridge_publish(self, bridge_id) -> WildlandResult:
         """
@@ -510,7 +512,7 @@ class WildlandCore(WildlandCoreApi):
         :param bridge_id: id of the bridge to be published (user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def bridge_unpublish(self, bridge_id) -> WildlandResult:
         """
@@ -518,7 +520,7 @@ class WildlandCore(WildlandCoreApi):
         :param bridge_id: id of the bridge to be unpublished (user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     # CONTAINERS
     def container_create(self, paths: List[str],
@@ -542,14 +544,14 @@ class WildlandCore(WildlandCoreApi):
         :param name: name of the container to be created, used in naming container file
         :return: Tuple of WildlandResult and, if successful, the created WLContainer
         """
-        # TODO
+        raise NotImplementedError
 
     def container_list(self) -> Tuple[WildlandResult, List[WLContainer]]:
         """
         List all known containers.
         :return: WildlandResult, List of WLContainers
         """
-        # TODO
+        raise NotImplementedError
 
     def container_delete(self, container_id: str, cascade: bool = False,
                          force: bool = False) -> WildlandResult:
@@ -560,7 +562,7 @@ class WildlandCore(WildlandCoreApi):
         :param force: delete even when using local storage manifests; ignore errors on parse
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def container_duplicate(self, container_id: str, name: Optional[str] = None) -> \
             Tuple[WildlandResult, Optional[WLContainer]]:
@@ -573,7 +575,7 @@ class WildlandCore(WildlandCoreApi):
         automatically
         :return: WildlandResult and, if duplication was successful, the new container
         """
-        # TODO
+        raise NotImplementedError
 
     def container_import_from_data(self, yaml_data: str, overwrite: bool = True) -> \
             Tuple[WildlandResult, Optional[WLContainer]]:
@@ -584,7 +586,7 @@ class WildlandCore(WildlandCoreApi):
         default: True. If this is False and the container already exists, this operation will fail.
         :return: tuple of WildlandResult, imported WLContainer (if import was successful)
         """
-        # TODO
+        raise NotImplementedError
 
     def container_create_cache(self, container_id: str, storage_template_name: str) \
             -> WildlandResult:
@@ -597,7 +599,7 @@ class WildlandCore(WildlandCoreApi):
         :return: WildlandResult
         :rtype:
         """
-        # TODO
+        raise NotImplementedError
 
     def container_delete_cache(self, container_id: str) -> WildlandResult:
         """
@@ -606,7 +608,7 @@ class WildlandCore(WildlandCoreApi):
         userid:/.uuid/container_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def container_modify(self, container_id: str, manifest_field: str, operation: ModifyMethod,
                          modify_data: List[str]) -> WildlandResult:
@@ -623,7 +625,7 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def container_publish(self, container_id) -> WildlandResult:
         """
@@ -631,7 +633,7 @@ class WildlandCore(WildlandCoreApi):
         :param container_id: id of the container to be published (user_id:/.uuid/container_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def container_unpublish(self, container_id) -> WildlandResult:
         """
@@ -639,7 +641,7 @@ class WildlandCore(WildlandCoreApi):
         :param container_id: id of the container to be unpublished (user_id:/.uuid/container_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def container_find(self, path: str) -> \
             Tuple[WildlandResult, List[Tuple[WLContainer, WLStorage]]]:
@@ -649,7 +651,7 @@ class WildlandCore(WildlandCoreApi):
         :return: tuple of WildlandResult and list of tuples of WLContainer, WLStorage that contain
         the provided path
         """
-        # TODO
+        raise NotImplementedError
 
     # STORAGES
 
@@ -658,7 +660,7 @@ class WildlandCore(WildlandCoreApi):
         List all supported storage backends.
         :return: WildlandResult and a list of supported storage backends.
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_create(self, backend_type: str, backend_params: Dict[str, str],
                        container_id: str, trusted: bool = False,
@@ -682,7 +684,7 @@ class WildlandCore(WildlandCoreApi):
         :return: Tuple of WildlandResult and, if creation was successful, WLStorage that was
         created
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_create_from_template(self, template_name: str, container_id: str,
                                      local_dir: Optional[str] = None):
@@ -693,14 +695,14 @@ class WildlandCore(WildlandCoreApi):
         :param local_dir: str to be passed to template renderer as a parameter, can be used by
         template creators
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_list(self) -> Tuple[WildlandResult, List[WLStorage]]:
         """
         List all known storages.
         :return: WildlandResult, List of WLStorages
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_delete(self, storage_id: str, cascade: bool = True,
                        force: bool = False) -> WildlandResult:
@@ -712,7 +714,7 @@ class WildlandCore(WildlandCoreApi):
         :param force: delete even if used by containers or if manifest cannot be loaded
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_import_from_data(self, yaml_data: str, overwrite: bool = True) -> \
             Tuple[WildlandResult, Optional[WLStorage]]:
@@ -724,7 +726,7 @@ class WildlandCore(WildlandCoreApi):
          operation will fail.
         :return: tuple of WildlandResult, imported WLStorage (if import was successful)
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_modify(self, storage_id: str, manifest_field: str, operation: ModifyMethod,
                        modify_data: List[str]) -> WildlandResult:
@@ -739,7 +741,7 @@ class WildlandCore(WildlandCoreApi):
         :param modify_data: list of values to be added/removed
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_publish(self, storage_id) -> WildlandResult:
         """
@@ -748,7 +750,7 @@ class WildlandCore(WildlandCoreApi):
          (user_id:/.uuid/container_uuid:/.uuid/storage_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def storage_unpublish(self, storage_id) -> WildlandResult:
         """
@@ -757,7 +759,7 @@ class WildlandCore(WildlandCoreApi):
          (user_id:/.uuid/container_uuid:/.uuid/storage_uuid)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     # TEMPLATES
 
@@ -768,7 +770,7 @@ class WildlandCore(WildlandCoreApi):
         :return: Tuple of WildlandResult and, if creation was successful, WLTemplateFile that was
         created
         """
-        # TODO
+        raise NotImplementedError
 
     def template_add_storage(self, backend_type: str, backend_params: Dict[str, str],
                              template_name: str, read_only: bool = False,
@@ -794,28 +796,28 @@ class WildlandCore(WildlandCoreApi):
         :return: Tuple of WildlandResult and, if adding was successful, WLTemplate that was
         modified
         """
-        # TODO
+        raise NotImplementedError
 
     def template_list(self) -> Tuple[WildlandResult, List[WLTemplateFile]]:
         """
         List all known templates.
         :return: WildlandResult, List of WLTemplateFiles
         """
-        # TODO
+        raise NotImplementedError
 
     def template_delete(self, template_name: str) -> WildlandResult:
         """
         Delete a template
         :param template_name: name of template to be deleted.
         """
-        # TODO
+        raise NotImplementedError
 
     def template_export(self, template_name: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Return (if possible) contents of the provided template
         :param template_name: name of the template
         """
-        # TODO
+        raise NotImplementedError
 
     def template_import(self, template_name: str, template_data: str) -> WildlandResult:
         """
@@ -824,7 +826,7 @@ class WildlandCore(WildlandCoreApi):
         will be replaced
         :param template_data: jinja template data
         """
-        # TODO
+        raise NotImplementedError
 
     # FORESTS
 
@@ -843,7 +845,7 @@ class WildlandCore(WildlandCoreApi):
         :param manifests_local_dir: manifests local directory. Must be an absolute path
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     # MOUNTING
 
@@ -868,13 +870,13 @@ class WildlandCore(WildlandCoreApi):
         contains the list of containers that were not mounted for various reasons (from errors to
         being already mounted)
         """
-        # TODO
+        raise NotImplementedError
 
     def unmount_all(self) -> WildlandResult:
         """
         Unmount all mounted containers.
         """
-        # TODO
+        raise NotImplementedError
 
     def unmount_by_mount_path(self, paths: List[str], include_children: bool = True) -> \
             WildlandResult:
@@ -884,7 +886,7 @@ class WildlandCore(WildlandCoreApi):
         :param include_children: should subcontainers/children be unmounted (default: true)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def unmount_by_path_or_name(self, path_or_name: List[str], include_children: bool = True) -> \
             WildlandResult:
@@ -896,11 +898,11 @@ class WildlandCore(WildlandCoreApi):
         :param include_children: should subcontainers/children be unmounted (default: true)
         :return: WildlandResult
         """
-        # TODO
+        raise NotImplementedError
 
     def mount_status(self) -> Tuple[WildlandResult, List[WLContainer]]:
         """
         List all mounted containers
         :return: tuple of WildlandResult and mounted WLContainers
         """
-        # TODO
+        raise NotImplementedError
