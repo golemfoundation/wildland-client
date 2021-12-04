@@ -347,11 +347,12 @@ class WLEnv:
         """
         return self._set_param('dummy', dummy, save)
 
-    def get_default_user(self) -> Tuple[WildlandResult, Optional[str]]:
+    def get_default_user(self, use_override: bool = True) -> Tuple[WildlandResult, Optional[str]]:
         """
-        Get @default user (used to resolve wildland paths).
+        Get @default user (used to resolve wildland paths). If use_override is False, any
+        overriden start values will be ignored.
         """
-        return self._get_param('@default')
+        return self._get_param('@default', use_override=use_override)
 
     def set_default_user(self, user_key_fingerprint: str, save: bool = True) -> WildlandResult:
         """
@@ -657,8 +658,8 @@ class WLEnv:
         return self.config.update_and_save if save else partial(self.config.override, dummy=False)
 
     @wildland_result(default_output=None)
-    def _get_param(self, param: str):
-        result = self.config.get(param)
+    def _get_param(self, param: str, use_override: bool = True):
+        result = self.config.get(param, use_override=use_override)
         return result
 
     @wildland_result()

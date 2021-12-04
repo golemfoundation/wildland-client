@@ -131,11 +131,9 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
     Display known users.
     """
 
-    # TODO: when WLEnv api is ready, this should use it and not client itself
-    default_user = obj.wlcore.client.config.get('@default')
-    default_owner = obj.wlcore.client.config.get('@default-owner')
-    default_override = (default_user != obj.wlcore.client.config.get(
-        '@default', use_override=False))
+    default_user = obj.wlcore.env.get_default_user()[1]
+    default_owner = obj.wlcore.env.get_default_owner()[1]
+    default_override = (default_user != obj.wlcore.env.get_default_user(use_override=False)[1])
 
     result_users, users = obj.wlcore.user_list()
     result_bridges, bridges = obj.wlcore.bridge_list()
