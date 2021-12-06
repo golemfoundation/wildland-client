@@ -49,7 +49,6 @@ from ..link import Link
 from ..container import ContainerStub
 from ..log import get_logger
 
-
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
 
@@ -715,21 +714,32 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def get_children(self, client: wildland.client.Client = None,
-                     query_path: PurePosixPath = PurePosixPath('*'), paths_only: bool = False) -> \
-            Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]] or Iterable[PurePosixPath]:
+    def get_children(
+            self,
+            client: wildland.client.Client = None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Union[Link, ContainerStub]]]]:
         """
         List all subcontainers provided by this storage.
 
         This method should provide an Iterable of tuples:
         - PurePosixPath to object (needed for search)
-        - Link or ContainerStub of the object
+        - Link or ContainerStub of the object (or None if paths_only)
 
         Storages of listed containers, when set as 'delegate' backend,
         may reference parent (this) container via Wildland URL:
         `wildland:@default:@parent-container:`
         """
         raise OptionalError()
+
+    def get_children_paths(
+            self,
+            client: wildland.client.Client = None,
+            query_path: PurePosixPath = PurePosixPath('*')
+    ) -> Iterable[PurePosixPath]:
+        for path, _ in self.get_children(client, query_path, paths_only=True):
+            yield path
 
     def get_subcontainer_watch_pattern(self, query_path: PurePosixPath):
         """

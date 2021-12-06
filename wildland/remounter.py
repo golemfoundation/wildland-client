@@ -240,7 +240,6 @@ class Remounter:
             if storage_id is not None:
                 assert pseudo_storage_id is not None
                 logger.debug('  (unmount %d)', storage_id)
-                self.to_unmount.append(storage_id)
                 self.to_unmount += [storage_id, pseudo_storage_id]
             else:
                 logger.debug('  (not mounted)')

@@ -25,7 +25,7 @@
 Watching for changes.
 """
 from enum import Enum
-from typing import Optional, List, Callable, Dict
+from typing import Optional, List, Callable, Dict, Iterable
 from pathlib import PurePosixPath
 import threading
 from dataclasses import dataclass
@@ -121,7 +121,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def wait(self) -> Optional[List[FileEvent]]:
+    def wait(self) -> Optional[Iterable[FileEvent]]:
         """
         Wait for a list of change events. This should return as soon as
         self.stop_event is set.
@@ -220,18 +220,10 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
 
 
 @dataclass
-class SubcontainerEvent:
+class SubcontainerEvent(FileEvent):
     """
     Subcontainer change event.
     """
-    type: FileEventType
-    path: PurePosixPath
-
-    def __repr__(self):
-        return f'{self.type.name} {self.path}'
-
-    def __str__(self):
-        return self.__repr__()
 
 
 class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
@@ -259,7 +251,7 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         self.token = self.get_token()
         self.info = self._get_info()
 
-    def wait(self) -> Optional[List[SubcontainerEvent]]:
+    def wait(self) -> Optional[Iterable[SubcontainerEvent]]:
         self.stop_event.wait(self.interval)
         new_token = self.get_token()
         if new_token != self.token:
@@ -281,8 +273,8 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         pass
 
     def _get_info(self):
-        to_return = {}
-        paths = self.backend.get_children(paths_only=True)
+        to_return: Dict[PurePosixPath, Optional[float]] = {}
+        paths = self.backend.get_children_paths()
         logger.debug("watcher %s", str(self.backend))
         for path in paths:
             if os.path.exists(path):

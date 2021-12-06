@@ -25,7 +25,7 @@ Wildland storage backend exposing read only IMAP mailbox
 """
 from functools import partial
 from pathlib import PurePosixPath
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Set, Tuple, Optional
 from datetime import timezone
 
 import uuid
@@ -110,9 +110,12 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*'),
-                     paths_only: bool = False) -> \
-            Iterable[Tuple[PurePosixPath, ContainerStub]] or Iterable[PurePosixPath]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[ContainerStub]]]:
         for envelope in self.client.all_envelopes():
             yield self._make_msg_container(envelope, paths_only)
 
@@ -175,7 +178,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         return str(uuid.uuid3(ns, str(env.msg_uid)))
 
     def _make_msg_container(self, env: MessageEnvelopeData, paths_only: bool) \
-            -> Tuple[PurePosixPath, ContainerStub] or PurePosixPath:
+            -> Tuple[PurePosixPath, Optional[ContainerStub]]:
         """
         Create a container manifest for a single mail message.
         """
@@ -195,7 +198,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
                     'subdirectory': subcontainer_path
                 }]}
             })
-        return PurePosixPath(subcontainer_path)
+        return PurePosixPath(subcontainer_path), None
 
     @classmethod
     def cli_options(cls):

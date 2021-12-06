@@ -380,9 +380,12 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*'),
-                     paths_only: bool = False) -> \
-            Iterable[Tuple[PurePosixPath, Link]] or Iterable[PurePosixPath]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Link]]]:
 
         for res_path, res_obj in super().get_children(query_path=query_path):
             if not paths_only:
@@ -396,7 +399,7 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
                 res_obj.file_bytes = response['Body'].read()
                 yield res_path, res_obj
             else:
-                yield res_path
+                yield res_path, None
 
     @staticmethod
     def get_content_type(path: PurePosixPath) -> str:

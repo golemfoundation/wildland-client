@@ -25,13 +25,14 @@ Transpose storage backend.
 """
 import re
 import ast
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Iterable, Tuple
 from pathlib import PurePosixPath
 
 import click
 
 from .base import StorageBackend
 from ..container import ContainerStub, Container
+from ..link import Link
 from ..manifest.schema import Schema
 from ..client import Client
 from ..exc import WildlandError
@@ -190,8 +191,12 @@ class TransposeStorageBackend(StorageBackend):
     def can_have_children(self) -> bool:
         return self.reference.can_have_children
 
-    def get_children(self, client: Client = None, query_path: PurePosixPath = PurePosixPath('*'),
-                     paths_only: bool = False):
+    def get_children(
+            self,
+            client: Client = None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Union[Link, ContainerStub]]]]:
         subcontainer_list = self.reference.get_children(client)
 
         for element in subcontainer_list:
@@ -240,7 +245,7 @@ class TransposeStorageBackend(StorageBackend):
                             'backends': link_manifest.get('backends')
                         })
             else:
-                yield PurePosixPath(path)
+                yield PurePosixPath(path), None
 
     def modify_categories(self, categories_list: List[Union[str, None]]) -> List[str]:
         """

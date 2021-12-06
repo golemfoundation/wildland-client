@@ -434,12 +434,11 @@ class Search:
                          storage.params["type"], part)
             return
         with storage_backend:
-            children_iter = storage_backend.get_children(client = step.client,
-                                                         query_path = part,
-                                                         paths_only = False)
+            children_iter = storage_backend.get_children(client=step.client, query_path=part)
 
             for manifest_path, subcontainer_data in children_iter:
                 try:
+                    assert subcontainer_data is not None
                     container_or_bridge = step.client.load_subcontainer_object(
                         step.container, storage, subcontainer_data)
                 except (ManifestError, WildlandError) as e:

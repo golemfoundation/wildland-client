@@ -84,20 +84,7 @@ class WatchSubcontainerEvent:
     container: Container
     storage: Storage
     path: PurePosixPath
-    subcontainer: Union[Link, ContainerStub]
-
-
-@dataclasses.dataclass
-class WatchSubcontainerEvent:
-    """
-    A file change event.
-    """
-
-    event_type: FileEventType
-    container: Container
-    storage: Storage
-    path: PurePosixPath
-    subcontainer: Union[Link, ContainerStub]
+    subcontainer: Optional[Union[Link, ContainerStub]]
 
 
 class WildlandFSError(WildlandError):
@@ -969,31 +956,65 @@ class WildlandFSClient:
         client = ControlClient()
         client.connect(self.socket_path)
         try:
-            watches = {}
-            for container, storage in containers_storages.items():
-                params = storage.params
-                logger.debug('watching for subcontainers: storage %s', str({params["backend-id"]}))
-                watch_id = client.run_command(
-                    'add-subcontainer-watch', backend_param=params, with_initial=with_initial)
-                watches[watch_id] = (container, storage)
-
-            for events in client.iter_events():
-                watch_events = []
-                for event in events:
-                    event_type = FileEventType[event['type']]
-                    watch_id = event['watch-id']
-                    container, storage = watches[watch_id]
-                    params = storage.params
-                    sb = StorageBackend.from_params(params, deduplicate=True)
-                    path = PurePosixPath(event['path'])
-                    all_children = list(sb.get_children(wl_client))
-                    for child in all_children:
-                        if child[0] == path:
-                            watch_events.append(WatchSubcontainerEvent(
-                                    event_type, container, storage, path, child[1]))
-                            break
-                yield watch_events
+            yield from WildlandFSClient._watch_subcontainers(
+                client, wl_client, containers_storages, with_initial)
         except GeneratorExit:
             pass
         finally:
             client.disconnect()
+
+    @staticmethod
+    def _watch_subcontainers(control_client,
+                             wl_client,
+                             containers_storages: Dict[Container, Storage],
+                             with_initial=False
+                             ):
+        watches = {}
+        for container, storage in containers_storages.items():
+            params = storage.params
+            logger.debug('watching for subcontainers: storage %s', str({params["backend-id"]}))
+            watch_id = control_client.run_command('add-subcontainer-watch', backend_param=params)
+            watches[watch_id] = (container, storage)
+
+        if with_initial:
+            initial = WildlandFSClient._iterate_initial_subcontainer_events(
+                wl_client, containers_storages)
+            if initial:
+                yield initial
+
+        for events in control_client.iter_events():
+            watch_events = []
+            for event in events:
+                watch_events.append(
+                    WildlandFSClient._handle_subcontainer_event(wl_client, event, watches))
+            yield watch_events
+
+    @staticmethod
+    def _iterate_initial_subcontainer_events(
+            wl_client, containers_storages: Dict[Container, Storage]):
+        initial = []
+        for container, storage in containers_storages.items():
+            params = storage.params
+            sb = StorageBackend.from_params(params, deduplicate=True)
+            all_children = list(sb.get_children(wl_client))
+            for sub_path, sub in all_children:
+                initial.append(WatchSubcontainerEvent(
+                    FileEventType.CREATE, container, storage, sub_path, sub))
+        return initial
+
+    @staticmethod
+    def _handle_subcontainer_event(wl_client, event, watches):
+        event_type = FileEventType[event['type']]
+        watch_id = event['watch-id']
+        container, storage = watches[watch_id]
+        params = storage.params
+        sb = StorageBackend.from_params(params, deduplicate=True)
+        path = PurePosixPath(event['path'])
+        all_children = list(sb.get_children(wl_client))
+        subcontainer = None
+        for sub_path, sub in all_children:
+            if sub_path == path:
+                assert sub is not None
+                subcontainer = sub
+                break
+        return WatchSubcontainerEvent(event_type, container, storage, path, subcontainer)

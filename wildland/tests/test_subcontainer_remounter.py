@@ -2,9 +2,6 @@
 #
 # Copyright (C) 2021 Golem Foundation
 #
-# Authors:
-#                    Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>,
-#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -34,6 +31,7 @@ import pytest
 from ..client import Client
 from ..container import Container
 from ..storage import Storage
+from ..control_client import ControlClientError
 from ..subcontainer_remounter import SubcontainerRemounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
@@ -97,7 +95,7 @@ def setup(base_dir, cli, control_client):
                 base_dir / 'manifests/Container2.container.yaml')
 
     catalog_path = f'/.users/0xaaa/.uuid/0000000000-1111-0000-0000-000000000000/' \
-        f'.backends/{DUMMY_BACKEND_UUID0}'
+                   f'.backends/{DUMMY_BACKEND_UUID0}'
     control_client.add_storage_paths(0, [catalog_path, '/.manifests'])
 
     patch_uuid.stop()
@@ -169,9 +167,10 @@ class SubcontainerRemounterWrapper(SubcontainerRemounter):
                     storage_id = expected_b[1]
                 # register as mounted - backend specific path
                 uuid = get_container_uuid_from_uuid_path(str(expected.paths[0]))
+                path = f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}'
                 self.control_client.add_storage_paths(
                     expected_b[1],
-                    [f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}']
+                    [path, path + '/.manifest.wildland.yaml']
                 )
 
                 # calculate storage tag, so params/paths change will be detected
@@ -183,15 +182,22 @@ class SubcontainerRemounterWrapper(SubcontainerRemounter):
             if storage_id is not None:
                 self.control_client.add_storage_paths(
                     storage_id,
-                    [f'/.users/{expected.owner}:{path}' for path in expected.paths]
+                    [create_path(expected_path, expected.owner)
+                     for expected_path in expected.paths
+                     for create_path in
+                     (lambda p, owner: f'/.users/{owner}:{p}',
+                      lambda p, owner: f'/.users/{owner}:{p}/.manifest.wildland.yaml')
+                     ]
                 )
         self.to_mount.clear()
 
         # check to_unmount
-        assert len(self.to_unmount) == len(to_unmount), \
-            f'call {self.call_counter-1}: expected {to_unmount}, actual {self.to_unmount}'
-        assert set(self.to_unmount) == set(to_unmount), \
-            f'call {self.call_counter-1}: expected {to_unmount}, actual {self.to_unmount}'
+        # for each storage id we have one more id for corresponding pseudomanifest storage id
+        to_unmount_with_nons = to_unmount * 2
+        assert len(self.to_unmount) == len(to_unmount_with_nons), \
+            f'call {self.call_counter-1}: expected {to_unmount_with_nons}, actual {self.to_unmount}'
+        assert set(self.to_unmount) == set(to_unmount_with_nons), \
+            f'call {self.call_counter-1}: expected {to_unmount_with_nons}, actual {self.to_unmount}'
         for storage_id in to_unmount:
             self.control_client.del_storage(storage_id)
         self.to_unmount.clear()
@@ -217,6 +223,7 @@ def test_single_path(cli, client, control_client, base_dir):
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
                 base_dir / 'manifests/Container1.container.yaml')
+    (base_dir / 'manifests/Container2.container.yaml').unlink()  # TODO
 
     containers_storage: Dict[Container, Storage] = {
         container: client.select_storage(container)
@@ -259,678 +266,288 @@ def test_single_path(cli, client, control_client, base_dir):
     with pytest.raises(TerminateRemounter):
         remounter.run()
     remounter.check()
-    assert control_client.calls['add-watch'] == {
-        'storage_id': 0,
-        'pattern': 'Container1.container.yaml'}
+    assert control_client.calls['add-subcontainer-watch'] == {
+        'backend_param':
+            {'access': [{'user': '*'}],
+             'backend-id': '00000000-0000-0000-000000000000',
+             'container-path': '/.uuid/0000000000-1111-0000-0000-000000000000',
+             'is-local-owner': True,
+             'location': f'{base_dir}/manifests',
+             'object': 'storage',
+             'owner': '0xaaa',
+             'type': 'local',
+             'version': '1'}}
 
 
-# def test_glob_with_broken(client, control_client, base_dir):
-#     # simulate mounted container
-#     (base_dir / 'wildland/.manifests').mkdir(parents=True)
-#     shutil.copy(base_dir / 'containers/Container2.container.yaml',
-#                 base_dir / 'wildland/.manifests/Container2.container.yaml')
-#     # initially broken Container1 manifest
-#     with open(base_dir / 'wildland/.manifests/Container1.container.yaml', 'w') as f:
-#         f.write('broken manifest')
-#
-#     pattern = '/.manifests/Container*.container.yaml'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [str(base_dir / ('wildland' + pattern))],
-#                                  additional_patterns=['/.manifests/Other*.container.yaml'],
-#                                  control_client=control_client)
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     def fix_manifest():
-#         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                     base_dir / 'wildland/.manifests/Container1.container.yaml')
-#
-#     # initial mount
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
-#             PurePosixPath('/other/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         )], [], fix_manifest
-#     )
-#     # after changing container
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 2}
-#         )], [], None
-#     )
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#     assert control_client.all_calls['add-watch'] == [
-#         {'storage_id': 0,
-#          'pattern': 'Other*.container.yaml'},
-#         {'storage_id': 0,
-#          'pattern': 'Container*.container.yaml'},
-#     ]
-#
-#
-# def test_glob_add_remove(cli, client, control_client, base_dir):
-#     # simulate mounted container
-#     (base_dir / 'wildland/.manifests').mkdir(parents=True)
-#     pattern = '/.manifests/Container*.container.yaml'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [str(base_dir / ('wildland' + pattern))],
-#                                  control_client=control_client)
-#     control_client.expect('add-watch', 1)
-#     # initial events
-#     control_client.queue_event([])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml'}])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'DELETE', 'path': 'Container1.container.yaml'}])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     def add_manifest():
-#         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                     base_dir / 'wildland/.manifests/Container1.container.yaml')
-#
-#     def del_manifest():
-#         (base_dir / 'wildland/.manifests/Container1.container.yaml').unlink()
-#
-#     remounter.expect_action([], [], add_manifest)
-#     # after adding conatiner
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         )], [], del_manifest
-#     )
-#     remounter.expect_action([], [1], None)
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#
-#
-# def test_add_remove_storage(cli, client, control_client, base_dir):
-#     # simulate mounted container
-#     (base_dir / 'wildland/.manifests').mkdir(parents=True)
-#     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                 base_dir / 'wildland/.manifests/Container1.container.yaml')
-#     pattern = '/.manifests/Container1.container.yaml'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [str(base_dir / ('wildland' + pattern))],
-#                                  control_client=control_client)
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     def add_storage():
-#         with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
-#             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
-#                 '--container', 'Container1')
-#         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                     base_dir / 'wildland/.manifests/Container1.container.yaml')
-#
-#     def del_storage():
-#         cli('container', 'modify', '--no-remount', '--del-storage', '1',
-#             'Container1')
-#         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                     base_dir / 'wildland/.manifests/Container1.container.yaml')
-#
-#     remounter.expect_action([ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#     )], [], add_storage)
-#     # after adding storage
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID1: 2}
-#     )], [], del_storage)
-#     remounter.expect_action([], [2], None)
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#
-#
-# def test_modify_storage(cli, client, control_client, base_dir):
-#     with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
-#         cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
-#             '--container', 'Container1')
-#     # simulate mounted container
-#     (base_dir / 'wildland/.manifests').mkdir(parents=True)
-#     shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                 base_dir / 'wildland/.manifests/Container1.container.yaml')
-#     pattern = '/.manifests/Container1.container.yaml'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [str(base_dir / ('wildland' + pattern))],
-#                                  control_client=control_client)
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     def modify_storage():
-#         """modify one storage parameters (location)"""
-#         cli('container', 'modify', '--no-remount', '--del-storage', '1', 'Container1')
-#         with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
-#             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage3'),
-#                 '--container', 'Container1')
-#         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                     base_dir / 'wildland/.manifests/Container1.container.yaml')
-#
-#     def switch_primary():
-#         """change storages order without changing anything else"""
-#         cli('container', 'modify', '--no-remount', '--del-storage', '0', 'Container1')
-#         with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID0):
-#             cli('storage', 'create', 'local', '--location', str(base_dir / 'storage1'),
-#                 '--container', 'Container1')
-#         shutil.copy(base_dir / 'containers/Container1.container.yaml',
-#                     base_dir / 'wildland/.manifests/Container1.container.yaml')
-#
-#     remounter.expect_action([ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1, DUMMY_BACKEND_UUID1: 2}
-#     )], [], modify_storage)
-#     # after adding storage
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID1: 2}
-#     )], [], switch_primary)
-#     remounter.expect_action([ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1, DUMMY_BACKEND_UUID1: 2}
-#     )], [], None)
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#
-#
-# class SearchMock:
-#     def __init__(self):
-#         # called for those paths
-#         self.wlpaths = []
-#         # return value for get_watch_params
-#         self.watch_params = ()
-#         # list of results on subsequent calls
-#         self.containers_results: List[List[Container]] = []
-#
-#     def __call__(self, client, wlpath, *args, **kwargs):
-#         self.wlpaths.append(wlpath)
-#         return self
-#
-#     def get_watch_params(self):
-#         return self.watch_params
-#
-#     def read_container(self):
-#         result = self.containers_results.pop(0)
-#         for c in result:
-#             if isinstance(c, Exception):
-#                 raise c
-#             yield c
-#
-#
-# @pytest.fixture
-# def search_mock():
-#     test_search = SearchMock()
-#     with mock.patch('wildland.remounter.Search') as search_mock:
-#         search_mock.return_value = test_search
-#         yield test_search
-#
-#
-# def test_wlpath_single(cli, client, search_mock, control_client):
-#     search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
-#
-#     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#
-#     cli('container', 'modify', '--add-path', '/new/path', 'Container1')
-#
-#     c1_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#
-#     search_mock.containers_results = [
-#         [c1],
-#         [c1_changed],
-#     ]
-#     pattern = ':/containers/c1:'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [pattern],
-#                                  control_client=control_client)
-#
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'}])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'}])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     # initial mount
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         )], [], None
-#     )
-#     # after changing container
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path'),
-#              PurePosixPath('/new/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         )], [], None
-#     )
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#     assert control_client.calls['add-watch'] == {
-#         'storage_id': 0,
-#         'pattern': 'Container1.container.yaml'}
-#
-#
-# def test_wlpath_delete_container(client, search_mock, control_client):
-#     search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
-#
-#     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#     c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
-#
-#     search_mock.containers_results = [
-#         [c1, c2],
-#         [c1],
-#         [],
-#     ]
-#     pattern = ':/containers/c1:'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [pattern],
-#                                  control_client=control_client)
-#
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'}])
-#     # modify should also cause the WL path to be re-evaluated
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'}])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'}])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     # initial mount
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         ), ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
-#              PurePosixPath('/other/path')],
-#             {DUMMY_BACKEND_UUID0: 2}
-#         )], [], None
-#     )
-#     remounter.expect_action([], [2], None)
-#     remounter.expect_action([], [1], None)
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#     assert control_client.calls['add-watch'] == {
-#         'storage_id': 0,
-#         'pattern': 'Container1.container.yaml'}
-#
-#
-# def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
-#     search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml',
-#                                      '/.manifests/Container2.container.yaml'})
-#
-#     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#     c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
-#
-#     cli('container', 'modify', '--add-path', '/new/path', 'Container1')
-#     cli('container', 'modify', '--add-path', '/yet/another/path', 'Container2')
-#
-#     c1_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#     c2_changed = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
-#
-#     search_mock.containers_results = [
-#         [c1, c2],
-#         [c1_changed, c2_changed],
-#     ]
-#     pattern = ':*:'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [pattern],
-#                                  control_client=control_client)
-#
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container2.container.yaml',
-#          'pattern': 'Container2.container.yaml'},
-#     ])
-#     # modify should also cause the WL path to be re-evaluated
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container2.container.yaml',
-#          'pattern': 'Container2.container.yaml'}
-#     ])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     # initial mount
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         ), ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
-#              PurePosixPath('/other/path')],
-#             {DUMMY_BACKEND_UUID0: 2}
-#         )], [], None
-#     )
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path'),
-#              PurePosixPath('/new/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         ), ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
-#              PurePosixPath('/other/path'),
-#              PurePosixPath('/yet/another/path')],
-#             {DUMMY_BACKEND_UUID0: 2}
-#         )], [], None
-#     )
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#     assert sorted(control_client.all_calls['add-watch'],
-#                   key=lambda c: c['pattern']) == [
-#         {'storage_id': 0,
-#          'pattern': 'Container1.container.yaml'},
-#         {'storage_id': 0,
-#          'pattern': 'Container2.container.yaml'},
-#     ]
-#
-#
-# def test_wlpath_iterate_error(cli, client, search_mock, control_client):
-#     search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
-#
-#     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#
-#     search_mock.containers_results = [
-#         [c1, ManifestError('container load failed')],
-#         [ManifestError('container load failed')],
-#         [],
-#     ]
-#     pattern = ':/containers/c1:'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [pattern],
-#                                  control_client=control_client)
-#
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#     ])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#     ])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#     ])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     # initial mount
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         )], [], None
-#     )
-#     # should not unmount anything if search failed
-#     remounter.expect_action([], [], None)
-#     remounter.expect_action([], [1], None)
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#     assert control_client.calls['add-watch'] == {
-#         'storage_id': 0,
-#         'pattern': 'Container1.container.yaml'
-#     }
-#     # not really expected in this test
-#     assert 'info' not in control_client.calls
-#     del control_client.results['info']
-#
-#
-# def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_client):
-#     # pylint: disable=protected-access
-#     search_mock.watch_params = ([], {'/.manifests/Container1.container.yaml'})
-#
-#     with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
-#         cli('storage', 'create', 'local', 'Catalog1',
-#             '--location', base_dir / 'manifests',
-#             '--container', 'Catalog')
-#
-#     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
-#     c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
-#     catalog_container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Catalog')
-#     catalog_s0 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
-#                                               catalog_container._storage_cache[0].storage,
-#                                               catalog_container.owner, catalog_container.paths[0])
-#     catalog_s1 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
-#                                               catalog_container._storage_cache[1].storage,
-#                                               catalog_container.owner, catalog_container.paths[0])
-#     search_mock.containers_results = [
-#         [c1],
-#         [c1, c2],
-#         [c1],
-#     ]
-#     pattern = ':/containers/c1:'
-#     remounter = RemounterWrapper(client, client.fs_client,
-#                                  [pattern],
-#                                  control_client=control_client)
-#
-#     control_client.expect('add-watch', 1)
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#     ])
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'CREATE', 'path': 'Container2.container.yaml',
-#          'pattern': 'Container2.container.yaml'},
-#     ])
-#     # old pattern should still work
-#     control_client.queue_event([
-#         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml',
-#          'pattern': 'Container1.container.yaml'},
-#     ])
-#     # interrupt after processing all events
-#     control_client.queue_event(TerminateRemounter())
-#
-#     def change_watch_params():
-#         control_client.expect('mount')
-#         search_mock.watch_params = ([(catalog_container, [catalog_s0], [], None)],
-#                                     {'/.manifests/Container2.container.yaml'})
-#
-#     def fail_mount():
-#         control_client.expect('mount', ControlClientError('mount failed'))
-#         search_mock.watch_params = ([(catalog_container, [catalog_s1], [], None)],
-#                                     {'/.manifests/Container3.container.yaml'})
-#
-#     # initial mount
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
-#              PurePosixPath('/path')],
-#             {DUMMY_BACKEND_UUID0: 1}
-#         )], [], change_watch_params
-#     )
-#     remounter.expect_action(
-#         [ExpectedMount(
-#             '0xaaa',
-#             [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
-#              PurePosixPath('/other/path')],
-#             {DUMMY_BACKEND_UUID0: 2}
-#         )], [], fail_mount
-#     )
-#     remounter.expect_action([], [2], None)
-#
-#     with pytest.raises(TerminateRemounter):
-#         remounter.run()
-#     remounter.check()
-#     assert control_client.all_calls['add-watch'] == [
-#         {
-#             'storage_id': 0,
-#             'pattern': 'Container1.container.yaml'
-#         },
-#         {
-#             'storage_id': 0,
-#             'pattern': 'Container2.container.yaml'
-#         },
-#     ]
-#
-#     assert control_client.all_calls['mount'] == [
-#         {'items': [
-#             {
-#                 'paths':
-#                     [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/{DUMMY_BACKEND_UUID0}'],
-#                 'remount': False,
-#                 'storage': mock.ANY,
-#                 'extra': mock.ANY,
-#             },
-#             {
-#                 'paths': [
-#                     f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-#                     f'{DUMMY_BACKEND_UUID0}-pseudomanifest/.manifest.wildland.yaml',
-#                 ],
-#                 'remount': False,
-#                 'storage': mock.ANY,
-#                 'extra': mock.ANY,
-#             }
-#         ]},
-#         {'items': [
-#             {
-#                 'paths': [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-#                           f'{DUMMY_BACKEND_UUID1}'],
-#                 'remount': False,
-#                 'storage': mock.ANY,
-#                 'extra': mock.ANY,
-#             },
-#             {
-#                 'paths': [
-#                     f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-#                     f'{DUMMY_BACKEND_UUID1}-pseudomanifest/.manifest.wildland.yaml',
-#                 ],
-#                 'remount': False,
-#                 'storage': mock.ANY,
-#                 'extra': mock.ANY,
-#             }
-#         ]},
-#         # should retry on the next event
-#         {'items': [
-#             {
-#                 'paths': [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-#                           f'{DUMMY_BACKEND_UUID1}'],
-#                 'remount': False,
-#                 'storage': mock.ANY,
-#                 'extra': mock.ANY,
-#             },
-#             {
-#                 'paths': [
-#                     f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
-#                     f'{DUMMY_BACKEND_UUID1}-pseudomanifest/.manifest.wildland.yaml',
-#                 ],
-#                 'remount': False,
-#                 'storage': mock.ANY,
-#                 'extra': mock.ANY,
-#             }
-#         ]},
-#     ]
-#
-#
-# def test_failed_mount(control_client, client):
-#     del control_client.results['info']
-#     del control_client.results['paths']
-#     remounter = Remounter(client, client.fs_client, [])
-#
-#     remounter.to_mount.append((mock.Mock, [], [], None))
-#     control_client.expect('mount', ControlClientError('mount failed'))
-#     # should catch the mount error
-#     remounter.mount_pending()
-#     # don't retry exactly the same operation
-#     assert remounter.to_mount == []
-#
-#
-# def test_failed_unmount(control_client, client):
-#     del control_client.results['info']
-#     del control_client.results['paths']
-#     remounter = Remounter(client, client.fs_client, [])
-#
-#     remounter.to_unmount.append(1)
-#     remounter.to_unmount.append(2)
-#     control_client.expect('unmount', ControlClientError('mount failed'))
-#     # should catch the unmount error
-#     remounter.unmount_pending()
-#     # don't retry exactly the same operation
-#     assert remounter.to_unmount == []
-#
-#     assert control_client.all_calls['unmount'] == [
-#         {'storage_id': 1},
-#         {'storage_id': 2},
-#     ]
-#
-# # TODO:
-# # - container that fails to mount
-# # (it's rather a test for mount_multiple_containers? or even fs_base.py)
+def test_glob_with_broken(client, control_client, base_dir):
+    # simulate mounted container
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
+    shutil.copy(base_dir / 'containers/Container2.container.yaml',
+                base_dir / 'wildland/.manifests/Container2.container.yaml')
+    # shutil.move(base_dir / 'manifests/Container1.container.yaml', base_dir / 'manifests/broken')
+    # initially broken Container1 manifest
+    # with open(base_dir / 'wildland/.manifests/Container1.container.yaml', 'w') as f:
+    #     f.write('broken manifest')
+    # with open(base_dir / 'containers/Container1.container.yaml', 'w') as f:
+    #     f.write('broken manifest')
+    with open(base_dir / 'manifests/Container1.container.yaml', 'w') as f:
+        f.write('broken manifest')
+
+    containers_storage: Dict[Container, Storage] = {
+        container: client.select_storage(container)
+        for container_name in ('Catalog',)
+        for container in client.load_containers_from(container_name)
+    }
+
+    remounter = SubcontainerRemounterWrapper(client, client.fs_client, containers_storage,
+                                             control_client=control_client)
+    control_client.expect('add-subcontainer-watch', 1)
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
+    # interrupt after processing all events
+    control_client.queue_event(TerminateRemounter())
+
+    def fix_manifest():
+        shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                    base_dir / 'manifests/Container1.container.yaml')
+
+    # initial mount
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
+             PurePosixPath('/other/path')],
+            {DUMMY_BACKEND_UUID0: 1}
+        )], [], fix_manifest
+    )
+    # after changing container
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID0: 2}
+        )], [], None
+    )
+
+    with pytest.raises(TerminateRemounter):
+        remounter.run()
+    remounter.check()
+    assert control_client.all_calls['add-subcontainer-watch'] == [{
+        'backend_param':
+            {'access': [{'user': '*'}],
+             'backend-id': '00000000-0000-0000-000000000000',
+             'container-path': '/.uuid/0000000000-1111-0000-0000-000000000000',
+             'is-local-owner': True,
+             'location': f'{base_dir}/manifests',
+             'object': 'storage',
+             'owner': '0xaaa',
+             'type': 'local',
+             'version': '1'}}]
+    del control_client.results['info']  # TODO
+
+
+def test_glob_add_remove(cli, client, control_client, base_dir):
+    # simulate mounted container
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
+    (base_dir / 'manifests/Container1.container.yaml').unlink()  # TODO
+    (base_dir / 'manifests/Container2.container.yaml').unlink()  # TODO
+    containers_storage: Dict[Container, Storage] = {
+        container: client.select_storage(container)
+        for container_name in ('Catalog',)
+        for container in client.load_containers_from(container_name)
+    }
+
+    remounter = SubcontainerRemounterWrapper(client, client.fs_client, containers_storage,
+                                             control_client=control_client)
+    control_client.expect('add-subcontainer-watch', 1)
+    # initial events
+    control_client.queue_event([])
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'CREATE', 'path': 'Container1.container.yaml'}])
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'DELETE', 'path': 'Container1.container.yaml'}])
+    # interrupt after processing all events
+    control_client.queue_event(TerminateRemounter())
+
+    def add_manifest():
+        shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                    base_dir / 'manifests/Container1.container.yaml')
+
+    def del_manifest():
+        (base_dir / 'manifests/Container1.container.yaml').unlink()
+
+    remounter.expect_action([], [], add_manifest)
+    # after adding conatiner
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID0: 1}
+        )], [], del_manifest
+    )
+    remounter.expect_action([], [1], None)
+
+    with pytest.raises(TerminateRemounter):
+        remounter.run()
+    remounter.check()
+    del control_client.results['info']  # TODO
+
+
+def test_add_remove_storage(cli, client, control_client, base_dir):
+    # simulate mounted container
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
+    (base_dir / 'manifests/Container2.container.yaml').unlink()  # TODO
+    # shutil.copy(base_dir / 'containers/Container1.container.yaml',
+    #             base_dir / 'wildland/.manifests/Container1.container.yaml')
+    containers_storage: Dict[Container, Storage] = {
+        container: client.select_storage(container)
+        for container_name in ('Catalog',)
+        for container in client.load_containers_from(container_name)
+    }
+
+    remounter = SubcontainerRemounterWrapper(client, client.fs_client, containers_storage,
+                                             control_client=control_client)
+    control_client.expect('add-subcontainer-watch', 1)
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
+    # interrupt after processing all events
+    control_client.queue_event(TerminateRemounter())
+
+    def add_storage():
+        with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
+            cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
+                '--container', 'Container1')
+        shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                    base_dir / 'manifests/Container1.container.yaml')
+
+    def del_storage():
+        cli('container', 'modify', '--no-remount', '--del-storage', '1',
+            'Container1')
+        shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                    base_dir / 'manifests/Container1.container.yaml')
+
+    remounter.expect_action([ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID0: 1}
+    )], [], add_storage)
+    # after adding storage
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID1: 2}
+    )], [], del_storage)
+    remounter.expect_action([], [2], None)
+
+    with pytest.raises(TerminateRemounter):
+        remounter.run()
+    remounter.check()
+
+
+def test_modify_storage(cli, client, control_client, base_dir):
+    with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
+        cli('storage', 'create', 'local', '--location', str(base_dir / 'storage2'),
+            '--container', 'Container1')
+    (base_dir / 'manifests/Container2.container.yaml').unlink()  # TODO
+    # simulate mounted container
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
+    shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                base_dir / 'manifests/Container1.container.yaml')
+    containers_storage: Dict[Container, Storage] = {
+        container: client.select_storage(container)
+        for container_name in ('Catalog',)
+        for container in client.load_containers_from(container_name)
+    }
+
+    remounter = SubcontainerRemounterWrapper(client, client.fs_client, containers_storage,
+                                             control_client=control_client)
+    control_client.expect('add-subcontainer-watch', 1)
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
+    control_client.queue_event([
+        {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
+    # interrupt after processing all events
+    control_client.queue_event(TerminateRemounter())
+
+    def modify_storage():
+        """modify one storage parameters (location)"""
+        cli('container', 'modify', '--no-remount', '--del-storage', '1', 'Container1')
+        with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID1):
+            cli('storage', 'create', 'local', '--location', str(base_dir / 'storage3'),
+                '--container', 'Container1')
+        shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                    base_dir / 'manifests/Container1.container.yaml')
+
+    def switch_primary():
+        """change storages order without changing anything else"""
+        cli('container', 'modify', '--no-remount', '--del-storage', '0', 'Container1')
+        with mock.patch('uuid.uuid4', return_value=DUMMY_BACKEND_UUID0):
+            cli('storage', 'create', 'local', '--location', str(base_dir / 'storage1'),
+                '--container', 'Container1')
+        shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                    base_dir / 'manifests/Container1.container.yaml')
+
+    remounter.expect_action([ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID0: 1, DUMMY_BACKEND_UUID1: 2}
+    )], [], modify_storage)
+    # after adding storage
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID1: 2}
+    )], [], switch_primary)
+    remounter.expect_action([ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID0: 1, DUMMY_BACKEND_UUID1: 2}
+    )], [], None)
+
+    with pytest.raises(TerminateRemounter):
+        remounter.run()
+    remounter.check()
+    del control_client.results['info']  # TODO
+
+
+def test_failed_mount(control_client, client):
+    del control_client.results['info']
+    del control_client.results['paths']
+    remounter = SubcontainerRemounter(client, client.fs_client, [])
+
+    remounter.to_mount.append((mock.Mock, [], [], None))
+    control_client.expect('mount', ControlClientError('mount failed'))
+    # should catch the mount error
+    remounter.mount_pending()
+    # don't retry exactly the same operation
+    assert remounter.to_mount == []
+
+
+def test_failed_unmount(control_client, client):
+    del control_client.results['info']
+    del control_client.results['paths']
+    remounter = SubcontainerRemounter(client, client.fs_client, [])
+
+    remounter.to_unmount.append(1)
+    remounter.to_unmount.append(2)
+    control_client.expect('unmount', ControlClientError('mount failed'))
+    # should catch the unmount error
+    remounter.unmount_pending()
+    # don't retry exactly the same operation
+    assert remounter.to_unmount == []
+
+    assert control_client.all_calls['unmount'] == [
+        {'storage_id': 1},
+        {'storage_id': 2},
+    ]

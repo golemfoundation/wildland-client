@@ -28,7 +28,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Iterable, Iterator, List, Set, Tuple, FrozenSet
+from typing import Iterable, Iterator, List, Set, Tuple, FrozenSet, Optional
 
 import click
 
@@ -142,9 +142,12 @@ class CategorizationProxyStorageBackend(StorageBackend):
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*'),
-                     paths_only: bool = False) -> \
-            Iterable[Tuple[PurePosixPath, ContainerStub]] or Iterable[PurePosixPath]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[ContainerStub]]]:
         ns = uuid.UUID(self.backend_id)
         dir_path = PurePosixPath('')
         subcontainer_metainfo_set = self._get_categories_to_subcontainer_map(dir_path)
@@ -169,7 +172,7 @@ class CategorizationProxyStorageBackend(StorageBackend):
                         'backend-id': str(uuid.uuid3(ns, dirpath))}]}})
                 yield PurePosixPath(subcontainer_path), container_stub
             else:
-                yield PurePosixPath(subcontainer_path)
+                yield PurePosixPath(subcontainer_path), None
 
     def _get_categories_to_subcontainer_map(self, dir_path: PurePosixPath) -> \
             Set[CategorizationSubcontainerMetaInfo]:

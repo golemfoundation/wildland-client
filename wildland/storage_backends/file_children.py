@@ -286,10 +286,12 @@ class FileChildrenMixin(StorageBackend):
             driver.makedirs(relpath.parent)
             driver.write_file(relpath, client.session.dump_object(wl_object))
 
-    def get_children(self, client=None,
-                     query_path: PurePosixPath = PurePosixPath('*'),
-                     paths_only: bool = False) -> \
-            Iterable[Tuple[PurePosixPath, Link]] or Iterable[PurePosixPath]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Link]]]:
         """
         List all child objects provided by this storage.
         """
@@ -307,7 +309,7 @@ class FileChildrenMixin(StorageBackend):
                             file_path=child_path, storage_backend=self, client=client)
                         yield PurePosixPath(child_path), child_object_link
                     else:
-                        yield PurePosixPath(child_path)
+                        yield PurePosixPath(child_path), None
         elif manifest_pattern['type'] == 'glob':
             path = self._parse_glob_pattern(query_path)
 
@@ -318,7 +320,7 @@ class FileChildrenMixin(StorageBackend):
                                              storage_backend=self, client=client)
                     yield file_path, child_object_link
                 else:
-                    yield file_path
+                    yield file_path, None
 
     def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath)\
             -> Iterable[PurePosixPath]:

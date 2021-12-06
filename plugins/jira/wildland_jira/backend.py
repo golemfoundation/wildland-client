@@ -27,7 +27,7 @@ Wildland storage backend exposing Jira issues
 import uuid
 from functools import partial
 from pathlib import PurePosixPath
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Iterable
 
 import click
 
@@ -123,8 +123,12 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*'),
-                     paths_only: bool = False):
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[ContainerStub]]]:
         """
         Returns a list of categorized subcontainers for issues
         """
@@ -181,8 +185,8 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
         """
         return str(uuid.uuid3(uuid.UUID(self.backend_id), str(issue.id)))
 
-    def _make_issue_container(self, issue: CompactIssue,
-                              paths_only: bool) -> Tuple[PurePosixPath, ContainerStub]:
+    def _make_issue_container(self, issue: CompactIssue, paths_only: bool) \
+            -> Tuple[PurePosixPath, Optional[ContainerStub]]:
         """
         Creates a separate subcontainer for each of the issues fetched from the server
         """
@@ -201,7 +205,7 @@ class JiraStorageBackend(GeneratedStorageMixin, StorageBackend):
                     'subdirectory': subcontainer_path
                 }]}
             })
-        return PurePosixPath(subcontainer_path)
+        return PurePosixPath(subcontainer_path), None
 
     @classmethod
     def cli_options(cls):

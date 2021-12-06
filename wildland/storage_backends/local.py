@@ -31,7 +31,7 @@ import select
 import threading
 import time
 from pathlib import Path, PurePosixPath
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Iterable
 import click
 import inotify_simple
 
@@ -315,7 +315,7 @@ class LocalStorageWatcher(StorageWatcher):
         except Exception:
             logger.exception('Exception during local storage watcher shutdown:')
 
-    def wait(self) -> Optional[List[FileEvent]]:
+    def wait(self) -> Optional[Iterable[FileEvent]]:
         result = select.select([self._stop_pipe_read, self.inotify], [], [])
         if self._stop_pipe_read in result[0]:
             return []
