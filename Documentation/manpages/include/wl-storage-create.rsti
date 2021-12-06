@@ -23,7 +23,7 @@
 
 .. option:: --access USER
 
-    Allow an additional user access to this storage manifest. By default, storage manifests inherit
+    Allow an additional user or user path access to this storage manifest. By default, storage manifests inherit
     access settings from the container.
 
 .. option:: --encrypt-manifest

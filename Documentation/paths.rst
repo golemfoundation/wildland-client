@@ -29,6 +29,11 @@ It has the following form::
 * The last part is the file path inside container. It can be omitted, in which
   case the path refers to a container, not to a file inside.
 
+* A ``user access path`` refers to a Wildland path pointing at a user bridge. For example,
+  ``0xintermediate_user@https{wildland.url/path/to/forest-owner.user.yaml}:/users/destination_user:``.
+  The original URL ``https://wildland.url/path/to/forest-owner.user.yaml`` returns
+  the catalog manifest for ``0xintermediate_user`` that knows user ``destination_user``.
+
 Path resolution
 ---------------
 
