@@ -73,6 +73,7 @@ class WLError:
 # Temporary documentation of additional error codes; to be organized and reqritten once needed
 # errors are collected:
 # 100 - at least one public key needed for user
+# 101 - public key in use by other users
 # 700 - unknown object type
 
 
@@ -98,6 +99,7 @@ class WildlandResult:
         result = ""
         for e in self.errors:
             result += f"{e.error_code} - {e.error_description}\n"
+        return result
 
 
 def wildland_result(default_output=()):

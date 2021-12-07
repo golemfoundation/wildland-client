@@ -363,6 +363,14 @@ class WLEnv:
         """
         return self._set_param('@default', user_key_fingerprint, save)
 
+    def reset_default_user(self, save: bool = True) -> WildlandResult:
+        """
+        Remove @default user.
+
+        @param save: if true, save the change to the config file.
+        """
+        return self._reset_param('@default', save)
+
     def get_default_owner(self) -> Tuple[WildlandResult, Optional[str]]:
         """
         Get @default-owner user (used to resolve wildland paths).
@@ -377,6 +385,14 @@ class WLEnv:
         @param save: if true, save the change to the config file.
         """
         return self._set_param('@default-owner', user_key_fingerprint, save)
+
+    def reset_default_owner(self, save: bool = True) -> WildlandResult:
+        """
+        Remove @default-onwer user.
+
+        @param save: if true, save the change to the config file.
+        """
+        return self._reset_param('@default-owner', save)
 
     def get_alias(self, alias: str) -> Tuple[WildlandResult, Optional[str]]:
         """

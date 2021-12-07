@@ -299,10 +299,14 @@ class Client:
             self.bridges.add(bridge)
 
     def find_local_manifest(self, object_type: Union[WildlandObject.Type, None],
-                            name: str) -> Optional[Path]:
+                            name: str, allow_local_paths: bool = True) -> Optional[Path]:
         """
         Find local manifest based on a (potentially ambiguous) name. Names can be aliases, user
         fingerprints (for users), name of the file, part of the file name, or complete file path.
+        If allow_local_paths is False, no filename/local file path is allowed (needed for
+        transitional period for WL Cargo refactor)
+        allow_local_paths should be removed with
+        https://gitlab.com/wildland/wildland-client/-/issues/718
         """
 
         if object_type == WildlandObject.Type.USER:
@@ -337,7 +341,8 @@ class Client:
         else:
             path_candidates = []
 
-        path_candidates.append(Path(name))
+        if allow_local_paths:
+            path_candidates.append(Path(name))
 
         for path_candidate in path_candidates:
             if path_candidate.exists():
@@ -521,13 +526,17 @@ class Client:
                                               container=container)
         raise ValueError(f'{obj} is neither url nor dict')
 
-    def load_object_from_name(self, object_type: WildlandObject.Type, name: str):
+    def load_object_from_name(self, object_type: WildlandObject.Type, name: str,
+                              allow_local_paths: bool = True):
         """
         Load a Wildland object from ambiguous name. The name can be a local filename, part of local
         filename (will attempt to look for the object in appropriate local directory), a WL URL,
         another kind of URL etc.
         :param object_type: expected object type
         :param name: ambiguous name
+        :param allow_local_paths: should accessing local file paths / filenames be allowed; needed
+        before cargo refactor is finished, should be removed with
+        https://gitlab.com/wildland/wildland-client/-/issues/718
         """
         if object_type == WildlandObject.Type.USER and name in self.users:
             return self.users[name]
@@ -535,7 +544,7 @@ class Client:
         if self.is_url(name):
             return self.load_object_from_url(object_type, name, self.config.get('@default'))
 
-        path = self.find_local_manifest(object_type, name)
+        path = self.find_local_manifest(object_type, name, allow_local_paths=allow_local_paths)
         if path:
             return self.load_object_from_file_path(object_type, path)
 

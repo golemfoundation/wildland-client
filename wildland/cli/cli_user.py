@@ -100,10 +100,10 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
     if not result.success or not user:
         if not key:
-            obj.wlcore.user_remove_key(owner)
+            obj.wlcore.user_remove_key(owner, force=False)
         raise CliError(f'Failed to create user: {result}')
 
-    _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.owner)
+    _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.id)
 
     click.echo(f'Created: {path}')
 
@@ -155,7 +155,7 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
         bridges_from_default_user[bridge.user_id].extend(bridge.paths)
 
     for user in users:
-        _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.owner)
+        _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.id)
         path_string = str(path)
         if list_secret_keys and not user.private_key_available:
             continue
@@ -211,73 +211,56 @@ def delete(obj: ContextObj, names, force, cascade, delete_keys):
 
 
 def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys: bool):
-    user = obj.client.load_object_from_name(WildlandObject.Type.USER, name)
+    _, user = obj.wlcore.object_get(WLObjectType.USER, name)
+    if not user:
+        p = Path(name)
+        if not p.exists():
+            raise CliError(f'User {name} not found.')
+        yaml_data = p.read_text()
+        result, user = obj.wlcore.object_info(yaml_data)
+        if not user:
+            raise CliError(f'User {name} cannot be parsed: {str(result)}')
 
-    if not user.local_path:
-        raise WildlandError('Can only delete a local manifest')
-
-    # Check if this is the only manifest with such owner
-    other_count = 0
-    for other_user in obj.client.get_local_users():
-        if other_user.local_path != user.local_path and other_user.owner == user.owner:
-            other_count += 1
+    result, usages = obj.wlcore.user_get_usages(user.id)
+    if not result.success and not force:
+        raise CliError(f'Fatal error while looking for user\'s containers: {str(result)}')
 
     used = False
+    for usage in usages:
+        if cascade:
+            click.echo('Deleting container: {}'.format(usage.id))
+            result = obj.wlcore.container_delete(usage.id)
+            if not result.success:
+                raise CliError(f'Cannot delete user\'s container: {result}')
+        else:
+            _, cont_path = obj.wlcore.object_get_local_path(WLObjectType.CONTAINER, usage.id)
+            click.echo('Found container: {}'.format(cont_path))
+            used = True
 
-    for container in obj.client.load_all(WildlandObject.Type.CONTAINER):
-        assert container.local_path is not None
-        if container.owner == user.owner:
-            if cascade:
-                click.echo('Deleting container: {}'.format(container.local_path))
-                container.local_path.unlink()
-            else:
-                click.echo('Found container: {}'.format(container.local_path))
-                used = True
-
-    for storage in obj.client.load_all(WildlandObject.Type.STORAGE):
-        assert storage.local_path is not None
-        if storage.owner == user.owner:
-            if cascade:
-                click.echo('Deleting storage: {}'.format(storage.local_path))
-                storage.local_path.unlink()
-            else:
-                click.echo('Found storage: {}'.format(storage.local_path))
-                used = True
-
-    if used and other_count > 0:
-        click.echo('Found manifests for user, but this is not the only user '
-                   'manifest. Proceeding.')
-    elif used and other_count == 0 and not force:
+    if used and not force:
         raise CliError('User still has manifests, not deleting '
                        '(use --force or --cascade)')
 
     if delete_keys:
-        possible_owners = obj.session.sig.get_possible_owners(user.owner)
+        result = obj.wlcore.user_remove_key(user.owner, force=force)
+        if not result.success:
+            raise CliError(str(result))
 
-        if possible_owners != [user.owner] and not force:
-            click.echo('Key used by other users as secondary key and will not be deleted. '
-                       'Key should be removed manually. In the future you can use --force to '
-                       'force key deletion.')
-        else:
-            click.echo(f'Removing key {user.owner}')
-            obj.session.sig.remove_key(user.owner)
+    _, default_user = obj.wlcore.env.get_default_user(use_override=False)
+    if default_user == user.owner:
+        click.echo('Removing @default from configuration file')
+        obj.wlcore.env.reset_default_user()
+    _, default_owner = obj.wlcore.env.get_default_owner()
+    if default_owner == user.owner:
+        click.echo('Removing @default-owner from configuration file')
+        obj.wlcore.env.reset_default_owner()
 
-    for alias in ['@default', '@default-owner']:
-        fingerprint = obj.client.config.get(alias)
-        if fingerprint is not None:
-            if fingerprint == user.owner:
-                click.echo(f'Removing {alias} from configuration file')
-                obj.client.config.remove_key_and_save(alias)
-
-    local_owners = obj.client.config.get('local-owners')
-
-    if local_owners is not None and user.owner in local_owners:
-        local_owners.remove(user.owner)
+    if obj.wlcore.env.is_local_owner(user.owner):
+        obj.wlcore.env.remove_local_owners(user.owner)
         click.echo(f'Removing {user.owner} from local_owners')
-        obj.client.config.update_and_save({'local-owners': local_owners})
 
-    click.echo(f'Deleting: {user.local_path}')
-    user.local_path.unlink()
+    click.echo(f'Deleting: {user.owner}')
+    obj.wlcore.user_delete(user.owner)
 
 
 def _remove_suffix(s: str, suffix: str) -> str:

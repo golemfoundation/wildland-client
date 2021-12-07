@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+# pylint: disable=too-many-lines
 """
 Wildland core implementation
 """
@@ -34,7 +35,6 @@ from .wildland_result import WildlandResult, WLError, wildland_result
 from .wildland_core_api import WildlandCoreApi, ModifyMethod
 from .wildland_objects_api import WLUser, WLBridge, \
     WLStorageBackend, WLStorage, WLContainer, WLObject, WLTemplateFile, WLObjectType
-from ..envprovider import EnvProvider
 from ..wlenv import WLEnv
 
 # Style goal: All methods must be <15 functional lines of code; if more, refactor
@@ -54,11 +54,23 @@ class WildlandCore(WildlandCoreApi):
         self.env = WLEnv(base_dir=self.client.base_dir)
 
     # private methods
+    @staticmethod
+    def _get_object_id(obj: WildlandObject):
+        if isinstance(obj, User):
+            return f'{obj.owner}:'
+        if isinstance(obj, Container):
+            return str(obj.uuid_path)
+        if isinstance(obj, Bridge):
+            return str(obj.paths[0])  # TODO
+        if isinstance(obj, Storage):
+            return str(obj.get_unique_publish_id())  # TODO
+        return None
+
     def _user_to_wluser(self, user: User) -> WLUser:
         # TODO: optimize for possible lazy loading of catalog manifests
         wl_user = WLUser(
             owner=user.owner,
-            id=f'{user.owner}:',
+            id=self._get_object_id(user),
             private_key_available=self.client.session.sig.is_private_key_available(user.owner),
             pubkeys=deepcopy(user.pubkeys),
             paths=[str(p) for p in user.paths],
@@ -69,11 +81,10 @@ class WildlandCore(WildlandCoreApi):
         # ideal, but it's an old bug, not introduced by WLCore
         return wl_user
 
-    @staticmethod
-    def _container_to_wlcontainer(container: Container) -> WLContainer:
+    def _container_to_wlcontainer(self, container: Container) -> WLContainer:
         wl_container = WLContainer(
             owner=container.owner,
-            id=str(container.uuid_path),
+            id=self._get_object_id(container),
             paths=[str(p) for p in container.paths],
             title=container.title,
             categories=[str(c) for c in container.categories],
@@ -83,11 +94,10 @@ class WildlandCore(WildlandCoreApi):
         )
         return wl_container
 
-    @staticmethod
-    def _bridge_to_wl_bridge(bridge: Bridge) -> WLBridge:
+    def _bridge_to_wl_bridge(self, bridge: Bridge) -> WLBridge:
         wl_bridge = WLBridge(
             owner=bridge.owner,
-            id=str(bridge.paths[0]),  # TODO
+            id=self._get_object_id(bridge),
             user_pubkey=bridge.user_pubkey,
             user_id=bridge.user_id,
             user_location_description="",  # TODO
@@ -95,11 +105,10 @@ class WildlandCore(WildlandCoreApi):
         )
         return wl_bridge
 
-    @staticmethod
-    def _storage_to_wl_storage(storage: Storage) -> WLStorage:
+    def _storage_to_wl_storage(self, storage: Storage) -> WLStorage:
         wl_storage = WLStorage(
             owner=storage.owner,
-            id=str(storage.get_unique_publish_id()),  # TODO
+            id=self._get_object_id(storage),
             storage_type=storage.storage_type,
             container="",  # TODO
             trusted=storage.trusted,
@@ -116,7 +125,6 @@ class WildlandCore(WildlandCoreApi):
             return None
 
     # GENERAL METHODS
-    @wildland_result
     def object_info(self, yaml_data: str) -> Tuple[WildlandResult, Optional[WLObject]]:
         """
         This method parses yaml data and returns an appropriate WLObject; to perform any further
@@ -126,6 +134,7 @@ class WildlandCore(WildlandCoreApi):
         """
         return self.__object_info(yaml_data)
 
+    @wildland_result
     def __object_info(self, yaml_data):
         obj = self.client.load_object_from_bytes(None, yaml_data.encode())
         if isinstance(obj, User):
@@ -189,13 +198,20 @@ class WildlandCore(WildlandCoreApi):
         :param object_type: type of the object
         :return: tuple of WildlandResult and local file path or equivalent, if available
         """
+        return self._object_get_local_path(object_type, object_id)
+
+    @wildland_result()
+    def _object_get_local_path(self, object_type: WLObjectType, object_id: str):
         result = WildlandResult()
         obj_type = self._wl_obj_to_wildland_object(object_type)
         if not obj_type:
             result.errors.append(WLError(700, "Unknown object type", False, object_type, object_id))
             return result, None
-        path = self.client.find_local_manifest(obj_type, object_id)
-        return result, str(path)
+
+        for obj in self.client.load_all(obj_type):
+            if self._get_object_id(obj) == object_id:
+                return result, str(obj.local_path)
+        return result, None
 
     def object_update(self, updated_object: WLObject) -> Tuple[WildlandResult, Optional[str]]:
         """
@@ -208,6 +224,52 @@ class WildlandCore(WildlandCoreApi):
         the modified object
         """
         raise NotImplementedError
+
+    def object_get(self, object_type: WLObjectType, object_name: str) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Find provided WL object.
+        :param object_name: name of the object: can be the file name or user fingerprint or URL
+         (but not local path - in case of local path object should be loaded by object_info)
+        :param object_type: type of the object
+        :return: tuple of WildlandResult and object, if found
+        """
+        return self.__object_get(object_type, object_name)
+
+    @wildland_result()
+    def __object_get(self, object_type: WLObjectType, object_name: str):
+        obj_type = self._wl_obj_to_wildland_object(object_type)
+        assert obj_type
+        wildland_object = self.client.load_object_from_name(obj_type, object_name)
+        if object_type == WLObjectType.USER:
+            return self._user_to_wluser(wildland_object)
+        if object_type == WLObjectType.CONTAINER:
+            return self._container_to_wlcontainer(wildland_object)
+        if object_type == WLObjectType.BRIDGE:
+            return self._bridge_to_wl_bridge(wildland_object)
+        if object_type == WLObjectType.STORAGE:
+            return self._storage_to_wl_storage(wildland_object)
+        return None
+
+    def user_get_usages(self, user_id: str) -> Tuple[WildlandResult, List[WLObject]]:
+        """
+        Get all usages of the given user in the local context, e.g. objects owned by them.
+        :param user_id: user's id
+        :return: tuple of WildlandResult and list of objects found
+        """
+        return self.__user_get_usages(user_id)
+
+    @wildland_result(default_output=[])
+    def __user_get_usages(self, user_id: str):
+        usages: List[WLObject] = []
+        result, obj = self.user_get_by_id(user_id)
+        if not result.success:
+            return result, usages
+        assert obj
+        for container in self.client.load_all(WildlandObject.Type.CONTAINER):
+            if container.owner == obj.owner:
+                usages.append(self._container_to_wlcontainer(container))
+        return usages
 
     def put_file(self, local_file_path: str, wl_path: str) -> WildlandResult:
         """
@@ -265,6 +327,18 @@ class WildlandCore(WildlandCoreApi):
         raise NotImplementedError
 
     # USER METHODS
+    def user_get_by_id(self, user_id: str) -> Tuple[WildlandResult, Optional[WLUser]]:
+        """
+        Get user from specified ID.
+        """
+        return self.__user_get_by_id(user_id)
+
+    @wildland_result(default_output=None)
+    def __user_get_by_id(self, user_id: str):
+        user_name = user_id[:-1]
+        user_obj = self.client.load_object_from_name(WildlandObject.Type.USER, user_name)
+        return self._user_to_wluser(user_obj)
+
     def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
         """
         Generate a new encryption and signing key(s), store them in an appropriate location and
@@ -280,15 +354,25 @@ class WildlandCore(WildlandCoreApi):
             owner, pubkey = None, None
         return result, owner, pubkey
 
-    def user_remove_key(self, owner: str) -> WildlandResult:
+    def user_remove_key(self, owner: str, force: bool) -> WildlandResult:
         """
-        Remove an existing encryption/signing key.
+        Remove an existing encryption/signing key. If force is False, the key will not be removed
+        if there are any users who use it as a secondary encryption key.
         """
-        return self.__user_remove_key(owner)
+        return self.__user_remove_key(owner, force)
 
-    @wildland_result
-    def __user_remove_key(self, owner: str):
+    @wildland_result()
+    def __user_remove_key(self, owner: str, force: bool):
+        result = WildlandResult()
+        possible_owners = self.client.session.sig.get_possible_owners(owner)
+        if possible_owners != [owner] and not force:
+            result.errors.append(
+                WLError(701, 'Key used by other users as secondary key and will not be deleted. '
+                             'Key should be removed manually. In the future you can use --force to '
+                             'force key deletion.', False))
+            return result
         self.client.session.sig.remove_key(owner)
+        return result
 
     def user_import_key(self, public_key: bytes, private_key: bytes) -> WildlandResult:
         """
@@ -369,17 +453,20 @@ class WildlandCore(WildlandCoreApi):
             result.errors.append(WLError.from_exception(ex))
         return result, result_list
 
-    def user_delete(self, user_id: str, cascade: bool = False,
-                    force: bool = False, delete_keys: bool = False) -> WildlandResult:
+    def user_delete(self, user_id: str) -> WildlandResult:
         """
         Delete provided user.
         :param user_id: User ID (in the form of user fingerprint)
-        :param cascade: remove all of user's containers and storage as well
-        :param force: delete even if still has containers/storage
-        :param delete_keys: also remove user keys
         :return: WildlandResult
         """
-        raise NotImplementedError
+        return self.__user_delete(user_id)
+
+    @wildland_result(default_output=())
+    def __user_delete(self, user_id: str):
+        user = self.client.load_object_from_name(WildlandObject.Type.USER, user_id)
+        if not user.local_path:
+            raise FileNotFoundError('Can only delete a local manifest')
+        user.local_path.unlink()
 
     def user_import_from_path(self, path_or_url: str, paths: List[str], bridge_owner: Optional[str],
                               only_first: bool = False) -> Tuple[WildlandResult, Optional[WLUser]]:
@@ -582,16 +669,25 @@ class WildlandCore(WildlandCoreApi):
         """
         raise NotImplementedError
 
-    def container_delete(self, container_id: str, cascade: bool = False,
-                         force: bool = False) -> WildlandResult:
+    def container_delete(self, container_id: str) -> WildlandResult:
         """
         Delete provided container.
         :param container_id: container ID (in the form of user_id:/.uuid/container_uuid)
-        :param cascade: also delete local storage manifests
-        :param force: delete even when using local storage manifests; ignore errors on parse
-        :return: WildlandResult
         """
-        raise NotImplementedError
+        return self.__container_delete(container_id)
+
+    @wildland_result(default_output=())
+    def __container_delete(self, container_id: str):
+        found = False
+        for container in self.client.load_all(WildlandObject.Type.CONTAINER):
+            if self._container_to_wlcontainer(container).id == container_id:
+                if not container.local_path:
+                    raise FileNotFoundError('Can only delete a local manifest')
+                container.local_path.unlink()
+                found = True
+                break
+        if not found:
+            raise FileNotFoundError(f'Cannot find container {container_id}')
 
     def container_duplicate(self, container_id: str, name: Optional[str] = None) -> \
             Tuple[WildlandResult, Optional[WLContainer]]:

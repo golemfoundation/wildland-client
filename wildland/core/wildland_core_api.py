@@ -53,6 +53,25 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
+    def object_get(self, object_type: WLObjectType, object_name: str) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Find provided WL object.
+        :param object_name: name of the object: can be the file name or user fingerprint or URL
+         (but not local path - in case of local path object should be loaded by object_info)
+        :param object_type: type of the object
+        :return: tuple of WildlandResult and object, if found
+        """
+
+    @abc.abstractmethod
+    def user_get_usages(self, user_id: str) -> Tuple[WildlandResult, List[WLObject]]:
+        """
+        Get all usages of the given user in the local context, e.g. objects owned by them.
+        :param user_id: user's id
+        :return: tuple of WildlandResult and list of objects found
+        """
+
+    @abc.abstractmethod
     def object_sign(self, object_data: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Sign Wildland manifest data.
@@ -160,6 +179,12 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
 
     # USER METHODS
     @abc.abstractmethod
+    def user_get_by_id(self, user_id: str) -> Tuple[WildlandResult, Optional[WLUser]]:
+        """
+        Get user from specified ID.
+        """
+
+    @abc.abstractmethod
     def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
         """
         Generate a new encryption and signing key(s), store them in an appropriate location and
@@ -167,9 +192,10 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_remove_key(self, owner: str) -> WildlandResult:
+    def user_remove_key(self, owner: str, force: bool) -> WildlandResult:
         """
-        Remove an existing encryption/signing key.
+        Remove an existing encryption/signing key. If force is False, the key will not be removed
+        if there are any users who use it as a secondary encryption key.
         """
 
     @abc.abstractmethod
@@ -209,14 +235,10 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_delete(self, user_id: str, cascade: bool = False,
-                    force: bool = False, delete_keys: bool = False) -> WildlandResult:
+    def user_delete(self, user_id: str) -> WildlandResult:
         """
         Delete provided user.
         :param user_id: User ID (in the form of user fingerprint)
-        :param cascade: remove all of user's containers and storage as well
-        :param force: delete even if still has containers/storage
-        :param delete_keys: also remove user keys
         :return: WildlandResult
         """
 
@@ -415,14 +437,10 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def container_delete(self, container_id: str, cascade: bool = False,
-                         force: bool = False) -> WildlandResult:
+    def container_delete(self, container_id: str) -> WildlandResult:
         """
         Delete provided container.
         :param container_id: container ID (in the form of user_id:/.uuid/container_uuid)
-        :param cascade: also delete local storage manifests
-        :param force: delete even when using local storage manifests; ignore errors on parse
-        :return: WildlandResult
         """
 
     @abc.abstractmethod
