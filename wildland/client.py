@@ -33,6 +33,7 @@ import glob
 import os
 import sys
 import time
+from copy import deepcopy
 from graphlib import TopologicalSorter
 from pathlib import Path, PurePosixPath
 from subprocess import Popen
@@ -1405,7 +1406,8 @@ class Client:
         Load and set pubkeys from provided access list. Default owner is provided
         in order to load user access provided as WLPath.
         """
-        for access in access_list:
+        final_access_list = deepcopy(access_list)
+        for access in final_access_list:
             if access.get("user-path", None):
                 search = Search(client=self, wlpath=access["user-path"],
                                 aliases={'default': default_owner})
@@ -1421,3 +1423,4 @@ class Client:
             else:
                 raise WildlandError(f"Unknown access entry: {access}")
             access["pubkeys"] = self.session.sig.get_all_pubkeys(user.owner)
+        return final_access_list

@@ -106,7 +106,8 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     def to_manifest_fields(self, inline: bool):
         params = self.storage_driver.storage_backend.params
         if params.get("access"):
-            self.client.load_pubkeys_from_access(params["access"], '@default-owner')
+            params["access"] = self.client.load_pubkeys_from_access(
+                params["access"], '@default-owner')
         fields = {
             'object': 'link',
             'file': str(self.file_path),

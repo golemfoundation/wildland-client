@@ -217,8 +217,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         if self.trusted:
             fields['trusted'] = True
         if self.access:
-            fields['access'] = deepcopy(self.access)
-            self.client.load_pubkeys_from_access(fields["access"], self.owner)
+            fields['access'] = self.client.load_pubkeys_from_access(self.access, self.owner)
 
         self.BASE_SCHEMA.validate(fields)
 
