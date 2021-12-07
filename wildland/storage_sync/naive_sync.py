@@ -54,7 +54,7 @@ class NaiveSyncer(BaseSyncer):
     CONTINUOUS = True
     ONE_SHOT = True  # this syncer is capable of performing a one-shot sync
     UNIDIRECTIONAL = True  # this syncer is capable of performing unidirectional sync
-    REQUIRES_MOUNT = False  # this syncer does not require mount
+    REQUIRES_MOUNT = False  # this syncer does not require `wl c mount`
 
     def __init__(self,
                  source_storage: StorageBackend,
@@ -64,7 +64,7 @@ class NaiveSyncer(BaseSyncer):
                  target_mnt_path: Optional[Path] = None):
         super().__init__(source_storage, target_storage, log_prefix,
                          source_mnt_path, target_mnt_path)
-        self.storage_watchers: Dict[StorageBackend, StorageWatcher] = {}
+        self.storage_watchers: Dict[StorageBackend, Optional[StorageWatcher]] = {}
         self.storage_hashes: Dict[StorageBackend, Dict[PurePosixPath, Optional[str]]] = {}
         self.lock = threading.Lock()
         self.conflicts: List[SyncConflict] = []
@@ -75,20 +75,22 @@ class NaiveSyncer(BaseSyncer):
         """
         logger.debug("%s: starting file syncing.", self.log_prefix)
         # store in db what are found container/backend matches
-        storages = [self.source_storage]
+        watched_storages = [self.source_storage]
         if not unidirectional:
-            storages.append(self.target_storage)
+            watched_storages.append(self.target_storage)
         with self.lock:
-            for backend in storages:
+            self.source_storage.request_mount()
+            self.target_storage.request_mount()
+
+            for backend in watched_storages:
                 event_handler = partial(self._handle_events, backend)
-                backend.request_mount()
                 watcher = backend.start_watcher(handler=event_handler, ignore_own_events=True)
                 self.storage_watchers[backend] = watcher
 
                 logger.debug("%s: added watcher for storage %s.",
                              self.log_prefix, backend.backend_id)
 
-            self.one_shot_sync(unidirectional)
+            self._one_shot_sync(unidirectional)
 
     def _handle_conflict(self, storage_1, storage_2, path):
         """
@@ -106,6 +108,10 @@ class NaiveSyncer(BaseSyncer):
         self.notify_event(SyncProgressEvent(event_type, path))
 
     def one_shot_sync(self, unidirectional: bool = False):
+        with self.source_storage, self.target_storage:
+            self._one_shot_sync(unidirectional)
+
+    def _one_shot_sync(self, unidirectional: bool = False):
         """
         Initialize watcher state, especially hashes of all objects in watched storages.
         """
@@ -484,7 +490,8 @@ class NaiveSyncer(BaseSyncer):
         logger.debug("%s: stopping file syncing.", self.log_prefix)
         for backend in self.storage_watchers:
             backend.stop_watcher()
-            backend.request_unmount()
+        self.target_storage.request_unmount()
+        self.source_storage.request_unmount()
         self.conflicts.clear()
         self.storage_watchers.clear()
         logger.debug("%s: file syncing stopped.", self.log_prefix)
