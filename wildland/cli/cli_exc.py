@@ -23,7 +23,6 @@
 """
 Exceptions related to Cli module operations.
 """
-
 from gettext import gettext
 from typing import Optional, IO
 import click

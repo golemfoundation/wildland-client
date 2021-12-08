@@ -61,15 +61,13 @@ class Session:
         user.manifest = manifest
         return manifest.to_bytes()
 
-    def dump_object(self, obj: PublishableWildlandObject,
-                    path: Optional[Path] = None) -> bytes:
+    def dump_object(self, obj: PublishableWildlandObject, path: Optional[Path] = None) -> bytes:
         """
         Create a signed manifest out of a Bridge/Container/Storage object; if the object was created
         from a signed manifest and did not change, returns that object, otherwise creates and
         signs the manifest.
         """
         manifest = Manifest.from_fields(obj.to_manifest_fields(inline=False), local_path=path)
-
         try:
             if obj.manifest and obj.manifest.fields == manifest.fields:
                 return obj.manifest.to_bytes()

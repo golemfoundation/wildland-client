@@ -38,6 +38,7 @@ from ..publish import Publisher
 from ..manifest.template import TemplateManager, StorageTemplate
 from .cli_base import aliased_group, ContextObj
 from .cli_exc import CliError
+from ..wlpath import WildlandPath
 from .cli_common import modify_manifest, add_fields
 from .cli_container import _mount as mount_container
 from .cli_container import _unmount as unmount_container
@@ -165,18 +166,19 @@ def create(ctx: click.Context,
          storage from Forest manifests container
 
     """
-    _bootstrap_forest(ctx,
-                      owner,
-                      storage_template,
-                      manifest_local_dir,
-                      access)
+    access_list = []
+    if access:
+        for user in access:
+            if WildlandPath.WLPATH_RE.match(user):
+                access_list.append({"user-path": user})
+            else:
+                access_list.append({"user": user})
+
+    _bootstrap_forest(ctx, owner, storage_template, manifest_local_dir, access_list)
 
 
-def _bootstrap_forest(ctx: click.Context,
-                      user: str,
-                      manifest_storage_template_name: str,
-                      manifest_local_dir: str = '/',
-                      access: List[str] = None):
+def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_name: str,
+                      manifest_local_dir: str = '/', access: List[Dict] = None):
 
     obj: ContextObj = ctx.obj
 
@@ -193,13 +195,18 @@ def _bootstrap_forest(ctx: click.Context,
         raise CliError(f'Forest owner\'s [{user}] private key not found.')
 
     if access:
-        if len(access) == 1 and access[0] == '*':
+        if len(access) == 1 and access[0].get("user", None) == '*':
             access_list = [{'user': '*'}]
         else:
+            access_list = []
             try:
-                access_list = [{'user': obj.client.load_object_from_name(
-                                WildlandObject.Type.USER, user_name).owner}
-                               for user_name in access]
+                for a in access:
+                    if a.get("user", None):
+                        access_list.append({'user': obj.client.load_object_from_name(
+                                WildlandObject.Type.USER, a["user"]).owner})
+                    elif a.get("user-path", None):
+                        access_list.append(
+                            {'user-path': WildlandPath.get_canonical_form(a["user-path"])})
             except WildlandError as we:
                 raise CliError(f'User could not be loaded. {we}') from we
     else:
@@ -249,14 +256,15 @@ def _bootstrap_forest(ctx: click.Context,
 
         # Provision manifest storage with container from manifest catalog
         _bootstrap_manifest(manifests_backend, catalog_container.local_path,
-                           Path('.manifests.container.yaml'))
+                            Path('.manifests.container.yaml'))
 
         for storage in obj.client.all_storages(container=catalog_container):
             link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.container.yaml'}
 
             fields = storage.to_manifest_fields(inline=True)
             if not storage.access:
-                fields['access'] = access_list
+                fields['access'] = obj.client.load_pubkeys_from_access(
+                    access_list, forest_owner.owner)
 
             link_obj['storage'] = fields
             if storage.owner != forest_owner.owner:

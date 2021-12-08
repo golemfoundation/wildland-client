@@ -25,11 +25,32 @@ run wl forest create --access='*' mywebdav
 run wl container create \
     --template mywebdav \
     --path /mycontainer \
-    --no-encrypt-manifest
+    --no-encrypt-manifest mycontainer
 
 cp ~/.config/wildland/users/alice.user.yaml ~/Downloads/
 
-### 2. Create directory
+### 2. create Charlie user
+
+switch_user charlie
+
+run wl user create charlie
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/charlie
+
+run wl forest create --access='*' mywebdav
+
+# don't worry about manifest encryption, yet
+run wl container create \
+    --template mywebdav \
+    --path /mycontainerforwork \
+    --no-encrypt-manifest mycontainerforwork
+
+cp ~/.config/wildland/users/charlie.user.yaml ~/Downloads/
+
+
+### 3. Create directory
 
 switch_user directory
 
@@ -49,25 +70,145 @@ run wl forest create --access='*' mywebdav
 
 dir_userid=$(get_userid directory)
 
-### 3. Add Alice to the directory
+### 4. Add Alice and Charlie to the directory
 
 run wl user import --path /forests/alice --path /users/alice ~/Downloads/alice.user.yaml
+run wl user import --path /forests/charlie --path /users/charlie ~/Downloads/charlie.user.yaml
 
 run wl bridge publish alice
+run wl bridge publish charlie
 
-### 4. Put directory user manifest in a public https dir
+### 5. Put directory user manifest in a public https dir
 
 run wl get :/.manifests:/forest-owner.user.yaml /home/user/storage/public/forest-owner.user.yaml
 
-### 5. Create Bob user
+### 6. Create Bob user
 
 switch_user bob
 run wl user create bob
 
-### 6. Mount Alice's container via a directory, with a wl path hint
+### 7. Mount Alice's container via a directory, with a wl path hint
 
 run wl start
 run wl bridge import "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
 run wl forest mount "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
 
-tree ~/wildland
+run tree -a ~/wildland
+
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/bob
+
+### 8. Create container with access restricted to Alice
+
+run wl forest create --access='*' mywebdav
+
+run wl container create bob-and-alice --path /very/secret --storage-template mywebdav \
+  --access "wildland:$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/alice:"
+
+expected_pcre="(?:(Loading containers \(from ':\/very\/secret:'\): [0-9]*)*"\
+"(Checking container references \(from ':\/very\/secret:'\): [0-9]*)*"\
+"(Preparing mount of container references \(from ':\/very\/secret:'\): [0-9]*)*"\
+"(Mounting one storage)*)"
+run wl c mount :/very/secret:
+
+run bash -c "echo 'It works!' > ~/wildland/very/secret/Hello-World.md"
+
+run wl container publish bob-and-alice
+
+cp ~/.config/wildland/users/bob.user.yaml ~/Downloads/
+
+### 9. Add bob to the directory
+
+switch_user directory
+run wl user import --path /forests/bob --path /users/bob ~/Downloads/bob.user.yaml
+
+run wl bridge publish bob
+
+### 10. Mount Bob's container shared with Alice
+
+switch_user alice
+run wl start
+run wl bridge import --path /forests/bob \
+  "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/bob:"
+run wl forest mount "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/bob:"
+
+run tree -a ~/wildland
+
+### 11. Check that we have access to Bob's shared file
+
+cd ~/wildland/forests/bob\:/very/secret/
+expected="It works!"
+run cat Hello-World.md
+
+### 12. Import directory and give access to a new container for Directory and Charlie.
+
+run wl user import --path /forests/directory https://wildland.local/public/forest-owner.user.yaml
+
+run wl container create mycontainer2
+run wl container modify mycontainer2 \
+  --add-access "$dir_userid" \
+  --add-access "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:"
+
+expected_pcre="version: '1'
+object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+title: null
+categories: \[\]
+access:
+- user: '$USERID_PCRE'
+- user-path: 'wildland:$USERID_PCRE@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:'
+backends:
+  storage: \[\]"
+run wl container dump mycontainer2
+
+run wl container modify mycontainer2 --del-access \
+  "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:"
+
+expected_pcre="version: '1'
+object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+title: null
+categories: \[\]
+access:
+- user: '$USERID_PCRE'
+backends:
+  storage: \[\]"
+run wl container dump mycontainer2
+
+
+### 13. Create another forest for Alice with access to Charlie only
+
+run wl forest create \
+  --access="$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:" mywebdav
+
+expected_pcre="version: '1'
+object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+- /.manifests
+title: null
+categories: \[\]
+access:
+- user-path: 'wildland:$USERID_PCRE@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:'
+backends:
+  storage:
+  - object: storage
+    type: webdav
+    base_path: /alice/.manifests/$UUID_PCRE
+    credentials:
+      login: user
+      password: password
+    read-only: false
+    url: http://localhost:8081/
+    backend-id: $UUID_PCRE
+    manifest-pattern:
+      type: glob
+      path: /\*.{object-type}.yaml"
+run wl c dump alice-forest-catalog

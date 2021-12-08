@@ -49,6 +49,7 @@ from ..storage_sync.base import SyncState
 from ..manifest.manifest import ManifestError
 from ..exc import WildlandError
 from ..utils import format_command_options
+from ..wlpath import WildlandPath
 
 logger = get_logger('cli-storage')
 
@@ -153,8 +154,16 @@ def _do_create(
     if not encrypt_manifest:
         access_users = [{'user': '*'}]
     elif access:
-        access_users = [{'user': obj.client.load_object_from_name(
-            WildlandObject.Type.USER, user).owner} for user in access]
+        access_users = []
+        for a in access:
+            if WildlandPath.WLPATH_RE.match(a):
+                access_users.append(
+                    {'user-path': WildlandPath.get_canonical_form(a)}
+                )
+            else:
+                access_users.append(
+                    {'user': obj.client.load_object_from_name(WildlandObject.Type.USER, a).owner}
+                )
     elif container_obj.access:
         access_users = container_obj.access
 
