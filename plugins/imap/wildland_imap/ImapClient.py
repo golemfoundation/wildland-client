@@ -53,7 +53,7 @@ class MessageEnvelopeData:
     Compact representation of e-mail header, as we use it
     for processing internally.
     """
-    msg_uid: int
+    msg_uid: str
     # Note, that here a simplified approach is used, compared to
     # RFC5322, which assigns slightly different semantics to From
     # and Sender headers. Here we just collect every Sender/From
@@ -82,33 +82,33 @@ class LocalCache:
 
     def __init__(self, db: KVStore):
         self.db = db
-        self.msg_ids: Set[int] = set()
+        self.msg_ids: Set[str] = set()
 
     def get_ids(self):
         """
         Get all message IDs from cached storage.
         """
-        self.msg_ids = {int(x) for x in self.db.get_all_keys()}
+        self.msg_ids = self.db.get_all_keys()
 
-    def add_msg(self, msg_id: int, envelope: MessageEnvelopeData):
+    def add_msg(self, msg_id: str, envelope: MessageEnvelopeData):
         """
         Add a message to cached storage.
         """
-        self.db.store_object(str(msg_id), envelope)
+        self.db.store_object(msg_id, envelope)
         self.msg_ids.add(msg_id)
 
-    def get_msg(self, msg_id: int) -> MessageEnvelopeData:
+    def get_msg(self, msg_id: str) -> MessageEnvelopeData:
         """
         Get a message from cached storage.
         """
-        return self.db.get_object(str(msg_id))
+        return self.db.get_object(msg_id)
 
-    def del_msg(self, msg_id: int):
+    def del_msg(self, msg_id: str):
         """
         Delete a message from cached storage.
         """
         self.msg_ids.remove(msg_id)
-        self.db.del_object(str(msg_id))
+        self.db.del_object(msg_id)
 
 
 class ImapClient:
@@ -133,7 +133,7 @@ class ImapClient:
         self._envelope_cache = LocalCache(backend_db)
 
         # message id: message contents (only populated when message content is requested)
-        self._message_cache: Dict[int, List[MessagePart]] = dict()
+        self._message_cache: Dict[str, List[MessagePart]] = dict()
 
         # lock guarding access to local data structures
         self._local_lock = Lock()
@@ -192,8 +192,7 @@ class ImapClient:
         self.refresh_if_needed()
 
         with self._local_lock:
-            ids = self._envelope_cache.msg_ids
-            for msg_id in ids:
+            for msg_id in self._envelope_cache.msg_ids:
                 yield self._envelope_cache.get_msg(msg_id)
 
     def refresh_if_needed(self) -> int:
@@ -233,11 +232,11 @@ class ImapClient:
                         self.logger.warning('unknown response received: %s', reply)
             return self._mailbox_version
 
-    def get_message(self, msg_id: int) -> List[MessagePart]:
+    def get_message(self, msg_id: str) -> List[MessagePart]:
         """
         Read and return single message (basic headers and main contents) as byte array.
         """
-        self.logger.debug('get_message called for: %d', msg_id)
+        self.logger.debug('get_message called for: %s', msg_id)
         with self._local_lock:
             if msg_id not in self._message_cache:
                 self._message_cache[msg_id] = self._load_msg(msg_id)
@@ -245,13 +244,13 @@ class ImapClient:
 
         return rv
 
-    def _load_raw_message(self, msg_id: int) -> Message:
+    def _load_raw_message(self, msg_id: str) -> Message:
         """
         Load a message with given identifier from IMAP server.
         _imap_lock must be held.
         """
 
-        self.logger.debug('fetching message %d', msg_id)
+        self.logger.debug('fetching message %s', msg_id)
 
         assert self.imap is not None
         data = self.imap.fetch([msg_id], 'RFC822')
@@ -260,7 +259,7 @@ class ImapClient:
         msg = parser.parsebytes(data[msg_id][b'RFC822'])
         return msg
 
-    def _load_msg(self, msg_id: int) -> List[MessagePart]:
+    def _load_msg(self, msg_id: str) -> List[MessagePart]:
         """
         Load a message with given identifier from IMAP server and return it as a "pretty string".
         """
@@ -300,7 +299,7 @@ class ImapClient:
 
         return rv
 
-    def _del_msg(self, msg_id: int):
+    def _del_msg(self, msg_id: str):
         """
         Remove message from local cache.
         """
@@ -309,7 +308,7 @@ class ImapClient:
         if msg_id in self._message_cache:
             del self._message_cache[msg_id]
 
-    def _prefetch_msg(self, msg_id: int):
+    def _prefetch_msg(self, msg_id: str):
         """
         Fetch headers of given message and register them in cache.
         """
@@ -358,7 +357,7 @@ class ImapClient:
         finally:
             locale.setlocale(locale.LC_ALL, saved)
 
-    def _register_envelope(self, msg_id: int, env: Envelope):
+    def _register_envelope(self, msg_id: str, env: Envelope):
         """
         Create sender and timeline cache entries, based on raw envelope of received message.
         """
