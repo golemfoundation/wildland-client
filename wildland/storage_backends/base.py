@@ -416,14 +416,17 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def set_config_dir(self, config_dir):
         """
         Set path to config dir. Used to store hashes in a local sqlite DB.
-        Also location of a persistent key-value DB for use by the backend.
         """
         self.hash_db = HashDb(config_dir)
 
     @property
     def persistent_db(self) -> KVStore:
+        """
+        Returns instance of a persistent key-value DB for use by the backend.
+        """
         if self._persistent_db is None:
             config_dir = PurePosixPath(os.environ["WILDLAND_CONFIG_DIR"])
+            assert config_dir
             self._persistent_db = KVStore(config_dir, self.backend_id)
         return self._persistent_db
 
