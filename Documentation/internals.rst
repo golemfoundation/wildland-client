@@ -16,6 +16,9 @@ Storage backends
 .. autoclass:: wildland.storage_backends.base.StorageBackend
    :members:
 
+.. autoclass:: wildland.storage_backends.kv_store.KVStore
+   :members:
+
 .. autoclass:: wildland.storage_backends.local_cached.BaseCached
    :members:
 
