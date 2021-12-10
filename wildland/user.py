@@ -99,7 +99,8 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
                  paths: List[PurePosixPath],
                  manifests_catalog: List[Union[str, dict]],
                  client,
-                 manifest: Manifest = None):
+                 manifest: Manifest = None,
+                 members: List[dict] = None):
         super().__init__()
         self.owner = owner
         self.paths = paths
@@ -109,6 +110,8 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         self.pubkeys = pubkeys
         self.manifest = manifest
         self.client = client
+
+        self.members = members if members else []
 
     def get_unique_publish_id(self) -> str:
         return f'{self.owner}.user'
@@ -164,7 +167,8 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
             paths=[PurePosixPath(p) for p in fields['paths']],
             manifests_catalog=deepcopy(fields.get('manifests-catalog', [])),
             manifest=manifest,
-            client=client)
+            client=client,
+            members=fields.get('members', []))
 
     @property
     def has_catalog(self) -> bool:
@@ -239,6 +243,8 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
     def to_manifest_fields(self, inline: bool) -> dict:
         if inline:
             raise WildlandError('User manifest cannot be inlined.')
+        if self.members:
+            self.members = self.client.load_pubkeys_from_field(self.members, self.owner)
         result: Dict[Any, Any] = {
                 'version': Manifest.CURRENT_VERSION,
                 'object': 'user',
@@ -246,6 +252,7 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
                 'paths': [str(p) for p in self.paths],
                 'manifests-catalog': list(),
                 'pubkeys': self.pubkeys.copy(),
+                'members': self.members
             }
         for cached_object in self._manifests_catalog:
             result['manifests-catalog'].append(cached_object.get_raw_object(
@@ -272,3 +279,6 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
             sig_context.add_pubkey(self.pubkeys[0])
         for additional_pubkey in self.pubkeys[1:]:
             sig_context.add_pubkey(additional_pubkey, self.owner)
+        for user in self.members:
+            for pubkey in user.get('pubkeys', []):
+                sig_context.add_pubkey(pubkey, self.owner)

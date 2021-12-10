@@ -153,7 +153,6 @@ class Manifest:
                     raise ManifestError(f'Cannot encrypt to "{user if user else user_path}"')
                 keys_to_encrypt.extend(pubkeys)
                 data_dict.pop("pubkeys", None)
-
         keys_to_encrypt = set(keys_to_encrypt)
         data_to_encrypt = yaml_parser.dump(fields, sort_keys=False).encode()
         try:

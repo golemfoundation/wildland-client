@@ -40,6 +40,7 @@ from ..control_client import ControlClient, ControlClientUnableToConnectError
 from ..search import Search
 from ..storage_sync.daemon import SyncDaemon
 
+
 ## CLI
 
 
@@ -53,6 +54,24 @@ def base_dir():
             yaml_parser.dump({
                 'mount-dir': str(base_dir / 'wildland'),
                 'dummy': True,
+            }, f)
+        yield base_dir
+    finally:
+        shutil.rmtree(base_dir)
+        Search.clear_cache()
+
+
+# fixme: find a way to customize 'base_dir' and 'cli' fixtures properly for injecting 'dummy' value
+#  instead of duplicating code
+@pytest.fixture
+def base_dir_sodium():
+    base_dir_s = tempfile.mkdtemp(prefix='wlcli.')
+    base_dir = Path(base_dir_s)
+    try:
+        os.mkdir(base_dir / 'wildland')
+        with open(base_dir / 'config.yaml', 'w') as f:
+            yaml_parser.dump({
+                'mount-dir': str(base_dir / 'wildland')
             }, f)
         yield base_dir
     finally:
@@ -76,6 +95,14 @@ def _wait_for_sync_daemon(socket_path):
         except ControlClientUnableToConnectError:
             time.sleep(delay)
     pytest.fail('Timed out waiting for sync daemon')
+
+
+@pytest.fixture
+def dir_userid():
+    assert os.path.exists('/tmp/dir_userid')
+    with open('/tmp/dir_userid') as f:
+        dir_userid = f.read().splitlines()[0]
+    return dir_userid
 
 
 @pytest.fixture
@@ -123,6 +150,35 @@ def cli(base_dir, capsys):
         # sync daemon is started and stopped by the sync fixture
         cli('stop', '--keep-sync-daemon')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock').unlink(missing_ok=True)
+
+
+@pytest.fixture
+def cli_sodium(base_dir_sodium, capsys):
+    def cli(*args, capture=False):
+        cmdline = ['--base-dir', base_dir_sodium, *args]
+        # Convert Path to str
+        cmdline = [str(arg) for arg in cmdline]
+        if capture:
+            capsys.readouterr()
+        try:
+            cli_main.main.main(args=cmdline, prog_name='wl')
+        except SystemExit as e:
+            if e.code not in [None, 0]:
+                if hasattr(e, '__context__'):
+                    assert isinstance(e.__context__, Exception)
+                    raise e.__context__
+                pytest.fail(f'command failed: {args}')
+        if capture:
+            out, _err = capsys.readouterr()
+            return out
+        return None
+    yield cli
+
+    if os.path.ismount(base_dir_sodium / 'wildland'):
+        # sync daemon is started and stopped by the sync fixture
+        cli('stop', '--keep-sync-daemon')
+        (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir_sodium))) / 'wlfuse.sock'
+         ).unlink(missing_ok=True)
 
 
 # TODO examine exception

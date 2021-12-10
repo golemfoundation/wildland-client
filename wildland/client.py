@@ -1163,8 +1163,7 @@ class Client:
                 try:
                     return local_path.read_bytes()
                 except IOError as e:
-                    raise WildlandError('Error retrieving file URL: {}: {}'.format(
-                        url, e)) from e
+                    raise WildlandError(f'Error retrieving file URL: {url}: {e}') from e
             raise FileNotFoundError(2, 'File URL not found', url)
 
         if url.startswith('http:') or url.startswith('https:'):
@@ -1173,8 +1172,7 @@ class Client:
                 resp.raise_for_status()
                 return resp.content
             except Exception as e:
-                raise WildlandError('Error retrieving HTTP/HTTPS URL: {}: {}'.format(
-                    url, e)) from e
+                raise WildlandError(f'Error retrieving HTTP/HTTPS URL: {url}: {e}') from e
 
         raise WildlandError(f'Unrecognized URL: {url}')
 
@@ -1401,26 +1399,29 @@ class Client:
 
         return msg, success
 
-    def load_pubkeys_from_access(self, access_list, default_owner):
+    def load_pubkeys_from_field(self, input_list, default_owner: str = None):
         """
         Load and set pubkeys from provided access list. Default owner is provided
         in order to load user access provided as WLPath.
         """
-        final_access_list = deepcopy(access_list)
-        for access in final_access_list:
-            if access.get("user-path", None):
-                search = Search(client=self, wlpath=access["user-path"],
-                                aliases={'default': default_owner})
+        final_list = deepcopy(input_list)
+        for elmnt in final_list:
+            if elmnt.get("user-path", None):
+                if default_owner:
+                    aliases = {'default': default_owner}
+                else:
+                    aliases = {}
+                search = Search(client=self, wlpath=elmnt["user-path"], aliases=aliases)
                 bridge = list(search.read_bridge())[0]
                 user = self.load_object_from_url_or_dict(object_type=WildlandObject.Type.USER,
                                                          obj=bridge.user_location,
                                                          owner=bridge.user_id)
                 self.recognize_users_and_bridges([user], [bridge])
-            elif access.get("user", None):
-                if access["user"] == "*":
+            elif elmnt.get("user", None):
+                if elmnt["user"] == "*":
                     continue
-                user = self.load_object_from_name(WildlandObject.Type.USER, access["user"])
+                user = self.load_object_from_name(WildlandObject.Type.USER, elmnt["user"])
             else:
-                raise WildlandError(f"Unknown access entry: {access}")
-            access["pubkeys"] = self.session.sig.get_all_pubkeys(user.owner)
-        return final_access_list
+                raise WildlandError(f"Unknown entry: {elmnt}")
+            elmnt["pubkeys"] = self.session.sig.get_all_pubkeys(user.owner)
+        return final_list

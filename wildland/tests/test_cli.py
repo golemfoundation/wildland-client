@@ -22,7 +22,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
-
 from copy import deepcopy
 from pathlib import Path
 import itertools
@@ -84,6 +83,7 @@ def strip_yaml(line):
     """
 
     return line.strip('\n -')
+
 
 # Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
 
@@ -169,6 +169,31 @@ def test_user_create_additional_keys(cli, base_dir):
         data = f.read()
 
     assert 'pubkeys:\n- key.0x111\n- key.0xbbb' in data
+
+
+def test_user_create_additional_keys_user_path(cli_sodium, base_dir_sodium, dir_userid):
+    user_path = \
+        f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    cli_sodium('user', 'create', 'User', '--add-pubkey', user_path)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+
+
+def test_user_add_del_pubkey_user_path(cli_sodium, base_dir_sodium, dir_userid):
+    cli_sodium('user', 'create', 'User')
+
+    user_path = \
+        f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    cli_sodium('user', 'modify', 'User', '--add-pubkey', user_path)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+
+    cli_sodium('user', 'modify', 'User', '--del-pubkey', user_path)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert "members: []" in data
 
 
 def test_user_list(cli, base_dir):

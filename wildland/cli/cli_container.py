@@ -195,8 +195,8 @@ def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Opt
     else:
         access_list = []
 
-    owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER,
-                                                  owner or '@default-owner')
+    owner_user = obj.client.load_object_from_name(
+        WildlandObject.Type.USER, owner or '@default-owner')
 
     container = Container(
         owner=owner_user.owner,

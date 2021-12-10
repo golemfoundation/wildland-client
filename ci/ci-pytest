@@ -2,7 +2,8 @@
 
 set -ex
 
-. /home/user/env/bin/activate
+# Setup user directory for using user-path inside pytest
+./ci/user-directory-setup
 
 pytest -v \
     --cov wildland \

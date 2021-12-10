@@ -27,6 +27,12 @@
                 ]
             },
             "description": "list of manifests catalogs (for finding this user's manifests); can contain either links or inline containers"
+        },
+        "members": {
+            "type": "array",
+            "items": {"$ref": "/schemas/types.json#access-user-path"},
+            "minItems": 0,
+            "description": "list of extra users provided as user paths (owner always has access and does not have to be listed here)"
         }
     },
     "additionalProperties": false
