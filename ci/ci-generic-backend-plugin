@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+
+set -ex
+
+PLUGIN_NAME=$1
+STORAGE_CREDENTIALS=$2
+
+. /home/user/env/bin/activate
+. ci/install-inplace "$PLUGIN_NAME"
+
+# Variable indicating whether the test passed or failed (0=passed, 1=failed)
+
+TEST_FAILED=1
+
+# Set a description for the currently running test phase to facilitate debugging in case of failure
+
+STAGE="setting up testing environment"
+
+# A cleanup function that is ran after test completion, no matter if the test passed or failed
+
+function cleanup {
+    local err=$?
+    local -n _files_to_remove=$1
+    local -n _containers_to_unmount=$2
+    [[ $TEST_FAILED -eq 1 ]] && echo "Test failed during $STAGE" >&2 || echo "Test passed successfully!"
+    # remove before unmounting as some files to be removed live in the mount point
+    (( ${#_files_to_remove[@]} )) && time -p chronic rm -rf "${_files_to_remove[@]}"
+    (( ${#_containers_to_unmount[@]} )) && time -p chronic $WL container unmount "${_containers_to_unmount[@]}"
+    time -p chronic $WL stop
+    exit $err
+}
+
+# Containers and dirs/files that need to be unmounted and removed respectively in the cleanup function
+
+CONTAINERS_TO_UNMOUNT=()
+FILES_TO_REMOVE=()
+
+# Paths to Wildland container mounting points
+
+ROOT="$HOME/wildland"
+MNT_DIR_1="$PLUGIN_NAME-mnt-1"
+MNT_DIR_2="$PLUGIN_NAME-mnt-2"
+MNT_DIR_3="$PLUGIN_NAME-mnt-3"
+MNT_PATH_1="$ROOT/$MNT_DIR_1"
+MNT_PATH_2="$ROOT/$MNT_DIR_2"
+MNT_PATH_3="$ROOT/$MNT_DIR_3"
+
+
+# Create a Wildland container and attach the storage to it
+
+WL='python3 -m coverage run -p ./wl'
+$WL user create "$PLUGIN_NAME-user"
+$WL container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" "$PLUGIN_NAME-test-container"
+$WL storage create "$PLUGIN_NAME" --container "$PLUGIN_NAME-test-container" --inline $STORAGE_CREDENTIALS
+$WL start --container "$PLUGIN_NAME-test-container"
+CONTAINERS_TO_UNMOUNT+=("$PLUGIN_NAME-test-container")
+
+# Set up a cleanup handler to make sure test directory is deleted even if the test fails
+
+trap "cleanup FILES_TO_REMOVE CONTAINERS_TO_UNMOUNT" EXIT
+
+# Create a temporary timestamped test directory
+
+DIRNAME_DATE="$(date +%Y-%m-%d_%H:%M:%S)"
+TEST_REMOTE_DIR="$(mktemp -d -p "$MNT_PATH_1" -t gitlab-ci-"$PLUGIN_NAME"-testdir_"$DIRNAME_DATE"_XXXXXXXXXX)"
+TEST_LOCAL_DIR="$(mktemp -d)"
+FILES_TO_REMOVE+=("$TEST_REMOTE_DIR" "$TEST_LOCAL_DIR")
+
+# Test adding some directories
+
+time -p chronic mkdir -p "$TEST_REMOTE_DIR"/dir{00..02}/subdir{00,01}
+
+# List content of the root directory
+
+STAGE="listing content of '$TEST_REMOTE_DIR'"
+time -p chronic ls -lai "$TEST_REMOTE_DIR"
+
+# Test non-empty files creation with echo
+
+STAGE="creating non-empty files with echo"
+DEST="$TEST_REMOTE_DIR/123.txt" time -p chronic /bin/bash -c 'echo "one two three" > "$DEST"'
+DEST="$TEST_REMOTE_DIR/456.txt" time -p chronic /bin/bash -c 'echo -n "four five six" > "$DEST"'
+
+# Test file append
+
+STAGE="appending to the existing files"
+DEST="$TEST_REMOTE_DIR/456.txt" time -p chronic /bin/bash -c 'echo -n " seven eight" >> "$DEST"'
+DEST="$TEST_REMOTE_DIR/456.txt" time -p chronic /bin/bash -c 'echo " nine ten" >> "$DEST"'
+
+# Test file copy
+
+STAGE="copying files"
+time -p chronic cp "$TEST_REMOTE_DIR/123.txt" "$TEST_REMOTE_DIR/123_copy.txt"
+time -p chronic cp "$TEST_REMOTE_DIR/"{123,456}.txt "$TEST_REMOTE_DIR/dir00/subdir00"
+
+# Test file rename with no filename collision (no overwrite)
+
+STAGE="renaming file with no filename collision (no overwrite)"
+time -p chronic mv "$TEST_REMOTE_DIR"/dir0{0,1}/subdir00/123.txt
+SRC="$TEST_REMOTE_DIR/dir01/subdir00/123.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "one two three" ]]'
+
+# Test file rename with name collision (overwrite)
+
+STAGE="renaming file with a filename collision (overwrite)"
+time -p chronic mv "$TEST_REMOTE_DIR/dir00/subdir00/456.txt" "$TEST_REMOTE_DIR/dir01/subdir00/123.txt"
+SRC="$TEST_REMOTE_DIR/dir01/subdir00/123.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four five six seven eight nine ten" ]]'
+
+# Move directory
+
+STAGE="moving '$TEST_REMOTE_DIR/dir01/subdir00'"
+time -p chronic mv "$TEST_REMOTE_DIR/dir01/subdir00" "$TEST_REMOTE_DIR/dir02/subdir02"
+
+# Test getattr syscall
+
+STAGE="calling getattr on files living in '$TEST_REMOTE_DIR'"
+time -p chronic stat "$TEST_REMOTE_DIR/123.txt"
+time -p chronic stat "$TEST_REMOTE_DIR/456.txt"
+time -p chronic du "$TEST_REMOTE_DIR/123.txt"
+time -p chronic du "$TEST_REMOTE_DIR/456.txt"
+
+# Recursive directory listing test after creation of the above files and directories
+
+STAGE="recursive '$TEST_REMOTE_DIR' listing"
+time -p chronic tree -a --inodes "$TEST_REMOTE_DIR"
+
+# Test readdir for both mount points and assert identical listing results
+
+STAGE="calling diff on the directories '$MNT_PATH_1' and '$MNT_PATH_2'"
+time -p chronic diff -rq "$MNT_PATH_1" "$MNT_PATH_2"
+
+# Test file removal
+
+STAGE="removing '$TEST_REMOTE_DIR/123_copy.txt'"
+time -p chronic rm "$TEST_REMOTE_DIR/123_copy.txt"
+
+# Test truncating test file
+
+STAGE="truncating '$TEST_REMOTE_DIR/456.txt'"
+time -p chronic truncate --size 4 "$TEST_REMOTE_DIR/456.txt"
+SRC="$TEST_REMOTE_DIR/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four" ]]'
+
+# Test storage template creation
+
+STAGE="testing storage template creation"
+$WL template create "$PLUGIN_NAME" $STORAGE_CREDENTIALS "$PLUGIN_NAME-template"
+$WL container create template-container --path "/$MNT_DIR_3" --template "$PLUGIN_NAME-template"
+$WL container mount template-container
+CONTAINERS_TO_UNMOUNT+=('template-container')
+
+# Test simple directory/file adding
+
+STAGE="testing simple directory/file adding"
+time -p chronic mkdir -p "$MNT_PATH_3/dir"{1,2}
+FILES_TO_REMOVE+=("$MNT_PATH_3/dir"{1,2})
+
+DEST="$MNT_PATH_3/file1" time -p chronic /bin/bash -c 'echo "test file 1" > "$DEST"'
+DEST="$MNT_PATH_3/dir1/file2" time -p chronic /bin/bash -c 'echo "test file 2" > "$DEST"'
+FILES_TO_REMOVE+=("$MNT_PATH_3/file1" "$MNT_PATH_3/dir1/file2")
+
+# Test listing contents of said directories
+
+STAGE="listing contents of "$MNT_PATH_3" directory and its subdirectories"
+time -p chronic ls -a "$MNT_PATH_3"
+time -p chronic ls -a "$MNT_PATH_3/dir1"
+time -p chronic ls -a "$MNT_PATH_3/dir2"
+
+# Test checking file content
+
+STAGE="testing checking content of '$MNT_PATH_3/file1'"
+SRC="$MNT_PATH_3/file1" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "test file 1" ]]' \
+    || echo "Unexpected content of $SRC" >&2
+
+# Define a helper function to check that the specified file is of the expected length
+
+function assert_expected_file_size {
+    local file_path="$1"
+    local expected_file_size_bytes="$2"
+    local actual_file_size_bytes=$(stat --printf="%s" "$file_path")
+
+    if [[ "$actual_file_size_bytes" != "$expected_file_size_bytes" ]]; then
+        echo "Unexpected '$file_path' size: expected size was $expected_file_size_bytes bytes, got"\
+            "$actual_file_size_bytes bytes instead" >&2
+        exit 1
+    fi
+}
+
+# Create random file locally, copy it to the Wildland mount point, truncate the original file by
+# random number of bytes and copy it again to the Wildland mount point, check if the copied file
+# living in the Wildland's mount point has correct number of bytes to make sure no garbage is in the
+# end of the file (this is check against issue #607)
+
+MIN_FILE_BYTES=$((2 ** 10))  # 1 KiB
+MAX_FILE_BYTES=$((2 ** 20))  # 10 MiB
+ITERATIONS=100
+
+for ((n=1;n<=$ITERATIONS;n++)); do
+    STAGE="testing against issue #607 (iteration #$n out of $ITERATIONS)"
+
+    # create a local file with random size from the range [MIN_FILE_BYTES;MAX_FILE_BYTES]
+
+    FILE_PATH="$TEST_LOCAL_DIR/test"
+    FILE_SIZE_BYTES=$(($MIN_FILE_BYTES + $RANDOM % ($MAX_FILE_BYTES - $MIN_FILE_BYTES + 1)))
+    base64 /dev/urandom | head -c $FILE_SIZE_BYTES > "$FILE_PATH"
+    assert_expected_file_size "$FILE_PATH" "$FILE_SIZE_BYTES"
+
+    # copy the file to the Wildland mount point and check if the file size is correct
+
+    time -p chronic cp "$FILE_PATH" "$MNT_PATH_3"
+    assert_expected_file_size "$MNT_PATH_3/test" "$FILE_SIZE_BYTES"
+
+    # truncate the file locally to a random number of bytes from range [0;FILE_SIZE_BYTES]
+
+    NEW_FILE_SIZE_BYTES=$(($RANDOM % ($FILE_SIZE_BYTES + 1)))
+    time -p chronic truncate --size "$NEW_FILE_SIZE_BYTES" "$FILE_PATH"
+    assert_expected_file_size "$FILE_PATH" "$NEW_FILE_SIZE_BYTES"
+
+    # copy the truncated file back to the Wildland mount point and recheck if the file size is correct
+
+    time -p chronic cp "$FILE_PATH" "$MNT_PATH_3"
+    assert_expected_file_size "$MNT_PATH_3/test" "$NEW_FILE_SIZE_BYTES"
+done
+
+# If we reach this line, then the test passed successfully (no matter if cleanup is successful or not)
+
+TEST_FAILED=0
+
+# Cleanup
+
+cleanup FILES_TO_REMOVE CONTAINERS_TO_UNMOUNT
