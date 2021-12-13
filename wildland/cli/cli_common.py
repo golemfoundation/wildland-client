@@ -510,7 +510,7 @@ def prepare_remount(obj, container, storages, user_paths, force_remount=False):
     """
     Return storages to remount and storage IDs to unmount when remounting the container.
     """
-    LOGGER.info('Prepare remount')
+    LOGGER.debug('Prepare remount')
     storages_to_remount = []
     storages_to_unmount = []
 
@@ -525,18 +525,17 @@ def prepare_remount(obj, container, storages, user_paths, force_remount=False):
 
         assert storage_id is not None
         assert pseudo_storage_id is not None
-        LOGGER.info('  Removing orphan %s @ id: %d', path, storage_id)
+        LOGGER.debug('  Removing orphan storage %s @ id: %d', path, storage_id)
 
         storages_to_unmount += [storage_id, pseudo_storage_id]
 
     if not force_remount:
         for storage in storages:
             if obj.fs_client.should_remount(container, storage, user_paths):
-                LOGGER.info('  Remounting storage: %s', storage.backend_id)
+                LOGGER.debug('  Remounting storage: %s', storage.backend_id)
                 storages_to_remount.append(storage)
             else:
-                LOGGER.info('  Storage not changed: %s', storage.backend_id)
-                print('  Storage not changed: %s', storage.backend_id)
+                LOGGER.debug('  Storage not changed: %s', storage.backend_id)
     else:
         storages_to_remount = storages
 
