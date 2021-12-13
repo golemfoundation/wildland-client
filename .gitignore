@@ -8,5 +8,6 @@ build/
 .pytest_cache
 /*.log
 .vscode
+.idea
 .devcontainer
 artifacts/
