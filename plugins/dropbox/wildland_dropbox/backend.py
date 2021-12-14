@@ -323,7 +323,7 @@ class DropboxStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Stor
         else:
             full_file_content = self.client.get_file_content(self._path(path))
             truncated_content = full_file_content[:length]
-        self.client.upload_file(truncated_content, path)
+        self.client.upload_file(truncated_content, self._path(path))
         self.clear_cache()
 
     def get_file_token(self, path: PurePosixPath) -> Optional[str]:
