@@ -311,6 +311,15 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/zip-archive.rsti
 
+.. program:: wl-template-create-redis
+.. _wl-template-create-redis:
+
+:command:`wl template create redis --hostname <string> --database <int> [--password <string>] [--port 6379] NAME`
+-----------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/redis.rsti
+
 .. program:: wl-template-add-bear-db
 .. _wl-template-add-bear-db:
 
@@ -525,6 +534,15 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/git.rsti
+
+.. program:: wl-template-add-redis
+.. _wl-template-add-redis:
+
+:command:`wl template add redis --hostname <string> --database <int> [--password <string>] [--port 6379] NAME`
+--------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-template-create.rsti
+.. include:: include/storages/redis.rsti
 
 .. program:: wl-template-edit
 .. _wl-template-edit:

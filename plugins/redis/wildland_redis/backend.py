@@ -68,7 +68,7 @@ class RedisFile(FullBufferedFile):
 
 class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBackend):
     """
-    xyz
+    Redis KV storage backend
     """
 
     SCHEMA = Schema({
@@ -94,6 +94,12 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
             "password": {
                 "type": "string",
                 "description": "Server password",
+            },
+            "manifest-pattern": {
+                "oneOf": [
+                    {"$ref": "/schemas/types.json#pattern-glob"},
+                    {"$ref": "/schemas/types.json#pattern-list"},
+                ]
             },
         }
     })
@@ -142,7 +148,8 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
 
     @classmethod
     def cli_options(cls):
-        return [
+        opts = super(RedisStorageBackend, cls).cli_options()
+        opts.extend([
             click.Option(['--prefix'], required=False, metavar='PATH',
                          help='Redis key prefix as an absolute path, defaults to /'),
             click.Option(['--database'], required=True, metavar='INTEGER',
@@ -153,17 +160,20 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
                          help='Server port (defaults to 6379)'),
             click.Option(['--password'], required=False,
                          help='Server password'),
-        ]
+        ])
+        return opts
 
     @classmethod
     def cli_create(cls, data):
-        return {
+        opts = super(RedisStorageBackend, cls).cli_create(data)
+        opts.update({
             'prefix': data.get('prefix', '/'),
             'database': int(data.get('database') or 0),
             'hostname': data.get('hostname'),
             'port': int(data.get('port') or 6379),
             'password': data.get('password', None),
-        }
+        })
+        return opts
 
     def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:

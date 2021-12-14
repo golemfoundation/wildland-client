@@ -20,11 +20,24 @@ RUN apt-get -qy update && apt-get install -y \
         moreutils \
         openssh-server \
         sshfs \
+        redis-server \
     && apt-get autoremove -y \
     && . /home/user/env/bin/activate \
     && pip install --no-cache-dir --no-warn-script-location -r requirements.ci.txt \
     && rm -rf /var/lib/lists/* \
     && apt-get clean autoclean
+
+# Redis Server
+
+RUN echo '\
+daemonize yes\n\
+port 6379\n\
+bind 127.0.0.1\n\
+requirepass /.,/.,/.,\n\
+dir /tmp/redis\n\
+logfile /tmp/redis-server.log\n\
+' > /etc/redis.conf
+RUN mkdir -p /tmp/redis
 
 # IMAP mock env
 

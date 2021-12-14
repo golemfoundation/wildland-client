@@ -167,6 +167,11 @@ s3-test:
   script:
     - ./ci/ci-s3
 
+redis-test:
+  extends: .plugin_test
+  script:
+    - ./ci/ci-redis
+
 webdav-test:
     extends: .plugin_test
     script:

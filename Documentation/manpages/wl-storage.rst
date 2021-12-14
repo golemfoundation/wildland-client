@@ -309,6 +309,15 @@ Create encrypted storage for a given container. Please read details below to und
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/git.rsti
 
+.. program:: wl-storage-create-redis
+.. _wl-storage-create-redis:
+
+:command:`wl storage create redis --container <container> --hostname <string> --database <int> [--password <string>] [--port 6379]`
+-----------------------------------------------------------------------------------------------------------------------------------
+
+.. include:: include/wl-storage-create.rsti
+.. include:: include/storages/redis.rsti
+
 .. _wl-storage-sign:
 .. _wl-storage-verify:
 .. _wl-storage-edit:
