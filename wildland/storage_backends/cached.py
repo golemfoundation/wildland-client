@@ -69,9 +69,16 @@ class BaseCachedStorageMixin(metaclass=abc.ABCMeta):
         if attr is None:
             self.getattr_cache.pop(path, None)
             self.readdir_cache.pop(path, None)
+
+            # Remove from parent's dir cache
+            self.readdir_cache.get(path.parent, set()).discard(path.name)
             return
 
         self.getattr_cache[path] = attr
+
+        # Prevent recursive caching
+        if path.parent != path:
+            self.readdir_cache.setdefault(path.parent, set()).add(path.name)
 
         if attr.is_dir():
             self.readdir_cache.setdefault(path, set())
