@@ -647,7 +647,25 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
 
         return data
 
-    def release(self, _path: PurePosixPath, flags: int, obj: File) -> None:
-        super().release(_path, flags, obj)
-        if isinstance(obj, S3File):
-            self._update_index(_path.parent)
+    def flush(self, path: PurePosixPath, obj: File) -> None:
+        """
+        Performance hack. Assumes the buffer is going to be dumped to the file,
+        without sending get() request to the backend server to verify that the bytes
+        were actually written. Situation like that should not happen though as if
+        the dirty buffer failed to write to the backend, it should throw an exception.
+        """
+        attr = obj.fgetattr()
+        super().flush(path, obj)
+
+        self.update_cache(path, attr)
+        self._update_index(path.parent)
+
+    def release(self, path: PurePosixPath, flags: int, obj: File) -> None:
+        """
+        Same performance hack as in flush()
+        """
+        attr = obj.fgetattr()
+        super().release(path, flags, obj)
+
+        self.update_cache(path, attr)
+        self._update_index(path.parent)
