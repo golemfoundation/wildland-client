@@ -250,16 +250,26 @@ class DirectoryCachedStorageMixin(BaseCachedStorageMixin):
 
         raise NotImplementedError()
 
+    def update_cache(self, path: PurePosixPath, attr: Optional[Attr]) -> None:
+        """
+        Update item in the cache instead of invalidating all of the items.
+        """
+        with self.cache_lock:
+            self._update_cache(path, attr)
+
     def _update_dir(self, path: PurePosixPath) -> None:
         if self.dir_expiry.get(path, 0) >= time.time():
             return
 
         if path in self.dir_expiry:
-            self._clear_dir(path)
+            self.invalidate_dir_cache(path)
 
         self._refresh_dir(path)
 
-    def _clear_dir(self, path: PurePosixPath) -> None:
+    def invalidate_dir_cache(self, path: PurePosixPath) -> None:
+        """
+        Invalidates directory cache
+        """
         del self.dir_expiry[path]
 
         if path in self.readdir_cache:

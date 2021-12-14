@@ -248,7 +248,9 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
                 self.write_full(bytes(self.buf))
                 if self.clear_cache:
                     self.clear_cache()
-        del self.buf
+
+            del self.buf
+            self.loaded = False
 
     def _load(self) -> None:
         if not self.loaded:
@@ -284,7 +286,11 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
             else:
                 self.loaded = True
 
-            if length < len(self.buf):
+            # Mark file as dirty for flush() and/or release()
+            #
+            # Truncating file to the length of 0 is a special case when we always want to assume
+            # the file being dirty, because we haven't actually loaded the file from the remote.
+            if length < len(self.buf) or length == 0:
                 self.buf = self.buf[:length]
                 self.dirty = True
 
