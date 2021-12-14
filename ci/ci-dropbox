@@ -10,4 +10,4 @@ if [ -n "$ACCESS_TOKEN" ]; then
   STORAGE_CREDENTIALS="--token $ACCESS_TOKEN"
 fi
 
-. ci/ci-generic-backend-plugin dropbox "$STORAGE_CREDENTIALS"
+. ci/ci-generic-backend-plugin dropbox $STORAGE_CREDENTIALS

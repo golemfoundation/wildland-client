@@ -1,5 +1,3 @@
 #!/usr/bin/env bash
 
-STORAGE_CREDENTIALS="--credentials $1 --skip-interaction"
-
-. ci/ci-generic-backend-plugin googledrive "$STORAGE_CREDENTIALS"
+. ci/ci-generic-backend-plugin googledrive --skip-interaction --credentials "$1"

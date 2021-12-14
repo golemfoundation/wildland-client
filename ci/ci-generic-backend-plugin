@@ -2,8 +2,9 @@
 
 set -ex
 
+# First argument is a plugin name. The rest arguments are used for creating the backend storage.
 PLUGIN_NAME=$1
-STORAGE_CREDENTIALS=$2
+shift
 
 . /home/user/env/bin/activate
 . ci/install-inplace "$PLUGIN_NAME"
@@ -51,7 +52,7 @@ MNT_PATH_3="$ROOT/$MNT_DIR_3"
 WL='python3 -m coverage run -p ./wl'
 $WL user create "$PLUGIN_NAME-user"
 $WL container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" "$PLUGIN_NAME-test-container"
-$WL storage create "$PLUGIN_NAME" --container "$PLUGIN_NAME-test-container" --inline $STORAGE_CREDENTIALS
+$WL storage create "$PLUGIN_NAME" --container "$PLUGIN_NAME-test-container" --inline "$@"
 $WL start --container "$PLUGIN_NAME-test-container"
 CONTAINERS_TO_UNMOUNT+=("$PLUGIN_NAME-test-container")
 
@@ -142,7 +143,7 @@ SRC="$TEST_REMOTE_DIR/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") ==
 # Test storage template creation
 
 STAGE="testing storage template creation"
-$WL template create "$PLUGIN_NAME" $STORAGE_CREDENTIALS "$PLUGIN_NAME-template"
+$WL template create "$PLUGIN_NAME" "$@" "$PLUGIN_NAME-template"
 $WL container create template-container --path "/$MNT_DIR_3" --template "$PLUGIN_NAME-template"
 $WL container mount template-container
 CONTAINERS_TO_UNMOUNT+=('template-container')
