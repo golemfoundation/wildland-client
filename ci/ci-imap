@@ -27,7 +27,7 @@ for sender in 1 2 3; do
     done
 done
 # Create and mount an IMAP container
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 sudo /etc/init.d/dovecot start
 

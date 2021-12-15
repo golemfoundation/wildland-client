@@ -21,7 +21,7 @@ mkdir -p "$STORAGE"/foo
 echo foobar > "$STORAGE"/foo/file1.txt
 echo text > "$STORAGE"/file2.txt
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 # Wildland
 $WL user create User1

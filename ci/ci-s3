@@ -34,7 +34,7 @@ printf "move_me" > "$MINIO_DATA_DIR"/floating
 
 MINIO_ROOT_USER='dmr' MINIO_ROOT_PASSWORD='/.,/.,/.,' /tmp/minio server --console-address :9001 /tmp/minio-data &
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 # Wildland
 

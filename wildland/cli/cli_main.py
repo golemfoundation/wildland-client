@@ -89,14 +89,7 @@ def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
     if verbose > 0:
         init_logging(level='DEBUG' if verbose > 1 else 'INFO')
     else:
-        if "LOG_VERBOSE_LEVEL" in os.environ:
-            try:
-                verbose = int(os.environ["LOG_VERBOSE_LEVEL"])
-                init_logging(level='DEBUG' if verbose > 1 else 'INFO')
-            except ValueError:
-                init_logging(level='WARNING')
-        else:
-            init_logging(level='WARNING')
+        init_logging(level='WARNING')
     client = Client(dummy=dummy, base_dir=base_dir)
     ctx.obj = ContextObj(client)
 

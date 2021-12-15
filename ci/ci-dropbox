@@ -25,7 +25,7 @@ REFRESH_TOKEN="$3"
 
 # Wildland
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 $WL user create dropbox-user
 $WL container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" dropbox-test-container
