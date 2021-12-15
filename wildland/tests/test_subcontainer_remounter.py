@@ -32,7 +32,7 @@ from ..client import Client
 from ..container import Container
 from ..storage import Storage
 from ..control_client import ControlClientError
-from ..subcontainer_remounter import SubcontainerRemounter
+from wildland.remounters.subcontainer_remounter import SubcontainerRemounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
 DUMMY_BACKEND_UUID1 = '11111111-1111-1111-111111111111'

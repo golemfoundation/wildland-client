@@ -339,7 +339,7 @@ class WildlandFSBase:
                 ident = storage_id
                 break
         else:
-            raise ValueError  # TODO
+            raise ValueError(f"Unknown storage {backend.backend_id}")
         with self.mount_lock:
             return self._add_subcontainer_watch(ident, handler)
 

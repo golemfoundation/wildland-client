@@ -36,7 +36,7 @@ from ..client import Client
 from ..container import Container
 from ..control_client import ControlClientError
 from ..manifest.manifest import ManifestError
-from ..remounter import Remounter
+from wildland.remounters.pattern_remounter import PatternRemounter
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
 DUMMY_BACKEND_UUID1 = '11111111-1111-1111-111111111111'
@@ -135,7 +135,7 @@ class ExpectedMount:
     backends: Dict[str, int]
 
 
-class RemounterWrapper(Remounter):
+class PatternRemounterWrapper(PatternRemounter):
     def __init__(self, *args, control_client, **kwargs):
         super().__init__(*args, **kwargs)
         # list of:
@@ -239,9 +239,9 @@ def test_single_path(cli, client, control_client, base_dir):
                 base_dir / 'wildland/.manifests/Container1.container.yaml')
 
     pattern = '/.manifests/Container1.container.yaml'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('wildland' + pattern))],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [str(base_dir / ('wildland' + pattern))],
+                                        control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
@@ -290,10 +290,10 @@ def test_glob_with_broken(client, control_client, base_dir):
         f.write('broken manifest')
 
     pattern = '/.manifests/Container*.container.yaml'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('wildland' + pattern))],
-                                 additional_patterns=['/.manifests/Other*.container.yaml'],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [str(base_dir / ('wildland' + pattern))],
+                                        additional_patterns=['/.manifests/Other*.container.yaml'],
+                                        control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
@@ -338,9 +338,9 @@ def test_glob_add_remove(cli, client, control_client, base_dir):
     # simulate mounted container
     (base_dir / 'wildland/.manifests').mkdir(parents=True)
     pattern = '/.manifests/Container*.container.yaml'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('wildland' + pattern))],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [str(base_dir / ('wildland' + pattern))],
+                                        control_client=control_client)
     control_client.expect('add-watch', 1)
     # initial events
     control_client.queue_event([])
@@ -381,9 +381,9 @@ def test_add_remove_storage(cli, client, control_client, base_dir):
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
                 base_dir / 'wildland/.manifests/Container1.container.yaml')
     pattern = '/.manifests/Container1.container.yaml'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('wildland' + pattern))],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [str(base_dir / ('wildland' + pattern))],
+                                        control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
@@ -435,9 +435,9 @@ def test_modify_storage(cli, client, control_client, base_dir):
     shutil.copy(base_dir / 'containers/Container1.container.yaml',
                 base_dir / 'wildland/.manifests/Container1.container.yaml')
     pattern = '/.manifests/Container1.container.yaml'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [str(base_dir / ('wildland' + pattern))],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [str(base_dir / ('wildland' + pattern))],
+                                        control_client=control_client)
     control_client.expect('add-watch', 1)
     control_client.queue_event([
         {'watch-id': 1, 'type': 'MODIFY', 'path': 'Container1.container.yaml'}])
@@ -517,7 +517,7 @@ class SearchMock:
 @pytest.fixture
 def search_mock():
     test_search = SearchMock()
-    with mock.patch('wildland.remounter.Search') as search_mock:
+    with mock.patch('wildland.remounters.pattern_remounter.Search') as search_mock:
         search_mock.return_value = test_search
         yield test_search
 
@@ -536,9 +536,9 @@ def test_wlpath_single(cli, client, search_mock, control_client):
         [c1_changed],
     ]
     pattern = ':/containers/c1:'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [pattern],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [pattern],
+                                        control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -589,9 +589,9 @@ def test_wlpath_delete_container(client, search_mock, control_client):
         [],
     ]
     pattern = ':/containers/c1:'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [pattern],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [pattern],
+                                        control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -650,9 +650,9 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
         [c1_changed, c2_changed],
     ]
     pattern = ':*:'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [pattern],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [pattern],
+                                        control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -724,9 +724,9 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
         [],
     ]
     pattern = ':/containers/c1:'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [pattern],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [pattern],
+                                        control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -800,9 +800,9 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
         [c1],
     ]
     pattern = ':/containers/c1:'
-    remounter = RemounterWrapper(client, client.fs_client,
-                                 [pattern],
-                                 control_client=control_client)
+    remounter = PatternRemounterWrapper(client, client.fs_client,
+                                        [pattern],
+                                        control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -926,7 +926,7 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
 def test_failed_mount(control_client, client):
     del control_client.results['info']
     del control_client.results['paths']
-    remounter = Remounter(client, client.fs_client, [])
+    remounter = PatternRemounter(client, client.fs_client, [])
 
     remounter.to_mount.append((mock.Mock, [], [], None))
     control_client.expect('mount', ControlClientError('mount failed'))
@@ -939,7 +939,7 @@ def test_failed_mount(control_client, client):
 def test_failed_unmount(control_client, client):
     del control_client.results['info']
     del control_client.results['paths']
-    remounter = Remounter(client, client.fs_client, [])
+    remounter = PatternRemounter(client, client.fs_client, [])
 
     remounter.to_unmount.append(1)
     remounter.to_unmount.append(2)
@@ -955,5 +955,5 @@ def test_failed_unmount(control_client, client):
     ]
 
 # TODO:
-# - container that fails to mount
-# (it's rather a test for mount_multiple_containers? or even fs_base.py)
+#  - container that fails to mount
+#  (it's rather a test for mount_multiple_containers? or even fs_base.py)

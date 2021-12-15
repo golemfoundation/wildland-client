@@ -56,8 +56,8 @@ from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..utils import yaml_parser
-from ..remounter import Remounter
-from ..subcontainer_remounter import SubcontainerRemounter
+from wildland.remounters.pattern_remounter import PatternRemounter
+from wildland.remounters.subcontainer_remounter import SubcontainerRemounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
 from ..storage_sync.base import BaseSyncer, SyncConflict
@@ -1185,7 +1185,7 @@ def mount_watch(obj: ContextObj, container_names):
             file.truncate(0)
             file.write("\n".join(container_names))
 
-    remounter = Remounter(obj.client, obj.fs_client, container_names)
+    remounter = PatternRemounter(obj.client, obj.fs_client, container_names)
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):

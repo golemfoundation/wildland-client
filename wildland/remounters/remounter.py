@@ -3,8 +3,8 @@
 # Copyright (C) 2020 Golem Foundation
 #
 # Authors:
-#                   Piotr Bartman <prbartman@invisiblethingslab.com>
-#                   Maja Kostacinska <maja@wildland.io>
+#                    Paweł Marczewski <pawel@invisiblethingslab.com>,
+#                    Wojtek Porczyk <woju@invisiblethingslab.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,70 +20,57 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+# pylint: disable=too-many-lines
 """
-TODO: add copyright message and fill in the docstrings
+Superclass for PathRemounter and SubcontainerRemounter.
 """
+
 from pathlib import PurePosixPath
-from typing import List, Tuple, Iterable, Optional, Dict
+from typing import List, Optional, Tuple, Iterable, Dict
 
 from wildland.client import Client
 from wildland.container import Container
-from wildland.fs_client import WildlandFSClient, WatchSubcontainerEvent
-from wildland.log import get_logger
+from wildland.exc import WildlandError
+from wildland.fs_client import WildlandFSClient, WatchEvent
 from wildland.storage import Storage
 from wildland.storage_backends.watch import FileEventType
-from .exc import WildlandError
-
-logger = get_logger('subcontainer_remounter')
 
 
-class SubcontainerRemounter:
+class Remounter:
     """
-    TODO
+    A class for watching changes and remounting if necessary.
     """
 
-    def __init__(self, client: Client, fs_client: WildlandFSClient,
-                 containers_storage: Dict[Container, Storage]):
-        self.containers_storage = containers_storage
+    def __init__(self, client: Client, fs_client: WildlandFSClient, logger):
         self.client = client
         self.fs_client = fs_client
 
+        # Queued operations
         self.to_mount: List[Tuple[Container,
-                            Iterable[Storage],
-                            Iterable[Iterable[PurePosixPath]],
-                            Optional[Container]]] = []
+                                  Iterable[Storage],
+                                  Iterable[Iterable[PurePosixPath]],
+                                  Optional[Container]]] = []
         self.to_unmount: List[int] = []
 
+        # manifest path -> main container path
         self.main_paths: Dict[PurePosixPath, PurePosixPath] = {}
 
-    def run(self):
-        """
-        Run the main loop.
-        """
+        self.logger = logger
 
-        while True:
-            for events in self.fs_client.watch_subcontainers(
-                    self.client, self.containers_storage, with_initial=True):
-                for event in events:
-                    try:
-                        self.handle_subcontainer_event(event)
-                    except Exception:
-                        logger.info('error in handle_subcontainer_event')
-                self.unmount_pending()
-                self.mount_pending()
-
-    def handle_subcontainer_event(self, event: WatchSubcontainerEvent):
+    def handle_event(self, event: WatchEvent):
         """
         Handle a single file change event. Queue mount/unmount operations in
         self.to_mount and self.to_unmount.
         """
-        logger.info('Event %s: %s', event.event_type, event.path)
+
+        self.logger.info('Event %s: %s', event.event_type, event.path)
 
         # Handle delete: unmount if the file was mounted.
         if event.event_type == FileEventType.DELETE:
             # Find out if we've already seen the file, and can match it to an mounted storage.
             storage_id: Optional[int] = None
             pseudo_storage_id: Optional[int] = None
+
             if event.path in self.main_paths:
                 storage_id = self.fs_client.find_storage_id_by_path(self.main_paths[event.path])
                 pseudo_storage_id = self.fs_client.find_storage_id_by_path(
@@ -91,10 +78,10 @@ class SubcontainerRemounter:
 
             if storage_id is not None:
                 assert pseudo_storage_id is not None
-                logger.info('  (unmount %d)', storage_id)
+                self.logger.info('  (unmount %d)', storage_id)
                 self.to_unmount += [storage_id, pseudo_storage_id]
             else:
-                logger.info('  (not mounted)')
+                self.logger.info('  (not mounted)')
 
             # Stop tracking the file
             if event.path in self.main_paths:
@@ -102,15 +89,18 @@ class SubcontainerRemounter:
 
         # Handle create/modify:
         if event.event_type in [FileEventType.CREATE, FileEventType.MODIFY]:
-            assert event.subcontainer is not None
-            container = self.client.load_subcontainer_object(
-                event.container, event.storage, event.subcontainer)
-            assert isinstance(container, Container)
+            container = self.load_container(event)
 
             # Start tracking the file
             self.main_paths[event.path] = self.fs_client.get_user_container_path(
                 container.owner, container.paths[0])
             self.handle_changed_container(container)
+
+    def load_container(self, event):
+        """
+        Load container to (re)mount from WatchEvent.
+        """
+        raise NotImplementedError()
 
     def handle_changed_container(self, container: Container):
         """
@@ -123,7 +113,7 @@ class SubcontainerRemounter:
         user_paths = self.client.get_bridge_paths_for_user(container.owner)
         storages = self.client.get_storages_to_mount(container)
         if self.fs_client.find_primary_storage_id(container) is None:
-            logger.info('  new: %s', str(container))
+            self.logger.info('  new: %s', str(container))
             self.to_mount.append((container, storages, user_paths, None))
         else:
             storages_to_remount = []
@@ -134,15 +124,15 @@ class SubcontainerRemounter:
                     path / '.manifest.wildland.yaml')
                 assert storage_id is not None
                 assert pseudo_storage_id is not None
-                logger.info('  (removing orphan storage %s @ id: %d)', path, storage_id)
+                self.logger.info('  (removing orphan storage %s @ id: %d)', path, storage_id)
                 self.to_unmount += [storage_id, pseudo_storage_id]
 
             for storage in storages:
                 if self.fs_client.should_remount(container, storage, user_paths):
-                    logger.info('  (remounting: %s)', storage.backend_id)
+                    self.logger.info('  (remounting: %s)', storage.backend_id)
                     storages_to_remount.append(storage)
                 else:
-                    logger.info('  (not changed: %s)', storage.backend_id)
+                    self.logger.info('  (not changed: %s)', storage.backend_id)
 
             if storages_to_remount:
                 self.to_mount.append((container, storages_to_remount, user_paths, None))
@@ -156,7 +146,7 @@ class SubcontainerRemounter:
             try:
                 self.fs_client.unmount_storage(storage_id)
             except WildlandError as e:
-                logger.error('failed to unmount storage %d: %s', storage_id, e)
+                self.logger.error('failed to unmount storage %d: %s', storage_id, e)
         self.to_unmount.clear()
 
     def mount_pending(self):
@@ -167,5 +157,6 @@ class SubcontainerRemounter:
         try:
             self.fs_client.mount_multiple_containers(self.to_mount, remount=True)
         except WildlandError as e:
-            logger.error('failed to mount some storages: %s', e)
+            self.logger.error('failed to mount some storages: %s', e)
         self.to_mount.clear()
+

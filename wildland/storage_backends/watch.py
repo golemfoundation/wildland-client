@@ -136,8 +136,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
 
 class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     """
-    An implementation of storage watcher that uses the backend to enumerate all
-    files.
+    An implementation of storage watcher that uses the backend to enumerate all files.
 
     Default implementation polls the storage every 10s for changes. To improve, override
     get_token() with something that will change when the storage needs to be examined again
@@ -228,7 +227,11 @@ class SubcontainerEvent(FileEvent):
 
 class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     """
-    TODO
+    An implementation of storage watcher that uses the backend to enumerate all subcontainers.
+
+    Default implementation polls the storage backend every 10s for changes. To improve, override
+    get_token() with something that will change when the storage needs to be examined again
+    (such as last modification time of backing storage).
     """
 
     def __init__(self, backend: StorageBackend, interval: int = 10, params: Optional[dict] = None):

@@ -426,8 +426,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         explicitly specifies watcher-interval in the manifest. See local.py for a simple ``super()``
         implementation that avoids duplicating code.
 
-        Note that changes originating from FUSE are reported without using this
-        mechanism.
+        Note that changes originating from FUSE are reported without using this mechanism.
         """
         if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
@@ -438,7 +437,12 @@ class StorageBackend(metaclass=abc.ABCMeta):
 
     def subcontainer_watcher(self):
         """
-        TODO
+        Create a SubcontainerWatcher (see watch.py) for this storage, if supported. If the storage
+        manifest contains a ``watcher-interval`` parameter, SubcontainerWatcher (which is a naive,
+        brute-force watcher that scans the entire storage every watcher-interval seconds) will be
+        used. If a given StorageBackend provides a better solution, it's recommended to overwrite
+        this method to provide it. It is recommended to still use SubcontainerWatcher if the user
+        explicitly specifies watcher-interval in the manifest.
         """
         if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
