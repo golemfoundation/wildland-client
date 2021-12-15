@@ -56,8 +56,8 @@ from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
 from ..utils import yaml_parser
-from wildland.remounters.pattern_remounter import PatternRemounter
-from wildland.remounters.subcontainer_remounter import SubcontainerRemounter
+from ..remounters.pattern_remounter import PatternRemounter
+from ..remounters.subcontainer_remounter import SubcontainerRemounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
 from ..storage_sync.base import BaseSyncer, SyncConflict

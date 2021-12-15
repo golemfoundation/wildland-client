@@ -976,11 +976,8 @@ class WildlandFSClient:
             client.disconnect()
 
     @staticmethod
-    def _watch_subcontainers(control_client,
-                             wl_client,
-                             containers_storages: Dict[Container, Storage],
-                             with_initial=False
-                             ):
+    def _watch_subcontainers(control_client, wl_client,
+                             containers_storages: Dict[Container, Storage], with_initial=False):
         watches = {}
         for container, storage in containers_storages.items():
             params = storage.params

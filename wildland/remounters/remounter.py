@@ -159,4 +159,3 @@ class Remounter:
         except WildlandError as e:
             self.logger.error('failed to mount some storages: %s', e)
         self.to_mount.clear()
-

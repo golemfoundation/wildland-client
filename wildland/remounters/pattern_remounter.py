@@ -29,7 +29,6 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Dict, Set
 
-from wildland.cli.cli_common import prepare_remount
 from wildland.client import Client
 from wildland.exc import WildlandError
 from wildland.fs_client import WildlandFSClient, WatchEvent
