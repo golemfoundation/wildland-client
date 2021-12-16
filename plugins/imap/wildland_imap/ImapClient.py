@@ -270,13 +270,14 @@ class ImapClient:
         # msg is actually of type EmailMessage, but parser.parsebytes signature returns Message...
         body = msg.get_body(('html', 'plain'))  # type: ignore
         if body:
-            charset = body.get_content_charset()
-            if not charset:
-                charset = 'utf-8'
-
+            # get_payload() returns bytes or str depending if the message is multipart
             content = body.get_payload(decode=True)
-            content = content.decode(charset)
-            content = bytes(content, charset)
+
+            if content is str:
+                charset = body.get_content_charset()
+                if not charset:
+                    charset = 'utf-8'
+                content = bytes(content, charset)
         else:
             content = b'This message contains no decodable body part.'
 
@@ -390,7 +391,7 @@ class ImapClient:
                 try:
                     recv_time = datetime.strptime(msg['Delivery-date'],
                                                   '%a, %d %b %Y %H:%M:%S %z')
-                except ValueError:
+                except (ValueError, TypeError):
                     # failed to parse, need some default value
                     recv_time = datetime.fromtimestamp(0)
 
