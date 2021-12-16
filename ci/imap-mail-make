@@ -1,30 +1,59 @@
 #!/usr/bin/env python3
-# This is a trivial maildir mail injector. Injected emails are always
-# from user@here.
-# Contents of the message and relevant header values should be
-# provided as positional parameters according to the following syntax:
-# 
-# imap-mail-make <maildir-path> <from-address> <subject> <date> <content>
+# Usage: imap-mail-make <maildir-path> <datafile-path>
 #
-# Example:
+# Generates maildir emails from a data file. Injected emails are always for user@here.
+# The data file is a text file consisting of records in the following format
+# (all fields consist of one line):
 #
-# imap-mail-make ./Maildir test@whatever Test \
-#    'Wed, 19 Aug 2020 14:33:02 +0000' 'This is a test'
-
-
+# sender email
+# subject
+# time in the format YYYY-MM-DD HH:MM:SS
+# body
+#
+# Records should be separated by an additional empty line.
+# Standard escape sequences like \n and \xUU are supported.
+import codecs
 import mailbox
+from datetime import datetime
 
 from sys import argv
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import make_msgid
+from typing import Optional
 
-mdir = mailbox.Maildir(argv[1])
-msg = EmailMessage()
-msg['To'] = 'user@here'
-msg['From'] = argv[2]
-msg['Subject'] = argv[3]
-msg['Date'] = argv[4]
-msg['Message-ID'] = make_msgid()
-msg.set_content(argv[5])
-mdir.add(msg)
-mdir.close()
+
+def make_mail(mbox_path: str, from_: str, subject: str, body: str, time: Optional[datetime]):
+    mdir = mailbox.Maildir(mbox_path)
+    msg = EmailMessage()
+    msg['From'] = from_
+    msg['To'] = 'user@here'
+    msg['Subject'] = subject
+    if time:
+        msg['Date'] = time
+    msg['Message-ID'] = make_msgid()
+    msg.set_content(body)
+    print(repr(msg['Subject']))
+    mdir.add(msg)
+    mdir.close()
+
+
+def main(mbox_path: str, data_path: str):
+    with open(data_path, 'rb') as f:
+        lines = f.read().splitlines()
+        lines = filter(lambda line: not line.strip().startswith(b'#'), lines)
+        lines = list(filter(lambda line: len(line.strip()) > 0, lines))
+        assert len(lines) % 4 == 0, 'Cannot split test data into records'
+        lines = [s.decode('utf-8') for s in lines]
+        lines = [codecs.escape_decode(s)[0].decode('utf-8') for s in lines]
+        records = [lines[i:i+4] for i in range(0, len(lines), 4)]
+
+        for record in records:
+            try:
+                time = datetime.strptime(record[2], '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                time = None
+            make_mail(mbox_path, record[0], record[1], record[3], time)
+
+
+if __name__ == '__main__':
+    main(argv[1], argv[2])
