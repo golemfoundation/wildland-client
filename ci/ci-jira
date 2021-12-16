@@ -9,7 +9,7 @@ MNT_DIR_1="jira-mnt-1"
 MNT_DIR_2="jira-mnt-2"
 WORKSPACE_API_URL='https://wildland-test.atlassian.net/rest/api/2'
 PROJECT_NAME='Test project'
-WL='wl -v'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 # Create and mount two Jira containers: with and without specified project
 $WL user create jira-user
