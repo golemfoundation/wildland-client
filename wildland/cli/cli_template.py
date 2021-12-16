@@ -36,6 +36,7 @@ from ..exc import WildlandError
 from ..storage_backends.base import StorageBackend
 from ..storage_backends.dispatch import get_storage_backends
 from ..utils import format_command_options
+from ..wlpath import WildlandPath
 
 
 @aliased_group('template', short_help='storage templates management')
@@ -135,10 +136,17 @@ def _do_create(
             params['access'] = [{'user': '*'}]
         else:
             try:
-                params['access'] = [
-                    {'user': obj.client.load_object_from_name(WildlandObject.Type.USER, user).owner}
-                    for user in access
-                ]
+                params['access'] = []
+                for a in access:
+                    if WildlandPath.WLPATH_RE.match(a):
+                        params['access'].append(
+                            {'user-path': WildlandPath.get_canonical_form(a)}
+                        )
+                    else:
+                        params['access'].append(
+                            {'user': obj.client.load_object_from_name(
+                                WildlandObject.Type.USER, a).owner}
+                        )
             except WildlandError as ex:
                 raise CliError(f'Failed to create storage template: {ex}') from ex
 

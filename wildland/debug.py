@@ -29,7 +29,6 @@ import time
 from distutils.util import strtobool
 from typing import List, Optional
 
-import debugpy
 from psutil import Process, process_iter
 
 from wildland.log import get_logger
@@ -62,6 +61,8 @@ def _kill_debugpy_if_exists() -> bool:
     return False
 
 def _start_debugpy_server() -> None:
+    # pylint: disable=import-outside-toplevel
+    import debugpy
     if debugpy.is_client_connected():
         return
     try:

@@ -21,7 +21,7 @@
     },
     "wildland-url": {
         "type": "string",
-        "description": "Wildland URL (must begin with wildland: and containt at least three parts separated by ':'; example URLs: wildland::/data/books: ; wildland:@default:/data/books:/file.txt",
+        "description": "Wildland URL (must begin with wildland: and contain at least three parts separated by ':'; example URLs: wildland::/data/books: ; wildland:@default:/data/books:/file.txt",
         "pattern": "^wildland:.*:.+:.*$"
     },
     "linked-file": {
@@ -82,10 +82,21 @@
             "user": {
                 "$ref": "#/fingerprint"
             }
-        }
+        },
+        "required": ["user"]
+    },
+    "access-user-path": {
+        "type": "object",
+        "description": "access entry for a user path (e.g. a bridge to a user)",
+        "properties": {
+            "user-path": {
+                "$ref": "#/wildland-url"
+            }
+        },
+        "required": ["user-path"]
     },
     "access": {
-        "oneOf": [
+        "anyOf": [
             {
                 "type": "array",
                 "minItems": 1,
@@ -95,7 +106,8 @@
             },
             {
                 "type": "array",
-                "items": {"$ref":  "#/access-user"},
+                "items": {
+                    "anyOf": [{"$ref":  "#/access-user"}, {"$ref": "#/access-user-path"}]},
                 "minItems": 0,
                 "description": "list of users with access to the manifest (owner always has access and does not have to be listed here)"
             }

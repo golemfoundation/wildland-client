@@ -356,7 +356,7 @@ Modify a storage |~| manifest given by *<file>*.
 
 .. option:: --add-access
 
-   User to add access for. Can be repeated.
+   User or user path to add access for. Can be repeated.
 
 .. option:: --del-access
 

@@ -200,6 +200,7 @@ def test_user_list(cli, base_dir):
     result = cli('users', 'list', capture=True)
     assert result.splitlines() == ok
 
+
 def test_user_list_verbose(cli, base_dir):
     #pylint: disable=line-too-long
     cli('user', 'create', 'User1', '--key', '0xaaa',
@@ -223,6 +224,7 @@ def test_user_list_verbose(cli, base_dir):
     for index, value in enumerate(verbose):
         assert re.match(value, verbose_result1.splitlines()[index])
         assert re.match(value, verbose_result2.splitlines()[index])
+
 
 def test_user_list_secret_keys(tmpdir):
     base_config_dir = tmpdir / '.wildland'

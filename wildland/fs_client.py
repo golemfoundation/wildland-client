@@ -120,7 +120,9 @@ class WildlandFSClient:
         self.clear_cache()
         cmd = [sys.executable, '-m', 'wildland.fs', str(self.mount_dir)]
         options = [
-            'socket=' + str(self.socket_path)
+            'socket=' + str(self.socket_path),
+            'fsname=wildland',
+            'subtype=wildland'
         ]
 
         if foreground:

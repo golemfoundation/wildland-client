@@ -78,7 +78,7 @@ class Config:
             return self.file_fields[name]
         return self.default_fields[name]
 
-    def override(self, dummy=False, override_fields: Dict = None):
+    def override(self, override_fields: Dict = None, dummy=False):
         """
         Override configuration based on command line arguments.
         """
@@ -198,16 +198,18 @@ class Config:
         """
 
         return {
-            'user-dir': base_dir / 'users',
-            'storage-dir': base_dir / 'storage',
-            'cache-dir': base_dir / 'cache',
-            'container-dir': base_dir / 'containers',
-            'bridge-dir': base_dir / 'bridges',
-            'key-dir': base_dir / 'keys',
-            'mount-dir': home_dir / 'wildland',
-            'template-dir': base_dir / 'templates',
-            'fs-socket-path': Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock',
-            'sync-socket-path': Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock',
+            'user-dir': str(base_dir / 'users'),
+            'storage-dir': str(base_dir / 'storage'),
+            'cache-dir': str(base_dir / 'cache'),
+            'container-dir': str(base_dir / 'containers'),
+            'bridge-dir': str(base_dir / 'bridges'),
+            'key-dir': str(base_dir / 'keys'),
+            'mount-dir': str(home_dir / 'wildland'),
+            'template-dir': str(base_dir / 'templates'),
+            'fs-socket-path':
+                str(Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlfuse.sock'),
+            'sync-socket-path':
+                str(Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir))) / 'wlsync.sock'),
             'alt-bridge-separator': False,
             'dummy': False,
             '@default': None,

@@ -104,10 +104,14 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         raise WildlandError('Link object cannot be an independent manifest')
 
     def to_manifest_fields(self, inline: bool):
+        params = self.storage_driver.storage_backend.params
+        if params.get("access"):
+            params["access"] = self.client.load_pubkeys_from_access(
+                params["access"], '@default-owner')
         fields = {
             'object': 'link',
             'file': str(self.file_path),
-            'storage': self.storage_driver.storage_backend.params
+            'storage': params
         }
         if self.storage_owner:
             fields["storage-owner"] = self.storage_owner

@@ -46,7 +46,7 @@ After the container is created, the following steps take place:
 
 .. option:: --access USER
 
-   Allow an additional user access to containers created using this command. By default,
+   Allow an additional user or user path access to containers created using this command. By default,
    those the containers are unencrypted unless at least one USER is passed using this option.
 
 .. option:: --owner USER, --user USER

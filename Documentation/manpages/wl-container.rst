@@ -124,8 +124,8 @@ Create a |~| new container manifest.
 
 .. option:: --access USER
 
-    Allow an additional user access to this container manifest. This requires --encrypt-manifest
-    (which is true by default).
+    Allow an additional user or user path access to this container manifest.
+    This requires --encrypt-manifest (which is true by default).
 
 .. option:: --no-publish
 
@@ -555,7 +555,7 @@ Modify a container |~| manifest given by *<file>*.
 
 .. option:: --add-access
 
-   User to add access for. Can be repeated.
+   User or user path to add access for. Can be repeated.
 
 .. option:: --del-access
 

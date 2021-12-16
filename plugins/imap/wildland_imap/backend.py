@@ -37,8 +37,7 @@ from wildland.storage_backends.generated import \
     GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
 from wildland.container import ContainerStub
 from wildland.log import get_logger
-from .ImapClient import ImapClient, MessageEnvelopeData, \
-    MessagePart
+from .ImapClient import ImapClient, MessageEnvelopeData, MessagePart
 
 logger = get_logger('storage-imap')
 
@@ -108,8 +107,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         logger.info("_root() requested for %s", self.backend_id)
         for envelope in self.client.all_messages_env():
             yield FuncDirEntry(self._id_for_message(envelope),
-                               partial(self._msg_contents,
-                                       envelope))
+                               partial(self._msg_contents, envelope),
+                               int(envelope.recv_time.replace(tzinfo=timezone.utc).timestamp()))
 
     def _msg_contents(self, e: MessageEnvelopeData):
         # This little method should populate the message directory
@@ -117,7 +116,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         for part in self.client.get_message(e.msg_uid):
             yield StaticFileEntry(part.attachment_name,
                                   part.content,
-                                  int(e.recv_t.replace(tzinfo=timezone.utc).timestamp()))
+                                  int(e.recv_time.replace(tzinfo=timezone.utc).timestamp()))
 
     def _read_part(self, msg_part: MessagePart) -> bytes:
         # pylint: disable=no-self-use
@@ -132,9 +131,9 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
         # entry in timeline
         rv.add(PurePosixPath('/timeline') /
-               PurePosixPath('%04d' % e.recv_t.year) /
-               PurePosixPath('%02d' % e.recv_t.month) /
-               PurePosixPath('%02d' % e.recv_t.day))
+               PurePosixPath('%04d' % e.recv_time.year) /
+               PurePosixPath('%02d' % e.recv_time.month) /
+               PurePosixPath('%02d' % e.recv_time.day))
 
         # (static) entry in folder path
         rv.add(PurePosixPath('/folder') /

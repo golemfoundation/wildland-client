@@ -61,6 +61,7 @@ from ..log import get_logger
 
 LOGGER = get_logger('cli-common')
 
+
 def wrap_output(func):
     """
     Decorator wrapping output into progressbar streams
@@ -224,8 +225,8 @@ def _sign_and_save(
         updated_user.add_user_keys(obj.client.session.sig)
 
     try:
-        manifest.encrypt_and_sign(obj.client.session.sig,
-                                  only_use_primary_key=(manifest_type == 'user'))
+        manifest.encrypt_and_sign(
+            obj.client.session.sig, only_use_primary_key=(manifest_type == 'user'))
     except SigError as se:
         raise CliError(f'Cannot sign manifest: {se}') from se
 

@@ -8,6 +8,12 @@ ENV WL_ENV=base
 
 RUN useradd --shell /bin/bash --create-home user
 
+# Make bash prompt colorful
+
+RUN sed -i 's/^#force_color_prompt=yes/force_color_prompt=yes/' /home/user/.bashrc
+
+# Set up a directory where Wildland lives
+
 RUN mkdir /home/user/wildland-client && chown user:user /home/user/wildland-client
 WORKDIR /home/user/wildland-client
 
@@ -30,6 +36,7 @@ RUN apt-get -qy update && apt-get install -y \
     && apt-get clean autoclean
 
 # Add IPFS client
+
 RUN ARCH=$(arch) && CHECKSUM="" \
   && if [ "aarch64" = ${ARCH} ] || [ "arm64" = ${ARCH} ]  ; then \
     ARCH="arm64"; \
@@ -101,4 +108,3 @@ ENV WL_CONFIG_DIR /home/user/.config/wildland
 ENV WL_MOUNT_POINT /home/user/wildland
 ENV WL_START_CMD "wl start"
 ENV WL_STOP_CMD "wl stop"
-

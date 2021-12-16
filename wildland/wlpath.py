@@ -24,8 +24,7 @@
 """
 Wildland path class
 """
-
-
+import urllib.parse
 from pathlib import PurePosixPath
 from typing import List, Optional
 import re
@@ -53,7 +52,9 @@ class WildlandPath:
     - owner (optional): owner determining the first container's namespace, if omitted @default
       will be used
     - hint (optional, requires owner): hint to the location of first container's namespace;
-      takes the form of protocol{address}, for example https{demo.wildland.io/demo.user.yaml}
+      takes the form of protocol{address} where address is a percent-encoded URL.
+      For example 'https{demo.wildland.io/demo.user.yaml}' or with an alternative
+      port 'https{wildland.lan%3A8081}'
     - parts: intermediate parts, identifying bridges or containers on the path
     - file_path (optional): path to file in the last container
     """
@@ -114,7 +115,8 @@ class WildlandPath:
             hint = None
         elif cls.HINT_RE.match(split[0]):
             owner, hint = split[0].split('@', 1)
-            hint = 'https://' + hint[6:-1]  # change the https{ ... } syntax to resolvable URL
+            # change the https{ ... } syntax to resolvable URL
+            hint = 'https://' + urllib.parse.unquote(hint[6:-1])
         else:
             if '@https' in split[0] and '0x' not in split[0]:
                 raise PathError('Hint field requires explicit owner: {!r}'.format(split[0]))
@@ -147,7 +149,16 @@ class WildlandPath:
         split = s.split(':')
         self.parts += [PurePosixPath(p) for p in split if p != ""]
 
-    def __str__(self):
+    def has_explicit_or_default_owner(self) -> bool:
+        """
+        Check if WildlandPath has explicit owner or default, i.e., not alias.
+        """
+        return self.owner is None or self.owner == '@default' or self.owner.startswith('0x')
+
+    def to_str(self, with_prefix=False):
+        """
+        Return string representation
+        """
         s = ''
         if self.owner is not None:
             s += self.owner
@@ -156,10 +167,17 @@ class WildlandPath:
         s += ':' + ':'.join(str(p) for p in self.parts) + ':'
         if self.file_path is not None:
             s += str(self.file_path)
+        if with_prefix:
+            s = WILDLAND_URL_PREFIX + s
         return s
 
-    def has_explicit_or_default_owner(self) -> bool:
+    def __str__(self):
+        return self.to_str()
+
+    @classmethod
+    def get_canonical_form(cls, s: str) -> str:
         """
-        Check if WildlandPath has explicit owner or default, i.e., not alias.
+        Return string being canonical form representation of a Wildland path
         """
-        return self.owner is None or self.owner == '@default' or self.owner.startswith('0x')
+        wlpath = cls.from_str(s)
+        return wlpath.to_str(with_prefix=True)
