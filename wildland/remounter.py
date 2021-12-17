@@ -29,6 +29,7 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple, Iterable, Dict, Set
 
+from wildland.cli.cli_common import prepare_remount
 from wildland.client import Client
 from wildland.container import Container
 from wildland.exc import WildlandError
@@ -272,27 +273,10 @@ class Remounter:
             logger.info('  new: %s', str(container))
             self.to_mount.append((container, storages, user_paths, None))
         else:
-            storages_to_remount = []
-
-            for path in self.fs_client.get_orphaned_container_storage_paths(
-                    container, storages):
-                storage_id = self.fs_client.find_storage_id_by_path(path)
-                pseudo_storage_id = self.fs_client.find_storage_id_by_path(
-                    path / '.manifest.wildland.yaml')
-                assert storage_id is not None
-                assert pseudo_storage_id is not None
-                logger.info('  (removing orphan %s @ id: %d)', path, storage_id)
-                self.to_unmount += [storage_id, pseudo_storage_id]
-
-            for storage in storages:
-                if self.fs_client.should_remount(container, storage, user_paths):
-                    logger.info('  (remounting: %s)', storage.backend_id)
-                    storages_to_remount.append(storage)
-                else:
-                    logger.info('  (not changed: %s)', storage.backend_id)
-
-            if storages_to_remount:
-                self.to_mount.append((container, storages_to_remount, user_paths, None))
+            to_remount, to_unmount = prepare_remount(self, container, storages, user_paths)
+            self.to_unmount += to_unmount
+            if to_remount:
+                self.to_mount.append((container, to_remount, user_paths, None))
 
     def unmount_pending(self):
         """

@@ -680,31 +680,15 @@ def prepare_mount(obj: ContextObj,
             if verbose:
                 click.echo(f'new: {container_name}')
             _cache_sync(obj.client, container, storages, verbose, user_paths)
-            yield (container, storages, user_paths, subcontainer_of)
+            yield container, storages, user_paths, subcontainer_of
         elif remount:
-            storages_to_remount = []
-
-            orphaned_storage_paths = obj.fs_client.get_orphaned_container_storage_paths(
-                container, storages)
-
-            for path in orphaned_storage_paths:
-                storage_id = obj.fs_client.find_storage_id_by_path(path)
-                assert storage_id is not None
-                click.echo(f'Removing orphaned storage {path} (id: {storage_id})')
+            to_remount, to_unmount = cli_common.prepare_remount(
+                obj, container, storages, user_paths)
+            for storage_id in to_unmount:
                 obj.fs_client.unmount_storage(storage_id)
 
-            for storage in storages:
-                if obj.fs_client.should_remount(container, storage, user_paths):
-                    storages_to_remount.append(storage)
-
-                    if verbose:
-                        click.echo(f'changed: {storage.backend_id}')
-                else:
-                    if verbose:
-                        click.echo(f'not changed: {storage.backend_id}')
-
             _cache_sync(obj.client, container, storages, verbose, user_paths)
-            yield (container, storages_to_remount, user_paths, subcontainer_of)
+            yield container, to_remount, user_paths, subcontainer_of
         else:
             raise WildlandError(f'Already mounted: {container.local_path}')
 

@@ -976,6 +976,19 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
     ]
 
 
+def generate_pseudomanifest_paths(paths):
+    pm_dir = ['', '-pseudomanifest/.manifest.wildland.yaml']
+    pm_file = ['', '/.manifest.wildland.yaml']
+    expected_paths = {}
+    for j in range(2):
+        for i, ps in enumerate(paths):
+            expected_paths[ps[0] + pm_dir[j]] = [i + 1]
+            for p in ps[1:]:
+                expected_paths[p + pm_file[j]] = [i + 1]
+
+    return expected_paths
+
+
 def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
 
@@ -996,7 +1009,8 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
-    paths_1 = [
+    paths = [[], []]
+    paths[0] = [
         f'/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.uuid/{uuid}',
@@ -1005,7 +1019,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
         '/PATH',
     ]
 
-    paths_2 = [
+    paths[1] = [
         f'/.backends/{uuid}/{backend_id2}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
@@ -1019,20 +1033,12 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
     cli('container', 'modify', 'Container', '--del-storage', backend_id1)
 
-    control_client.expect('paths', {
-        f'/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.uuid/{uuid}': [1],
-        '/.users/0xaaa:/PATH': [1],
-        f'/.uuid/{uuid}': [1],
-        '/PATH': [1],
-        f'/.backends/{uuid}/{backend_id2}': [2],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}': [2],
-    })
+    expected_paths = generate_pseudomanifest_paths(paths)
+    control_client.expect('paths', expected_paths)
 
     control_client.expect('info', {
         '1': {
-            'paths': paths_1,
+            'paths': paths[0],
             'type': 'local',
             'extra': {
                 'tag': command[0]['extra']['tag'],
@@ -1040,7 +1046,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
             },
         },
         '2': {
-            'paths': paths_2,
+            'paths': paths[1],
             'type': 'local',
             'extra': {
                 'tag': command[1]['extra']['tag'],
@@ -1097,7 +1103,8 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
     backend_id1 = documents[1]['backends']['storage'][0]['backend-id']
     backend_id2 = documents[1]['backends']['storage'][1]['backend-id']
 
-    paths_1 = [
+    paths = [[], []]
+    paths[0] = [
         f'/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}',
         f'/.users/0xaaa:/.uuid/{uuid}',
@@ -1106,7 +1113,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
         '/PATH',
     ]
 
-    paths_2 = [
+    paths[1] = [
         f'/.backends/{uuid}/{backend_id2}',
         f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}',
     ]
@@ -1120,20 +1127,12 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
 
     cli('container', 'modify', 'Container', '--del-storage', backend_id2)
 
-    control_client.expect('paths', {
-        f'/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id1}': [1],
-        f'/.users/0xaaa:/.uuid/{uuid}': [1],
-        '/.users/0xaaa:/PATH': [1],
-        f'/.uuid/{uuid}': [1],
-        '/PATH': [1],
-        f'/.backends/{uuid}/{backend_id2}': [2],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id2}': [2],
-    })
+    expected_paths = generate_pseudomanifest_paths(paths)
+    control_client.expect('paths', expected_paths)
 
     control_client.expect('info', {
         '1': {
-            'paths': paths_1,
+            'paths': paths[0],
             'type': 'local',
             'extra': {
                 'tag': command[0]['extra']['tag'],
@@ -1141,7 +1140,7 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
             },
         },
         '2': {
-            'paths': paths_2,
+            'paths': paths[1],
             'type': 'local',
             'extra': {
                 'tag': command[1]['extra']['tag'],
@@ -1349,31 +1348,6 @@ def test_container_edit_duplicate_backend_ids(cli, base_dir):
                exception_info.value.stdout.decode()
 
 
-def test_container_modify_remount(cli, base_dir):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH', '--container', 'Container')
-    cli('start')
-    cli('container', 'mount', 'Container')
-    mount_path = base_dir / 'wildland'
-    assert (mount_path / 'PATH').exists()
-
-    cli('container', 'modify', '--add-path', '/AUTO_REMOUNTING', 'Container')
-    assert (mount_path / 'AUTO_REMOUNTING').exists()
-
-    cli('container', 'modify', '--no-remount', '--add-path', '/NEED_REMOUNTING', 'Container')
-    assert not (mount_path / 'NEED_REMOUNTING').exists()
-
-    cli('container', 'modify', '--add-category', '/remounted_cat', '--title', 'TITLE', 'Container')
-    assert (mount_path / 'remounted_cat' / 'TITLE').exists()
-
-    cli('container', 'modify', '--no-remount', '--add-category', '/not_remounted_cat', 'Container')
-    assert not (mount_path / 'not_remounted_cat').exists()
-
-    cli('container', 'modify', '--title', 'NEW', 'Container')
-    assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
-
-
 def test_container_pointed_container_modify_remount(cli, base_dir):
     dir_1 = Path(f'{base_dir}/storage/dir_1')
     dir_2 = Path(f'{base_dir}/storage/dir_2')
@@ -1409,6 +1383,75 @@ def test_container_pointed_container_modify_remount(cli, base_dir):
     assert len(list((mount_path / 'POINT').glob('*'))) == 2
     assert not (mount_path / 'POINT' / 'file_1.txt').exists()
     assert (mount_path / 'POINT' / 'file_2.txt').exists()
+
+
+def test_edit_unmounts_removed_storage(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/p1', '--container', 'Container')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/p2', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+
+    editor = r"sed -i '/  - object: storage/{:a;N;/    - user: '*'/!ba};/    location: \/p2/d'"
+    cli('container', 'edit', 'Container', '--editor', editor)
+    result = cli('status', '-p', capture=True)
+    assert result.count(local) == 1
+    assert result.count(pseudo) == 1
+
+
+def test_container_modify_remount(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH', '--container', 'Container')
+    cli('start')
+    cli('container', 'mount', 'Container')
+    mount_path = base_dir / 'wildland'
+    assert (mount_path / 'PATH').exists()
+
+    cli('container', 'modify', '--add-path', '/AUTO_REMOUNTING', 'Container')
+    assert (mount_path / 'AUTO_REMOUNTING').exists()
+
+    cli('container', 'modify', '--no-remount', '--add-path', '/NEED_REMOUNTING', 'Container')
+    assert not (mount_path / 'NEED_REMOUNTING').exists()
+
+    cli('container', 'modify', '--add-category', '/remounted_cat', '--title', 'TITLE', 'Container')
+    assert (mount_path / 'remounted_cat' / 'TITLE').exists()
+
+    cli('container', 'modify', '--no-remount', '--add-category', '/not_remounted_cat', 'Container')
+    assert not (mount_path / 'not_remounted_cat').exists()
+
+    cli('container', 'modify', '--title', 'NEW', 'Container')
+    assert (mount_path / 'not_remounted_cat' / '@remounted_cat' / 'NEW').exists()
+
+
+def test_modify_unmounts_removed_storage(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/PATH', '--container', 'Container')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/PATH', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+
+    cm_path = str(base_dir / 'containers/Container.container.yaml')
+    cli('container', 'modify', '--del-storage', '1', cm_path)
+    result = cli('status', '-p', capture=True)
+    assert result.count(local) == 1
+    assert result.count(pseudo) == 1
 
 
 def test_container_add_path(cli, cli_fail, base_dir):
@@ -3751,7 +3794,6 @@ backends:
     assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
-
 def test_container_mount_container_without_storage(cli, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
@@ -3787,6 +3829,29 @@ def test_container_unmount(cli, base_dir, control_client):
 
     # /.users/{owner}:/.backends/{cont_uuid}/{backend_uuid} is always the primary path
     assert control_client.calls['unmount']['storage_id'] == 102
+
+
+def test_remount_unmounts_removed_storage(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/p1', '--container', 'Container')
+    cli('storage', 'create', 'local', 'Storage2', '--location', '/p2', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+
+    editor = r"sed -i '/  - object: storage/{:a;N;/    - user: '*'/!ba};/    location: \/p2/d'"
+    cli('container', 'edit', 'Container', '--no-remount', '--editor', editor)
+    cli('container', 'mount', 'Container')
+    result = cli('status', '-p', capture=True)
+    assert result.count(local) == 1
+    assert result.count(pseudo) == 1
 
 
 def test_container_other_signer(cli, base_dir):
