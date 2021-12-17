@@ -16,7 +16,7 @@ mkdir $FILES
 . /home/user/env/bin/activate
 . ci/install-inplace sshfs
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 $WL user create User
 $WL container create sshfs --path "/$MNT_DIR_1"

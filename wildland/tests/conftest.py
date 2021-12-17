@@ -100,7 +100,7 @@ def sync(base_dir):
 @pytest.fixture
 def cli(base_dir, capsys):
     def cli(*args, capture=False):
-        cmdline = ['--base-dir', base_dir, *args]
+        cmdline = ['-v', '--base-dir', base_dir, *args]
         # Convert Path to str
         cmdline = [str(arg) for arg in cmdline]
         if capture:

@@ -16,7 +16,7 @@ mv /tmp/.coverage.wildland /tmp/.coverage.wildland.pytest
 
 # Setup
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 mkdir -p "$MANIFEST_CATALOG"
 

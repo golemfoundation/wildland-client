@@ -9,13 +9,14 @@ MNT_DIR_1="jira-mnt-1"
 MNT_DIR_2="jira-mnt-2"
 WORKSPACE_API_URL='https://wildland-test.atlassian.net/rest/api/2'
 PROJECT_NAME='Test project'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 # Create and mount two Jira containers: with and without specified project
-wl user create jira-user
-wl container create jira-p --path "/$MNT_DIR_1"
-wl storage create jira --container jira-p --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --project-name "$PROJECT_NAME"
-wl start
-wl container mount --with-subcontainers jira-p
+$WL user create jira-user
+$WL container create jira-p --path "/$MNT_DIR_1"
+$WL storage create jira --container jira-p --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --project-name "$PROJECT_NAME"
+$WL start
+$WL container mount --with-subcontainers jira-p
 
 # List full tree
 time -p chronic tree "$ROOT"
@@ -37,39 +38,39 @@ time -p test -f "$ROOT"/labels/bugfix/@projects/"$PROJECT_NAME"/Aegypius\ occipi
 time -p chronic grep 'primis in faucibus' $ROOT/projects/"$PROJECT_NAME"/Aegypius\ occipitalis/Aegypius\ occipitalis.md
 
 # Unmount the container
-time -p chronic wl container unmount jira-p
+time -p chronic $WL container unmount jira-p
 
-wl container create jira-a --path "/$MNT_DIR_2"
-wl storage create jira --container jira-a --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN
+$WL container create jira-a --path "/$MNT_DIR_2"
+$WL storage create jira --container jira-a --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN
 
 # Mount a Jira container (without specified project ID)
-wl container mount --with-subcontainers jira-a
+$WL container mount --with-subcontainers jira-a
 
 time -p test -f "$ROOT"/labels/welcome/@projects/"$PROJECT_NAME"/Phaethon\ aethereus/Phaethon\ aethereus.md
 
 # Unmount the container
-time -p chronic wl container unmount jira-a
+time -p chronic $WL container unmount jira-a
 
 # Test storage template creation
-wl template create jira --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --limit 10 myjira
+$WL template create jira --workspace-url $WORKSPACE_API_URL --username $JIRA_USERNAME --personal-token $PERSONAL_JIRA_TOKEN --limit 10 myjira
 
-wl container create jira-template --template myjira
-wl container mount jira-template
+$WL container create jira-template --template myjira
+$WL container mount jira-template
 
 # Verify that the template creation is working
 time -p chronic tree $ROOT
 
-wl container unmount jira-template
+$WL container unmount jira-template
 
 # Create and mount public project
 WORKSPACE_API_URL='https://jira.atlassian.com/rest/api/2'
 PROJECT_NAME='Atlassian Cloud'
 
-wl container create jira-pub --path "/$MNT_DIR_1"
-wl storage create jira --container jira-pub --workspace-url $WORKSPACE_API_URL --limit 10 --project-name "$PROJECT_NAME"
-wl container mount --with-subcontainers jira-pub
+$WL container create jira-pub --path "/$MNT_DIR_1"
+$WL storage create jira --container jira-pub --workspace-url $WORKSPACE_API_URL --limit 10 --project-name "$PROJECT_NAME"
+$WL container mount --with-subcontainers jira-pub
 
 # List full tree
 time -p chronic tree "$ROOT"
 
-wl container unmount jira-pub
+$WL container unmount jira-pub

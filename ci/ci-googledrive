@@ -20,7 +20,7 @@ MNT_PATH_3="$ROOT/$MNT_DIR_3"
 
 # Wildland
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 $WL user create googledrive-user
 $WL container create --path "/$MNT_DIR_1" --path "/$MNT_DIR_2" googledrive-test-container

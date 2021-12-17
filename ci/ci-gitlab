@@ -5,7 +5,7 @@ set -ex
 . /home/user/env/bin/activate
 . ci/install-inplace gitlab
 
-WL='python3 -m coverage run -p ./wl'
+WL='python3 -m coverage run -p ./wl --verbose'
 
 #setup
 ROOT="$HOME/wildland"
