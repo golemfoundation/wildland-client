@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 
 set -ex
+. /home/user/env/bin/activate
+pip install .
 
+# Paths to container mounting points and reference directories
 ROOT="$HOME/wildland"
 TREE_ROOT="tmroot"
 TREE_DIR="$ROOT/$TREE_ROOT"
+REFERENCE="/tmp/reference"
 
-. /home/user/env/bin/activate
-pip install .
-mkdir -p /tmp/reference
-echo test1 > /tmp/reference/test1.txt
+mkdir -p $REFERENCE
+echo test1 > $REFERENCE/test1.txt
 
 # creating an user
 wl user create user1
@@ -37,18 +39,38 @@ if find . -name 'test1.txt' -type f; then echo 'expected file found'; else exit 
 cd
 
 #checking that the CREATE events are detected and new containers are being created and mounted
-echo test2 > /tmp/reference/test2.txt
+echo test2 > $REFERENCE/test2.txt
 sleep 15
 cd wildland/tmroot
-if find . -name 'test1.txt' -type f; then echo 'expected file found'; else exit 1; fi
-if find . -name 'test2.txt' -type f; then echo 'expected file found'; else exit 1; fi
+if find . -name 'test1.txt' -type f; then
+    echo 'expected file found'
+else
+    echo 'CREATE event not handled properly; expected file not found'
+    exit 1
+fi
+if find . -name 'test2.txt' -type f; then
+    echo 'expected file found'
+else
+    echo 'CREATE event not handled properly; expected file not found'
+    exit 1
+fi
 cd
 
 #checking that the DELETE events are detected and new containers are being created and mounted
-rm /tmp/reference/test2.txt
+rm $REFERENCE/test2.txt
 sleep 15
 cd wildland/tmroot
-if find . -name 'test1.txt' -type f; then echo 'expected file found'; else exit 1; fi
+if find . -name 'test1.txt' -type f; then
+    echo 'expected file found'
+else
+    echo 'DELETE events not handled properly; expected file not found'
+    exit 1
+fi
 output=$(find . -name 'test2.txt' -type f)
-if output==''; then echo 'file removed correctly'; else exit 1; fi
+if output==''; then
+    echo 'file removed correctly'
+else
+    echo 'DELETE events not handled properly; file not removed'
+    exit 1
+fi
 cd
