@@ -383,7 +383,7 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
     def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
 
-        for res_path, res_obj in super().get_children(query_path):
+        for res_path, res_obj in super().get_children(query_path=query_path):
             assert isinstance(res_obj, Link)
             assert res_obj.storage_driver.storage_backend is self
             # fast path to get the file, bypassing refreshing getattr cache
