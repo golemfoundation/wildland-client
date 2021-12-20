@@ -101,19 +101,33 @@ def get_pseudomanifest_storage(client, container_name):
     return PseudomanifestStorageBackend(params=pm_storage.params)
 
 
-def pseudomanifest_replace(container_name, client, to_replace, new):
+def pseudomanifest_replace(container_name, client, to_replace, new, expected_os_error=False):
+    """Open pseudomanifest file for first storage from a container and replace phrase
+    `to_replace` to `new`.
+
+    Return pseudomanifest storage backend.
+    """
     pm_backend = get_pseudomanifest_storage(client, container_name)
+
+    # open pseudomanifest file and replace given phrase
     pm_file = pm_backend.open(PurePosixPath(), flags=0)
     pseudomanifest_content = pm_file.read().decode()
-    new_pseudomanifest_content = pseudomanifest_content.replace(
-        to_replace, new)
+    new_pseudomanifest_content = pseudomanifest_content.replace(to_replace, new)
     pm_file.ftruncate(0)
     pm_file.write(new_pseudomanifest_content.encode(), offset=0)
+
     try:
+        # try to save changes
         pm_file.release(0)
-        pm_backend = get_pseudomanifest_storage(client, container_name)  # remount if success
     except OSError:
-        pass
+        # if changes are incorrect, pseudomanifest is rejected and OSError is raised
+        if expected_os_error:
+            pass
+        else:
+            raise
+    else:
+        # container manifest changed, get new pseudomanifest storage backend
+        pm_backend = get_pseudomanifest_storage(client, container_name)
     return pm_backend
 
 
@@ -171,8 +185,8 @@ def test_edit_category_goes_wrong(client, base_dir):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
 
-    # with pytest.raises(OSError, match='Invalid argument'):
-    pm_backend = pseudomanifest_replace("Container", client, "categories: []", "categories:\n- cat")
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "categories: []", "categories:\n- cat", expected_os_error=True)
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         assert old_content == f.read()
@@ -214,7 +228,8 @@ def test_set_title(client, base_dir):
 
 
 def test_edit_uuid(client, base_dir):
-    pm_backend = pseudomanifest_replace("Container", client, "/.uuid/", "/")
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "/.uuid/", "/", expected_os_error=True)
 
     with pm_backend.open(PurePosixPath(), flags=0) as f:
         content = f.read().decode()
@@ -225,7 +240,8 @@ def test_edit_user(client, base_dir):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
 
-    pm_backend = pseudomanifest_replace("Container", client, "0xaaa", "0xbbb")
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "0xaaa", "0xbbb", expected_os_error=True)
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         content = f.read()
@@ -235,7 +251,8 @@ def test_edit_user(client, base_dir):
         content = f.read().decode()
         assert "rejected due to encountered errors" in content
 
-    pm_backend = pseudomanifest_replace("Container", client, "0xaaa", "0xccc")
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "0xaaa", "0xccc", expected_os_error=True)
 
     # check if only latest error messages are available
     with pm_backend.open(PurePosixPath(), flags=0) as f:
@@ -328,7 +345,6 @@ access:
 
     with pm_backend.open(PurePosixPath(), flags=0) as f:
         assert f.read().decode() == expexted_content
-
 
 
 def pseudomanifest_edit(client, cli):
