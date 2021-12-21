@@ -20,33 +20,60 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring,redefined-outer-name,unused-argument
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import pytest
 
 from ..client import Client
 from ..wildland_object.wildland_object import WildlandObject
+from ..storage_backends.pseudomanifest import PseudomanifestStorageBackend
 
 
-def test_pseudomanifest_create(cli, base_dir):
+@pytest.fixture
+def setup(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH')
-    cli('storage', 'create', 'static', 'Storage',
-        '--file', 'foo.txt=foo content',
-        '--container', 'Container', '--no-inline', '--no-encrypt-manifest')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--inline',
+        '--no-encrypt-manifest')
+
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli('container', 'create', 'ContainerB', '--path', '/PATH', '--owner', 'UserB',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'StorageB',
+        '--location', os.fspath(tmp_path),
+        '--container', 'ContainerB',
+        '--inline',
+        '--no-encrypt-manifest')
+
+
+@pytest.fixture
+def client(setup, base_dir):
+    # pylint: disable=unused-argument
+    client = Client(base_dir=base_dir)
+    return client
+
+
+def test_pseudomanifest_create(client, cli, base_dir):
     cli('start', '--default-user', 'User')
     cli('container', 'mount', 'Container')
 
-    client = Client(base_dir)
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container')
     mounted_path = client.fs_client.mount_dir / Path('/PATH').relative_to('/')
 
-    assert sorted(os.listdir(mounted_path)) == ['.manifest.wildland.yaml', 'foo.txt']
-
-    assert os.listdir(mounted_path) == ['.manifest.wildland.yaml', 'foo.txt'], \
+    assert os.listdir(mounted_path) == ['.manifest.wildland.yaml'], \
         "plaintext dir should contain pseudomanifest only!"
+
+    with open(mounted_path / 'new.file', 'w') as new_file:
+        new_file.write("I'm editable!")
+
+    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
+    with open(pseudomanifest_path, 'r+'):
+        pass
 
     with open(mounted_path / '.manifest.wildland.yaml', 'rb') as fb:
         pseudomanifest_content_bytes = fb.read()
@@ -66,7 +93,110 @@ access:
 '''
 
 
-def pseudomanifest_replace(pseudomanifest_path, to_replace, new):
+def get_pseudomanifest_storage(client, container_name):
+    container = client.load_object_from_name(WildlandObject.Type.CONTAINER, container_name)
+    storage = next(container.load_storages())
+    # pylint: disable=protected-access
+    pm_storage = client.fs_client._generate_pseudomanifest_storage(container, storage)
+    return PseudomanifestStorageBackend(params=pm_storage.params)
+
+
+def pseudomanifest_replace(container_name, client, to_replace, new, expected_os_error=False):
+    """Open pseudomanifest file for first storage from a container and replace phrase
+    `to_replace` to `new`.
+
+    Return pseudomanifest storage backend.
+    """
+    pm_backend = get_pseudomanifest_storage(client, container_name)
+
+    # open pseudomanifest file and replace given phrase
+    pm_file = pm_backend.open(PurePosixPath(), flags=0)
+    pseudomanifest_content = pm_file.read().decode()
+    new_pseudomanifest_content = pseudomanifest_content.replace(to_replace, new)
+    pm_file.ftruncate(0)
+    pm_file.write(new_pseudomanifest_content.encode(), offset=0)
+
+    try:
+        # try to save changes
+        pm_file.release(0)
+    except OSError:
+        # if changes are incorrect, pseudomanifest is rejected and OSError is raised
+        if expected_os_error:
+            pass
+        else:
+            raise
+    else:
+        # container manifest changed, get new pseudomanifest storage backend
+        pm_backend = get_pseudomanifest_storage(client, container_name)
+    return pm_backend
+
+
+def test_edit_path(client, base_dir):
+    pm_backend = pseudomanifest_replace("Container", client, "paths:\n", "paths:\n- /NEW\n")
+
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
+        content = f.read()
+        assert "- /NEW" in content
+        assert "paths:\n- /.uuid/" in content
+
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "- /NEW" in content
+        assert "paths:\n- /.uuid/" in content
+
+
+def test_edit_with_non_default_owner(client, base_dir):
+    pm_backend = pseudomanifest_replace("ContainerB", client, "paths:\n", "paths:\n- /NEW\n")
+
+    with open(base_dir / "containers/ContainerB.container.yaml", "r") as f:
+        content = f.read()
+        assert "- /NEW" in content
+        assert "paths:\n- /.uuid/" in content
+
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "- /NEW" in content
+        assert "paths:\n- /.uuid/" in content
+
+
+def test_edit_category(client, base_dir):
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "categories: []", "categories:\n- /cat")
+
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
+        content = f.read()
+        assert "- /cat" in content
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "- /cat" in content
+
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "categories:\n- /cat", "categories: []")
+
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
+        content = f.read()
+        assert "categories: []" in content
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "categories: []" in content
+
+
+def test_edit_category_goes_wrong(client, base_dir):
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
+        old_content = f.read()
+
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "categories: []", "categories:\n- cat", expected_os_error=True)
+
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
+        assert old_content == f.read()
+
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "rejected due to encountered errors" in content
+
+
+def pseudomanifest_replace_old(pseudomanifest_path, to_replace, new):
     with open(pseudomanifest_path, 'r+') as f:
         pseudomanifest_content = f.read()
         new_pseudomanifest_content = pseudomanifest_content.replace(
@@ -75,161 +205,79 @@ def pseudomanifest_replace(pseudomanifest_path, to_replace, new):
         f.write(new_pseudomanifest_content)
 
 
-def test_pseudomanifest_edit(cli, base_dir, tmp_path):
-    cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
-    cli('storage', 'create', 'local', 'Storage',
-        '--location', os.fspath(tmp_path),
-        '--container', 'Container',
-        '--inline',
-        '--no-encrypt-manifest')
+def test_set_title(client, base_dir):
+    pm_backend = pseudomanifest_replace("Container", client, "title: 'null'", "title: 'title'")
 
-    cli('user', 'create', 'UserB', '--key', '0xbbb')
-    cli('container', 'create', 'ContainerB', '--path', '/PATH', '--owner', 'UserB',
-        '--no-encrypt-manifest')
-    cli('storage', 'create', 'local', 'Storage',
-        '--location', os.fspath(tmp_path),
-        '--container', 'ContainerB',
-        '--inline',
-        '--no-encrypt-manifest')
-
-    cli('start', '--default-user', 'User')
-    cli('container', 'mount', 'Container')
-    cli('container', 'mount', 'ContainerB')
-
-    client = Client(base_dir)
-    mount_dir = client.fs_client.mount_dir
-    mounted_path = mount_dir / Path('/PATH').relative_to('/')
-
-    assert sorted(os.listdir(mounted_path)) == ['.manifest.wildland.yaml'], \
-        "plaintext dir should contain pseudomanifest only!"
-
-    with open(mounted_path / 'new.file', 'w') as new_file:
-        new_file.write("I'm editable!")
-
-    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
-    with open(pseudomanifest_path, 'r+'):
-        pass
-
-    # edit path
-
-    pseudomanifest_replace(pseudomanifest_path, "paths:\n", "paths:\n- /NEW\n")
-    with open(base_dir/"containers/Container.container.yaml", "r") as f:
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
         content = f.read()
-        assert "- /NEW" in content
-        assert "paths:\n- /.uuid/" in content
-    with open(pseudomanifest_path, "r") as f:
+        assert "title: title" in content
+
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "title: title" in content
+
+    pm_backend = pseudomanifest_replace("Container", client, "title: title", "title: 'null'")
+
+    with open(base_dir / "containers/Container.container.yaml", "r") as f:
         content = f.read()
-        assert "- /NEW" in content
-        assert "paths:\n- /.uuid/" in content
+        assert "title: 'null'" in content
 
-    pseudomanifest_replace(pseudomanifest_path, "- /NEW\n", "")
-    with open(base_dir/"containers/Container.container.yaml", "r") as f:
-        assert "- /NEW" not in f.read()
-    with open(pseudomanifest_path, "r") as f:
-        assert "- /NEW" not in f.read()
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "title: 'null'" in content
 
-    # edit with non-default owner
 
-    pseudomanifest_path_b = mount_dir / '.users/0xbbb:/PATH/.manifest.wildland.yaml'
-    pseudomanifest_replace(pseudomanifest_path_b, "paths:\n", "paths:\n- /NEW\n")
-    with open(base_dir/"containers/ContainerB.container.yaml", "r") as f:
-        content = f.read()
-        assert "- /NEW" in content
-        assert "paths:\n- /.uuid/" in content
-    with open(pseudomanifest_path_b, "r") as f:
-        content = f.read()
-        assert "- /NEW" in content
-        assert "paths:\n- /.uuid/" in content
+def test_edit_uuid(client, base_dir):
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "/.uuid/", "/", expected_os_error=True)
 
-    # edit category
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "rejected due to encountered errors" in content
 
-    pseudomanifest_replace(pseudomanifest_path, "categories: []", "categories:\n- /cat")
-    with open(base_dir/"containers/Container.container.yaml", "r") as f:
-        assert "- /cat" in f.read()
-    with open(pseudomanifest_path, "r") as f:
-        assert "- /cat" in f.read()
 
-    pseudomanifest_replace(pseudomanifest_path, "categories:\n- /cat", "categories: []")
-    with open(base_dir/"containers/Container.container.yaml", "r") as f:
-        assert "categories: []" in f.read()
-    with open(pseudomanifest_path, "r") as f:
-        assert "categories: []" in f.read()
-
-    # edit category goes wrong
-
+def test_edit_user(client, base_dir):
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
         old_content = f.read()
 
-    with pytest.raises(OSError, match='Invalid argument'):
-        pseudomanifest_replace(pseudomanifest_path, "categories: []", "categories:\n- cat")
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "0xaaa", "0xbbb", expected_os_error=True)
 
     with open(base_dir / "containers/Container.container.yaml", "r") as f:
-        assert old_content == f.read()
+        content = f.read()
+        assert old_content == content
 
-    with open(pseudomanifest_path, 'r') as f:
-        assert "rejected due to encountered errors" in f.read()
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert "rejected due to encountered errors" in content
 
-    # set title
-
-    pseudomanifest_replace(pseudomanifest_path, "title: 'null'", "title: 'title'")
-    with open(base_dir / "containers/Container.container.yaml", "r") as f:
-        assert "title: title" in f.read()
-
-    # clear error messages
-    with open(pseudomanifest_path, 'r') as f:
-        assert "rejected due to encountered errors" not in f.read()
-
-    pseudomanifest_replace(pseudomanifest_path, "title: title", "title: 'null'")
-    with open(base_dir / "containers/Container.container.yaml", "r") as f:
-        assert "title: 'null'" in f.read()
-
-    # edit uuid
-
-    with pytest.raises(OSError, match='Invalid argument'):
-        pseudomanifest_replace(pseudomanifest_path, "/.uuid/", "/")
-
-    # edit user
-
-    with open(base_dir / "containers/Container.container.yaml", "r") as f:
-        old_content = f.read()
-
-    with pytest.raises(OSError, match='Invalid argument'):
-        pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xbbb")
-
-    with open(base_dir / "containers/Container.container.yaml", "r") as f:
-        assert old_content == f.read()
-
-    with open(pseudomanifest_path, 'r') as f:
-        assert "rejected due to encountered errors" in f.read()
-
-    with pytest.raises(OSError, match='Invalid argument'):
-        pseudomanifest_replace(pseudomanifest_path, "0xaaa", "0xccc")
+    pm_backend = pseudomanifest_replace(
+        "Container", client, "0xaaa", "0xccc", expected_os_error=True)
 
     # check if only latest error messages are available
-    with open(pseudomanifest_path, 'r') as f:
-        content = f.read()
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
         assert "0xbbb" not in content
         assert "0xccc" in content
 
-    # whitespaces
 
-    with open(pseudomanifest_path, 'r') as f:
+def test_ignore_whitespaces(client, base_dir):
+    pm_backend = pseudomanifest_replace("Container", client, "", "")
+
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
         old_content = f.read()
 
-    with open(pseudomanifest_path, 'r+') as f:
-        f.read()
-        f.write("    ")
+    pm_backend = pseudomanifest_replace("Container", client, "paths:", "paths:    \n")
 
-    with open(pseudomanifest_path, 'r') as f:
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
         assert old_content == f.read()
 
-    # many changes at once
 
+def test_many_changes_at_once(client, base_dir):
     uuid_path = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container').uuid_path
 
     pseudomanifest_content = \
-f'''# All YAML comments will be discarded when the manifest is saved
+        f'''# All YAML comments will be discarded when the manifest is saved
 version: '1'
 object: container
 owner: '0xaaa'
@@ -244,15 +292,19 @@ access:
 - user: '*'
 '''
 
-    with open(pseudomanifest_path, 'r+') as f:
-        f.truncate(0)
-        f.write(pseudomanifest_content)
+    pm_backend = get_pseudomanifest_storage(client, "Container")
+    pm_file = pm_backend.open(PurePosixPath(), flags=0)
+    pm_file.ftruncate(0)
+    pm_file.write(pseudomanifest_content.encode(), offset=0)
+    pm_file.release(0)
+    pm_backend = get_pseudomanifest_storage(client, "Container")  # remount if success
 
-    with open(pseudomanifest_path, 'r') as f:
-        assert f.read() == pseudomanifest_content
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        content = f.read().decode()
+        assert content == pseudomanifest_content
 
     new_content = \
-f'''version: '1'
+        f'''version: '1'
 object: container
 owner: '0xaaa'
 paths:
@@ -269,7 +321,7 @@ access:
 '''
 
     expexted_content = \
-f'''# All YAML comments will be discarded when the manifest is saved
+        f'''# All YAML comments will be discarded when the manifest is saved
 version: '1'
 object: container
 owner: '0xaaa'
@@ -284,9 +336,31 @@ access:
 - user: '*'
 '''
 
-    with open(pseudomanifest_path, 'r+') as f:
-        f.truncate(0)
-        f.write(new_content)
+    pm_backend = get_pseudomanifest_storage(client, "Container")
+    pm_file = pm_backend.open(PurePosixPath(), flags=0)
+    pm_file.ftruncate(0)
+    pm_file.write(new_content.encode(), offset=0)
+    pm_file.release(0)
+    pm_backend = get_pseudomanifest_storage(client, "Container")  # remount if success
 
-    with open(pseudomanifest_path, 'r') as f:
-        assert f.read() == expexted_content
+    with pm_backend.open(PurePosixPath(), flags=0) as f:
+        assert f.read().decode() == expexted_content
+
+
+def pseudomanifest_edit(client, cli):
+    cli('start', '--default-user', 'User')
+    cli('container', 'mount', 'Container')
+    cli('container', 'mount', 'ContainerB')
+
+    mount_dir = client.fs_client.mount_dir
+    mounted_path = mount_dir / Path('/PATH').relative_to('/')
+
+    assert sorted(os.listdir(mounted_path)) == ['.manifest.wildland.yaml'], \
+        "plaintext dir should contain pseudomanifest only!"
+
+    with open(mounted_path / 'new.file', 'w') as new_file:
+        new_file.write("I'm editable!")
+
+    pseudomanifest_path = mounted_path / '.manifest.wildland.yaml'
+    with open(pseudomanifest_path, 'r+'):
+        pass
