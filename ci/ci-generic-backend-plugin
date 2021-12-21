@@ -221,6 +221,20 @@ for ((n=1;n<=$ITERATIONS;n++)); do
     assert_expected_file_size "$MNT_PATH_3/test" "$NEW_FILE_SIZE_BYTES"
 done
 
+# Test sync from local storage (test against issues #586 and #714)
+
+STAGE="testing sync with local backend"
+$WL storage create local --container "$PLUGIN_NAME-test-container" --location "$TEST_LOCAL_DIR"
+echo 'Sync test 1' > "$TEST_LOCAL_DIR/sync1.txt"
+$WL container sync --one-shot "$PLUGIN_NAME-test-container"
+SRC="$MNT_PATH_1/sync1.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "Sync test 1" ]]' \
+    || echo "Unexpected content of $SRC after first sync" >&2
+
+echo 'Sync test 2' > "$TEST_LOCAL_DIR/sync2.txt"
+$WL container sync --one-shot "$PLUGIN_NAME-test-container"  # was failing before fixing issue #586
+SRC="$MNT_PATH_1/sync2.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "Sync test 2" ]]' \
+    || echo "Unexpected content of $SRC after second sync" >&2
+
 # If we reach this line, then the test passed successfully (no matter if cleanup is successful or not)
 
 TEST_FAILED=0
