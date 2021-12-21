@@ -366,9 +366,9 @@ Fields:
 .. schema:: bridge.schema.json
 
 Bridge manifest itself can be mounted too, similar to a container. When
-mounted, it containes a single file ``WILDLAND-FOREST.txt`` with a short info.
+mounted, it containers a single file ``WILDLAND-FOREST.txt`` with a short info.
 This mainly serves as a placeholder for the actual forest - to clearly see what
-forests are reachable via exising bridges.
+forests are reachable via existing bridges.
 
 Technically, mounting a bridge is implemented as a container deterministically
 generated from a Bridge manifest. This container has:
@@ -392,7 +392,7 @@ Manifests catalog
 
 Manifests catalog is a selected container in user's forest, designated to store
 that user's manifests. Which container(s) serve this role, is selected in the
-User manfest. There can be several manifests catalogs in the User manifest - in
+User manifest. There can be several manifests catalogs in the User manifest - in
 this case, all of them are consulted when looking for a container(s) (the
 search does not stop on the first match). Note this is different from a single
 manifest catalog with several storage backends - when a container has several

@@ -70,7 +70,7 @@ entrypoint (see `setuptools` package) and inherit the `wildland.storage_sync.bas
   * SOURCE_TYPES/TARGET_TYPES are lists of strings accepted as source/target StorageBackend.TYPE
     (a list consisting of a single "*" string means any storage syncer is accepted; syncers that
     match exactly are prioritized)
-  * CONTINUOUS - can the syncer handle continous syncing
+  * CONTINUOUS - can the syncer handle continuous syncing
   * ONE_SHOT - can the syncer handle one-shot syncing
   * UNIDIRECTIONAL - can the syncer handle syncing only in one direction, from source to target;
     all syncers are assumed to be able to handle bidirectional syncing
