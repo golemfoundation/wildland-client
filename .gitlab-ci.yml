@@ -191,6 +191,8 @@ dropbox-test:
 
 googledrive-test:
   extends: .plugin_test
+  # until https://gitlab.com/wildland/wildland-client/-/issues/730 is fixed
+  allow_failure: true
   script:
     - ./ci/ci-googledrive "$GOOGLEDRIVE_TEST_ACCESS_TOKEN"
 
