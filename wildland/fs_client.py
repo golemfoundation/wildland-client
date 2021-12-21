@@ -25,6 +25,7 @@
 Wildland FS client
 """
 import itertools
+import os
 import time
 from pathlib import Path, PurePosixPath
 import subprocess
@@ -145,9 +146,11 @@ class WildlandFSClient:
 
         logger.info('running start command: %s', cmd)
 
+        env = os.environ
+        env['WILDLAND_CONFIG_DIR'] = str(self.base_dir)
         # Start a new session in order to not propagate SIGINT.
         # pylint: disable=consider-using-with
-        proc = subprocess.Popen(cmd, start_new_session=True)
+        proc = subprocess.Popen(cmd, start_new_session=True, env=env)
         if foreground:
             self.wait_for_mount()
             return proc

@@ -67,7 +67,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.read_only = True
-        self.client = ImapClient(self.params['host'],
+        self.client = ImapClient(self.persistent_db,
+                                 self.params['host'],
                                  self.params['login'],
                                  self.params['password'],
                                  self.params['folder'],
@@ -75,13 +76,13 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def mount(self):
         """
-        mounts the file system
+        Mounts the filesystem.
         """
         self.client.connect()
 
     def unmount(self):
         """
-        unmounts the filesystem
+        Unmounts the filesystem.
         """
         self.client.disconnect()
 
@@ -94,18 +95,18 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, ContainerStub]]:
-        for msg in self.client.all_messages_env():
-            yield self._make_msg_container(msg)
+        for envelope in self.client.all_envelopes():
+            yield self._make_msg_container(envelope)
 
     def get_root(self):
         """
-        returns wildland entry to the root directory
+        Returns Wildland entry of the root directory.
         """
         return FuncDirEntry('.', self._root)
 
     def _root(self):
-        logger.info("_root() requested for %s", self.backend_id)
-        for envelope in self.client.all_messages_env():
+        logger.debug("_root() requested for %s", self.backend_id)
+        for envelope in self.client.all_envelopes():
             yield FuncDirEntry(self._id_for_message(envelope),
                                partial(self._msg_contents, envelope),
                                int(envelope.recv_time.replace(tzinfo=timezone.utc).timestamp()))
@@ -124,8 +125,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _get_message_categories(self, e: MessageEnvelopeData) -> List[str]:
         """
-        Generate the list of category paths that the message will
-        appear under.
+        Generate the list of category paths that the message will appear under.
         """
         rv: Set[PurePosixPath] = set()
 
@@ -162,10 +162,10 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         """
         ident = self._id_for_message(env)
         paths = [f'/.uuid/{ident}']
-        logger.debug('making msg container for msg %d as %s',
-                     env.msg_uid, ident)
+        logger.debug('making msg container for msg %d as %s', env.msg_uid, ident)
         categories = self._get_message_categories(env)
         subcontainer_path = '/' + ident
+
         return PurePosixPath(subcontainer_path), ContainerStub({
             'paths': paths,
             'title': f'{env.subject} - {ident}',

@@ -93,6 +93,15 @@ following is the list of the methods you typically need to implement:
 There are many other FUSE callbacks that, depending on the needs, you should or should not
 implement. For full list, refer to :class:`~wildland.storage_backends.base.StorageBackend` class.
 
+All storage backends can use a persistent key-value object store:
+:class:`~wildland.storage_backends.kv_store.KVStore`. Any instance of
+:class:`~wildland.storage_backends.base.StorageBackend` can access that store (which is backed
+by an SQLite DB) by the property
+:attr:`~wildland.storage_backends.base.StorageBackend.persistent_db`. For an example of how this
+can be used, see the IMAP plugin: `~plugins.imap.wildland_imap.ImapClient.LocalCache`. There,
+the persistent store is used to cache message metadata so constructing the FS structure is faster
+on subsequent mounts.
+
 The following are examples of the classes inheriting from
 :class:`~wildland.storage_backends.base.StorageBackend`. You can refer to them to see how they use
 storage primitives.

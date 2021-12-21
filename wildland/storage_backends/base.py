@@ -41,6 +41,7 @@ import click
 
 import wildland
 from wildland.wildland_object.wildland_object import PublishableWildlandObject
+from .kv_store import KVStore
 from ..manifest.schema import Schema
 from ..manifest.manifest import Manifest
 from ..hashdb import HashDb, HashCache
@@ -228,6 +229,9 @@ class StorageBackend(metaclass=abc.ABCMeta):
         # pylint: disable=redefined-builtin, unused-argument
         self.read_only = False
         self.params: Dict[str, Any] = {}
+
+        assert params
+
         if params:
             assert params['type'] == self.TYPE
             self.params = params
@@ -241,6 +245,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
         self.hash_db: Optional[HashDb] = None
+        self._persistent_db: Optional[KVStore] = None  # generic persistent storage
         self.mounted = 0
 
         # Hash guarantees uniqueness per backend's params while backend-id does not
@@ -413,6 +418,17 @@ class StorageBackend(metaclass=abc.ABCMeta):
         Set path to config dir. Used to store hashes in a local sqlite DB.
         """
         self.hash_db = HashDb(config_dir)
+
+    @property
+    def persistent_db(self) -> KVStore:
+        """
+        Returns instance of a persistent key-value DB for use by the backend.
+        """
+        if self._persistent_db is None:
+            config_dir = PurePosixPath(os.environ["WILDLAND_CONFIG_DIR"])
+            assert config_dir
+            self._persistent_db = KVStore(config_dir, self.backend_id)
+        return self._persistent_db
 
     # FUSE file operations. Return a File instance.
 
