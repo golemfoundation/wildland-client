@@ -6546,3 +6546,44 @@ def test_set_default_cache(cli, base_dir):
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "default-cache-template: t1" in config
+
+
+def test(cli, base_dir):
+    dir_1 = Path(f'{base_dir}/dir_1')
+    dir_2 = Path(f'{base_dir}/dir_2')
+    file_1 = dir_1 / 'file_1.txt'
+    file_2 = dir_2 / 'file_2.txt'
+
+    dir_1.mkdir()
+    dir_2.mkdir()
+
+    file_1.touch()
+    file_2.touch()
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('start')
+
+    uuid = '11111111-1001-1001-111000000111'
+
+    with mock.patch('uuid.uuid4', return_value=uuid):
+        cli('container', 'create', 'container1', '--path', '/path', '--title',
+            'title')
+
+    cli('storage', 'create', 'local', 'SourceStorage', '--location', str(base_dir / 'dir_1'),
+        '--container', 'container1')
+
+    cli('container', 'mount', 'container1')
+
+    mount_path = base_dir / 'wildland'
+
+    assert (mount_path / 'path').exists()
+    assert len(list((mount_path / '.backends' / uuid).glob('*'))) == 1
+    assert len(list((mount_path / '.backends' / uuid).rglob('*.txt'))) == 1
+
+    # Create storage on mounted container
+    cli('storage', 'create', 'local', 'SourceStorage2', '--location', str(base_dir / 'dir_2'),
+        '--container', 'container1')
+
+    assert (mount_path / 'path').exists()
+    assert len(list((mount_path / '.backends' / uuid).glob('*'))) == 2
+    assert len(list((mount_path / '.backends' / uuid).rglob('*.txt'))) == 2

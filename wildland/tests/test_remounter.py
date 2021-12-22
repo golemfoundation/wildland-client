@@ -52,11 +52,14 @@ def setup(base_dir, cli, control_client):
     control_client.expect('status', {})
     control_client.expect('info', {
         '1': {
-            'paths': ['/path1', '/path1.1'],
+            'paths': ['/.uuid/0000000000-1111-0000-0000-000000000000',
+                      '/.uuid/0000000000-1111-0000-1111-000000000000'],
             'type': 'local',
             'extra': {},
         }
     })
+    control_client.expect('paths', {})
+
     os.mkdir(base_dir / 'manifests')
     os.mkdir(base_dir / 'storage1')
     os.mkdir(base_dir / 'storage2')
