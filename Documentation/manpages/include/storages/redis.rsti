@@ -18,6 +18,10 @@
 
    Server password. Optional.
 
+.. option:: --tls <boolean>
+
+   Use TLS. Optional.
+
 .. option:: --subcontainer-manifest <path_in_storage>
 
    Absolute path to a subcontainer manifest (can be repeated). Optional.
