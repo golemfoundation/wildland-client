@@ -390,6 +390,7 @@ class Client:
     def load_object_from_dict(self,
                               object_type: Union[WildlandObject.Type, None],
                               dictionary: dict,
+                              owner: str,
                               expected_owner: Optional[str] = None,
                               container: Optional[Container] = None):
         """
@@ -404,7 +405,7 @@ class Client:
         if 'encrypted' in dictionary.keys():
             raise ManifestDecryptionKeyUnavailableError()
         if dictionary.get('object') == 'link':
-            link = self.load_link_object(dictionary, expected_owner)
+            link = self.load_link_object(dictionary, owner)
             obj = self.load_object_from_bytes(object_type, link.get_target_file())
             if expected_owner and obj.owner != expected_owner:
                 raise WildlandError('Owner mismatch: expected {}, got {}'.format(
@@ -513,7 +514,8 @@ class Client:
             return self.load_object_from_url(object_type, obj, owner, expected_owner)
 
         if isinstance(obj, collections.abc.Mapping):
-            return self.load_object_from_dict(object_type, obj, expected_owner=owner,
+            return self.load_object_from_dict(object_type, obj, owner,
+                                              expected_owner=expected_owner,
                                               container=container)
         raise ValueError(f'{obj} is neither url nor dict')
 
@@ -1415,7 +1417,8 @@ class Client:
                 bridge = list(search.read_bridge())[0]
                 user = self.load_object_from_url_or_dict(object_type=WildlandObject.Type.USER,
                                                          obj=bridge.user_location,
-                                                         owner=bridge.user_id)
+                                                         owner=bridge.owner,
+                                                         expected_owner=bridge.user_id)
                 self.recognize_users_and_bridges([user], [bridge])
             elif elmnt.get("user", None):
                 if elmnt["user"] == "*":

@@ -547,6 +547,7 @@ class Search:
         else:
             try:
                 user = next_client.load_object_from_dict(WildlandObject.Type.USER, location,
+                                                         owner=owner,
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
                 logger.warning('cannot load bridge to [%s]', bridge.paths[0])
