@@ -172,12 +172,26 @@ def test_user_create_additional_keys(cli, base_dir):
 
 
 def test_user_create_additional_keys_user_path(cli_sodium, base_dir_sodium, dir_userid):
-    user_path = \
-        f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    # pylint: disable=line-too-long
+    user_path = f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
     cli_sodium('user', 'create', 'User', '--add-pubkey', user_path)
     with open(base_dir_sodium / 'users/User.user.yaml') as f:
         data = f.read()
     assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+
+
+def test_user_create_additional_keys_fingerprint_and_user_path(cli_sodium, base_dir_sodium,
+                                                               dir_userid, sig_sodium):
+    # pylint: disable=line-too-long
+    user_path = f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    owner, pubkey = sig_sodium.generate()
+    _, additional_pubkey = sig_sodium.generate()
+    cli_sodium('user', 'create', 'User', '--key', owner,
+               '--add-pubkey', user_path, '--add-pubkey', additional_pubkey)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+    assert f"pubkeys:\n- {pubkey}\n- {additional_pubkey}" in data
 
 
 def test_user_add_del_pubkey_user_path(cli_sodium, base_dir_sodium, dir_userid):

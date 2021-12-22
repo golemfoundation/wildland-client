@@ -39,10 +39,10 @@ from ..cli import cli_main
 from ..control_client import ControlClient, ControlClientUnableToConnectError
 from ..search import Search
 from ..storage_sync.daemon import SyncDaemon
+from ..manifest.sig import SodiumSigContext
 
 
 ## CLI
-
 
 @pytest.fixture
 def base_dir():
@@ -181,6 +181,11 @@ def cli_sodium(base_dir_sodium, capsys):
         cli('stop', '--keep-sync-daemon')
         (Path(os.getenv('XDG_RUNTIME_DIR', str(base_dir_sodium))) / 'wlfuse.sock'
          ).unlink(missing_ok=True)
+
+
+@pytest.fixture(params=[SodiumSigContext])
+def sig_sodium(base_dir_sodium, request):
+    return request.param(base_dir_sodium / 'keys')
 
 
 # TODO examine exception
