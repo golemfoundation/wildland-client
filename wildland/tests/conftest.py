@@ -63,6 +63,8 @@ def base_dir():
 
 # fixme: find a way to customize 'base_dir' and 'cli' fixtures properly for injecting 'dummy' value
 #  instead of duplicating code
+#
+#  See Wildland/wildland-client#739
 @pytest.fixture
 def base_dir_sodium():
     base_dir_s = tempfile.mkdtemp(prefix='wlcli.')

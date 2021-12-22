@@ -629,6 +629,8 @@ def del_fields(
         #  Find if it's interesting to create a generic function that would delete  values based on
         #  partial input. In the case of "members" it means we provide {"user-path": WLPATH} and
         #  it deletes member entry being {"user-path": WLPATH, "pubkeys": [PUBKEY1, PUBKEY2, ...]}
+        #
+        #  See Wildland/wildland-client#740
         obj = fields.get(field)
         if obj and field == "members":
             for m in obj:
