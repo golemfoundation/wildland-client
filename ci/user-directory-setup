@@ -20,6 +20,8 @@ wl template create webdav mywebdav \
 wl forest create --access='*' mywebdav
 cp ~/.config/wildland/users/alice.user.yaml ~/Downloads/
 
+get_userid alice > /tmp/alice_userid
+
 ### 2. create Charlie user
 
 switch_user charlie
@@ -33,6 +35,7 @@ wl template create webdav mywebdav \
 wl forest create --access='*' mywebdav
 cp ~/.config/wildland/users/charlie.user.yaml ~/Downloads/
 
+get_userid charlie > /tmp/charlie_userid
 
 ### 3. Create directory
 

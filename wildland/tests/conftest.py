@@ -98,6 +98,9 @@ def _wait_for_sync_daemon(socket_path):
             time.sleep(delay)
     pytest.fail('Timed out waiting for sync daemon')
 
+# dir_userid, alice_userid and charlie_userid are fixtures
+# related to user-directory-setup
+
 
 @pytest.fixture
 def dir_userid():
@@ -105,6 +108,22 @@ def dir_userid():
     with open('/tmp/dir_userid') as f:
         dir_userid = f.read().splitlines()[0]
     return dir_userid
+
+
+@pytest.fixture
+def alice_userid():
+    assert os.path.exists('/tmp/alice_userid')
+    with open('/tmp/alice_userid') as f:
+        alice_userid = f.read().splitlines()[0]
+    return alice_userid
+
+
+@pytest.fixture
+def charlie_userid():
+    assert os.path.exists('/tmp/charlie_userid')
+    with open('/tmp/charlie_userid') as f:
+        charlie_userid = f.read().splitlines()[0]
+    return charlie_userid
 
 
 @pytest.fixture

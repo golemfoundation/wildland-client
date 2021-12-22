@@ -22,6 +22,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
+import logging
 from copy import deepcopy
 from pathlib import Path
 import itertools
@@ -5830,6 +5831,36 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
          '1 due to lack of decryption key and 1 due to unknown errors)\x1b[0m',
         f'Created: {base_config_dir}/bridges/Alice.bridge.yaml'
     ]
+
+
+def test_forest_create_with_user_path_access(base_dir_sodium, cli_sodium, sig_sodium, tmp_path,
+                                             dir_userid, alice_userid):
+    owner, _ = sig_sodium.generate()
+    additional_owner, _ = sig_sodium.generate()
+
+    cli_sodium('user', 'create', 'Toto', '--key', owner)
+    cli_sodium('user', 'create', 'Titi', '--key', additional_owner)
+
+    cli_sodium('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+               '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
+    cli_sodium('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
+               '--read-only', '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
+
+    user_path = \
+        f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    cli_sodium('bridge', 'import', user_path)
+    cli_sodium('forest', 'create', '--access', user_path, '--access', additional_owner,
+               'forest-tpl')
+    output = wl_call_output(base_dir_sodium, 'user', 'dump', alice_userid)
+    alice_user = yaml_parser.safe_load(output)
+    output = wl_call_output(
+        base_dir_sodium, 'container', 'dump', 'Toto-forest-catalog').decode().strip('\n')
+    logging.critical(output)
+    assert f"access:\n" \
+           f"- user-path: 'wildland:{user_path}'\n" \
+           f"  pubkeys:\n" \
+           f"  - {alice_user['pubkeys'][0]}\n" \
+           f"- user: '{additional_owner}'" in output
 
 
 ## Storage params sanity test
