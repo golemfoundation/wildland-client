@@ -1031,11 +1031,12 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     all_storage_ids = list(dict.fromkeys(all_storage_ids))
     all_cache_ids = list(dict.fromkeys(all_cache_ids))
 
-    assert len(storage_ids) % 2 == 0
+    storages_count = len(all_storage_ids) + len(all_cache_ids)
+    assert storages_count % 2 == 0
 
     if all_storage_ids or all_cache_ids:
         # Each mounted storage has exactly 1 mounted pseudo manifest
-        click.echo(f'Unmounting storages(s): {int(len(storage_ids) / 2)}')
+        click.echo(f'Unmounting storages(s): {int(storages_count / 2)}')
         for storage_id in all_storage_ids:
             obj.fs_client.unmount_storage(storage_id)
 
