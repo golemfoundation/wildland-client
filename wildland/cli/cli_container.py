@@ -673,7 +673,7 @@ def prepare_mount(obj: ContextObj,
         subcontainers = []
 
     if not subcontainers or not only_subcontainers:
-        storages = obj.client.get_storages_to_mount(container)
+        storages: List[Storage] = obj.client.get_storages_to_mount(container)
         primary_storage_id = obj.fs_client.find_primary_storage_id(container)
 
         if primary_storage_id is None:
@@ -848,6 +848,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
     params: List[Tuple[Container, List[Storage], List[Iterable[PurePosixPath]], Container]] = []
     successfully_loaded_container_names: List[str] = []
     fails: List[str] = []
+    storages_count = 0
 
     for container_name in container_names:
         current_params: List[Tuple[Container, List[Storage],
@@ -876,9 +877,11 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         for container in counter(reordered):
             try:
                 user_paths = client.get_bridge_paths_for_user(container.owner)
-                mount_params = prepare_mount(
+                mount_params_generator = prepare_mount(
                     obj, container, str(container), user_paths,
                     remount, with_subcontainers, None, list_all, only_subcontainers)
+                mount_params = list(mount_params_generator)
+                storages_count += sum(len(params[1]) for params in mount_params)
                 current_params.extend(mount_params)
             except WildlandError as ex:
                 fails.append(f'Cannot mount container {container}: {str(ex)}')
@@ -886,11 +889,8 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)
 
-    if len(params) > 1:
-        click.echo(f'Mounting storages for containers: {len(params)}')
-        obj.fs_client.mount_multiple_containers(params, remount=remount)
-    elif len(params) > 0:
-        click.echo('Mounting one storage')
+    if storages_count:
+        click.echo(f'Mounting storage(s): {storages_count}')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     else:
         click.echo('No containers need (re)mounting')
@@ -968,8 +968,12 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
     if unmount_all:
         ids = obj.fs_client.get_mounted_storage_ids()
+
+        assert len(ids) % 2 == 0
+
         if len(ids) > 0:
-            click.echo(f'Unmounting {len(ids)} storages')
+            # Each mounted storage has exactly 1 mounted pseudo manifest
+            click.echo(f'Unmounting storage(s): {int(len(ids) / 2)}')
             for ident in ids:
                 obj.fs_client.unmount_storage(ident)
             click.echo('Stopping all sync jobs')
@@ -1027,8 +1031,11 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     all_storage_ids = list(dict.fromkeys(all_storage_ids))
     all_cache_ids = list(dict.fromkeys(all_cache_ids))
 
+    assert len(storage_ids) % 2 == 0
+
     if all_storage_ids or all_cache_ids:
-        click.echo(f'Unmounting {len(storage_ids)} containers')
+        # Each mounted storage has exactly 1 mounted pseudo manifest
+        click.echo(f'Unmounting storages(s): {int(len(storage_ids) / 2)}')
         for storage_id in all_storage_ids:
             obj.fs_client.unmount_storage(storage_id)
 
