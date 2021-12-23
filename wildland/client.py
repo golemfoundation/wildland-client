@@ -398,6 +398,7 @@ class Client:
         :param dictionary: dict containing object data
         :param object_type: expected type of object; if None, will use dict 'object' field.
         On mismatch of expected and actual type, a WildlandError will be raised.
+        :param owner: owner in whose context we load the dict
         :param expected_owner: expected owner. On mismatch of expected and actual owner,
         a WildlandError will be raised.
         :param container: used if object is STORAGE. Ignored otherwise.
