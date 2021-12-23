@@ -625,14 +625,14 @@ def del_fields(
             keys = values_or_key
             values = []
 
-        # fixme: special treatment for "members" field, we ignore 'pubkeys'.
+        # fixme: special treatment for "members" and "access" fields, we ignore 'pubkeys'.
         #  Find if it's interesting to create a generic function that would delete  values based on
-        #  partial input. In the case of "members" it means we provide {"user-path": WLPATH} and
+        #  partial input. For example, we provide {"user-path": WLPATH} and
         #  it deletes member entry being {"user-path": WLPATH, "pubkeys": [PUBKEY1, PUBKEY2, ...]}
         #
         #  See Wildland/wildland-client#740
         obj = fields.get(field)
-        if obj and field == "members":
+        if obj and field in ("members", "access"):
             for m in obj:
                 m.pop("pubkeys", None)
 
