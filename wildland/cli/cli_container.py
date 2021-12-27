@@ -1368,7 +1368,13 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
         ctx, path, WildlandObject.Type.CONTAINER, cli_common.edit, editor=editor, remount=remount)
 
     if manifest_modified:
-        owner = container.owner
+        if isinstance(container, Container):
+            owner = container.owner
+        else:
+            # container object should always be an instance of Container class
+            click.echo('Edited object is not a container.')
+            return
+
         client = ctx.obj.client
 
         if Publisher.is_published(client, owner, container.get_primary_publish_path()):
