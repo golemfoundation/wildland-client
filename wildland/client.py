@@ -239,13 +239,20 @@ class Client:
         logger.debug('starting sync daemon: %s', cmd)
         Popen(cmd)
 
+    @property
+    def connected_to_sync_daemon(self):
+        """
+        Check whether a connection to the sync daemon is established.
+        """
+        return self._sync_client is not None
+
     def run_sync_command(self, name, **kwargs) -> Any:
         """
         Run sync command (through the sync daemon).
         """
-        if not self._sync_client:
+        if not self.connected_to_sync_daemon:
             self.connect_sync_daemon()
-        assert self._sync_client is not None
+        assert self._sync_client
         return self._sync_client.run_command(name, **kwargs)
 
     def get_sync_event(self) -> Iterator[SyncEvent]:
@@ -1176,7 +1183,7 @@ class Client:
         if isinstance(storage, StorageBackend):
             storage = storage.TYPE
         elif isinstance(storage, Storage):
-            storage = storage.params['type']
+            storage = storage.storage_type or storage.params['type']
 
         return storage in ['local', 'local-cached', 'local-dir-cached']
 
@@ -1434,7 +1441,8 @@ class Client:
         return storage
 
     def do_sync(self, container_name: str, job_id: str, source: dict, target: dict,
-                one_shot: bool, unidir: bool, active_events: List[str] = None) -> str:
+                one_shot: bool, unidir: bool, active_events: List[str] = None,
+                wait_if_already_running: bool = False) -> str:
         """
         Start sync between source and target storages
         """
@@ -1442,6 +1450,8 @@ class Client:
                   'unidirectional': unidir, 'source': source, 'target': target}
         if active_events:
             kwargs['active-events'] = active_events
+        if wait_if_already_running and self.connected_to_sync_daemon:
+            self.wait_for_sync(job_id, stop_on_finish=True)
         return self.run_sync_command('start', **kwargs)
 
     def wait_for_sync(self, job_id: str, stop_on_finish: bool = True) -> Tuple[str, bool]:
