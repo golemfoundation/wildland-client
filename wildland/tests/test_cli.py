@@ -1633,6 +1633,110 @@ def test_modify_unmounts_removed_storage(base_dir, cli):
     assert result.count(pseudo) == 1
 
 
+def test_status_for_specified_container(base_dir, cli):
+    status_container_uuid = '00000000-0000-0000-000000000000'
+    container_2_uuid = '11111111-1111-1111-111111111111'
+
+    status_container = 'Container'
+    container_2 = 'Container2'
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    with mock.patch('uuid.uuid4', return_value=status_container_uuid):
+        cli('container', 'create', status_container, '--path', '/PATH')
+
+    with mock.patch('uuid.uuid4', return_value=container_2_uuid):
+        cli('container', 'create', container_2, '--path', '/PATH')
+
+    cli('storage', 'create', 'local', 'Storage1',
+        '--location', '/PATH', '--container', status_container)
+    cli('storage', 'create', 'local', 'Storage2',
+        '--location', '/PATH2', '--container', container_2)
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', status_container)
+    cli('container', 'mount', container_2)
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+    assert f'{status_container_uuid}' in result
+    assert f'{container_2_uuid}' in result
+
+    result = cli('status', '--container', status_container, '-p', capture=True)
+    assert result.count(pseudo) == 1
+    assert result.count(local) == 1
+
+    assert 'No sync jobs running' in result
+    assert f'{status_container_uuid}' in result
+    assert f'{container_2_uuid}' not in result
+
+    cli('storage', 'create', 'local', 'Storage3',
+        '--location', '/PATH3', '--container', status_container)
+
+    cli('container', 'unmount', status_container)
+    cli('container', 'mount', status_container)
+
+    result = cli('status', '--container', status_container, '-p', capture=True)
+    assert result.count(local) == 2
+    assert result.count(pseudo) == 2
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 3
+    assert result.count(local) == 3
+
+
+def test_status_content_for_specified_container(base_dir, cli):
+    container_uuid = '00000000-0000-0000-000000000000'
+    storage1_uuid = '11111111-1111-1111-111111111111'
+    storage2_uuid = '11111111-0000-0000-111111111111'
+    user_key = '0xaaa'
+    container_name = 'status-container'
+
+    cli('user', 'create', 'User', '--key', user_key)
+
+    with mock.patch('uuid.uuid4', return_value=container_uuid):
+        cli('container', 'create', container_name, '--path', '/PATH')
+
+    with mock.patch('uuid.uuid4', return_value=storage1_uuid):
+        cli('storage', 'create', 'local', 'Storage1',
+            '--location', '/PATH', '--container', container_name)
+
+    with mock.patch('uuid.uuid4', return_value=storage2_uuid):
+        cli('storage', 'create', 'local', 'Storage2',
+            '--location', '/PATH2', '--container', container_name)
+
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', container_name)
+
+    result = cli('status', '-p', '--container', container_name, capture=True)
+    out_lines = result.splitlines()
+    assert f'Container: {container_name}' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/{storage1_uuid}' \
+           f'-pseudomanifest/.manifest.wildland.yaml' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/{storage2_uuid}' \
+           f'-pseudomanifest/.manifest.wildland.yaml' in out_lines
+
+    result = cli('status', '-a', '--container', container_name, capture=True)
+    out_lines = [line.lstrip() for line in result.splitlines()]
+    assert f'Container: {container_name}' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/' \
+           f'{storage1_uuid}' in out_lines
+    assert f'/.backends/{container_uuid}/{storage1_uuid}' in out_lines
+    assert f'/.users/{user_key}:/.uuid/{container_uuid}' in out_lines
+    assert f'/.uuid/{container_uuid}' in out_lines
+    assert f'/.users/{user_key}:/PATH' in out_lines
+    assert '/PATH' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/00000000-0000-0000-000000000000/' \
+           f'{storage2_uuid}' in out_lines
+
+
 def test_container_add_path(cli, cli_fail, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
