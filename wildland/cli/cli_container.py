@@ -1381,6 +1381,6 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
             cli_common.republish_object(client, container)
 
         elif publish:
-            user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, owner)
+            user = client.load_object_from_name(WildlandObject.Type.USER, owner)
             click.echo('Publishing a container')
             Publisher(client, user).publish(container)
