@@ -6548,7 +6548,7 @@ def test_set_default_cache(cli, base_dir):
     assert "default-cache-template: t1" in config
 
 
-def test(cli, base_dir):
+def test_container_remount_after_adding_storage(cli, base_dir):
     dir_1 = Path(f'{base_dir}/dir_1')
     dir_2 = Path(f'{base_dir}/dir_2')
     file_1 = dir_1 / 'file_1.txt'
