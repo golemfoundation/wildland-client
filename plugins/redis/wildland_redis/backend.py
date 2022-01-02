@@ -91,6 +91,10 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
                 "type": "integer",
                 "description": "Server port",
             },
+            "username": {
+                "type": "string",
+                "description": "Server username",
+            },
             "password": {
                 "type": "string",
                 "description": "Server password",
@@ -125,6 +129,7 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
             host=self.hostname,
             port=self.port,
             db=self.database,
+            username=self.params.get('username', 'default'),
             password=self.params.get('password'),
             ssl=self.params.get('tls', False),
         )
@@ -164,6 +169,8 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
                          help='Server port (defaults to 6379)'),
             click.Option(['--password'], required=False,
                          help='Server password'),
+            click.Option(['--username'], required=False,
+                         help='Server username (defaults to "default")'),
             click.Option(['--tls'], required=False, metavar='BOOL',
                          help='Use TLS'),
         ])
@@ -179,6 +186,7 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
             'port': int(data.get('port') or 6379),
             'password': data.get('password', None),
             'tls': data.get('tls', None),
+            'username': data.get('username'),
         })
         return opts
 
