@@ -111,6 +111,8 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         self.manifest = manifest
         self.client = client
 
+        # Track if loaded or not pubkeys for members
+        self._loaded_members = False
         self.members = members if members else []
 
     def get_unique_publish_id(self) -> str:
@@ -243,8 +245,9 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
     def to_manifest_fields(self, inline: bool) -> dict:
         if inline:
             raise WildlandError('User manifest cannot be inlined.')
-        if self.members:
+        if not self._loaded_members:
             self.members = self.client.load_pubkeys_from_field(self.members, self.owner)
+            self._loaded_members = True
         result: Dict[Any, Any] = {
                 'version': Manifest.CURRENT_VERSION,
                 'object': 'user',
