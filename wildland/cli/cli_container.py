@@ -470,7 +470,7 @@ container_.add_command(cli_common.unpublish)
 @click.option('--del-storage', metavar='TEXT', multiple=True,
               help='Storage to remove. Can be either the backend_id of a storage or position in '
                    'storage list (starting from 0)')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish modified container')
+@click.option('--publish/--no-publish', '-p/-P', default=False, help='publish modified container')
 @click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
@@ -545,8 +545,23 @@ def modify(ctx: click.Context,
         logger=logger
     )
 
-    if publish and modified:
-        cli_common.republish_object(ctx.obj.client, container)
+    if modified:
+        if isinstance(container, Container):
+            owner = container.owner
+        else:
+            # container object should always be an instance of Container class
+            click.echo('Edited object is not a container.')
+            return
+
+        client = ctx.obj.client
+
+        if Publisher.is_published(client, owner, container.get_primary_publish_path()):
+            cli_common.republish_object(client, container)
+
+        elif publish:
+            user = client.load_object_from_name(WildlandObject.Type.USER, owner)
+            click.echo('Publishing a container')
+            Publisher(client, user).publish(container)
 
 
 def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
