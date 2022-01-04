@@ -72,8 +72,7 @@ encrypted:
   - .*"
 run cat ~/.config/wildland/containers/mycontainer.container.yaml
 
-expected="Saved: /home/user/.config/wildland/containers/mycontainer.container.yaml
-Re-publishing container: [/.uuid/$mycontainer_uuid]"
+expected="Saved: /home/user/.config/wildland/containers/mycontainer.container.yaml"
 run wl container modify --no-encrypt-manifest mycontainer
 
 expected_pcre="signature: \|

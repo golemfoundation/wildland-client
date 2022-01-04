@@ -545,7 +545,7 @@ def modify(ctx: click.Context,
         logger=logger
     )
 
-    if modified:
+    if modified and publish:
         if isinstance(container, Container):
             owner = container.owner
         else:
@@ -558,7 +558,7 @@ def modify(ctx: click.Context,
         if Publisher.is_published(client, owner, container.get_primary_publish_path()):
             cli_common.republish_object(client, container)
 
-        elif publish:
+        else:
             user = client.load_object_from_name(WildlandObject.Type.USER, owner)
             click.echo('Publishing a container')
             Publisher(client, user).publish(container)

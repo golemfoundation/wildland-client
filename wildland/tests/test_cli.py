@@ -1625,7 +1625,8 @@ def test_container_modify_publish_with_flag(cli, base_dir, tmp_path):
 
     assert not tuple(tmp_path.glob('*.container.yaml'))
 
-    result = cli('container', 'modify', '--title', 'PUBLISHED', 'Container', '--publish', capture=True)
+    result = cli('container', 'modify', '--title', 'PUBLISHED', 'Container',
+                 '--publish', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
@@ -1653,7 +1654,8 @@ def test_container_modify_republish_if_published(cli, base_dir, tmp_path):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    result = cli('container', 'modify', '--title', 'REPUBLISH', 'Container', capture=True)
+    result = cli('container', 'modify', '--title', 'REPUBLISH', 'Container',
+                 '--publish', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
@@ -1667,7 +1669,8 @@ def test_container_modify_republish_if_published(cli, base_dir, tmp_path):
         data = f.read()
     assert "REPUBLISH" in data
 
-    result = cli('container', 'modify', '--title', 'REPUBLISH', 'Container', capture=True)
+    result = cli('container', 'modify', '--title', 'REPUBLISH', 'Container',
+                 '--publish', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 1
     assert out_lines[0] == 'Manifest has not changed.'
@@ -1924,8 +1927,8 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     # Create the container (with auto-publish)
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    # Modify it right away (and auto-re-publish)
-    cli('container', 'modify', 'Container.container', '--title', 'something')
+    # Modify it right away (and publish with flag)
+    cli('container', 'modify', 'Container.container', '--title', 'something', '--publish')
 
     # Find it using forest catalog path
     with open(catalog_dir / 'PATH.container.yaml') as f:
@@ -1955,9 +1958,9 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
 
     monkeypatch.setattr("wildland.cli.cli_common.resolve_object", _cb)
 
-    # Modify it again, although this time use file:// URL (and auto-re-publish)
+    # Modify it again, although this time use file:// URL (and publish with flag)
     cli('container', 'modify', '--title', 'another thing',
-        f'file://localhost/{base_dir}/containers/Container.container.yaml')
+        f'file://localhost/{base_dir}/containers/Container.container.yaml', '--publish')
 
     # Check if it was re-published with updated title
     with open(catalog_dir / 'PATH.container.yaml') as f:
@@ -2457,13 +2460,13 @@ def test_container_republish_paths(cli, tmp_path):
     assert (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
 
-    # --no-publish, modification in progress
-    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH2', '--no-publish')
-    # auto republishing
-    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH3')
-    # --no-publish
-    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH1', '--no-publish')
-    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH4', '--no-publish')
+    # --no-publish(by default), modification in progress
+    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH2')
+    # publish with flag
+    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH3', '--publish')
+    # --no-publish(by default)
+    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH1')
+    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH4')
 
     assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
@@ -2492,13 +2495,15 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
+    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1',
+                 '--publish', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
     assert 'Re-publishing container: [/.uuid/' in out_lines[1]
 
-    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
+    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1',
+                 '--publish', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert out_lines[0] == '/PA/TH1 is already in the manifest'
