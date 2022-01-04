@@ -297,6 +297,13 @@ def test_unmount_traverse(cli, client, base_dir, control_client):
     })
     control_client.expect('unmount')
     control_client.expect('status', {})
+    control_client.expect('info', {
+        '102': {
+            'paths': ['/PATH'],
+            'type': 'local',
+            'extra': {},
+        }
+    })
     cli('container', 'unmount', ':/path:/other/path:', '--without-subcontainers')
 
 
