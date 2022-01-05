@@ -1312,6 +1312,91 @@ def test_container_edit(cli, base_dir):
     assert original == data
 
 
+def test_container_publish_after_edit_with_publish_flag(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--inline',
+        '--manifest-pattern', '/*.{object-type}.yaml')
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+    editor = r'sed -i s,PATH,HTAP,g'
+    result = cli('container', 'edit', 'Container', '--editor', editor, '--publish', capture=True)
+    out_lines = result.splitlines()
+    assert len(out_lines) == 2
+    assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
+    assert 'Publishing a container' in out_lines[1]
+
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        data = f.read()
+    assert "/HTAP" in data
+
+
+def test_container_republish_after_edit_if_published(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--inline',
+        '--manifest-pattern', '/*.{object-type}.yaml')
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+    cli('container', 'publish', 'Container')
+
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
+
+    editor = r'sed -i s,PATH,REPUBLISH,g'
+
+    result = cli('container', 'edit', 'Container', '--editor', editor, capture=True)
+    out_lines = result.splitlines()
+    assert len(out_lines) == 2
+    assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
+    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
+
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        data = f.read()
+    assert "/REPUBLISH" in data
+
+    editor = r'sed -i s,REPUBLISH,REPUBLISH,g'
+    result = cli('container', 'edit', 'Container', '--editor', editor, capture=True)
+    out_lines = result.splitlines()
+    assert len(out_lines) == 1
+    assert out_lines[0] == 'No changes detected, not saving.'
+
+
+def test_container_not_republish_after_edit_if_not_published(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
+        '--container', 'Container', '--inline',
+        '--manifest-pattern', '/*.{object-type}.yaml')
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+    editor = r'sed -i s,PATH,REPUBLISH,g'
+    result = cli('container', 'edit', 'Container', '--editor', editor, capture=True)
+    out_lines = result.splitlines()
+    assert len(out_lines) == 1
+    assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    with open(manifest) as f:
+        data = f.read()
+    assert "/REPUBLISH" in data
+
+
 def test_container_edit_encryption(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', '--path', '/PATH', 'Container')

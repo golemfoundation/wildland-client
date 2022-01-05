@@ -1357,7 +1357,7 @@ def dump(ctx: click.Context, path: str, decrypt: bool):
 @container_.command(short_help='edit container manifest in external tool')
 @click.option('--editor', metavar='EDITOR', help='custom editor')
 @click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
-@click.option('--publish/--no-publish', '-p/-P', default=True, help='publish edited container')
+@click.option('--publish/--no-publish', '-p/-P', default=False, help='publish edited container')
 @click.argument('path', metavar='FILE or WLPATH')
 @click.pass_context
 def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], remount: bool):
@@ -1367,5 +1367,20 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
     container, manifest_modified = cli_common.resolve_object(
         ctx, path, WildlandObject.Type.CONTAINER, cli_common.edit, editor=editor, remount=remount)
 
-    if publish and manifest_modified:
-        cli_common.republish_object(ctx.obj.client, container)
+    if manifest_modified:
+        if isinstance(container, Container):
+            owner = container.owner
+        else:
+            # container object should always be an instance of Container class
+            click.echo('Edited object is not a container.')
+            return
+
+        client = ctx.obj.client
+
+        if Publisher.is_published(client, owner, container.get_primary_publish_path()):
+            cli_common.republish_object(client, container)
+
+        elif publish:
+            user = client.load_object_from_name(WildlandObject.Type.USER, owner)
+            click.echo('Publishing a container')
+            Publisher(client, user).publish(container)
