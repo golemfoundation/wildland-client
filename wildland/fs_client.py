@@ -77,7 +77,7 @@ class WildlandFSError(WildlandError):
 
 class StorageInfo:
     """
-    Represents structured information about single mounter storage.
+    Represents structured information about single mounted storage.
     """
     def __init__(self, data: dict):
         self.paths = [PurePosixPath(p) for p in data['paths']]
