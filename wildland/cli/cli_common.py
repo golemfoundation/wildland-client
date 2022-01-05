@@ -329,12 +329,16 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
         manifest_type = ctx.parent.parent.command.name if ctx.parent and ctx.parent.parent else None
     if manifest_type == 'wl':
         manifest_type = None
+    manifest = None
+    owner = None
+    new_owner = None
 
     path = find_manifest_file(obj.client, input_file, manifest_type)
 
     try:
         manifest = Manifest.from_file(path, obj.client.session.sig)
         actual_manifest_type = manifest.fields['object']
+        owner = manifest.fields['owner']
         if manifest_type is None:
             manifest_type = actual_manifest_type
         else:
@@ -367,8 +371,8 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             return False
 
         try:
-            manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
-            manifest.skip_verification()
+            new_manifest = Manifest.from_unsigned_bytes(data, obj.client.session.sig)
+            new_manifest.skip_verification()
         except (ManifestError, WildlandError) as e:
             click.secho(f'Manifest parse error: {e}', fg="red")
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
@@ -376,8 +380,10 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
             click.echo('Changes not saved.')
             return False
 
+        new_owner = new_manifest.fields['owner']
+
         try:
-            _sign_and_save(obj, manifest, manifest_type, path)
+            _sign_and_save(obj, new_manifest, manifest_type, path)
         except CliError as e:
             click.secho(f'Manifest signing error: {e}', fg="red")
             if click.confirm('Do you want to edit the manifest again to fix the error?'):
@@ -389,9 +395,45 @@ def edit(ctx: click.Context, editor: Optional[str], input_file: str, remount: bo
 
     if remount and manifest_type == 'container' and obj.fs_client.is_running():
         path = find_manifest_file(obj.client, input_file, manifest_type)
-        remount_container(obj, path)
+        owner_changed = owner is not None and owner != new_owner
+        if owner_changed:
+            LOGGER.debug("Owner changed")
+            assert manifest is not None
+            hard_remount_container(obj, path, old_manifest=manifest)
+        else:
+            remount_container(obj, path)
 
     return True
+
+
+def hard_remount_container(obj, container_path: Path, old_manifest: Manifest):
+    """
+    Unmount all storages and then mount new ones.
+
+    @param obj context object
+    @param container_path is the path to the new container manifest, to be mounted
+    @param old_manifest manifest before changes, to be unmounted
+    """
+    old_container = WildlandObject.from_manifest(old_manifest, obj.client,
+                                                 WildlandObject.Type.CONTAINER,
+                                                 local_owners=obj.client.config.get(
+                                                     'local-owners'))
+
+    if obj.fs_client.find_primary_storage_id(old_container) is not None:
+        click.echo('Container is mounted, remounting')
+        # unmount old container
+        for path in obj.fs_client.get_unique_storage_paths(old_container):
+            storage_and_pseudo_ids = find_storage_and_pseudomanifest_storage_ids(obj, path)
+            LOGGER.debug('  Removing storage %s @ id: %d', path, storage_and_pseudo_ids[0])
+            for storage_id in storage_and_pseudo_ids:
+                obj.fs_client.unmount_storage(storage_id)
+
+        # mount new container
+        container = obj.client.load_object_from_file_path(
+            WildlandObject.Type.CONTAINER, container_path)
+        storages = obj.client.get_storages_to_mount(container)
+        user_paths = obj.client.get_bridge_paths_for_user(container.owner)
+        obj.fs_client.mount_container(container, storages, user_paths, remount=True)
 
 
 @click.command(short_help='publish a manifest')
@@ -516,19 +558,9 @@ def prepare_remount(obj, container, storages, user_paths, force_remount=False):
     storages_to_unmount = []
 
     for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
-        storage_id = obj.fs_client.find_storage_id_by_path(path)
-
-        pm_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
-        pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
-        if pseudo_storage_id is None:
-            pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
-            pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
-
-        assert storage_id is not None
-        assert pseudo_storage_id is not None
-        LOGGER.debug('  Removing orphan storage %s @ id: %d', path, storage_id)
-
-        storages_to_unmount += [storage_id, pseudo_storage_id]
+        storage_and_pseudo_ids = find_storage_and_pseudomanifest_storage_ids(obj, path)
+        LOGGER.debug('  Removing orphan storage %s @ id: %d', path, storage_and_pseudo_ids[0])
+        storages_to_unmount += storage_and_pseudo_ids
 
     if not force_remount:
         for storage in storages:
@@ -541,6 +573,25 @@ def prepare_remount(obj, container, storages, user_paths, force_remount=False):
         storages_to_remount = storages
 
     return storages_to_remount, storages_to_unmount
+
+
+def find_storage_and_pseudomanifest_storage_ids(obj, path):
+    """
+    Find first storage ID for a given mount path. ``None` is returned if the given path is not
+    related to any storage.
+    """
+    storage_id = obj.fs_client.find_storage_id_by_path(path)
+
+    pm_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
+    pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
+    if pseudo_storage_id is None:
+        pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
+        pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
+
+    assert storage_id is not None
+    assert pseudo_storage_id is not None
+
+    return storage_id, pseudo_storage_id
 
 
 def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],

@@ -1407,6 +1407,63 @@ def test_edit_unmounts_removed_storage(base_dir, cli):
     assert result.count(pseudo) == 1
 
 
+def test_container_edit_remount(cli, base_dir, control_client):
+    control_client.expect('status', {})
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'UserB', '--key', '0xbbb')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage', '--location', '/PATH', '--container', 'Container')
+
+    control_client.expect('paths', {})
+    control_client.expect('mount')
+
+    cli('container', 'mount', 'Container')
+
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xaaa'
+
+    with open(base_dir / 'containers/Container.container.yaml') as f:
+        documents = list(yaml_parser.load_all(f))
+
+    uuid_path = documents[1]['paths'][0]
+    uuid = get_container_uuid_from_uuid_path(uuid_path)
+    backend_id = documents[1]['backends']['storage'][0]['backend-id']
+
+    control_client.expect('paths', {
+        f'/.users/0xaaa:/.uuid/{uuid}': [101],
+        f'/.users/0xaaa:/.uuid/{uuid}/.manifest.wildland.yaml': [102],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}': [101],
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}-pseudomanifest/.manifest.wildland.yaml':
+            [102],
+        f'/.uuid/{uuid}': [101],
+        f'/.uuid/{uuid}/.manifest.wildland.yaml': [102],
+        f'/.backends/{uuid}/{backend_id}': [101],
+        f'/.backends/{uuid}/{backend_id}/.manifest.wildland.yaml': [102],
+        '/PATH': [101],
+        '/PATH/.manifest.wildland.yaml': [102],
+    })
+    control_client.expect('unmount')
+    control_client.expect('unmount')
+    control_client.expect('mount')
+
+    manifest = base_dir / 'containers/Container.container.yaml'
+
+    editor = r'sed -i s,0xaaa,0xbbb,g'
+    cli('container', 'edit', 'Container', '--editor', editor)
+    with open(manifest) as f:
+        data = f.read()
+    assert "0xbbb" in data
+
+    command = control_client.all_calls['unmount'][0]['storage_id']
+    assert command == 101
+    command = control_client.all_calls['unmount'][1]['storage_id']
+    assert command == 102
+    command = control_client.calls['mount']['items']
+    assert command[0]['storage']['owner'] == '0xbbb'
+
+
 def test_container_modify_remount(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -5599,7 +5656,6 @@ def test_pseudomanifest_unmount_when_forest_unmount(cli, tmp_path, base_dir):
     cli('forest', 'unmount', ':/forests/Bob:')
     wildland_dir_content = list(base_dir.glob("wildland/*"))
     assert len(wildland_dir_content) == 0
-
 
 def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
