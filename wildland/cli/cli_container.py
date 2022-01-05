@@ -969,7 +969,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
     if unmount_all:
         ids = obj.fs_client.get_mounted_storage_ids()
-        unmount_count = count_normal_storages(obj, ids)
+        unmount_count = _count_normal_storages(obj, ids)
         if unmount_count > 0:
             click.echo(f'Unmounting {unmount_count} storages')
             for ident in ids:
@@ -1030,7 +1030,8 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     all_cache_ids = list(dict.fromkeys(all_cache_ids))
 
     if all_storage_ids or all_cache_ids:
-        click.echo(f'Unmounting {count_normal_storages(obj, all_storage_ids + all_cache_ids)} storages')
+        storages_count = _count_normal_storages(obj, all_storage_ids + all_cache_ids)
+        click.echo(f'Unmounting {storages_count} storages')
         for storage_id in all_storage_ids:
             obj.fs_client.unmount_storage(storage_id)
 
@@ -1046,7 +1047,7 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
         raise WildlandError('\n'.join(fails))
 
 
-def count_normal_storages(obj: ContextObj, storage_ids: List[int]):
+def _count_normal_storages(obj: ContextObj, storage_ids: List[int]):
     return len(list(filter(
         lambda storage_id: not _is_pseudomanifest_storage_id(obj, storage_id), storage_ids
     )))

@@ -74,7 +74,11 @@ class WatchEvent:
 class WildlandFSError(WildlandError):
     """Error while trying to control Wildland FS."""
 
+
 class StorageInfo:
+    """
+    Represents structured information about single mounter storage.
+    """
     def __init__(self, data: dict):
         self.paths = [PurePosixPath(p) for p in data['paths']]
         self.type = data['type']
