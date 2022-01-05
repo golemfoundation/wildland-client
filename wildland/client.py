@@ -849,7 +849,7 @@ class Client:
                 if 'reference-container' not in storage.params:
                     continue
 
-                backend_cls = StorageBackend.types()[storage.params['type']]
+                backend_cls = StorageBackend.types()[storage.storage_type]
                 if not backend_cls.MOUNT_REFERENCE_CONTAINER:
                     continue
 
@@ -1353,7 +1353,7 @@ class Client:
         """
         all_storages = self.get_all_storages(container, excluded_storage, only_writable)
         local_storages = [storage for storage in all_storages
-                          if self.is_local_storage(storage.params['type'])]
+                          if self.is_local_storage(storage.storage_type)]
         return local_storages
 
     def get_local_storage(self, container: Container, local_storage: Optional[str] = None,
@@ -1405,7 +1405,7 @@ class Client:
         remote_storages = [storage for storage in all_storages
                            if target_remote_id == storage.backend_id or
                            (not target_remote_id and
-                            not self.is_local_storage(storage.params['type']))]
+                            not self.is_local_storage(storage.storage_type))]
         return remote_storages
 
     def get_remote_storage(self, container: Container, remote_storage: Optional[str] = None,

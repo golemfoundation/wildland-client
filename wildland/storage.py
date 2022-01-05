@@ -288,7 +288,7 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
     """
     try:
         return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
+                if id_or_type in (storage.backend_id, storage.storage_type)][0]
     except IndexError:
         # pylint: disable=raise-missing-from
         raise WildlandError(f'Storage {id_or_type} not found')

@@ -173,7 +173,7 @@ def _do_create(
     elif container_obj.access:
         access_users = container_obj.access
 
-    params['type'] = backend.TYPE  # TODO this should be redundant but it's not
+    params['type'] = backend.TYPE
 
     storage = Storage(
         storage_type=backend.TYPE,
@@ -319,30 +319,28 @@ def _delete(obj: ContextObj, name: str, force: bool, no_cascade: bool, container
                 click.echo(f"Syncing of {container_obj.uuid} is in progress.")
                 return
 
-    # TODO redundant `if`?
-    if container_to_sync:
-        for c in container_to_sync:
-            storage_to_delete = _get_storage_by_id_or_type(name, obj.client.all_storages(c))
-            click.echo(f'Outdated storage for container {c.uuid}, attempting to sync storage.')
-            target = None
+    for c in container_to_sync:
+        storage_to_delete = _get_storage_by_id_or_type(name, obj.client.all_storages(c))
+        click.echo(f'Outdated storage for container {c.uuid}, attempting to sync storage.')
+        target = None
+        try:
+            target = obj.client.get_remote_storage(c, excluded_storage=name)
+        except WildlandError:
+            pass
+        if not target:
             try:
-                target = obj.client.get_remote_storage(c, excluded_storage=name)
+                target = obj.client.get_local_storage(c, excluded_storage=name)
             except WildlandError:
-                pass
-            if not target:
-                try:
-                    target = obj.client.get_local_storage(c, excluded_storage=name)
-                except WildlandError:
-                    # pylint: disable=raise-missing-from
-                    raise WildlandError("Cannot find storage to sync data into.")
-            logger.debug("sync: {%s} -> {%s}", storage_to_delete, target)
-            response = obj.client.do_sync(c.uuid, c.sync_id, storage_to_delete.params,
-                                          target.params, one_shot=True, unidir=True)
-            logger.debug(response)
-            msg, success = obj.client.wait_for_sync(c.sync_id)
-            click.echo(msg)
-            if not success:
-                container_failed_to_sync.append(c.uuid)
+                # pylint: disable=raise-missing-from
+                raise WildlandError("Cannot find storage to sync data into.")
+        logger.debug("sync: {%s} -> {%s}", storage_to_delete, target)
+        response = obj.client.do_sync(c.uuid, c.sync_id, storage_to_delete.params,
+                                        target.params, one_shot=True, unidir=True)
+        logger.debug(response)
+        msg, success = obj.client.wait_for_sync(c.sync_id)
+        click.echo(msg)
+        if not success:
+            container_failed_to_sync.append(c.uuid)
 
     if container_failed_to_sync and not force:
         click.echo(f"Failed to sync storage for containers: {','.join(container_failed_to_sync)}")

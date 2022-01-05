@@ -2,7 +2,9 @@
 
 set -ex
 
-# First argument is a plugin name. The rest arguments are used for creating the backend storage.
+# First argument is a plugin name of the REMOTE storage (this assumption is important for some of
+# the tests below). The rest arguments are used for creating the backend storage.
+
 PLUGIN_NAME=$1
 shift
 
@@ -42,10 +44,11 @@ ROOT="$HOME/wildland"
 MNT_DIR_1="$PLUGIN_NAME-mnt-1"
 MNT_DIR_2="$PLUGIN_NAME-mnt-2"
 MNT_DIR_3="$PLUGIN_NAME-mnt-3"
+MNT_DIR_4="$PLUGIN_NAME-mnt-4"
 MNT_PATH_1="$ROOT/$MNT_DIR_1"
 MNT_PATH_2="$ROOT/$MNT_DIR_2"
 MNT_PATH_3="$ROOT/$MNT_DIR_3"
-
+MNT_PATH_4="$ROOT/$MNT_DIR_4"
 
 # Create a Wildland container and attach the storage to it
 
@@ -64,8 +67,9 @@ trap "cleanup FILES_TO_REMOVE CONTAINERS_TO_UNMOUNT" EXIT
 
 DIRNAME_DATE="$(date +%Y-%m-%d_%H:%M:%S)"
 TEST_REMOTE_DIR="$(mktemp -d -p "$MNT_PATH_1" -t gitlab-ci-"$PLUGIN_NAME"-testdir_"$DIRNAME_DATE"_XXXXXXXXXX)"
-TEST_LOCAL_DIR="$(mktemp -d)"
-FILES_TO_REMOVE+=("$TEST_REMOTE_DIR" "$TEST_LOCAL_DIR")
+TEST_LOCAL_DIR_1="$(mktemp -d)"
+TEST_LOCAL_DIR_2="$(mktemp -d)"
+FILES_TO_REMOVE+=("$TEST_REMOTE_DIR" "$TEST_LOCAL_DIR_1" "$TEST_LOCAL_DIR_2")
 
 # Test adding some directories
 
@@ -199,7 +203,7 @@ for ((n=1;n<=$ITERATIONS;n++)); do
 
     # create a local file with random size from the range [MIN_FILE_BYTES;MAX_FILE_BYTES]
 
-    FILE_PATH="$TEST_LOCAL_DIR/test"
+    FILE_PATH="$TEST_LOCAL_DIR_1/test"
     FILE_SIZE_BYTES=$(($MIN_FILE_BYTES + $RANDOM % ($MAX_FILE_BYTES - $MIN_FILE_BYTES + 1)))
     base64 /dev/urandom | head -c $FILE_SIZE_BYTES > "$FILE_PATH"
     assert_expected_file_size "$FILE_PATH" "$FILE_SIZE_BYTES"
@@ -224,16 +228,32 @@ done
 # Test sync from local storage (test against issues #586 and #714)
 
 STAGE="testing sync with local backend"
-$WL storage create local --container "$PLUGIN_NAME-test-container" --location "$TEST_LOCAL_DIR"
-echo 'Sync test 1' > "$TEST_LOCAL_DIR/sync1.txt"
+$WL storage create local --container "$PLUGIN_NAME-test-container" --location "$TEST_LOCAL_DIR_1"
+echo 'Sync test 1' > "$TEST_LOCAL_DIR_1/sync1.txt"
 $WL container sync --one-shot "$PLUGIN_NAME-test-container"
 SRC="$MNT_PATH_1/sync1.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "Sync test 1" ]]' \
     || echo "Unexpected content of $SRC after first sync" >&2
 
-echo 'Sync test 2' > "$TEST_LOCAL_DIR/sync2.txt"
+echo 'Sync test 2' > "$TEST_LOCAL_DIR_1/sync2.txt"
 $WL container sync --one-shot "$PLUGIN_NAME-test-container"  # was failing before fixing issue #586
 SRC="$MNT_PATH_1/sync2.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "Sync test 2" ]]' \
     || echo "Unexpected content of $SRC after second sync" >&2
+
+# Test automatic sync after adding a remote storage
+
+STAGE="testing syncing local storage with a remote storage during remote storage creation"
+echo 'Sync test 3' > "$TEST_LOCAL_DIR_2/sync3.txt"
+echo 'Sync test 4' > "$TEST_LOCAL_DIR_2/sync4.txt"
+$WL container create --path "/$MNT_DIR_4" "$PLUGIN_NAME-sync-test-container"
+$WL storage create local --container "$PLUGIN_NAME-sync-test-container" --location "$TEST_LOCAL_DIR_2"
+$WL start --container "$PLUGIN_NAME-sync-test-container"
+CONTAINERS_TO_UNMOUNT+=("$PLUGIN_NAME-sync-test-container")
+SRC="$MNT_PATH_4" /bin/bash -c '[[ $(ls -m "$SRC") == "sync3.txt, sync4.txt" ]]'
+$WL storage create "$PLUGIN_NAME" --container "$PLUGIN_NAME-sync-test-container" --inline "$@"
+SRC="$MNT_PATH_1/sync3.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "Sync test 3" ]]' \
+    || echo "Unexpected content of $SRC after adding remote storage" >&2
+SRC="$MNT_PATH_1/sync4.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "Sync test 4" ]]' \
+    || echo "Unexpected content of $SRC after adding remote storage" >&2
 
 # If we reach this line, then the test passed successfully (no matter if cleanup is successful or not)
 
