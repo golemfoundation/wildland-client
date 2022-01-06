@@ -582,7 +582,7 @@ class Client:
                     # not a user transition, or user already known
                     continue
                 user = step.user
-                logger.info('importing user %s', user.owner)
+                logger.debug('importing user %s', user.owner)
                 # save the original manifest, don't risk the need to re-sign
                 path = self.new_path(WildlandObject.Type.USER, user.owner)
                 path.write_bytes(user.manifest.to_bytes())

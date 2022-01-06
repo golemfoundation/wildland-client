@@ -100,7 +100,7 @@ class IPFSStorageBackend(DirectoryCachedStorageMixin, StorageBackend):
         self.base_path = PurePosixPath(ipfs_hash)
         assert ipfs_hash[:6] in ['/ipfs/', '/ipns/']
         if ipfs_hash[:6] == '/ipns/':
-            logger.info("Resolving IPNS name to IPFS CID...")
+            logger.debug("Resolving IPNS name to IPFS CID...")
             self.base_path = PurePosixPath(self.client.name.resolve(self.base_path)['Path'])
 
         resp = self.client.object.stat(self.base_path)

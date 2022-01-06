@@ -444,7 +444,7 @@ class SyncDaemon:
         """
         Stop all sync jobs and exit.
         """
-        logger.info('stopping')
+        logger.debug('stopping')
         with self.lock:
             for job in self.jobs.values():
                 job.stop()

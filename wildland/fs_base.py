@@ -115,14 +115,14 @@ class WildlandFSBase:
 
         assert self.mount_lock.locked()
 
-        logger.info('Mounting storage %r under paths: %s',
+        logger.debug('Mounting storage %r under paths: %s',
                     storage, [str(p) for p in paths])
 
         main_path = paths[0]
         current_ident = self.main_paths.get(main_path)
         if current_ident is not None:
             if remount:
-                logger.info('Unmounting current storage: %s, for main path: %s',
+                logger.debug('Unmounting current storage: %s, for main path: %s',
                             current_ident, main_path)
                 self._unmount_storage(current_ident)
             else:
@@ -152,7 +152,7 @@ class WildlandFSBase:
         storage = self.storages[storage_id]
         paths = self.storage_paths[storage_id]
 
-        logger.info('Unmounting storage %r from paths: %s',
+        logger.debug('Unmounting storage %r from paths: %s',
                     storage, [str(p) for p in paths])
 
         storage.request_unmount()
@@ -205,13 +205,13 @@ class WildlandFSBase:
         with self.mount_lock:
             if storage_id is None:
                 for ident, storage in self.storages.items():
-                    logger.info('clearing cache for storage: %s', ident)
+                    logger.debug('clearing cache for storage: %s', ident)
                     storage.clear_cache()
                 return
 
             if storage_id not in self.storages:
                 raise WildlandError(f'storage not found: {storage_id}')
-            logger.info('clearing cache for storage: %s', storage_id)
+            logger.debug('clearing cache for storage: %s', storage_id)
             self.storages[storage_id].clear_cache()
 
     @control_command('paths')
@@ -379,7 +379,7 @@ class WildlandFSBase:
             pattern=pattern,
             handler=handler,
         )
-        logger.info('adding watch: %s', watch)
+        logger.debug('adding watch: %s', watch)
         self.watches[watch.id] = watch
         if storage_id not in self.storage_watches:
             self.storage_watches[storage_id] = set()
@@ -398,7 +398,7 @@ class WildlandFSBase:
                 watch_handler, ignore_own_events=ignore_own)
 
             if watcher:
-                logger.info('starting watcher for storage %d', storage_id)
+                logger.debug('starting watcher for storage %d', storage_id)
                 self.watchers[storage_id] = watcher
 
         return watch.id
@@ -417,7 +417,7 @@ class WildlandFSBase:
         if not events:
             return
 
-        logger.info('notify watch: %s: %s', watch, events)
+        logger.debug('notify watch: %s: %s', watch, events)
         data = [{
             'type': event.type.name,
             'path': str(event.path),
@@ -436,12 +436,12 @@ class WildlandFSBase:
         assert self.mount_lock.locked()
 
         watch = self.watches[watch_id]
-        logger.info('removing watch: %s', watch)
+        logger.debug('removing watch: %s', watch)
 
         if (len(self.storage_watches[watch.storage_id]) == 1 and
                 watch.storage_id in self.watchers):
 
-            logger.info('stopping watcher for storage: %s', watch.storage_id)
+            logger.debug('stopping watcher for storage: %s', watch.storage_id)
             self.storages[watch.storage_id].stop_watcher()
             del self.watchers[watch.storage_id]
 

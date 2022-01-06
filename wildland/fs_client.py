@@ -160,7 +160,7 @@ class WildlandFSClient:
         if options:
             cmd += ['-o', ','.join(options)]
 
-        logger.info('running start command: %s', cmd)
+        logger.debug('running start command: %s', cmd)
 
         env = os.environ
         env['WILDLAND_CONFIG_DIR'] = str(self.base_dir)

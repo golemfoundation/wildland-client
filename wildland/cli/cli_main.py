@@ -75,10 +75,11 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 @click.option('--debug/--no-debug', default=False,
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
-              help='output logs (repeat for more verbosity)')
+              help='output logs')
+@click.option('--quiet', '-q', is_flag=True, help="show minimal output")
 @click.option('--version', is_flag=True, help='output Wildland version')
 @click.pass_context
-def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
+def main(ctx: click.Context, base_dir, dummy, debug, verbose, quiet, version):
     # pylint: disable=missing-docstring, unused-argument
     start_debugpy_server_if_enabled()
     if not ctx.invoked_subcommand:
@@ -87,10 +88,12 @@ def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
             return
         click.echo(ctx.get_help())
         return
-    if verbose > 0:
-        init_logging(level='DEBUG' if verbose > 1 else 'INFO')
-    else:
+    if quiet:
         init_logging(level='WARNING')
+    elif verbose > 0:
+        init_logging(level='DEBUG')
+    else:
+        init_logging(level='INFO')
     client = Client(dummy=dummy, base_dir=base_dir)
     ctx.obj = ContextObj(client)
 
