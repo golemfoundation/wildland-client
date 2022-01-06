@@ -43,7 +43,7 @@ from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
 from ..log import get_logger
-from ..core.wildland_objects_api import WLObjectType
+from ..core.wildland_objects_api import WLObjectType, WLUser, WLBridge
 
 logger = get_logger('cli-user')
 
@@ -102,10 +102,6 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
         if not key:
             obj.wlcore.user_remove_key(owner, force=False)
         raise CliError(f'Failed to create user: {result}')
-
-    _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.id)
-
-    click.echo(f'Created: {path}')
 
     _, current_default = obj.wlcore.env.get_default_user()
     if not current_default:
@@ -546,12 +542,8 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                    ' use user\'s paths')
 @click.option('--bridge-owner', help="specify a different (then default) user to be used as the "
                                      "owner of created bridge manifests")
-@click.option('--only-first', is_flag=True, default=False,
-              help="import only first encountered bridge "
-                   "(ignored in all cases except WL container paths)")
 @click.argument('path-or-url')
-def user_import(obj: ContextObj, path_or_url: str, paths: Tuple[str], bridge_owner: Optional[str],
-                only_first: bool):
+def user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owner: Optional[str]):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
@@ -560,8 +552,45 @@ def user_import(obj: ContextObj, path_or_url: str, paths: Tuple[str], bridge_own
     """
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
     # collect information on (potentially) multiple objects created
+    p = Path(path_or_url)
+    name = path_or_url
+    name = name.split('/')[-1]
 
-    import_manifest(obj, path_or_url, paths, WildlandObject.Type.USER, bridge_owner, only_first)
+    if p.exists():
+        yaml_data = p.read_bytes()
+        name = p.name
+        result, imported_object = obj.wlcore.object_import_from_yaml(yaml_data, name)
+    else:
+        result, imported_object = obj.wlcore.object_import_from_url(path_or_url, name)
+
+    if not result.success:
+        if len(result.errors) == 1 and result.errors[0].error_code == 4:
+            result, imported_object = obj.wlcore.user_get_by_id(result.errors[0].error_description)
+            if not imported_object:
+                raise CliError(f'Failed to import manifest: {str(result)}')
+            click.echo('User already exists, skipping.')
+        else:
+            raise CliError(f'Failed to import manifest: {str(result)}')
+
+    if isinstance(imported_object, WLUser):
+        result, bridges = obj.wlcore.bridge_list()
+        for bridge in bridges:
+            if bridge.user_id == imported_object.owner:
+                click.echo('Bridge already exists, skipping.')
+                return
+        result, _ = obj.wlcore.bridge_create(paths, bridge_owner, imported_object.owner,
+                                             user_url=path_or_url, name=name)
+    elif isinstance(imported_object, WLBridge):
+        # TODO: this requires better handling through wlcore's bridge function, which are
+        # TODO: not yet implemented. See #698
+        obj.wlcore.bridge_delete(imported_object.id)
+        import_manifest(obj, path_or_url, paths, WildlandObject.Type.USER, bridge_owner, False)
+    else:
+        raise CliError(f'Cannot import {path_or_url}: only user or bridge '
+                       f'manifests can be imported')
+
+    if not result.success:
+        raise CliError(f'Failed to import {path_or_url}: {result}')
 
 
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',

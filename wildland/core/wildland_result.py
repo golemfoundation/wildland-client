@@ -65,6 +65,8 @@ class WLError:
         elif isinstance(exc, binascii.Error):
             err_code = 101
             error_desc = "Incorrect public key provided; provide key, not filename or path."
+        elif isinstance(exc, FileExistsError):
+            err_code = 4
         else:
             err_code = 999
         error = cls(error_code=err_code, error_description=error_desc,

@@ -1241,7 +1241,7 @@ backends:
         if owner == '0xddd':
             data = search.read_file()
             assert data == b'Hello world'
-            mock_read.assert_called_with('https://mock.url', owner)
+            mock_read.assert_called_with('https://mock.url', owner, True)
 
         else:
             with pytest.raises(WildlandError):

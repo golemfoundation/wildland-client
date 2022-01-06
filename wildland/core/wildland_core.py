@@ -21,21 +21,27 @@
 Wildland core implementation
 """
 from typing import List, Tuple, Optional, Callable, Dict
-from copy import deepcopy
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
 
+import wildland.core.core_utils as utils
+from wildland.manifest.manifest import Manifest
+from wildland.log import get_logger
 from ..client import Client
 from ..user import User
 from ..container import Container
 from ..bridge import Bridge
 from ..storage import Storage
 from ..wlpath import WildlandPath
+from ..link import Link
 from ..wildland_object.wildland_object import WildlandObject
 from .wildland_result import WildlandResult, WLError, wildland_result
 from .wildland_core_api import WildlandCoreApi, ModifyMethod
-from .wildland_objects_api import WLUser, WLBridge, \
-    WLStorageBackend, WLStorage, WLContainer, WLObject, WLTemplateFile, WLObjectType
+from .wildland_objects_api import WLBridge, WLStorageBackend, WLStorage, WLContainer, \
+    WLObject, WLTemplateFile, WLObjectType
 from ..wlenv import WLEnv
+from .wildland_core_user import WildlandCoreUser
+
+logger = get_logger('core')
 
 # Style goal: All methods must be <15 functional lines of code; if more, refactor
 
@@ -43,86 +49,16 @@ from ..wlenv import WLEnv
 # TODO cli should get its own, simple tests with mocked methods
 
 
-class WildlandCore(WildlandCoreApi):
+class WildlandCore(WildlandCoreUser, WildlandCoreApi):
     """Wildland Core implementation"""
     # All user-facing methods should be wrapped in wildland_result or otherwise assure
     # they wrap all exceptions in WildlandResult
     def __init__(self, client: Client):
         # TODO: once cli is decoupled from client, this should take more raw params and initialize
         # config somewhat better
+        super().__init__(client)
         self.client = client
         self.env = WLEnv(base_dir=self.client.base_dir)
-
-    # private methods
-    @staticmethod
-    def _get_object_id(obj: WildlandObject):
-        if isinstance(obj, User):
-            return f'{obj.owner}:'
-        if isinstance(obj, Container):
-            return str(obj.uuid_path)
-        if isinstance(obj, Bridge):
-            return str(obj.paths[0])  # TODO
-        if isinstance(obj, Storage):
-            return str(obj.get_unique_publish_id())  # TODO
-        return None
-
-    def _user_to_wluser(self, user: User) -> WLUser:
-        # TODO: optimize for possible lazy loading of catalog manifests
-        wl_user = WLUser(
-            owner=user.owner,
-            id=self._get_object_id(user),
-            private_key_available=self.client.session.sig.is_private_key_available(user.owner),
-            pubkeys=deepcopy(user.pubkeys),
-            paths=[str(p) for p in user.paths],
-            manifest_catalog_description=list(user.get_catalog_descriptions()),
-            # manifest_catalog_ids=[container.uuid_path for container in user.load_catalog(False)],
-        )
-        # TODO: currently loading user's catalog messes up their catalog descriptions, which is not
-        # ideal, but it's an old bug, not introduced by WLCore
-        return wl_user
-
-    def _container_to_wlcontainer(self, container: Container) -> WLContainer:
-        wl_container = WLContainer(
-            owner=container.owner,
-            id=self._get_object_id(container),
-            paths=[str(p) for p in container.paths],
-            title=container.title,
-            categories=[str(c) for c in container.categories],
-            access_ids=[],  # TODO
-            storage_ids=[],  # TODO
-            storage_description=[],  # TODO
-        )
-        return wl_container
-
-    def _bridge_to_wl_bridge(self, bridge: Bridge) -> WLBridge:
-        wl_bridge = WLBridge(
-            owner=bridge.owner,
-            id=self._get_object_id(bridge),
-            user_pubkey=bridge.user_pubkey,
-            user_id=bridge.user_id,
-            user_location_description="",  # TODO
-            paths=[str(p) for p in bridge.paths],
-        )
-        return wl_bridge
-
-    def _storage_to_wl_storage(self, storage: Storage) -> WLStorage:
-        wl_storage = WLStorage(
-            owner=storage.owner,
-            id=self._get_object_id(storage),
-            storage_type=storage.storage_type,
-            container="",  # TODO
-            trusted=storage.trusted,
-            primary=storage.primary,
-            access_ids=[],  # TODO
-        )
-        return wl_storage
-
-    @staticmethod
-    def _wl_obj_to_wildland_object(wl_obj: WLObjectType) -> Optional[WildlandObject.Type]:
-        try:
-            return WildlandObject.Type(wl_obj.value)
-        except KeyError:
-            return None
 
     # GENERAL METHODS
     def object_info(self, yaml_data: str) -> Tuple[WildlandResult, Optional[WLObject]]:
@@ -138,13 +74,13 @@ class WildlandCore(WildlandCoreApi):
     def __object_info(self, yaml_data):
         obj = self.client.load_object_from_bytes(None, yaml_data.encode())
         if isinstance(obj, User):
-            return self._user_to_wluser(obj)
+            return utils.user_to_wluser(obj, self.client)
         if isinstance(obj, Container):
-            return self._container_to_wlcontainer(obj)
+            return utils.container_to_wlcontainer(obj)
         if isinstance(obj, Bridge):
-            return self._bridge_to_wl_bridge(obj)
+            return utils.bridge_to_wl_bridge(obj)
         if isinstance(obj, Storage):
-            return self._storage_to_wl_storage(obj)
+            return utils.storage_to_wl_storage(obj)
         result = WildlandResult()
         error = WLError(error_code=700, error_description="Unknown object type encountered",
                         is_recoverable=False, offender_type=None, offender_id=None,
@@ -203,13 +139,13 @@ class WildlandCore(WildlandCoreApi):
     @wildland_result()
     def _object_get_local_path(self, object_type: WLObjectType, object_id: str):
         result = WildlandResult()
-        obj_type = self._wl_obj_to_wildland_object(object_type)
+        obj_type = utils.wl_obj_to_wildland_object_type(object_type)
         if not obj_type:
             result.errors.append(WLError(700, "Unknown object type", False, object_type, object_id))
             return result, None
 
         for obj in self.client.load_all(obj_type):
-            if self._get_object_id(obj) == object_id:
+            if utils.get_object_id(obj) == object_id:
                 return result, str(obj.local_path)
         return result, None
 
@@ -236,40 +172,65 @@ class WildlandCore(WildlandCoreApi):
         """
         return self.__object_get(object_type, object_name)
 
-    @wildland_result()
+    @wildland_result(default_output=None)
     def __object_get(self, object_type: WLObjectType, object_name: str):
-        obj_type = self._wl_obj_to_wildland_object(object_type)
+        obj_type = utils.wl_obj_to_wildland_object_type(object_type)
         assert obj_type
         wildland_object = self.client.load_object_from_name(obj_type, object_name)
         if object_type == WLObjectType.USER:
-            return self._user_to_wluser(wildland_object)
+            return utils.user_to_wluser(wildland_object, self.client)
         if object_type == WLObjectType.CONTAINER:
-            return self._container_to_wlcontainer(wildland_object)
+            return utils.container_to_wlcontainer(wildland_object)
         if object_type == WLObjectType.BRIDGE:
-            return self._bridge_to_wl_bridge(wildland_object)
+            return utils.bridge_to_wl_bridge(wildland_object)
         if object_type == WLObjectType.STORAGE:
-            return self._storage_to_wl_storage(wildland_object)
+            return utils.storage_to_wl_storage(wildland_object)
         return None
 
-    def user_get_usages(self, user_id: str) -> Tuple[WildlandResult, List[WLObject]]:
+    def object_import_from_yaml(self, yaml_data: bytes, object_name: Optional[str]) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
         """
-        Get all usages of the given user in the local context, e.g. objects owned by them.
-        :param user_id: user's id
-        :return: tuple of WildlandResult and list of objects found
+        Import object from raw data. Only copies the provided object to appropriate WL manifest
+        directory, does not create any bridges or other objects.
+        :param yaml_data: bytes with yaml manifest data; must be correctly signed
+        :param object_name: name of the object to be created; if not provided, will be generated
+        automatically
         """
-        return self.__user_get_usages(user_id)
 
-    @wildland_result(default_output=[])
-    def __user_get_usages(self, user_id: str):
-        usages: List[WLObject] = []
-        result, obj = self.user_get_by_id(user_id)
-        if not result.success:
-            return result, usages
-        assert obj
-        for container in self.client.load_all(WildlandObject.Type.CONTAINER):
-            if container.owner == obj.owner:
-                usages.append(self._container_to_wlcontainer(container))
-        return usages
+        return self.__object_import_from_yaml(yaml_data, object_name)
+
+    @wildland_result(default_output=None)
+    def __object_import_from_yaml(self, yaml_data: bytes, object_name: Optional[str]):
+        Manifest.verify_and_load_pubkeys(yaml_data, self.client.session.sig)
+
+        obj: WildlandObject = self.client.load_object_from_bytes(None, data=yaml_data)
+        return self._do_import(obj, object_name)
+
+    def object_import_from_url(self, url: str, object_name: Optional[str]) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Import object from raw data. Only copies the provided object to appropriate WL manifest
+        directory, does not create any bridges or other objects.
+        :param url: url to object manifest
+        :param object_name: name of the object to be created
+        """
+        return self.__object_import_from_url(url, object_name)
+
+    @wildland_result(default_output=None)
+    def __object_import_from_url(self, url: str, object_name: Optional[str]):
+        _, default_user = self.env.get_default_user()
+        if not default_user:
+            default_user = ''
+
+        obj: WildlandObject = self.client.load_object_from_url(None, url, default_user)
+        return self._do_import(obj, object_name)
+
+    def _do_import(self, obj: WildlandObject, name: Optional[str]):
+        if utils.check_object_existence(obj, self.client):
+            raise FileExistsError(utils.get_object_id(obj))
+        path = self.client.save_new_object(obj.type, obj, name)
+        logger.info('Created: %s', path)
+        return utils.wildland_object_to_wl_object(obj, self.client)
 
     def put_file(self, local_file_path: str, wl_path: str) -> WildlandResult:
         """
@@ -326,237 +287,104 @@ class WildlandCore(WildlandCoreApi):
         """
         raise NotImplementedError
 
-    # USER METHODS
-    def user_get_by_id(self, user_id: str) -> Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Get user from specified ID.
-        """
-        return self.__user_get_by_id(user_id)
-
-    @wildland_result(default_output=None)
-    def __user_get_by_id(self, user_id: str):
-        user_name = user_id[:-1]
-        user_obj = self.client.load_object_from_name(WildlandObject.Type.USER, user_name)
-        return self._user_to_wluser(user_obj)
-
-    def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
-        """
-        Generate a new encryption and signing key(s), store them in an appropriate location and
-        return key owner id and public key generated.
-        """
-        result = WildlandResult()
-        owner: Optional[str]
-        pubkey: Optional[str]
-        try:
-            owner, pubkey = self.client.session.sig.generate()
-        except Exception as ex:
-            result.errors.append(WLError.from_exception(ex))
-            owner, pubkey = None, None
-        return result, owner, pubkey
-
-    def user_remove_key(self, owner: str, force: bool) -> WildlandResult:
-        """
-        Remove an existing encryption/signing key. If force is False, the key will not be removed
-        if there are any users who use it as a secondary encryption key.
-        """
-        return self.__user_remove_key(owner, force)
-
-    @wildland_result()
-    def __user_remove_key(self, owner: str, force: bool):
-        result = WildlandResult()
-        possible_owners = self.client.session.sig.get_possible_owners(owner)
-        if possible_owners != [owner] and not force:
-            result.errors.append(
-                WLError(701, 'Key used by other users as secondary key and will not be deleted. '
-                             'Key should be removed manually. In the future you can use --force to '
-                             'force key deletion.', False))
-            return result
-        self.client.session.sig.remove_key(owner)
-        return result
-
-    def user_import_key(self, public_key: bytes, private_key: bytes) -> WildlandResult:
-        """
-        Import provided public and private key. The keys must follow key format appropriate for
-        used SigContext (see documentation)
-        :param public_key: bytes with public key
-        :param private_key: bytes with private key
-        :return: WildlandResult
-        """
-        raise NotImplementedError
-
-    def user_get_public_key(self, owner: str) -> Tuple[WildlandResult, Optional[str]]:
-        """
-        Return public key for the provided owner.
-        :param owner: owner fingerprint
-        :return: Tuple of WildlandResult and, if successful, this user's public key
-        """
-        return self.__user_get_pubkey(owner)
-
-    @wildland_result(default_output=None)
-    def __user_get_pubkey(self, owner):
-        _, pubkey = self.client.session.sig.load_key(owner)
-        return pubkey
-
-    def user_create(self, name: Optional[str], keys: List[str], paths: List[str]) -> \
-            Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Create a user and return information about it
-        :param name: file name for the newly created file
-        :param keys: list of user's public keys, starting with their own key
-        :param paths: list of user paths (paths must be absolute paths)
-        """
-        return self.__user_create(name, keys, paths)
-
-    @wildland_result(default_output=None)
-    def __user_create(self, name: Optional[str], keys: List[str], paths: List[str]):
-
-        if not keys:
-            result = WildlandResult()
-            result.errors.append(WLError(100, "At least one public key must be provided", False))
-            return result, None
-
-        members = []
-        filtered_additional_keys = []
-        own_key = keys[0]
-
-        for k in keys:
-            if WildlandPath.WLPATH_RE.match(k):
-                members.append({"user-path": WildlandPath.get_canonical_form(k)})
-            else:
-                filtered_additional_keys.append(k)
-
-        owner = self.client.session.sig.fingerprint(keys[0])
-        user = User(
-            owner=owner,
-            pubkeys=[own_key] + filtered_additional_keys,
-            paths=[PurePosixPath(p) for p in paths],
-            manifests_catalog=[],
-            client=self.client,
-            members=members)
-
-        self.client.save_new_object(WildlandObject.Type.USER, user, name)
-        user.add_user_keys(self.client.session.sig)
-        wl_user = self._user_to_wluser(user)
-        return wl_user
-
-    def user_list(self) -> Tuple[WildlandResult, List[WLUser]]:
-        """
-        List all known users.
-        :return: WildlandResult, List of WLUsers
-        """
-        result = WildlandResult()
-        result_list = []
-        try:
-            for user in self.client.load_all(WildlandObject.Type.USER):
-                result_list.append(self._user_to_wluser(user))
-        except Exception as ex:
-            result.errors.append(WLError.from_exception(ex))
-        return result, result_list
-
-    def user_delete(self, user_id: str) -> WildlandResult:
-        """
-        Delete provided user.
-        :param user_id: User ID (in the form of user fingerprint)
-        :return: WildlandResult
-        """
-        return self.__user_delete(user_id)
-
-    @wildland_result(default_output=())
-    def __user_delete(self, user_id: str):
-        user = self.client.load_object_from_name(WildlandObject.Type.USER, user_id)
-        if not user.local_path:
-            raise FileNotFoundError('Can only delete a local manifest')
-        user.local_path.unlink()
-
-    def user_import_from_path(self, path_or_url: str, paths: List[str], bridge_owner: Optional[str],
-                              only_first: bool = False) -> Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Import user from provided url or path.
-        :param path_or_url: WL path, local path or URL
-        :param paths: list of paths for resulting bridge manifest; if omitted, will use imported
-            user's own paths
-        :param bridge_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
-        :param only_first: import only first encountered bridge (ignored in all cases except
-            WL container paths)
-        :return: tuple of WildlandResult, imported WLUser (if import was successful
-        """
-        raise NotImplementedError
-
-    def user_import_from_data(self, yaml_data: str, paths: List[str],
-                              bridge_owner: Optional[str]) -> \
-            Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Import user from provided yaml data.
-        :param yaml_data: yaml data to be imported
-        :param paths: list of paths for resulting bridge manifest; if omitted, will use imported
-            user's own paths
-        :param bridge_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
-        :return: tuple of WildlandResult, imported WLUser (if import was successful
-        """
-        raise NotImplementedError
-
-    def user_refresh(self, user_ids: Optional[List[str]] = None,
-                     callback: Callable[[str], None] = None) -> WildlandResult:
-        """
-        Iterates over bridges and fetches each user's file from the URL specified in the bridge
-        :param user_ids: Optional list of user_ids to refresh; if None, will refresh all users
-            with a bridge present
-        :param callback: function to be called before each refreshed user
-        :return: WildlandResult
-        """
-        raise NotImplementedError
-
-    def user_modify(self, user_id: str, manifest_field: str, operation: ModifyMethod,
-                    modify_data: List[str]) -> WildlandResult:
-        """
-        Modify user manifest
-        :param user_id: fingerprint of the user to be modified
-        :param manifest_field: field to modify; supports the following:
-            - paths
-            - manifest-catalog
-            - pubkeys
-        :param operation: operation to perform on field ('add' or 'delete')
-        :param modify_data: list of values to be added/removed
-        :return: WildlandResult
-        """
-        raise NotImplementedError
-
-    def user_publish(self, user_id) -> WildlandResult:
-        """
-        Publish the given user.
-        :param user_id: fingerprint of the user to be published
-        :return: WildlandResult
-        """
-        raise NotImplementedError
-
-    def user_unpublish(self, user_id) -> WildlandResult:
-        """
-        Unpublish the given user.
-        :param user_id: fingerprint of the user to be unpublished
-        :return: WildlandResult
-        """
-        raise NotImplementedError
-
     # BRIDGES
     def bridge_create(self, paths: Optional[List[str]], owner: Optional[str] = None,
-                      target_user: Optional[str] = None, target_user_url: Optional[str] = None,
-                      name: Optional[str] = None) -> Tuple[WildlandResult, Optional[WLBridge]]:
+                      target_user: Optional[str] = None, user_url: Optional[str] = None,
+                      name: Optional[str] = None) -> \
+            Tuple[WildlandResult, Optional[WLBridge]]:
         """
-        Create a new bridge
+        Create a new bridge. At least one from target_user, user_url must be provided.
         :param paths: paths for user in owner namespace (if None, will be taken from user manifest)
         :param owner: user_id for the owner of the created bridge
         :param target_user: user_id to whom the bridge will point. If provided, will be used to
         verify the integrity of the target_user_url
-        :param target_user_url: path to the user manifest (use file:// for local file).
+        :param user_url: path to the user manifest (use file:// for local file). If target_user
+        is provided, their user manifest will be first located in their manifests catalog, and only
+        as a second choice from this url.
         If target_user is skipped, the user manifest from this path is considered trusted.
-        If omitted,the user manifest will be located in their manifests catalog.
         :param name: optional name for the newly created bridge. If omitted, will be generated
         automatically
         :return: tuple of WildlandResult and, if successful, the created WLBridge
         """
-        raise NotImplementedError
+
+        return self.__bridge_create(paths, owner, target_user, user_url, name)
+
+    @wildland_result(default_output=None)
+    def __bridge_create(self, paths: Optional[List[str]], owner: Optional[str] = None,
+                        target_user: Optional[str] = None, user_url: Optional[str] = None,
+                        name: Optional[str] = None):
+
+        if not target_user and not user_url:
+            raise ValueError('Bridge creation requires at least one of: target user id, target '
+                             'user url.')
+        if user_url and not self.client.is_url(user_url):
+            user_url = self.client.local_url(Path(user_url))
+            if not self.client.is_url(user_url):
+                raise ValueError('Bridge requires user URL')
+
+        if not owner:
+            _, owner = self.env.get_default_owner()
+
+        assert owner
+
+        owner_user = self.client.load_object_from_name(WildlandObject.Type.USER, owner)
+
+        if target_user:
+            target_user_object = self.client.load_object_from_name(
+                WildlandObject.Type.USER, target_user)
+        else:
+            assert user_url
+            target_user_object = self.client.load_object_from_url(
+                WildlandObject.Type.USER, user_url, owner=owner_user.owner,
+                expected_owner=target_user)
+
+        found_manifest = self.client.find_user_manifest_within_catalog(target_user_object)
+
+        if not found_manifest:
+            if user_url and not self.client.is_local_url(user_url):
+                location = user_url
+            elif target_user_object.local_path:
+                logger.debug('Cannot find user manifest in manifests catalog. '
+                               'Using local file path.')
+                location = self.client.local_url(target_user_object.local_path)
+            elif user_url:
+                location = user_url
+            else:
+                raise FileNotFoundError('User manifest not found in manifests catalog. '
+                                        'Provide explicit url.')
+        else:
+            storage, file = found_manifest
+            file = '/' / file
+            location_link = Link(file, client=self.client, storage=storage)
+            location = location_link.to_manifest_fields(inline=True)
+
+        fingerprint = self.client.session.sig.fingerprint(target_user_object.primary_pubkey)
+
+        if paths:
+            bridge_paths = [PurePosixPath(p) for p in paths]
+        else:
+            bridge_paths = Bridge.create_safe_bridge_paths(fingerprint, target_user_object.paths)
+            logger.debug(
+                "Using user's default paths: %s", [str(p) for p in target_user_object.paths])
+
+        bridge = Bridge(
+            owner=owner_user.owner,
+            user_location=location,
+            user_pubkey=target_user_object.primary_pubkey,
+            user_id=fingerprint,
+            paths=bridge_paths,
+            client=self.client
+        )
+
+        if not name and paths:
+            # an heuristic for nicer paths
+            for path in paths:
+                if 'uuid' not in str(path):
+                    name = str(path).lstrip('/').replace('/', '_')
+                    break
+        path = self.client.save_new_object(WildlandObject.Type.BRIDGE, bridge, name)
+        logger.info("Created: %s", path)
+        return utils.bridge_to_wl_bridge(bridge)
 
     def bridge_list(self) -> Tuple[WildlandResult, List[WLBridge]]:
         """
@@ -567,7 +395,7 @@ class WildlandCore(WildlandCoreApi):
         result_list = []
         try:
             for bridge in self.client.load_all(WildlandObject.Type.BRIDGE):
-                result_list.append(self._bridge_to_wl_bridge(bridge))
+                result_list.append(utils.bridge_to_wl_bridge(bridge))
         except Exception as ex:
             result.errors.append(WLError.from_exception(ex))
         return result, result_list
@@ -578,7 +406,15 @@ class WildlandCore(WildlandCoreApi):
         :param bridge_id: Bridge ID (in the form of user_id:/.uuid/bridge_uuid)
         :return: WildlandResult
         """
-        raise NotImplementedError
+        return self.__bridge_delete(bridge_id)
+
+    @wildland_result(default_output=())
+    def __bridge_delete(self, bridge_id: str):
+        for bridge in self.client.load_all(WildlandObject.Type.BRIDGE):
+            if utils.get_object_id(bridge) == bridge_id:
+                bridge.local_path.unlink()
+                return
+        raise FileNotFoundError(f'Cannot find bridge {bridge_id}')
 
     def bridge_import(self, path_or_url: str, paths: List[str], object_owner: Optional[str],
                       only_first: bool = False) -> Tuple[WildlandResult, Optional[WLBridge]]:
@@ -680,7 +516,7 @@ class WildlandCore(WildlandCoreApi):
     def __container_delete(self, container_id: str):
         found = False
         for container in self.client.load_all(WildlandObject.Type.CONTAINER):
-            if self._container_to_wlcontainer(container).id == container_id:
+            if utils.container_to_wlcontainer(container).id == container_id:
                 if not container.local_path:
                     raise FileNotFoundError('Can only delete a local manifest')
                 container.local_path.unlink()

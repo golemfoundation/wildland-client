@@ -350,6 +350,39 @@ class Client:
 
         return None
 
+    def find_user_manifest_within_catalog(self, user: User) -> \
+            Optional[Tuple[Storage, PurePosixPath]]:
+        """
+        Mounts containers of the given user's manifests-catalog and attempts to find that user's
+        manifest file within that catalog.
+        The user manifest file is expected to be named 'forest-owner.user.yaml' and be placed in the
+        root directory of a storage.
+
+        :param user: User
+        :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
+        at that manifest in the storage
+
+        """
+        for container in user.load_catalog(warn_about_encrypted_manifests=False):
+            all_storages = self.all_storages(container=container)
+
+            for storage_candidate in all_storages:
+                with StorageDriver.from_storage(storage_candidate) as driver:
+                    try:
+                        file_candidate = PurePosixPath('forest-owner.user.yaml')
+                        file_content = driver.read_file(file_candidate)
+
+                        # Ensure you're able to load this object
+                        self.load_object_from_bytes(
+                            WildlandObject.Type.USER, file_content, expected_owner=user.owner)
+
+                        return storage_candidate, file_candidate
+
+                    except (FileNotFoundError, WildlandError) as ex:
+                        logger.debug('Could not read user manifest. Exception: %s', ex)
+
+        return None
+
     def load_object_from_bytes(self,
                                object_type: Union[WildlandObject.Type, None],
                                data: bytes,
@@ -447,7 +480,7 @@ class Client:
                                                container=container)
         return wl_object
 
-    def load_object_from_url(self, object_type: WildlandObject.Type, url: str,
+    def load_object_from_url(self, object_type: Optional[WildlandObject.Type], url: str,
                              owner: str, expected_owner: Optional[str] = None):
         """
         Load and return a Wildland object from any URL, including Wildland URLs.
@@ -476,9 +509,9 @@ class Client:
                     raise PathError(f'Container not found for path: {wlpath}')
                 return result
 
-        content = self.read_from_url(url, owner)
+        content = self.read_from_url(url, owner, True)
 
-        if object_type == WildlandObject.Type.USER:
+        if object_type == WildlandObject.Type.USER or not object_type:
             Manifest.verify_and_load_pubkeys(content, self.session.sig)
 
         local_owners = self.config.get('local-owners')
@@ -504,7 +537,7 @@ class Client:
                                            trusted_owner=trusted_owner, local_owners=local_owners,
                                            decrypt=decrypt)
 
-    def load_object_from_url_or_dict(self, object_type: WildlandObject.Type,
+    def load_object_from_url_or_dict(self, object_type: Optional[WildlandObject.Type],
                                      obj: Union[str, dict],
                                      owner: str, expected_owner: Optional[str] = None,
                                      container: Optional[Container] = None):
@@ -942,6 +975,13 @@ class Client:
         if not base_dir.exists():
             base_dir.mkdir(parents=True)
 
+        if name.endswith('.yaml'):
+            name = name[:-len('.yaml')]
+
+        for t in WildlandObject.Type:
+            if name.endswith(f'.{t.value}'):
+                name = name[:-len(f'.{t.value}')]
+
         i = 0
         while True:
             suffix = '' if i == 0 else f'.{i}'
@@ -1196,6 +1236,12 @@ class Client:
 
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
+
+    def is_local_url(self, url: str) -> bool:
+        """
+        Check if the provided url is a local url.
+        """
+        return url.startswith('file://' + self.config.get('local-hostname'))
 
     def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
         """

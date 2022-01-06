@@ -90,6 +90,27 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
+    def object_import_from_yaml(self, yaml_data: bytes, object_name: Optional[str]) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Import object from raw data. Only copies the provided object to appropriate WL manifest
+        directory, does not create any bridges or other objects.
+        :param yaml_data: bytes with yaml manifest data; must be correctly signed
+        :param object_name: name of the object to be created; if not provided, will be generated
+        automatically
+        """
+
+    @abc.abstractmethod
+    def object_import_from_url(self, url: str, object_name: Optional[str]) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Import object from raw data. Only copies the provided object to appropriate WL manifest
+        directory, does not create any bridges or other objects.
+        :param url: url to object manifest
+        :param object_name: name of the object to be created
+        """
+
+    @abc.abstractmethod
     def object_check_published(self, object_type: WLObjectType, object_id: str) -> \
             Tuple[WildlandResult, Optional[bool]]:
         """
@@ -243,35 +264,6 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_import_from_path(self, path_or_url: str, paths: List[str], bridge_owner: Optional[str],
-                              only_first: bool = False) -> Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Import user from provided url or path.
-        :param path_or_url: WL path, local path or URL
-        :param paths: list of paths for resulting bridge manifest; if omitted, will base paths on
-         imported user's own paths
-        :param bridge_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
-        :param only_first: import only first encountered bridge (ignored in all cases except
-            WL container paths)
-        :return: tuple of WildlandResult, imported WLUser (if import was successful
-        """
-
-    @abc.abstractmethod
-    def user_import_from_data(self, yaml_data: str, paths: List[str],
-                              bridge_owner: Optional[str]) -> \
-            Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Import user from provided yaml data.
-        :param yaml_data: signed yaml data to be imported
-        :param paths: list of paths for resulting bridge manifest; if omitted, will base paths on
-         imported user's own paths
-        :param bridge_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
-        :return: tuple of WildlandResult, imported WLUser (if import was successful
-        """
-
-    @abc.abstractmethod
     def user_refresh(self, user_ids: Optional[List[str]] = None,
                      callback: Callable[[str], None] = None) -> WildlandResult:
         """
@@ -316,17 +308,19 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
     # BRIDGES
     @abc.abstractmethod
     def bridge_create(self, paths: Optional[List[str]], owner: Optional[str] = None,
-                      target_user: Optional[str] = None, target_user_url: Optional[str] = None,
-                      name: Optional[str] = None) -> Tuple[WildlandResult, Optional[WLBridge]]:
+                      target_user: Optional[str] = None, user_url: Optional[str] = None,
+                      name: Optional[str] = None) -> \
+            Tuple[WildlandResult, Optional[WLBridge]]:
         """
-        Create a new bridge
+        Create a new bridge. At least one from target_user, user_url must be provided.
         :param paths: paths for user in owner namespace (if None, will be taken from user manifest)
         :param owner: user_id for the owner of the created bridge
         :param target_user: user_id to whom the bridge will point. If provided, will be used to
         verify the integrity of the target_user_url
-        :param target_user_url: path to the user manifest (use file:// for local file).
+        :param user_url: path to the user manifest (use file:// for local file). If target_user
+        is provided, their user manifest will be first located in their manifests catalog, and only
+        as a second choice from this url.
         If target_user is skipped, the user manifest from this path is considered trusted.
-        If omitted,the user manifest will be located in their manifests catalog.
         :param name: optional name for the newly created bridge. If omitted, will be generated
         automatically
         :return: tuple of WildlandResult and, if successful, the created WLBridge
