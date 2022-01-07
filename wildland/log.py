@@ -149,7 +149,7 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
     if console:
         config['root']['handlers'].append('console')
 
-        if level not in ("DEBUG"):
+        if level != "DEBUG":
             config['formatters']['console']['class'] = 'wildland.log.BriefConsoleFormatter'
 
     if file_path:

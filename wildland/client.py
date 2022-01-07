@@ -357,11 +357,9 @@ class Client:
         manifest file within that catalog.
         The user manifest file is expected to be named 'forest-owner.user.yaml' and be placed in the
         root directory of a storage.
-
         :param user: User
-        :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
+        :return: tuple of Storage where the user manifest was found and PurePosixPath path pointing
         at that manifest in the storage
-
         """
         for container in user.load_catalog(warn_about_encrypted_manifests=False):
             all_storages = self.all_storages(container=container)

@@ -550,7 +550,7 @@ class Search:
                                                          owner=owner,
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
-                logger.warning('cannot load bridge to [%s]', bridge.paths[0])
+                logger.warning('Warning: cannot load bridge to [%s]', bridge.paths[0])
                 logger.debug('cannot load linked user manifest: %s. Exception: %s',
                              location, str(ex))
                 return

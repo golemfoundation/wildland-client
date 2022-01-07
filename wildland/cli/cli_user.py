@@ -370,9 +370,8 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
 
     :param obj: ContextObj
     :param user: User
-    :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
+    :return: tuple of Storage where the user manifest was found and PurePosixPath path pointing
     at that manifest in the storage
-
     """
     for container in user.load_catalog(warn_about_encrypted_manifests=False):
         all_storages = obj.client.all_storages(container=container)

@@ -93,7 +93,7 @@ def wl_call(base_config_dir, *args, **kwargs):
 
 
 def wl_call_output(base_config_dir, *args, **kwargs):
-    return subprocess.check_output(['wl', '-v', '--base-dir', base_config_dir, *args], **kwargs)
+    return subprocess.check_output(['wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 def get_container_uuid_from_uuid_path(uuid_path):
