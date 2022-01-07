@@ -114,7 +114,7 @@ For Wildland object path, will import all referenced bridges and their reference
 .. _wl-bridge-publish:
 
 :command:`wl bridge publish <bridge> [<bridge> ...]`
--------------------------------------
+----------------------------------------------------
 
 Publish bridges manifests into user's manifests catalog (first container from the catalog
 that provides read-write storage will be used).
@@ -123,6 +123,6 @@ that provides read-write storage will be used).
 .. _wl-bridge-unpublish:
 
 :command:`wl bridge unpublish <bridge> [<bridge> ...]`
----------------------------------------
+------------------------------------------------------
 
 Unublish bridges manifests from the whole of a user's manifests catalog.

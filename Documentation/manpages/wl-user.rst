@@ -185,7 +185,7 @@ Modify a user |~| manifest given by *<file>*.
 .. _wl-user-publish:
 
 :command:`wl user publish <user> [<user> ...]`
----------------------------------
+----------------------------------------------
 
 Publish users manifests into user's manifests catalog (first container from the catalog
 that provides read-write storage will be used).
@@ -194,6 +194,6 @@ that provides read-write storage will be used).
 .. _wl-user-unpublish:
 
 :command:`wl user unpublish <user> [<user> ...]`
------------------------------------
+------------------------------------------------
 
 Unublish users manifests from the whole of a user's manifests catalog.

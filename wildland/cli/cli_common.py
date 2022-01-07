@@ -454,8 +454,6 @@ def publish(ctx: click.Context, files: List[str]):
         Publisher(ctx.obj.client, user).publish(wl_object)
         object_types.add(wl_object.type)
 
-    object_types = list(object_types)
-
     for object_type in object_types:
         # check if all objects are published
         not_published = Publisher.list_unpublished_objects(ctx.obj.client, object_type)
