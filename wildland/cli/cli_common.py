@@ -706,7 +706,7 @@ def del_fields(
         **_kwargs
         ) -> dict:
     """
-    Callback function for `modify_manifest`. Removes values from a list or a set either by values
+    Callback function for `modify_manifest`. Remove values from a list or a set either by values
     or keys. Non-existent values or keys are ignored.
     """
     for field, values_or_key in to_del.items():
@@ -717,7 +717,16 @@ def del_fields(
             keys = values_or_key
             values = []
 
+        # fixme: special treatment for "members" and "access" fields, we ignore 'pubkeys'.
+        #  Find if it's interesting to create a generic function that would delete  values based on
+        #  partial input. For example, we provide {"user-path": WLPATH} and
+        #  it deletes member entry being {"user-path": WLPATH, "pubkeys": [PUBKEY1, PUBKEY2, ...]}
+        #
+        #  See Wildland/wildland-client#740
         obj = fields.get(field)
+        if obj and field in ("members", "access"):
+            for m in obj:
+                m.pop("pubkeys", None)
 
         if isinstance(obj, list):
             obj = dict(zip(range(len(obj)), obj))

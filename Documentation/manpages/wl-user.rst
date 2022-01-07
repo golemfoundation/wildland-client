@@ -65,9 +65,11 @@ Unless ``--key`` is provided, the command will generate a new key pair.
 
 .. option:: --add-pubkey <public_key>
 
-   Add additional public key that can be used to verify manifests owned byt this user. The whole
-   key must be specified. The key will be stored in a ``<fingerprint>.pub`` file in the key
-   directory (``~/.config/wildland/keys``). Can be repeated.
+   Add additional public key that can be used to verify manifests owned by this user. The whole
+   key must be specified either as a fingerprint or a Wildland user path. In the case where a fingerprint is provided,
+   the key will be stored in a ``<fingerprint>.pub`` file in the key directory (``~/.config/wildland/keys``).
+   In the case of a user path, all public keys needed to resolve the user path will be added to the same
+   directory. Can be repeated.
 
 
 .. program:: wl-user-delete

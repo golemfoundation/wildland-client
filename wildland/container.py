@@ -220,7 +220,7 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
         if not self.access:
             del fields['access']
         else:
-            fields["access"] = self.client.load_pubkeys_from_access(self.access, self.owner)
+            fields["access"] = self.client.load_pubkeys_from_field(self.access, self.owner)
         self.SCHEMA.validate(fields)
         if inline:
             del fields['owner']

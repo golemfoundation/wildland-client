@@ -767,16 +767,24 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
         cli('storage', 'create', 'local', 'Catalog1',
             '--location', base_dir / 'manifests',
             '--container', 'Catalog')
-
+    default_owner = client.load_object_from_name(WildlandObject.Type.USER, '@default-owner')
     c1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container1')
     c2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Container2')
     catalog_container = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'Catalog')
-    catalog_s0 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
-                                              catalog_container._storage_cache[0].storage,
-                                              catalog_container.owner, catalog_container.paths[0])
-    catalog_s1 = client.load_object_from_dict(WildlandObject.Type.STORAGE,
-                                              catalog_container._storage_cache[1].storage,
-                                              catalog_container.owner, catalog_container.paths[0])
+    catalog_s0 = client.load_object_from_dict(
+        object_type=WildlandObject.Type.STORAGE,
+        dictionary=catalog_container._storage_cache[0].storage,
+        owner=default_owner,
+        expected_owner=catalog_container.owner,
+        container=catalog_container.paths[0]
+    )
+    catalog_s1 = client.load_object_from_dict(
+        object_type=WildlandObject.Type.STORAGE,
+        dictionary=catalog_container._storage_cache[1].storage,
+        owner=default_owner,
+        expected_owner=catalog_container.owner,
+        container=catalog_container.paths[0]
+    )
     search_mock.containers_results = [
         [c1],
         [c1, c2],

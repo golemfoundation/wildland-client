@@ -263,7 +263,7 @@ def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_n
 
             fields = storage.to_manifest_fields(inline=True)
             if not storage.access:
-                fields['access'] = obj.client.load_pubkeys_from_access(
+                fields['access'] = obj.client.load_pubkeys_from_field(
                     access_list, forest_owner.owner)
 
             link_obj['storage'] = fields

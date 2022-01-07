@@ -1,0 +1,149 @@
+#!/bin/bash
+
+. ci/howto-test-common.bash
+
+mkdir -p /home/user/storage/public
+mkdir -p ~/Downloads
+sudo /etc/init.d/apache2 start
+
+
+### 1. create Yatima user
+
+switch_user yatima
+
+run wl user create yatima
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/yatima
+
+run wl forest create --access='*' mywebdav
+
+cp ~/.config/wildland/users/yatima.user.yaml ~/Downloads/
+yatima_userid=$(get_userid yatima)
+
+### 2. create Inoshiro user
+
+switch_user inoshiro
+
+run wl user create inoshiro
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/inoshiro
+
+run wl forest create --access='*' mywebdav
+
+cp ~/.config/wildland/users/inoshiro.user.yaml ~/Downloads/
+inoshiro_userid=$(get_userid inoshiro)
+
+### 3. Create directory
+
+switch_user directory
+
+run wl user create directory
+run wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/directory
+
+run wl template add webdav mywebdav \
+    --login userro \
+    --password passwordro \
+    --read-only \
+    --url http://localhost:8081/directory
+
+run wl forest create --access='*' mywebdav
+
+dir_userid=$(get_userid directory)
+
+### 4. Add Yatima and Inoshiro to the directory
+
+run wl user import --path /forests/yatima --path /users/yatima ~/Downloads/yatima.user.yaml
+run wl user import --path /forests/inoshiro --path /users/inoshiro ~/Downloads/inoshiro.user.yaml
+
+run wl bridge publish yatima
+run wl bridge publish inoshiro
+
+### 5. Put directory user manifest in a public https dir
+
+run wl get :/.manifests:/forest-owner.user.yaml /home/user/storage/public/forest-owner.user.yaml
+
+### 6. Create Office user
+
+switch_user office
+
+run wl user create office \
+  --add-pubkey "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/yatima:" \
+  --add-pubkey "$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/inoshiro:"
+
+expected_pcre="version: '1'
+object: user
+owner: '$USERID_PCRE'
+paths:
+- /users/office
+manifests-catalog: \[\]
+pubkeys:
+- $PUBKEY_PCRE
+members:
+- user-path: 'wildland:$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/yatima:'
+  pubkeys:
+  - $PUBKEY_PCRE
+- user-path: 'wildland:$dir_userid@https{wildland.local/public/forest-owner.user.yaml}:/forests/inoshiro:'
+  pubkeys:
+  - $PUBKEY_PCRE"
+run wl user dump office
+
+### 7. Create shared container
+
+wl c create --access office office-share
+
+expected_pcre="signature: \|
+  $USERID_PCRE:$ENCRYPTED_PCRE
+---
+encrypted:
+  encrypted-data: $ENCRYPTED_PCRE
+  encrypted-keys:
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE"
+run cat ~/.config/wildland/containers/office-share.container.yaml
+
+cp ~/.config/wildland/containers/office-share.container.yaml ~/Downloads/
+cp ~/.config/wildland/users/office.user.yaml ~/Downloads/
+
+### 8. Check that Yatima can dump the shared container
+
+switch_user yatima
+
+expected="Created: /home/user/.config/wildland/users/office.user.yaml
+Created: /home/user/.config/wildland/bridges/office.bridge.yaml"
+run wl user import ~/Downloads/office.user.yaml
+
+expected_pcre="version: '1'
+object: container
+owner: '$USERID_PCRE'
+paths:
+- /.uuid/$UUID_PCRE
+title: null
+categories: \[\]
+access:
+- user: '$USERID_PCRE'
+backends:
+  storage: \[\]"
+run wl dump ~/Downloads/office-share.container.yaml
+
+wl start
+
+expected="Saved: /home/user/Downloads/office-share.container.yaml"
+run wl sign -i ~/Downloads/office-share.container.yaml
+
+expected_pcre="signature: \|
+  $USERID_PCRE:$ENCRYPTED_PCRE
+---
+encrypted:
+  encrypted-data: $ENCRYPTED_PCRE
+  encrypted-keys:
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE
+  - $ENCRYPTED_PCRE"
+run cat ~/Downloads/office-share.container.yaml

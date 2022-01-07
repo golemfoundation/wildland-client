@@ -22,7 +22,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
-
+import logging
 from copy import deepcopy
 from pathlib import Path
 import itertools
@@ -84,6 +84,7 @@ def strip_yaml(line):
     """
 
     return line.strip('\n -')
+
 
 # Test the CLI tools directly (cannot easily use above-mentioned methods because of demonization)
 
@@ -169,6 +170,45 @@ def test_user_create_additional_keys(cli, base_dir):
         data = f.read()
 
     assert 'pubkeys:\n- key.0x111\n- key.0xbbb' in data
+
+
+def test_user_create_additional_keys_user_path(cli_sodium, base_dir_sodium, dir_userid):
+    # pylint: disable=line-too-long
+    user_path = f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    cli_sodium('user', 'create', 'User', '--add-pubkey', user_path)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+
+
+def test_user_create_additional_keys_fingerprint_and_user_path(cli_sodium, base_dir_sodium,
+                                                               dir_userid, sig_sodium):
+    # pylint: disable=line-too-long
+    user_path = f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    owner, pubkey = sig_sodium.generate()
+    _, additional_pubkey = sig_sodium.generate()
+    cli_sodium('user', 'create', 'User', '--key', owner,
+               '--add-pubkey', user_path, '--add-pubkey', additional_pubkey)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+    assert f"pubkeys:\n- {pubkey}\n- {additional_pubkey}" in data
+
+
+def test_user_add_del_pubkey_user_path(cli_sodium, base_dir_sodium, dir_userid):
+    cli_sodium('user', 'create', 'User')
+
+    user_path = \
+        f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    cli_sodium('user', 'modify', 'User', '--add-pubkey', user_path)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert f"members:\n- user-path: 'wildland:{user_path}'\n  pubkeys:" in data
+
+    cli_sodium('user', 'modify', 'User', '--del-pubkey', user_path)
+    with open(base_dir_sodium / 'users/User.user.yaml') as f:
+        data = f.read()
+    assert "members: []" in data
 
 
 def test_user_list(cli, base_dir):
@@ -6026,6 +6066,36 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
         fr'0m$',
         lines[1])
     assert lines[2] == f'Created: {base_config_dir}/bridges/Alice.bridge.yaml'
+
+def test_forest_create_with_user_path_access(base_dir_sodium, cli_sodium, sig_sodium, tmp_path,
+                                             dir_userid, alice_userid):
+    owner, _ = sig_sodium.generate()
+    additional_owner, _ = sig_sodium.generate()
+
+    cli_sodium('user', 'create', 'Toto', '--key', owner)
+    cli_sodium('user', 'create', 'Titi', '--key', additional_owner)
+
+    cli_sodium('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
+               '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
+    cli_sodium('template', 'add', 'local', '--location', f'/{tmp_path}/wl-forest',
+               '--read-only', '--manifest-pattern', '/{path}.{object-type}.yaml', 'forest-tpl')
+
+    user_path = \
+        f'{dir_userid}@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+    cli_sodium('bridge', 'import', user_path)
+    cli_sodium('forest', 'create', '--access', user_path, '--access', additional_owner,
+               'forest-tpl')
+    output = wl_call_output(base_dir_sodium, 'user', 'dump', alice_userid)
+    alice_user = yaml_parser.safe_load(output)
+    output = wl_call_output(
+        base_dir_sodium, 'container', 'dump', 'Toto-forest-catalog').decode().strip('\n')
+    logging.critical(output)
+    assert f"access:\n" \
+           f"- user-path: 'wildland:{user_path}'\n" \
+           f"  pubkeys:\n" \
+           f"  - {alice_user['pubkeys'][0]}\n" \
+           f"- user: '{additional_owner}'" in output
+
 
 ## Storage params sanity test
 

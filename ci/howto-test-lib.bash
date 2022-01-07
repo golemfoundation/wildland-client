@@ -26,25 +26,17 @@
 # Helpful pre-made patterns:
 #  $USERID_PCRE - matches Wildland user ID
 #  $UUID_PCRE - matches any UUID
+#  $PUBKEY_PCRE - matches any PUBKEY
+#  $ENCRYPTED_PCRE - matches any encrypted content
+#  $SPACE_OR_NBSP - matches space
 #
 # Helpful functions:
 #  - switch_user - switches ~/.config/wildland to another user, stops FUSE if was running
 #  - get_userid - get user ID of a given user
+#  - get_container_uuid - get container UUID of a given container
+#  - get_storage_uuid - get storage UUID of a given storage
 #
 # You can also set DEBUG=1 in the test, to get a shell when the test fails, and some more info about the failure
-
-set -eo pipefail
-
-. /home/user/env/bin/activate
-pip install --no-deps . plugins/*
-
-export PATH=$PATH:$(dirname "$0")/..
-alias tree='/usr/bin/tree -A'
-export LC_CTYPE=C.UTF-8
-
-test_script=${BASH_SOURCE[-1]}
-all_steps=$(grep -c '^run ' "$test_script")
-current_step=0
 
 red=$(tput setaf 1 2>/dev/null ||:)
 norm=$(tput sgr0 2>/dev/null ||:)

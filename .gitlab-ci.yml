@@ -245,7 +245,13 @@ user-directory-test:
   stage: test
   image: $CONTAINER_TEST_IMAGE
   script:
-    - ./ci/user-directory
+    - ./ci/howto-user-directory
+
+group-users-test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  script:
+    - ./ci/howto-group-users-with-user-path
 
 smoke-test:
   stage: test

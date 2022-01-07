@@ -86,6 +86,8 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
             fields['storage']['version'] = Manifest.CURRENT_VERSION
         storage_obj = client.load_object_from_dict(
             WildlandObject.Type.STORAGE, fields['storage'],
+            owner=fields.get("owner", None) or fields.get("storage-owner", None) \
+                or kwargs.get('expected_owner', None),
             expected_owner=fields.get("storage-owner", None) or kwargs.get('expected_owner', None)
         )
         storage_driver = StorageDriver.from_storage(storage_obj)
@@ -106,7 +108,7 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     def to_manifest_fields(self, inline: bool):
         params = self.storage_driver.storage_backend.params
         if params.get("access"):
-            params["access"] = self.client.load_pubkeys_from_access(
+            params["access"] = self.client.load_pubkeys_from_field(
                 params["access"], '@default-owner')
         fields = {
             'object': 'link',

@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Setup user directory (based on user-directory)
+
+mkdir -p /home/user/storage/public
+mkdir -p ~/Downloads
+
+. ci/howto-test-lib.bash
+
+### 1. create Alice user
+
+switch_user alice
+
+wl user create alice
+wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/alice
+
+wl forest create --access='*' mywebdav
+cp ~/.config/wildland/users/alice.user.yaml ~/Downloads/
+
+get_userid alice > /tmp/alice_userid
+
+### 2. create Charlie user
+
+switch_user charlie
+
+wl user create charlie
+wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/charlie
+
+wl forest create --access='*' mywebdav
+cp ~/.config/wildland/users/charlie.user.yaml ~/Downloads/
+
+get_userid charlie > /tmp/charlie_userid
+
+### 3. Create directory
+
+switch_user directory
+
+wl user create directory
+wl template create webdav mywebdav \
+    --login user \
+    --password password \
+    --url http://localhost:8081/directory
+
+wl template add webdav mywebdav \
+    --login userro \
+    --password passwordro \
+    --read-only \
+    --url http://localhost:8081/directory
+
+wl forest create --access='*' mywebdav
+
+wl user import --path /forests/alice --path /users/alice ~/Downloads/alice.user.yaml
+wl user import --path /forests/charlie --path /users/charlie ~/Downloads/charlie.user.yaml
+
+wl bridge publish alice
+wl bridge publish charlie
+
+wl get :/.manifests:/forest-owner.user.yaml /home/user/storage/public/forest-owner.user.yaml
+
+get_userid directory > /tmp/dir_userid
+
+### 4. Switch to an arbitrary new user for pytest
+
+switch_user pytest

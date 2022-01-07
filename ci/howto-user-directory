@@ -2,7 +2,7 @@
 
 # Test simulating Ariadne-like user directory locally
 
-. ci/howto-test-lib.bash
+. ci/howto-test-common.bash
 
 mkdir -p /home/user/storage/public
 mkdir -p ~/Downloads
@@ -161,6 +161,8 @@ categories: \[\]
 access:
 - user: '$USERID_PCRE'
 - user-path: 'wildland:$USERID_PCRE@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:'
+  pubkeys:
+  - $PUBKEY_PCRE
 backends:
   storage: \[\]"
 run wl container dump mycontainer2
@@ -197,6 +199,8 @@ title: null
 categories: \[\]
 access:
 - user-path: 'wildland:$USERID_PCRE@https{wildland.local/public/forest-owner.user.yaml}:/users/charlie:'
+  pubkeys:
+  - $PUBKEY_PCRE
 backends:
   storage:
   - object: storage

@@ -2,7 +2,7 @@
 
 # See ci/howto-test-lib.bash for docs about the "test framework"
 
-. ci/howto-test-lib.bash
+. ci/howto-test-common.bash
 
 mkdir -p /home/user/storage
 sudo /etc/init.d/apache2 start

@@ -36,7 +36,7 @@ from ..user import User
 
 from .cli_base import aliased_group, ContextObj
 from .cli_exc import CliError
-from ..wlpath import WILDLAND_URL_PREFIX
+from ..wlpath import WILDLAND_URL_PREFIX, WildlandPath
 from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
     check_if_any_options, check_options_conflict, publish, unpublish
 from ..exc import WildlandError
@@ -92,17 +92,24 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
             paths = [f'/users/{owner}']
         click.echo(f'No path specified, using: {paths[0]}')
 
-    if additional_pubkeys:
-        additional_pubkeys = list(additional_pubkeys)
-    else:
+    members = []
+    filtered_additional_keys = []
+    if not additional_pubkeys:
         additional_pubkeys = []
+
+    for p in additional_pubkeys:
+        if WildlandPath.WLPATH_RE.match(p):
+            members.append({"user-path": WildlandPath.get_canonical_form(p)})
+        else:
+            filtered_additional_keys.append(p)
 
     user = User(
         owner=owner,
-        pubkeys=[pubkey] + additional_pubkeys,
+        pubkeys=[pubkey] + filtered_additional_keys,
         paths=[PurePosixPath(p) for p in paths],
         manifests_catalog=[],
-        client=obj.client
+        client=obj.client,
+        members=members
     )
     error_on_save = False
     try:
@@ -656,7 +663,7 @@ user_.add_command(unpublish)
 @click.option('--del-path', metavar='PATH', multiple=True, help='path to remove')
 @click.option('--add-catalog-entry', metavar='PATH', multiple=True, help='container path to add')
 @click.option('--del-catalog-entry', metavar='PATH', multiple=True, help='container path to remove')
-@click.option('--add-pubkey', metavar='PUBKEY', multiple=True, help='raw public keys to append')
+@click.option('--add-pubkey', metavar='PUBKEY', multiple=True, help='raw public key to append')
 @click.option('--add-pubkey-user', metavar='USER', multiple=True,
               help='user whose public keys should be appended to FILE')
 @click.option('--del-pubkey', metavar='PUBKEY', multiple=True, help='public key to remove')
@@ -673,10 +680,28 @@ def modify(ctx: click.Context,
     _option_check(ctx, add_path, del_path, add_catalog_entry, del_catalog_entry,
                   add_pubkey, add_pubkey_user, del_pubkey)
 
-    pubkeys = _get_all_pubkeys_and_check_conflicts(ctx, add_pubkey, add_pubkey_user, del_pubkey)
+    add_members = []
+    add_pubkeys = []
+    for p in add_pubkey:
+        if WildlandPath.WLPATH_RE.match(p):
+            add_members.append({"user-path": WildlandPath.get_canonical_form(p)})
+        else:
+            add_pubkeys.append(p)
 
-    to_add = {'paths': add_path, 'manifests-catalog': add_catalog_entry, 'pubkeys': pubkeys}
-    to_del = {'paths': del_path, 'manifests-catalog': del_catalog_entry, 'pubkeys': del_pubkey}
+    del_members = []
+    del_pubkeys = []
+    for p in del_pubkey:
+        if WildlandPath.WLPATH_RE.match(p):
+            del_members.append({"user-path": WildlandPath.get_canonical_form(p)})
+        else:
+            del_pubkeys.append(p)
+
+    pubkeys = _get_all_pubkeys_and_check_conflicts(ctx, add_pubkeys, add_pubkey_user, del_pubkeys)
+
+    to_add = {'paths': add_path, 'manifests-catalog': add_catalog_entry,
+              'pubkeys': pubkeys, 'members': add_members}
+    to_del = {'paths': del_path, 'manifests-catalog': del_catalog_entry,
+              'pubkeys': del_pubkeys, 'members': del_members}
 
     modify_manifest(ctx, input_file,
                     edit_funcs=[add_fields, del_fields],
