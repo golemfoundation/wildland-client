@@ -227,7 +227,7 @@ class WildlandCore(WildlandCoreUser, WildlandCoreApi):
     def _do_import(self, obj: WildlandObject, name: Optional[str]):
         if utils.check_object_existence(obj, self.client):
             raise FileExistsError(utils.get_object_id(obj))
-        path = self.client.save_new_object(obj.type, obj, name)
+        path = self.client.save_new_object(obj.type, obj, name, enforce_original_bytes=True)
         logger.info('Created: %s', path)
         return utils.wildland_object_to_wl_object(obj, self.client)
 

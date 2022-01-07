@@ -199,7 +199,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
             access=params.get('access')
         )
 
-    def to_manifest_fields(self, inline: bool) -> dict:
+    def to_manifest_fields(self, inline: bool, str_repr_only: bool = False) -> dict:
         container_path = None
 
         if self.container:
@@ -241,7 +241,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         nonsensitive_storage_fields = ["owner", "type", "version", "backend-id"]
 
         fields = {}
-        manifest_fields = self.to_manifest_fields(inline=True)
+        manifest_fields = self.to_manifest_fields(inline=True, str_repr_only=True)
         if not include_sensitive:
             for field in nonsensitive_storage_fields:
                 if manifest_fields.get(field, None):

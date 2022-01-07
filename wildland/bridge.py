@@ -103,7 +103,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
                 manifest=manifest
             )
 
-    def to_manifest_fields(self, inline: bool) -> dict:
+    def to_manifest_fields(self, inline: bool, str_repr_only: bool = False) -> dict:
         if inline:
             raise WildlandError('Bridge manifest cannot be inlined.')
         result = {
@@ -123,7 +123,7 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         This function provides filtered sensitive and unneeded fields for representation
         """
         # TODO: wildland/wildland-client/issues#563
-        fields = self.to_manifest_fields(inline=False)
+        fields = self.to_manifest_fields(inline=False, str_repr_only=True)
         if not include_sensitive:
             if isinstance(fields["user"], dict):
                 fields["user"].pop("storage", None)

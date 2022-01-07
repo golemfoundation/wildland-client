@@ -243,7 +243,7 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         """Primary pubkey for signatures. User manifest needs to be signed with this key"""
         return self.pubkeys[0]
 
-    def to_manifest_fields(self, inline: bool) -> dict:
+    def to_manifest_fields(self, inline: bool, str_repr_only: bool = False) -> dict:
         if inline:
             raise WildlandError('User manifest cannot be inlined.')
         if not self._loaded_members:
@@ -268,7 +268,7 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         """
         This function provides filtered sensitive and unneeded fields for representation
         """
-        fields = self.to_manifest_fields(inline=False)
+        fields = self.to_manifest_fields(inline=False, str_repr_only=True)
         if not include_sensitive:
             # Remove sensitive fields
             del fields["manifests-catalog"]
