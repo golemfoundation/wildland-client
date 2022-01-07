@@ -26,6 +26,7 @@ from pathlib import PurePosixPath
 import wildland.core.core_utils as utils
 from wildland.log import get_logger
 from wildland.exc import WildlandError
+from wildland.wlpath import WildlandPath
 from ..client import Client
 from ..user import User
 from ..wildland_object.wildland_object import WildlandObject
@@ -150,23 +151,37 @@ class WildlandCoreUser(WildlandCoreApi):
 
     @wildland_result(default_output=None)
     def __user_create(self, name: Optional[str], keys: List[str], paths: List[str]):
-
         if not keys:
             result = WildlandResult()
             result.errors.append(WLError(100, "At least one public key must be provided", False))
             return result, None
 
-        owner = self.client.session.sig.fingerprint(keys[0])
+        members = []
+        filtered_additional_keys = []
+        own_key = keys[0]
+
+        for k in keys:
+            if k == own_key:
+                continue
+            if WildlandPath.WLPATH_RE.match(k):
+                members.append({"user-path": WildlandPath.get_canonical_form(k)})
+            else:
+                filtered_additional_keys.append(k)
+
+        owner = self.client.session.sig.fingerprint(own_key)
         user = User(
             owner=owner,
-            pubkeys=keys,
+            pubkeys=[own_key] + filtered_additional_keys,
             paths=[PurePosixPath(p) for p in paths],
             manifests_catalog=[],
-            client=self.client)
+            client=self.client,
+            members=members)
 
         path = self.client.save_new_object(WildlandObject.Type.USER, user, name)
         logger.info('Created: %s', path)
+
         user.add_user_keys(self.client.session.sig)
+
         wl_user = utils.user_to_wluser(user, self.client)
         return wl_user
 

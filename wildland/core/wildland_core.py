@@ -31,7 +31,6 @@ from ..user import User
 from ..container import Container
 from ..bridge import Bridge
 from ..storage import Storage
-from ..wlpath import WildlandPath
 from ..link import Link
 from ..wildland_object.wildland_object import WildlandObject
 from .wildland_result import WildlandResult, WLError, wildland_result
