@@ -196,6 +196,7 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
                                     str(e))
                 continue
             except WildlandError as e:
+                logger.debug('User %s: cannot load manifests catalog entry: %s', self.owner, str(e))
                 unknown_failure_containers += 1
                 continue
 

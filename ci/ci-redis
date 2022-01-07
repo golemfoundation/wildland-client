@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -ex
+
+. /home/user/env/bin/activate
+. ci/install-inplace redis
+
+# Setup
+ROOT="$HOME/wildland"
+MOUNT_DIR="redis-mnt"
+MOUNT_PATH="$ROOT/$MOUNT_DIR"
+
+# Install
+
+redis-server /etc/redis.conf
+
+WL='python3 -m coverage run -p ./wl'
+
+# Wildland
+
+$WL user create redis-user
+$WL container create redis-container --path "/$MOUNT_DIR"
+$WL storage create redis --password '/.,/.,/.,' --container redis-container --database 1 --hostname 127.0.0.1
+$WL start --skip-forest-mount --container redis-container
+
+# Creating some files and folders
+
+time -p chronic mkdir -p "$MOUNT_PATH"/dir{00..02}/subdir{00,01}
+
+# Check directory structure
+
+SRC="$MOUNT_PATH" time -p chronic /bin/bash -c 'cd $SRC && [[ $(find . | xargs echo) == ". ./.manifest.wildland.yaml ./dir00 ./dir00/subdir00 ./dir00/subdir01 ./dir01 ./dir01/subdir00 ./dir01/subdir01 ./dir02 ./dir02/subdir00 ./dir02/subdir01" ]]'
+
+# Test non-empty files creation with echo
+
+DEST="$MOUNT_PATH/123.txt" time -p chronic /bin/bash -c 'echo "one two three" > "$DEST"'
+DEST="$MOUNT_PATH/dir02/456.txt" time -p chronic /bin/bash -c 'echo -n "four five six" > "$DEST"'
+
+# Test file append
+
+DEST="$MOUNT_PATH/dir02/456.txt" time -p chronic /bin/bash -c 'echo -n " seven eight" >> "$DEST"'
+DEST="$MOUNT_PATH/dir02/456.txt" time -p chronic /bin/bash -c 'echo " nine ten" >> "$DEST"'
+
+# Check file contents
+
+SRC="$MOUNT_PATH/123.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "one two three" ]]'
+SRC="$MOUNT_PATH/dir02/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four five six seven eight nine ten" ]]'
+
+# Test file copy
+
+time -p chronic cp "$MOUNT_PATH/123.txt" "$MOUNT_PATH/123_copy.txt"
+time -p chronic cp "$MOUNT_PATH/dir02/456.txt" "$MOUNT_PATH/dir01/subdir00"
+
+# Check file contents
+
+SRC="$MOUNT_PATH/123_copy.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "one two three" ]]'
+SRC="$MOUNT_PATH/dir01/subdir00/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four five six seven eight nine ten" ]]'
+
+# Rename whole directory
+
+time -p chronic mv "$MOUNT_PATH/dir01" "$MOUNT_PATH/new01"
+
+# Check file contents in new directory location
+
+SRC="$MOUNT_PATH/new01/subdir00/456.txt" time -p chronic /bin/bash -c '[[ $(cat "$SRC") == "four five six seven eight nine ten" ]]'
+
+# Remove file
+
+time -p chronic rm "$MOUNT_PATH/123_copy.txt"
+time -p test ! -f "$MOUNT_PATH/123_copy.txt"
+time -p chronic rm "$MOUNT_PATH/dir02/456.txt"
+time -p test ! -f "$MOUNT_PATH/dir02/456.txt"
+
+# Remove directory
+
+time -p chronic rm -r "$MOUNT_PATH/new01"
+
+# Check directory structure after removal
+
+SRC="$MOUNT_PATH" time -p chronic /bin/bash -c 'cd $SRC && [[ $(find . | xargs echo) == ". ./.manifest.wildland.yaml ./123.txt ./dir00 ./dir00/subdir00 ./dir00/subdir01 ./dir02 ./dir02/subdir00 ./dir02/subdir01" ]]'
+
+# Done
+
+time -p chronic $WL stop

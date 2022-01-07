@@ -1,0 +1,36 @@
+.. option:: --prefix <absolute_path>
+
+   Redis key prefix as an absolute path, defaults to /. Optional.
+
+.. option:: --database <int>
+
+   Redis DB index
+
+.. option:: --hostname <string>
+
+   Server hostname
+
+.. option:: --port <int>
+
+   Server port, defaults to 6379. Optional.
+
+.. option:: --username <string>
+
+   Server username. Optional.
+
+.. option:: --password <string>
+
+   Server password. Optional.
+
+.. option:: --tls <boolean>
+
+   Use TLS. Optional.
+
+.. option:: --subcontainer-manifest <path_in_storage>
+
+   Absolute path to a subcontainer manifest (can be repeated). Optional.
+
+.. option:: --manifest-pattern <glob>
+
+   Glob pattern to find manifest files in the storage, e.g. `/*.{object-type}.yaml`. Can use {path}`
+   and `*` special characters.

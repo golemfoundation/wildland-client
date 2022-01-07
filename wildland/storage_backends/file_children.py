@@ -286,7 +286,8 @@ class FileChildrenMixin(StorageBackend):
             driver.makedirs(relpath.parent)
             driver.write_file(relpath, client.session.dump_object(wl_object))
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
+    def get_children(self, client: Optional[Client] = None,
+                     query_path: PurePosixPath = PurePosixPath('*')) -> \
             Iterable[Tuple[PurePosixPath, Link]]:
         """
         List all child objects provided by this storage.

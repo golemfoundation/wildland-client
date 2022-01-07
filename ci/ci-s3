@@ -43,6 +43,12 @@ $WL container create s3-con --path "/$MNT_DIR_1"
 $WL storage create s3 --access-key 'dmr' --secret-key '/.,/.,/.,' --container s3-con --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-storage
 $WL start --container s3-con
 
+# Test Cached backend
+
+gcc -g -o/tmp/s3test -O0 ci/s3test.c
+chmod +x /tmp/s3test
+/tmp/s3test $MNT_PATH_1/foo.txt
+
 # Test files
 
 time -p chronic /bin/bash -c '[[ $(cat '$MNT_PATH_1'/file) == "foo" ]]'
