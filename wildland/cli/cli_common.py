@@ -437,46 +437,55 @@ def hard_remount_container(obj, container_path: Path, old_manifest: Manifest):
 
 
 @click.command(short_help='publish a manifest')
-@click.argument('file', metavar='NAME or PATH')
+@click.argument('files', metavar='NAME or PATH', nargs=-1)
 @click.pass_context
-def publish(ctx: click.Context, file: str):
+def publish(ctx: click.Context, files: List[str]):
     """
     Publish Wildland Object manifest to a publishable storage from manifests catalog.
     """
-    wl_object = _get_publishable_object_from_file_or_path(ctx, file)
-    assert isinstance(wl_object.manifest, Manifest)
-    user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+    object_types = set()
+    for file in files:
+        wl_object = _get_publishable_object_from_file_or_path(ctx, file)
+        assert isinstance(wl_object.manifest, Manifest)
+        user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER,
+                                                    wl_object.manifest.owner)
 
-    click.echo(f'Publishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
-    Publisher(ctx.obj.client, user).publish(wl_object)
+        click.echo(f'Publishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
+        Publisher(ctx.obj.client, user).publish(wl_object)
+        object_types.add(wl_object.type)
 
-    # check if all objects are published
-    not_published = Publisher.list_unpublished_objects(ctx.obj.client, wl_object.type)
-    n_objects = len(list(ctx.obj.client.dirs[wl_object.type].glob('*.yaml')))
+    object_types = list(object_types)
 
-    # if all objects of the given type are unpublished DO NOT print warning
-    if not_published and len(not_published) != n_objects:
-        LOGGER.warning(
-            "Some local %ss (or %s updates) are not published:\n%s",
-            wl_object.type.value,
-            wl_object.type.value,
-            '\n'.join(sorted(not_published))
-        )
+    for object_type in object_types:
+        # check if all objects are published
+        not_published = Publisher.list_unpublished_objects(ctx.obj.client, object_type)
+        n_objects = len(list(ctx.obj.client.dirs[object_type].glob('*.yaml')))
+
+        # if all objects of the given type are unpublished DO NOT print warning
+        if not_published and len(not_published) != n_objects:
+            LOGGER.warning(
+                "Some local %ss (or %s updates) are not published:\n%s",
+                object_type.value,
+                object_type.value,
+                '\n'.join(sorted(not_published))
+            )
 
 
 @click.command(short_help='unpublish a manifest')
-@click.argument('file', metavar='NAME or PATH')
+@click.argument('files', metavar='NAME or PATH', nargs=-1)
 @click.pass_context
-def unpublish(ctx: click.Context, file: str):
+def unpublish(ctx: click.Context, files: List[str]):
     """
     Unpublish Wildland Object manifest from all matchin manifest catalogs.
     """
-    wl_object = _get_publishable_object_from_file_or_path(ctx, file)
-    assert isinstance(wl_object.manifest, Manifest)
-    user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER, wl_object.manifest.owner)
+    for file in files:
+        wl_object = _get_publishable_object_from_file_or_path(ctx, file)
+        assert isinstance(wl_object.manifest, Manifest)
+        user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER,
+                                                    wl_object.manifest.owner)
 
-    click.echo(f'Unpublishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
-    Publisher(ctx.obj.client, user).unpublish(wl_object)
+        click.echo(f'Unpublishing {wl_object.type.value}: [{wl_object.get_primary_publish_path()}]')
+        Publisher(ctx.obj.client, user).unpublish(wl_object)
 
 
 def republish_object(client: Client, wl_object: PublishableWildlandObject):
