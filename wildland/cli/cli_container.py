@@ -46,6 +46,7 @@ import wildland.cli.cli_common as cli_common
 from wildland.client import Client
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.fs_client import StorageInfo
 from .cli_base import aliased_group, ContextObj
 from .cli_exc import CliError
 from .cli_storage import do_create_storage_from_templates
@@ -673,7 +674,7 @@ def prepare_mount(obj: ContextObj,
         subcontainers = []
 
     if not subcontainers or not only_subcontainers:
-        storages = obj.client.get_storages_to_mount(container)
+        storages: List[Storage] = obj.client.get_storages_to_mount(container)
         primary_storage_id = obj.fs_client.find_primary_storage_id(container)
 
         if primary_storage_id is None:
@@ -848,6 +849,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
     params: List[Tuple[Container, List[Storage], List[Iterable[PurePosixPath]], Container]] = []
     successfully_loaded_container_names: List[str] = []
     fails: List[str] = []
+    storages_count = 0
 
     for container_name in container_names:
         current_params: List[Tuple[Container, List[Storage],
@@ -876,9 +878,11 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         for container in counter(reordered):
             try:
                 user_paths = client.get_bridge_paths_for_user(container.owner)
-                mount_params = prepare_mount(
+                mount_params_generator = prepare_mount(
                     obj, container, str(container), user_paths,
                     remount, with_subcontainers, None, list_all, only_subcontainers)
+                mount_params = list(mount_params_generator)
+                storages_count += sum(len(params[1]) for params in mount_params)
                 current_params.extend(mount_params)
             except WildlandError as ex:
                 fails.append(f'Cannot mount container {container}: {str(ex)}')
@@ -886,11 +890,8 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)
 
-    if len(params) > 1:
-        click.echo(f'Mounting storages for containers: {len(params)}')
-        obj.fs_client.mount_multiple_containers(params, remount=remount)
-    elif len(params) > 0:
-        click.echo('Mounting one storage')
+    if storages_count:
+        click.echo(f'Mounting storage(s): {storages_count}')
         obj.fs_client.mount_multiple_containers(params, remount=remount)
     else:
         click.echo('No containers need (re)mounting')
@@ -968,8 +969,9 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
 
     if unmount_all:
         ids = obj.fs_client.get_mounted_storage_ids()
-        if len(ids) > 0:
-            click.echo(f'Unmounting {len(ids)} storages')
+        unmount_count = _count_normal_storages(obj, ids)
+        if unmount_count > 0:
+            click.echo(f'Unmounting {unmount_count} storages')
             for ident in ids:
                 obj.fs_client.unmount_storage(ident)
             click.echo('Stopping all sync jobs')
@@ -1028,7 +1030,8 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     all_cache_ids = list(dict.fromkeys(all_cache_ids))
 
     if all_storage_ids or all_cache_ids:
-        click.echo(f'Unmounting {len(storage_ids)} containers')
+        storages_count = _count_normal_storages(obj, all_storage_ids + all_cache_ids)
+        click.echo(f'Unmounting {storages_count} storages')
         for storage_id in all_storage_ids:
             obj.fs_client.unmount_storage(storage_id)
 
@@ -1043,6 +1046,11 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     if fails:
         raise WildlandError('\n'.join(fails))
 
+
+def _count_normal_storages(obj: ContextObj, storage_ids: List[int]):
+    return len(list(filter(
+        lambda storage_id: not _is_pseudomanifest_storage_id(obj, storage_id), storage_ids
+    )))
 
 def _mount_path_to_backend_id(path: PurePosixPath) -> Optional[str]:
     pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/([0-9a-z-]+)$'
@@ -1132,9 +1140,8 @@ def _is_pseudomanifest_storage_id(obj: ContextObj, storage_id: int) -> bool:
     """
     Check whether given storage ID corresponds to a pseudomanifest storage.
     """
-    primary_path = obj.fs_client.get_primary_unique_mount_path_from_storage_id(storage_id)
-    return _is_pseudomanifest_primary_mount_path(primary_path)
-
+    storage_info: StorageInfo = obj.fs_client.get_storage_info(storage_id)
+    return storage_info.type == 'pseudomanifest'
 
 def _is_pseudomanifest_primary_mount_path(path: PurePosixPath) -> bool:
     """

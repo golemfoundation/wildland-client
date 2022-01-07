@@ -1153,9 +1153,6 @@ def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_clien
 
     cli('container', 'mount', 'Container')
 
-    command = control_client.calls['mount']['items']
-    assert command == []
-
 
 # Container
 
@@ -3415,6 +3412,11 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
             'paths': ['/PATH'],
             'type': 'local',
             'extra': {},
+        },
+        '102': {
+            'paths': ['/PATH'],
+            'type': 'local',
+            'extra': {},
         }
     })
 
@@ -3472,6 +3474,12 @@ def test_container_umount_undo_save_by_container_names(cli, base_dir, control_cl
         }
         info_dict |= {
             str(storage_id + 4): {
+                'paths': [f'/PATH{i}'],
+                'type': 'local',
+                'extra': {},
+            },
+
+            str(storage_id + 1): {
                 'paths': [f'/PATH{i}'],
                 'type': 'local',
                 'extra': {},
@@ -3967,6 +3975,13 @@ def test_container_unmount(cli, base_dir, control_client):
         '/PATH': [105],
     })
     control_client.expect('unmount')
+    control_client.expect('info', {
+        '102': {
+            'paths': ['/PATH'],
+            'type': 'local',
+            'extra': {},
+        }
+    })
     cli('container', 'unmount', 'Container', '--without-subcontainers')
 
     # /.users/{owner}:/.backends/{cont_uuid}/{backend_uuid} is always the primary path
@@ -5710,6 +5725,20 @@ def test_forest_unmount(cli, tmp_path, base_dir, control_client):
                 f'/.users/0xaaa:/.backends/{info["entry_uuid"]}/{info["entry_backend_id"]}',
                 f'/.users/0xaaa:/.uuid/{info["entry_uuid"]}',
                 f'/.users/0xaaa:/{info["catalog_path"]}'
+            ],
+            'type': 'local',
+            'extra': {},
+        },
+        '101': {
+            'paths': [
+                '/PATH'
+            ],
+            'type': 'local',
+            'extra': {},
+        },
+        '104': {
+            'paths': [
+                '/PATH'
             ],
             'type': 'local',
             'extra': {},

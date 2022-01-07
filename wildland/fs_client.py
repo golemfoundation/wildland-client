@@ -76,6 +76,22 @@ class WildlandFSError(WildlandError):
     """Error while trying to control Wildland FS."""
 
 
+class StorageInfo:
+    """
+    Represents structured information about single mounted storage.
+    """
+    def __init__(self, data: dict):
+        self.paths = [PurePosixPath(p) for p in data['paths']]
+        self.type = data['type']
+        self.tag = data['extra'].get('tag')
+        self.trusted_owner = data['extra'].get('trusted_owner')
+        self.subcontainer_of = data['extra'].get('subcontainer_of')
+        self.hidden = data['extra'].get('hidden', False)
+        self.title = data['extra'].get('title')
+        self.categories = [PurePosixPath(c) for c in data['extra'].get('categories', [])]
+        self.primary = data['extra'].get('primary')
+
+
 class WildlandFSClient:
     """
     A class to communicate with Wildland filesystem over the .control API.
@@ -95,7 +111,7 @@ class WildlandFSClient:
 
         self.path_cache: Optional[Dict[PurePosixPath, List[int]]] = None
         self.path_tree: Optional[PathTree] = None
-        self.info_cache: Optional[Dict[int, Dict]] = None
+        self.info_cache: Optional[Dict[int, StorageInfo]] = None
 
     def clear_cache(self) -> None:
         """
@@ -392,7 +408,7 @@ class WildlandFSClient:
         """
         storage_info = self.get_info()
         assert storage_id in storage_info
-        return storage_info[storage_id]['paths'][0]
+        return storage_info[storage_id].paths[0]
 
     def _is_storage_id_with_pseudomanifest_storage_id(self, storage_ids: List[int]) -> \
             Tuple[bool, int]:
@@ -412,8 +428,8 @@ class WildlandFSClient:
 
         info = self.get_info()
         all_paths = (
-            info[storage_ids[0]]['paths'],
-            info[storage_ids[1]]['paths']
+            info[storage_ids[0]].paths,
+            info[storage_ids[1]].paths
         )
 
         assert len(all_paths[0]) > 0
@@ -462,7 +478,7 @@ class WildlandFSClient:
         container_paths = []
         owner = None
         info = self.get_info()
-        for path in info[storage_id]['paths']:
+        for path in info[storage_id].paths:
             try:
                 # this raises ValueError for not matching paths
                 users_path = path.relative_to('/.users')
@@ -491,7 +507,7 @@ class WildlandFSClient:
         container_id = f'{container.owner}:{container.paths[0]}'
         info = self.get_info()
         for storage_id in info:
-            if info[storage_id]['subcontainer_of'] == container_id:
+            if info[storage_id].subcontainer_of == container_id:
                 yield storage_id
                 if recursive:
                     yield from self.find_all_subcontainers_storage_ids(
@@ -581,7 +597,7 @@ class WildlandFSClient:
         info = self.get_info()
         trusted_owners = set()
         for storage_id in storage_ids:
-            trusted_owner = info[storage_id]['trusted_owner']
+            trusted_owner = info[storage_id].trusted_owner
             if trusted_owner is not None:
                 trusted_owners.add(trusted_owner)
 
@@ -623,7 +639,7 @@ class WildlandFSClient:
             tree.storage_ids.extend(storage_ids)
         return self.path_tree
 
-    def get_info(self) -> Dict[int, Dict]:
+    def get_info(self) -> Dict[int, StorageInfo]:
         """
         Read storage info served by the FUSE driver.
         """
@@ -633,19 +649,16 @@ class WildlandFSClient:
 
         data = self.run_control_command('info')
         self.info_cache = {
-            int(ident_str): {
-                'paths': [PurePosixPath(p) for p in storage['paths']],
-                'type': storage['type'],
-                'tag': storage['extra'].get('tag'),
-                'trusted_owner': storage['extra'].get('trusted_owner'),
-                'subcontainer_of': storage['extra'].get('subcontainer_of'),
-                'hidden': storage['extra'].get('hidden', False),
-                'title': storage['extra'].get('title'),
-                'categories': [PurePosixPath(c) for c in storage['extra'].get('categories', [])],
-                'primary': storage['extra'].get('primary')
-            } for ident_str, storage in data.items()
+            int(ident_str): StorageInfo(storage) for ident_str, storage in data.items()
         }
         return self.info_cache
+
+    def get_storage_info(self, storage_id: int) -> StorageInfo:
+        """
+        Returns storage info served by the FUSE driver.
+        """
+        assert storage_id in self.get_info(), f'Storage {storage_id} is unknown.'
+        return self.get_info()[storage_id]
 
     def get_unique_storage_paths(self, container: Optional[Container] = None,
                                  include_pseudomanifest: bool = False) -> Iterable[PurePosixPath]:
@@ -711,7 +724,7 @@ class WildlandFSClient:
 
         tag = self.get_storage_tag(mount_paths, storage.params)
 
-        if info[storage_id]['tag'] != tag:
+        if info[storage_id].tag != tag:
             logger.debug('Storage %s has changed. Remounting it inside %s container.',
                          storage.backend_id, container.paths[0])
             return True

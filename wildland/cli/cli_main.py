@@ -34,6 +34,7 @@ import click
 
 from wildland.control_client import ControlClientError
 from wildland.exc import WildlandError
+from wildland.fs_client import StorageInfo
 from wildland.manifest.template import TemplateManager
 from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import (
@@ -261,18 +262,18 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
         click.echo('Mounted containers:')
         click.echo()
 
-        mounted_storages = obj.fs_client.get_info().values()
-        for storage in mounted_storages:
-            if storage['subcontainer_of'] and not with_subcontainers:
+        mounted_storages: Dict[int, StorageInfo] = obj.fs_client.get_info()
+        for storage in mounted_storages.values():
+            if storage.subcontainer_of and not with_subcontainers:
                 continue
-            if storage['hidden'] and not with_pseudomanifests:
+            if storage.hidden and not with_pseudomanifests:
                 continue
-            main_path = storage['paths'][0]
+            main_path = storage.paths[0]
             click.echo(main_path)
-            click.echo(f'  storage: {storage["type"]}')
+            click.echo(f'  storage: {storage.type}')
             _print_container_paths(storage, all_paths)
-            if storage['subcontainer_of']:
-                click.echo(f'  subcontainer-of: {storage["subcontainer_of"]}')
+            if storage.subcontainer_of:
+                click.echo(f'  subcontainer-of: {storage.subcontainer_of}')
 
     click.echo()
     result = obj.client.run_sync_command('status')
@@ -299,13 +300,13 @@ def set_default_cache(obj: ContextObj, template_name: str):
     click.echo(f'Set template {template_name} as default for container cache storages')
 
 
-def _print_container_paths(storage: Dict, all_paths: bool) -> None:
+def _print_container_paths(storage: StorageInfo, all_paths: bool) -> None:
     if all_paths:
-        _print_container_all_paths(storage['paths'])
-    elif storage['primary'] and storage['type'] != 'static':
-        _print_container_shortened_paths(storage['paths'], storage['categories'])
-        _print_container_categories(storage['categories'])
-        _print_container_title(storage['title'])
+        _print_container_all_paths(storage.paths)
+    elif storage.primary and storage.type != 'static':
+        _print_container_shortened_paths(storage.paths, storage.categories)
+        _print_container_categories(storage.categories)
+        _print_container_title(storage.title)
 
 
 def _echo_indented_status_info(info: str, indent_size: int=0) -> None:
