@@ -1019,11 +1019,13 @@ class WildlandFSClient:
         params = storage.params
         sb = StorageBackend.from_params(params, deduplicate=True)
         path = PurePosixPath(event['path'])
-        all_children = list(sb.get_children(wl_client))
         subcontainer = None
-        for sub_path, sub in all_children:
-            if sub_path == path:
-                assert sub is not None
-                subcontainer = sub
-                break
+        with sb:
+            for sub_path, sub in sb.get_children(wl_client):
+                if sub_path == path:
+                    assert sub is not None
+                    subcontainer = sub
+                    break
+            else:
+                logger.error(f'Subcontainer path not found: {path}')
         return SubcontainerWatchEvent(event_type, path, container, storage, subcontainer)

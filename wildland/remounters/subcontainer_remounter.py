@@ -62,8 +62,8 @@ class SubcontainerRemounter(Remounter):
                 for event in events:
                     try:
                         self.handle_event(event)
-                    except Exception:
-                        logger.info('error in handle_subcontainer_event')
+                    except Exception as e:
+                        logger.error(f'error in handle_subcontainer_event: {str(e)}')
                 self.unmount_pending()
                 self.mount_pending()
 
