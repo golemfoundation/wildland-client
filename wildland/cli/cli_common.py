@@ -58,6 +58,7 @@ from ..storage import Storage
 from ..user import User
 from ..publish import Publisher
 from ..log import get_logger
+from ..wlpath import WildlandPath
 
 LOGGER = get_logger('cli-common')
 
@@ -444,8 +445,11 @@ def publish(ctx: click.Context, files: List[str]):
     Publish Wildland Object manifest to a publishable storage from manifests catalog.
     """
     object_types = set()
+    wl_objects: List[PublishableWildlandObject] = []
     for file in files:
-        wl_object = _get_publishable_object_from_file_or_path(ctx, file)
+        wl_objects.extend(_get_publishable_object_from_file_or_path(ctx, file))
+
+    for wl_object in wl_objects:
         assert isinstance(wl_object.manifest, Manifest)
         user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER,
                                                     wl_object.manifest.owner)
@@ -476,8 +480,11 @@ def unpublish(ctx: click.Context, files: List[str]):
     """
     Unpublish Wildland Object manifest from all matchin manifest catalogs.
     """
+    wl_objects: List[PublishableWildlandObject] = []
     for file in files:
-        wl_object = _get_publishable_object_from_file_or_path(ctx, file)
+        wl_objects.extend(_get_publishable_object_from_file_or_path(ctx, file))
+
+    for wl_object in wl_objects:
         assert isinstance(wl_object.manifest, Manifest)
         user = ctx.obj.client.load_object_from_name(WildlandObject.Type.USER,
                                                     wl_object.manifest.owner)
@@ -505,7 +512,7 @@ def republish_object(client: Client, wl_object: PublishableWildlandObject):
 def _get_publishable_object_from_file_or_path(
         ctx: click.Context,
         path: str
-        ) -> PublishableWildlandObject:
+        ) -> List[PublishableWildlandObject]:
     obj: ContextObj = ctx.obj
 
     manifest_type = _get_expected_manifest_type(ctx)
@@ -523,10 +530,15 @@ def _get_publishable_object_from_file_or_path(
         manifest_type = manifest.fields['object']  # In case publish was called via wl publish <f>
         path = str(manifest_path)
 
-    wl_object = obj.client.load_object_from_name(
-        WildlandObject.Type(manifest_type),
-        path
-    )
+    wl_object_type = WildlandObject.Type(manifest_type)
+
+    if wl_object_type == WildlandObject.Type.CONTAINER and WildlandPath.match(path):
+        wlpath = WildlandPath.from_str(path)
+        if wlpath.file_path is None:
+            return obj.client.load_containers_from(wlpath, {
+                'default': obj.client.config.get('@default')})
+
+    wl_object = obj.client.load_object_from_name(wl_object_type, path)
 
     if not isinstance(wl_object, PublishableWildlandObject):
         raise CliError(f'{manifest_type} is not a publishable object')
@@ -534,7 +546,7 @@ def _get_publishable_object_from_file_or_path(
     if not isinstance(wl_object.manifest, Manifest):
         raise CliError('Publishable Wildland Object must have a manifest')
 
-    return wl_object
+    return [wl_object]
 
 
 def remount_container(ctx_obj: ContextObj, path: Path):
