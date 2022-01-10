@@ -38,7 +38,7 @@ from .cli_exc import CliError
 from ..client import Client
 from .cli_common import sign, verify, edit, modify_manifest, set_fields, \
     add_fields, del_fields, dump, check_if_any_options, check_options_conflict, \
-    publish, unpublish, find_manifest_file, remount_container
+    publish, unpublish, remount_container
 from ..container import Container
 from ..storage import Storage, _get_storage_by_id_or_type
 from ..manifest.template import TemplateManager, StorageTemplate
@@ -188,8 +188,7 @@ def _do_create(
     click.echo(f'Saved container {container_obj.local_path}')
 
     if _is_container_mounted(obj, container_mount_path):
-        path = find_manifest_file(obj.client, container, 'container')
-        remount_container(obj, path)
+        remount_container(obj, container_obj.local_path)
 
     if no_publish:
         return
@@ -207,7 +206,7 @@ def _is_container_mounted(obj: ContextObj, container_mount_path: PurePosixPath) 
 
     mounted_storages = obj.fs_client.get_info().values()
     for storage in mounted_storages:
-        for path in storage['paths']:
+        for path in storage.paths:
             if path == container_mount_path:
                 return True
 
