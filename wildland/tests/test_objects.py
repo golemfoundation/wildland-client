@@ -94,7 +94,7 @@ def test_storage_repr(client, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_repr(client, cli, sync):
+def test_container_repr(client, cli):
     cli('storage', 'create', 'dropbox', '--container', 'Container1',
         '--inline', '--app-key', 'MY_SECRET_APP', '--refresh-token', 'MY_SECRET_TOKEN')
 

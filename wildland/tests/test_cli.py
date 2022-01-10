@@ -819,7 +819,7 @@ def test_storage_delete_inline_many_in_one(monkeypatch, cli, base_dir):
 
 
 # pylint: disable=unused-argument
-def test_storage_delete_sync(cli, base_dir, sync):
+def test_storage_delete_sync(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH',
         '--no-encrypt-manifest')
@@ -1507,6 +1507,8 @@ def test_container_pointed_container_modify_remount(cli, base_dir):
     cli('container', 'mount', 'PointingContainer')
 
     assert len(list((mount_path / 'POINT').glob('*'))) == 2
+    # TODO this sleep should not be needed, but it actually is (issue #755)
+    time.sleep(1)
     assert not (mount_path / 'POINT' / 'file_1.txt').exists()
     assert (mount_path / 'POINT' / 'file_2.txt').exists()
 
@@ -2853,7 +2855,7 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key, mount_cmd=Non
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -2861,7 +2863,7 @@ def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
 
 
-def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_nodefault(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1']
     data = _cache_setup(cli, base_dir, container_names, 'User', set_default=False)
@@ -2872,7 +2874,7 @@ def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_other_user(base_dir, cli, cli_fail):
     cli('user', 'create', 'User1', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
     data = _cache_setup(cli, base_dir, ['c1'], 'User2')
@@ -2881,7 +2883,7 @@ def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_multiple(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1', 'c2']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -2890,7 +2892,7 @@ def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_forest(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_forest(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1', 'c2']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -2900,7 +2902,7 @@ def test_container_mount_with_cache_forest(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_subcontainers(base_dir, sync, cli):
+def test_container_mount_with_cache_subcontainers(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['Container'], 'User', '/sub.yaml')
 
@@ -2934,7 +2936,7 @@ backends:
 
 
 # pylint: disable=unused-argument
-def test_container_unmount_path_with_cache(base_dir, sync, cli):
+def test_container_unmount_path_with_cache(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['c1'], 'User')
     container_name, _, _, _ = data[0]
@@ -2948,7 +2950,7 @@ def test_container_unmount_path_with_cache(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_mount_unmount_with_cache(base_dir, sync, cli):
+def test_container_mount_mount_unmount_with_cache(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['c1'], 'User')
     container_name, _, _, _ = data[0]
@@ -4223,7 +4225,7 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
 
 
 # pylint: disable=unused-argument
-def test_container_unmount_all(base_dir, sync, cli):
+def test_container_unmount_all(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['c1', 'c2'], 'User')
     cli('start', '--skip-forest-mount')
@@ -4480,7 +4482,7 @@ def test_status_secondary_storage(cli, control_client):
 
 
 # pylint: disable=unused-argument
-def test_status_sync(base_dir, sync, cli):
+def test_status_sync(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4587,7 +4589,7 @@ def test_bridge_create(cli, base_dir):
 
 
 # pylint: disable=unused-argument
-def test_container_sync(base_dir, sync, cli):
+def test_container_sync(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4609,7 +4611,7 @@ def test_container_sync(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_oneshot(base_dir, sync, cli):
+def test_container_sync_oneshot(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4635,7 +4637,7 @@ def test_container_sync_oneshot(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_oneshot_error(base_dir, sync, cli):
+def test_container_sync_oneshot_error(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4658,7 +4660,7 @@ def test_container_sync_oneshot_error(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_oneshot_nowait(base_dir, sync, cli):
+def test_container_sync_oneshot_nowait(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4690,7 +4692,7 @@ def test_container_sync_oneshot_nowait(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_tg_remote(base_dir, sync, cli):
+def test_container_sync_tg_remote(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
