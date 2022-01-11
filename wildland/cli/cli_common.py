@@ -537,7 +537,7 @@ def _get_publishable_object_from_file_or_path(
         if wlpath.file_path is None:
             containers = obj.client.load_containers_from(wlpath, {
                 'default': obj.client.config.get('@default')})
-            containers_dict: Dict[Container] = {}
+            containers_dict: Dict[str, Container] = {}
             for container in containers:
                 # same container can be present multiple times. Take only the first one, to match
                 # the current behavior of load_object_from_url.
