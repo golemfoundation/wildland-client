@@ -45,9 +45,11 @@ from ..storage import Storage
 from ..log import get_logger
 from ..core.wildland_objects_api import WLObjectType, WLUser, WLBridge
 from ..core.wildland_result import WLErrorType
+from wildland.cleaner import get_cli_cleaner
+
 
 logger = get_logger('cli-user')
-
+cleaner = get_cli_cleaner()
 
 @aliased_group('user', short_help='user management')
 def user_():
@@ -67,6 +69,15 @@ def user_():
 @click.argument('name', metavar='NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj, key, paths, additional_pubkeys, name):
+    try:
+        _user_create(obj, key, paths, additional_pubkeys, name)
+    except Exception as ex:
+        click.secho(f'Creation failed.', fg='red')
+        cleaner.clean_up()
+        raise ex
+
+
+def _user_create(obj: ContextObj, key, paths, additional_pubkeys, name):
     """
     Create a new user manifest and save it.
     """
@@ -100,8 +111,6 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     result, user = obj.wlcore.user_create(name, keys, paths)
 
     if not result.success or not user:
-        if not key:
-            obj.wlcore.user_remove_key(owner, force=False)
         raise CliError(f'Failed to create user: {result}')
 
     _, current_default = obj.wlcore.env.get_default_user()
@@ -351,6 +360,7 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
     # copying the user manifest
     destination = obj.client.new_path(import_type, file_name, skip_numeric_suffix=force)
     destination.write_bytes(file_data)
+    cleaner.add_path(destination)
     if user_exists:
         msg = f'Updated: {str(destination)}'
     else:
@@ -477,17 +487,10 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
     posix_paths = [PurePosixPath(p) for p in paths]
 
     if wl_obj_type == WildlandObject.Type.USER:
-        copied_manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
-        if not copied_manifest_path or not manifest_url:
+        manifest_path, manifest_url = _do_import_manifest(obj, path_or_url)
+        if not manifest_path or not manifest_url:
             return
-        try:
-            _do_process_imported_manifest(
-                obj, copied_manifest_path, manifest_url, posix_paths, default_user)
-        except Exception as ex:
-            click.echo(
-                f'Import error occurred. Removing created files: {str(copied_manifest_path)}')
-            copied_manifest_path.unlink()
-            raise CliError(f'Failed to import: {str(ex)}') from ex
+        _do_process_imported_manifest(obj, manifest_path, manifest_url, posix_paths, default_user)
     elif wl_obj_type == WildlandObject.Type.BRIDGE:
         if Path(path_or_url).exists():
             path = Path(path_or_url)
@@ -552,8 +555,18 @@ def user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owne
     Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
-    # TODO: remove imported keys and manifests on failure: requires some thought about how to
-    # collect information on (potentially) multiple objects created
+    try:
+        _user_import(obj, path_or_url, paths, bridge_owner)
+    except Exception as ex:
+        click.secho(f'Import failed.', fg='red')
+        cleaner.clean_up()
+        raise CliError(f'Failed to import: {str(ex)}') from ex
+
+
+def _user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owner: Optional[str]):
+    """
+    Import a provided user or bridge manifest.
+    """
     p = Path(path_or_url)
     name = path_or_url
     name = name.split('/')[-1]
@@ -593,7 +606,6 @@ def user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owne
 
     if not result.success:
         raise CliError(f'Failed to import {path_or_url}: {result}')
-
 
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
                alias=['r'])

@@ -65,9 +65,10 @@ from .search import Search
 from .storage_driver import StorageDriver
 from .log import get_logger
 from .utils import yaml_parser
+from wildland.cleaner import get_cli_cleaner
 
 logger = get_logger('client')
-
+cleaner = get_cli_cleaner()
 
 HTTP_TIMEOUT_SECONDS = 5
 
@@ -647,8 +648,10 @@ class Client:
                 # save the original manifest, don't risk the need to re-sign
                 path = self.new_path(WildlandObject.Type.USER, user.owner)
                 path.write_bytes(user.manifest.to_bytes())
+                cleaner.add_path(path)
                 path = self.new_path(WildlandObject.Type.BRIDGE, user.owner)
                 path.write_bytes(step.bridge.manifest.to_bytes())
+                cleaner.add_path(path)
 
         # load encountered users to the current context - may be needed for subcontainers
         self.recognize_users_and_bridges(
@@ -978,6 +981,7 @@ class Client:
                 storage_driver.write_file(path, data)
         else:
             path.write_bytes(data)
+            cleaner.add_path(path)
 
         if object_type == WildlandObject.Type.BRIDGE:
             # cache_clear is added by a decorator, which pylint doesn't see

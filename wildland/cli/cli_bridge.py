@@ -39,8 +39,11 @@ from .cli_common import sign, verify, edit, dump, publish, unpublish
 from .cli_exc import CliError
 from .cli_user import import_manifest, find_user_manifest_within_catalog
 from ..log import get_logger
+from wildland.cleaner import get_cli_cleaner
+
 
 logger = get_logger('cli-bridge')
+cleaner = get_cli_cleaner()
 
 
 @aliased_group('bridge', short_help='bridge management')
@@ -72,6 +75,22 @@ def create(obj: ContextObj,
            user_paths: List[str],
            name: Optional[str],
            file_path: Optional[str]):
+    try:
+        _bridge_create(obj, owner, target_user_name, target_user_location,
+                       user_paths, name, file_path)
+    except Exception as ex:
+        click.secho(f'Creation failed.', fg='red')
+        cleaner.clean_up()
+        raise ex
+
+
+def _bridge_create(obj: ContextObj,
+                  owner: str,
+                  target_user_name: str,
+                  target_user_location: str,
+                  user_paths: List[str],
+                  name: Optional[str],
+                  file_path: Optional[str]):
     """
     Create a new bridge manifest.
     """
