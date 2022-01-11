@@ -1535,6 +1535,7 @@ def test_edit_unmounts_removed_storage(base_dir, cli):
 
 def test_container_edit_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'UserB', '--key', '0xbbb')
