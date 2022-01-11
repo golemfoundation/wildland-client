@@ -263,13 +263,15 @@ def status(obj: ContextObj, container: Optional[str], with_subcontainers: bool,
     if not obj.fs_client.is_running():
         click.echo('Wildland is not mounted, use `wl start` to mount it.')
     else:
-        backend_ids = []
         if container:
             click.echo(f"Container: {container}")
 
             container_obj = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER,
                                                              container)
-            backend_ids = [x.backend_id for x in obj.client.get_all_storages(container_obj)]
+
+            storage_id = obj.fs_client.find_primary_storage_id(container_obj)
+            storage_path = obj.fs_client.get_primary_unique_mount_path_from_storage_id(storage_id)
+            container_path = storage_path.parent
         else:
             click.echo('Mounted containers:')
 
@@ -283,10 +285,9 @@ def status(obj: ContextObj, container: Optional[str], with_subcontainers: bool,
                 continue
 
             if container:
-                for path in storage.paths:
-                    if any(backend_id in path.parts for backend_id in backend_ids):
-                        _print_storage_status(storage, all_paths)
-                        break
+                storage_main_path = storage.paths[0]
+                if str(storage_main_path).startswith(str(container_path)):
+                    _print_storage_status(storage, all_paths)
             else:
                 _print_storage_status(storage, all_paths)
 

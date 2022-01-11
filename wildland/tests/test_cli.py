@@ -1733,7 +1733,7 @@ def test_status_content_for_specified_container(base_dir, cli):
     assert f'/.users/{user_key}:/PATH' in out_lines
     assert '/PATH' in out_lines
 
-    assert f'/.users/{user_key}:/.backends/00000000-0000-0000-000000000000/' \
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/' \
            f'{storage2_uuid}' in out_lines
 
 
