@@ -168,7 +168,7 @@ Modify a user |~| manifest given by *<file>*.
 
 .. option:: --add-pubkey
 
-   Public key to add (the same format as in the public key file). Can be repeated.
+   Public key to add (either in the same format as in the public key file, or provided as a Wildland user path). Can be repeated.
 
 .. option:: --add-pubkey-user
 
@@ -176,7 +176,7 @@ Modify a user |~| manifest given by *<file>*.
 
 .. option:: --del-pubkey
 
-   Public key to remove (the same format as in the public key file). Can be repeated.
+   Public key to remove (either in the same format as in the public key file, or provided as a Wildland user path). Can be repeated.
 
 .. option:: --add-catalog-entry
 

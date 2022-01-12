@@ -119,6 +119,48 @@ field. To get an unencrypted manifest, a special value of ``user: '*'`` can be u
      storage:
        - file:///path/to/storage11.yaml
 
+In the case where a known user ``0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd`` is exposing
+a public forest manifest containing paths to other users, it is easier to add access to them using Wildland user path.
+For example:
+
+.. code-block:: yaml
+
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /container1
+   access:
+     - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+     - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/bob:'
+     - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/charlie:'
+   backends:
+     storage:
+       - file:///path/to/storage11.yaml
+
+It will automatically load and add Alice, Bob and Charlie public keys from the provided Wildland paths. Each
+``user-path`` entry will contain ``pubkeys`` of the corresponding user after having resolved the Wildland paths.
+We would have for example:
+
+.. code-block:: yaml
+
+   owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+   paths:
+     - /.uuid/11e69833-0152-4563-92fc-b1540fc54a69
+     - /container1
+   access:
+     - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+       pubkeys:
+         - 0x03a10299cd5a1717aa8c7069c47ebf88f95a7b2a8157900bc5d96b761966d070
+     - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/bob:'
+       pubkeys:
+         - 0x4ac42411e8daa3da5ef34b33da51463a3528471d8529718a9609a15ad28a943d
+     - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/charlie:'
+       pubkeys:
+         - 0x02a2dd0ae2bb1488a82f89b8deb0983f74c9fce9fe94f9d3f31621db2dab18dd
+   backends:
+     storage:
+       - file:///path/to/storage11.yaml
+
 Access field can also be used in an inline storage manifest. If provided, the inline manifest will
 be encrypted only to the users specified in the inline access field - which can be a smaller user
 set than for the entire manifest. This is useful especially for manifests with any sort of
@@ -248,7 +290,7 @@ User manifest serves important role in describing user's forest:
 2. It specifies where to look for this user's manifests, in the
    ``manifests-catalog`` field. See the next section for details.
 
-Example:
+For example:
 
 .. code-block:: yaml
 
@@ -267,6 +309,31 @@ Example:
     pubkeys:
       - RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
       - ...
+
+Adding another public keys by using Wildland user path is also possible. In this case, a ``members`` field will be
+added, for example:
+
+.. code-block:: yaml
+
+    signature: ...
+    ---
+    owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff6d5'
+    manifests-catalog:
+      - file:///path/to/container.yaml
+      - object: link
+        storage:
+          type: local
+          location: '/path/to/storage'
+          owner: '0x1b567f3ed1404fd81da06e34e4487ff01a1be2d72b07a065e8f6b84008aff123'
+          backend-id: '3cba7968-da34-4b8c-8dc7-83d8860a8933'
+        file: '/container.yaml'
+    pubkeys:
+      - RWTHLJ4ZI+VFTMJKqvCT0j4399vEVrahx+tpO/lKfVoSsaCTTGQuX78M
+      - ...
+    members:
+      - user-path: 'wildland:0x30c9856e7d1903d80f201afb90f33741fafa870c9c5a656134bcf5a42312febd@https{{wildland.local/public/forest-owner.user.yaml}}:/forests/alice:'
+
+where it will contain the public keys after having resolved the Widland path similarly to ``members`` field for user manifest.
 
 Fields:
 
