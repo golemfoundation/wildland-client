@@ -92,8 +92,8 @@ def _make_create_command(backend: Type[StorageBackend]):
         click.Option(['--no-publish'], is_flag=True,
                      help='do not publish the container after creation.'),
         click.Option(['--skip-sync'], is_flag=True,
-                     help='Skip syncing from the first local storage to the provided storage. If '
-                          'the provided storage is local then syncing is skipped regardless if '
+                     help='Skip syncing from the first local storage to the created storage. If '
+                          'the created storage is local then syncing is skipped regardless if '
                           'this option is present or not.'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
@@ -227,8 +227,8 @@ def _do_create(
         msg, success = obj.client.wait_for_sync(container_obj.sync_id, stop_on_finish=True)
         click.echo(msg)
         if not success:
-            click.echo(f'Failed to sync storage for container {container_obj.uuid} '
-                        '(source: {source_storage}, target: {storage})')
+            raise WildlandError(f'Failed to sync storage for container {container_obj.uuid} '
+                f'(source: {source_storage}, target: {storage})')
 
 
 def _is_container_mounted(obj: ContextObj, container_mount_path: PurePosixPath) -> bool:

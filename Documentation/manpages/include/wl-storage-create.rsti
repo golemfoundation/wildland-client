@@ -45,5 +45,5 @@
 
 .. option:: --skip-sync
 
-   Skip syncing from the first local storage to the provided storage. If the provided storage is
+   Skip syncing from the first local storage to the created storage. If the created storage is
    local then syncing is skipped regardless if this option is present or not.

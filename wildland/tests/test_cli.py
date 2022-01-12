@@ -653,8 +653,9 @@ def test_storage_create(cli, base_dir):
     assert "location: /PATH" in data
     assert "backend-id:" in data
 
-    cli('storage', 'create', 'zip-archive', 'ZipStorage', '--location', '/zip',
-        '--container', 'Container', '--no-inline')
+    with pytest.raises(WildlandError, match='Failed to sync storage for container'):
+        cli('storage', 'create', 'zip-archive', 'ZipStorage', '--location', '/zip',
+            '--container', 'Container', '--no-inline')
     with open(base_dir / 'storage/ZipStorage.storage.yaml') as f:
         data = f.read()
 
