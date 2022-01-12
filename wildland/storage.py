@@ -79,6 +79,8 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         Return string representation
         """
+        if self._str_repr:
+            return self._str_repr
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = []
         for field in ['owner', 'storage-type', 'backend-id', 'container-path', 'trusted',
@@ -86,8 +88,8 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
                       'read-only']:
             if fields.get(field, None):
                 array_repr += [f"{field}={fields[field]!r}"]
-        str_repr = "storage(" + ", ".join(array_repr) + ")"
-        return str_repr
+        self._str_repr = "storage(" + ", ".join(array_repr) + ")"
+        return self._str_repr
 
     def get_unique_publish_id(self) -> str:
         assert self.container, 'Storages without Container are not publishable'
@@ -152,6 +154,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         Sets primary param to True.
         """
+        self._str_repr = None
         self.primary = True
 
     @classmethod

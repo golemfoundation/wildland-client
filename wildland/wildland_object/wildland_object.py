@@ -59,6 +59,12 @@ class WildlandObject(abc.ABC):
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         self.manifest = None
+        self._str_repr = None
+
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if key != '_str_repr':
+            self._str_repr = None
 
     @classmethod
     def from_fields(cls, fields: dict, client, object_type: typing.Optional[Type] = None,
