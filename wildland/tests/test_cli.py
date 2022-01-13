@@ -4763,6 +4763,33 @@ def test_storage_template_create(cli, base_dir):
         }]
 
 
+def test_storage_template_multiple_fail(cli, base_dir):
+    yaml_data = [{
+            'type': 'local',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+            'read-only': False
+        }, {
+            # type is omitted
+            'location': '/bar{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+            'read-only': True
+        }]
+    (base_dir / 'templates').mkdir()
+    path = base_dir / 'templates/t1.template.jinja'
+    path.write_bytes(yaml_parser.dump(yaml_data, encoding='utf-8', sort_keys=False))
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    container_path = base_dir / 'containers/Container.container.yaml'
+    initial_state = container_path.read_text()
+
+    # this should fail
+    with pytest.raises(CliError):
+        cli('storage', 'create-from-template', '--storage-template', 't1', 'Container')
+
+    # and container should not have been changed
+    assert container_path.read_text() == initial_state
+
+
 def test_storage_template_create_cache(cli, base_dir):
     cli('template', 'create', 'local', '--location', '/foo', '--default-cache', 't1')
 
@@ -5071,6 +5098,8 @@ def test_storage_template_edit(cli, base_dir):
     bad_formatting_output = wl_call_output(base_dir, 'template', 'edit', 'bad_formatting_template',
                                            '--editor', editor)
     assert 'Incorrectly formatted template' in bad_formatting_output.decode()
+
+### User-related
 
 
 def test_different_default_user(cli, base_dir):

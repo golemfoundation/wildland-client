@@ -34,7 +34,6 @@ run wl storage-template add s3 --s3-url s3://the-bucket/ --manifest-pattern "/{p
 
 expected_pcre="Created base path: /.manifests/$UUID_PCRE
 Adding storage $UUID_PCRE to container.
-Saved container /home/user/.config/wildland/containers/bob-forest-catalog.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/bob-forest-catalog.container.yaml
 Saved: /home/user/.config/wildland/users/bob.user.yaml"

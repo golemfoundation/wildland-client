@@ -183,7 +183,7 @@ def _do_create(
                                             storage.to_manifest_fields(inline=False),
                                             storage.owner, container=container_obj)
     click.echo(f'Adding storage {storage.backend_id} to container.')
-    obj.client.add_storage_to_container(container_obj, storage, inline, name)
+    obj.client.add_storage_to_container(container_obj, [storage], inline, name)
     click.echo(f'Saved container {container_obj.local_path}')
 
     if no_publish:
@@ -399,13 +399,15 @@ def do_create_storage_from_templates(client: Client, container: Container,
         storage_backend = StorageBackend.from_params(storage.params)
         to_process.append((storage, storage_backend))
 
+    storages_to_add = []
     for storage, backend in to_process:
         if storage.is_writeable:
             _ensure_backend_location_exists(backend)
-
+        storages_to_add.append(storage)
         click.echo(f'Adding storage {storage.backend_id} to container.')
-        client.add_storage_to_container(container=container, storage=storage, inline=True)
-        click.echo(f'Saved container {container.local_path}')
+
+    client.add_storage_to_container(container=container, storages=storages_to_add, inline=True)
+    click.echo(f'Saved container {container.local_path}')
 
     if not no_publish:
         try:
