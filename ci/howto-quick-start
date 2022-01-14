@@ -33,9 +33,10 @@ run wl forest mount :/mydirs/ariadne:
 expected_pcre="/home/user/wildland/mydirs/
 └── ariadne:/
     ├── forests/
-    │$SPACE_OR_NBSP$SPACE_OR_NBSP └── pandora:/
-    │$SPACE_OR_NBSP$SPACE_OR_NBSP     └── WILDLAND-FOREST.txt
-    └── users/
+    │$SPACE_OR_NBSP$SPACE_OR_NBSP .── pandora:/
+    │[\s\S]+.   └── WILDLAND-FOREST.txt
+    .── users/
+.*
 [\s\S]+?
 
 \d+ directories, \d+ files"
