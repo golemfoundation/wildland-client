@@ -20,7 +20,7 @@
 """
 Wildland core implementation - user-related functions
 """
-from typing import List, Tuple, Optional, Callable, Dict, Union
+from typing import List, Tuple, Optional, Dict, Union
 from pathlib import PurePosixPath
 
 import wildland.core.core_utils as utils
@@ -30,7 +30,7 @@ from wildland.wlpath import WildlandPath
 from ..client import Client
 from ..user import User
 from ..wildland_object.wildland_object import WildlandObject
-from .wildland_result import WildlandResult, WLError, wildland_result
+from .wildland_result import WildlandResult, WLError, wildland_result, WLErrorType
 from .wildland_core_api import WildlandCoreApi, ModifyMethod
 from .wildland_objects_api import WLUser, WLObject
 from ..wlenv import WLEnv
@@ -109,9 +109,10 @@ class WildlandCoreUser(WildlandCoreApi):
         possible_owners = self.client.session.sig.get_possible_owners(owner)
         if possible_owners != [owner] and not force:
             result.errors.append(
-                WLError(701, 'Key used by other users as secondary key and will not be deleted. '
-                             'Key should be removed manually. In the future you can use --force to '
-                             'force key deletion.', False))
+                WLError(WLErrorType.PUBKEY_IN_USE,
+                        'Key used by other users as secondary key and  will not be deleted. '
+                        'Key should be removed manually. In the future you can use --force to '
+                        'force key deletion.', False))
             return result
         self.client.session.sig.remove_key(owner)
         return result
@@ -153,7 +154,8 @@ class WildlandCoreUser(WildlandCoreApi):
     def __user_create(self, name: Optional[str], keys: List[str], paths: List[str]):
         if not keys:
             result = WildlandResult()
-            result.errors.append(WLError(100, "At least one public key must be provided", False))
+            result.errors.append(WLError(WLErrorType.PUBKEY_NEEDED,
+                                         "At least one public key must be provided", False))
             return result, None
 
         members = []
@@ -214,13 +216,11 @@ class WildlandCoreUser(WildlandCoreApi):
             raise FileNotFoundError('Can only delete a local manifest')
         user.local_path.unlink()
 
-    def user_refresh(self, user_ids: Optional[List[str]] = None,
-                     callback: Callable[[str], None] = None) -> WildlandResult:
+    def user_refresh(self, user_ids: Optional[List[str]] = None) -> WildlandResult:
         """
         Iterates over bridges and fetches each user's file from the URL specified in the bridge
         :param user_ids: Optional list of user_ids to refresh; if None, will refresh all users
             with a bridge present
-        :param callback: function to be called before each refreshed user
         :return: WildlandResult
         """
         result = WildlandResult()
@@ -229,7 +229,7 @@ class WildlandCoreUser(WildlandCoreApi):
 
         for bridge in self.client.get_local_bridges():
             if user_ids is not None \
-                    and f'{self.client.session.sig.fingerprint(bridge.user_pubkey)}' \
+                    and f'{self.client.session.sig.fingerprint(bridge.user_pubkey)}:' \
                     not in user_ids:
                 continue
             if bridge.owner in users_to_refresh:

@@ -33,7 +33,7 @@ from ..bridge import Bridge
 from ..storage import Storage
 from ..link import Link
 from ..wildland_object.wildland_object import WildlandObject
-from .wildland_result import WildlandResult, WLError, wildland_result
+from .wildland_result import WildlandResult, WLError, wildland_result, WLErrorType
 from .wildland_core_api import WildlandCoreApi, ModifyMethod
 from .wildland_objects_api import WLBridge, WLStorageBackend, WLStorage, WLContainer, \
     WLObject, WLTemplateFile, WLObjectType
@@ -81,7 +81,8 @@ class WildlandCore(WildlandCoreUser, WildlandCoreApi):
         if isinstance(obj, Storage):
             return utils.storage_to_wl_storage(obj)
         result = WildlandResult()
-        error = WLError(error_code=700, error_description="Unknown object type encountered",
+        error = WLError(error_code=WLErrorType.UNKNOWN_OBJECT_TYPE,
+                        error_description="Unknown object type encountered",
                         is_recoverable=False, offender_type=None, offender_id=None,
                         diagnostic_info=yaml_data)
         result.errors.append(error)
@@ -140,7 +141,8 @@ class WildlandCore(WildlandCoreUser, WildlandCoreApi):
         result = WildlandResult()
         obj_type = utils.wl_obj_to_wildland_object_type(object_type)
         if not obj_type:
-            result.errors.append(WLError(700, "Unknown object type", False, object_type, object_id))
+            result.errors.append(WLError(WLErrorType.UNKNOWN_OBJECT_TYPE,
+                                         "Unknown object type", False, object_type, object_id))
             return result, None
 
         for obj in self.client.load_all(obj_type):

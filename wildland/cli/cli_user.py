@@ -44,6 +44,7 @@ from ..storage_driver import StorageDriver
 from ..storage import Storage
 from ..log import get_logger
 from ..core.wildland_objects_api import WLObjectType, WLUser, WLBridge
+from ..core.wildland_result import WLErrorType
 
 logger = get_logger('cli-user')
 
@@ -256,7 +257,9 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys:
         click.echo(f'Removing {user.owner} from local_owners')
 
     click.echo(f'Deleting: {user.owner}')
-    obj.wlcore.user_delete(user.owner)
+    result = obj.wlcore.user_delete(user.owner)
+    if not result.success:
+        raise CliError(f'Failed to delete user: {result}')
 
 
 def _remove_suffix(s: str, suffix: str) -> str:
@@ -563,7 +566,7 @@ def user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owne
         result, imported_object = obj.wlcore.object_import_from_url(path_or_url, name)
 
     if not result.success:
-        if len(result.errors) == 1 and result.errors[0].error_code == 4:
+        if len(result.errors) == 1 and result.errors[0].error_code == WLErrorType.FILE_EXISTS_ERROR:
             result, imported_object = obj.wlcore.user_get_by_id(result.errors[0].error_description)
             if not imported_object:
                 raise CliError(f'Failed to import manifest: {str(result)}')
@@ -600,14 +603,22 @@ def user_refresh(obj: ContextObj, name):
     """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
+    user_list: Optional[List[str]]
+
     if name:
-        user_list = [obj.client.load_object_from_name(WildlandObject.Type.USER, name)]
+        result, user = obj.wlcore.object_get(WLObjectType.USER, name)
+        if not result.success or not user:
+            raise CliError(f'User {name} cannot be loaded: {result}')
+        user_list = [user.id]
     else:
-        user_list = obj.client.get_local_users()
+        user_list = None
 
-    refresh_users(obj, user_list)
+    result = obj.wlcore.user_refresh(user_list)
+    if not result.success:
+        raise CliError(f'Failed to refresh users: {result}')
 
 
+# TODO: this is currently used by cli_forest, see #702
 def refresh_users(obj: ContextObj, user_list: Optional[List[User]] = None):
     """
     Refresh user manifests. Users can come from user_list parameter, or, if empty, all users

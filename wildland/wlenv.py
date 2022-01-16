@@ -28,7 +28,7 @@ from typing import Optional, Union, List, Tuple
 from functools import partial
 
 from .config import Config
-from .core.wildland_result import WildlandResult, WLError, wildland_result
+from .core.wildland_result import WildlandResult, WLError, wildland_result, WLErrorType
 
 
 class WLEnv:
@@ -706,7 +706,7 @@ class WLEnv:
     @wildland_result()
     def _remove_values(self,
                        param: str, *values: str,
-                       error_code: int = -1,
+                       error_code: WLErrorType = WLErrorType.OTHER,
                        error_description: str = "Incorrect values",
                        is_recoverable: bool = True,
                        offender_type=None,

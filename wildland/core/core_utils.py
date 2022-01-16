@@ -130,6 +130,8 @@ def check_object_existence(obj: WildlandObject, client: Client):
     """
     known_id = get_object_id(obj)
     for existing_obj in client.load_all(obj.type):
+        # TODO this is a very raw way of accessing objects by id; there probably should be a more
+        # streamlined and faster way, see #759
         if get_object_id(existing_obj) == known_id:
             return True
     return False

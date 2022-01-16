@@ -1242,11 +1242,12 @@ class Client:
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
 
-    def is_local_url(self, url: str) -> bool:
+    @staticmethod
+    def is_local_url(url: str) -> bool:
         """
         Check if the provided url is a local url.
         """
-        return url.startswith('file://' + self.config.get('local-hostname'))
+        return url.startswith('file://')
 
     def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
         """

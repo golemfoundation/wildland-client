@@ -264,13 +264,11 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_refresh(self, user_ids: Optional[List[str]] = None,
-                     callback: Callable[[str], None] = None) -> WildlandResult:
+    def user_refresh(self, user_ids: Optional[List[str]] = None) -> WildlandResult:
         """
         Iterates over bridges and fetches each user's file from the URL specified in the bridge
         :param user_ids: Optional list of user_ids to refresh; if None, will refresh all users
             with a bridge present
-        :param callback: function to be called before each refreshed user
         :return: WildlandResult
         """
 

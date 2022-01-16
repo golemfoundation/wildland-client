@@ -534,6 +534,8 @@ class Manifest:
         # we have to handle both fields
 
         primary_pubkey = None
+        primary_owner = None
+        pubkeys = []
 
         if fields.get('object') == 'user':
             pubkeys = fields.get('pubkeys', [])
@@ -542,19 +544,19 @@ class Manifest:
             primary_pubkey = pubkeys[0]
         elif fields.get('object') == 'bridge':
             primary_pubkey = fields.get('pubkey')
+            primary_owner = sig_context.fingerprint(primary_pubkey)
             if not primary_pubkey:
                 raise ManifestError('Bridge manifest doest not contain a pubkey')
-            pubkeys = [primary_pubkey]
-        else:
-            pubkeys = []
 
         # Now we can verify integrity of the self-signed manifest
         owner = header.verify_rest(rest_data, sig_context, trusted_owner=None,
                                    pubkey=primary_pubkey)
+        if not primary_owner and primary_pubkey:
+            primary_owner = owner
 
         # Add the retrieved pubkey(s) to the sig context
-        if primary_pubkey:
-            sig_context.keys[owner] = primary_pubkey
+        if primary_pubkey and primary_owner:
+            sig_context.keys[primary_owner] = primary_pubkey
 
         for pubkey in pubkeys:
             sig_context.add_pubkey(pubkey, owner)
