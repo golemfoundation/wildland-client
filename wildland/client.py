@@ -490,22 +490,41 @@ class Client:
         :param expected_owner: expected owner. Will raise a WildlandError if receives a
         different owner.
         """
+        objects = self.load_objects_from_url(object_type, url, owner, expected_owner)
+        wlpath = WildlandPath.from_str(url)
+        if len(objects) < 1:
+            raise PathError(f'Container not found for path: {wlpath}')
+        if len(objects) > 1:
+            raise PathError(f'Expected single container, found multiple: {wlpath}')
+        return objects[0]
+
+    def load_objects_from_url(self, object_type: WildlandObject.Type, url: str, owner: str,
+                              expected_owner: Optional[str] = None) -> List[WildlandObject]:
+        """
+        Load and return all Wildland objects matching any URL, including Wildland URLs.
+        :param url: URL. must start with protocol (e.g. wildland: or https:
+        :param object_type: expected object type. If not provided, will try to guess it based
+        on data (although this will not be successful for WL URLs to containers.). If provided
+        will raise an exception if expected type is different than received type.
+        :param owner: owner in whose context we should resolve the URL
+        :param expected_owner: expected owner. Will raise a WildlandError if receives a
+        different owner.
+        """
 
         if object_type == WildlandObject.Type.CONTAINER and WildlandPath.match(url):
             # special treatment for WL paths: they can refer to a file or to a container
             wlpath = WildlandPath.from_str(url)
             if wlpath.file_path is None:
                 containers = self.load_containers_from(wlpath, {'default': owner})
-                result = None
-                for c in containers:
-                    if not result:
-                        result = c
-                    else:
-                        if c.owner != result.owner or c.uuid != result.uuid:
-                            raise PathError(f'Expected single container, found multiple: {wlpath}')
-                if not result:
-                    raise PathError(f'Container not found for path: {wlpath}')
-                return result
+                containers_dict: Dict[str, Container] = {}
+                for container in containers:
+                    # same container can be present multiple times. Take only the first one, to
+                    # match the current behavior of load_object_from_url.
+                    container_id = f'{container.uuid}:{container.owner}'
+                    if containers_dict.get(container_id) is not None:
+                        continue
+                    containers_dict[container_id] = container
+                return [containers_dict[c_id] for c_id in containers_dict]
 
         content = self.read_from_url(url, owner, True)
 
@@ -518,7 +537,7 @@ class Client:
         if expected_owner and obj_.owner != expected_owner:
             raise WildlandError(f'Unexpected owner: expected {expected_owner}, got {obj_.owner}')
 
-        return obj_
+        return [obj_]
 
     def load_object_from_file_path(self, object_type: WildlandObject.Type, path: Path,
                                    decrypt: bool = True):

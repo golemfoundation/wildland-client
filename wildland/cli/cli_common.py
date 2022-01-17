@@ -535,17 +535,8 @@ def _get_publishable_object_from_file_or_path(
     if wl_object_type == WildlandObject.Type.CONTAINER and WildlandPath.match(path):
         wlpath = WildlandPath.from_str(path)
         if wlpath.file_path is None:
-            containers = obj.client.load_containers_from(wlpath, {
+            return obj.client.load_objects_from_url(wlpath, {
                 'default': obj.client.config.get('@default')})
-            containers_dict: Dict[str, Container] = {}
-            for container in containers:
-                # same container can be present multiple times. Take only the first one, to match
-                # the current behavior of load_object_from_url.
-                container_id = f'{container.uuid}:{container.owner}'
-                if containers_dict.get(container_id) is not None:
-                    continue
-                containers_dict[container_id] = container
-            return [containers_dict[c_id] for c_id in containers_dict]
 
     wl_object = obj.client.load_object_from_name(wl_object_type, path)
 
