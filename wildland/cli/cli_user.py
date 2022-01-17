@@ -351,7 +351,8 @@ def _do_import_manifest(obj, path_or_dict, manifest_owner: Optional[str] = None,
                 file_data = obj.client.read_from_url(path, use_aliases=True)
             except FileNotFoundError as fnf:
                 raise CliError(f'File {path} not found') from fnf
-            file_name = Path(path).stem
+
+            file_name = _remove_suffix(Path(path).name, '.yaml')
             file_url = path
         else:
             raise CliError(f'File {path} not found')
