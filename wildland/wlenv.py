@@ -28,7 +28,7 @@ from typing import Optional, Union, List, Tuple
 from functools import partial
 
 from .config import Config
-from .core.wildland_result import WildlandResult, WLError, wildland_result
+from .core.wildland_result import WildlandResult, WLError, wildland_result, WLErrorType
 
 
 class WLEnv:
@@ -347,11 +347,12 @@ class WLEnv:
         """
         return self._set_param('dummy', dummy, save)
 
-    def get_default_user(self) -> Tuple[WildlandResult, Optional[str]]:
+    def get_default_user(self, use_override: bool = True) -> Tuple[WildlandResult, Optional[str]]:
         """
-        Get @default user (used to resolve wildland paths).
+        Get @default user (used to resolve wildland paths). If use_override is False, any
+        overriden start values will be ignored.
         """
-        return self._get_param('@default')
+        return self._get_param('@default', use_override=use_override)
 
     def set_default_user(self, user_key_fingerprint: str, save: bool = True) -> WildlandResult:
         """
@@ -361,6 +362,14 @@ class WLEnv:
         @param save: if true, save the change to the config file.
         """
         return self._set_param('@default', user_key_fingerprint, save)
+
+    def reset_default_user(self, save: bool = True) -> WildlandResult:
+        """
+        Remove @default user.
+
+        @param save: if true, save the change to the config file.
+        """
+        return self._reset_param('@default', save)
 
     def get_default_owner(self) -> Tuple[WildlandResult, Optional[str]]:
         """
@@ -376,6 +385,14 @@ class WLEnv:
         @param save: if true, save the change to the config file.
         """
         return self._set_param('@default-owner', user_key_fingerprint, save)
+
+    def reset_default_owner(self, save: bool = True) -> WildlandResult:
+        """
+        Remove @default-onwer user.
+
+        @param save: if true, save the change to the config file.
+        """
+        return self._reset_param('@default-owner', save)
 
     def get_alias(self, alias: str) -> Tuple[WildlandResult, Optional[str]]:
         """
@@ -657,8 +674,8 @@ class WLEnv:
         return self.config.update_and_save if save else partial(self.config.override, dummy=False)
 
     @wildland_result(default_output=None)
-    def _get_param(self, param: str):
-        result = self.config.get(param)
+    def _get_param(self, param: str, use_override: bool = True):
+        result = self.config.get(param, use_override=use_override)
         return result
 
     @wildland_result()
@@ -689,7 +706,7 @@ class WLEnv:
     @wildland_result()
     def _remove_values(self,
                        param: str, *values: str,
-                       error_code: int = -1,
+                       error_code: WLErrorType = WLErrorType.OTHER,
                        error_description: str = "Incorrect values",
                        is_recoverable: bool = True,
                        offender_type=None,

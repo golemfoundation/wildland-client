@@ -144,7 +144,7 @@ class Remounter:
         self.init_wlpath_patterns()
         while True:
             patterns = self.patterns + list(self.wlpath_patterns.keys())
-            logger.info('Using patterns: %r', patterns)
+            logger.debug('Using patterns: %r', patterns)
             for events in self.fs_client.watch(patterns, with_initial=True):
                 any_wlpath_changed = self.handle_events(events)
 
@@ -154,7 +154,7 @@ class Remounter:
                 if any_wlpath_changed:
                     # recalculate wlpath patterns
                     if self.init_wlpath_patterns():
-                        logger.info('wlpath patterns changed, re-registering watches')
+                        logger.debug('wlpath patterns changed, re-registering watches')
                         break
 
     def handle_events(self, events) -> bool:
@@ -186,7 +186,7 @@ class Remounter:
         Queue mount/unmount operations in self.to_mount and self.to_unmount.
         """
 
-        logger.info('WL path \'%s\' event %s: %s', wlpath, event.event_type, event.path)
+        logger.debug('WL path \'%s\' event %s: %s', wlpath, event.event_type, event.path)
 
         search = Search(self.client, wlpath,
                         aliases=self.client.config.aliases,
@@ -206,10 +206,10 @@ class Remounter:
                     main_path / '.manifest.wildland.yaml')
                 if storage_id is not None:
                     assert pseudo_storage_id is not None
-                    logger.info('  (unmount %d)', storage_id)
+                    logger.debug('  (unmount %d)', storage_id)
                     self.to_unmount += [storage_id, pseudo_storage_id]
                 else:
-                    logger.info('  (not mounted)')
+                    logger.debug('  (not mounted)')
         except Exception:
             # in case of search error, do not forget about any earlier container,
             # but also add newly mounted ones
@@ -224,7 +224,7 @@ class Remounter:
         self.to_mount and self.to_unmount.
         """
 
-        logger.info('Event %s: %s', event.event_type, event.path)
+        logger.debug('Event %s: %s', event.event_type, event.path)
 
         # Find out if we've already seen the file, and can match it to an mounted storage.
         storage_id: Optional[int] = None
@@ -239,10 +239,10 @@ class Remounter:
         if event.event_type == FileEventType.DELETE:
             if storage_id is not None:
                 assert pseudo_storage_id is not None
-                logger.info('  (unmount %d)', storage_id)
+                logger.debug('  (unmount %d)', storage_id)
                 self.to_unmount += [storage_id, pseudo_storage_id]
             else:
-                logger.info('  (not mounted)')
+                logger.debug('  (not mounted)')
 
             # Stop tracking the file
             if event.path in self.main_paths:
@@ -270,7 +270,7 @@ class Remounter:
         user_paths = self.client.get_bridge_paths_for_user(container.owner)
         storages = self.client.get_storages_to_mount(container)
         if self.fs_client.find_primary_storage_id(container) is None:
-            logger.info('  new: %s', str(container))
+            logger.debug('  new: %s', str(container))
             self.to_mount.append((container, storages, user_paths, None))
         else:
             to_remount, to_unmount = prepare_remount(self, container, storages, user_paths)

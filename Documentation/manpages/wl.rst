@@ -19,6 +19,10 @@ Description
 Global options
 --------------
 
+.. option:: --quiet, -q
+
+   Quiet mode.
+
 .. option:: --verbose, -v
 
    Increase verbosity.

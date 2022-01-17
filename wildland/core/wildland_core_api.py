@@ -53,6 +53,25 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
+    def object_get(self, object_type: WLObjectType, object_name: str) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Find provided WL object.
+        :param object_name: name of the object: can be the file name or user fingerprint or URL
+         (but not local path - in case of local path object should be loaded by object_info)
+        :param object_type: type of the object
+        :return: tuple of WildlandResult and object, if found
+        """
+
+    @abc.abstractmethod
+    def user_get_usages(self, user_id: str) -> Tuple[WildlandResult, List[WLObject]]:
+        """
+        Get all usages of the given user in the local context, e.g. objects owned by them.
+        :param user_id: user's id
+        :return: tuple of WildlandResult and list of objects found
+        """
+
+    @abc.abstractmethod
     def object_sign(self, object_data: str) -> Tuple[WildlandResult, Optional[str]]:
         """
         Sign Wildland manifest data.
@@ -68,6 +87,27 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         :param object_id: object_id of the object
         :param object_type: type of the object
         :param decrypt: should the manifest be decrypted as much as possible
+        """
+
+    @abc.abstractmethod
+    def object_import_from_yaml(self, yaml_data: bytes, object_name: Optional[str]) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Import object from raw data. Only copies the provided object to appropriate WL manifest
+        directory, does not create any bridges or other objects.
+        :param yaml_data: bytes with yaml manifest data; must be correctly signed
+        :param object_name: name of the object to be created; if not provided, will be generated
+        automatically
+        """
+
+    @abc.abstractmethod
+    def object_import_from_url(self, url: str, object_name: Optional[str]) -> \
+            Tuple[WildlandResult, Optional[WLObject]]:
+        """
+        Import object from raw data. Only copies the provided object to appropriate WL manifest
+        directory, does not create any bridges or other objects.
+        :param url: url to object manifest
+        :param object_name: name of the object to be created
         """
 
     @abc.abstractmethod
@@ -160,6 +200,12 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
 
     # USER METHODS
     @abc.abstractmethod
+    def user_get_by_id(self, user_id: str) -> Tuple[WildlandResult, Optional[WLUser]]:
+        """
+        Get user from specified ID.
+        """
+
+    @abc.abstractmethod
     def user_generate_key(self) -> Tuple[WildlandResult, Optional[str], Optional[str]]:
         """
         Generate a new encryption and signing key(s), store them in an appropriate location and
@@ -167,9 +213,10 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_remove_key(self, owner: str) -> WildlandResult:
+    def user_remove_key(self, owner: str, force: bool) -> WildlandResult:
         """
-        Remove an existing encryption/signing key.
+        Remove an existing encryption/signing key. If force is False, the key will not be removed
+        if there are any users who use it as a secondary encryption key.
         """
 
     @abc.abstractmethod
@@ -183,7 +230,15 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_create(self, name: str, keys: List[str], paths: List[str],) -> \
+    def user_get_public_key(self, owner: str) -> Tuple[WildlandResult, Optional[str]]:
+        """
+        Return public key for the provided owner.
+        :param owner: owner fingerprint
+        :return: Tuple of WildlandResult and, if successful, this user's public key
+        """
+
+    @abc.abstractmethod
+    def user_create(self, name: Optional[str], keys: List[str], paths: List[str],) -> \
             Tuple[WildlandResult, Optional[WLUser]]:
         """
         Create a user and return information about it
@@ -201,54 +256,19 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def user_delete(self, user_id: str, cascade: bool = False,
-                    force: bool = False, delete_keys: bool = False) -> WildlandResult:
+    def user_delete(self, user_id: str) -> WildlandResult:
         """
         Delete provided user.
         :param user_id: User ID (in the form of user fingerprint)
-        :param cascade: remove all of user's containers and storage as well
-        :param force: delete even if still has containers/storage
-        :param delete_keys: also remove user keys
         :return: WildlandResult
         """
 
     @abc.abstractmethod
-    def user_import_from_path(self, path_or_url: str, paths: List[str], bridge_owner: Optional[str],
-                              only_first: bool = False) -> Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Import user from provided url or path.
-        :param path_or_url: WL path, local path or URL
-        :param paths: list of paths for resulting bridge manifest; if omitted, will base paths on
-         imported user's own paths
-        :param bridge_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
-        :param only_first: import only first encountered bridge (ignored in all cases except
-            WL container paths)
-        :return: tuple of WildlandResult, imported WLUser (if import was successful
-        """
-
-    @abc.abstractmethod
-    def user_import_from_data(self, yaml_data: str, paths: List[str],
-                              bridge_owner: Optional[str]) -> \
-            Tuple[WildlandResult, Optional[WLUser]]:
-        """
-        Import user from provided yaml data.
-        :param yaml_data: signed yaml data to be imported
-        :param paths: list of paths for resulting bridge manifest; if omitted, will base paths on
-         imported user's own paths
-        :param bridge_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
-        :return: tuple of WildlandResult, imported WLUser (if import was successful
-        """
-
-    @abc.abstractmethod
-    def user_refresh(self, user_ids: Optional[List[str]] = None,
-                     callback: Callable[[str], None] = None) -> WildlandResult:
+    def user_refresh(self, user_ids: Optional[List[str]] = None) -> WildlandResult:
         """
         Iterates over bridges and fetches each user's file from the URL specified in the bridge
         :param user_ids: Optional list of user_ids to refresh; if None, will refresh all users
             with a bridge present
-        :param callback: function to be called before each refreshed user
         :return: WildlandResult
         """
 
@@ -286,17 +306,19 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
     # BRIDGES
     @abc.abstractmethod
     def bridge_create(self, paths: Optional[List[str]], owner: Optional[str] = None,
-                      target_user: Optional[str] = None, target_user_url: Optional[str] = None,
-                      name: Optional[str] = None) -> Tuple[WildlandResult, Optional[WLBridge]]:
+                      target_user: Optional[str] = None, user_url: Optional[str] = None,
+                      name: Optional[str] = None) -> \
+            Tuple[WildlandResult, Optional[WLBridge]]:
         """
-        Create a new bridge
+        Create a new bridge. At least one from target_user, user_url must be provided.
         :param paths: paths for user in owner namespace (if None, will be taken from user manifest)
         :param owner: user_id for the owner of the created bridge
         :param target_user: user_id to whom the bridge will point. If provided, will be used to
         verify the integrity of the target_user_url
-        :param target_user_url: path to the user manifest (use file:// for local file).
+        :param user_url: path to the user manifest (use file:// for local file). If target_user
+        is provided, their user manifest will be first located in their manifests catalog, and only
+        as a second choice from this url.
         If target_user is skipped, the user manifest from this path is considered trusted.
-        If omitted,the user manifest will be located in their manifests catalog.
         :param name: optional name for the newly created bridge. If omitted, will be generated
         automatically
         :return: tuple of WildlandResult and, if successful, the created WLBridge
@@ -407,14 +429,10 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def container_delete(self, container_id: str, cascade: bool = False,
-                         force: bool = False) -> WildlandResult:
+    def container_delete(self, container_id: str) -> WildlandResult:
         """
         Delete provided container.
         :param container_id: container ID (in the form of user_id:/.uuid/container_uuid)
-        :param cascade: also delete local storage manifests
-        :param force: delete even when using local storage manifests; ignore errors on parse
-        :return: WildlandResult
         """
 
     @abc.abstractmethod

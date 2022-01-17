@@ -93,7 +93,7 @@ def wl_call(base_config_dir, *args, **kwargs):
 
 
 def wl_call_output(base_config_dir, *args, **kwargs):
-    return subprocess.check_output(['wl', '-v', '--base-dir', base_config_dir, *args], **kwargs)
+    return subprocess.check_output(['wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 def get_container_uuid_from_uuid_path(uuid_path):
@@ -6059,13 +6059,14 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
                             stderr=subprocess.STDOUT)
 
     lines = output.decode().splitlines()
-    assert lines[0] == f'Created: {base_config_dir}/users/Alice.user.yaml'
-    assert re.match(
-        fr'^[\x1b0-9;:, a-zA-Z\[\]/]+User {alice_key}: failed to load all 2 of the manifests '
-        fr'catalog containers. 1 due to lack of decryption key and 1 due to unknown errors\)\x1b\['
-        fr'0m$',
-        lines[1])
-    assert lines[2] == f'Created: {base_config_dir}/bridges/Alice.bridge.yaml'
+    assert f'Created: {base_config_dir}/users/Alice.user.yaml' in lines[0]
+    assert f'User {alice_key}: ' \
+           f'failed to load all 2 of the manifests catalog containers. ' \
+           f'1 due to lack of decryption key and 1 due to unknown errors)' in lines[1]
+    assert f'Created: {base_config_dir}/bridges/Alice.bridge.yaml' in lines[2]
+
+    assert len(lines) == 3
+
 
 def test_forest_create_with_user_path_access(base_dir_sodium, cli_sodium, sig_sodium, tmp_path,
                                              dir_userid, alice_userid):

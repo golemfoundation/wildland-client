@@ -172,12 +172,12 @@ class WildlandFS(WildlandFSBase, fuse.Fuse):
     # pylint: disable=missing-docstring
 
     def fsinit(self):
-        logger.info('mounting wildland')
+        logger.debug('mounting wildland')
         socket_path = Path(self.cmdline[0].socket or '/tmp/wlfuse.sock')
         self.control_server.start(socket_path)
 
     def fsdestroy(self):
-        logger.info('unmounting wildland')
+        logger.debug('unmounting wildland')
         self.control_server.stop()
         with self.mount_lock:
             for storage_id in list(self.storages):

@@ -203,7 +203,7 @@ class HttpStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storage
         try:
             attr = super().getattr(path)
         except PermissionError:
-            logger.info('Could not list directory for [%s]. '
+            logger.debug('Could not list directory for [%s]. '
                         'Falling back to the file directly.', str(path))
             url = self.make_url(path)
             attr = self._get_single_file_attr(url)

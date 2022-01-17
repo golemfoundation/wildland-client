@@ -23,6 +23,7 @@ import ast
 import inspect
 import textwrap
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, List, Tuple, Union, Callable, Any
 import binascii
 
@@ -31,13 +32,30 @@ from ..manifest.sig import SigError
 from ..manifest.schema import SchemaError
 from .wildland_objects_api import WLObjectType
 
+
+class WLErrorType(Enum):
+    """
+    Listing of possible WL error types.
+    """
+    MANIFEST_ERROR = 1
+    SIGNATURE_ERROR = 2
+    SCHEMA_ERROR = 3
+    PUBKEY_NEEDED = 100
+    PUBKEY_FORMAT_ERROR = 101
+    PUBKEY_IN_USE = 102
+    FILE_EXISTS_ERROR = 4  # error_description should be set to the name/id of whatever
+    # already exists.
+    UNKNOWN_OBJECT_TYPE = 700
+    OTHER = 999
+
+
 @dataclass
 class WLError:
     """
     Representation of errors raised by Wildland Core
     """
 
-    error_code: int  # need to agree the explicit meaning
+    error_code: WLErrorType  # need to agree the explicit meaning
     error_description: str  # human-readable description suitable for console or log output
     is_recoverable: bool
     offender_type: Optional[WLObjectType] = None
@@ -56,23 +74,22 @@ class WLError:
         # TODO: improve error reporting, add more information
         error_desc = str(exc)
         if isinstance(exc, ManifestError):
-            err_code = 1
+            err_code = WLErrorType.MANIFEST_ERROR
         elif isinstance(exc, SigError):
-            err_code = 2
+            err_code = WLErrorType.SIGNATURE_ERROR
         elif isinstance(exc, SchemaError):
-            err_code = 3
+            err_code = WLErrorType.SCHEMA_ERROR
         elif isinstance(exc, binascii.Error):
-            err_code = 101
+            err_code = WLErrorType.PUBKEY_FORMAT_ERROR
             error_desc = "Incorrect public key provided; provide key, not filename or path."
+        elif isinstance(exc, FileExistsError):
+            err_code = WLErrorType.FILE_EXISTS_ERROR
+            # error description for FileExistsError should be set to whatever already exists
         else:
-            err_code = 999
+            err_code = WLErrorType.OTHER
         error = cls(error_code=err_code, error_description=error_desc,
                     is_recoverable=is_recoverable)
         return error
-# Temporary documentation of additional error codes; to be organized and reqritten once needed
-# errors are collected:
-# 100 - at least one public key needed for user
-# 700 - unknown object type
 
 
 class WildlandResult:
@@ -92,6 +109,12 @@ class WildlandResult:
             if not e.is_recoverable:
                 return False
         return True
+
+    def __str__(self):
+        result = ""
+        for e in self.errors:
+            result += f"{e.error_code} - {e.error_description}\n"
+        return result
 
 
 def wildland_result(default_output=()):

@@ -100,8 +100,7 @@ class BriefConsoleFormatter(ConsoleFormatter):
     }
 
     def __init__(self, fmt, *args, **kwargs):
-        fmt = ('$COLOR$LEVEL: %(message)s'
-               '{reset}')
+        fmt = '%(message)s'
         fmt = fmt.format(**self.colors)
         super().__init__(fmt, *args, **kwargs)
 
@@ -150,7 +149,7 @@ def init_logging(console=True, file_path=None, level='DEBUG'):
     if console:
         config['root']['handlers'].append('console')
 
-        if level not in ("DEBUG", "INFO"):
+        if level != "DEBUG":
             config['formatters']['console']['class'] = 'wildland.log.BriefConsoleFormatter'
 
     if file_path:

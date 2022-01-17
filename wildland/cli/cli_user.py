@@ -27,7 +27,6 @@ Manage users
 from copy import deepcopy
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
-import binascii
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
@@ -40,13 +39,12 @@ from ..wlpath import WILDLAND_URL_PREFIX, WildlandPath
 from .cli_common import sign, verify, edit, modify_manifest, add_fields, del_fields, dump, \
     check_if_any_options, check_options_conflict, publish, unpublish
 from ..exc import WildlandError
-from ..manifest.schema import SchemaError
-from ..manifest.sig import SigError
 from ..manifest.manifest import Manifest
 from ..storage_driver import StorageDriver
 from ..storage import Storage
 from ..log import get_logger
-from ..core.wildland_objects_api import WLObjectType
+from ..core.wildland_objects_api import WLObjectType, WLUser, WLBridge
+from ..core.wildland_result import WLErrorType
 
 logger = get_logger('cli-user')
 
@@ -72,17 +70,24 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
     """
     Create a new user manifest and save it.
     """
-
     if key:
-        try:
-            owner, pubkey = obj.session.sig.load_key(key)
-        except SigError as ex:
-            raise CliError(f'Failed to use provided key:\n  {ex}') from ex
-        click.echo(f'Using key: {owner}')
+        result, pubkey = obj.wlcore.user_get_public_key(key)
+        if not result.success:
+            raise CliError(f'Failed to use provided key:\n  {result}')
+        click.echo(f'Using key: {key}')
+        owner = key
     else:
-        owner, pubkey = obj.session.sig.generate()
+        result, owner, pubkey = obj.wlcore.user_generate_key()
+        if not result.success:
+            raise CliError(f'Failed to use provided key:\n  {result}')
         click.echo(f'Generated key: {owner}')
+    assert pubkey
 
+    keys = [pubkey]
+    if additional_pubkeys:
+        keys.extend(additional_pubkeys)
+
+    # do paths
     if paths:
         paths = list(paths)
     else:
@@ -92,55 +97,24 @@ def create(obj: ContextObj, key, paths, additional_pubkeys, name):
             paths = [f'/users/{owner}']
         click.echo(f'No path specified, using: {paths[0]}')
 
-    members = []
-    filtered_additional_keys = []
-    if not additional_pubkeys:
-        additional_pubkeys = []
+    result, user = obj.wlcore.user_create(name, keys, paths)
 
-    for p in additional_pubkeys:
-        if WildlandPath.WLPATH_RE.match(p):
-            members.append({"user-path": WildlandPath.get_canonical_form(p)})
-        else:
-            filtered_additional_keys.append(p)
+    if not result.success or not user:
+        if not key:
+            obj.wlcore.user_remove_key(owner, force=False)
+        raise CliError(f'Failed to create user: {result}')
 
-    user = User(
-        owner=owner,
-        pubkeys=[pubkey] + filtered_additional_keys,
-        paths=[PurePosixPath(p) for p in paths],
-        manifests_catalog=[],
-        client=obj.client,
-        members=members
-    )
-    error_on_save = False
-    try:
-        path = obj.client.save_new_object(WildlandObject.Type.USER, user, name)
-    except binascii.Error as ex:
-        # Separate error to provide some sort of readable feedback
-        # raised by SigContext.fingerprint through base64.b64decode
-        error_on_save = True
-        raise CliError(f'Failed to create user due to incorrect key provided (provide public '
-                       f'key, not path to key file): {ex}') from ex
-    except SchemaError as ex:
-        error_on_save = True
-        raise CliError(f'Failed to create user: {ex}') from ex
-    finally:
-        if error_on_save:
-            if not key:
-                # remove generated keys that will not be used due to failure at creating user
-                obj.session.sig.remove_key(owner)
-
-    user.add_user_keys(obj.session.sig)
-
-    click.echo(f'Created: {path}')
-
-    for alias in ['@default', '@default-owner']:
-        if obj.client.config.get(alias) is None:
-            click.echo(f'Using {owner} as {alias}')
-            obj.client.config.update_and_save({alias: owner})
+    _, current_default = obj.wlcore.env.get_default_user()
+    if not current_default:
+        click.echo(f'Using {owner} as @default')
+        obj.wlcore.env.set_default_user(owner)
+    _, current_default_owner = obj.wlcore.env.get_default_owner()
+    if not current_default_owner:
+        click.echo(f'Using {owner} as @default-owner')
+        obj.wlcore.env.set_default_owner(owner)
 
     click.echo(f'Adding {owner} to local owners')
-    local_owners = obj.client.config.get('local-owners')
-    obj.client.config.update_and_save({'local-owners': [*local_owners, owner]})
+    obj.wlcore.env.add_local_owners(owner)
 
 
 @user_.command('list', short_help='list users', alias=['ls'])
@@ -154,11 +128,9 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
     Display known users.
     """
 
-    # TODO: when WLEnv api is ready, this should use it and not client itself
-    default_user = obj.wlcore.client.config.get('@default')
-    default_owner = obj.wlcore.client.config.get('@default-owner')
-    default_override = (default_user != obj.wlcore.client.config.get(
-        '@default', use_override=False))
+    default_user = obj.wlcore.env.get_default_user()[1]
+    default_owner = obj.wlcore.env.get_default_owner()[1]
+    default_override = (default_user != obj.wlcore.env.get_default_user(use_override=False)[1])
 
     result_users, users = obj.wlcore.user_list()
     result_bridges, bridges = obj.wlcore.bridge_list()
@@ -180,7 +152,7 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
         bridges_from_default_user[bridge.user_id].extend(bridge.paths)
 
     for user in users:
-        _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.owner)
+        _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.id)
         path_string = str(path)
         if list_secret_keys and not user.private_key_available:
             continue
@@ -236,73 +208,58 @@ def delete(obj: ContextObj, names, force, cascade, delete_keys):
 
 
 def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys: bool):
-    user = obj.client.load_object_from_name(WildlandObject.Type.USER, name)
+    _, user = obj.wlcore.object_get(WLObjectType.USER, name)
+    if not user:
+        p = Path(name)
+        if not p.exists():
+            raise CliError(f'User {name} not found.')
+        yaml_data = p.read_text()
+        result, user = obj.wlcore.object_info(yaml_data)
+        if not user:
+            raise CliError(f'User {name} cannot be parsed: {str(result)}')
 
-    if not user.local_path:
-        raise WildlandError('Can only delete a local manifest')
-
-    # Check if this is the only manifest with such owner
-    other_count = 0
-    for other_user in obj.client.get_local_users():
-        if other_user.local_path != user.local_path and other_user.owner == user.owner:
-            other_count += 1
+    result, usages = obj.wlcore.user_get_usages(user.id)
+    if not result.success and not force:
+        raise CliError(f'Fatal error while looking for user\'s containers: {str(result)}')
 
     used = False
+    for usage in usages:
+        if cascade:
+            click.echo('Deleting container: {}'.format(usage.id))
+            result = obj.wlcore.container_delete(usage.id)
+            if not result.success:
+                raise CliError(f'Cannot delete user\'s container: {result}')
+        else:
+            _, cont_path = obj.wlcore.object_get_local_path(WLObjectType.CONTAINER, usage.id)
+            click.echo('Found container: {}'.format(cont_path))
+            used = True
 
-    for container in obj.client.load_all(WildlandObject.Type.CONTAINER):
-        assert container.local_path is not None
-        if container.owner == user.owner:
-            if cascade:
-                click.echo('Deleting container: {}'.format(container.local_path))
-                container.local_path.unlink()
-            else:
-                click.echo('Found container: {}'.format(container.local_path))
-                used = True
-
-    for storage in obj.client.load_all(WildlandObject.Type.STORAGE):
-        assert storage.local_path is not None
-        if storage.owner == user.owner:
-            if cascade:
-                click.echo('Deleting storage: {}'.format(storage.local_path))
-                storage.local_path.unlink()
-            else:
-                click.echo('Found storage: {}'.format(storage.local_path))
-                used = True
-
-    if used and other_count > 0:
-        click.echo('Found manifests for user, but this is not the only user '
-                   'manifest. Proceeding.')
-    elif used and other_count == 0 and not force:
+    if used and not force:
         raise CliError('User still has manifests, not deleting '
                        '(use --force or --cascade)')
 
     if delete_keys:
-        possible_owners = obj.session.sig.get_possible_owners(user.owner)
+        result = obj.wlcore.user_remove_key(user.owner, force=force)
+        if not result.success:
+            raise CliError(str(result))
 
-        if possible_owners != [user.owner] and not force:
-            click.echo('Key used by other users as secondary key and will not be deleted. '
-                       'Key should be removed manually. In the future you can use --force to '
-                       'force key deletion.')
-        else:
-            click.echo(f'Removing key {user.owner}')
-            obj.session.sig.remove_key(user.owner)
+    _, default_user = obj.wlcore.env.get_default_user(use_override=False)
+    if default_user == user.owner:
+        click.echo('Removing @default from configuration file')
+        obj.wlcore.env.reset_default_user()
+    _, default_owner = obj.wlcore.env.get_default_owner()
+    if default_owner == user.owner:
+        click.echo('Removing @default-owner from configuration file')
+        obj.wlcore.env.reset_default_owner()
 
-    for alias in ['@default', '@default-owner']:
-        fingerprint = obj.client.config.get(alias)
-        if fingerprint is not None:
-            if fingerprint == user.owner:
-                click.echo(f'Removing {alias} from configuration file')
-                obj.client.config.remove_key_and_save(alias)
-
-    local_owners = obj.client.config.get('local-owners')
-
-    if local_owners is not None and user.owner in local_owners:
-        local_owners.remove(user.owner)
+    if obj.wlcore.env.is_local_owner(user.owner):
+        obj.wlcore.env.remove_local_owners(user.owner)
         click.echo(f'Removing {user.owner} from local_owners')
-        obj.client.config.update_and_save({'local-owners': local_owners})
 
-    click.echo(f'Deleting: {user.local_path}')
-    user.local_path.unlink()
+    click.echo(f'Deleting: {user.owner}')
+    result = obj.wlcore.user_delete(user.owner)
+    if not result.success:
+        raise CliError(f'Failed to delete user: {result}')
 
 
 def _remove_suffix(s: str, suffix: str) -> str:
@@ -416,9 +373,8 @@ def find_user_manifest_within_catalog(obj, user: User) -> \
 
     :param obj: ContextObj
     :param user: User
-    :return tuple of Storage where the user manifest was found and PurePosixPath path pointing
+    :return: tuple of Storage where the user manifest was found and PurePosixPath path pointing
     at that manifest in the storage
-
     """
     for container in user.load_catalog(warn_about_encrypted_manifests=False):
         all_storages = obj.client.all_storages(container=container)
@@ -588,12 +544,8 @@ def import_manifest(obj: ContextObj, path_or_url: str, paths: Iterable[str],
                    ' use user\'s paths')
 @click.option('--bridge-owner', help="specify a different (then default) user to be used as the "
                                      "owner of created bridge manifests")
-@click.option('--only-first', is_flag=True, default=False,
-              help="import only first encountered bridge "
-                   "(ignored in all cases except WL container paths)")
 @click.argument('path-or-url')
-def user_import(obj: ContextObj, path_or_url: str, paths: Tuple[str], bridge_owner: Optional[str],
-                only_first: bool):
+def user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owner: Optional[str]):
     """
     Import a provided user or bridge manifest.
     Accepts a local path, an url or a Wildland path to manifest or to bridge.
@@ -602,8 +554,45 @@ def user_import(obj: ContextObj, path_or_url: str, paths: Tuple[str], bridge_own
     """
     # TODO: remove imported keys and manifests on failure: requires some thought about how to
     # collect information on (potentially) multiple objects created
+    p = Path(path_or_url)
+    name = path_or_url
+    name = name.split('/')[-1]
 
-    import_manifest(obj, path_or_url, paths, WildlandObject.Type.USER, bridge_owner, only_first)
+    if p.exists():
+        yaml_data = p.read_bytes()
+        name = p.name
+        result, imported_object = obj.wlcore.object_import_from_yaml(yaml_data, name)
+    else:
+        result, imported_object = obj.wlcore.object_import_from_url(path_or_url, name)
+
+    if not result.success:
+        if len(result.errors) == 1 and result.errors[0].error_code == WLErrorType.FILE_EXISTS_ERROR:
+            result, imported_object = obj.wlcore.user_get_by_id(result.errors[0].error_description)
+            if not imported_object:
+                raise CliError(f'Failed to import manifest: {str(result)}')
+            click.echo('User already exists, skipping.')
+        else:
+            raise CliError(f'Failed to import manifest: {str(result)}')
+
+    if isinstance(imported_object, WLUser):
+        result, bridges = obj.wlcore.bridge_list()
+        for bridge in bridges:
+            if bridge.user_id == imported_object.owner:
+                click.echo('Bridge already exists, skipping.')
+                return
+        result, _ = obj.wlcore.bridge_create(paths, bridge_owner, imported_object.owner,
+                                             user_url=path_or_url, name=name)
+    elif isinstance(imported_object, WLBridge):
+        # TODO: this requires better handling through wlcore's bridge function, which are
+        # TODO: not yet implemented. See #698
+        obj.wlcore.bridge_delete(imported_object.id)
+        import_manifest(obj, path_or_url, paths, WildlandObject.Type.USER, bridge_owner, False)
+    else:
+        raise CliError(f'Cannot import {path_or_url}: only user or bridge '
+                       f'manifests can be imported')
+
+    if not result.success:
+        raise CliError(f'Failed to import {path_or_url}: {result}')
 
 
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
@@ -614,14 +603,22 @@ def user_refresh(obj: ContextObj, name):
     """
     Iterates over bridges and fetches each user's file from the URL specified in the bridge
     """
+    user_list: Optional[List[str]]
+
     if name:
-        user_list = [obj.client.load_object_from_name(WildlandObject.Type.USER, name)]
+        result, user = obj.wlcore.object_get(WLObjectType.USER, name)
+        if not result.success or not user:
+            raise CliError(f'User {name} cannot be loaded: {result}')
+        user_list = [user.id]
     else:
-        user_list = obj.client.get_local_users()
+        user_list = None
 
-    refresh_users(obj, user_list)
+    result = obj.wlcore.user_refresh(user_list)
+    if not result.success:
+        raise CliError(f'Failed to refresh users: {result}')
 
 
+# TODO: this is currently used by cli_forest, see #702
 def refresh_users(obj: ContextObj, user_list: Optional[List[User]] = None):
     """
     Refresh user manifests. Users can come from user_list parameter, or, if empty, all users

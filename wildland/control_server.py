@@ -289,7 +289,7 @@ class ControlServer:
         """
 
         self.socket_path = socket_path
-        logger.info('starting server at %s', socket_path)
+        logger.debug('starting server at %s', socket_path)
         socket_path.unlink(missing_ok=True)
         self.socket_server = SocketServer(str(socket_path), ControlHandler)
         # pylint: disable=attribute-defined-outside-init
@@ -323,7 +323,7 @@ class ControlServer:
         assert self.socket_server
         assert self.server_thread
 
-        logger.info('stopping server')
+        logger.debug('stopping server')
         # TODO: there is a possible deadlock if we call shutdown() while the
         # server is not inside serve_forever() loop
         if self.server_thread.is_alive():
