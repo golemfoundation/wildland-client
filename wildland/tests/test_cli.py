@@ -1367,7 +1367,7 @@ def test_container_publish_after_edit_with_publish_flag(cli, tmp_path, base_dir)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing a container' in out_lines[1]
+    assert 'Publishing/Re-publishing container' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1393,11 +1393,11 @@ def test_container_republish_after_edit_if_published(cli, tmp_path, base_dir):
 
     editor = r'sed -i s,PATH,REPUBLISH,g'
 
-    result = cli('container', 'edit', 'Container', '--editor', editor, capture=True)
+    result = cli('container', 'edit', 'Container', '--publish', '--editor', editor, capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
+    assert 'Publishing/Re-publishing container' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1630,7 +1630,7 @@ def test_container_modify_publish_with_flag(cli, base_dir, tmp_path):
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing a container' in out_lines[1]
+    assert 'Publishing/Re-publishing container' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1659,7 +1659,7 @@ def test_container_modify_republish_if_published(cli, base_dir, tmp_path):
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
+    assert 'Publishing/Re-publishing container' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -2441,7 +2441,7 @@ def test_container_publish_auto(cli, tmp_path):
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1  # auto published
 
 
-def test_container_republish_paths(cli, tmp_path):
+def test_container_republish_paths_modify(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container',
         '--path', '/PA/TH1',
@@ -2482,6 +2482,58 @@ def test_container_republish_paths(cli, tmp_path):
     assert (tmp_path / 'manifests/PA/TH4.container.yaml').exists()
 
 
+def test_container_republish_paths_edit(cli, tmp_path):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container',
+        '--path', '/PA/TH1',
+        '--path', '/PA/TH2',
+        '--update-user',
+        '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container',
+        '--no-inline',
+        '--manifest-pattern', '/manifests/{path}.{object-type}.yaml')
+
+    cli('container', 'publish', 'Container')
+
+    assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
+
+    # delete path /PA/TH2
+    editor = r"sed -i '/\/PA\/TH2/d'"
+    # --no-publish(by default), modification in progress
+    cli('container', 'edit', 'Container', '--editor', editor)
+
+    # add path /PA/TH3
+    editor = r"sed -i '/\/PA\/TH1/a- /PA/TH3'"
+    # publish with flag
+    cli('container', 'edit', 'Container', '--editor', editor, '--publish')
+
+    # delete path /PA/TH1
+    editor = r"sed -i '/\/PA\/TH1/d'"
+    # --no-publish(by default)
+    cli('container', 'edit', 'Container', '--editor', editor)
+
+    # add path /PA/TH4
+    editor = r"sed -i '/\/PA\/TH3/a- /PA/TH4'"
+    cli('container', 'edit', 'Container', '--editor', editor)
+
+    assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH4.container.yaml').exists()
+
+    # after publishing all of the above container modifications are applied
+    cli('container', 'publish', 'Container')
+
+    assert not (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
+    assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
+    assert (tmp_path / 'manifests/PA/TH4.container.yaml').exists()
+
+
 def test_container_dont_republish_if_not_modified(cli, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH1', '--update-user')
@@ -2500,7 +2552,7 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
+    assert 'Publishing/Re-publishing container' in out_lines[1]
 
     result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1',
                  '--publish', capture=True)

@@ -545,23 +545,8 @@ def modify(ctx: click.Context,
         logger=logger
     )
 
-    if modified and publish:
-        if isinstance(container, Container):
-            owner = container.owner
-        else:
-            # container object should always be an instance of Container class
-            click.echo('Edited object is not a container.')
-            return
-
-        client = ctx.obj.client
-
-        if Publisher.is_published(client, owner, container.get_primary_publish_path()):
-            cli_common.republish_object(client, container)
-
-        else:
-            user = client.load_object_from_name(WildlandObject.Type.USER, owner)
-            click.echo('Publishing a container')
-            Publisher(client, user).publish(container)
+    if isinstance(container, Container) and modified and publish:
+        _publish_container_after_modification(ctx.obj.client, container)
 
 
 def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
@@ -1386,23 +1371,16 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
     """
     Edit container manifest in external tool.
     """
-    container, manifest_modified = cli_common.resolve_object(
+    container, modified = cli_common.resolve_object(
         ctx, path, WildlandObject.Type.CONTAINER, cli_common.edit, editor=editor, remount=remount)
 
-    if manifest_modified:
-        if isinstance(container, Container):
-            owner = container.owner
-        else:
-            # container object should always be an instance of Container class
-            click.echo('Edited object is not a container.')
-            return
+    if isinstance(container, Container) and modified and publish:
+        _publish_container_after_modification(ctx.obj.client, container)
 
-        client = ctx.obj.client
 
-        if Publisher.is_published(client, owner, container.get_primary_publish_path()):
-            cli_common.republish_object(client, container)
+def _publish_container_after_modification(client: Client, container: Container) -> None:
+    owner = container.owner
+    user = client.load_object_from_name(WildlandObject.Type.USER, owner)
 
-        elif publish:
-            user = client.load_object_from_name(WildlandObject.Type.USER, owner)
-            click.echo('Publishing a container')
-            Publisher(client, user).publish(container)
+    click.echo('Publishing/Re-publishing container')
+    Publisher(client, user).publish_or_republish(container, owner)
