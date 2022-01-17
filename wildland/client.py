@@ -491,15 +491,19 @@ class Client:
         different owner.
         """
         objects = self.load_objects_from_url(object_type, url, owner, expected_owner)
-        wlpath = WildlandPath.from_str(url)
-        if len(objects) < 1:
-            raise PathError(f'Container not found for path: {wlpath}')
-        if len(objects) > 1:
-            raise PathError(f'Expected single container, found multiple: {wlpath}')
+
+        if object_type == WildlandObject.Type.CONTAINER and WildlandPath.match(url):
+            wlpath = WildlandPath.from_str(url)
+            if len(objects) < 1:
+                raise PathError(f'Container not found for path: {wlpath}')
+            if len(objects) > 1:
+                raise PathError(f'Expected single container, found multiple: {wlpath}')
+
         return objects[0]
 
-    def load_objects_from_url(self, object_type: WildlandObject.Type, url: str, owner: str,
-                              expected_owner: Optional[str] = None) -> List[WildlandObject]:
+    def load_objects_from_url(self, object_type: Optional[WildlandObject.Type], url: str,
+                              owner: str, expected_owner: Optional[str] = None) -> List[
+        WildlandObject]:
         """
         Load and return all Wildland objects matching any URL, including Wildland URLs.
         :param url: URL. must start with protocol (e.g. wildland: or https:

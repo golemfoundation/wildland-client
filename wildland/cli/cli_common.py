@@ -58,7 +58,6 @@ from ..storage import Storage
 from ..user import User
 from ..publish import Publisher
 from ..log import get_logger
-from ..wlpath import WildlandPath
 
 LOGGER = get_logger('cli-common')
 
@@ -532,11 +531,9 @@ def _get_publishable_object_from_file_or_path(
 
     wl_object_type = WildlandObject.Type(manifest_type)
 
-    if wl_object_type == WildlandObject.Type.CONTAINER and WildlandPath.match(path):
-        wlpath = WildlandPath.from_str(path)
-        if wlpath.file_path is None:
-            return obj.client.load_objects_from_url(wlpath, {
-                'default': obj.client.config.get('@default')})
+    if obj.client.is_url(path):
+        return obj.client.load_objects_from_url(wl_object_type, path,
+                                                obj.client.config.get('@default'))
 
     wl_object = obj.client.load_object_from_name(wl_object_type, path)
 
