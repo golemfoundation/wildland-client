@@ -398,7 +398,7 @@ Stop the current mount-watch daemon.
 :command:`wl container publish <container> [<container> ...]`
 -------------------------------------------------------------
 
-Publish containers manifests into user's manifests catalog (first container from the catalog
+Publish container manifests into user's manifests catalog (first container from the catalog
 that provides read-write storage will be used).
 
 .. program:: wl-container-unpublish
@@ -407,7 +407,7 @@ that provides read-write storage will be used).
 :command:`wl container unpublish <container> [<container> ...]`
 ---------------------------------------------------------------
 
-Unublish containers manifests from the whole of a user's manifests catalog.
+Unpublish container manifests from the whole of a user's manifests catalog.
 
 .. _wl-container-sign:
 .. _wl-container-verify:

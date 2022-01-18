@@ -377,7 +377,7 @@ Modify a storage |~| manifest given by *<file>*.
 :command:`wl storage publish <storage> [<storage> ...]`
 -------------------------------------------------------
 
-Publish storages manifests into user's manifests catalog (first container from the catalog
+Publish storage manifests into user's manifests catalog (first container from the catalog
 that provides read-write storage will be used).
 
 .. program:: wl-storage-unpublish
@@ -386,4 +386,4 @@ that provides read-write storage will be used).
 :command:`wl storage unpublish <storage> [<storage> ...]`
 ---------------------------------------------------------
 
-Unublish storages manifests from the whole of a user's manifests catalog.
+Unpublish storage manifests from the whole of a user's manifests catalog.
