@@ -36,8 +36,9 @@ from wildland.wildland_object.wildland_object import WildlandObject
 from .cli_base import aliased_group, ContextObj
 from .cli_exc import CliError
 from ..client import Client
-from .cli_common import sign, verify, edit, modify_manifest, set_fields, add_fields, del_fields, \
-    dump, check_if_any_options, check_options_conflict, publish, unpublish
+from .cli_common import sign, verify, edit, modify_manifest, set_fields, \
+    add_fields, del_fields, dump, check_if_any_options, check_options_conflict, \
+    publish, unpublish, remount_container
 from ..container import Container
 from ..storage import Storage, _get_storage_by_id_or_type
 from ..manifest.template import TemplateManager, StorageTemplate
@@ -186,6 +187,9 @@ def _do_create(
     obj.client.add_storage_to_container(container_obj, storage, inline, name)
     click.echo(f'Saved container {container_obj.local_path}')
 
+    if _is_container_mounted(obj, container_mount_path):
+        remount_container(obj, container_obj.local_path)
+
     if no_publish:
         return
 
@@ -194,6 +198,19 @@ def _do_create(
         Publisher(obj.client, user).republish(container_obj)
     except WildlandError as ex:
         raise WildlandError(f"Failed to republish container: {ex}") from ex
+
+
+def _is_container_mounted(obj: ContextObj, container_mount_path: PurePosixPath) -> bool:
+    if not obj.fs_client.is_running():
+        return False
+
+    mounted_storages = obj.fs_client.get_info().values()
+    for storage in mounted_storages:
+        for path in storage.paths:
+            if path == container_mount_path:
+                return True
+
+    return False
 
 
 @storage_.command('list', short_help='list storages', alias=['ls'])

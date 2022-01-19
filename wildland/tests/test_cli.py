@@ -923,6 +923,7 @@ def test_storage_set_location(cli, base_dir):
 
 def test_multiple_storage_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1031,6 +1032,7 @@ def generate_pseudomanifest_paths(paths):
 
 def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1125,6 +1127,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
 def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1290,6 +1293,7 @@ def test_container_duplicate_noinline(cli, base_dir):
 
 def test_container_duplicate_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1531,6 +1535,7 @@ def test_edit_unmounts_removed_storage(base_dir, cli):
 
 def test_container_edit_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'UserB', '--key', '0xbbb')
@@ -2402,6 +2407,7 @@ def test_container_delete_cascade(cli, base_dir):
 
 def test_container_delete_umount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -2572,6 +2578,7 @@ def test_container_cli_cache(cli, base_dir):
 
 def test_container_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -2853,6 +2860,7 @@ def test_container_mount_mount_unmount_with_cache(base_dir, sync, cli):
 
 def test_container_mount_with_bridges(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -2921,6 +2929,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
 
 def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('user', 'create', 'Bob', '--key', '0xbbb')
@@ -2991,6 +3000,7 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
         config.write('alt-bridge-separator: true\n')
 
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -3065,6 +3075,7 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     storage_dir.mkdir()
 
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Catalog', '--owner', 'User', '--path', '/CATALOG',
@@ -3114,6 +3125,7 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
 
 def test_container_mount_with_import(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -3164,7 +3176,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     users = cli('user', 'list', capture=True)
     assert users.count('0xbbb') == 0
 
-    control_client.calls = {}
+    control_client.calls = {'info': control_client.calls['info']}
 
     cli('container', 'mount', 'wildland::/users/other:/PATH:')
 
@@ -3172,7 +3184,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     assert command[0]['storage']['owner'] == '0xbbb'
     assert '/.users/0xbbb:/PATH' in command[0]['paths']
 
-    control_client.calls = {}
+    control_client.calls = {'info': control_client.calls['info']}
 
     # now the user should be imported and mounting directly should work
     cli('container', 'mount', 'wildland:0xbbb:/PATH:')
@@ -3190,6 +3202,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
 
 def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -3241,7 +3254,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     assert command[0]['storage']['storage']['owner'] == '0xbbb'
     assert '/.users/0xaaa:/PROXY-PATH' in command[0]['paths']
 
-    control_client.calls = {}
+    control_client.calls = {'info': control_client.calls['info']}
 
     # now the user should be imported and mounting directly should work
     cli('container', 'mount', 'wildland:0xbbb:/PATH:')
@@ -3313,7 +3326,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
 
 def test_container_mount_store_trusted_owner(cli, control_client):
     control_client.expect('status', {})
-
+    control_client.expect('info', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -3332,6 +3345,7 @@ def test_container_mount_glob(cli, base_dir, control_client):
     # The glob pattern will be normally expanded by shell,
     # but this feature is also used with default_containers.
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container1', '--path', '/PATH1', '--no-encrypt-manifest')
@@ -3407,6 +3421,7 @@ def test_container_mount_glob(cli, base_dir, control_client):
 
 def test_container_umount_undo_save_by_container_name(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3471,6 +3486,7 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
 
 def test_container_umount_undo_save_by_container_names(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = []
@@ -3550,6 +3566,7 @@ def test_container_umount_undo_save_by_container_mountpath(cli):
 
 def test_container_umount_save_non_existing(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3579,6 +3596,7 @@ def test_container_umount_save_non_existing(cli, base_dir, control_client):
 
 def test_container_mount_inline_storage(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3610,6 +3628,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
 
 def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3660,6 +3679,7 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
 
 def test_container_mount_no_subcontainers(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3692,6 +3712,7 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
 
 def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3788,6 +3809,7 @@ backends:
 
 def test_container_mount_errors(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3862,6 +3884,7 @@ backends:
 
 def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3930,6 +3953,7 @@ backends:
 
 def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path, base_dir):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3995,6 +4019,8 @@ def test_container_mount_container_without_storage(cli, control_client):
 
 def test_container_unmount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -4114,6 +4140,7 @@ def test_container_create_missing_params(cli):
 
 def test_container_extended_paths(cli, control_client, base_dir):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'title',
@@ -5341,6 +5368,7 @@ def test_import_user_existing(cli, base_dir, tmpdir):
 
 def test_only_subcontainers(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     parent_container_path = base_dir / 'containers/Parent.container.yaml'
     child_container_path = base_dir / 'containers/Child.container.yaml'
@@ -5526,6 +5554,7 @@ def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir):
     (storage_dir / 'file.txt').write('foo')
 
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -6350,3 +6379,44 @@ def test_set_default_cache(cli, base_dir):
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "default-cache-template: t1" in config
+
+
+def test_container_remount_after_adding_storage(cli, base_dir):
+    dir_1 = Path(f'{base_dir}/dir_1')
+    dir_2 = Path(f'{base_dir}/dir_2')
+    file_1 = dir_1 / 'file_1.txt'
+    file_2 = dir_2 / 'file_2.txt'
+
+    dir_1.mkdir()
+    dir_2.mkdir()
+
+    file_1.touch()
+    file_2.touch()
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('start')
+
+    uuid = '11111111-1001-1001-111000000111'
+
+    with mock.patch('uuid.uuid4', return_value=uuid):
+        cli('container', 'create', 'container1', '--path', '/path', '--title',
+            'title')
+
+    cli('storage', 'create', 'local', 'SourceStorage', '--location', str(base_dir / 'dir_1'),
+        '--container', 'container1')
+
+    cli('container', 'mount', 'container1')
+
+    mount_path = base_dir / 'wildland'
+
+    assert (mount_path / 'path').exists()
+    assert len(list((mount_path / '.backends' / uuid).glob('*'))) == 1
+    assert len(list((mount_path / '.backends' / uuid).rglob('*.txt'))) == 1
+
+    # Create storage on mounted container
+    cli('storage', 'create', 'local', 'SourceStorage2', '--location', str(base_dir / 'dir_2'),
+        '--container', 'container1')
+
+    assert (mount_path / 'path').exists()
+    assert len(list((mount_path / '.backends' / uuid).glob('*'))) == 2
+    assert len(list((mount_path / '.backends' / uuid).rglob('*.txt'))) == 2
