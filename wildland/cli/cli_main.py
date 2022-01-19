@@ -415,7 +415,7 @@ def watch(obj: ContextObj, patterns, with_initial) -> None:
 
     obj.fs_client.ensure_mounted()
 
-    for events in obj.fs_client.watch(patterns, with_initial):
+    for events in obj.fs_client.watch(patterns=patterns, with_initial=with_initial):
         for event in events:
             print(f'{event.event_type}: {event.path}')
 

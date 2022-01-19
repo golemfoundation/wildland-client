@@ -301,42 +301,31 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
 
       wl c mount --manifests-catalog :/forests/User:
 
-.. program:: wl-container-subcontainer-mount-watch
-.. _wl-container-subcontainer-mount-watch:
-
-:command:`wl container subcontainer-mount-watch <container> [<container>...]`
------------------------------------------------------------------------------
-
-Mount a container along with it's subcontainers in Wildland filesystem, then
-watch the subcontainers for changes and remount accordingly.
-
-The Wildland system has to be mounted first, see :ref:`wl start <wl-start>`.
-
-Example::
-
-    wl container mount-watch my_container
-
-This will attempt to mount, unmount and remount my_container as well as its subcontainers
-as the files the subcontainers map to are changed. Additional newly created or removed
-subcontainers will also be mounted/unmounted accordingly.
 
 .. program:: wl-container-mount-watch
 .. _wl-container-mount-watch:
 
-:command:`wl container mount-watch <pattern> [<pattern>...]`
-------------------------------------------------------------
+:command:`wl container mount-watch [--with-subcontainers/--without-subcontainers] <pattern|container> [<pattern|container>...]`
+-------------------------------------------------------------------------------------------------------------------------------
 
-Mount a list of containers from manifests in Wildland filesystem, then watch
-the filesystem for change.
+Mount a containers along with it's subcontainers in Wildland filesystem,
+then watch subcontainers for changes and remount accordingly.
+If the container manifest is in Wildland filesystem, also watch
+the filesystem for change to the manifest.
 
 The Wildland system has to be mounted first, see :ref:`wl start <wl-start>`.
 
 Example::
 
-    wl container mount-watch '~/wildland/mynotes/*/*.yaml'
+    wl container mount-watch '~/wildland/mynotes/*/*.yaml' outside_container
 
 This will attempt to mount, unmount and remount containers as the files matched
 by ``/*/*.yaml`` change.
+Moreover will attempt to mount `outside_container` as well as its subcontainers
+as the subcontainers are changed. Additional newly created or removed
+subcontainers will also be mounted/unmounted accordingly.
+If the `outside_container` is outside Wildland filesystem,
+changes to the manifest itself will not be watched.
 
 The pattern can be also a container WL path, either specific (like
 ``wildland::/users/alice:/docs/notes:``), or wildcard (like

@@ -276,7 +276,7 @@ class Search:
         >>> try:
         >>>     # mounting under unique paths only is enough, no need to pollute user's forest
         >>>     fs_client.mount_multiple_containers(mount_cmds, unique_path_only=True)
-        >>>     for events in fs_client.watch(patterns):
+        >>>     for events in fs_client.watch(patterns=patterns):
         >>>         ...
         >>> except:
         >>>     ...

@@ -30,7 +30,7 @@ wl s create timeline --container timeline_container --reference-container-url wi
 #mounting both of the containers
 wl c mount local_reference
 wl c mount timeline_container
-wl c subcontainer-mount-watch timeline_container
+wl c mount-watch timeline_container
 
 # ensuring that the expected file is present in the timeline tree
 cd

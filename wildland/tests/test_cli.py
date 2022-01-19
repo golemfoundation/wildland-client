@@ -3243,11 +3243,14 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     command = [c for c in command
                if '/CATALOG' not in c['paths']
                   and '/CATALOG/.manifest.wildland.yaml' not in c['paths']]
-    assert len(command) == 2
+    # double commands: as Catalog subcontainers and as standalone containers
+    assert len(command) == 2 * 2
+    assert command[0]['paths'] == command[1]['paths']
+    assert command[2]['paths'] == command[3]['paths']
     paths_backend1 = command[0]['paths']
     paths_backend1 = [paths_backend1[0] + '-pseudomanifest'] + paths_backend1[1:]
     paths_backend1 = [path + '/.manifest.wildland.yaml' for path in paths_backend1]
-    paths_backend2 = command[1]['paths']
+    paths_backend2 = command[2]['paths']
     assert paths_backend1 == paths_backend2
 
 

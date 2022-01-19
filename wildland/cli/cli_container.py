@@ -27,7 +27,7 @@ Manage containers
 """
 from itertools import combinations
 from pathlib import PurePosixPath, Path
-from typing import Iterable, List, Optional, Sequence, Tuple, Dict
+from typing import Iterable, List, Optional, Sequence, Tuple
 import os
 import sys
 import re
@@ -55,9 +55,8 @@ from ..exc import WildlandError
 from ..manifest.manifest import ManifestError
 from ..manifest.template import TemplateManager
 from ..publish import Publisher
+from ..remounter import Remounter
 from ..utils import yaml_parser
-from ..remounters.pattern_remounter import PatternRemounter
-from ..remounters.subcontainer_remounter import SubcontainerRemounter
 from ..storage import Storage, StorageBackend
 from ..log import init_logging, get_logger
 from ..storage_sync.base import BaseSyncer, SyncConflict
@@ -150,7 +149,7 @@ class OptionRequires(click.Option):
               help='do not publish the container after creation')
 @click.option('--encrypt-manifest/--no-encrypt-manifest', default=True, required=False,
               help='if --no-encrypt, this manifest will not be encrypted and '
-              '--access cannot be used.')
+                   '--access cannot be used.')
 @click.argument('name', metavar='CONTAINER', required=False)
 @click.pass_obj
 def create(obj: ContextObj, owner: Optional[str], path: Sequence[str], name: Optional[str],
@@ -702,7 +701,7 @@ def prepare_mount(obj: ContextObj,
         with StorageBackend.from_params(storage.params, deduplicate=True):
             for subcontainer in subcontainers:
                 # TODO: use MR !240 to pass a container set to prepare mount
-                if isinstance(subcontainer, Container) and\
+                if isinstance(subcontainer, Container) and \
                         subcontainer.uuid == container.uuid:
                     continue
                 if isinstance(subcontainer, Container):
@@ -952,7 +951,6 @@ def unmount(obj: ContextObj, path: str, with_subcontainers: bool, undo_save: boo
 def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
              with_subcontainers: bool = True, undo_save: bool = False,
              unmount_all: bool = False) -> None:
-
     obj.fs_client.ensure_mounted()
 
     if unmount_all and (undo_save or not with_subcontainers or len(container_names) > 0
@@ -1063,9 +1061,9 @@ def _mount_path_to_backend_id(path: PurePosixPath) -> Optional[str]:
 
 
 def _collect_storage_ids_by_container_name(
-            obj: ContextObj, container_name: str,
-            callback_iter_func=iter, with_subcontainers: bool = True,
-        ) -> tuple[List[int], List[int]]:
+        obj: ContextObj, container_name: str,
+        callback_iter_func=iter, with_subcontainers: bool = True,
+) -> tuple[List[int], List[int]]:
     """
     Returns a tuple with a list of normal storages and a list of cache storages.
     """
@@ -1103,9 +1101,9 @@ def _collect_storage_ids_by_container_name(
 
 
 def _collect_storage_ids_by_container_path(
-            obj: ContextObj, path: PurePosixPath,
-            callback_iter_func=iter, with_subcontainers: bool = True
-        ) -> tuple[List[int], List[int]]:
+        obj: ContextObj, path: PurePosixPath,
+        callback_iter_func=iter, with_subcontainers: bool = True
+) -> tuple[List[int], List[int]]:
     """
     Return all storage IDs corresponding to a given mount path (tuple with normal storages and
     cache storages). Path can be either absolute or relative with respect to the mount directory.
@@ -1169,11 +1167,12 @@ def terminate_daemon(pfile, error_message):
 
 @container_.command('mount-watch', short_help='mount container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
+@click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=True,
+              help='Do not watch subcontainers changes.')
 @click.pass_obj
-def mount_watch(obj: ContextObj, container_names):
+def mount_watch(obj: ContextObj, container_names, with_subcontainers: bool):
     """
-    Watch for manifest files inside Wildland, and keep the filesystem mount
-    state in sync.
+    Watch for manifest files inside Wildland, and keep the filesystem mount state in sync.
     """
 
     obj.fs_client.ensure_mounted()
@@ -1183,9 +1182,24 @@ def mount_watch(obj: ContextObj, container_names):
     if container_names:
         with open(MW_DATA_FILE, 'w') as file:
             file.truncate(0)
+            if with_subcontainers:
+                file.write("with-subcontainers\n")
+            else:
+                file.write("without-subcontainers\n")
             file.write("\n".join(container_names))
 
-    remounter = PatternRemounter(obj.client, obj.fs_client, container_names)
+    remounter = Remounter(obj.client, obj.fs_client, container_names, with_subcontainers)
+
+    if remounter.outside_containers:
+        containers = "\n".join([c.uuid for c in remounter.outside_containers])
+        if not with_subcontainers:
+            raise WildlandError(
+                'Changes to the following container manifests'
+                f' cannot be watched as they are outside Wildland: \n{containers}'
+                '\n\nRemove --without-subcontainers flag to watch only subcontainers.',
+                )
+        logger.warning('Changes to the following container manifests (except subcontainers)'
+                       ' will not be watched as they are outside Wildland: \n%s', containers)
 
     with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
                               stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
@@ -1201,33 +1215,6 @@ def stop_mount_watch():
     terminate_daemon(MW_PIDFILE, "Mount-watch not running.")
 
 
-@container_.command('subcontainer-mount-watch',
-                    short_help='mount container and watch its subcontainers for changes')
-@click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
-@click.pass_obj
-def subcontainer_mount_watch(obj: ContextObj, container_names):
-    """
-    Watch for manifest files inside Wildland, and keep the filesystem mount
-    state in sync.
-    """
-
-    obj.fs_client.ensure_mounted()
-
-    _mount(obj, container_names, save=False)
-
-    containers_storage: Dict[Container, Storage] = {
-        container: obj.client.select_storage(container)
-        for container_name in container_names
-        for container in obj.client.load_containers_from(container_name)
-    }
-
-    remounter = SubcontainerRemounter(obj.client, obj.fs_client, containers_storage)
-    with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(MW_PIDFILE),
-                              stdout=sys.stdout, stderr=sys.stderr, detach_process=True):
-        init_logging(False, f"{os.path.expanduser('~')}/.local/share/wildland/wl-mount-watch.log")
-        remounter.run()
-
-
 @container_.command('add-mount-watch', short_help='mount container')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
@@ -1239,12 +1226,14 @@ def add_mount_watch(obj: ContextObj, container_names):
 
     if os.path.exists(MW_DATA_FILE):
         with open(MW_DATA_FILE, 'r') as file:
-            old_container_names = file.read().split('\n')
+            lines = file.read().split('\n')
+            without_subcontainers = lines[0] == "without-subcontainers"
+            old_container_names = lines[1:]
         container_names.extend(old_container_names)
 
     stop_mount_watch()
 
-    mount_watch(obj, container_names)
+    mount_watch(obj, container_names, without_subcontainers)
 
 
 @container_.command('sync', short_help='start syncing a container')

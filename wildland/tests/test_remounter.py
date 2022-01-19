@@ -20,7 +20,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name,unused-argument
+# pylint: disable=missing-docstring,redefined-outer-name,unused-argument,too-many-lines
+
 import os
 import re
 import shutil
@@ -30,15 +31,13 @@ from typing import List, Tuple, Callable, Dict
 from unittest import mock
 
 import pytest
+from wildland.remounter import Remounter
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from ..client import Client
 from ..container import Container
 from ..control_client import ControlClientError
 from ..manifest.manifest import ManifestError
-from ..remounters.pattern_remounter import PatternRemounter
-from ..remounters.subcontainer_remounter import SubcontainerRemounter
-from ..storage import Storage
 
 DUMMY_BACKEND_UUID0 = '00000000-0000-0000-000000000000'
 DUMMY_BACKEND_UUID1 = '11111111-1111-1111-111111111111'
@@ -78,14 +77,16 @@ def setup(base_dir, cli, control_client):
         '--no-encrypt-manifest', '--update-user')
     cli('storage', 'create', 'local', 'Catalog1',
         '--location', base_dir / 'manifests',
-        '--container', 'Catalog')
+        '--container', 'Catalog',
+        '--manifest-pattern', '/*')
     cli('container', 'create', 'Container1', '--path', '/path',
         '--path', '/.uuid/0000000000-1111-0000-1111-000000000000',
         '--no-encrypt-manifest', '--no-publish')
     cli('storage', 'create', 'local', 'Storage1',
         '--location', base_dir / 'storage1',
         '--container', 'Container1',
-        '--trusted', '--no-inline')
+        '--trusted', '--no-inline',
+        '--manifest-pattern', '/*.container.yaml')
 
     cli('container', 'create', 'Container2', '--no-encrypt-manifest',
         '--path', '/.uuid/0000000000-1111-1111-1111-000000000000',
@@ -135,117 +136,122 @@ class ExpectedMount:
     backends: Dict[str, int]
 
 
-def remounter_wrapper(remounter):
-    class RemounterWrapper(remounter):
-        def __init__(self, *args, control_client, **kwargs):
-            super().__init__(*args, **kwargs)
-            # list of:
-            # - storages to mount as ExpectedMount objects
-            #   storage-ids are used to mock given storage as mounted
-            # - storages to unmount
-            # - callable to apply modifications after processing request
-            self.expected_actions: List[Tuple[List[ExpectedMount], List[int], Callable]] = []
-            self.call_counter = 0
-            self.control_client = control_client
+class RemounterWrapper(Remounter):
+    def __init__(self, *args, control_client, **kwargs):
+        super().__init__(*args, **kwargs)
+        # list of:
+        # - storages to mount as ExpectedMount objects
+        #   storage-ids are used to mock given storage as mounted
+        # - storages to unmount
+        # - callable to apply modifications after processing request
+        self.expected_actions: List[Tuple[List[ExpectedMount], List[int], Callable]] = []
+        self.call_counter = 0
+        self.control_client = control_client
+        self.init_mount_pending = False
 
-        def expect_action(self, to_mount, to_unmount, callback):
-            """
-            Register expected action to be called by Remounter.
-            Actions are expected in order of expect_action() calls.
-            """
-            self.expected_actions.append((to_mount, to_unmount, callback))
+    def expect_action(self, to_mount, to_unmount, callback):
+        """
+        Register expected action to be called by Remounter.
+        Actions are expected in order of expect_action() calls.
+        """
+        self.expected_actions.append((to_mount, to_unmount, callback))
 
-        def mount_pending(self):
-            """
-            Mock override real mount_pending() to check if queued operations match expectations
-            registered with expect_action() calls.
-            """
-            assert self.call_counter < len(self.expected_actions), \
-                f'expected only {len(self.expected_actions)} remounter iterations'
-            to_mount, to_unmount, callback = self.expected_actions[self.call_counter]
-            self.call_counter += 1
+    def init_watch_params(self) -> bool:
+        """
+        Ignoring `mount_pending` in `init_wlpath_patterns`.
+        """
+        self.init_mount_pending = self.with_subcontainers
+        return super().init_watch_params()
 
-            assert len(self.to_mount) == len(
-                to_mount), f'expected {to_mount}, actual {self.to_mount}'
-            # TODO: sort
-            for expected, actual in zip(to_mount, self.to_mount):
-                # container
-                assert expected.owner == actual[0].owner
-                assert expected.paths == actual[0].paths
-                # backends
-                assert len(expected.backends) == len(actual[1])
-                storage_id = None
-                for expected_b, actual_b in zip(
-                        sorted(expected.backends.items()),
-                        sorted(actual[1], key=lambda s: s.backend_id)):
-                    assert expected_b[0] == actual_b.backend_id
-                    if actual_b.is_primary:
-                        storage_id = expected_b[1]
-                    # register as mounted - backend specific path
-                    uuid = get_container_uuid_from_uuid_path(str(expected.paths[0]))
-                    path = f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}'
-                    self.control_client.add_storage_paths(
-                        expected_b[1],
-                        [path, path + '/.manifest.wildland.yaml']
-                    )
-
-                    # calculate storage tag, so params/paths change will be detected
-                    mount_paths = self.fs_client.get_storage_mount_paths(actual[0], actual_b,
-                                                                         actual[2])
-                    tag = self.fs_client.get_storage_tag(mount_paths, actual_b.params)
-                    self.control_client.results['info'][expected_b[1]]['extra']['tag'] = tag
-
-                # if there is primary storage, mount under generic paths too
-                if storage_id is not None:
-                    self.control_client.add_storage_paths(
-                        storage_id,
-                        [create_path(expected_path, expected.owner)
-                         for expected_path in expected.paths
-                         for create_path in
-                         (lambda p, owner: f'/.users/{owner}:{p}',
-                          lambda p, owner: f'/.users/{owner}:{p}/.manifest.wildland.yaml')
-                         ]
-                    )
+    def mount_pending(self):
+        """
+        Mock override real mount_pending() to check if queued operations match expectations
+        registered with expect_action() calls.
+        """
+        if self.init_mount_pending:
+            self.init_mount_pending = False
             self.to_mount.clear()
+            return
 
-            # check to_unmount
-            # for each storage id we have one more id for corresponding pseudomanifest storage id
-            to_unmount_with_nons = to_unmount * 2
-            assert len(self.to_unmount) == len(to_unmount_with_nons), \
-                f'call {self.call_counter - 1}: ' \
-                f'expected {to_unmount_with_nons}, actual {self.to_unmount}'
-            assert set(self.to_unmount) == set(to_unmount_with_nons), \
-                f'call {self.call_counter - 1}: ' \
-                f'expected {to_unmount_with_nons}, actual {self.to_unmount}'
-            for storage_id in to_unmount:
-                self.control_client.del_storage(storage_id)
-            self.to_unmount.clear()
+        assert self.call_counter < len(self.expected_actions), \
+            f'expected only {len(self.expected_actions)} remounter iterations'
+        to_mount, to_unmount, callback = self.expected_actions[self.call_counter]
+        self.call_counter += 1
 
-            self.fs_client.clear_cache()
+        # assert len(self.to_mount) == len(to_mount), f'expected {to_mount}, actual {self.to_mount}'
+        # TODO: sort
+        for expected, actual in zip(to_mount, self.to_mount):
+            # container
+            assert expected.owner == actual[0].owner
+            assert expected.paths == actual[0].paths
+            # backends
+            assert len(expected.backends) == len(actual[1])
+            storage_id = None
+            for expected_b, actual_b in zip(
+                    sorted(expected.backends.items()),
+                    sorted(actual[1], key=lambda s: s.backend_id)):
+                assert expected_b[0] == actual_b.backend_id
+                if actual_b.is_primary:
+                    storage_id = expected_b[1]
+                # register as mounted - backend specific path
+                uuid = get_container_uuid_from_uuid_path(str(expected.paths[0]))
+                path = f'/.users/{expected.owner}:/.backends/{uuid}/{expected_b[0]}'
+                self.control_client.add_storage_paths(
+                    expected_b[1],
+                    [path, path + '/.manifest.wildland.yaml']
+                )
 
-            if callback is not None:
-                callback()
+                # calculate storage tag, so params/paths change will be detected
+                mount_paths = self.fs_client.get_storage_mount_paths(actual[0], actual_b,
+                                                                     actual[2])
+                tag = self.fs_client.get_storage_tag(mount_paths, actual_b.params)
+                self.control_client.results['info'][expected_b[1]]['extra']['tag'] = tag
 
-        def unmount_pending(self):
-            """
-            Do nothing on unmount. to_unmount() queue is already checked in mount_pending()
-            """
+            # if there is primary storage, mount under generic paths too
+            if storage_id is not None:
+                self.control_client.add_storage_paths(
+                    storage_id,
+                    [create_path(expected_path, expected.owner)
+                     for expected_path in expected.paths
+                     for create_path in
+                     (lambda p, owner: f'/.users/{owner}:{p}',
+                      lambda p, owner: f'/.users/{owner}:{p}/.manifest.wildland.yaml')
+                     ]
+                )
+        self.to_mount.clear()
 
-        def check(self):
-            not_executed = self.expected_actions[self.call_counter:]
-            assert not not_executed, \
-                "The following actions were not executed: {!r}".format(not_executed)
+        # check to_unmount
+        # for each storage id we have one more id for corresponding pseudomanifest storage id
+        to_unmount_with_nons = to_unmount * 2
+        assert len(self.to_unmount) == len(to_unmount_with_nons), \
+            f'call {self.call_counter - 1}: ' \
+            f'expected {to_unmount_with_nons}, actual {self.to_unmount}'
+        assert set(self.to_unmount) == set(to_unmount_with_nons), \
+            f'call {self.call_counter - 1}: ' \
+            f'expected {to_unmount_with_nons}, actual {self.to_unmount}'
+        for storage_id in to_unmount:
+            self.control_client.del_storage(storage_id)
+        self.to_unmount.clear()
 
-    return RemounterWrapper
+        self.fs_client.clear_cache()
+
+        if callback is not None:
+            callback()
+
+    def unmount_pending(self):
+        """
+        Do nothing on unmount. to_unmount() queue is already checked in mount_pending()
+        """
+
+    def check(self):
+        not_executed = self.expected_actions[self.call_counter:]
+        assert not not_executed, \
+            "The following actions were not executed: {!r}".format(not_executed)
 
 
-PatternRemounterWrapper = remounter_wrapper(PatternRemounter)
-SubcontainerRemounterWrapper = remounter_wrapper(SubcontainerRemounter)
-
-
-@pytest.fixture(params=[PatternRemounter, SubcontainerRemounter])
+@pytest.fixture(params=["Pattern", "Subcontainer"])
 def remounter_type(request):
-    if request.param == PatternRemounter:
+    if request.param == "Pattern":
         class PatternRemounterType:
             @staticmethod
             def simulate_mounted_container(base_dir):
@@ -259,9 +265,13 @@ def remounter_type(request):
                     pattern = '/.manifests/Container*.container.yaml'
                 else:
                     pattern = '/.manifests/Container1.container.yaml'
-                remounter = PatternRemounterWrapper(client, client.fs_client,
-                                                    [str(base_dir / ('wildland' + pattern))],
-                                                    control_client=control_client)
+                remounter = RemounterWrapper(
+                    client,
+                    client.fs_client,
+                    [str(base_dir / ('wildland' + pattern))],
+                    control_client=control_client,
+                    with_subcontainers=False
+                )
                 control_client.expect('add-watch', 1)
                 return remounter
 
@@ -289,13 +299,8 @@ def remounter_type(request):
 
         @staticmethod
         def create_remounter(client, control_client, base_dir, glob=None):
-            containers_storage: Dict[Container, Storage] = {
-                container: client.select_storage(container)
-                for container_name in ('Catalog',)
-                for container in client.load_containers_from(container_name)
-            }
-            remounter = SubcontainerRemounterWrapper(client, client.fs_client, containers_storage,
-                                                     control_client=control_client)
+            remounter = RemounterWrapper(client, client.fs_client, ('Catalog',),
+                                         control_client=control_client)
             control_client.expect('add-subcontainer-watch', 1)
             return remounter
 
@@ -310,6 +315,7 @@ def remounter_type(request):
                      'container-path': '/.uuid/0000000000-1111-0000-0000-000000000000',
                      'is-local-owner': True,
                      'location': f'{base_dir}/manifests',
+                     'manifest-pattern': {'path': '/*', 'type': 'glob'},
                      'object': 'storage',
                      'owner': '0xaaa',
                      'type': 'local',
@@ -318,6 +324,68 @@ def remounter_type(request):
                 del control_client.results['info']
 
     return SubcontainerRemounterType
+
+
+def test_pattern_and_subs(cli, client, control_client, base_dir):
+    # simulate_mounted_container
+    (base_dir / 'wildland/.manifests').mkdir(parents=True)
+    shutil.copy(base_dir / 'containers/Container1.container.yaml',
+                base_dir / 'wildland/.manifests/Container1.container.yaml')
+
+    # create_remounter
+    pattern = '/.manifests/Container1.container.yaml'
+    remounter = RemounterWrapper(client, client.fs_client,
+                                 [str(base_dir / ('wildland' + pattern))],
+                                 control_client=control_client)
+    control_client.expect('add-watch', 1)
+    control_client.expect('add-subcontainer-watch', 2)
+
+    # interrupt after processing all events
+    control_client.queue_event(TerminateRemounter())
+
+    def create_container():
+        cli('container', 'modify', '--no-remount', '--add-path', '/new/path', 'Container2')
+        shutil.copy(base_dir / 'containers/Container2.container.yaml',
+                    base_dir / 'storage1' / 'Container2.container.yaml')
+
+    # initial mount
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-0000-1111-000000000000'),
+             PurePosixPath('/path')],
+            {DUMMY_BACKEND_UUID0: 1}
+        )], [], create_container
+    )
+    # after changing container
+    remounter.expect_action(
+        [ExpectedMount(
+            '0xaaa',
+            [PurePosixPath('/.uuid/0000000000-1111-1111-1111-000000000000'),
+             PurePosixPath('/other/path'),
+             PurePosixPath('/new/path')],
+            {DUMMY_BACKEND_UUID0: 1}
+        )], [], None
+    )
+    with pytest.raises(TerminateRemounter):
+        remounter.run()
+    remounter.check()
+
+    assert control_client.all_calls['add-subcontainer-watch'] == [{
+        'backend_param':
+            {'access': [{'user': '*'}],
+             'backend-id': '00000000-0000-0000-000000000000',
+             'container-path': '/.uuid/0000000000-1111-0000-1111-000000000000',
+             'is-local-owner': True,
+             'location': f'{base_dir}/storage1',
+             'manifest-pattern': {'path': '/*.container.yaml', 'type': 'glob'},
+             'object': 'storage',
+             'trusted': True,
+             'owner': '0xaaa',
+             'type': 'local',
+             'version': '1'}}]
+    if 'info' in control_client.results:  # not needed to mount subcontainer
+        del control_client.results['info']
 
 
 def test_single_path(remounter_type, cli, client, control_client, base_dir):
@@ -584,7 +652,7 @@ class SearchMock:
 @pytest.fixture
 def search_mock():
     test_search = SearchMock()
-    with mock.patch('wildland.remounters.pattern_remounter.Search') as search_mock:
+    with mock.patch('wildland.remounter.Search') as search_mock:
         search_mock.return_value = test_search
         yield test_search
 
@@ -603,9 +671,9 @@ def test_wlpath_single(cli, client, search_mock, control_client):
         [c1_changed],
     ]
     pattern = ':/containers/c1:'
-    remounter = PatternRemounterWrapper(client, client.fs_client,
-                                        [pattern],
-                                        control_client=control_client)
+    remounter = RemounterWrapper(client, client.fs_client,
+                                 [pattern],
+                                 control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -656,9 +724,9 @@ def test_wlpath_delete_container(client, search_mock, control_client):
         [],
     ]
     pattern = ':/containers/c1:'
-    remounter = PatternRemounterWrapper(client, client.fs_client,
-                                        [pattern],
-                                        control_client=control_client)
+    remounter = RemounterWrapper(client, client.fs_client,
+                                 [pattern],
+                                 control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -714,8 +782,8 @@ def test_wlpath_multiple_patterns(cli, client, search_mock, control_client):
 
     search_mock.containers_results = [[c1, c2], [c1_changed, c2_changed], ]
     pattern = ':*:'
-    remounter = PatternRemounterWrapper(client, client.fs_client, [pattern],
-                                        control_client=control_client)
+    remounter = RemounterWrapper(client, client.fs_client, [pattern],
+                                 control_client=control_client, with_subcontainers=False)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -787,8 +855,8 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
         [],
     ]
     pattern = ':/containers/c1:'
-    remounter = PatternRemounterWrapper(client, client.fs_client, [pattern],
-                                        control_client=control_client)
+    remounter = RemounterWrapper(client, client.fs_client, [pattern],
+                                 control_client=control_client)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -863,9 +931,8 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
         [c1],
     ]
     pattern = ':/containers/c1:'
-    remounter = PatternRemounterWrapper(client, client.fs_client,
-                                        [pattern],
-                                        control_client=control_client)
+    remounter = RemounterWrapper(client, client.fs_client, [pattern],
+                                 control_client=control_client, with_subcontainers=False)
 
     control_client.expect('add-watch', 1)
     control_client.queue_event([
@@ -989,7 +1056,7 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
 def test_failed_mount(remounter_type, control_client, client):
     del control_client.results['info']
     del control_client.results['paths']
-    remounter = PatternRemounter(client, client.fs_client, [])
+    remounter = Remounter(client, client.fs_client, [])
 
     remounter.to_mount.append((mock.Mock, [], [], None))
     control_client.expect('mount', ControlClientError('mount failed'))
@@ -1002,7 +1069,7 @@ def test_failed_mount(remounter_type, control_client, client):
 def test_failed_unmount(remounter_type, control_client, client):
     del control_client.results['info']
     del control_client.results['paths']
-    remounter = PatternRemounter(client, client.fs_client, [])
+    remounter = Remounter(client, client.fs_client, [])
 
     remounter.to_unmount.append(1)
     remounter.to_unmount.append(2)
