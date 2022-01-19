@@ -83,15 +83,6 @@ class Publisher:
         catalog_storage.add_child(self.client, wl_object)
         self._cache(wl_object.type).remove(wl_object)
 
-    def publish_or_republish(self, wl_object: PublishableWildlandObject, owner: str) -> None:
-        """
-        Publish a Wildland Object or re-publish it if it's already published
-        """
-        if self.is_published(self.client, owner, wl_object.get_primary_publish_path()):
-            self.republish(wl_object)
-        else:
-            self.publish(wl_object)
-
     def unpublish(self, wl_object: PublishableWildlandObject) -> None:
         """
         Unpublish a Wildland Object to the user's catalog.

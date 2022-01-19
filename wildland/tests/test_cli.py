@@ -1355,7 +1355,7 @@ def test_container_edit(cli, base_dir):
 
 def test_container_publish_after_edit_with_publish_flag(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user', '--no-publish')
     cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline',
         '--manifest-pattern', '/*.{object-type}.yaml')
@@ -1367,7 +1367,7 @@ def test_container_publish_after_edit_with_publish_flag(cli, tmp_path, base_dir)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing/Re-publishing container' in out_lines[1]
+    assert 'Publishing container' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1379,8 +1379,11 @@ def test_container_publish_after_edit_with_publish_flag(cli, tmp_path, base_dir)
 
 
 def test_container_republish_after_edit_if_published(cli, tmp_path, base_dir):
+    published_container_uuid = '11111111-1111-1111-111111111111'
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    with mock.patch('uuid.uuid4', return_value=published_container_uuid):
+        cli('container', 'create', 'Container', '--path', '/PATH', '--update-user', '--no-publish')
+
     cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline',
         '--manifest-pattern', '/*.{object-type}.yaml')
@@ -1391,13 +1394,13 @@ def test_container_republish_after_edit_if_published(cli, tmp_path, base_dir):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    editor = r'sed -i s,PATH,REPUBLISH,g'
+    editor = r'sed -i s,PATH,REPUBLISHED,g'
 
-    result = cli('container', 'edit', 'Container', '--publish', '--editor', editor, capture=True)
+    result = cli('container', 'edit', 'Container', '--editor', editor, capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing/Re-publishing container' in out_lines[1]
+    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1405,18 +1408,18 @@ def test_container_republish_after_edit_if_published(cli, tmp_path, base_dir):
 
     with open(manifest) as f:
         data = f.read()
-    assert "/REPUBLISH" in data
+    assert "/REPUBLISHED" in data
 
-    editor = r'sed -i s,REPUBLISH,REPUBLISH,g'
-    result = cli('container', 'edit', 'Container', '--editor', editor, capture=True)
-    out_lines = result.splitlines()
-    assert len(out_lines) == 1
-    assert out_lines[0] == 'No changes detected, not saving.'
+    published = tmp_path / f'{published_container_uuid}.container.yaml'
+
+    with open(published) as f:
+        data = f.read()
+    assert "/REPUBLISHED" in data
 
 
-def test_container_not_republish_after_edit_if_not_published(cli, tmp_path, base_dir):
+def test_container_not_publish_after_edit_if_not_published(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user', '--no-publish')
     cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline',
         '--manifest-pattern', '/*.{object-type}.yaml')
@@ -1618,7 +1621,7 @@ def test_container_modify_remount(cli, base_dir):
 
 def test_container_modify_publish_with_flag(cli, base_dir, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user', '--no-publish')
     cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline',
         '--manifest-pattern', '/*.{object-type}.yaml')
@@ -1630,7 +1633,7 @@ def test_container_modify_publish_with_flag(cli, base_dir, tmp_path):
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing/Re-publishing container' in out_lines[1]
+    assert 'Publishing container' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1642,8 +1645,11 @@ def test_container_modify_publish_with_flag(cli, base_dir, tmp_path):
 
 
 def test_container_modify_republish_if_published(cli, base_dir, tmp_path):
+    published_container_uuid = '11111111-1111-1111-111111111111'
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    with mock.patch('uuid.uuid4', return_value=published_container_uuid):
+        cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+
     cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline',
         '--manifest-pattern', '/*.{object-type}.yaml')
@@ -1654,12 +1660,11 @@ def test_container_modify_republish_if_published(cli, base_dir, tmp_path):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    result = cli('container', 'modify', '--title', 'REPUBLISH', 'Container',
-                 '--publish', capture=True)
+    result = cli('container', 'modify', '--title', 'REPUBLISHED', 'Container', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing/Re-publishing container' in out_lines[1]
+    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
@@ -1667,18 +1672,18 @@ def test_container_modify_republish_if_published(cli, base_dir, tmp_path):
 
     with open(manifest) as f:
         data = f.read()
-    assert "REPUBLISH" in data
+    assert "REPUBLISHED" in data
 
-    result = cli('container', 'modify', '--title', 'REPUBLISH', 'Container',
-                 '--publish', capture=True)
-    out_lines = result.splitlines()
-    assert len(out_lines) == 1
-    assert out_lines[0] == 'Manifest has not changed.'
+    published = tmp_path / f'{published_container_uuid}.container.yaml'
+
+    with open(published) as f:
+        data = f.read()
+    assert "REPUBLISHED" in data
 
 
-def test_container_modify_not_republish_if_not_published(cli, base_dir, tmp_path):
+def test_container_modify_not_publish_if_not_published(cli, base_dir, tmp_path):
     cli('user', 'create', 'User', '--key', '0xaaa')
-    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--update-user', '--no-publish')
     cli('storage', 'create', 'local', 'Inlined', '--location', os.fspath(tmp_path),
         '--container', 'Container', '--inline',
         '--manifest-pattern', '/*.{object-type}.yaml')
@@ -1927,8 +1932,8 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
     # Create the container (with auto-publish)
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    # Modify it right away (and publish with flag)
-    cli('container', 'modify', 'Container.container', '--title', 'something', '--publish')
+    # Modify it right away (and auto-re-publish)
+    cli('container', 'modify', 'Container.container', '--title', 'something')
 
     # Find it using forest catalog path
     with open(catalog_dir / 'PATH.container.yaml') as f:
@@ -1958,9 +1963,9 @@ def test_container_set_title_remote_container(monkeypatch, cli, base_dir):
 
     monkeypatch.setattr("wildland.cli.cli_common.resolve_object", _cb)
 
-    # Modify it again, although this time use file:// URL (and publish with flag)
+    # Modify it again, although this time use file:// URL (and auto-re-publish)
     cli('container', 'modify', '--title', 'another thing',
-        f'file://localhost/{base_dir}/containers/Container.container.yaml', '--publish')
+        f'file://localhost/{base_dir}/containers/Container.container.yaml')
 
     # Check if it was re-published with updated title
     with open(catalog_dir / 'PATH.container.yaml') as f:
@@ -2460,13 +2465,13 @@ def test_container_republish_paths_modify(cli, tmp_path):
     assert (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH3.container.yaml').exists()
 
-    # --no-publish(by default), modification in progress
-    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH2')
-    # publish with flag
-    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH3', '--publish')
-    # --no-publish(by default)
-    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH1')
-    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH4')
+    # --no-publish, modification in progress
+    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH2', '--no-publish')
+    # auto republishing
+    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH3')
+    # --no-publish
+    cli('container', 'modify', ':/PA/TH1:', '--del-path', '/PA/TH1', '--no-publish')
+    cli('container', 'modify', ':/PA/TH1:', '--add-path', '/PA/TH4', '--no-publish')
 
     assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
@@ -2503,22 +2508,19 @@ def test_container_republish_paths_edit(cli, tmp_path):
 
     # delete path /PA/TH2
     editor = r"sed -i '/\/PA\/TH2/d'"
-    # --no-publish(by default), modification in progress
-    cli('container', 'edit', 'Container', '--editor', editor)
+    cli('container', 'edit', ':/PA/TH1:', '--editor', editor, '--no-publish')
 
-    # add path /PA/TH3
+    # add path /PA/TH3 and re-publish by default
     editor = r"sed -i '/\/PA\/TH1/a- /PA/TH3'"
-    # publish with flag
-    cli('container', 'edit', 'Container', '--editor', editor, '--publish')
+    cli('container', 'edit', ':/PA/TH1:', '--editor', editor)
 
     # delete path /PA/TH1
     editor = r"sed -i '/\/PA\/TH1/d'"
-    # --no-publish(by default)
-    cli('container', 'edit', 'Container', '--editor', editor)
+    cli('container', 'edit', ':/PA/TH1:', '--editor', editor, '--no-publish')
 
     # add path /PA/TH4
     editor = r"sed -i '/\/PA\/TH3/a- /PA/TH4'"
-    cli('container', 'edit', 'Container', '--editor', editor)
+    cli('container', 'edit', ':/PA/TH1:', '--editor', editor, '--no-publish')
 
     assert (tmp_path / 'manifests/PA/TH1.container.yaml').exists()
     assert not (tmp_path / 'manifests/PA/TH2.container.yaml').exists()
@@ -2547,15 +2549,13 @@ def test_container_dont_republish_if_not_modified(cli, tmp_path):
 
     assert len(tuple(tmp_path.glob('*.container.yaml'))) == 1
 
-    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1',
-                 '--publish', capture=True)
+    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert re.match('Saved: .*/Container.container.yaml', out_lines[0])
-    assert 'Publishing/Re-publishing container' in out_lines[1]
+    assert 'Re-publishing container: [/.uuid/' in out_lines[1]
 
-    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1',
-                 '--publish', capture=True)
+    result = cli('container', 'modify', 'Container', '--add-path', '/PA/TH1', capture=True)
     out_lines = result.splitlines()
     assert len(out_lines) == 2
     assert out_lines[0] == '/PA/TH1 is already in the manifest'

@@ -470,7 +470,7 @@ container_.add_command(cli_common.unpublish)
 @click.option('--del-storage', metavar='TEXT', multiple=True,
               help='Storage to remove. Can be either the backend_id of a storage or position in '
                    'storage list (starting from 0)')
-@click.option('--publish/--no-publish', '-p/-P', default=False, help='publish modified container')
+@click.option('--publish/--no-publish', '-p/-P', default=None, help='publish modified container')
 @click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
 @click.argument('input_file', metavar='FILE')
 @click.pass_context
@@ -545,8 +545,8 @@ def modify(ctx: click.Context,
         logger=logger
     )
 
-    if isinstance(container, Container) and modified and publish:
-        _publish_container_after_modification(ctx.obj.client, container)
+    if isinstance(container, Container) and modified:
+        _publish_container_after_modification(ctx.obj.client, container, publish)
 
 
 def _option_check(ctx, add_path, del_path, add_category, del_category, title, add_access,
@@ -1364,7 +1364,7 @@ def dump(ctx: click.Context, path: str, decrypt: bool):
 @container_.command(short_help='edit container manifest in external tool')
 @click.option('--editor', metavar='EDITOR', help='custom editor')
 @click.option('--remount/--no-remount', '-r/-n', default=True, help='remount mounted container')
-@click.option('--publish/--no-publish', '-p/-P', default=False, help='publish edited container')
+@click.option('--publish/--no-publish', '-p/-P', default=None, help='publish edited container')
 @click.argument('path', metavar='FILE or WLPATH')
 @click.pass_context
 def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], remount: bool):
@@ -1374,13 +1374,26 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
     container, modified = cli_common.resolve_object(
         ctx, path, WildlandObject.Type.CONTAINER, cli_common.edit, editor=editor, remount=remount)
 
-    if isinstance(container, Container) and modified and publish:
-        _publish_container_after_modification(ctx.obj.client, container)
+    if isinstance(container, Container) and modified:
+        _publish_container_after_modification(ctx.obj.client, container, publish)
 
 
-def _publish_container_after_modification(client: Client, container: Container) -> None:
+def _publish_container_after_modification(
+            client: Client,
+            container: Container,
+            publish: bool
+        ) -> None:
+    """
+    Republish container if it's published and no --no-publish flag was specified
+    or publish it if it's not published and --publish flag is present
+    """
     owner = container.owner
-    user = client.load_object_from_name(WildlandObject.Type.USER, owner)
 
-    click.echo('Publishing/Re-publishing container')
-    Publisher(client, user).publish_or_republish(container, owner)
+    if Publisher.is_published(client, owner, container.get_primary_publish_path()):
+        if publish or publish is None:
+            cli_common.republish_object(client, container)
+    else:
+        if publish:
+            user = client.load_object_from_name(WildlandObject.Type.USER, owner)
+            click.echo('Publishing container')
+            Publisher(client, user).publish(container)
