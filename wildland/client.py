@@ -698,19 +698,32 @@ class Client:
         if failed:
             raise ManifestError(exc_msg)
 
-    def add_storage_to_container(self, container: Container, storage: Storage, inline: bool = True,
-                                 storage_name: Optional[str] = None):
+    def add_storage_to_container(self, container: Container, storages: List[Storage],
+                                 inline: bool = True, storage_name: Optional[str] = None):
         """
-        Add storage to container, save any changes. If the given storage exists in the container
-        (as determined by backend_id), it gets updated (if possible).
+        Add one or more storages to container, save any changes. If any of the given storages
+        exists in the container (as determined by backend_id), it gets updated (if possible).
         If not, it is added. If the passed Storage exists in a container but is referenced by an
         url, it can only be saved for file URLS, for other URLs a WildlandError will be raised.
         :param container: Container to add to
-        :param storage: Storage to be added
+        :param storages: list of Storages to be added
         :param inline: add as inline or standalone storage (ignored if storage exists)
-        :param storage_name: optional name to save storage under if inline == False
+        :param storage_name: optional name to save storage under if inline == False; if multiple
+        storages will be added, they will be named storage_name, storage_name.1 etc.
         """
-        container.add_storage_from_obj(storage, inline, storage_name)
+        added_storages = []
+        error_msg = None
+        for storage in storages:
+            try:
+                container.add_storage_from_obj(storage, inline, storage_name)
+                added_storages.append(storage)
+            except WildlandError as we:
+                error_msg = str(we)
+                break
+        if error_msg:
+            for storage in added_storages:
+                container.del_storage(storage.backend_id)
+            raise WildlandError(f'Failed to add some storages: {error_msg}')
         self.save_object(WildlandObject.Type.CONTAINER, container)
 
     def load_all(self, object_type: WildlandObject.Type, decrypt: bool = True,

@@ -203,7 +203,6 @@ run wl template add webdav carolines-s3 \
 
 expected_pcre="Created base path: /.manifests/$UUID_PCRE
 Adding storage $UUID_PCRE to container.
-Saved container /home/user/.config/wildland/containers/caroline-forest-catalog.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/caroline-forest-catalog.container.yaml
 Saved: /home/user/.config/wildland/users/caroline.user.yaml
@@ -214,7 +213,6 @@ run wl forest create --access '*' --owner caroline carolines-s3
 expected_pcre="Created: /home/user/.config/wildland/containers/hello-world.container.yaml
 Created base path: /$UUID_PCRE
 Adding storage $UUID_PCRE to container.
-Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
 Adding storage $UUID_PCRE to container.
 Saved container /home/user/.config/wildland/containers/hello-world.container.yaml
 Publishing container: \[/.uuid/$UUID_PCRE\]"

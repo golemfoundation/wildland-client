@@ -246,7 +246,8 @@ def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_n
 
         for storage in old_storages:
             storage.params['manifest-pattern'] = catalog_storage.params['manifest-pattern']
-            obj.client.add_storage_to_container(catalog_container, storage, inline=True)
+
+        obj.client.add_storage_to_container(catalog_container, old_storages, inline=True)
 
         obj.client.save_object(WildlandObject.Type.CONTAINER, catalog_container)
 

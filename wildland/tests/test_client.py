@@ -69,7 +69,7 @@ def test_add_storage(client, owner):
         trusted=True,
         access=None)
 
-    client.add_storage_to_container(container, storage)
+    client.add_storage_to_container(container, [storage])
 
     assert len(container._storage_cache) == 1
 
@@ -78,12 +78,12 @@ def test_add_storage(client, owner):
     assert 'object: storage' in cont_data
 
     # duplicate should not be re-added
-    client.add_storage_to_container(container, storage)
+    client.add_storage_to_container(container, [storage])
     assert len(container._storage_cache) == 1
 
     # but changes should be reflected
     storage.access = [{'user': '*'}]
-    client.add_storage_to_container(container, storage)
+    client.add_storage_to_container(container, [storage])
     assert len(container._storage_cache) == 1
     assert container._storage_cache[0].storage['access'] == [{'user': '*'}]
 
@@ -101,7 +101,7 @@ def test_add_storage_not_inline(client, owner):
         trusted=True,
         access=None)
 
-    client.add_storage_to_container(container, storage, False, "storage")
+    client.add_storage_to_container(container, [storage], False, "storage")
 
     assert len(container._storage_cache) == 1
     assert container._storage_cache[0].storage.startswith('file://localhost')
@@ -110,12 +110,12 @@ def test_add_storage_not_inline(client, owner):
     assert 'type: local' in storage_path.read_text()
 
     # re-adding should not cause duplicates
-    client.add_storage_to_container(container, storage, False, "storage")
+    client.add_storage_to_container(container, [storage], False, "storage")
     assert len(container._storage_cache) == 1
 
     # but changes should be reflected
     storage.access = [{'user': '*'}]
-    client.add_storage_to_container(container, storage)
+    client.add_storage_to_container(container, [storage])
     assert len(container._storage_cache) == 1
     assert '*' in storage_path.read_text()
 
@@ -150,6 +150,6 @@ def test_add_storage_link(client, owner, tmpdir):
 
     # reflect changes
     storage.access = [{'user': '*'}]
-    client.add_storage_to_container(container, storage)
+    client.add_storage_to_container(container, [storage])
     assert len(container._storage_cache) == 1
     assert '*' in storage_path.read_text()
