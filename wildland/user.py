@@ -149,13 +149,15 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         """
         Return string representation
         """
+        if self._str_repr:
+            return self._str_repr
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = [
             f"owner={fields['owner']}",
             f"paths={[str(p) for p in fields['paths']]}"
         ]
-        str_repr = "user(" + ", ".join(array_repr) + ")"
-        return str_repr
+        self._str_repr = "user(" + ", ".join(array_repr) + ")"
+        return self._str_repr
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
@@ -220,6 +222,7 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
     def add_catalog_entry(self, path: Union[str, dict]):
         """Add a path to a container or a dict with container/link fields to user's manifests
         catalog."""
+        self._str_repr = None
         self._manifests_catalog.append(_CatalogCache(path))
 
     def remove_catalog_entry(self, path: Union[str, dict]):
@@ -228,6 +231,7 @@ class User(PublishableWildlandObject, obj_type=WildlandObject.Type.USER):
         for catalog in self._manifests_catalog:
             if catalog.manifest == path:
                 self._manifests_catalog.remove(catalog)
+                self._str_repr = None
                 return True
         return False
 

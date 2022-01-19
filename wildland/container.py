@@ -123,6 +123,7 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
                 return path
         path = PurePosixPath('/.uuid/') / str(uuid.uuid4())
         self.paths.insert(0, path)
+        self._str_repr = None
         return path
 
     def get_unique_publish_id(self) -> str:
@@ -160,6 +161,8 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
         """
         Return string representation
         """
+        if self._str_repr:
+            return self._str_repr
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr: List[str] = []
         for field in ['owner', 'paths', 'local-path', 'backends', 'title', 'categories', 'access']:
@@ -172,8 +175,8 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
                     ]
                 else:
                     array_repr += [f"{field}={fields[field]!r}"]
-        str_repr = "container(" + ", ".join(array_repr) + ")"
-        return str_repr
+        self._str_repr = "container(" + ", ".join(array_repr) + ")"
+        return self._str_repr
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest: Optional[Manifest] = None, **kwargs):
@@ -270,6 +273,7 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
         """
         if self._expanded_paths:
             return self._expanded_paths
+        self._str_repr = None
         paths = self.paths.copy()
         if self.title:
             for path in self.categories:
@@ -391,6 +395,7 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
 
         if backend_to_remove:
             self._storage_cache.remove(backend_to_remove)
+            self._str_repr = None
 
     def add_storage_from_obj(self, storage, inline: bool = True, storage_name: Optional[str] = None,
                              new_url: Optional[str] = None):
@@ -449,9 +454,12 @@ class Container(PublishableWildlandObject, obj_type=WildlandObject.Type.CONTAINE
                     new_path = self.client.local_url(storage_path)
                 self._storage_cache.append(_StorageCache(new_path, self))
 
+        self._str_repr = None
+
     def clear_storages(self):
         """Remove all storages"""
         self._storage_cache = []
+        self._str_repr = None
 
     def copy(self, new_name) -> 'Container':
         """Copy this container to a new object with a new UUID and appropriately edited storages."""

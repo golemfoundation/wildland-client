@@ -69,14 +69,16 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
         """
         Return string representation
         """
+        if self._str_repr:
+            return self._str_repr
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = [
             f"file_path={fields['file']}"
         ]
         if fields.get('storage', None):
             array_repr += [f"storage={fields['storage']}"]
-        str_repr = "link(" + ", ".join(array_repr) + ")"
-        return str_repr
+        self._str_repr = "link(" + ", ".join(array_repr) + ")"
+        return self._str_repr
 
     @classmethod
     def parse_fields(cls, fields: dict, client, manifest=None, **kwargs):

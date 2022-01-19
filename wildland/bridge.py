@@ -175,6 +175,8 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
         """
         Return string representation
         """
+        if self._str_repr:
+            return self._str_repr
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = []
         if isinstance(fields["user"], str):
@@ -186,5 +188,5 @@ class Bridge(PublishableWildlandObject, obj_type=WildlandObject.Type.BRIDGE):
             link_str_repr = "link(" + ", ".join(link_array_repr) + ")"
             array_repr += [f"user={link_str_repr}"]
         array_repr += [f"paths={[str(p) for p in fields['paths']]}"]
-        str_repr = "bridge(" + ", ".join(array_repr) + ")"
-        return str_repr
+        self._str_repr = "bridge(" + ", ".join(array_repr) + ")"
+        return self._str_repr
