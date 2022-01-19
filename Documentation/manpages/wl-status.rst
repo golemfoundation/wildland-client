@@ -1,8 +1,8 @@
 .. program:: wl-status
 .. _wl-status:
 
-:command:`wl status` --- Display all mounted containers and sync jobs
-=====================================================================
+:command:`wl status` --- Display all mounted containers or specified container and sync jobs
+=============================================================================================
 
 Synopsis
 --------
@@ -11,6 +11,10 @@ Synopsis
 
 Options
 -------
+
+.. option:: --container <container>
+
+    Show status for specified container
 
 .. option:: -w, --with-subcontainers
 
