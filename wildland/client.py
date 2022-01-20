@@ -1405,7 +1405,8 @@ class Client:
         remote_storages = [storage for storage in all_storages
                            if target_remote_id == storage.backend_id or
                            (not target_remote_id and
-                            not self.is_local_storage(storage.storage_type))]
+                            not self.is_local_storage(storage.storage_type) and
+                            not storage.storage_type == 'delegate')]
         return remote_storages
 
     def get_remote_storage(self, container: Container, remote_storage: Optional[str] = None,

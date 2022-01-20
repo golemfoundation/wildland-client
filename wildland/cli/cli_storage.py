@@ -210,13 +210,20 @@ def _do_create(
         click.echo('Skipping syncing as there is just one storage attached to the container.')
     elif Client.is_local_storage(storage):
         click.echo('Skipping syncing as the created storage is local.')
+    elif not storage.is_writeable:
+        click.echo('Skipping syncing as the created storage is read-only.')
     else:
         try:
             source_storage = obj.client.get_local_storage(
                 container_obj, excluded_storage=storage.backend_id)
         except WildlandError:
-            click.echo("Cannot find storage to sync data from.")
-            return
+            try:
+                source_storage = obj.client.get_remote_storage(
+                    container_obj, excluded_storage=storage.backend_id)
+            except WildlandError:
+                logger.debug('No appropriate source storage found for syncing with %s',
+                             str(storage))
+                return
 
         logger.debug("sync: {%s} -> {%s}", source_storage, storage)
 
