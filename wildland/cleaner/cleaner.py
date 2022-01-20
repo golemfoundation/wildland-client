@@ -31,7 +31,7 @@ from typing import Set
 class Cleaner:
     _paths: Set[Path] = set()
 
-    def __init__(self, debug_fn, warn_fn):
+    def __init__(self, debug_fn=print, warn_fn=print):
         self.debug_fn = debug_fn
         self.warn_fn = warn_fn
 
