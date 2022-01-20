@@ -46,7 +46,7 @@ from ..manifest.manifest import ManifestError
 from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
-
+from ..cli.cli_user import _user_create
 
 def modify_file(path, pattern, replacement):
     with open(path) as f:
@@ -162,6 +162,19 @@ def test_user_create(cli, base_dir):
     assert "'@default': '0xaaa'" in config
     assert "'@default-owner': '0xaaa'" in config
     assert "- '0xaaa'" in config
+
+
+def test_remove_files_when_user_create_fails(cli, base_dir):
+    def side_effect(*args, **kwargs):
+        _user_create(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_user._user_create', side_effect=side_effect):
+        try:
+            cli('user', 'create', 'User')
+        except Exception as ex:
+            pass
+        assert not Path(base_dir / 'users/User.user.yaml').exists()
 
 
 def test_user_create_additional_keys(cli, base_dir):
