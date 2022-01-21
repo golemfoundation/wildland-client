@@ -93,7 +93,7 @@ def wl_call(base_config_dir, *args, **kwargs):
 
 
 def wl_call_output(base_config_dir, *args, **kwargs):
-    return subprocess.check_output(['wl', '-v', '--base-dir', base_config_dir, *args], **kwargs)
+    return subprocess.check_output(['wl', '--base-dir', base_config_dir, *args], **kwargs)
 
 
 def get_container_uuid_from_uuid_path(uuid_path):
@@ -653,8 +653,9 @@ def test_storage_create(cli, base_dir):
     assert "location: /PATH" in data
     assert "backend-id:" in data
 
-    cli('storage', 'create', 'zip-archive', 'ZipStorage', '--location', '/zip',
-        '--container', 'Container', '--no-inline')
+    with pytest.raises(WildlandError, match='Failed to sync storage for container'):
+        cli('storage', 'create', 'zip-archive', 'ZipStorage', '--location', '/zip',
+            '--container', 'Container', '--no-inline')
     with open(base_dir / 'storage/ZipStorage.storage.yaml') as f:
         data = f.read()
 
@@ -819,7 +820,7 @@ def test_storage_delete_inline_many_in_one(monkeypatch, cli, base_dir):
 
 
 # pylint: disable=unused-argument
-def test_storage_delete_sync(cli, base_dir, sync):
+def test_storage_delete_sync(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH',
         '--no-encrypt-manifest')
@@ -923,6 +924,7 @@ def test_storage_set_location(cli, base_dir):
 
 def test_multiple_storage_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1031,6 +1033,7 @@ def generate_pseudomanifest_paths(paths):
 
 def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1125,6 +1128,7 @@ def test_storage_mount_remove_primary_and_remount(cli, base_dir, control_client)
 
 def test_storage_mount_remove_secondary_and_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1290,6 +1294,7 @@ def test_container_duplicate_noinline(cli, base_dir):
 
 def test_container_duplicate_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -1503,6 +1508,8 @@ def test_container_pointed_container_modify_remount(cli, base_dir):
     cli('container', 'mount', 'PointingContainer')
 
     assert len(list((mount_path / 'POINT').glob('*'))) == 2
+    # TODO this sleep should not be needed, but it actually is (issue #755)
+    time.sleep(1)
     assert not (mount_path / 'POINT' / 'file_1.txt').exists()
     assert (mount_path / 'POINT' / 'file_2.txt').exists()
 
@@ -1531,6 +1538,7 @@ def test_edit_unmounts_removed_storage(base_dir, cli):
 
 def test_container_edit_remount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'UserB', '--key', '0xbbb')
@@ -1631,6 +1639,110 @@ def test_modify_unmounts_removed_storage(base_dir, cli):
     result = cli('status', '-p', capture=True)
     assert result.count(local) == 1
     assert result.count(pseudo) == 1
+
+
+def test_status_for_specified_container(base_dir, cli):
+    status_container_uuid = '00000000-0000-0000-000000000000'
+    container_2_uuid = '11111111-1111-1111-111111111111'
+
+    status_container = 'Container'
+    container_2 = 'Container2'
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+
+    with mock.patch('uuid.uuid4', return_value=status_container_uuid):
+        cli('container', 'create', status_container, '--path', '/PATH')
+
+    with mock.patch('uuid.uuid4', return_value=container_2_uuid):
+        cli('container', 'create', container_2, '--path', '/PATH')
+
+    cli('storage', 'create', 'local', 'Storage1',
+        '--location', '/PATH', '--container', status_container)
+    cli('storage', 'create', 'local', 'Storage2',
+        '--location', '/PATH2', '--container', container_2)
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', status_container)
+    cli('container', 'mount', container_2)
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 2
+    assert result.count(local) == 2
+    assert f'{status_container_uuid}' in result
+    assert f'{container_2_uuid}' in result
+
+    result = cli('status', '--container', status_container, '-p', capture=True)
+    assert result.count(pseudo) == 1
+    assert result.count(local) == 1
+
+    assert 'No sync jobs running' in result
+    assert f'{status_container_uuid}' in result
+    assert f'{container_2_uuid}' not in result
+
+    cli('storage', 'create', 'local', 'Storage3',
+        '--location', '/PATH3', '--container', status_container)
+
+    cli('container', 'unmount', status_container)
+    cli('container', 'mount', status_container)
+
+    result = cli('status', '--container', status_container, '-p', capture=True)
+    assert result.count(local) == 2
+    assert result.count(pseudo) == 2
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 3
+    assert result.count(local) == 3
+
+
+def test_status_content_for_specified_container(base_dir, cli):
+    container_uuid = '00000000-0000-0000-000000000000'
+    storage1_uuid = '11111111-1111-1111-111111111111'
+    storage2_uuid = '11111111-0000-0000-111111111111'
+    user_key = '0xaaa'
+    container_name = 'status-container'
+
+    cli('user', 'create', 'User', '--key', user_key)
+
+    with mock.patch('uuid.uuid4', return_value=container_uuid):
+        cli('container', 'create', container_name, '--path', '/PATH')
+
+    with mock.patch('uuid.uuid4', return_value=storage1_uuid):
+        cli('storage', 'create', 'local', 'Storage1',
+            '--location', '/PATH', '--container', container_name)
+
+    with mock.patch('uuid.uuid4', return_value=storage2_uuid):
+        cli('storage', 'create', 'local', 'Storage2',
+            '--location', '/PATH2', '--container', container_name)
+
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', container_name)
+
+    result = cli('status', '-p', '--container', container_name, capture=True)
+    out_lines = result.splitlines()
+    assert f'Container: {container_name}' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/{storage1_uuid}' \
+           f'-pseudomanifest/.manifest.wildland.yaml' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/{storage2_uuid}' \
+           f'-pseudomanifest/.manifest.wildland.yaml' in out_lines
+
+    result = cli('status', '-a', '--container', container_name, capture=True)
+    out_lines = [line.lstrip() for line in result.splitlines()]
+    assert f'Container: {container_name}' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/' \
+           f'{storage1_uuid}' in out_lines
+    assert f'/.backends/{container_uuid}/{storage1_uuid}' in out_lines
+    assert f'/.users/{user_key}:/.uuid/{container_uuid}' in out_lines
+    assert f'/.uuid/{container_uuid}' in out_lines
+    assert f'/.users/{user_key}:/PATH' in out_lines
+    assert '/PATH' in out_lines
+
+    assert f'/.users/{user_key}:/.backends/{container_uuid}/' \
+           f'{storage2_uuid}' in out_lines
 
 
 def test_container_add_path(cli, cli_fail, base_dir):
@@ -2097,6 +2209,27 @@ def test_container_with_storage_publish_unpublish(cli, tmp_path, base_dir):
     assert not storage_path.exists()
 
 
+def test_container_publish_multiple(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container1', '--path', '/PATH1', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container1',
+        '--inline',
+        '--manifest-pattern', '/*.container.yaml')
+
+    cli('container', 'create', 'Container2', '--path', '/PATH2', '--no-publish')
+    cli('container', 'create', 'Container3', '--path', '/PATH3', '--no-publish')
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+    cli('container', 'publish', 'wildland::*:')
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 3
+
+    cli('container', 'unpublish', 'wildland::*:')
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+
 def test_container_publish_unpublish(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
@@ -2402,6 +2535,7 @@ def test_container_delete_cascade(cli, base_dir):
 
 def test_container_delete_umount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -2572,6 +2706,7 @@ def test_container_cli_cache(cli, base_dir):
 
 def test_container_mount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -2742,7 +2877,7 @@ def _cache_test(cli, cli_fail, base_dir, container_data, user_key, mount_cmd=Non
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -2750,7 +2885,7 @@ def test_container_mount_with_cache(base_dir, sync, cli, cli_fail):
     _cache_test(cli, cli_fail, base_dir, data, '0xaaa')
 
 
-def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_nodefault(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1']
     data = _cache_setup(cli, base_dir, container_names, 'User', set_default=False)
@@ -2761,7 +2896,7 @@ def test_container_mount_with_cache_nodefault(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_other_user(base_dir, cli, cli_fail):
     cli('user', 'create', 'User1', '--key', '0xaaa')
     cli('user', 'create', 'User2', '--key', '0xbbb')
     data = _cache_setup(cli, base_dir, ['c1'], 'User2')
@@ -2770,7 +2905,7 @@ def test_container_mount_with_cache_other_user(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_multiple(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1', 'c2']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -2779,7 +2914,7 @@ def test_container_mount_with_cache_multiple(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_forest(base_dir, sync, cli, cli_fail):
+def test_container_mount_with_cache_forest(base_dir, cli, cli_fail):
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = ['c1', 'c2']
     data = _cache_setup(cli, base_dir, container_names, 'User')
@@ -2789,7 +2924,7 @@ def test_container_mount_with_cache_forest(base_dir, sync, cli, cli_fail):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_with_cache_subcontainers(base_dir, sync, cli):
+def test_container_mount_with_cache_subcontainers(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['Container'], 'User', '/sub.yaml')
 
@@ -2823,7 +2958,7 @@ backends:
 
 
 # pylint: disable=unused-argument
-def test_container_unmount_path_with_cache(base_dir, sync, cli):
+def test_container_unmount_path_with_cache(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['c1'], 'User')
     container_name, _, _, _ = data[0]
@@ -2837,7 +2972,7 @@ def test_container_unmount_path_with_cache(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_mount_mount_unmount_with_cache(base_dir, sync, cli):
+def test_container_mount_mount_unmount_with_cache(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['c1'], 'User')
     container_name, _, _, _ = data[0]
@@ -2853,6 +2988,7 @@ def test_container_mount_mount_unmount_with_cache(base_dir, sync, cli):
 
 def test_container_mount_with_bridges(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -2921,6 +3057,7 @@ def test_container_mount_with_bridges(cli, base_dir, control_client):
 
 def test_container_mount_with_multiple_bridges(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('user', 'create', 'Bob', '--key', '0xbbb')
@@ -2991,6 +3128,7 @@ def test_container_mount_with_alt_bridge_separator(cli, base_dir, control_client
         config.write('alt-bridge-separator: true\n')
 
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -3065,6 +3203,7 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
     storage_dir.mkdir()
 
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Catalog', '--owner', 'User', '--path', '/CATALOG',
@@ -3114,6 +3253,7 @@ def test_container_mount_catalog_err(monkeypatch, cli, base_dir, control_client)
 
 def test_container_mount_with_import(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -3164,7 +3304,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     users = cli('user', 'list', capture=True)
     assert users.count('0xbbb') == 0
 
-    control_client.calls = {}
+    control_client.calls = {'info': control_client.calls['info']}
 
     cli('container', 'mount', 'wildland::/users/other:/PATH:')
 
@@ -3172,7 +3312,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
     assert command[0]['storage']['owner'] == '0xbbb'
     assert '/.users/0xbbb:/PATH' in command[0]['paths']
 
-    control_client.calls = {}
+    control_client.calls = {'info': control_client.calls['info']}
 
     # now the user should be imported and mounting directly should work
     cli('container', 'mount', 'wildland:0xbbb:/PATH:')
@@ -3190,6 +3330,7 @@ def test_container_mount_with_import(cli, base_dir, control_client):
 
 def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('user', 'create', 'Other', '--key', '0xbbb')
@@ -3241,7 +3382,7 @@ def test_container_mount_with_import_delegate(cli, base_dir, control_client):
     assert command[0]['storage']['storage']['owner'] == '0xbbb'
     assert '/.users/0xaaa:/PROXY-PATH' in command[0]['paths']
 
-    control_client.calls = {}
+    control_client.calls = {'info': control_client.calls['info']}
 
     # now the user should be imported and mounting directly should work
     cli('container', 'mount', 'wildland:0xbbb:/PATH:')
@@ -3313,7 +3454,7 @@ def test_container_mount_bridge_placeholder(cli, base_dir, control_client):
 
 def test_container_mount_store_trusted_owner(cli, control_client):
     control_client.expect('status', {})
-
+    control_client.expect('info', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -3332,6 +3473,7 @@ def test_container_mount_glob(cli, base_dir, control_client):
     # The glob pattern will be normally expanded by shell,
     # but this feature is also used with default_containers.
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container1', '--path', '/PATH1', '--no-encrypt-manifest')
@@ -3407,6 +3549,7 @@ def test_container_mount_glob(cli, base_dir, control_client):
 
 def test_container_umount_undo_save_by_container_name(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3471,6 +3614,7 @@ def test_container_umount_undo_save_by_container_name(cli, base_dir, control_cli
 
 def test_container_umount_undo_save_by_container_names(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     container_names = []
@@ -3550,6 +3694,7 @@ def test_container_umount_undo_save_by_container_mountpath(cli):
 
 def test_container_umount_save_non_existing(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3579,6 +3724,7 @@ def test_container_umount_save_non_existing(cli, base_dir, control_client):
 
 def test_container_mount_inline_storage(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3610,6 +3756,7 @@ def test_container_mount_inline_storage(cli, base_dir, control_client):
 
 def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3660,6 +3807,7 @@ def test_container_mount_check_trusted_owner(cli, base_dir, control_client):
 
 def test_container_mount_no_subcontainers(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3692,6 +3840,7 @@ def test_container_mount_no_subcontainers(cli, base_dir, control_client):
 
 def test_container_mount_subcontainers(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -3788,6 +3937,7 @@ backends:
 
 def test_container_mount_errors(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3862,6 +4012,7 @@ backends:
 
 def test_container_mount_only_subcontainers(cli, base_dir, control_client, tmp_path):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3930,6 +4081,7 @@ backends:
 
 def test_container_mount_local_subcontainers_trusted(cli, control_client, tmp_path, base_dir):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
@@ -3995,6 +4147,8 @@ def test_container_mount_container_without_storage(cli, control_client):
 
 def test_container_unmount(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
+
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
     cli('storage', 'create', 'local', 'Storage', '--location', '/PATH',
@@ -4093,7 +4247,7 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
 
 
 # pylint: disable=unused-argument
-def test_container_unmount_all(base_dir, sync, cli):
+def test_container_unmount_all(base_dir, cli):
     cli('user', 'create', 'User', '--key', '0xaaa')
     data = _cache_setup(cli, base_dir, ['c1', 'c2'], 'User')
     cli('start', '--skip-forest-mount')
@@ -4114,6 +4268,7 @@ def test_container_create_missing_params(cli):
 
 def test_container_extended_paths(cli, control_client, base_dir):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'title',
@@ -4349,7 +4504,7 @@ def test_status_secondary_storage(cli, control_client):
 
 
 # pylint: disable=unused-argument
-def test_status_sync(base_dir, sync, cli):
+def test_status_sync(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4456,7 +4611,7 @@ def test_bridge_create(cli, base_dir):
 
 
 # pylint: disable=unused-argument
-def test_container_sync(base_dir, sync, cli):
+def test_container_sync(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4478,7 +4633,7 @@ def test_container_sync(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_oneshot(base_dir, sync, cli):
+def test_container_sync_oneshot(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4504,7 +4659,7 @@ def test_container_sync_oneshot(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_oneshot_error(base_dir, sync, cli):
+def test_container_sync_oneshot_error(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4527,7 +4682,7 @@ def test_container_sync_oneshot_error(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_oneshot_nowait(base_dir, sync, cli):
+def test_container_sync_oneshot_nowait(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4559,7 +4714,7 @@ def test_container_sync_oneshot_nowait(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_container_sync_tg_remote(base_dir, sync, cli):
+def test_container_sync_tg_remote(base_dir, cli):
     base_data_dir = base_dir / 'wldata'
     storage1_data = base_data_dir / 'storage1'
     storage2_data = base_data_dir / 'storage2'
@@ -4761,6 +4916,33 @@ def test_storage_template_create(cli, base_dir):
             'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
             'read-only': False
         }]
+
+
+def test_storage_template_multiple_fail(cli, base_dir):
+    yaml_data = [{
+            'type': 'local',
+            'location': '/foo{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+            'read-only': False
+        }, {
+            # type is omitted
+            'location': '/bar{{ local_dir if local_dir is defined else "" }}/{{ uuid }}',
+            'read-only': True
+        }]
+    (base_dir / 'templates').mkdir()
+    path = base_dir / 'templates/t1.template.jinja'
+    path.write_bytes(yaml_parser.dump(yaml_data, encoding='utf-8', sort_keys=False))
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    container_path = base_dir / 'containers/Container.container.yaml'
+    initial_state = container_path.read_text()
+
+    # this should fail
+    with pytest.raises(CliError):
+        cli('storage', 'create-from-template', '--storage-template', 't1', 'Container')
+
+    # and container should not have been changed
+    assert container_path.read_text() == initial_state
 
 
 def test_storage_template_create_cache(cli, base_dir):
@@ -5072,6 +5254,8 @@ def test_storage_template_edit(cli, base_dir):
                                            '--editor', editor)
     assert 'Incorrectly formatted template' in bad_formatting_output.decode()
 
+### User-related
+
 
 def test_different_default_user(cli, base_dir):
     storage_dir = base_dir / 'storage_dir'
@@ -5341,6 +5525,7 @@ def test_import_user_existing(cli, base_dir, tmpdir):
 
 def test_only_subcontainers(cli, base_dir, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     parent_container_path = base_dir / 'containers/Parent.container.yaml'
     child_container_path = base_dir / 'containers/Child.container.yaml'
@@ -5526,6 +5711,7 @@ def test_file_find_with_mocked_client(cli, base_dir, control_client, tmpdir):
     (storage_dir / 'file.txt').write('foo')
 
     control_client.expect('status', {})
+    control_client.expect('info', {})
 
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
@@ -6059,13 +6245,14 @@ def test_import_forest_user_with_undecryptable_bridge_link_object(tmpdir):
                             stderr=subprocess.STDOUT)
 
     lines = output.decode().splitlines()
-    assert lines[0] == f'Created: {base_config_dir}/users/Alice.user.yaml'
-    assert re.match(
-        fr'^[\x1b0-9;:, a-zA-Z\[\]/]+User {alice_key}: failed to load all 2 of the manifests '
-        fr'catalog containers. 1 due to lack of decryption key and 1 due to unknown errors\)\x1b\['
-        fr'0m$',
-        lines[1])
-    assert lines[2] == f'Created: {base_config_dir}/bridges/Alice.bridge.yaml'
+    assert f'Created: {base_config_dir}/users/Alice.user.yaml' in lines[0]
+    assert f'User {alice_key}: ' \
+           f'failed to load all 2 of the manifests catalog containers. ' \
+           f'1 due to lack of decryption key and 1 due to unknown errors)' in lines[1]
+    assert f'Created: {base_config_dir}/bridges/Alice.bridge.yaml' in lines[2]
+
+    assert len(lines) == 3
+
 
 def test_forest_create_with_user_path_access(base_dir_sodium, cli_sodium, sig_sodium, tmp_path,
                                              dir_userid, alice_userid):
@@ -6349,3 +6536,44 @@ def test_set_default_cache(cli, base_dir):
     with open(base_dir / 'config.yaml') as f:
         config = f.read()
     assert "default-cache-template: t1" in config
+
+
+def test_container_remount_after_adding_storage(cli, base_dir):
+    dir_1 = Path(f'{base_dir}/dir_1')
+    dir_2 = Path(f'{base_dir}/dir_2')
+    file_1 = dir_1 / 'file_1.txt'
+    file_2 = dir_2 / 'file_2.txt'
+
+    dir_1.mkdir()
+    dir_2.mkdir()
+
+    file_1.touch()
+    file_2.touch()
+
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('start')
+
+    uuid = '11111111-1001-1001-111000000111'
+
+    with mock.patch('uuid.uuid4', return_value=uuid):
+        cli('container', 'create', 'container1', '--path', '/path', '--title',
+            'title')
+
+    cli('storage', 'create', 'local', 'SourceStorage', '--location', str(base_dir / 'dir_1'),
+        '--container', 'container1')
+
+    cli('container', 'mount', 'container1')
+
+    mount_path = base_dir / 'wildland'
+
+    assert (mount_path / 'path').exists()
+    assert len(list((mount_path / '.backends' / uuid).glob('*'))) == 1
+    assert len(list((mount_path / '.backends' / uuid).rglob('*.txt'))) == 1
+
+    # Create storage on mounted container
+    cli('storage', 'create', 'local', 'SourceStorage2', '--location', str(base_dir / 'dir_2'),
+        '--container', 'container1')
+
+    assert (mount_path / 'path').exists()
+    assert len(list((mount_path / '.backends' / uuid).glob('*'))) == 2
+    assert len(list((mount_path / '.backends' / uuid).rglob('*.txt'))) == 2

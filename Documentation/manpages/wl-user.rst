@@ -13,8 +13,8 @@ Synopsis
 | :command:`wl user {sign|verify} [...] <file>`
 | :command:`wl user edit [--editor <editor>] <file>`
 | :command:`wl user modify [...] <file>`
-| :command:`wl user publish <user>`
-| :command:`wl user unpublish <user>`
+| :command:`wl user publish <user> [<user> ...]`
+| :command:`wl user unpublish <user> [<user> ...]`
 
 Description
 ===========
@@ -110,8 +110,8 @@ See help for :ref:`wl sign <wl-sign>`, :ref:`wl verify <wl-verify>`, :ref:`wl du
 .. program:: wl-user-import
 .. _wl-user-import:
 
-:command:`wl user import [--path path] [--bridge-owner user] [--only-first] url_or_path`
-----------------------------------------------------------------------------------------
+:command:`wl user import [--path path] [--bridge-owner user] url_or_path`
+-------------------------------------------------------------------------
 
 Imports a user. Accepts local paths to manifests, urls to manifests, Wildland urls
 to manifests and Wildland urls to Wildland objects.
@@ -133,11 +133,6 @@ For Wildland object path, will import all referenced bridges and their reference
 .. option:: --bridge-owner
 
     Override the owner of created bridge manifests with provided owner.
-
-.. option:: --only-first
-
-    Import only the first encountered bridge manifest. Ignored except for WL container paths.
-    Particularly useful if --path is used.
 
 .. program:: wl-user-refresh
 .. _wl-user-refresh:
@@ -168,7 +163,7 @@ Modify a user |~| manifest given by *<file>*.
 
 .. option:: --add-pubkey
 
-   Public key to add (the same format as in the public key file). Can be repeated.
+   Public key to add (either in the same format as in the public key file, or provided as a Wildland user path). Can be repeated.
 
 .. option:: --add-pubkey-user
 
@@ -176,7 +171,7 @@ Modify a user |~| manifest given by *<file>*.
 
 .. option:: --del-pubkey
 
-   Public key to remove (the same format as in the public key file). Can be repeated.
+   Public key to remove (either in the same format as in the public key file, or provided as a Wildland user path). Can be repeated.
 
 .. option:: --add-catalog-entry
 
@@ -189,16 +184,16 @@ Modify a user |~| manifest given by *<file>*.
 .. program:: wl-user-publish
 .. _wl-user-publish:
 
-:command:`wl user publish <user>`
----------------------------------
+:command:`wl user publish <user> [<user> ...]`
+----------------------------------------------
 
-Publish a user manifest into user's manifests catalog (first container from the catalog
+Publish user manifests into user's manifests catalog (first container from the catalog
 that provides read-write storage will be used).
 
 .. program:: wl-user-unpublish
 .. _wl-user-unpublish:
 
-:command:`wl user unpublish <user>`
------------------------------------
+:command:`wl user unpublish <user> [<user> ...]`
+------------------------------------------------
 
-Unublish a user manifest from the whole of a user's manifests catalog.
+Unpublish user manifests from the whole of a user's manifests catalog.

@@ -280,7 +280,7 @@ def _container_info(client, container, users_and_bridge_paths):
 
     cache = client.cache_storage(container)
     if cache:
-        storage_type = cache.params['type']
+        storage_type = cache.storage_type
         result = {
             "type": storage_type,
             "backend_id": cache.params["backend-id"],

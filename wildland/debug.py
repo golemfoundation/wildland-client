@@ -67,7 +67,7 @@ def _start_debugpy_server() -> None:
         return
     try:
         debugpy.listen(("0.0.0.0", PORT))
-        logger.info('debugpy listen on port %i', PORT)
+        logger.debug('debugpy listen on port %i', PORT)
     except RuntimeError:
         logger.error("INSIDE exception")
         # probably process is sleeping but it wasn't been checked well

@@ -18,8 +18,8 @@ Synopsis
 | :command:`wl container mount []`
 | :command:`wl container unmount`
 | :command:`wl container modify [] <file>`
-| :command:`wl container publish <container>`
-| :command:`wl container unpublish <container>`
+| :command:`wl container publish <container> [<container> ...]`
+| :command:`wl container unpublish <container> [<container> ...]`
 
 Description
 ===========
@@ -395,19 +395,19 @@ Stop the current mount-watch daemon.
 .. program:: wl-container-publish
 .. _wl-container-publish:
 
-:command:`wl container publish <container>`
--------------------------------------------
+:command:`wl container publish <container> [<container> ...]`
+-------------------------------------------------------------
 
-Publish a container manifest into user's manifests catalog (first container from the catalog
+Publish container manifests into user's manifests catalog (first container from the catalog
 that provides read-write storage will be used).
 
 .. program:: wl-container-unpublish
 .. _wl-container-unpublish:
 
-:command:`wl container unpublish <container>`
----------------------------------------------
+:command:`wl container unpublish <container> [<container> ...]`
+---------------------------------------------------------------
 
-Unublish a container manifest from the whole of a user's manifests catalog.
+Unpublish container manifests from the whole of a user's manifests catalog.
 
 .. _wl-container-sign:
 .. _wl-container-verify:

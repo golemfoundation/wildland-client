@@ -160,7 +160,7 @@ class WildlandFSClient:
         if options:
             cmd += ['-o', ','.join(options)]
 
-        logger.info('running start command: %s', cmd)
+        logger.debug('running start command: %s', cmd)
 
         env = os.environ
         env['WILDLAND_CONFIG_DIR'] = str(self.base_dir)
@@ -190,6 +190,7 @@ class WildlandFSClient:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
             raise WildlandFSError(f'Failed to stop: {e}') from e
+        self.wait_for_unmount()
 
     def is_running(self) -> bool:
         """
@@ -239,6 +240,18 @@ class WildlandFSClient:
                 return
             time.sleep(delay)
         raise WildlandFSError('Timed out waiting for Wildland to start')
+
+    def wait_for_unmount(self, timeout=4) -> None:
+        """
+        Wait until Wildland is stopped.
+        """
+        delay = 0.1
+        n_tries = int(timeout / delay)
+        for _ in range(n_tries):
+            if not self.is_running():
+                return
+            time.sleep(delay)
+        raise WildlandFSError('Timed out waiting for Wildland to stop')
 
     def mount_container(self,
                         container: Container,

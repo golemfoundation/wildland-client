@@ -453,11 +453,11 @@ class Search:
                     if container_or_bridge == step.container:
                         # manifests catalog published into itself
                         container_or_bridge.is_manifests_catalog = True
-                    logger.info('%s: container manifest: %s', part, subcontainer_data)
+                    logger.debug('%s: container manifest: %s', part, subcontainer_data)
                     yield from self._container_step(
                         step, part, container_or_bridge)
                 elif isinstance(container_or_bridge, Bridge):
-                    logger.info('%s: bridge manifest: %s', part, subcontainer_data)
+                    logger.debug('%s: bridge manifest: %s', part, subcontainer_data)
                     yield from self._bridge_step(
                         step.client, step.owner,
                         part, manifest_path, storage_backend,
@@ -550,7 +550,7 @@ class Search:
                                                          owner=owner,
                                                          expected_owner=next_owner)
             except (WildlandError, FileNotFoundError) as ex:
-                logger.warning('cannot load bridge to [%s]', bridge.paths[0])
+                logger.warning('Warning: cannot load bridge to [%s]', bridge.paths[0])
                 logger.debug('cannot load linked user manifest: %s. Exception: %s',
                              location, str(ex))
                 return
@@ -582,7 +582,7 @@ class Search:
                                container, container.owner, user.owner)
                 continue
 
-            logger.info("user's container manifest: %s", container)
+            logger.debug("user's container manifest: %s", container)
 
             yield Step(
                 owner=user.owner,

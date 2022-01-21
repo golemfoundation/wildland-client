@@ -25,6 +25,7 @@
 import os
 import pytest
 
+from wildland.exc import WildlandError
 from ..client import Client
 from ..wildland_object.wildland_object import WildlandObject
 
@@ -82,8 +83,9 @@ def test_user_repr(client):
 
 
 def test_storage_repr(client, cli):
-    cli('storage', 'create', 'dropbox', '--container', 'Container1',
-        '--inline', '--app-key', 'MY_SECRET_APP', '--refresh-token', 'MY_SECRET_TOKEN')
+    with pytest.raises(WildlandError, match='Failed to sync storage for container'):
+        cli('storage', 'create', 'dropbox', '--container', 'Container1',
+            '--inline', '--app-key', 'MY_SECRET_APP', '--refresh-token', 'MY_SECRET_TOKEN')
 
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, "Container1")
     storages = client.get_all_storages(container)
@@ -93,9 +95,11 @@ def test_storage_repr(client, cli):
         assert str(s) == f"storage(backend-id='{s.backend_id}')"
 
 
+# pylint: disable=unused-argument
 def test_container_repr(client, cli):
-    cli('storage', 'create', 'dropbox', '--container', 'Container1',
-        '--inline', '--app-key', 'MY_SECRET_APP', '--refresh-token', 'MY_SECRET_TOKEN')
+    with pytest.raises(WildlandError, match='Failed to sync storage for container'):
+        cli('storage', 'create', 'dropbox', '--container', 'Container1',
+            '--inline', '--app-key', 'MY_SECRET_APP', '--refresh-token', 'MY_SECRET_TOKEN')
 
     container = client.load_object_from_name(WildlandObject.Type.CONTAINER, "Container1")
     dropbox_backend_id = None

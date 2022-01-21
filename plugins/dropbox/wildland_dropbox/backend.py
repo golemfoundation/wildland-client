@@ -129,7 +129,7 @@ class DropboxStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Stor
             "token": {
                 "type": ["string"],
                 "description": "Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
-                               "Console. Deprecated and will be replaced in favor of App Key and"
+                               "Console. Deprecated and will be replaced in favor of App Key and "
                                "refresh token.",
             },
             "app-key": {
@@ -176,7 +176,7 @@ class DropboxStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Stor
                 metavar="STRING",
                 required=False,
                 help="Dropbox OAuth 2.0 access token. You can generate it in Dropbox App "
-                     "Console. Deprecated and will be replaced in favor of App Key and"
+                     "Console. Deprecated and will be replaced in favor of App Key and "
                      "refresh token.",
             ),
             click.Option(

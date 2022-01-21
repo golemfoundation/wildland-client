@@ -79,6 +79,8 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         Return string representation
         """
+        if self._str_repr:
+            return self._str_repr
         fields = self.to_repr_fields(include_sensitive=include_sensitive)
         array_repr = []
         for field in ['owner', 'storage-type', 'backend-id', 'container-path', 'trusted',
@@ -86,8 +88,8 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
                       'read-only']:
             if fields.get(field, None):
                 array_repr += [f"{field}={fields[field]!r}"]
-        str_repr = "storage(" + ", ".join(array_repr) + ")"
-        return str_repr
+        self._str_repr = "storage(" + ", ".join(array_repr) + ")"
+        return self._str_repr
 
     def get_unique_publish_id(self) -> str:
         assert self.container, 'Storages without Container are not publishable'
@@ -152,6 +154,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         """
         Sets primary param to True.
         """
+        self._str_repr = None
         self.primary = True
 
     @classmethod
@@ -168,7 +171,11 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
             if referenced_path_and_storage_params:
                 referenced_path, params['storage'] = referenced_path_and_storage_params
 
-        storage_cls = StorageBackend.types()[storage_type]
+        try:
+            storage_cls = StorageBackend.types()[storage_type]
+        except KeyError:
+            # pylint: disable=raise-missing-from
+            raise WildlandError(f'Unknown storage backend type: {storage_type}')
 
         if storage_cls.MOUNT_REFERENCE_CONTAINER:
             assert referenced_path
@@ -199,7 +206,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
             access=params.get('access')
         )
 
-    def to_manifest_fields(self, inline: bool) -> dict:
+    def to_manifest_fields(self, inline: bool, str_repr_only: bool = False) -> dict:
         container_path = None
 
         if self.container:
@@ -241,7 +248,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         nonsensitive_storage_fields = ["owner", "type", "version", "backend-id"]
 
         fields = {}
-        manifest_fields = self.to_manifest_fields(inline=True)
+        manifest_fields = self.to_manifest_fields(inline=True, str_repr_only=True)
         if not include_sensitive:
             for field in nonsensitive_storage_fields:
                 if manifest_fields.get(field, None):
@@ -285,7 +292,7 @@ def _get_storage_by_id_or_type(id_or_type: str, storages: List[Storage]) -> Stor
     """
     try:
         return [storage for storage in storages
-                if id_or_type in (storage.backend_id, storage.params['type'])][0]
+                if id_or_type in (storage.backend_id, storage.storage_type)][0]
     except IndexError:
         # pylint: disable=raise-missing-from
         raise WildlandError(f'Storage {id_or_type} not found')

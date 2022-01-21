@@ -675,7 +675,7 @@ def events_setup(base_dir, cli, container_name):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_oneshot(base_dir, sync, cli):
+def test_sync_events_oneshot(base_dir, cli):
     container_name = 'sync_events_oneshot'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -688,7 +688,7 @@ def test_sync_events_oneshot(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_continuous_pre(base_dir, sync, cli):
+def test_sync_events_continuous_pre(base_dir, cli):
     container_name = 'sync_events_continuous_pre'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -701,7 +701,7 @@ def test_sync_events_continuous_pre(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_continuous_post(base_dir, sync, cli):
+def test_sync_events_continuous_post(base_dir, cli):
     container_name = 'sync_events_continuous_post'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -717,7 +717,7 @@ def test_sync_events_continuous_post(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_oneshot_error(base_dir, sync, cli):
+def test_sync_events_oneshot_error(base_dir, cli):
     container_name = 'sync_events_oneshot_error'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -733,7 +733,7 @@ def test_sync_events_oneshot_error(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_continuous_error(base_dir, sync, cli):
+def test_sync_events_continuous_error(base_dir, cli):
     container_name = 'sync_events_continuous_error'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -749,7 +749,7 @@ def test_sync_events_continuous_error(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_oneshot_conflict(base_dir, sync, cli):
+def test_sync_events_oneshot_conflict(base_dir, cli):
     container_name = 'sync_events_oneshot_conflict'
     client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
 
@@ -764,7 +764,7 @@ def test_sync_events_oneshot_conflict(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_continuous_pre_conflict(base_dir, sync, cli):
+def test_sync_events_continuous_pre_conflict(base_dir, cli):
     container_name = 'sync_events_continuous_pre_conflict'
     client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
 
@@ -779,7 +779,7 @@ def test_sync_events_continuous_pre_conflict(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_continuous_post_conflict(base_dir, sync, cli):
+def test_sync_events_continuous_post_conflict(base_dir, cli):
     container_name = 'sync_events_continuous_post_conflict'
     client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
 
@@ -796,7 +796,7 @@ def test_sync_events_continuous_post_conflict(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_multiple(base_dir, sync, cli):
+def test_sync_events_multiple(base_dir, cli):
     container_name1 = 'sync_events_multiple_1'
     container_name2 = 'sync_events_multiple_2'
     _, source1, target1, job_id1, path1a, _ = events_setup(base_dir, cli, container_name1)
@@ -821,7 +821,7 @@ def test_sync_events_multiple(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_oneshot_progress(base_dir, sync, cli):
+def test_sync_events_oneshot_progress(base_dir, cli):
     container_name = 'sync_events_oneshot_progress'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -836,7 +836,7 @@ def test_sync_events_oneshot_progress(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_continuous_progress(base_dir, sync, cli):
+def test_sync_events_continuous_progress(base_dir, cli):
     container_name = 'sync_events_continuous_progress'
     client, source, target, job_id, path1, _ = events_setup(base_dir, cli, container_name)
 
@@ -873,7 +873,7 @@ def test_sync_events_continuous_progress(base_dir, sync, cli):
 
 
 # pylint: disable=unused-argument
-def test_sync_events_filter(base_dir, sync, cli):
+def test_sync_events_filter(base_dir, cli):
     container_name = 'sync_events_filter'
     client, source, target, job_id, path1, path2 = events_setup(base_dir, cli, container_name)
 

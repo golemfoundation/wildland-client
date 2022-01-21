@@ -239,13 +239,20 @@ class Client:
         logger.debug('starting sync daemon: %s', cmd)
         Popen(cmd)
 
+    @property
+    def connected_to_sync_daemon(self):
+        """
+        Check whether a connection to the sync daemon is established.
+        """
+        return self._sync_client is not None
+
     def run_sync_command(self, name, **kwargs) -> Any:
         """
         Run sync command (through the sync daemon).
         """
-        if not self._sync_client:
+        if not self.connected_to_sync_daemon:
             self.connect_sync_daemon()
-        assert self._sync_client is not None
+        assert self._sync_client
         return self._sync_client.run_command(name, **kwargs)
 
     def get_sync_event(self) -> Iterator[SyncEvent]:
@@ -299,10 +306,14 @@ class Client:
             self.bridges.add(bridge)
 
     def find_local_manifest(self, object_type: Union[WildlandObject.Type, None],
-                            name: str) -> Optional[Path]:
+                            name: str, allow_local_paths: bool = True) -> Optional[Path]:
         """
         Find local manifest based on a (potentially ambiguous) name. Names can be aliases, user
         fingerprints (for users), name of the file, part of the file name, or complete file path.
+        If allow_local_paths is False, no filename/local file path is allowed (needed for
+        transitional period for WL Cargo refactor)
+        allow_local_paths should be removed with
+        https://gitlab.com/wildland/wildland-client/-/issues/718
         """
 
         if object_type == WildlandObject.Type.USER:
@@ -337,11 +348,43 @@ class Client:
         else:
             path_candidates = []
 
-        path_candidates.append(Path(name))
+        if allow_local_paths:
+            path_candidates.append(Path(name))
 
         for path_candidate in path_candidates:
             if path_candidate.exists():
                 return path_candidate
+
+        return None
+
+    def find_user_manifest_within_catalog(self, user: User) -> \
+            Optional[Tuple[Storage, PurePosixPath]]:
+        """
+        Mounts containers of the given user's manifests-catalog and attempts to find that user's
+        manifest file within that catalog.
+        The user manifest file is expected to be named 'forest-owner.user.yaml' and be placed in the
+        root directory of a storage.
+        :param user: User
+        :return: tuple of Storage where the user manifest was found and PurePosixPath path pointing
+        at that manifest in the storage
+        """
+        for container in user.load_catalog(warn_about_encrypted_manifests=False):
+            all_storages = self.all_storages(container=container)
+
+            for storage_candidate in all_storages:
+                with StorageDriver.from_storage(storage_candidate) as driver:
+                    try:
+                        file_candidate = PurePosixPath('forest-owner.user.yaml')
+                        file_content = driver.read_file(file_candidate)
+
+                        # Ensure you're able to load this object
+                        self.load_object_from_bytes(
+                            WildlandObject.Type.USER, file_content, expected_owner=user.owner)
+
+                        return storage_candidate, file_candidate
+
+                    except (FileNotFoundError, WildlandError) as ex:
+                        logger.debug('Could not read user manifest. Exception: %s', ex)
 
         return None
 
@@ -442,10 +485,34 @@ class Client:
                                                container=container)
         return wl_object
 
-    def load_object_from_url(self, object_type: WildlandObject.Type, url: str,
+    def load_object_from_url(self, object_type: Optional[WildlandObject.Type], url: str,
                              owner: str, expected_owner: Optional[str] = None):
         """
         Load and return a Wildland object from any URL, including Wildland URLs.
+        :param url: URL. must start with protocol (e.g. wildland: or https:
+        :param object_type: expected object type. If not provided, will try to guess it based
+        on data (although this will not be successful for WL URLs to containers.). If provided
+        will raise an exception if expected type is different than received type.
+        :param owner: owner in whose context we should resolve the URL
+        :param expected_owner: expected owner. Will raise a WildlandError if receives a
+        different owner.
+        """
+        objects = self.load_objects_from_url(object_type, url, owner, expected_owner)
+
+        if object_type == WildlandObject.Type.CONTAINER and WildlandPath.match(url):
+            wlpath = WildlandPath.from_str(url)
+            if len(objects) < 1:
+                raise PathError(f'Container not found for path: {wlpath}')
+            if len(objects) > 1:
+                raise PathError(f'Expected single container, found multiple: {wlpath}')
+
+        return objects[0]
+
+    def load_objects_from_url(self, object_type: Optional[WildlandObject.Type], url: str,
+                              owner: str, expected_owner: Optional[str] = None) -> List[
+        WildlandObject]:
+        """
+        Load and return all Wildland objects matching any URL, including Wildland URLs.
         :param url: URL. must start with protocol (e.g. wildland: or https:
         :param object_type: expected object type. If not provided, will try to guess it based
         on data (although this will not be successful for WL URLs to containers.). If provided
@@ -460,20 +527,19 @@ class Client:
             wlpath = WildlandPath.from_str(url)
             if wlpath.file_path is None:
                 containers = self.load_containers_from(wlpath, {'default': owner})
-                result = None
-                for c in containers:
-                    if not result:
-                        result = c
-                    else:
-                        if c.owner != result.owner or c.uuid != result.uuid:
-                            raise PathError(f'Expected single container, found multiple: {wlpath}')
-                if not result:
-                    raise PathError(f'Container not found for path: {wlpath}')
-                return result
+                containers_dict: Dict[str, Container] = {}
+                for container in containers:
+                    # same container can be present multiple times. Take only the first one, to
+                    # match the current behavior of load_object_from_url.
+                    container_id = f'{container.uuid}:{container.owner}'
+                    if containers_dict.get(container_id) is not None:
+                        continue
+                    containers_dict[container_id] = container
+                return [containers_dict[c_id] for c_id in containers_dict]
 
-        content = self.read_from_url(url, owner)
+        content = self.read_from_url(url, owner, True)
 
-        if object_type == WildlandObject.Type.USER:
+        if object_type == WildlandObject.Type.USER or not object_type:
             Manifest.verify_and_load_pubkeys(content, self.session.sig)
 
         local_owners = self.config.get('local-owners')
@@ -482,7 +548,7 @@ class Client:
         if expected_owner and obj_.owner != expected_owner:
             raise WildlandError(f'Unexpected owner: expected {expected_owner}, got {obj_.owner}')
 
-        return obj_
+        return [obj_]
 
     def load_object_from_file_path(self, object_type: WildlandObject.Type, path: Path,
                                    decrypt: bool = True):
@@ -499,7 +565,7 @@ class Client:
                                            trusted_owner=trusted_owner, local_owners=local_owners,
                                            decrypt=decrypt)
 
-    def load_object_from_url_or_dict(self, object_type: WildlandObject.Type,
+    def load_object_from_url_or_dict(self, object_type: Optional[WildlandObject.Type],
                                      obj: Union[str, dict],
                                      owner: str, expected_owner: Optional[str] = None,
                                      container: Optional[Container] = None):
@@ -521,13 +587,17 @@ class Client:
                                               container=container)
         raise ValueError(f'{obj} is neither url nor dict')
 
-    def load_object_from_name(self, object_type: WildlandObject.Type, name: str):
+    def load_object_from_name(self, object_type: WildlandObject.Type, name: str,
+                              allow_local_paths: bool = True):
         """
         Load a Wildland object from ambiguous name. The name can be a local filename, part of local
         filename (will attempt to look for the object in appropriate local directory), a WL URL,
         another kind of URL etc.
         :param object_type: expected object type
         :param name: ambiguous name
+        :param allow_local_paths: should accessing local file paths / filenames be allowed; needed
+        before cargo refactor is finished, should be removed with
+        https://gitlab.com/wildland/wildland-client/-/issues/718
         """
         if object_type == WildlandObject.Type.USER and name in self.users:
             return self.users[name]
@@ -535,7 +605,7 @@ class Client:
         if self.is_url(name):
             return self.load_object_from_url(object_type, name, self.config.get('@default'))
 
-        path = self.find_local_manifest(object_type, name)
+        path = self.find_local_manifest(object_type, name, allow_local_paths=allow_local_paths)
         if path:
             return self.load_object_from_file_path(object_type, path)
 
@@ -573,7 +643,7 @@ class Client:
                     # not a user transition, or user already known
                     continue
                 user = step.user
-                logger.info('importing user %s', user.owner)
+                logger.debug('importing user %s', user.owner)
                 # save the original manifest, don't risk the need to re-sign
                 path = self.new_path(WildlandObject.Type.USER, user.owner)
                 path.write_bytes(user.manifest.to_bytes())
@@ -658,19 +728,32 @@ class Client:
         if failed:
             raise ManifestError(exc_msg)
 
-    def add_storage_to_container(self, container: Container, storage: Storage, inline: bool = True,
-                                 storage_name: Optional[str] = None):
+    def add_storage_to_container(self, container: Container, storages: List[Storage],
+                                 inline: bool = True, storage_name: Optional[str] = None):
         """
-        Add storage to container, save any changes. If the given storage exists in the container
-        (as determined by backend_id), it gets updated (if possible).
+        Add one or more storages to container, save any changes. If any of the given storages
+        exists in the container (as determined by backend_id), it gets updated (if possible).
         If not, it is added. If the passed Storage exists in a container but is referenced by an
         url, it can only be saved for file URLS, for other URLs a WildlandError will be raised.
         :param container: Container to add to
-        :param storage: Storage to be added
+        :param storages: list of Storages to be added
         :param inline: add as inline or standalone storage (ignored if storage exists)
-        :param storage_name: optional name to save storage under if inline == False
+        :param storage_name: optional name to save storage under if inline == False; if multiple
+        storages will be added, they will be named storage_name, storage_name.1 etc.
         """
-        container.add_storage_from_obj(storage, inline, storage_name)
+        added_storages = []
+        error_msg = None
+        for storage in storages:
+            try:
+                container.add_storage_from_obj(storage, inline, storage_name)
+                added_storages.append(storage)
+            except WildlandError as we:
+                error_msg = str(we)
+                break
+        if error_msg:
+            for storage in added_storages:
+                container.del_storage(storage.backend_id)
+            raise WildlandError(f'Failed to add some storages: {error_msg}')
         self.save_object(WildlandObject.Type.CONTAINER, container)
 
     def load_all(self, object_type: WildlandObject.Type, decrypt: bool = True,
@@ -789,7 +872,7 @@ class Client:
                 if 'reference-container' not in storage.params:
                     continue
 
-                backend_cls = StorageBackend.types()[storage.params['type']]
+                backend_cls = StorageBackend.types()[storage.storage_type]
                 if not backend_cls.MOUNT_REFERENCE_CONTAINER:
                     continue
 
@@ -867,7 +950,8 @@ class Client:
 
     def save_object(self, object_type: WildlandObject.Type,
                     obj, path: Optional[Path] = None,
-                    storage_driver: Optional[StorageDriver] = None) -> Path:
+                    storage_driver: Optional[StorageDriver] = None,
+                    enforce_original_bytes: bool = False) -> Path:
         """
         Save an existing Wildland object and return the path it was saved to.
         :param obj: Object to be saved
@@ -875,14 +959,19 @@ class Client:
         :param path: (optional), path to save the object to; if omitted, object's local_path will be
         used.
         :param storage_driver: if the object should be written to a given StorageDriver
+        :param enforce_original_bytes: should the object be written as-it-was, or should any
+        changes, updated fields etc. be used.
         """
         path = path or obj.local_path
         assert path is not None
 
-        if object_type == WildlandObject.Type.USER:
-            data = self.session.dump_user(obj, path)
+        if enforce_original_bytes and obj.manifest:
+            data = obj.manifest.to_bytes()
         else:
-            data = self.session.dump_object(obj, path)
+            if object_type == WildlandObject.Type.USER:
+                data = self.session.dump_user(obj, path)
+            else:
+                data = self.session.dump_object(obj, path)
 
         if storage_driver:
             with storage_driver:
@@ -898,7 +987,7 @@ class Client:
         return path
 
     def save_new_object(self, object_type: WildlandObject.Type, object_, name: Optional[str] = None,
-                        path: Optional[Path] = None):
+                        path: Optional[Path] = None, enforce_original_bytes: bool = False):
         """
         Save a new object in appropriate directory. Use the name as a hint for file
         name.
@@ -914,7 +1003,8 @@ class Client:
 
             path = self.new_path(object_type, name or object_type.value)
 
-        return self.save_object(object_type, object_, path=path)
+        return self.save_object(object_type, object_, path=path,
+                                enforce_original_bytes=enforce_original_bytes)
 
     def new_path(self, manifest_type: WildlandObject.Type, name: str,
                  skip_numeric_suffix: bool = False, base_dir: Path = None) -> Path:
@@ -932,6 +1022,13 @@ class Client:
 
         if not base_dir.exists():
             base_dir.mkdir(parents=True)
+
+        if name.endswith('.yaml'):
+            name = name[:-len('.yaml')]
+
+        for t in WildlandObject.Type:
+            if name.endswith(f'.{t.value}'):
+                name = name[:-len(f'.{t.value}')]
 
         i = 0
         while True:
@@ -1109,7 +1206,7 @@ class Client:
         if isinstance(storage, StorageBackend):
             storage = storage.TYPE
         elif isinstance(storage, Storage):
-            storage = storage.params['type']
+            storage = storage.storage_type or storage.params['type']
 
         return storage in ['local', 'local-cached', 'local-dir-cached']
 
@@ -1187,6 +1284,13 @@ class Client:
 
         assert path.is_absolute
         return 'file://' + self.config.get('local-hostname') + quote(str(path))
+
+    @staticmethod
+    def is_local_url(url: str) -> bool:
+        """
+        Check if the provided url is a local url.
+        """
+        return url.startswith('file://')
 
     def parse_file_url(self, url: str, owner: str) -> Optional[Path]:
         """
@@ -1272,7 +1376,7 @@ class Client:
         """
         all_storages = self.get_all_storages(container, excluded_storage, only_writable)
         local_storages = [storage for storage in all_storages
-                          if self.is_local_storage(storage.params['type'])]
+                          if self.is_local_storage(storage.storage_type)]
         return local_storages
 
     def get_local_storage(self, container: Container, local_storage: Optional[str] = None,
@@ -1324,7 +1428,8 @@ class Client:
         remote_storages = [storage for storage in all_storages
                            if target_remote_id == storage.backend_id or
                            (not target_remote_id and
-                            not self.is_local_storage(storage.params['type']))]
+                            not self.is_local_storage(storage.storage_type) and
+                            not storage.storage_type == 'delegate')]
         return remote_storages
 
     def get_remote_storage(self, container: Container, remote_storage: Optional[str] = None,
@@ -1360,7 +1465,8 @@ class Client:
         return storage
 
     def do_sync(self, container_name: str, job_id: str, source: dict, target: dict,
-                one_shot: bool, unidir: bool, active_events: List[str] = None) -> str:
+                one_shot: bool, unidir: bool, active_events: List[str] = None,
+                wait_if_already_running: bool = False) -> str:
         """
         Start sync between source and target storages
         """
@@ -1368,6 +1474,8 @@ class Client:
                   'unidirectional': unidir, 'source': source, 'target': target}
         if active_events:
             kwargs['active-events'] = active_events
+        if wait_if_already_running and self.connected_to_sync_daemon:
+            self.wait_for_sync(job_id, stop_on_finish=True)
         return self.run_sync_command('start', **kwargs)
 
     def wait_for_sync(self, job_id: str, stop_on_finish: bool = True) -> Tuple[str, bool]:

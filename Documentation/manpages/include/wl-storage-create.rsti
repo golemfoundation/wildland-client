@@ -42,3 +42,8 @@
 
    Do not publish the container after adding storage. By default, if the container owner has proper
    infrastructure defined in the user manifest, the container is published.
+
+.. option:: --skip-sync
+
+   Skip syncing from the first local storage to the created storage. If the created storage is
+   local then syncing is skipped regardless if this option is present or not.

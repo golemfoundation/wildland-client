@@ -65,7 +65,8 @@ container (and associated storage) for ``/path/one``.
   load containers for that user.
 
 Normally, the manifest signature is verified, unless the storage is marked as
-``trusted``, in which case we accept unsigned manifests.
+``trusted``, in which case we accept unsigned manifests located in this storage,
+as long as their owner is the same and the storage owner.
 
 Furthermore, a path can be set as ``*`` wildcard. Currently a ``*`` on its own
 is supported, not full patterns (``:/path/one:*:`` is ok,

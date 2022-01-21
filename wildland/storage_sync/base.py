@@ -66,7 +66,7 @@ class SyncState(Enum):
     RUNNING = 2  # continuous sync running with pending events (storages are not synced)
     SYNCED = 3  # continuous sync running with no pending events (storages are synced)
     ONE_SHOT = 4  # one-shot sync running
-    ERROR = 5  # error/exception occured during sync, process aborted
+    ERROR = 5  # error/exception occurred during sync, process aborted
 
     def __str__(self):
         return str(self.name)

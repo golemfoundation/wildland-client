@@ -50,6 +50,16 @@ def get_container_uuid_from_uuid_path(uuid_path: str):
 @pytest.fixture
 def setup(base_dir, cli, control_client):
     control_client.expect('status', {})
+    control_client.expect('info', {
+        '1': {
+            'paths': ['/.uuid/0000000000-1111-0000-0000-000000000000',
+                      '/.uuid/0000000000-1111-0000-1111-000000000000'],
+            'type': 'local',
+            'extra': {},
+        }
+    })
+    control_client.expect('paths', {})
+
     os.mkdir(base_dir / 'manifests')
     os.mkdir(base_dir / 'storage1')
     os.mkdir(base_dir / 'storage2')
@@ -754,8 +764,7 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
         'storage_id': 0,
         'pattern': 'Container1.container.yaml'
     }
-    # not really expected in this test
-    assert 'info' not in control_client.calls
+
     del control_client.results['info']
 
 

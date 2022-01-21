@@ -889,6 +889,13 @@ def two_users_catalog(base_dir, cli, control_client):
                 - test2.txt: 42
     """
     control_client.expect('status', {})
+    control_client.expect('info', {
+        '1': {
+            'paths': ['/path1', '/path1.1'],
+            'type': 'local',
+            'extra': {},
+        }
+    })
     keys = {
         'KnownUser': '0xaaa',
         'Dummy2': '0xbbb',
@@ -1241,7 +1248,7 @@ backends:
         if owner == '0xddd':
             data = search.read_file()
             assert data == b'Hello world'
-            mock_read.assert_called_with('https://mock.url', owner)
+            mock_read.assert_called_with('https://mock.url', owner, True)
 
         else:
             with pytest.raises(WildlandError):

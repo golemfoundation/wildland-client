@@ -75,10 +75,11 @@ FUSE_ENTRY_POINT = PROJECT_PATH / 'wildland-fuse'
 @click.option('--debug/--no-debug', default=False,
               help='print full traceback on exception')
 @click.option('--verbose', '-v', count=True,
-              help='output logs (repeat for more verbosity)')
+              help='output logs')
+@click.option('--quiet', '-q', is_flag=True, help="show minimal output")
 @click.option('--version', is_flag=True, help='output Wildland version')
 @click.pass_context
-def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
+def main(ctx: click.Context, base_dir, dummy, debug, verbose, quiet, version):
     # pylint: disable=missing-docstring, unused-argument
     start_debugpy_server_if_enabled()
     if not ctx.invoked_subcommand:
@@ -87,10 +88,12 @@ def main(ctx: click.Context, base_dir, dummy, debug, verbose, version):
             return
         click.echo(ctx.get_help())
         return
-    if verbose > 0:
-        init_logging(level='DEBUG' if verbose > 1 else 'INFO')
-    else:
+    if quiet:
         init_logging(level='WARNING')
+    elif verbose > 0:
+        init_logging(level='DEBUG')
+    else:
+        init_logging(level='INFO')
     client = Client(dummy=dummy, base_dir=base_dir)
     ctx.obj = ContextObj(client)
 
@@ -245,6 +248,9 @@ def start(obj: ContextObj, remount: bool, debug: bool, mount_containers: Sequenc
 
 
 @main.command(short_help='display mounted containers and sync jobs')
+@click.option('--container', metavar='CONTAINER',
+              required=False,
+              help='print information for specified container')
 @click.option('--with-subcontainers/--without-subcontainers', '-w/-W', is_flag=True, default=False,
               help='list subcontainers hidden by default')
 @click.option('--with-pseudomanifests/--without-pseudomanifests', '-p/-P', is_flag=True,
@@ -252,14 +258,26 @@ def start(obj: ContextObj, remount: bool, debug: bool, mount_containers: Sequenc
 @click.option('--all-paths', '-a', is_flag=True, default=False,
               help='print all mountpoint paths, including synthetic ones')
 @click.pass_obj
-def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool, all_paths: bool):
+def status(obj: ContextObj, container: Optional[str], with_subcontainers: bool,
+           with_pseudomanifests: bool, all_paths: bool):
     """
-    Display all mounted containers and sync jobs.
+    Display all mounted containers or specified container and sync jobs.
     """
     if not obj.fs_client.is_running():
         click.echo('Wildland is not mounted, use `wl start` to mount it.')
     else:
-        click.echo('Mounted containers:')
+        if container:
+            click.echo(f"Container: {container}")
+
+            container_obj = obj.client.load_object_from_name(WildlandObject.Type.CONTAINER,
+                                                             container)
+
+            storage_id = obj.fs_client.find_primary_storage_id(container_obj)
+            storage_path = obj.fs_client.get_primary_unique_mount_path_from_storage_id(storage_id)
+            container_path = storage_path.parent
+        else:
+            click.echo('Mounted containers:')
+
         click.echo()
 
         mounted_storages: Dict[int, StorageInfo] = obj.fs_client.get_info()
@@ -268,12 +286,13 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
                 continue
             if storage.hidden and not with_pseudomanifests:
                 continue
-            main_path = storage.paths[0]
-            click.echo(main_path)
-            click.echo(f'  storage: {storage.type}')
-            _print_container_paths(storage, all_paths)
-            if storage.subcontainer_of:
-                click.echo(f'  subcontainer-of: {storage.subcontainer_of}')
+
+            if container:
+                storage_main_path = storage.paths[0]
+                if str(storage_main_path).startswith(str(container_path)):
+                    _print_storage_status(storage, all_paths)
+            else:
+                _print_storage_status(storage, all_paths)
 
     click.echo()
     result = obj.client.run_sync_command('status')
@@ -283,6 +302,15 @@ def status(obj: ContextObj, with_subcontainers: bool, with_pseudomanifests: bool
         click.echo('Sync jobs:')
         for s in result:
             click.echo(s)
+
+
+def _print_storage_status(storage: StorageInfo, all_paths: bool):
+    main_path = storage.paths[0]
+    click.echo(main_path)
+    click.echo(f'  storage: {storage.type}')
+    _print_container_paths(storage, all_paths)
+    if storage.subcontainer_of:
+        click.echo(f'  subcontainer-of: {storage.subcontainer_of}')
 
 
 @main.command(short_help='set the specified storage template as default for container '

@@ -59,6 +59,12 @@ class WildlandObject(abc.ABC):
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         self.manifest = None
+        self._str_repr = None
+
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if key != '_str_repr':
+            self._str_repr = None
 
     @classmethod
     def from_fields(cls, fields: dict, client, object_type: typing.Optional[Type] = None,
@@ -126,10 +132,12 @@ class WildlandObject(abc.ABC):
             cls._subclasses[obj_type] = cls
 
     @abc.abstractmethod
-    def to_manifest_fields(self, inline: bool) -> dict:
+    def to_manifest_fields(self, inline: bool, str_repr_only: bool = False) -> dict:
         """
         Return a dict with fields ready to be put inside a manifest (inline or standalone).
         The dict can be later modified, so be careful and deepcopy when needed.
+        str_repr_only = True means the fields will only be used for logging purposes, never
+        use it for other purposes
 
         When implementing, take care to verify that returned fields are valid
         (through ``Schema.validate`` or other appropriate methods).

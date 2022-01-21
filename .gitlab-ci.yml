@@ -190,7 +190,6 @@ dropbox-test-legacy:
 
 dropbox-test:
   extends: .plugin_test
-  allow_failure: true
   script:
     - ./ci/ci-dropbox "" "$DROPBOX_TEST_APP_KEY" "$DROPBOX_TEST_REFRESH_TOKEN"
 
