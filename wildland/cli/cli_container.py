@@ -545,7 +545,9 @@ def modify(ctx: click.Context,
         logger=logger
     )
 
-    if isinstance(container, Container) and modified:
+    assert isinstance(container, Container)
+
+    if modified:
         _publish_container_after_modification(ctx.obj.client, container, publish)
 
 
@@ -1374,7 +1376,9 @@ def edit(ctx: click.Context, path: str, publish: bool, editor: Optional[str], re
     container, modified = cli_common.resolve_object(
         ctx, path, WildlandObject.Type.CONTAINER, cli_common.edit, editor=editor, remount=remount)
 
-    if isinstance(container, Container) and modified:
+    assert isinstance(container, Container)
+
+    if modified:
         _publish_container_after_modification(ctx.obj.client, container, publish)
 
 
