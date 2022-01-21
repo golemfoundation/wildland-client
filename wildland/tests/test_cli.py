@@ -2209,6 +2209,27 @@ def test_container_with_storage_publish_unpublish(cli, tmp_path, base_dir):
     assert not storage_path.exists()
 
 
+def test_container_publish_multiple(cli, tmp_path, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container1', '--path', '/PATH1', '--update-user')
+    cli('storage', 'create', 'local', 'Storage',
+        '--location', os.fspath(tmp_path),
+        '--container', 'Container1',
+        '--inline',
+        '--manifest-pattern', '/*.container.yaml')
+
+    cli('container', 'create', 'Container2', '--path', '/PATH2', '--no-publish')
+    cli('container', 'create', 'Container3', '--path', '/PATH3', '--no-publish')
+
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+    cli('container', 'publish', 'wildland::*:')
+    assert len(tuple(tmp_path.glob('*.container.yaml'))) == 3
+
+    cli('container', 'unpublish', 'wildland::*:')
+    assert not tuple(tmp_path.glob('*.container.yaml'))
+
+
 def test_container_publish_unpublish(cli, tmp_path, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
