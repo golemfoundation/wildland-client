@@ -36,7 +36,7 @@ from .wildland_objects_api import WLUser, WLObject
 from ..wlenv import WLEnv
 
 
-logger = get_logger('core')
+logger = get_logger('core-user')
 
 
 class WildlandCoreUser(WildlandCoreApi):
@@ -60,7 +60,7 @@ class WildlandCoreUser(WildlandCoreApi):
     def __user_get_usages(self, user_id: str):
         usages: List[WLObject] = []
         result, obj = self.user_get_by_id(user_id)
-        if not result.success:
+        if result.failure:
             return result, usages
         assert obj
         for container in self.client.load_all(WildlandObject.Type.CONTAINER):

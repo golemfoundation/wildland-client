@@ -101,14 +101,18 @@ class WildlandResult:
         self.errors: List[WLError] = []
 
     @property
-    def success(self):
+    def success(self) -> bool:
         """
-        property that shows whether any unrecoverable errors occurred
+        Property that shows whether any unrecoverable errors occurred.
         """
-        for e in self.errors:
-            if not e.is_recoverable:
-                return False
-        return True
+        return all(e.is_recoverable for e in self.errors)
+
+    @property
+    def failure(self) -> bool:
+        """
+        Property that shows whether any unrecoverable errors occurred.
+        """
+        return not self.success
 
     def __str__(self):
         result = ""

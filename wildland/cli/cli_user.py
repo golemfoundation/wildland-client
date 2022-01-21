@@ -24,6 +24,7 @@
 """
 Manage users
 """
+from collections import defaultdict
 from copy import deepcopy
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from pathlib import PurePosixPath, Path
@@ -86,13 +87,13 @@ def _user_create(obj: ContextObj, key, paths, additional_pubkeys, name):
     """
     if key:
         result, pubkey = obj.wlcore.user_get_public_key(key)
-        if not result.success:
+        if result.failure:
             raise CliError(f'Failed to use provided key:\n  {result}')
         click.echo(f'Using key: {key}')
         owner = key
     else:
         result, owner, pubkey = obj.wlcore.user_generate_key()
-        if not result.success:
+        if result.failure:
             raise CliError(f'Failed to use provided key:\n  {result}')
         click.echo(f'Generated key: {owner}')
     assert pubkey
@@ -113,7 +114,9 @@ def _user_create(obj: ContextObj, key, paths, additional_pubkeys, name):
 
     result, user = obj.wlcore.user_create(name, keys, paths)
 
-    if not result.success or not user:
+    if result.failure or not user:
+        if not key:
+            obj.wlcore.user_remove_key(owner, force=False)
         raise CliError(f'Failed to create user: {result}')
 
     _, current_default = obj.wlcore.env.get_default_user()
@@ -155,13 +158,10 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
     # TODO: this used to use a client method called load_users_with_bridge_paths; perhaps this
     # will be obsolete soon?
 
-    bridges_from_default_user: Dict[str, List[str]] = dict()
+    bridges_from_default_user = defaultdict(list)
     for bridge in bridges:
-        if bridge.owner != default_user:
-            continue
-        if bridge.user_id not in bridges_from_default_user:
-            bridges_from_default_user[bridge.user_id] = []
-        bridges_from_default_user[bridge.user_id].extend(bridge.paths)
+        if bridge.owner == default_user:
+            bridges_from_default_user[bridge.user_id].extend(bridge.paths)
 
     for user in users:
         _, path = obj.wlcore.object_get_local_path(WLObjectType.USER, user.id)
@@ -171,7 +171,7 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
         if user.owner == default_user:
             path_string += ' (@default)'
             if default_override:
-                path_string += ' (@default overriden by wl start parameters)'
+                path_string += ' (@default overridden by wl start parameters)'
         if user.owner == default_owner:
             path_string += ' (@default-owner)'
         click.echo(path_string)
@@ -231,7 +231,7 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys:
             raise CliError(f'User {name} cannot be parsed: {str(result)}')
 
     result, usages = obj.wlcore.user_get_usages(user.id)
-    if not result.success and not force:
+    if result.failure and not force:
         raise CliError(f'Fatal error while looking for user\'s containers: {str(result)}')
 
     used = False
@@ -239,7 +239,7 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys:
         if cascade:
             click.echo('Deleting container: {}'.format(usage.id))
             result = obj.wlcore.container_delete(usage.id)
-            if not result.success:
+            if result.failure:
                 raise CliError(f'Cannot delete user\'s container: {result}')
         else:
             _, cont_path = obj.wlcore.object_get_local_path(WLObjectType.CONTAINER, usage.id)
@@ -252,7 +252,7 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys:
 
     if delete_keys:
         result = obj.wlcore.user_remove_key(user.owner, force=force)
-        if not result.success:
+        if result.failure:
             raise CliError(str(result))
 
     _, default_user = obj.wlcore.env.get_default_user(use_override=False)
@@ -270,7 +270,7 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, delete_keys:
 
     click.echo(f'Deleting: {user.owner}')
     result = obj.wlcore.user_delete(user.owner)
-    if not result.success:
+    if result.failure:
         raise CliError(f'Failed to delete user: {result}')
 
 
@@ -581,7 +581,7 @@ def _user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_own
     else:
         result, imported_object = obj.wlcore.object_import_from_url(path_or_url, name)
 
-    if not result.success:
+    if result.failure:
         if len(result.errors) == 1 and result.errors[0].error_code == WLErrorType.FILE_EXISTS_ERROR:
             result, imported_object = obj.wlcore.user_get_by_id(result.errors[0].error_description)
             if not imported_object:
@@ -607,7 +607,7 @@ def _user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_own
         raise CliError(f'Cannot import {path_or_url}: only user or bridge '
                        f'manifests can be imported')
 
-    if not result.success:
+    if result.failure:
         raise CliError(f'Failed to import {path_or_url}: {result}')
 
 @user_.command('refresh', short_help='Iterate over bridges and pull latest user manifests',
@@ -622,14 +622,14 @@ def user_refresh(obj: ContextObj, name):
 
     if name:
         result, user = obj.wlcore.object_get(WLObjectType.USER, name)
-        if not result.success or not user:
+        if result.failure or not user:
             raise CliError(f'User {name} cannot be loaded: {result}')
         user_list = [user.id]
     else:
         user_list = None
 
     result = obj.wlcore.user_refresh(user_list)
-    if not result.success:
+    if result.failure:
         raise CliError(f'Failed to refresh users: {result}')
 
 
