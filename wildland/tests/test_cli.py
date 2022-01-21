@@ -4136,13 +4136,21 @@ backends:
     assert sorted(command[1]['paths']) == pseudomanifest_backend_paths
 
 
-def test_container_mount_container_without_storage(cli, control_client):
+def test_container_mount_container_without_storage(monkeypatch, cli, control_client):
     control_client.expect('status', {})
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH')
 
-    with pytest.raises(WildlandError, match='No valid storages found'):
-        cli('container', 'mount', 'Container')
+    output = []
+
+    def capture(*args):
+        # Resolve '%s %s %s' % ('foo', 'bar', 'baz')
+        output.extend([args[0] % args[1:]])
+
+    monkeypatch.setattr('wildland.cli.cli_container.logger.warning', capture)
+    cli('container', 'mount', 'Container')
+
+    assert any((o.startswith("Warning:\nCannot mount container: container(") for o in output))
 
 
 def test_container_unmount(cli, base_dir, control_client):
