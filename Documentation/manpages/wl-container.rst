@@ -308,6 +308,14 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
 :command:`wl container mount-watch [--with-subcontainers/--without-subcontainers] <pattern|container> [<pattern|container>...]`
 -------------------------------------------------------------------------------------------------------------------------------
 
+.. option:: -w, --with-subcontainers
+
+   Watch the subcontainers of those containers. This is the default.
+
+.. option:: -W, --without-subcontainers
+
+   Do not watch the subcontainers of those containers.
+
 Mount a containers along with it's subcontainers in Wildland filesystem,
 then watch subcontainers for changes and remount accordingly.
 If the container manifest is in Wildland filesystem, also watch

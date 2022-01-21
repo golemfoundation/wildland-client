@@ -895,7 +895,6 @@ def test_wlpath_iterate_error(cli, client, search_mock, control_client):
         'pattern': 'Container1.container.yaml'
     }
     # not really expected in this test
-    assert 'info' not in control_client.calls
     del control_client.results['info']
 
 
