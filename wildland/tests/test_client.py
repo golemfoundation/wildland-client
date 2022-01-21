@@ -155,7 +155,7 @@ def test_add_storage_link(client, owner, tmpdir):
     assert '*' in storage_path.read_text()
 
 
-def test_unquote_local_path(client, owner, tmpdir):
+def test_unquote_local_path(client, owner):
     client.config.override(override_fields={'local-owners': [owner]})
     local_url = 'file:///Users/Jan%20Kowalski/whatever'
     path = client.parse_file_url(local_url, owner)
