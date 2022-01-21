@@ -171,7 +171,11 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
             if referenced_path_and_storage_params:
                 referenced_path, params['storage'] = referenced_path_and_storage_params
 
-        storage_cls = StorageBackend.types()[storage_type]
+        try:
+            storage_cls = StorageBackend.types()[storage_type]
+        except KeyError:
+            # pylint: disable=raise-missing-from
+            raise WildlandError(f'Unknown storage backend type: {storage_type}')
 
         if storage_cls.MOUNT_REFERENCE_CONTAINER:
             assert referenced_path
