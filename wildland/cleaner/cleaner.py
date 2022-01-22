@@ -29,6 +29,9 @@ from typing import Set
 
 
 class Cleaner:
+    """
+    Class` for cleaning up created files
+    """
     _paths: Set[Path] = set()
 
     def __init__(self, debug_fn=print, warn_fn=print):
@@ -55,5 +58,3 @@ class Cleaner:
                 path.unlink()
             except Exception as err:
                 self.warn_fn(f'Can\'t remove file {path}: {err}')
-
-

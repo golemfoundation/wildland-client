@@ -21,8 +21,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
-import logging
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines,bare-except
+
 from copy import deepcopy
 from pathlib import Path
 import itertools
@@ -172,7 +172,7 @@ def test_remove_files_when_user_create_fails(cli, base_dir):
     with mock.patch('wildland.cli.cli_user._user_create', side_effect=side_effect):
         try:
             cli('user', 'create', 'User')
-        except Exception as ex:
+        except:
             pass
         assert not Path(base_dir / 'users/User.user.yaml').exists()
 

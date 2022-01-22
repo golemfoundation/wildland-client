@@ -47,7 +47,7 @@ def test_cleaner_removes_files(tmpdir):
     assert not paths[1].exists()
 
 
-def test_cleaner_log_nothing_when_no_files(tmpdir, capfd):
+def test_cleaner_log_nothing_when_no_files(capfd):
     cleaner = Cleaner()
     cleaner.clean_up()
     out, err = capfd.readouterr()
@@ -67,6 +67,6 @@ def test_cleaner_log_error_and_continue(tmpdir, capfd):
     cleaner.add_path(paths[1])
     cleaner.clean_up()
 
-    out, err = capfd.readouterr()
+    out, _ = capfd.readouterr()
     assert f'Can\'t remove file {paths[0]}: [Errno 2] No such file or directory' in out
     assert not paths[1].exists()

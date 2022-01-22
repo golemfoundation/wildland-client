@@ -40,9 +40,9 @@ from nacl.public import PrivateKey, SealedBox, PublicKey
 from nacl.encoding import RawEncoder
 from nacl.exceptions import BadSignatureError, CryptoError
 
+from wildland.cleaner import get_cli_cleaner
 from ..exc import WildlandError
 from ..log import get_logger
-from wildland.cleaner import get_cli_cleaner
 
 logger = get_logger('sig')
 cleaner = get_cli_cleaner()

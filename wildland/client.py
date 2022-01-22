@@ -45,6 +45,7 @@ import requests
 from wildland.bridge import Bridge
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.cleaner import get_cli_cleaner
 from .control_client import ControlClient
 from .storage_sync.base import SyncEvent, SyncStateEvent, SyncState, SyncConflictEvent, \
     SyncErrorEvent
@@ -65,7 +66,6 @@ from .search import Search
 from .storage_driver import StorageDriver
 from .log import get_logger
 from .utils import yaml_parser
-from wildland.cleaner import get_cli_cleaner
 
 logger = get_logger('client')
 cleaner = get_cli_cleaner()

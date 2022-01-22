@@ -19,6 +19,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+# pylint: disable=global-statement
 
 """
 Module for initialisation of the Cleaner instance with the "click" output functions

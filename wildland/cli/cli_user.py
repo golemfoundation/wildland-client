@@ -31,6 +31,7 @@ import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.bridge import Bridge
+from wildland.cleaner import get_cli_cleaner
 from ..user import User
 
 from .cli_base import aliased_group, ContextObj
@@ -69,10 +70,13 @@ def user_():
 @click.argument('name', metavar='NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj, key, paths, additional_pubkeys, name):
+    """
+    Create a new user manifest and save it. Clean up created files if fails.
+    """
     try:
         _user_create(obj, key, paths, additional_pubkeys, name)
     except Exception as ex:
-        click.secho(f'Creation failed.', fg='red')
+        click.secho('Creation failed.', fg='red')
         cleaner.clean_up()
         raise ex
 
@@ -558,7 +562,7 @@ def user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_owne
     try:
         _user_import(obj, path_or_url, paths, bridge_owner)
     except Exception as ex:
-        click.secho(f'Import failed.', fg='red')
+        click.secho('Import failed.', fg='red')
         cleaner.clean_up()
         raise CliError(f'Failed to import: {str(ex)}') from ex
 
