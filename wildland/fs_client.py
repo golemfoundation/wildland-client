@@ -21,6 +21,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# pylint: disable=too-many-lines
 """
 Wildland FS client
 """
