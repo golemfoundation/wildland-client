@@ -37,6 +37,10 @@
                             }
                         }
                     }
+                },
+                "lazy": {
+                    "type": "boolean",
+                    "description": "lazy mounting on first use"
                 }
             }
         },
