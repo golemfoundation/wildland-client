@@ -46,7 +46,6 @@ from ..storage import Storage
 from ..log import get_logger
 from ..core.wildland_objects_api import WLObjectType, WLUser, WLBridge
 from ..core.wildland_result import WLErrorType
-from wildland.cleaner import get_cli_cleaner
 
 
 logger = get_logger('cli-user')
