@@ -40,6 +40,7 @@ from .cli_common import sign, verify, edit, dump, publish, unpublish
 from .cli_exc import CliError
 from .cli_user import import_manifest, find_user_manifest_within_catalog
 from ..log import get_logger
+from ..core.wildland_objects_api import WLObjectType
 
 
 logger = get_logger('cli-bridge')
@@ -168,17 +169,25 @@ def list_(obj: ContextObj):
     Display known bridges.
     """
 
-    for bridge in obj.client.get_local_bridges():
-        click.echo(bridge.local_path)
+    result_bridges, bridges = obj.wlcore.bridge_list()
+    if result_bridges.failure:
+        click.echo('Failed to list bridges:')
+        for e in result_bridges.errors:
+            click.echo(f'Error {e.error_code}: {e.error_description}')
 
-        try:
-            user = obj.client.load_object_from_name(WildlandObject.Type.USER, bridge.owner)
-            if user.paths:
-                user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
-            else:
-                user_desc = ''
-        except ManifestError:
+    for bridge in bridges:
+        _, path = obj.wlcore.object_get_local_path(WLObjectType.BRIDGE, bridge.id)
+        click.echo(path)
+        result, user = obj.wlcore.object_get(WLObjectType.USER, bridge.owner)
+        if result.failure or not user:
+            raise CliError(f'User {bridge.owner} cannot be loaded: {result}')
+
+        user_paths = user.paths  # type: ignore[attr-defined]
+        if user_paths:
+            user_desc = ' (' + ', '.join([str(p) for p in user_paths]) + ')'
+        else:
             user_desc = ''
+
         click.echo(f'  owner: {bridge.owner}' + user_desc)
         click.echo('  paths: ' + ', '.join([str(p) for p in bridge.paths]))
         click.echo()
