@@ -6203,6 +6203,39 @@ def test_pseudomanifest_unmount_when_forest_unmount(cli, tmp_path, base_dir):
     wildland_dir_content = list(base_dir.glob("wildland/*"))
     assert len(wildland_dir_content) == 0
 
+
+def test_forest_mount_raises_error_if_mount_point_does_not_exist(cli):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('start')
+
+    with pytest.raises(WildlandError, match='No valid forest to be mount found'):
+        cli('forest', 'mount', ':/not/exists:')
+
+
+def test_forest_mount_gives_warning_if_mount_point_does_not_exist(cli, base_dir, tmp_path):
+    cli('user', 'create', 'Alice', '--key', '0xaaa')
+    cli('user', 'create', 'Bob', '--key', '0xbbb')
+    cli('start')
+    cli('template', 'create', 'local', '--location',
+        f'/{tmp_path}/wl-forest', '--manifest-pattern', '/{path}.yaml', 'rw')
+    cli('container', 'create', '--owner', 'Bob', 'mycapsule', '--title',
+        'my_awesome_capsule', "--category", "/testing", "--template",
+        "rw", '--no-encrypt-manifest')
+    cli('bridge', 'create', '--owner', 'Alice', '--target-user', 'Bob',
+        '--target-user-location', f'file:///{base_dir}/users/Bob.user.yaml',
+        '--path', '/forests/Bob', 'bob_bridge')
+    cli('forest', 'create', '--access', '*', '--owner', 'Bob', 'rw')
+    cli('container', 'publish', 'mycapsule')
+
+    result = cli('forest', 'mount', ':/forests/Bob:', ':/not/exists:', capture=True)
+
+    assert 'Warning: Did not find bridge for: :/not/exists:' in result
+
+    wildland_dir_content = list(base_dir.glob("wildland/*"))
+    assert len(wildland_dir_content) != 1
+
+
 def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
     cli('template', 'create', 'local', '--location', f'/{tmp_path}/wl-forest',
