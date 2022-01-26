@@ -88,7 +88,7 @@ def mount(ctx: click.Context, forest_names, save: bool,
                 f'Failed to parse forest name: {forest_name}. '
                 f'For example, ":/forests/User:" is a valid forest name')
 
-        if forest_name.startswith('0x'):
+        if _is_forest_path_via_user(forest_name):
             bridge_paths = list(obj.client.get_bridge_paths_for_user(
                 f'{forest_name.split(":")[0]}'))
         else:
@@ -335,3 +335,7 @@ def _bootstrap_manifest(backend: StorageBackend, manifest_path: Path, file_path:
         with backend.create(PurePosixPath(file_path), os.O_CREAT | os.O_WRONLY) as manifest_obj:
             data = manifest_path.read_bytes()
             manifest_obj.write(data, 0)
+
+
+def _is_forest_path_via_user(forest_path: str) -> bool:
+    return forest_path.startswith('0x') and '@' not in forest_path
