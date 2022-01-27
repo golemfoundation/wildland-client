@@ -6228,6 +6228,9 @@ def test_forest_mount_gives_warning_if_mount_point_does_not_exist(cli, base_dir,
     cli('forest', 'create', '--access', '*', '--owner', 'Bob', 'rw')
     cli('container', 'publish', 'mycapsule')
 
+    wildland_dir_content = list(base_dir.glob("wildland/*"))
+    assert len(wildland_dir_content) == 0
+
     result = cli('forest', 'mount', ':/forests/Bob:', ':/not/exists:', capture=True)
 
     assert 'Warning: Did not find bridge for: :/not/exists:' in result
@@ -6235,6 +6238,8 @@ def test_forest_mount_gives_warning_if_mount_point_does_not_exist(cli, base_dir,
     wildland_dir_content = list(base_dir.glob("wildland/*"))
     assert len(wildland_dir_content) != 1
 
+    wildland_dir_content = list(base_dir.glob("wildland/forests/Bob:/testing/*"))
+    assert len(wildland_dir_content) == 1
 
 def test_forest_create_check_for_published_catalog(cli, tmp_path):
     cli('user', 'create', 'Alice', '--key', '0xaaa')
