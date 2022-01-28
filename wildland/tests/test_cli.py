@@ -46,7 +46,8 @@ from ..manifest.manifest import ManifestError
 from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
-from ..cli.cli_user import _user_create
+from ..cli.cli_user import _user_create, _user_import
+from ..cli.cli_bridge import _bridge_create
 
 def modify_file(path, pattern, replacement):
     with open(path) as f:
@@ -4619,6 +4620,24 @@ def test_bridge_create(cli, base_dir):
     assert 'pubkey: key.0xccc' in data
     assert '- /Third' in data
 
+def test_remove_files_when_bridge_create_fails(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'RefUser', '--key', '0xbbb', '--path', '/OriginalPath')
+
+    def side_effect(*args, **kwargs):
+        _bridge_create(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_bridge._bridge_create', side_effect=side_effect):
+        try:
+            cli('bridge', 'create', 'Bridge',
+                '--target-user', 'RefUser',
+                '--target-user-location', 'https://example.com/RefUser.yaml',
+                '--path', '/ModifiedPath')
+        except:
+            pass
+        assert not Path(base_dir / 'bridges/Bridge.bridge.yaml').exists()
+
 
 # container-sync
 
@@ -5377,6 +5396,25 @@ def test_import_user(cli, base_dir, tmpdir):
     cli('user', 'import', '--path', '/IMPORT', 'file://' + str(destination))
 
     assert (base_dir / 'users/Bob.2.user.yaml').read_bytes() == _create_user_manifest('0xeee')
+
+
+def test_remove_files_when_user_import_fails(cli, base_dir, tmpdir):
+    test_data = _create_user_manifest('0xbbb')
+    destination = tmpdir / 'Bob.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+
+    def side_effect(*args, **kwargs):
+        _user_import(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_user._user_import', side_effect=side_effect):
+        try:
+            cli('user', 'import', str(destination))
+        except:
+            pass
+        assert not Path(base_dir / 'users/Bob.user.yaml').exists()
 
 
 def test_import_bridge(cli, base_dir, tmpdir):
