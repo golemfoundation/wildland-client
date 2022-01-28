@@ -203,7 +203,14 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
     try:
-        _bridge_import(obj, path_or_url, paths, WildlandObject.Type.BRIDGE, bridge_owner, only_first)
+        _bridge_import(
+            obj,
+            path_or_url,
+            paths,
+            WildlandObject.Type.BRIDGE,
+            bridge_owner,
+            only_first
+        )
     except Exception as ex:
         click.secho('Import failed.', fg='red')
         cleaner.clean_up()
