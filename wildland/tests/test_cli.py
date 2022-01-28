@@ -47,7 +47,8 @@ from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
 from ..cli.cli_user import _user_create, _user_import
-from ..cli.cli_bridge import _bridge_create
+from ..cli.cli_bridge import _bridge_create, _bridge_import
+
 
 def modify_file(path, pattern, replacement):
     with open(path) as f:
@@ -5440,6 +5441,45 @@ def test_import_bridge(cli, base_dir, tmpdir):
     assert f'user: file://localhost{user_destination}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-IMPORT[\S\s]+', bridge_data)
+
+
+def test_remove_files_when_bridge_import_fails(cli, base_dir, tmpdir):
+    bob_dir = tmpdir / 'bob'
+    os.mkdir(bob_dir)
+    bob_manifest_location = bob_dir / 'Bob.user.yaml'
+    bob_user_manifest = _create_user_manifest('0xbbb', '/BOB')
+    bob_manifest_location.write(bob_user_manifest)
+
+    alice_dir = tmpdir / 'alice'
+    os.mkdir(alice_dir)
+    alice_manifest_location = alice_dir / 'Alice.user.yaml'
+
+    bob_bridge_dir = tmpdir / 'manifests'
+    os.mkdir(bob_bridge_dir)
+    bob_bridge_location = bob_bridge_dir / 'IMPORT.bridge.yaml'
+    bob_bridge_location.write(_create_bridge_manifest(
+        '0xaaa', f'file://localhost{bob_manifest_location}', '0xbbb'))
+
+    alice_manifest_location.write(_create_user_manifest('0xaaa', '/ALICE', str(bob_bridge_dir)))
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xddd')
+
+    cli('bridge', 'create', '--owner', 'DefaultUser',
+        '--target-user-location', f'file://localhost{alice_manifest_location}', 'Alice')
+
+    modify_file(base_dir / 'config.yaml', "local-owners:\n- '0xddd'",
+                "local-owners:\n- '0xddd'\n- '0xaaa'")
+
+    def side_effect(*args, **kwargs):
+        _bridge_import(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_bridge._bridge_import', side_effect=side_effect):
+        try:
+            cli('bridge', 'import', 'wildland:0xddd:/ALICE:/IMPORT:')
+        except:
+            pass
+        assert not os.listdir(Path(base_dir / 'bridges'))
 
 
 def test_import_bridge_with_object_location(cli, base_dir, tmpdir):

@@ -26,7 +26,7 @@ Manage bridges
 """
 
 from pathlib import PurePosixPath, Path
-from typing import List, Optional
+from typing import List, Optional, Iterable
 
 import click
 
@@ -202,8 +202,18 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
+    try:
+        _bridge_import(obj, path_or_url, paths, WildlandObject.Type.BRIDGE, bridge_owner, only_first)
+    except Exception as ex:
+        click.secho('Import failed.', fg='red')
+        cleaner.clean_up()
+        raise ex
 
-    import_manifest(obj, path_or_url, paths, WildlandObject.Type.BRIDGE, bridge_owner, only_first)
+
+def _bridge_import(obj: ContextObj, path_or_url: str, paths: Iterable[str],
+                    wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
+                    only_first: bool):
+    import_manifest(obj, path_or_url, paths, wl_obj_type, bridge_owner, only_first)
 
 
 bridge_.add_command(sign)
