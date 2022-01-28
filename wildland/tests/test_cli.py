@@ -2006,9 +2006,9 @@ def test_container_modify_with_wl_path(cli, base_dir):
 
     manifest_path = base_dir / 'containers/Container.container.yaml'
 
-    cli('container', 'modify', 'add-access', 'wildland::/PATH:', '--access', 'User2')
+    cli('container', 'modify', 'wildland::/PATH:', '--add-access', 'User2')
     base_data = manifest_path.read_text().split('\n', 3)[-1]
-    data = yaml.safe_load(base_data)
+    data = yaml_parser.safe_load(base_data)
     assert len(data['encrypted']['encrypted-keys']) == 2
 
 
