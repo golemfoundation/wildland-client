@@ -1011,7 +1011,9 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
                 'storage': mock.ANY,
                 'extra': mock.ANY,
             }
-        ]},
+        ],
+         'lazy': True
+        },
         {'items': [
             {
                 'paths': [f'/.users/0xaaa:/.backends/{catalog_container.uuid}/'
@@ -1029,7 +1031,9 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
                 'storage': mock.ANY,
                 'extra': mock.ANY,
             }
-        ]},
+        ],
+         'lazy': True
+        },
         # should retry on the next event
         {'items': [
             {
@@ -1048,7 +1052,9 @@ def test_wlpath_change_pattern(cli, base_dir, client, search_mock, control_clien
                 'storage': mock.ANY,
                 'extra': mock.ANY,
             }
-        ]},
+        ],
+         'lazy': True
+        },
     ]
 
 

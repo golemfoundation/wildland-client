@@ -72,7 +72,7 @@ class Timespec:
     tv_nsec: int
 
 
-class LazyStorageDict(MutableMapping):
+class LazyStorageDict:
     """
     A dict-like class, which lazy mount storages.
 
@@ -95,21 +95,28 @@ class LazyStorageDict(MutableMapping):
         except Exception as e:
             logger.exception('backend %s not mounted due to exception', storage.backend_id)
             raise WildlandError from e
-        self._dict.__setitem__(key, storage)
+        self._dict[key] = storage
         return storage
 
     def __setitem__(self, key, value):
         self._dict.__setitem__(key, value)
 
     def __delitem__(self, key):
-        storage = self._dict.__getitem__(key)
+        storage = self._dict[key]
+        backend_id = None
         if isinstance(storage, StorageBackend):
             logger.debug('Unmounting storage %r', storage)
             storage.request_unmount()
-        self._dict.__delitem__(key)
+            backend_id = storage.backend_id
+        del self._dict[key]
+        backend_id = backend_id or storage[0]['backend-id']
+        logger.debug('Unmounted storage (backend-id=%s)', backend_id)
 
     def __iter__(self):
         return iter(self._dict)
+
+    def __contains__(self, key):
+        return key in self._dict
 
     def __len__(self):
         return len(self._dict)
@@ -196,32 +203,34 @@ class WildlandFSBase:
         Mount a storage under a set of paths.
         """
 
-        assert self.mount_lock.locked()
+        with self.mount_lock:
 
-        logger.debug('Mounting storage (backend-id=%s) under paths: %s',
-                     storage_params[0]['backend-id'], [str(p) for p in paths])
+            logger.debug('Mounting storage (backend-id=%s) under paths: %s',
+                         storage_params[0]['backend-id'], [str(p) for p in paths])
 
-        main_path = paths[0]
-        current_ident = self.main_paths.get(main_path)
-        if current_ident is not None:
-            if remount:
-                logger.debug('Unmounting current storage: %s, for main path: %s',
-                             current_ident, main_path)
-                self._unmount_storage(current_ident)
-            else:
-                raise WildlandError(f'Storage already mounted under main path: {main_path}')
+            main_path = paths[0]
+            current_ident = self.main_paths.get(main_path)
+            if current_ident is not None:
+                if remount:
+                    logger.debug('Unmounting current storage: %s, for main path: %s',
+                                 current_ident, main_path)
+                    self._unmount_storage(current_ident)
+                else:
+                    raise WildlandError(f'Storage already mounted under main path: {main_path}')
 
-        ident = self.storage_counter
-        self.storage_counter += 1
+            ident = self.storage_counter
+            self.storage_counter += 1
 
-        self.storages[ident] = storage_params
+            self.storages[ident] = storage_params
+            self.storage_extra[ident] = extra or {}
+            self.storage_paths[ident] = paths
+            self.main_paths[main_path] = ident
+            for path in paths:
+                self.resolver.mount(path, ident)
+
         if not lazy:
+            # request mount of storage backends
             _ = self.storages[ident]
-        self.storage_extra[ident] = extra or {}
-        self.storage_paths[ident] = paths
-        self.main_paths[main_path] = ident
-        for path in paths:
-            self.resolver.mount(path, ident)
 
     def _unmount_storage(self, storage_id: int) -> None:
         """Unmount a storage"""
@@ -261,11 +270,9 @@ class WildlandFSBase:
             extra_params = params.get('extra')
             remount = params.get('remount')
             try:
-                with self.mount_lock:
-                    self._mount_storage(
-                        paths, (storage_params, read_only), extra_params, remount, lazy)
+                self._mount_storage(paths, (storage_params, read_only), extra_params, remount, lazy)
             except Exception as e:
-                logger.exception(
+                logger.error(
                     'backend %s not mounted due to exception', params['storage']['backend-id'])
                 collected_errors.append(e)
 

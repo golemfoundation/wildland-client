@@ -55,6 +55,8 @@ def forest_():
 
 @forest_.command(short_help='Mount Wildland Forest')
 @click.argument('forest_names', nargs=-1, required=True)
+@click.option('--lazy/--no-lazy', default=True,
+              help='Allow lazy mount of storages')
 @click.option('--save', '-s', is_flag=True,
               help='Save the forest containers to be mounted at startup')
 @click.option('--with-cache', '-c', is_flag=True, default=False,
@@ -70,7 +72,7 @@ def forest_():
 @click.option('--no-refresh-users', '-n', is_flag=True, default=False,
               help="Do not refresh remote users when mounting")
 @click.pass_context
-def mount(ctx: click.Context, forest_names, save: bool,
+def mount(ctx: click.Context, forest_names, lazy: bool, save: bool,
           with_cache: bool, cache_template: str,
           list_all: bool, no_refresh_users: bool):
     """
@@ -101,7 +103,8 @@ def mount(ctx: click.Context, forest_names, save: bool,
     if not no_refresh_users:
         refresh_users(obj)
 
-    mount_container(obj, forests, save=save, cache_template=cache_template, list_all=list_all)
+    mount_container(
+        obj, forests, lazy=lazy, save=save, cache_template=cache_template, list_all=list_all)
 
 
 @forest_.command(short_help='Unmount Wildland Forest', alias=['umount'])

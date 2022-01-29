@@ -188,8 +188,8 @@ Update a |~| container manifest.
 .. program:: wl-container-mount
 .. _wl-container-mount:
 
-:command:`wl container mount [--verbose/-v] [--remount/--no-remount] [options] <container> [<container>...]`
-------------------------------------------------------------------------------------------------------------
+:command:`wl container mount [--verbose/-v] [--remount/--no-remount] [--lazy/--no-lazy] [options] <container> [<container>...]`
+-------------------------------------------------------------------------------------------------------------------------------
 
 Mount a container given by name or path to manifest. The Wildland system has to
 be started first, see :ref:`wl start <wl-start>`.
@@ -233,6 +233,14 @@ catalogs. In both circumstances all paths will be considered, but cycles will be
 
    Don't replace existing container. If the container is already mounted, the
    command will fail. This is the default.
+
+.. option:: --lazy
+
+   Do not mount container backends until first use. This is the default.
+
+.. option:: --no-lazy
+
+   Mount container backends right away. This may take some time.
 
 .. option:: -s, --save
 

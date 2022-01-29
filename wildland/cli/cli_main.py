@@ -127,7 +127,7 @@ main.add_command(cli_transfer.get)
 main.add_command(cli_transfer.put)
 
 
-def _do_mount_containers(obj: ContextObj, to_mount):
+def _do_mount_containers(obj: ContextObj, to_mount, lazy: bool = True):
     """
     Issue a series of .control/mount commands.
     """
@@ -159,7 +159,7 @@ def _do_mount_containers(obj: ContextObj, to_mount):
     click.echo(f'Mounting {len(commands)} containers.')
 
     try:
-        fs_client.mount_multiple_containers(commands)
+        fs_client.mount_multiple_containers(commands, lazy=lazy)
     except WildlandError as e:
         failed.append(f'Failed to mount: {e}')
 
