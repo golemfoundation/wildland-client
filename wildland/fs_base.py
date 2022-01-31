@@ -32,8 +32,7 @@ import stat
 import threading
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List, Dict, Iterable, Optional, Set, Union, Tuple, Any
-from collections.abc import MutableMapping
+from typing import List, Dict, Iterable, Optional, Set, Union, Any
 
 from .conflict import ConflictResolver, Resolved
 from .storage_backends.base import Attr, File, StorageBackend
@@ -81,78 +80,64 @@ class LazyStorageDict:
     # pylint: disable=missing-docstring
 
     def __init__(self):
-        self._dict = dict()
+        self._storages = dict()
+        self._initialized = dict()
 
     def __getitem__(self, key):
-        value = self._dict.__getitem__(key)
-        if isinstance(value, StorageBackend):
-            return value
+        storage = self._storages[key]
+        if self._initialized[key]:
+            return storage
 
-        storage_params, read_only = value
-        storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
         try:
             storage.request_mount()
         except Exception as e:
             logger.exception('backend %s not mounted due to exception', storage.backend_id)
             raise WildlandError from e
-        self._dict[key] = storage
+        self._initialized[key] = True
         return storage
 
     def __setitem__(self, key, value):
-        self._dict.__setitem__(key, value)
+        self._storages[key] = value
+        self._initialized[key] = False
 
     def __delitem__(self, key):
-        storage = self._dict[key]
-        backend_id = None
-        if isinstance(storage, StorageBackend):
+        storage = self._storages[key]
+        if self._initialized[key]:
             logger.debug('Unmounting storage %r', storage)
             storage.request_unmount()
-            backend_id = storage.backend_id
-        del self._dict[key]
-        backend_id = backend_id or storage[0]['backend-id']
+        backend_id = storage.backend_id
+        del self._storages[key]
+        del self._initialized[key]
         logger.debug('Unmounted storage (backend-id=%s)', backend_id)
 
     def __iter__(self):
-        return iter(self._dict)
+        return iter(self._storages)
 
     def __contains__(self, key):
-        return key in self._dict
+        return key in self._storages
 
     def __len__(self):
-        return len(self._dict)
+        return len(self._storages)
 
     def get_type(self, key):
-        value = self._dict.__getitem__(key)
-        if isinstance(value, StorageBackend):
-            return value.TYPE
-        storage_params, _ = value
-        return storage_params['type']
+        storage = self._storages[key]
+        return storage.TYPE
 
     def get_hash(self, key):
-        value = self._dict.__getitem__(key)
-        if isinstance(value, StorageBackend):
-            return value.hash
-        storage_params, _ = value
-        return StorageBackend.generate_hash(storage_params)
+        storage = self._storages[key]
+        return storage.hash
 
     def clear_cache(self, key):
-        value = self._dict.__getitem__(key)
-        if isinstance(value, StorageBackend):
-            value.clear_cache()
+        storage = self._storages[key]
+        storage.clear_cache()
 
     def is_read_only(self, key):
-        value = self._dict.__getitem__(key)
-        if isinstance(value, StorageBackend):
-            return value.read_only
-        storage_params, read_only = value
-        return storage_params.get('read_only', False) or read_only
+        storage = self._storages[key]
+        return storage.read_only
 
     def get_params(self, key):
-        value = self._dict.__getitem__(key)
-        if isinstance(value, StorageBackend):
-            return value.params
-        storage_params, _ = value
-        return storage_params
+        storage = self._storages[key]
+        return storage.params
 
 
 class WildlandFSBase:
@@ -194,7 +179,7 @@ class WildlandFSBase:
     def _mount_storage(
             self,
             paths: List[PurePosixPath],
-            storage_params: Tuple[dict, bool],
+            storage: StorageBackend,
             extra: Optional[Dict] = None,
             remount: bool = False,
             lazy: bool = True
@@ -206,7 +191,7 @@ class WildlandFSBase:
         with self.mount_lock:
 
             logger.debug('Mounting storage (backend-id=%s) under paths: %s',
-                         storage_params[0]['backend-id'], [str(p) for p in paths])
+                         storage.backend_id, [str(p) for p in paths])
 
             main_path = paths[0]
             current_ident = self.main_paths.get(main_path)
@@ -221,7 +206,7 @@ class WildlandFSBase:
             ident = self.storage_counter
             self.storage_counter += 1
 
-            self.storages[ident] = storage_params
+            self.storages[ident] = storage
             self.storage_extra[ident] = extra or {}
             self.storage_paths[ident] = paths
             self.main_paths[main_path] = ident
@@ -269,8 +254,9 @@ class WildlandFSBase:
             read_only = params.get('read-only', False)
             extra_params = params.get('extra')
             remount = params.get('remount')
+            storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
             try:
-                self._mount_storage(paths, (storage_params, read_only), extra_params, remount, lazy)
+                self._mount_storage(paths, storage, extra_params, remount, lazy)
             except Exception as e:
                 logger.error(
                     'backend %s not mounted due to exception', params['storage']['backend-id'])
