@@ -977,10 +977,8 @@ def test_multiple_storage_mount(cli, base_dir, control_client):
         documents = list(yaml_parser.safe_load_all(f))
     backend_id3 = documents[1]['backends']['storage'][2]['backend-id']
 
-    control_client.expect('paths', {
-        **{x: [1] for x in paths_1},
-        **{x: [2] for x in paths_2}
-    })
+    expected_path = generate_pseudomanifest_paths([paths_1, paths_2])
+    control_client.expect('paths', expected_path)
 
     control_client.expect('info', {
         '1': {
@@ -2710,19 +2708,21 @@ def test_container_delete_umount(cli, base_dir, control_client):
     uuid_path = documents[1]['paths'][0]
     uuid = get_container_uuid_from_uuid_path(uuid_path)
 
-    paths_obj = {
-        f'/.backends/{uuid}/{backend_id}': [101],
-        f'/.uuid/{uuid}': [102],
-        f'/.users/0xaaa:/.uuid/{uuid}': [103],
-        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}': [104],
-        '/PATH2': [105],
-    }
+    paths_obj = [[
+        f'/.backends/{uuid}/{backend_id}',
+        f'/.uuid/{uuid}',
+        f'/.users/0xaaa:/.uuid/{uuid}',
+        f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
+        '/PATH2'
+    ]]
+
+    expected_paths = generate_pseudomanifest_paths(paths_obj)
 
     control_client.expect('unmount')
-    control_client.expect('paths', paths_obj)
+    control_client.expect('paths', expected_paths)
     control_client.expect('info', {
         '1': {
-            'paths': paths_obj.keys(),
+            'paths': paths_obj[0],
             'type': 'local',
             'extra': {},
         },
@@ -4383,7 +4383,9 @@ def test_container_other_signer(cli, base_dir):
 def test_container_unmount_by_path(cli, control_client, base_dir):
     control_client.expect('paths', {
         '/PATH': [101],
-        '/PATH2': [102],
+        '/PATH/.manifest.wildland.yaml': [102],
+        '/PATH2': [103],
+        '/PATH2/.manifest.wildland.yaml': [104],
     })
 
     control_client.expect('info', {
@@ -4393,8 +4395,20 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
             'extra': {},
         },
         '102': {
+            'paths': ['/PATH/.manifest.wildland.yaml',
+                      '/.users/0xaaa:/PATH-pseudomanifest/.manifest.wildland.yaml'],
+            'type': 'pseudomanifest',
+            'extra': {},
+        },
+        '103': {
             'paths': ['/PATH2', '/.users/0xaaa:/PATH2'],
             'type': 'local',
+            'extra': {},
+        },
+        '104': {
+            'paths': ['/PATH2/.manifest.wildland.yaml',
+                      '/.users/0xaaa:/PATH2-pseudomanifest/.manifest.wildland.yaml'],
+            'type': 'pseudomanifest',
             'extra': {},
         },
     })
@@ -4405,7 +4419,37 @@ def test_container_unmount_by_path(cli, control_client, base_dir):
     cli('container', 'unmount', '--path', str(base_dir / 'wildland/PATH2'),
         '--without-subcontainers')
 
-    assert control_client.calls['unmount']['storage_id'] == 102
+    assert control_client.all_calls['unmount'][0]['storage_id'] == 103
+    assert control_client.all_calls['unmount'][1]['storage_id'] == 104
+
+
+def test_container_unmount_pseudomanifest_by_path(base_dir, cli):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('container', 'create', 'Container', '--path', '/PATH', '--no-encrypt-manifest')
+    cli('storage', 'create', 'local', 'Storage1', '--location', '/p1', '--container', 'Container')
+    cli('start', '--skip-forest-mount')
+    cli('container', 'mount', 'Container')
+
+    pseudo = 'storage: pseudomanifest'
+    local = 'storage: local'
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(pseudo) == 1
+    assert result.count(local) == 1
+    paths = re.search('(/.users/.+?)(?=\n  storage)', result)
+    primary_path = paths.group(0)
+    pm_primary_path = primary_path + '-pseudomanifest/.manifest.wildland.yaml'
+    with pytest.raises(CliError, match='Ignoring unmounting solely pseudomanifest path'):
+        cli('container', 'unmount', '--path', pm_primary_path)
+
+    result = cli('status', '-p', capture=True)
+    assert result.count(local) == 1
+    assert result.count(pseudo) == 1
+
+    cli('container', 'unmount', '--path', primary_path)
+    result = cli('status', '-p', capture=True)
+    assert result.count(local) == 0
+    assert result.count(pseudo) == 0
 
 
 # pylint: disable=unused-argument

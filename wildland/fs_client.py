@@ -398,44 +398,62 @@ class WildlandFSClient:
         """
 
         mount_path = self.get_user_container_path(container.owner, container.paths[0])
-        return self.find_storage_id_by_path(mount_path)
+        result, _ = self.find_storage_id_by_path(mount_path)
+        return result
 
-    def find_storage_id_by_path(self, path: PurePosixPath) -> Optional[int]:
+    def find_storage_id_by_path(self, path: PurePosixPath) -> Tuple[Optional[int], Optional[int]]:
         """
         Find first storage ID for a given mount path. ``None` is returned if the given path is not
         related to any storage.
         """
         paths = self.get_paths()
-        storage_ids = paths.get(path)
+        pm_primary_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
+        pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
+        storage_ids = paths.get(path, [])
+        pm_ids = paths.get(pm_primary_path, [])
+        if not pm_ids:
+            pm_ids = paths.get(pm_path, [])
+        if not pm_ids:
+            logger.warning("No pseudomanifest found for path: %s (storage ids: %s)",
+                           path, str(storage_ids))
+            pm_id = None
+        else:
+            pm_id = pm_ids[0]
 
         if not storage_ids:
-            return None
+            storage_id = None
+        else:
+            if len(storage_ids) > 1:
+                logger.warning('multiple non-pseudomanifest storages found for path: %s (storage '
+                               'ids: %s)', path, str(storage_ids))
+            storage_id = storage_ids[0]
 
-        is_pseudomanifest_pair, storage_id = \
-            self._is_storage_id_with_pseudomanifest_storage_id(storage_ids)
-
-        if not is_pseudomanifest_pair and len(storage_ids) > 1:
-            logger.warning('multiple non-psuedomanifest storages found for path: %s (storage '
-                            'ids: %s)', path, str(storage_ids))
-
-        return storage_id
+        return storage_id, pm_id
 
     def find_all_storage_ids_by_path(self, path: PurePosixPath) -> List[int]:
         """
-        Find all storage IDs for a given mount path (either absolute or relative with respect to the
-        mount directory). This method is similar to :meth:`WildlandFSClient.find_storage_id_by_path`
-        but instead of returning just one (first) storage ID, it returns all of them. This method is
-        useful when unmounting a storage by given path.
+        Find all storage (and respective pseudomanifest storage) IDs for a given mount path
+        (either absolute or relative with respect to the mount directory). This method is similar
+        to :meth:`WildlandFSClient.find_storage_id_by_path` but instead of returning
+        just one (first) storage ID, it returns all of them. This method is useful when
+        unmounting a storage by given path.
 
-        Note that this method returns at least 2 storage IDs if called with ``path`` corresponding
-        to primary storage: one for pseudomanifest storage (which is also mounted in primary path)
-        and one for the underlying storage.
+        Note that this method returns one storage ID iff the path matches directly
+        to pseudomanifest storage, in other cases this method returns at least 2 storage IDs:
+        one for pseudomanifest storage and one for the underlying storage.
         """
         paths = self.get_paths()
         if path.is_relative_to(self.mount_dir):
             path = path.relative_to(self.mount_dir)
         path = PurePosixPath('/') / path
-        return paths.get(path, [])
+        result = paths.get(path, [])
+
+        pm_primary_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
+        pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
+        result.extend(paths.get(pm_primary_path, []))
+        result.extend(paths.get(pm_path, []))
+
+        return result
 
     def get_primary_unique_mount_path_from_storage_id(self, storage_id: int) -> PurePosixPath:
         """
@@ -444,43 +462,6 @@ class WildlandFSClient:
         storage_info = self.get_info()
         assert storage_id in storage_info
         return storage_info[storage_id].paths[0]
-
-    def _is_storage_id_with_pseudomanifest_storage_id(self, storage_ids: List[int]) -> \
-            Tuple[bool, int]:
-        """
-        Check if the given list of storage IDs contains two items:
-        - a storage ID corresponding to pseudo-manifest,
-        - backing storage ID corresponding to the above-mentioned pseudo-manifest storage ID.
-
-        If it is True, return ``(True, non-pseudomanifest storage ID)``.
-        Otherwise return ``(False, storage_ids[0])``.
-        """
-        assert len(storage_ids) > 0
-        storage_id = storage_ids[0]
-
-        if len(storage_ids) != 2:
-            return False, storage_id
-
-        info = self.get_info()
-        all_paths = (
-            info[storage_ids[0]].paths,
-            info[storage_ids[1]].paths
-        )
-
-        assert len(all_paths[0]) > 0
-        assert len(all_paths[1]) > 0
-
-        matching_main_paths = False
-
-        for i, j in (0, 1), (1, 0):
-            if str(all_paths[i][0]) + '-pseudomanifest' == str(all_paths[j][0]):
-                matching_main_paths = True
-                storage_id = i
-                break
-
-        # pseudomanifest storage has the same mountpoint list as its underlying storage except the
-        # first (main) path
-        return matching_main_paths and all_paths[0][1:] == all_paths[1][1:], storage_id
 
     def get_orphaned_container_storage_paths(self, container: Container, storages_to_mount) \
             -> List[PurePosixPath]:
@@ -750,7 +731,7 @@ class WildlandFSClient:
         info = self.get_info()
 
         mount_paths = self.get_storage_mount_paths(container, storage, user_paths)
-        storage_id = self.find_storage_id_by_path(mount_paths[0])
+        storage_id, _ = self.find_storage_id_by_path(mount_paths[0])
 
         if storage_id is None:
             logger.debug('Storage %s is new. Remounting it inside %s container.',

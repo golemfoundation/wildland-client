@@ -234,9 +234,7 @@ class Remounter:
                 new_main_paths.add(main_path)
 
             for main_path in self.wlpath_main_paths.get(wlpath, set()).difference(new_main_paths):
-                storage_id = self.fs_client.find_storage_id_by_path(main_path)
-                pseudo_storage_id = self.fs_client.find_storage_id_by_path(
-                    main_path / '.manifest.wildland.yaml')
+                storage_id, pseudo_storage_id = self.fs_client.find_storage_id_by_path(main_path)
                 if storage_id is not None:
                     assert pseudo_storage_id is not None
                     logger.info('  (unmount %d)', storage_id)
@@ -267,20 +265,19 @@ class Remounter:
             pseudo_storage_id: Optional[int] = None
 
             if event.path in self.main_paths:
-                storage_id = self.fs_client.find_storage_id_by_path(self.main_paths[event.path])
-                pseudo_storage_id = self.fs_client.find_storage_id_by_path(
-                    self.main_paths[event.path] / '.manifest.wildland.yaml')
+                storage_id, pseudo_storage_id = self.fs_client.find_storage_id_by_path(
+                    self.main_paths[event.path])
 
-            if storage_id is not None:
-                assert pseudo_storage_id is not None
-                logger.info('  (unmount %d)', storage_id)
-                self.to_unmount += [storage_id, pseudo_storage_id]
-            else:
-                logger.info('  (not mounted)')
+                if storage_id is not None:
+                    assert pseudo_storage_id is not None
+                    logger.info('  (unmount %d)', storage_id)
+                    self.to_unmount += [storage_id, pseudo_storage_id]
+                else:
+                    logger.info('  (not mounted)')
 
-            # Stop tracking the file
-            if event.path in self.main_paths:
-                del self.main_paths[event.path]
+                # Stop tracking the file
+                if event.path in self.main_paths:
+                    del self.main_paths[event.path]
 
         # Handle create/modify:
 
@@ -348,9 +345,7 @@ class Remounter:
             storages_to_remount = []
 
             for path in self.fs_client.get_orphaned_container_storage_paths(container, storages):
-                storage_id = self.fs_client.find_storage_id_by_path(path)
-                pseudo_storage_id = self.fs_client.find_storage_id_by_path(
-                    path / '.manifest.wildland.yaml')
+                storage_id, pseudo_storage_id = self.fs_client.find_storage_id_by_path(path)
                 assert storage_id is not None
                 assert pseudo_storage_id is not None
                 logger.info('  (removing orphan storage %s @ id: %d)', path, storage_id)

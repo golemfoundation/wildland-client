@@ -30,7 +30,7 @@ import logging
 import subprocess
 import sys
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Callable, List, Any, Optional, Dict, Tuple, Union
 
 import click
@@ -423,7 +423,7 @@ def hard_remount_container(obj, container_path: Path, old_manifest: Manifest):
         click.echo('Container is mounted, remounting')
         # unmount old container
         for path in obj.fs_client.get_unique_storage_paths(old_container):
-            storage_and_pseudo_ids = find_storage_and_pseudomanifest_storage_ids(obj, path)
+            storage_and_pseudo_ids = obj.fs_client.find_storage_id_by_path(path)
             LOGGER.debug('  Removing storage %s @ id: %d', path, storage_and_pseudo_ids[0])
             for storage_id in storage_and_pseudo_ids:
                 obj.fs_client.unmount_storage(storage_id)
@@ -574,7 +574,7 @@ def prepare_remount(obj, container, storages, user_paths, force_remount=False):
     storages_to_unmount = []
 
     for path in obj.fs_client.get_orphaned_container_storage_paths(container, storages):
-        storage_and_pseudo_ids = find_storage_and_pseudomanifest_storage_ids(obj, path)
+        storage_and_pseudo_ids = obj.fs_client.find_storage_id_by_path(path)
         LOGGER.debug('  Removing orphan storage %s @ id: %d', path, storage_and_pseudo_ids[0])
         storages_to_unmount += storage_and_pseudo_ids
 
@@ -589,25 +589,6 @@ def prepare_remount(obj, container, storages, user_paths, force_remount=False):
         storages_to_remount = storages
 
     return storages_to_remount, storages_to_unmount
-
-
-def find_storage_and_pseudomanifest_storage_ids(obj, path):
-    """
-    Find first storage ID for a given mount path. ``None` is returned if the given path is not
-    related to any storage.
-    """
-    storage_id = obj.fs_client.find_storage_id_by_path(path)
-
-    pm_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
-    pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
-    if pseudo_storage_id is None:
-        pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
-        pseudo_storage_id = obj.fs_client.find_storage_id_by_path(pm_path)
-
-    assert storage_id is not None
-    assert pseudo_storage_id is not None
-
-    return storage_id, pseudo_storage_id
 
 
 def modify_manifest(pass_ctx: click.Context, input_file: str, edit_funcs: List[Callable[..., dict]],

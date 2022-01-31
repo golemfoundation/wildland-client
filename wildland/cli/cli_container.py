@@ -392,10 +392,11 @@ def _delete(obj: ContextObj, name: str, force: bool, cascade: bool, no_unpublish
     # unmount if mounted
     try:
         for mount_path in obj.fs_client.get_unique_storage_paths(container):
-            storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
+            storage_and_pseudo_ids = obj.fs_client.find_storage_id_by_path(
+                mount_path)
 
-            if storage_id:
-                obj.fs_client.unmount_storage(storage_id)
+            for ident in storage_and_pseudo_ids:
+                obj.fs_client.unmount_storage(ident)
 
             for storage_id in obj.fs_client.find_all_subcontainers_storage_ids(container):
                 obj.fs_client.unmount_storage(storage_id)
@@ -988,7 +989,6 @@ def _unmount(obj: ContextObj, container_names: Sequence[str], path: str,
     fails: List[str] = []
     all_storage_ids = []
     all_cache_ids = []
-    storage_ids: List[int] = []
     if container_names:
         for container_name in container_names:
             counter = get_counter(f"Loading containers (from '{container_name}')")
@@ -1057,6 +1057,7 @@ def _count_normal_storages(obj: ContextObj, storage_ids: List[int]):
         lambda storage_id: not _is_pseudomanifest_storage_id(obj, storage_id), storage_ids
     )))
 
+
 def _mount_path_to_backend_id(path: PurePosixPath) -> Optional[str]:
     pattern = r'^/.users/[0-9a-z-]+:/.backends/[0-9a-z-]+/([0-9a-z-]+)$'
     path_regex = re.compile(pattern)
@@ -1082,17 +1083,15 @@ def _collect_storage_ids_by_container_name(
 
         cache = obj.client.cache_storage(container)
         for mount_path in unique_storage_paths:
-            storage_id = obj.fs_client.find_storage_id_by_path(mount_path)
-            is_pseudomanifest = _is_pseudomanifest_primary_mount_path(mount_path)
+            storage_id, pm_id = obj.fs_client.find_storage_id_by_path(mount_path)
 
-            if storage_id is None:
-                assert not is_pseudomanifest
+            backend_id = _mount_path_to_backend_id(mount_path)
+            if cache and cache.params['backend-id'] == backend_id:
+                cache_ids.append(storage_id)
             else:
-                backend_id = _mount_path_to_backend_id(mount_path)
-                if cache and cache.params['backend-id'] == backend_id:
-                    cache_ids.append(storage_id)
-                else:
-                    storage_ids.append(storage_id)
+                storage_ids.append(storage_id)
+                if pm_id is not None:
+                    storage_ids.append(pm_id)
 
         if with_subcontainers:
             sub_ids = obj.fs_client.find_all_subcontainers_storage_ids(container)
@@ -1129,14 +1128,13 @@ def _collect_storage_ids_by_container_path(
         else:
             storage_ids.append(storage_id)
 
-        if _is_pseudomanifest_storage_id(obj, storage_id):
-            logger.debug('Ignoring unmounting solely pseudomanifest path (storage ID = %d)',
-                         storage_id)
-            continue
-
         if with_subcontainers:
             subcontainer_storage_ids = obj.fs_client.find_all_subcontainers_storage_ids(container)
             storage_ids.extend(subcontainer_storage_ids)
+
+    if len(storage_ids) + len(cache_ids) == 1:
+        raise CliError('Ignoring unmounting solely pseudomanifest path '
+                       f'(storage ID = {storage_ids[0]})')
 
     return storage_ids, cache_ids
 
@@ -1147,6 +1145,7 @@ def _is_pseudomanifest_storage_id(obj: ContextObj, storage_id: int) -> bool:
     """
     storage_info: StorageInfo = obj.fs_client.get_storage_info(storage_id)
     return storage_info.type == 'pseudomanifest'
+
 
 def _is_pseudomanifest_primary_mount_path(path: PurePosixPath) -> bool:
     """
