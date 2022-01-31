@@ -213,7 +213,7 @@ class WildlandFSBase:
             for path in paths:
                 self.resolver.mount(path, ident)
 
-        if not lazy:
+        if not lazy or storage.MOUNT_REFERENCE_CONTAINER:
             # request mount of storage backends
             _ = self.storages[ident]
 
