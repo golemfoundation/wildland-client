@@ -6,6 +6,7 @@ set -ex
 . ci/install-inplace redis
 
 # Setup
+
 ROOT="$HOME/wildland"
 MOUNT_DIR="redis-mnt"
 MOUNT_PATH="$ROOT/$MOUNT_DIR"
@@ -78,6 +79,24 @@ time -p chronic rm -r "$MOUNT_PATH/new01"
 # Check directory structure after removal
 
 SRC="$MOUNT_PATH" time -p chronic /bin/bash -c 'cd $SRC && [[ $(find . | xargs echo) == ". ./.manifest.wildland.yaml ./123.txt ./dir00 ./dir00/subdir00 ./dir00/subdir01 ./dir02 ./dir02/subdir00 ./dir02/subdir01" ]]'
+
+# Check whether read-only param is effective
+
+editor="sed -i -e '\$a\    read-only: True'"
+$WL c edit redis-container --editor "$editor"
+! DEST="$MOUNT_PATH/not_created.txt" time -p chronic /bin/bash -c 'echo "one two three" > "$DEST"'
+test ! -f "$MOUNT_PATH/not_created.txt"
+
+# Make sure correct errno is returned when writing to R/O storage
+
+python - <<EOF
+import errno
+try:
+  with open("${MOUNT_PATH}/not_created.txt", "w") as f:
+    f.write('Wildland rocks!')
+except OSError as e:
+    assert e.errno == errno.EROFS
+EOF
 
 # Done
 

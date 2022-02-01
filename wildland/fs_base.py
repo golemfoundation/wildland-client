@@ -178,7 +178,7 @@ class WildlandFSBase:
             paths = [PurePosixPath(p) for p in params['paths']]
             assert len(paths) > 0
             storage_params = params['storage']
-            read_only = params.get('read-only', False)
+            read_only = storage_params.get('read-only', False)
             extra_params = params.get('extra')
             remount = params.get('remount')
             storage = StorageBackend.from_params(storage_params, read_only, deduplicate=True)
@@ -562,10 +562,10 @@ class WildlandFSBase:
     # File System API
     #
 
-    def proxy(self, method_name, path: Union[str, PurePosixPath], *args,
+    def proxy(self, method_name: str, path: Union[str, PurePosixPath], *args,
               resolved_path: Optional[Resolved] = None,
-              parent=False,
-              modify=False,
+              parent: bool = False,
+              modify: bool = False,
               event_type: Optional[FileEventType] = None,
               **kwargs):
         """
@@ -583,7 +583,18 @@ class WildlandFSBase:
         """
 
         path = PurePosixPath(path)
-        resolved = self._resolve_path(path, parent) if not resolved_path else resolved_path
+
+        if resolved_path:
+            resolved = resolved_path
+        else:
+            try:
+                resolved = self._resolve_path(path, parent)
+            except IOError as e:
+                assert e.errno == errno.EACCES
+                if modify:
+                    raise IOError(errno.EROFS, str(path)) from e
+                raise
+
         with self.mount_lock:
             storage = self.storages[resolved.ident]
 

@@ -95,6 +95,8 @@ def _make_create_command(backend: Type[StorageBackend]):
                      help='Skip syncing from the first local storage to the created storage. If '
                           'the created storage is local then syncing is skipped regardless if '
                           'this option is present or not.'),
+        click.Option(['--read-only'], is_flag=True, default=False,
+                     help='Mark storage as read-only.'),
         click.Argument(['name'], metavar='NAME', required=False),
     ]
 
@@ -132,6 +134,7 @@ def _do_create(
         encrypt_manifest: bool,
         no_publish: bool,
         skip_sync: bool,
+        read_only: bool,
         **data):
 
     obj: ContextObj = click.get_current_context().obj
@@ -152,6 +155,9 @@ def _do_create(
 
     if watcher_interval:
         params['watcher-interval'] = watcher_interval
+
+    if read_only:
+        params['read-only'] = True
 
     params['backend-id'] = str(uuid.uuid4())
 

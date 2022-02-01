@@ -623,8 +623,9 @@ def test_nested_mounts(env, storage_type):
         assert f.read() == 'new content'
 
     # I shouldn't be able to create a new file
-    with pytest.raises(PermissionError):
+    with pytest.raises(OSError) as e:
         open(env.mnt_dir / 'container1/nested1/new-file', 'w')
+    assert e.value.errno == errno.EROFS
 
     # However, I can create a file under the second mount path...
     with open(env.mnt_dir / 'container1/nested2/file-c1-nested', 'w'):

@@ -134,7 +134,6 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
             ssl=self.params.get('tls', False),
         )
 
-        self.read_only = False
         self.key_prefix = PurePosixPath(self.params.get('prefix', '/'))
 
         if self.key_prefix.parts[0] != '/':

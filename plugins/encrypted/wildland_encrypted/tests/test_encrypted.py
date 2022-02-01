@@ -27,6 +27,7 @@ import time
 import subprocess
 import uuid
 import zlib
+import errno
 
 import pytest
 
@@ -113,10 +114,10 @@ def test_encrypted_with_url(cli, base_dir, engine):
     if engine == 'gocryptfs':
         subprocess.run(['pkill gocryptfs'], shell=True, check=True)
         time.sleep(1)
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(OSError) as e:
             ft2.write("2" * 10000)
-
-    if engine == 'encfs':
+        assert e.value.errno == errno.EINVAL
+    elif engine == 'encfs':
         subprocess.run(['pkill --signal 9 encfs'], shell=True, check=True)
         time.sleep(1)
         with pytest.raises(OSError):

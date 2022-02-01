@@ -47,3 +47,7 @@
 
    Skip syncing from the first local storage to the created storage. If the created storage is
    local then syncing is skipped regardless if this option is present or not.
+
+.. option:: --read-only
+
+   Mark storage as read-only.

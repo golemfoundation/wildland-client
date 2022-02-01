@@ -292,6 +292,6 @@ cd ~/wildland/f/caroline\:/hello/world/
 expected="It works!"
 run cat Hello-World.md
 
-expected="bash: line 1: daniels.md: Permission denied"
+expected="bash: line 1: daniels.md: Read-only file system"
 expected_fail=1
 run bash -c "echo 'Can I write here?' > daniels.md"
