@@ -25,6 +25,7 @@
 Storage class
 """
 import os
+import sys
 from pathlib import PurePosixPath
 from typing import Dict, Any, Optional, List
 from copy import deepcopy
@@ -164,10 +165,19 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         storage_type = params['type']
 
         if 'reference-container' in params:
-            referenced_path_and_storage_params = client.select_reference_storage(
-                params['reference-container'],
-                params['owner'],
-                params.get('trusted', False))
+            old_recursion_limit = sys.getrecursionlimit()
+            try:
+                sys.setrecursionlimit(200)
+                referenced_path_and_storage_params = client.select_reference_storage(
+                    params['reference-container'],
+                    params['owner'],
+                    params.get('trusted', False))
+            except RecursionError:
+                # pylint: disable=raise-missing-from
+                raise WildlandError(
+                    'Cannot load storage: recursive reference container definition found.')
+            finally:
+                sys.setrecursionlimit(old_recursion_limit)
             if referenced_path_and_storage_params:
                 referenced_path, params['storage'] = referenced_path_and_storage_params
 
