@@ -46,7 +46,6 @@ from wildland.log import get_logger
 logger = get_logger('storage-encrypted')
 
 
-
 class EncryptedFSRunner(metaclass=abc.ABCMeta):
     """
     Abstract base class for cryptographic filesystem runner.
@@ -151,7 +150,7 @@ class EncFS(EncryptedFSRunner):
         assert self.password
         assert self.config
         return self.password + ";" + \
-            base64.standard_b64encode(self.config.encode()).decode()
+               base64.standard_b64encode(self.config.encode()).decode()
 
     def _decode_credentials(self, encoded_credentials):
         parts = encoded_credentials.split(';')
@@ -213,7 +212,7 @@ class EncFS(EncryptedFSRunner):
         with open(PurePosixPath(encfs.ciphertextdir) / '.encfs6.xml') as tf:
             encfs.config = tf.read()
         encfs.cleartextdir = cleartextdir
-        encfs.stop() # required, since encfs has the same command for initialization and mounting
+        encfs.stop()  # required, since encfs has the same command for initialization and mounting
         return encfs
 
     # pylint: disable=consider-using-with
@@ -273,8 +272,8 @@ class GoCryptFS(EncryptedFSRunner):
         assert self.config
         assert self.topdiriv
         return self.password + ";" + \
-            base64.standard_b64encode(self.config.encode()).decode() + ";" + \
-            base64.standard_b64encode(self.topdiriv).decode()
+               base64.standard_b64encode(self.config.encode()).decode() + ";" + \
+               base64.standard_b64encode(self.topdiriv).decode()
 
     def _decode_credentials(self, encoded_credentials):
         parts = encoded_credentials.split(';')
@@ -359,6 +358,7 @@ class FileOnAMount(LocalFile):
     Example scenario - engine (EncFS or GoCryptFS) process is killed by OOM,
     user attempts to write to a file, file ends up on unencrypted partition.
     """
+
     def __init__(self, *args, **kwargs):
         self.mount_path = Path(kwargs.pop('mount_path'))
         super().__init__(*args, **kwargs)
@@ -378,6 +378,7 @@ engines: Dict[str, Type['EncryptedFSRunner']] = {
     'encfs': EncFS,
     'gocryptfs': GoCryptFS
 }
+
 
 # pylint: disable=no-member
 
@@ -488,7 +489,7 @@ class EncryptedStorageBackend(StorageBackend):
         return FileOnAMount(path, self.local._path(path), flags,
                             mount_path=self.cleartext_path)
 
-    def create(self, path: PurePosixPath, flags: int, mode: int=0o666) -> File:
+    def create(self, path: PurePosixPath, flags: int, mode: int = 0o666) -> File:
         if self.local.ignore_own_events and self.local.watcher_instance:
             self.local.watcher_instance.ignore_event('create', path)
             return FileOnAMount(path, self.local._path(path), flags, mode,

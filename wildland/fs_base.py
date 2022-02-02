@@ -155,6 +155,35 @@ class WildlandFSBase:
 
     # pylint: disable=no-self-use,too-many-public-methods,unused-argument
 
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)  # type: ignore
+        # Mount information
+        self.storages = LazyStorageDict()
+        self.storage_extra: Dict[int, Dict] = {}
+        self.storage_paths: Dict[int, List[PurePosixPath]] = {}
+        self.main_paths: Dict[PurePosixPath, int] = {}
+        self.storage_counter = 1
+
+        self.mount_lock = threading.Lock()
+
+        self.watches: Dict[int, Watch] = {}
+        self.storage_watches: Dict[int, Set[int]] = {}
+        self.watchers: Dict[int, StorageWatcher] = {}
+        self.watch_counter = 1
+
+        self.uid = None
+        self.gid = None
+
+        self.resolver = WildlandFSConflictResolver(self)
+        self.control_server = ControlServer()
+        self.control_server.register_commands(self)
+        self.default_user = None
+
+        command_schemas = Schema.load_dict('fs-commands.json', 'args')
+        self.control_server.register_validators({
+            cmd: schema.validate for cmd, schema in command_schemas.items()
+        })
+
     def _mount_storage(
             self,
             paths: List[PurePosixPath],
@@ -193,35 +222,6 @@ class WildlandFSBase:
         self.main_paths[main_path] = ident
         for path in paths:
             self.resolver.mount(path, ident)
-
-    def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)  # type: ignore
-        # Mount information
-        self.storages: LazyStorageDict[int, StorageBackend] = LazyStorageDict()
-        self.storage_extra: Dict[int, Dict] = {}
-        self.storage_paths: Dict[int, List[PurePosixPath]] = {}
-        self.main_paths: Dict[PurePosixPath, int] = {}
-        self.storage_counter = 1
-
-        self.mount_lock = threading.Lock()
-
-        self.watches: Dict[int, Watch] = {}
-        self.storage_watches: Dict[int, Set[int]] = {}
-        self.watchers: Dict[int, StorageWatcher] = {}
-        self.watch_counter = 1
-
-        self.uid = None
-        self.gid = None
-
-        self.resolver = WildlandFSConflictResolver(self)
-        self.control_server = ControlServer()
-        self.control_server.register_commands(self)
-        self.default_user = None
-
-        command_schemas = Schema.load_dict('fs-commands.json', 'args')
-        self.control_server.register_validators({
-            cmd: schema.validate for cmd, schema in command_schemas.items()
-        })
 
     def _unmount_storage(self, storage_id: int) -> None:
         """Unmount a storage"""
