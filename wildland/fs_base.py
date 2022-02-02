@@ -83,7 +83,7 @@ class LazyStorageDict:
         self._storages = dict()
         self._initialized = dict()
 
-    def __getitem__(self, key):
+    def get(self, key):
         storage = self._storages[key]
         if self._initialized[key]:
             return storage
@@ -93,8 +93,13 @@ class LazyStorageDict:
         except Exception as e:
             logger.exception('backend %s not mounted due to exception', storage.backend_id)
             raise WildlandError from e
+
         self._initialized[key] = True
+
         return storage
+
+    def __getitem__(self, key):
+        return self.get(key)
 
     def __setitem__(self, key, value):
         self._storages[key] = value
@@ -215,7 +220,7 @@ class WildlandFSBase:
 
         if not lazy or storage.MOUNT_REFERENCE_CONTAINER:
             # request mount of storage backends
-            _ = self.storages[ident]
+            self.storages.get(ident)
 
     def _unmount_storage(self, storage_id: int) -> None:
         """Unmount a storage"""
