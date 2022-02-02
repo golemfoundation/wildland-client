@@ -102,6 +102,7 @@ class StorageInfo:
     """
     Represents structured information about single mounted storage.
     """
+
     def __init__(self, data: dict):
         self.paths = [PurePosixPath(p) for p in data['paths']]
         self.type = data['type']
@@ -275,25 +276,30 @@ class WildlandFSClient:
             time.sleep(delay)
         raise WildlandFSError('Timed out waiting for Wildland to stop')
 
-    def mount_container(self,
-                        container: Container,
-                        storages: List[Storage],
-                        user_paths: Iterable[Iterable[PurePosixPath]] = ((),),
-                        subcontainer_of: Optional[Container] = None,
-                        remount: bool = False) -> None:
+    def mount_container(
+            self,
+            container: Container,
+            storages: List[Storage],
+            user_paths: Iterable[Iterable[PurePosixPath]] = ((),),
+            subcontainer_of: Optional[Container] = None,
+            remount: bool = False,
+            lazy: bool = True
+    ) -> None:
         """
         Mount a container, assuming a storage has been already selected.
         """
 
         self.mount_multiple_containers([(container, storages, user_paths, subcontainer_of)],
-                                       remount=remount)
+                                       remount=remount, lazy=lazy)
 
     def mount_multiple_containers(
             self,
             params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
                                    Optional[Container]]],
             remount: bool = False,
-            unique_path_only: bool = False) -> None:
+            unique_path_only: bool = False,
+            lazy: bool = True
+    ) -> None:
         """
         Mount multiple containers using a single command.
         """
@@ -308,13 +314,15 @@ class WildlandFSClient:
 
         commands = storage_commands + pseudomanifests_commands
 
-        self.run_control_command('mount', items=commands)
+        self.run_control_command('mount', items=commands, lazy=lazy)
 
     def _generate_command_for_mount_container(self,
-            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
-                                   Optional[Container]]],
-            remount: bool = False,
-            unique_path_only: bool = False) -> List[Dict]:
+                                              params: Iterable[Tuple[
+                                                  Container, Iterable[Storage], Iterable[
+                                                      Iterable[PurePosixPath]],
+                                                  Optional[Container]]],
+                                              remount: bool = False,
+                                              unique_path_only: bool = False) -> List[Dict]:
 
         identity_storage_generator = lambda _, storage: storage
         commands = self._get_commands_for_mount_containers(
@@ -323,10 +331,13 @@ class WildlandFSClient:
         return commands
 
     def _generate_command_for_mount_pseudomanifest_container(self,
-            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
-                                   Optional[Container]]],
-            remount: bool = False,
-            unique_path_only: bool = False) -> List[Dict]:
+                                                             params: Iterable[Tuple[
+                                                                 Container, Iterable[Storage],
+                                                                 Iterable[Iterable[PurePosixPath]],
+                                                                 Optional[Container]]],
+                                                             remount: bool = False,
+                                                             unique_path_only: bool = False) -> \
+            List[Dict]:
 
         pseudomanifest_commands = self._get_commands_for_mount_containers(
             params, remount, unique_path_only, True, self._generate_pseudomanifest_storage)
@@ -334,14 +345,14 @@ class WildlandFSClient:
         return pseudomanifest_commands
 
     def _get_commands_for_mount_containers(
-        self,
-        params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
-                               Optional[Container]]],
-        remount: bool,
-        unique_path_only: bool,
-        is_hidden: bool,
-        storage_generator: Callable[[Container, Storage], Storage]
-                                           ) -> List[Dict]:
+            self,
+            params: Iterable[Tuple[Container, Iterable[Storage], Iterable[Iterable[PurePosixPath]],
+                                   Optional[Container]]],
+            remount: bool,
+            unique_path_only: bool,
+            is_hidden: bool,
+            storage_generator: Callable[[Container, Storage], Storage]
+    ) -> List[Dict]:
 
         return [
             self.get_command_for_mount_container(
@@ -565,7 +576,7 @@ class WildlandFSClient:
             relpath = local_path.resolve().relative_to(self.mount_dir)
         except ValueError as e:
             raise CliError(f'Given path [{local_path}] is not a subpath of the mountpoint '
-                f'[{self.mount_dir}]') from e
+                           f'[{self.mount_dir}]') from e
 
         if local_path.is_dir():
             results = self.run_control_command('dirinfo', path=('/' + str(relpath)))
@@ -698,7 +709,7 @@ class WildlandFSClient:
             if include_pseudomanifest:
                 pattern = fr'^/.users/{container.owner}{self.bridge_separator}/.backends' \
                           fr'/{container.uuid}/[0-9a-z-]+(-pseudomanifest/' \
-                           r'.manifest.wildland.yaml)?$'
+                          r'.manifest.wildland.yaml)?$'
             else:
                 pattern = fr'^/.users/{container.owner}{self.bridge_separator}' \
                           fr'/.backends/{container.uuid}/[0-9a-z-]+$'
@@ -747,14 +758,16 @@ class WildlandFSClient:
 
         return False
 
-    def get_command_for_mount_container(self,
-                                        container: Container,
-                                        storage: Storage,
-                                        user_paths: Iterable[Iterable[PurePosixPath]],
-                                        subcontainer_of: Optional[Container],
-                                        unique_path_only: bool = False,
-                                        remount: bool = False,
-                                        is_hidden: bool = False) -> Dict:
+    def get_command_for_mount_container(
+            self,
+            container: Container,
+            storage: Storage,
+            user_paths: Iterable[Iterable[PurePosixPath]],
+            subcontainer_of: Optional[Container],
+            unique_path_only: bool = False,
+            remount: bool = False,
+            is_hidden: bool = False
+    ) -> Dict:
         """
         Prepare parameters for the control client to mount a container.
 
@@ -800,7 +813,7 @@ class WildlandFSClient:
             'remount': remount,
         }
 
-    def join_bridge_paths_for_mount(self, bridges: Iterable[PurePosixPath], path: PurePosixPath)\
+    def join_bridge_paths_for_mount(self, bridges: Iterable[PurePosixPath], path: PurePosixPath) \
             -> PurePosixPath:
         """
         Construct a full mount paths given bridge paths and a container path. This function joins
@@ -820,7 +833,8 @@ class WildlandFSClient:
         )
 
     def get_storage_mount_paths(self, container: Container, storage: Storage,
-            user_paths: Iterable[Iterable[PurePosixPath]]) -> List[PurePosixPath]:
+                                user_paths: Iterable[Iterable[PurePosixPath]]
+                                ) -> List[PurePosixPath]:
         """
         Return all mount paths (incl. synthetic ones) for the given storage.
 
