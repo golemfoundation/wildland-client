@@ -87,7 +87,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         for field in ['owner', 'storage-type', 'backend-id', 'container-path', 'trusted',
                       'container-path', 'local-path', 'access', 'location',
                       'read-only']:
-            if fields.get(field, None):
+            if fields.get(field):
                 array_repr += [f"{field}={fields[field]!r}"]
         self._str_repr = "storage(" + ", ".join(array_repr) + ")"
         return self._str_repr
@@ -261,7 +261,7 @@ class Storage(PublishableWildlandObject, obj_type=WildlandObject.Type.STORAGE):
         manifest_fields = self.to_manifest_fields(inline=True, str_repr_only=True)
         if not include_sensitive:
             for field in nonsensitive_storage_fields:
-                if manifest_fields.get(field, None):
+                if manifest_fields.get(field):
                     fields[field] = manifest_fields[field]
         else:
             fields = manifest_fields

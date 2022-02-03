@@ -260,8 +260,8 @@ class ConflictResolver(metaclass=abc.ABCMeta):
             result.update(names or [])
             return sorted(result)
 
-        res_dirs = []
-        res_files = []
+        res_dirs: List[Resolved] = []
+        res_files: List[Resolved] = []
         for res in resolved:
             st = handle_io_error(self.storage_getattr, res.ident, res.relpath)
             if st is None:
@@ -457,7 +457,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
         return real_storages + list(start_from.relative_storage_ids())
 
     @functools.lru_cache(500)
-    def _resolve(self, real_path):
+    def _resolve(self, real_path: PurePosixPath) -> List[Resolved]:
         return list(self.root.resolve(real_path))
 
 
