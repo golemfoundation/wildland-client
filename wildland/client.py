@@ -38,7 +38,7 @@ from graphlib import TopologicalSorter
 from pathlib import Path, PurePosixPath
 from subprocess import Popen
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union, Any
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse, quote, unquote
 
 import requests
 
@@ -1311,7 +1311,7 @@ class Client:
                 url, local_hostname)
             return None
 
-        path = Path(parse_result.path)
+        path = Path(unquote(parse_result.path))
 
         try:
             verify_local_access(path, owner, owner in local_owners)
