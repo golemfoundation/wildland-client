@@ -851,6 +851,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
     params: List[Tuple[Container, List[Storage], List[Iterable[PurePosixPath]], Container]] = []
     successfully_loaded_container_names: List[str] = []
     fails: List[str] = []
+    warnings: List[str] = []
     storages_count = 0
 
     for container_name in container_names:
@@ -887,7 +888,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
                 storages_count += sum(len(params[1]) for params in mount_params)
                 current_params.extend(mount_params)
             except WildlandError as ex:
-                fails.append(f'Cannot mount container {container}: {str(ex)}')
+                warnings.append(f'Cannot mount container: {container}: {str(ex)}')
 
         successfully_loaded_container_names.append(container_name)
         params.extend(current_params)
@@ -923,6 +924,9 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
         if len(new_default_containers) > len(default_containers_set):
             click.echo(f'default-containers in your config file {client.config.path} has '
                        'duplicates. Consider removing them.')
+
+    if warnings:
+        logger.warning('Warning:\n%s', "\n".join(warnings))
 
     if fails:
         raise WildlandError('\n'.join(fails))
