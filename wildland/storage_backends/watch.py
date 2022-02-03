@@ -25,11 +25,12 @@
 Watching for changes.
 """
 from enum import Enum
-from typing import Optional, List, Callable, Dict
+from typing import Optional, List, Callable, Dict, Iterable
 from pathlib import PurePosixPath
 import threading
 from dataclasses import dataclass
 import abc
+import os
 
 from .base import StorageBackend, Attr
 from ..log import get_logger
@@ -120,7 +121,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def wait(self) -> Optional[List[FileEvent]]:
+    def wait(self) -> Optional[Iterable[FileEvent]]:
         """
         Wait for a list of change events. This should return as soon as
         self.stop_event is set.
@@ -135,8 +136,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
 
 class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     """
-    An implementation of storage watcher that uses the backend to enumerate all
-    files.
+    An implementation of storage watcher that uses the backend to enumerate all files.
 
     Default implementation polls the storage every 10s for changes. To improve, override
     get_token() with something that will change when the storage needs to be examined again
@@ -216,3 +216,85 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
         for path in current_paths & new_paths:
             if current_info[path] != new_info[path]:
                 yield FileEvent(FileEventType.MODIFY, path)
+
+
+@dataclass
+class SubcontainerEvent(FileEvent):
+    """
+    Subcontainer change event.
+    """
+
+
+class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
+    """
+    An implementation of storage watcher that uses the backend to enumerate all subcontainers.
+
+    Default implementation polls the storage backend every 10s for changes. To improve, override
+    get_token() with something that will change when the storage needs to be examined again
+    (such as last modification time of backing storage).
+    """
+
+    def __init__(self, backend: StorageBackend, interval: int = 10, params: Optional[dict] = None):
+        super().__init__()
+        self.backend = backend
+        self.token = None
+        self.info: Dict[PurePosixPath, Attr] = {}
+        self.interval = interval
+        self.counter = 0  # for naive implementation of get_token()
+        self.params: Optional[dict] = params
+
+    def get_token(self):
+        """
+        Retrieve token to be compared, such as file modification info.
+        """
+        self.counter += 1
+        return self.counter
+
+    def init(self):
+        self.token = self.get_token()
+        self.info = self._get_info()
+
+    def wait(self) -> Optional[Iterable[SubcontainerEvent]]:
+        self.stop_event.wait(self.interval)
+        new_token = self.get_token()
+        if new_token != self.token:
+            logger.debug('storage changed...')
+            self.backend.clear_cache()
+            new_info = self._get_info()
+            result = list(self._compare_info(self.info, new_info))
+
+            self.token = new_token
+            self.info = new_info
+            if result:
+                logger.debug('subcontainer changes detected')
+                return result
+            logger.debug('subcontainer no changes detected')
+            return None
+        return None
+
+    def shutdown(self):
+        pass
+
+    def _get_info(self):
+        to_return: Dict[PurePosixPath, Optional[float]] = {}
+        paths = self.backend.get_children_paths()
+        logger.debug("watcher %s", str(self.backend))
+        for path in paths:
+            if os.path.exists(path):
+                mtime = os.path.getmtime(path)
+                to_return[path] = mtime
+            else:
+                to_return[path] = None
+        return to_return
+
+    @staticmethod
+    def _compare_info(current_info, new_info):
+        current_paths = set(current_info)
+        new_paths = set(new_info)
+        for path in current_paths - new_paths:
+            yield SubcontainerEvent(FileEventType.DELETE, path)
+        for path in new_paths - current_paths:
+            yield SubcontainerEvent(FileEventType.CREATE, path)
+        for path in current_paths.intersection(new_paths):
+            if current_info[path] != new_info[path]:
+                yield SubcontainerEvent(FileEventType.MODIFY, path)

@@ -286,9 +286,12 @@ class FileChildrenMixin(StorageBackend):
             driver.makedirs(relpath.parent)
             driver.write_file(relpath, client.session.dump_object(wl_object))
 
-    def get_children(self, client: Optional[Client] = None,
-                     query_path: PurePosixPath = PurePosixPath('*')) -> \
-            Iterable[Tuple[PurePosixPath, Link]]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Link]]]:
         """
         List all child objects provided by this storage.
         """
@@ -296,22 +299,28 @@ class FileChildrenMixin(StorageBackend):
 
         if manifest_pattern['type'] == 'list':
             for child_path in manifest_pattern['paths']:
-                try:
-                    attr = self.getattr(PurePosixPath(child_path).relative_to('/'))
-                except FileNotFoundError:
-                    continue
-                if not attr.is_dir():
-                    child_object_link = Link(file_path=child_path, storage_backend=self,
-                                             client=client)
-                    yield PurePosixPath(child_path), child_object_link
+                if not paths_only:
+                    try:
+                        attr = self.getattr(PurePosixPath(child_path).relative_to('/'))
+                    except FileNotFoundError:
+                        continue
+                    if not attr.is_dir():
+                        child_object_link = Link(
+                            file_path=child_path, storage_backend=self, client=client)
+                        yield PurePosixPath(child_path), child_object_link
+                    else:
+                        yield PurePosixPath(child_path), None
         elif manifest_pattern['type'] == 'glob':
             path = self._parse_glob_pattern(query_path)
 
             for file_path in self._find_manifest_files(PurePosixPath('.'),
                                                        path.relative_to(PurePosixPath('/'))):
-                child_object_link = Link(file_path=PurePosixPath('/') / file_path,
-                                         storage_backend=self, client=client)
-                yield file_path, child_object_link
+                if not paths_only:
+                    child_object_link = Link(file_path=PurePosixPath('/') / file_path,
+                                             storage_backend=self, client=client)
+                    yield file_path, child_object_link
+                else:
+                    yield file_path, None
 
     def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath)\
             -> Iterable[PurePosixPath]:

@@ -84,6 +84,22 @@
             }
         },
 
+        "add-subcontainer-watch": {
+            "type": "object",
+            "required": ["backend-param"],
+            "additionalProperties": false,
+            "properties": {
+                "backend-param": {
+                    "type": "object",
+                    "description": "storage backend parameters"
+                },
+                "ignore-own": {
+                    "type": "boolean",
+                    "description": "should the watcher ignore events caused by storage's own activity"
+                }
+            }
+        },
+
         "fileinfo": {
             "type": "object",
             "additionalProperties": false,

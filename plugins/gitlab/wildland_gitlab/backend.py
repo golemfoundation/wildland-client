@@ -26,7 +26,7 @@ Wildland storage backend exposing GitLab issues
 
 # pylint: disable=no-member
 import stat
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Iterable
 from functools import partial
 from pathlib import PurePosixPath
 from datetime import datetime
@@ -141,15 +141,20 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')):
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[ContainerStub]]]:
         """
         Creates a separate container for each of the issues fetched from the server
         """
         logger.debug('creating subcontainers for the issues')
         assert self.all_compact_issues is not None
         for issue in self.all_compact_issues:
-            yield self._make_issue_container(issue)
-        logger.debug('subcontainers succesfully created')
+            yield self._make_issue_container(issue, paths_only)
+        logger.debug('subcontainers successfully created')
 
     @classmethod
     def _get_issue_categories(cls, issue: CompactIssue) -> List[str]:
@@ -175,8 +180,7 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         if issue.labels:
             for label in issue.labels:
                 to_append = PurePosixPath('/labels')
-                l = label.split('::')
-                for part in l:
+                for part in label.split('::'):
                     to_append = to_append / PurePosixPath(part)
                 paths.append(to_append)
 
@@ -200,7 +204,8 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         """
         return str(uuid.uuid3(uuid.UUID(self.backend_id), str(issue.ident)))
 
-    def _make_issue_container(self, issue: CompactIssue) -> Tuple[PurePosixPath, ContainerStub]:
+    def _make_issue_container(self, issue: CompactIssue, paths_only: bool) \
+            -> Tuple[PurePosixPath, Optional[ContainerStub]]:
         """
         Creates a separate subcontainer for each of the issues fetched from the server
         """
@@ -208,16 +213,18 @@ class GitlabStorageBackend(GeneratedStorageMixin, StorageBackend):
         paths = [f'/.uuid/{issue_uuid}']
         categories = self._get_issue_categories(issue)
         subcontainer_path = '/' + issue_uuid
-        return PurePosixPath(subcontainer_path), ContainerStub({
-            'paths': paths,
-            'title': issue.title,
-            'categories': categories,
-            'backends': {'storage': [{
-                'type': 'delegate',
-                'reference-container': 'wildland:@default:@parent-container:',
-                'subdirectory': subcontainer_path
-            }]}
-        })
+        if not paths_only:
+            return PurePosixPath(subcontainer_path), ContainerStub({
+                'paths': paths,
+                'title': issue.title,
+                'categories': categories,
+                'backends': {'storage': [{
+                    'type': 'delegate',
+                    'reference-container': 'wildland:@default:@parent-container:',
+                    'subdirectory': subcontainer_path
+                }]}
+            })
+        return PurePosixPath(subcontainer_path), None
 
     @classmethod
     def cli_options(cls):

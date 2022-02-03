@@ -663,7 +663,7 @@ class Client:
                              include_manifests_catalog: bool = False,
                              ) -> Iterator[Container]:
         """
-        Load a list of containers. Currently supports WL paths, glob patterns (*) and
+        Load a list of containers. Currently, supports WL paths, glob patterns (*) and
         tilde (~), but only in case of local files.
 
         :param name: containers to load - can be a local path (including glob) or a Wildland path
@@ -1068,7 +1068,7 @@ class Client:
         """
         Select and load a storage to mount for a container.
 
-        In case of proxy storage, this will also load an reference storage and
+        In case of proxy storage, this will also load a reference storage and
         inline the manifest.
         """
         try:
@@ -1159,13 +1159,9 @@ class Client:
                                                expected_owner=container.owner)
         return subcontainer_obj.get_container(container)
 
-    def all_subcontainers(self, container: Container) -> Iterator[Union[Container, Bridge]]:
+    def get_subcontainer_storage(self, container: Container):
         """
-        List subcontainers of this container.
-
-        This takes only the first backend that is capable of sub-containers functionality.
-        :param container:
-        :return:
+        Returns only the first backend that is capable of sub-containers functionality.
         """
         for storage in self.all_storages(container):
             try:
@@ -1178,15 +1174,32 @@ class Client:
                     # Storage backend does not support subcontainers, skip mounting
                     continue
                 with backend:
-                    for _, subcontainer in backend.get_children(self):
-                        yield self.load_subcontainer_object(container, storage, subcontainer)
+                    backend.get_children(self, paths_only=True)
+                return storage
             except NotImplementedError:
                 continue
-            except (WildlandError, ManifestError) as ex:
-                logger.warning('Container %s: cannot load subcontainer: %s',
-                               container.uuid, str(ex))
-            else:
-                return
+
+        return None
+
+    def all_subcontainers(self, container: Container) -> Iterator[Union[Container, Bridge]]:
+        """
+        List subcontainers of this container.
+
+        This takes only the first backend that is capable of sub-containers functionality.
+        :param container:
+        :return:
+        """
+        storage = self.get_subcontainer_storage(container)
+        if storage:
+            with StorageBackend.from_params(storage.params, deduplicate=True) as backend:
+                for _, subcontainer in backend.get_children(self):
+                    assert subcontainer is not None
+                    try:
+                        yield self.load_subcontainer_object(container, storage, subcontainer)
+                    except (WildlandError, ManifestError) as ex:
+                        logger.warning('Container %s: cannot load subcontainer: %s',
+                                       container.uuid, str(ex))
+
 
     @staticmethod
     def is_url(s: str):

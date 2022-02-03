@@ -25,13 +25,14 @@ Transpose storage backend.
 """
 import re
 import ast
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Iterable, Tuple
 from pathlib import PurePosixPath
 
 import click
 
 from .base import StorageBackend
 from ..container import ContainerStub, Container
+from ..link import Link
 from ..manifest.schema import Schema
 from ..client import Client
 from ..exc import WildlandError
@@ -190,53 +191,61 @@ class TransposeStorageBackend(StorageBackend):
     def can_have_children(self) -> bool:
         return self.reference.can_have_children
 
-    def get_children(self, client: Client = None, query_path: PurePosixPath = PurePosixPath('*'),):
+    def get_children(
+            self,
+            client: Client = None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Union[Link, ContainerStub]]]]:
         subcontainer_list = self.reference.get_children(client)
 
         for element in subcontainer_list:
             path = element[0]
             container = element[1]
 
-            if isinstance(container, ContainerStub):
-                new_categories = self.modify_categories(container.fields['categories'])
-
-                yield PurePosixPath(path), \
-                ContainerStub({
-                'paths': container.fields['paths'],
-                'title': container.fields['title'],
-                'categories': new_categories,
-                'backends': {'storage': [{
-                    'type': 'delegate',
-                    'reference-container':'wildland:@default:@parent-container:',
-                    'subdirectory': container.fields['backends']['storage'][0]['subdirectory']
-                    }]}
-                })
-            else:
-                assert client is not None
-                target_bytes = container.get_target_file()
-                link_container = client.load_object_from_bytes(None,
-                                                               target_bytes)
-
-                if isinstance(link_container, Container) and  \
-                        PurePosixPath(self.reference.params['container-path']) \
-                        not in link_container.paths:
-                    paths = []
-                    categories: List[Union[str, None]] = []
-                    for path in link_container.paths:
-                        paths.append(str(path))
-                    for category in link_container.categories:
-                        categories.append(str(category))
-
-                    new_categories = self.modify_categories(categories)
-                    link_manifest = link_container.to_manifest_fields(False)
+            if not paths_only:
+                if isinstance(container, ContainerStub):
+                    new_categories = self.modify_categories(container.fields['categories'])
 
                     yield PurePosixPath(path), \
                     ContainerStub({
-                        'paths': link_manifest.get('paths'),
-                        'title': link_manifest.get('title'),
-                        'categories': new_categories,
-                        'backends': link_manifest.get('backends')
+                    'paths': container.fields['paths'],
+                    'title': container.fields['title'],
+                    'categories': new_categories,
+                    'backends': {'storage': [{
+                        'type': 'delegate',
+                        'reference-container':'wildland:@default:@parent-container:',
+                        'subdirectory': container.fields['backends']['storage'][0]['subdirectory']
+                        }]}
                     })
+                else:
+                    assert client is not None
+                    target_bytes = container.get_target_file()
+                    link_container = client.load_object_from_bytes(None,
+                                                                   target_bytes)
+
+                    if isinstance(link_container, Container) and  \
+                            PurePosixPath(self.reference.params['container-path']) \
+                            not in link_container.paths:
+                        paths = []
+                        categories: List[Union[str, None]] = []
+                        for path in link_container.paths:
+                            paths.append(str(path))
+                        for category in link_container.categories:
+                            categories.append(str(category))
+
+                        new_categories = self.modify_categories(categories)
+                        link_manifest = link_container.to_manifest_fields(False)
+
+                        yield PurePosixPath(path), \
+                        ContainerStub({
+                            'paths': link_manifest.get('paths'),
+                            'title': link_manifest.get('title'),
+                            'categories': new_categories,
+                            'backends': link_manifest.get('backends')
+                        })
+            else:
+                yield PurePosixPath(path), None
 
     def modify_categories(self, categories_list: List[Union[str, None]]) -> List[str]:
         """

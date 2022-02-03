@@ -25,7 +25,7 @@ Redis storage backend
 """
 
 from pathlib import PurePosixPath
-from typing import Iterable, Tuple, Union
+from typing import Iterable, Tuple, Union, Optional
 
 import click
 from redis import Redis
@@ -190,11 +190,19 @@ class RedisStorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, Storag
         })
         return opts
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
-            Iterable[Tuple[PurePosixPath, Link]]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Link]]]:
 
         # Make use of Redis' multi-get (blocking) feature
-        children = list(super().get_children(client, query_path))
+        children = list(super().get_children(client, query_path, paths_only))
+
+        if paths_only:
+            for res_path, _ in children:
+                yield res_path, None
 
         keys = [self._generate_key(path) for path, _ in children]
         manifests = self.redis.mget(keys)

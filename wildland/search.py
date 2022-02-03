@@ -276,7 +276,7 @@ class Search:
         >>> try:
         >>>     # mounting under unique paths only is enough, no need to pollute user's forest
         >>>     fs_client.mount_multiple_containers(mount_cmds, unique_path_only=True)
-        >>>     for events in fs_client.watch(patterns):
+        >>>     for events in fs_client.watch(patterns=patterns):
         >>>         ...
         >>> except:
         >>>     ...
@@ -443,6 +443,7 @@ class Search:
 
             for manifest_path, subcontainer_data in children_iter:
                 try:
+                    assert subcontainer_data is not None
                     container_or_bridge = step.client.load_subcontainer_object(
                         step.container, storage, subcontainer_data)
                 except (ManifestError, WildlandError) as e:

@@ -49,7 +49,6 @@ from ..link import Link
 from ..container import ContainerStub
 from ..log import get_logger
 
-
 if TYPE_CHECKING:
     import wildland.client  # pylint: disable=cyclic-import
 
@@ -243,6 +242,7 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.ignore_own_events = False
 
         self.watcher_instance = None
+        self.subcontainer_watcher_instance = None
         self.hash_cache: Dict[PurePosixPath, HashCache] = {}
         self.hash_db: Optional[HashDb] = None
         self._persistent_db: Optional[KVStore] = None  # generic persistent storage
@@ -393,6 +393,28 @@ class StorageBackend(metaclass=abc.ABCMeta):
         self.watcher_instance = None
         self.ignore_own_events = False
 
+    def start_subcontainer_watcher(self, handler):
+
+        if self.subcontainer_watcher_instance:
+            raise StorageError("Watcher already exists")
+
+        self.subcontainer_watcher_instance = self.subcontainer_watcher()  # pylint: disable=assignment-from-none
+
+        if not self.subcontainer_watcher_instance:
+            return None
+
+        self.subcontainer_watcher_instance.start(handler)
+
+        return self.subcontainer_watcher_instance
+
+    def stop_subcontainer_watcher(self):
+        if not self.subcontainer_watcher_instance:
+            return
+
+        self.subcontainer_watcher_instance.stop()
+
+        self.subcontainer_watcher_instance = None
+
     def watcher(self):
         """
         Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
@@ -403,14 +425,30 @@ class StorageBackend(metaclass=abc.ABCMeta):
         explicitly specifies watcher-interval in the manifest. See local.py for a simple ``super()``
         implementation that avoids duplicating code.
 
-        Note that changes originating from FUSE are reported without using this
-        mechanism.
+        Note that changes originating from FUSE are reported without using this mechanism.
         """
         if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
             logger.warning("Using simple storage watcher - it can be very inefficient.")
             from ..storage_backends.watch import SimpleStorageWatcher
             return SimpleStorageWatcher(self, interval=int(self.params['watcher-interval']))
+        return None
+
+    def subcontainer_watcher(self):
+        """
+        Create a SubcontainerWatcher (see watch.py) for this storage, if supported. If the storage
+        manifest contains a ``watcher-interval`` parameter, SubcontainerWatcher (which is a naive,
+        brute-force watcher that scans the entire storage every watcher-interval seconds) will be
+        used. If a given StorageBackend provides a better solution, it's recommended to overwrite
+        this method to provide it. It is recommended to still use SubcontainerWatcher if the user
+        explicitly specifies watcher-interval in the manifest.
+        """
+        if 'watcher-interval' in self.params:
+            # pylint: disable=import-outside-toplevel, cyclic-import
+            logger.warning("Using simple subcontainer watcher - it can be very inefficient.")
+            from ..storage_backends.watch import SubcontainerWatcher
+            return SubcontainerWatcher(
+                self, interval=int(self.params['watcher-interval']))
         return None
 
     def set_config_dir(self, config_dir):
@@ -679,21 +717,32 @@ class StorageBackend(metaclass=abc.ABCMeta):
         """
         raise OptionalError()
 
-    def get_children(self, client: wildland.client.Client = None,
-                     query_path: PurePosixPath = PurePosixPath('*')) -> \
-            Iterable[Tuple[PurePosixPath, Union[Link, ContainerStub]]]:
+    def get_children(
+            self,
+            client: wildland.client.Client = None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[Union[Link, ContainerStub]]]]:
         """
         List all subcontainers provided by this storage.
 
         This method should provide an Iterable of tuples:
         - PurePosixPath to object (needed for search)
-        - Link or ContainerStub of the object
+        - Link or ContainerStub of the object (or None if paths_only)
 
         Storages of listed containers, when set as 'delegate' backend,
         may reference parent (this) container via Wildland URL:
         `wildland:@default:@parent-container:`
         """
         raise OptionalError()
+
+    def get_children_paths(
+            self,
+            client: wildland.client.Client = None,
+            query_path: PurePosixPath = PurePosixPath('*')
+    ) -> Iterable[PurePosixPath]:
+        for path, _ in self.get_children(client, query_path, paths_only=True):
+            yield path
 
     def get_subcontainer_watch_pattern(self, query_path: PurePosixPath):
         """

@@ -25,14 +25,14 @@ Wildland storage backend exposing read only IMAP mailbox
 """
 from functools import partial
 from pathlib import PurePosixPath
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Set, Tuple, Optional
 from datetime import timezone
 
 import uuid
 import click
 
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.watch import SimpleStorageWatcher
+from wildland.storage_backends.watch import SimpleStorageWatcher, SubcontainerWatcher
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
 from wildland.container import ContainerStub
@@ -43,6 +43,20 @@ logger = get_logger('storage-imap')
 
 
 class ImapStorageWatcher(SimpleStorageWatcher):
+    """
+    A watcher for IMAP server. This implementation just queries
+    the server and reports an update if message list has changed.
+    """
+
+    def __init__(self, backend: 'ImapStorageBackend'):
+        super().__init__(backend)
+        self.client = backend.client
+
+    def get_token(self):
+        return self.client.refresh_if_needed()
+
+
+class ImapSubcontainerWatcher(SubcontainerWatcher):
     """
     A watcher for IMAP server. This implementation just queries
     the server and reports an update if message list has changed.
@@ -89,14 +103,21 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
     def watcher(self):
         return ImapStorageWatcher(self)
 
+    def subcontainer_watcher(self):
+        return ImapSubcontainerWatcher(self)
+
     @property
     def can_have_children(self) -> bool:
         return True
 
-    def get_children(self, client=None, query_path: PurePosixPath = PurePosixPath('*')) -> \
-            Iterable[Tuple[PurePosixPath, ContainerStub]]:
+    def get_children(
+            self,
+            client=None,
+            query_path: PurePosixPath = PurePosixPath('*'),
+            paths_only: bool = False
+    ) -> Iterable[Tuple[PurePosixPath, Optional[ContainerStub]]]:
         for envelope in self.client.all_envelopes():
-            yield self._make_msg_container(envelope)
+            yield self._make_msg_container(envelope, paths_only)
 
     def get_root(self):
         """
@@ -113,7 +134,7 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
 
     def _msg_contents(self, e: MessageEnvelopeData):
         # This little method should populate the message directory
-        # with message parts decomposed into MIME attachements.
+        # with message parts decomposed into MIME attachments.
         for part in self.client.get_message(e.msg_uid):
             yield StaticFileEntry(part.attachment_name,
                                   part.content,
@@ -156,7 +177,8 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         ns = uuid.UUID(self.backend_id)
         return str(uuid.uuid3(ns, str(env.msg_uid)))
 
-    def _make_msg_container(self, env: MessageEnvelopeData) -> Tuple[PurePosixPath, ContainerStub]:
+    def _make_msg_container(self, env: MessageEnvelopeData, paths_only: bool) \
+            -> Tuple[PurePosixPath, Optional[ContainerStub]]:
         """
         Create a container manifest for a single mail message.
         """
@@ -165,17 +187,18 @@ class ImapStorageBackend(GeneratedStorageMixin, StorageBackend):
         logger.debug('making msg container for msg %d as %s', env.msg_uid, ident)
         categories = self._get_message_categories(env)
         subcontainer_path = '/' + ident
-
-        return PurePosixPath(subcontainer_path), ContainerStub({
-            'paths': paths,
-            'title': f'{env.subject} - {ident}',
-            'categories': categories,
-            'backends': {'storage': [{
-                'type': 'delegate',
-                'reference-container': 'wildland:@default:@parent-container:',
-                'subdirectory': subcontainer_path
-            }]}
-        })
+        if not paths_only:
+            return PurePosixPath(subcontainer_path), ContainerStub({
+                'paths': paths,
+                'title': f'{env.subject} - {ident}',
+                'categories': categories,
+                'backends': {'storage': [{
+                    'type': 'delegate',
+                    'reference-container': 'wildland:@default:@parent-container:',
+                    'subdirectory': subcontainer_path
+                }]}
+            })
+        return PurePosixPath(subcontainer_path), None
 
     @classmethod
     def cli_options(cls):

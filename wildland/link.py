@@ -65,6 +65,9 @@ class Link(WildlandObject, obj_type=WildlandObject.Type.LINK):
     def __repr__(self):
         return self.to_str()
 
+    def __eq__(self, other):
+        return self.to_str() == other.to_str()
+
     def to_str(self, include_sensitive=False):
         """
         Return string representation
