@@ -182,3 +182,46 @@ def test_manifest_catalog_format(client):
     assert user_fields['manifests-catalog'][0]['object'] == 'container'
     assert 'version' not in user_fields['manifests-catalog'][0]
     assert 'owner' not in user_fields['manifests-catalog'][0]
+
+
+def test_recursion_bomb(cli, base_dir, client):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    with open(base_dir / 'containers/bomb-1.container.yaml', 'w') as f:
+        f.write("""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - /.uuid/e60a489b-1c34-475c-85aa-50979e28742e
+ - /bomb-1
+object: container
+backends:
+  storage:
+    - object: storage
+      type: delegate
+      backend-id: 249097f9-563e-4e0c-8332-082ac3caad7d
+      reference-container: 'wildland::/bomb-2:'
+        """)
+
+    with open(base_dir / 'containers/bomb-2.container.yaml', 'w') as f:
+        f.write("""signature: |
+  dummy.0xaaa
+---
+owner: '0xaaa'
+paths:
+ - /.uuid/c2d147a8-28cd-4a76-b55d-90869210bcd9
+ - /bomb-2
+object: container
+backends:
+  storage:
+    - object: storage
+      type: delegate
+      backend-id: 17017282-23ac-40d4-841a-75ced0266509
+      reference-container: 'wildland::/bomb-1:'
+        """)
+
+    # faulty storages should not be loadable
+    bomb1 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'bomb-1')
+    bomb2 = client.load_object_from_name(WildlandObject.Type.CONTAINER, 'bomb-2')
+    assert not list(bomb1.load_storages())
+    assert not list(bomb2.load_storages())
