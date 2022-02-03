@@ -2086,6 +2086,20 @@ def test_container_modify_access(cli, base_dir):
     assert 'encrypted' in manifest_path.read_text()
 
 
+def test_container_modify_with_wl_path(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'User2', '--key', '0xbbb')
+
+    cli('container', 'create', 'Container', '--path', '/PATH', '--title', 'TITLE')
+
+    manifest_path = base_dir / 'containers/Container.container.yaml'
+
+    cli('container', 'modify', 'wildland::/PATH:', '--add-access', 'User2')
+    base_data = manifest_path.read_text().split('\n', 3)[-1]
+    data = yaml_parser.safe_load(base_data)
+    assert len(data['encrypted']['encrypted-keys']) == 2
+
+
 def test_container_create_update_user(cli, base_dir):
     cli('user', 'create', 'User', '--key', '0xaaa')
     cli('container', 'create', 'Container', '--path', '/PATH', '--update-user')
