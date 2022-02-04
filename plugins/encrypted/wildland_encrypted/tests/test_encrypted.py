@@ -94,7 +94,7 @@ def test_encrypted_with_url(cli, base_dir, engine):
 
     assert sorted(os.listdir(mounted_plaintext)) == ['.manifest.wildland.yaml', 'test.file']
 
-    time.sleep(1)  # time to let engine finish writing to plaintext dir
+    time.sleep(5)  # time to let engine finish writing to plaintext dir
 
     # check if ciphertext directory looks familiar
     listing = os.listdir(local_dir)
@@ -123,7 +123,7 @@ def test_encrypted_with_url(cli, base_dir, engine):
         with pytest.raises(OSError):
             ft2.write("2" * 10000)
 
-    time.sleep(1)  # otherwise "unmount: /tmp/.../mnt: target is busy"
+    time.sleep(10)  # otherwise "unmount: /tmp/.../mnt: target is busy"
 
 
 def test_gocryptfs_runner(base_dir):
