@@ -45,12 +45,15 @@ class CompactIssue:
     extracted from the fetched issues
     """
     milestone_title: Optional[str]
+    epic_title: Optional[str]
     project_name: str
     title: str
     iid: int
     updated_at: datetime
     labels: List[str]
     ident: str
+    closed: bool
+    author: str
 
 
 class GitlabClient:
@@ -98,8 +101,15 @@ class GitlabClient:
                                 milestone{
                                     title
                                 }
+                                epic{
+                                    title
+                                }
+                                author {
+                                    username
+                                }
                                 title
                                 updatedAt
+                                closedAt
                             }
                             pageInfo{
                                 hasNextPage
@@ -128,12 +138,18 @@ class GitlabClient:
                     labels = []
                     milestone_dict = issue.get('milestone') or {}
                     m_title = milestone_dict.get('title')
+                    epic_dict = issue.get('epic') or {}
+                    e_title = epic_dict.get('title')
                     update = datetime.fromisoformat((issue['updatedAt']).replace('Z', '+00:00'))
+                    closed = bool(issue['closedAt'])
                     for label in issue['labels']['nodes']:
                         labels.append(label['title'])
 
                     to_return.append(CompactIssue(
                         milestone_title=m_title,
+                        epic_title=e_title,
+                        closed=closed,
+                        author=issue['author']['username'],
                         project_name=project_name,
                         title=issue['title'],
                         iid=issue['iid'],
@@ -178,8 +194,15 @@ class GitlabClient:
                                 milestone{
                                     title
                                 }
+                                epic {
+                                title
+                                }
                                 title
                                 updatedAt
+                                closedAt
+                                author {
+                                    username
+                                }
                             }
                             pageInfo{
                                 hasNextPage
@@ -233,8 +256,15 @@ class GitlabClient:
                             milestone{
                                 title
                             }
+                            epic {
+                                title
+                            }
                             title
                             updatedAt
+                            closedAt
+                            author {
+                                username
+                            }
                         }
                         pageInfo{
                             hasNextPage
@@ -260,11 +290,21 @@ class GitlabClient:
             else:
                 m_title = None
 
+            closed = bool(issue['closedAt'])
+
+            if issue['epic']:
+                e_title = issue['epic']['title']
+            else:
+                e_title = None
+
             update = datetime.fromisoformat((issue['updatedAt']).replace('Z', '+00:00'))
             for label in issue['labels']['nodes']:
                 labels.append(label['title'])
 
             to_return.append(CompactIssue(milestone_title=m_title,
+                                          epic_title=e_title,
+                                          closed=closed,
+                                          author=issue['author']['username'],
                                           project_name=name,
                                           title=issue['title'],
                                           iid=issue['iid'],

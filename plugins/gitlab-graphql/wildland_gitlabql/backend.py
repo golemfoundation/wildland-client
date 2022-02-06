@@ -89,6 +89,11 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
             "project_path": {
                 "type": "string",
                 "description": "(optional) GitLab full project path."
+            },
+            "category_hierarchy": {
+                "type": "string",
+                "description": ("(optional) Category hierarchy to be used when generating "
+                                "the categories for the subcontainers"),
             }
         }
     })
@@ -96,6 +101,7 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
     def __init__(self, **kwds):
         super().__init__(**kwds)
         self.read_only = True
+        self.category_hierarchy = self.params['category_hierarchy']
         path = self.params.get('project_path')
         self.client = GitlabClient(personal_token=self.params['personal_token'],
                                    project_path=path)
@@ -142,43 +148,119 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
             yield self._make_issue_container(issue, paths_only)
         logger.debug('subcontainers successfully created')
 
-    @classmethod
-    def _get_issue_categories(cls, issue: CompactIssue) -> List[str]:
+    def _get_issue_categories(self, issue: CompactIssue) -> List[str]:
         """
-        Provides a list of categories the issue will appear under.
-        As of right now, the main category patterns are:
-        - /timeline/YYYY/MM/DD
-        - /labels/ISSUE_NAME (separate category for each of the issue's labels)
-        - /projects/PROJECT_NAME
-        - /milestones/MILESTONE_TITLE
+        Generates the container categories in accordance with the category-hierarchy
+        passed by the user.
         """
-        paths = []
-        to_return = []
+        # Disabling the 'consider-using-enumerate' pylint warning for readibility
+        # Diabling the 'too-many-nested-blocks' warning as it is necessary
+        # pylint: disable=consider-using-enumerate
+        # pylint: disable=too-many-nested-blocks
 
-        # date
+        permutations=[]
+        paths=[]
+        to_return=[]
+
+        # this gives us an array of length at most 5 which we now need to permutate through
+        to_permutate = ["" for i in range(5)]
+        initial_split = self.category_hierarchy.split('/')
+        if len(initial_split)>5:
+            raise Exception('Category generation failed: wrong category hierarchy format.')
+
+        for i in range(len(initial_split)):
+            to_permutate.insert(i, initial_split[i])
+
+        # need to go through each element at least once
+        for i in range(len(initial_split)):
+            to_permutate[i] = initial_split[i]
+
+        # need to declare in order for the permutations to work
+        first = None
+        second = None
+        third = None
+        fourth = None
+        fifth = None
+
+        # Create an array of all the possible permutations of different parts of the array, e.g.
+        # - ['1', '234', '5'] -> ['125', '135', '145']
+        for i in range(len(to_permutate[0])):
+            first=to_permutate[i]
+            for j in range(len(to_permutate[1])):
+                second=first+to_permutate[1][j]
+                for k in range(len(to_permutate[2])):
+                    third=second+to_permutate[2][k]
+                    for l in range(len(to_permutate[3])):
+                        fourth=third+to_permutate[3][l]
+                        for m in range(len(to_permutate[4])):
+                            fifth=fourth+to_permutate[4][m]
+                            permutations.append(fifth)
+                        if not fifth:
+                            permutations.append(fourth)
+                    if not fourth:
+                        permutations.append(third)
+                if not third:
+                    permutations.append(second)
+            if not second:
+                permutations.append(first)
+
+        # decoding the permutations and assigning relevant categories based on those
+        # this is in accordance with the explanation provided as the --help message
+        # for the --category-hierarchy option
+        for combination in permutations:
+            categories = [(PurePosixPath('/projects') / PurePosixPath(f'{issue.project_name}'))]
+            for number in combination:
+                if number=='1':
+                    if issue.closed:
+                        for index in range(len(categories)):
+                            categories[index] = categories[index] / PurePosixPath('closed')
+                    else:
+                        for index in range(len(categories)):
+                            categories[index] = categories[index] / PurePosixPath('open')
+                elif number=='2':
+                    for index in range(len(categories)):
+                        categories[index] = (categories[index] / PurePosixPath('author') /
+                                            PurePosixPath(f'{issue.author}'))
+                elif number=='3':
+                    for index in range(len(categories)):
+                        if issue.labels:
+                            with_labels=[]
+                            for label in issue.labels:
+                                label_category = categories[index] / PurePosixPath('labels')
+                                label_parts = label.split('::')
+                                for part in label_parts:
+                                    with_labels.append(label_category / PurePosixPath(part))
+                            categories=with_labels
+                        else:
+                            # if no categories, issue will be assigned the /undefined category
+                            categories[index] = (categories[index] / PurePosixPath('labels') /
+                                                   PurePosixPath('undefined'))
+                elif number=='4':
+                    for index in range(len(categories)):
+                        if issue.milestone_title:
+                            categories[index] = (categories[index] / PurePosixPath('milestones') /
+                                                   PurePosixPath(f'{issue.milestone_title}'))
+                        else:
+                            categories[index] = (categories[index] / PurePosixPath('milestones') /
+                                                   PurePosixPath('undefined'))
+                elif number=='5':
+                    for index in range(len(categories)):
+                        if issue.epic_title:
+                            categories[index] = (categories[index] / PurePosixPath('epics') /
+                                        PurePosixPath(f'{issue.epic_title}'))
+                        else:
+                            categories[index] = (categories[index] / PurePosixPath('epics') /
+                                                   PurePosixPath('undefined'))
+
+            for category in categories:
+                paths.append(category)
+
+        # add the timeline tree
         date = issue.updated_at
         paths.append(PurePosixPath('/timeline') /
                      PurePosixPath('%04d' % date.year) /
                      PurePosixPath('%02d' % date.month) /
                      PurePosixPath('%02d' % date.day))
-
-        # labels
-        if issue.labels:
-            for label in issue.labels:
-                to_append = PurePosixPath('/labels')
-                l = label.split('::')
-                for part in l:
-                    to_append = to_append / PurePosixPath(part)
-                paths.append(to_append)
-
-        # project_name
-        paths.append(PurePosixPath('/projects') /
-                     PurePosixPath(f'{issue.project_name}'))
-
-        # milestones
-        if issue.milestone_title:
-            paths.append(PurePosixPath('/milestones') /
-                         PurePosixPath(issue.milestone_title))
 
         for path in paths:
             to_return.append(str(path))
@@ -221,12 +303,22 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
                 help='personal access token generated by GitLab; used for authorization purposes'),
             click.Option(
                 ['--project-path'], required=False,
-                help='(optional) GitLab project path')
+                help='(optional) GitLab project path'),
+            click.Option(
+                ['--category-hierarchy'], required=False,
+                help=('the directory hierarchy to be followed when generating the issue tree; '
+                      'the category options include: \n 1./open or /closed, \n'
+                      '2./author/(author\'s name), \n 3./labels/(issue label) \n'
+                      '4./milestone/(issue milestone) \n 5./epics/(issue epic). \n'
+                      'You can customise these by passing a 5 digit combination, '
+                      'such as 1/35/2 to demonstrate the following two category options: \n'
+                      '-/open/labels/author, \n -/open/epics/authors'), default='1/2345')
         ]
 
     @classmethod
     def cli_create(cls, data):
         return {
             'personal_token': data['personal_token'],
-            'project_path': data['project_path']
+            'project_path': data['project_path'],
+            'category_hierarchy': data['category_hierarchy'],
         }
