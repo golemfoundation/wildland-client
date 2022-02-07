@@ -411,8 +411,8 @@ class WildlandFSBase:
             backend_param: Dict[str, Any]
     ):
         backend = StorageBackend.from_params(backend_param, deduplicate=True)
-        for storage_id, storage_backend in self.storages.items():
-            if storage_backend == backend:
+        for storage_id in self.storages:
+            if self.storages.get_hash(storage_id) == backend.hash:
                 ident = storage_id
                 break
         else:
