@@ -6109,13 +6109,22 @@ def _setup_forest_and_mount(cli, tmp_path, base_dir, control_client):
     expected_paths = {f'/.users/0xaaa:/.backends/{uuid}/{backend_id}',
                       f'/.users/0xaaa:/.backends/{entry_uuid}/{entry_backend_id}',
                       f'/.users/0xaaa:/.backends/{bridge_placeholder_uuid}/'
-                       f'{bridge_placeholder_uuid}',
+                      f'{bridge_placeholder_uuid}',
                       '/.users/0xaaa:/.manifests',
                       '/.users/0xaaa:',
                       f'/.users/0xaaa:/.uuid/{uuid}',
                       f'/.users/0xaaa:/.uuid/{entry_uuid}',
                       f'/.users/0xaaa:/.uuid/{bridge_placeholder_uuid}',
-                      '/.users/0xaaa:/testing/my_awesome_capsule'}
+                      '/.users/0xaaa:/testing/my_awesome_capsule',
+                      f'/.backends/{uuid}/{backend_id}',
+                      f'/.backends/{entry_uuid}/{entry_backend_id}',
+                      f'/.backends/{bridge_placeholder_uuid}/{bridge_placeholder_uuid}',
+                      '/.manifests',
+                      f'/.uuid/{uuid}',
+                      f'/.uuid/{entry_uuid}',
+                      f'/.uuid/{bridge_placeholder_uuid}',
+                      '/testing/my_awesome_capsule',
+                      '/'}
     assert expected_paths == set(all_paths)
     info = {
         "entry_uuid": entry_uuid,
