@@ -89,7 +89,20 @@ def mount(ctx: click.Context, forest_names, lazy: bool, save: bool,
             raise WildlandError(
                 f'Failed to parse forest name: {forest_name}. '
                 f'For example, ":/forests/User:" is a valid forest name')
-        forests.append(f'{forest_name}*:')
+
+        if WildlandPath.FOREST_VIA_USER_RE.match(forest_name):
+            bridge_paths = list(obj.client.get_bridge_paths_for_user(
+                f'{forest_name.split(":")[0]}'))
+        else:
+            bridge_paths = list(obj.client.read_bridge_from_url(forest_name, use_aliases=True))
+
+        if bridge_paths:
+            forests.append(f'{forest_name}*:')
+        else:
+            click.secho(f'Warning: Did not find bridge for: {forest_name}', fg="yellow")
+
+    if len(forests) <= 0:
+        raise WildlandError('No valid forest to be mount found')
 
     if with_cache and not cache_template:
         cache_template = obj.client.config.get('default-cache-template')

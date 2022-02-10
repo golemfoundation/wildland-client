@@ -61,6 +61,7 @@ class WildlandPath:
 
     ABSPATH_RE = re.compile(r'^/.*$')
     FINGERPRINT_RE = re.compile(r'^0x[0-9a-f]+$')
+    FOREST_VIA_USER_RE = re.compile(r'^0x[0-9a-f]+:$')
     ALIAS_RE = re.compile(r'^@[a-z-]+$')
     HINT_RE = re.compile(r'^0x[0-9a-f]+(@https{.*})')
     # if adding more protocols to hint, refactor to a separate WildlandHint class
