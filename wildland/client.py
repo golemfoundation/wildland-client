@@ -333,7 +333,8 @@ class Client:
                 name = self.config.aliases[name]
 
             if name in self.users:
-                return self.users[name].local_path
+                if self.users[name].local_path:
+                    return self.users[name].local_path
 
             if name.startswith('0x'):
                 for user in self.get_local_users():
