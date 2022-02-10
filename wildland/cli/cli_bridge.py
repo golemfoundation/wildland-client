@@ -26,13 +26,14 @@ Manage bridges
 """
 
 from pathlib import PurePosixPath, Path
-from typing import List, Optional
+from typing import List, Optional, Iterable
 
 import click
 
 from wildland.wildland_object.wildland_object import WildlandObject
 from wildland.bridge import Bridge
 from wildland.link import Link
+from wildland.cleaner import get_cli_cleaner
 from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj
 from .cli_common import sign, verify, edit, dump, publish, unpublish
@@ -40,7 +41,9 @@ from .cli_exc import CliError
 from .cli_user import import_manifest, find_user_manifest_within_catalog
 from ..log import get_logger
 
+
 logger = get_logger('cli-bridge')
+cleaner = get_cli_cleaner()
 
 
 @aliased_group('bridge', short_help='bridge management')
@@ -72,6 +75,25 @@ def create(obj: ContextObj,
            user_paths: List[str],
            name: Optional[str],
            file_path: Optional[str]):
+    """
+    Create a new bridge manifest. Clean up created files if fails.
+    """
+    try:
+        _bridge_create(obj, owner, target_user_name, target_user_location,
+                       user_paths, name, file_path)
+    except Exception as ex:
+        click.secho('Creation failed.', fg='red')
+        cleaner.clean_up()
+        raise ex
+
+
+def _bridge_create(obj: ContextObj,
+                  owner: str,
+                  target_user_name: str,
+                  target_user_location: str,
+                  user_paths: List[str],
+                  name: Optional[str],
+                  file_path: Optional[str]):
     """
     Create a new bridge manifest.
     """
@@ -180,8 +202,25 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
+    try:
+        _bridge_import(
+            obj,
+            path_or_url,
+            paths,
+            WildlandObject.Type.BRIDGE,
+            bridge_owner,
+            only_first
+        )
+    except Exception as ex:
+        click.secho('Import failed.', fg='red')
+        cleaner.clean_up()
+        raise ex
 
-    import_manifest(obj, path_or_url, paths, WildlandObject.Type.BRIDGE, bridge_owner, only_first)
+
+def _bridge_import(obj: ContextObj, path_or_url: str, paths: Iterable[str],
+                    wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
+                    only_first: bool):
+    import_manifest(obj, path_or_url, paths, wl_obj_type, bridge_owner, only_first)
 
 
 bridge_.add_command(sign)

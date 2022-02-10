@@ -45,6 +45,7 @@ import requests
 from wildland.bridge import Bridge
 from wildland.control_client import ControlClientUnableToConnectError
 from wildland.wildland_object.wildland_object import WildlandObject
+from wildland.cleaner import get_cli_cleaner
 from .control_client import ControlClient
 from .storage_sync.base import SyncEvent, SyncStateEvent, SyncState, SyncConflictEvent, \
     SyncErrorEvent
@@ -67,7 +68,7 @@ from .log import get_logger
 from .utils import yaml_parser
 
 logger = get_logger('client')
-
+cleaner = get_cli_cleaner()
 
 HTTP_TIMEOUT_SECONDS = 5
 
@@ -647,8 +648,10 @@ class Client:
                 # save the original manifest, don't risk the need to re-sign
                 path = self.new_path(WildlandObject.Type.USER, user.owner)
                 path.write_bytes(user.manifest.to_bytes())
+                cleaner.add_path(path)
                 path = self.new_path(WildlandObject.Type.BRIDGE, user.owner)
                 path.write_bytes(step.bridge.manifest.to_bytes())
+                cleaner.add_path(path)
 
         # load encountered users to the current context - may be needed for subcontainers
         self.recognize_users_and_bridges(
@@ -978,6 +981,7 @@ class Client:
                 storage_driver.write_file(path, data)
         else:
             path.write_bytes(data)
+            cleaner.add_path(path)
 
         if object_type == WildlandObject.Type.BRIDGE:
             # cache_clear is added by a decorator, which pylint doesn't see

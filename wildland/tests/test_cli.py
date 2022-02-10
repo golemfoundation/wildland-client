@@ -21,7 +21,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
+# pylint: disable=missing-docstring,redefined-outer-name,too-many-lines,bare-except
 import logging
 from copy import deepcopy
 from pathlib import Path
@@ -46,6 +46,8 @@ from ..manifest.manifest import ManifestError
 from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
+from ..cli.cli_user import _user_create, _user_import
+from ..cli.cli_bridge import _bridge_create, _bridge_import
 
 
 def modify_file(path, pattern, replacement):
@@ -162,6 +164,19 @@ def test_user_create(cli, base_dir):
     assert "'@default': '0xaaa'" in config
     assert "'@default-owner': '0xaaa'" in config
     assert "- '0xaaa'" in config
+
+
+def test_remove_files_when_user_create_fails(cli, base_dir):
+    def side_effect(*args, **kwargs):
+        _user_create(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_user._user_create', side_effect=side_effect):
+        try:
+            cli('user', 'create', 'User')
+        except:
+            pass
+        assert not Path(base_dir / 'users/User.user.yaml').exists()
 
 
 def test_user_create_additional_keys(cli, base_dir):
@@ -4812,6 +4827,24 @@ def test_bridge_create(cli, base_dir):
     assert 'pubkey: key.0xccc' in data
     assert '- /Third' in data
 
+def test_remove_files_when_bridge_create_fails(cli, base_dir):
+    cli('user', 'create', 'User', '--key', '0xaaa')
+    cli('user', 'create', 'RefUser', '--key', '0xbbb', '--path', '/OriginalPath')
+
+    def side_effect(*args, **kwargs):
+        _bridge_create(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_bridge._bridge_create', side_effect=side_effect):
+        try:
+            cli('bridge', 'create', 'Bridge',
+                '--target-user', 'RefUser',
+                '--target-user-location', 'https://example.com/RefUser.yaml',
+                '--path', '/ModifiedPath')
+        except:
+            pass
+        assert not Path(base_dir / 'bridges/Bridge.bridge.yaml').exists()
+
 
 # container-sync
 
@@ -5572,6 +5605,25 @@ def test_import_user(cli, base_dir, tmpdir):
     assert (base_dir / 'users/Bob.2.user.yaml').read_bytes() == _create_user_manifest('0xeee')
 
 
+def test_remove_files_when_user_import_fails(cli, base_dir, tmpdir):
+    test_data = _create_user_manifest('0xbbb')
+    destination = tmpdir / 'Bob.user.yaml'
+    destination.write(test_data)
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xaaa')
+
+    def side_effect(*args, **kwargs):
+        _user_import(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_user._user_import', side_effect=side_effect):
+        try:
+            cli('user', 'import', str(destination))
+        except:
+            pass
+        assert not Path(base_dir / 'users/Bob.user.yaml').exists()
+
+
 def test_import_bridge(cli, base_dir, tmpdir):
     test_user_data = _create_user_manifest('0xbbb')
     user_destination = tmpdir / 'Bob.user.yaml'
@@ -5595,6 +5647,45 @@ def test_import_bridge(cli, base_dir, tmpdir):
     assert f'user: file://localhost{user_destination}' in bridge_data
     assert 'pubkey: key.0xbbb' in bridge_data
     assert re.match(r'[\S\s]+paths:\n- /forests/0xbbb-IMPORT[\S\s]+', bridge_data)
+
+
+def test_remove_files_when_bridge_import_fails(cli, base_dir, tmpdir):
+    bob_dir = tmpdir / 'bob'
+    os.mkdir(bob_dir)
+    bob_manifest_location = bob_dir / 'Bob.user.yaml'
+    bob_user_manifest = _create_user_manifest('0xbbb', '/BOB')
+    bob_manifest_location.write(bob_user_manifest)
+
+    alice_dir = tmpdir / 'alice'
+    os.mkdir(alice_dir)
+    alice_manifest_location = alice_dir / 'Alice.user.yaml'
+
+    bob_bridge_dir = tmpdir / 'manifests'
+    os.mkdir(bob_bridge_dir)
+    bob_bridge_location = bob_bridge_dir / 'IMPORT.bridge.yaml'
+    bob_bridge_location.write(_create_bridge_manifest(
+        '0xaaa', f'file://localhost{bob_manifest_location}', '0xbbb'))
+
+    alice_manifest_location.write(_create_user_manifest('0xaaa', '/ALICE', str(bob_bridge_dir)))
+
+    cli('user', 'create', 'DefaultUser', '--key', '0xddd')
+
+    cli('bridge', 'create', '--owner', 'DefaultUser',
+        '--target-user-location', f'file://localhost{alice_manifest_location}', 'Alice')
+
+    modify_file(base_dir / 'config.yaml', "local-owners:\n- '0xddd'",
+                "local-owners:\n- '0xddd'\n- '0xaaa'")
+
+    def side_effect(*args, **kwargs):
+        _bridge_import(*args, **kwargs)
+        raise Exception('My error')
+
+    with mock.patch('wildland.cli.cli_bridge._bridge_import', side_effect=side_effect):
+        try:
+            cli('bridge', 'import', 'wildland:0xddd:/ALICE:/IMPORT:')
+        except:
+            pass
+        assert not os.listdir(Path(base_dir / 'bridges'))
 
 
 def test_import_bridge_with_object_location(cli, base_dir, tmpdir):

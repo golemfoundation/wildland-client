@@ -40,10 +40,12 @@ from nacl.public import PrivateKey, SealedBox, PublicKey
 from nacl.encoding import RawEncoder
 from nacl.exceptions import BadSignatureError, CryptoError
 
+from wildland.cleaner import get_cli_cleaner
 from ..exc import WildlandError
 from ..log import get_logger
 
 logger = get_logger('sig')
+cleaner = get_cli_cleaner()
 
 
 class SigError(WildlandError):
@@ -378,6 +380,7 @@ class SodiumSigContext(SigContext):
 
         if not public_file.exists():
             public_file.write_bytes(public_bytes)
+            cleaner.add_path(public_file)
         else:
             raise FileExistsError(f'File {public_file} already exists.')
 
@@ -389,6 +392,7 @@ class SodiumSigContext(SigContext):
 
             private_file.touch(mode=stat.S_IFREG | 0o600)
             private_file.write_bytes(private_bytes)
+            cleaner.add_path(private_file)
             assert os.stat(private_file).st_mode == stat.S_IFREG | 0o600
 
         return key_id, public_bytes.decode()
