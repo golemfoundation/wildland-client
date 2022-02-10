@@ -407,19 +407,8 @@ class WildlandFSClient:
         related to any storage.
         """
         paths = self.get_paths()
-        pm_primary_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
-        pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
-        storage_ids = paths.get(path, [])
-        pm_ids = paths.get(pm_primary_path, [])
-        if not pm_ids:
-            pm_ids = paths.get(pm_path, [])
-        if not pm_ids:
-            logger.warning("No pseudomanifest found for path: %s (storage ids: %s)",
-                           path, str(storage_ids))
-            pm_id = None
-        else:
-            pm_id = pm_ids[0]
 
+        storage_ids = paths.get(path, [])
         if not storage_ids:
             storage_id = None
         else:
@@ -427,6 +416,19 @@ class WildlandFSClient:
                 logger.warning('multiple non-pseudomanifest storages found for path: %s (storage '
                                'ids: %s)', path, str(storage_ids))
             storage_id = storage_ids[0]
+
+        pm_primary_path = PurePosixPath(str(path) + '-pseudomanifest/.manifest.wildland.yaml')
+        pm_ids = paths.get(pm_primary_path, [])
+        if not pm_ids:
+            pm_path = PurePosixPath(str(path) + '/.manifest.wildland.yaml')
+            pm_ids = paths.get(pm_path, [])
+        if not pm_ids:
+            if storage_id is not None:
+                logger.warning("No pseudomanifest found for path: %s (storage id: %s)",
+                               path, str(storage_id))
+            pm_id = None
+        else:
+            pm_id = pm_ids[0]
 
         return storage_id, pm_id
 
