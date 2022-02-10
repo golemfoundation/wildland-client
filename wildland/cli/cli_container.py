@@ -794,6 +794,8 @@ def delete_cache(obj: ContextObj, container_names):
 @container_.command(short_help='mount container')
 @click.option('--remount/--no-remount', '-r/-n', default=True,
               help='Remount existing container, if found')
+@click.option('--lazy/--no-lazy', default=True,
+              help='Allow lazy mount of storages')
 @click.option('--save', '-s', is_flag=True,
               help='Save the container to be mounted at startup')
 @click.option('--import-users/--no-import-users', is_flag=True, default=True,
@@ -816,7 +818,7 @@ def delete_cache(obj: ContextObj, container_names):
               help='Allow mounting containers from manifest catalogs')
 @click.argument('container_names', metavar='CONTAINER', nargs=-1, required=True)
 @click.pass_obj
-def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: bool,
+def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, lazy: bool, save: bool,
           import_users: bool, with_subcontainers: bool, only_subcontainers: bool, list_all: bool,
           manifests_catalog: bool, with_cache: bool, cache_template: str) -> None:
     """
@@ -831,14 +833,14 @@ def mount(obj: ContextObj, container_names: Tuple[str], remount: bool, save: boo
             raise WildlandError('Default cache template not set, set one with '
                                 '`wl set-default-cache` or use --cache-template option')
 
-    _mount(obj, container_names, remount, save, import_users, with_subcontainers,
+    _mount(obj, container_names, remount, lazy, save, import_users, with_subcontainers,
            only_subcontainers, list_all, manifests_catalog, cache_template)
 
 
 @profile()
 @cli_common.wrap_output
 def _mount(obj: ContextObj, container_names: Sequence[str],
-           remount: bool = True, save: bool = True, import_users: bool = True,
+           remount: bool = True, lazy: bool = True, save: bool = True, import_users: bool = True,
            with_subcontainers: bool = True, only_subcontainers: bool = False,
            list_all: bool = True, manifests_catalog: bool = False,
            cache_template: str = None) -> None:
@@ -896,7 +898,7 @@ def _mount(obj: ContextObj, container_names: Sequence[str],
 
     if storages_count:
         click.echo(f'Mounting storage(s): {storages_count}')
-        obj.fs_client.mount_multiple_containers(params, remount=remount)
+        obj.fs_client.mount_multiple_containers(params, remount=remount, lazy=lazy)
     else:
         click.echo('No containers need (re)mounting')
 

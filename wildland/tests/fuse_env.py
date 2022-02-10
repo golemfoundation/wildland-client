@@ -113,10 +113,10 @@ class FuseEnv:
             now = time.time()
         pytest.fail('Timed out waiting for mount', pytrace=False)
 
-    def mount_storage(self, paths, storage, remount=False):
-        self.mount_multiple_storages([(paths, storage)], remount)
+    def mount_storage(self, paths, storage, remount: bool = False, lazy: bool = True):
+        self.mount_multiple_storages([(paths, storage)], remount, lazy)
 
-    def mount_multiple_storages(self, storages, remount=False):
+    def mount_multiple_storages(self, storages, remount: bool = False, lazy: bool = True):
         items = []
         for paths, storage in storages:
             items.append({
@@ -125,7 +125,7 @@ class FuseEnv:
                 'remount': remount,
             })
 
-        self.run_control_command('mount', {'items': items})
+        self.run_control_command('mount', {'items': items, 'lazy': lazy})
 
     def unmount_storage(self, ident):
         self.run_control_command('unmount', {'storage-id': ident})

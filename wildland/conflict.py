@@ -39,6 +39,7 @@ from .log import get_logger
 
 logger = get_logger('conflict')
 
+
 @dataclasses.dataclass
 class Resolved:
     """
@@ -330,7 +331,6 @@ class ConflictResolver(metaclass=abc.ABCMeta):
           res (Resolved): resolution result (if there is exactly one)
         """
 
-
         m = re.match(self.CONFLICT_RE, path.name)
         ident: Optional[int]
         if m:
@@ -380,7 +380,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
 
             res = resolved[0]
             st = self.storage_getattr(res.ident, res.relpath)
-            return (st, res)
+            return st, res
 
         if len(dir_results) == 1:
             # This is a directory in a single storage.
@@ -401,7 +401,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 st = Attr(
                     mode=stat.S_IFDIR | 0o555,
                 )
-                return (st, None)
+                return st, None
             return writable_dirs[0]
 
         if len(file_results) == 1:
@@ -417,7 +417,7 @@ class ConflictResolver(metaclass=abc.ABCMeta):
                 raise FileNotFoundError(errno.ENOENT, '')
             for st, res in file_results:
                 if res.ident == ident:
-                    return (st, res)
+                    return st, res
             raise FileNotFoundError(errno.ENOENT, '')
 
         # Nothing found.

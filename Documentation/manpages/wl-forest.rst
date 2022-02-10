@@ -61,11 +61,19 @@ After the container is created, the following steps take place:
 .. program:: wl-forest-mount
 .. _wl-forest-mount:
 
-:command:`wl forest mount [--no-refresh-users] [--list-all] [--save] <forest_name> [<forest_name>...]`
-------------------------------------------------------------------------------------------------------
+:command:`wl forest mount [--no-refresh-users] [--list-all] [--lazy/--no-lazy] [--save] <forest_name> [<forest_name>...]`
+-------------------------------------------------------------------------------------------------------------------------
 
 Mount a forest given by name or path to manifest.
 The Wildland system has to be started first, see :ref:`wl start <wl-start>`.
+
+.. option:: --lazy
+
+   Do not mount container backends until first use. This is the default.
+
+.. option:: --no-lazy
+
+   Mount container backends right away. This may take some time.
 
 .. option:: -s, --save
 
