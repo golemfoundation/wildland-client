@@ -80,12 +80,9 @@ class WildlandCore(WildlandCoreUser, WildlandCoreApi):
             return utils.bridge_to_wl_bridge(obj)
         if isinstance(obj, Storage):
             return utils.storage_to_wl_storage(obj)
-        result = WildlandResult()
-        error = WLError(error_code=WLErrorType.UNKNOWN_OBJECT_TYPE,
-                        error_description="Unknown object type encountered",
-                        is_recoverable=False, offender_type=None, offender_id=None,
-                        diagnostic_info=yaml_data)
-        result.errors.append(error)
+
+        result = WildlandResult.error(WLErrorType.UNKNOWN_OBJECT_TYPE,
+                                      diagnostic_info=yaml_data)
         return result, None
 
     def object_sign(self, object_data: str) -> Tuple[WildlandResult, Optional[str]]:
@@ -138,17 +135,16 @@ class WildlandCore(WildlandCoreUser, WildlandCoreApi):
 
     @wildland_result()
     def _object_get_local_path(self, object_type: WLObjectType, object_id: str):
-        result = WildlandResult()
         obj_type = utils.wl_obj_to_wildland_object_type(object_type)
         if not obj_type:
-            result.errors.append(WLError(WLErrorType.UNKNOWN_OBJECT_TYPE,
-                                         "Unknown object type", False, object_type, object_id))
-            return result, None
+            return WildlandResult.error(WLErrorType.UNKNOWN_OBJECT_TYPE,
+                                        offender_type=object_type,
+                                        offender_id=object_id), None
 
         for obj in self.client.load_all(obj_type):
             if utils.get_object_id(obj) == object_id:
-                return result, str(obj.local_path)
-        return result, None
+                return WildlandResult.OK(), str(obj.local_path)
+        return WildlandResult.OK(), None
 
     def object_update(self, updated_object: WLObject) -> Tuple[WildlandResult, Optional[str]]:
         """
@@ -346,7 +342,7 @@ class WildlandCore(WildlandCoreUser, WildlandCoreApi):
                 location = user_url
             elif target_user_object.local_path:
                 logger.debug('Cannot find user manifest in manifests catalog. '
-                               'Using local file path.')
+                             'Using local file path.')
                 location = self.client.local_url(target_user_object.local_path)
             elif user_url:
                 location = user_url

@@ -718,8 +718,8 @@ class WLEnv:
         incorrect_values = list(set(values) - set(file_values))
         wlr = WildlandResult()
         if incorrect_values:
-            error = WLError(error_code=error_code,
-                            error_description=error_description + f": {incorrect_values}",
+            error = WLError(code=error_code,
+                            description=error_description + f": {incorrect_values}",
                             is_recoverable=is_recoverable,
                             offender_type=offender_type,
                             offender_id=offender_id,

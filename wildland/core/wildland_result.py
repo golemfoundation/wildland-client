@@ -21,7 +21,9 @@ Result of Wildland Core operations
 """
 import ast
 import inspect
+import sys
 import textwrap
+import traceback
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, List, Tuple, Union, Callable, Any
@@ -37,16 +39,28 @@ class WLErrorType(Enum):
     """
     Listing of possible WL error types.
     """
-    MANIFEST_ERROR = 1
-    SIGNATURE_ERROR = 2
-    SCHEMA_ERROR = 3
-    PUBKEY_NEEDED = 100
-    PUBKEY_FORMAT_ERROR = 101
-    PUBKEY_IN_USE = 102
-    FILE_EXISTS_ERROR = 4  # error_description should be set to the name/id of whatever
-    # already exists.
-    UNKNOWN_OBJECT_TYPE = 700
-    OTHER = 999
+    MANIFEST_ERROR = 1, "Incorrect manifest"
+    SIGNATURE_ERROR = 2, "Incorrect signature"
+    SCHEMA_ERROR = 3, "Schema error"
+    FILE_EXISTS_ERROR = 4, "File exists"  # offender_id is the name/id of whatever already exists
+    NOT_IMPLEMENTED = 99, "Not implemented"
+    PUBKEY_NEEDED = 100, "At least one public key must be provided"
+    PUBKEY_FORMAT_ERROR = 101, "Incorrect public key provided; provide key, not filename or path"
+    PUBKEY_IN_USE = 102, "Public key used by other users as secondary key"
+    UNKNOWN_OBJECT_TYPE = 700, "Unknown object type"
+    SYNC_FOR_CONTAINER_NOT_RUNNING = 800, "Sync not running for this container"
+    SYNC_FOR_CONTAINER_ALREADY_RUNNING = 801, "Sync already running for this container"
+    SYNC_MANAGER_NOT_ACTIVE = 802, "Sync manager not active"
+    SYNC_MANAGER_ALREADY_ACTIVE = 803, "Sync manager already active"
+    SYNC_FAILED_TO_COMMUNICATE_WITH_MANAGER = 804, "Failed to communicate with sync manager"
+    SYNC_CALLBACK_NOT_FOUND = 805, "Sync event handler not found"
+    OTHER = 999, None
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return str(self.name)
 
 
 @dataclass
@@ -55,14 +69,18 @@ class WLError:
     Representation of errors raised by Wildland Core
     """
 
-    error_code: WLErrorType  # need to agree the explicit meaning
-    error_description: str  # human-readable description suitable for console or log output
-    is_recoverable: bool
+    code: WLErrorType  # need to agree the explicit meaning
+    description: Optional[str] = None  # human-readable description suitable for console or log
+    is_recoverable: bool = False
     offender_type: Optional[WLObjectType] = None
     offender_id: Optional[str] = None
     diagnostic_info: Optional[str] = None  # diagnostic information we can dump to logs (i.e. Python
     # backtrace converted to str which is useful for a developer debugging the issue, but not
-    # for the user
+    # for the user)
+
+    def __post_init__(self):
+        if self.description is None:
+            self.description = self.code.value[1]
 
     @classmethod
     def from_exception(cls, exc: Exception, is_recoverable: bool = False):
@@ -72,7 +90,8 @@ class WLError:
         :param is_recoverable: whether the error can be recovered from
         """
         # TODO: improve error reporting, add more information
-        error_desc = str(exc)
+        err_desc = None
+        offender_id = None
         if isinstance(exc, ManifestError):
             err_code = WLErrorType.MANIFEST_ERROR
         elif isinstance(exc, SigError):
@@ -81,14 +100,20 @@ class WLError:
             err_code = WLErrorType.SCHEMA_ERROR
         elif isinstance(exc, binascii.Error):
             err_code = WLErrorType.PUBKEY_FORMAT_ERROR
-            error_desc = "Incorrect public key provided; provide key, not filename or path."
         elif isinstance(exc, FileExistsError):
             err_code = WLErrorType.FILE_EXISTS_ERROR
-            # error description for FileExistsError should be set to whatever already exists
+            err_desc = f'{err_code.value[1]}: {exc}'
+            offender_id = str(exc)  # name of whatever was already existing
+        elif isinstance(exc, NotImplementedError):
+            err_code = WLErrorType.NOT_IMPLEMENTED
         else:
             err_code = WLErrorType.OTHER
-        error = cls(error_code=err_code, error_description=error_desc,
-                    is_recoverable=is_recoverable)
+            err_desc = str(exc)
+
+        error = cls(code=err_code, description=err_desc,
+                    is_recoverable=is_recoverable,
+                    offender_id=offender_id,
+                    diagnostic_info=''.join(traceback.format_exception(*sys.exc_info())))
         return error
 
 
@@ -97,8 +122,34 @@ class WildlandResult:
     Result of Wildland Core operation; contains list of errors and a simple helper function
     to show whether there are any unrecoverable errors.
     """
+    _OK = None  # static instance representing successful result
+
     def __init__(self):
         self.errors: List[WLError] = []
+
+    @classmethod
+    def OK(cls) -> 'WildlandResult':
+        """
+        Static instance representing successful result.
+        """
+        if not cls._OK:
+            cls._OK = WildlandResult()
+
+        return cls._OK
+
+    @classmethod
+    def error(cls, code: WLErrorType, description: Optional[str] = None,
+              is_recoverable: bool = False, offender_type: Optional[WLObjectType] = None,
+              offender_id: Optional[str] = None, diagnostic_info: Optional[str] = None) \
+            -> 'WildlandResult':
+        """
+        Return WildlandResult containing a WLError.
+        """
+        result = WildlandResult()
+        result.errors.append(WLError(code=code, description=description,
+                                     is_recoverable=is_recoverable, offender_type=offender_type,
+                                     offender_id=offender_id, diagnostic_info=diagnostic_info))
+        return result
 
     @property
     def success(self):
@@ -111,10 +162,18 @@ class WildlandResult:
         return True
 
     def __str__(self):
+        if self.success:
+            return "OK"
+
         result = ""
         for e in self.errors:
-            result += f"{e.error_code} - {e.error_description}\n"
+            if len(result) > 0:
+                result += "\n"
+            result += f"{e.code} - {e.description}"
         return result
+
+    def __repr__(self):
+        return self.__str__()
 
 
 def wildland_result(default_output=()):
