@@ -36,7 +36,7 @@ from wildland.manifest.schema import Schema
 from wildland.storage_backends.cached import CachedStorageMixin
 from wildland.storage_backends.buffered import FullBufferedFile
 from wildland.storage_backends.base import StorageBackend, Attr, verify_local_access, StorageError
-from wildland.storage_backends.watch import SimpleStorageWatcher
+from wildland.storage_backends.watch import SimpleFileWatcher
 from wildland.log import get_logger
 
 
@@ -60,7 +60,7 @@ class ZipArchiveFile(FullBufferedFile):
         raise IOError(errno.EROFS, str(self.path))
 
 
-class ZipArchiveWatcher(SimpleStorageWatcher):
+class ZipArchiveWatcher(SimpleFileWatcher):
     """
     A watcher for the ZIP file.
     """

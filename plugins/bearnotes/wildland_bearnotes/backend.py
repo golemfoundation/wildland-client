@@ -42,7 +42,7 @@ from wildland.storage_backends.generated import (
     GeneratedStorageMixin,
     StaticFileEntry,
 )
-from wildland.storage_backends.watch import SimpleStorageWatcher
+from wildland.storage_backends.watch import SimpleFileWatcher
 from wildland.manifest.schema import Schema
 from wildland.container import ContainerStub
 from wildland.log import get_logger
@@ -185,7 +185,7 @@ class BearDB:
             return self.db.get_note(ident)
 
 
-class BearDBWatcher(SimpleStorageWatcher):
+class BearDBWatcher(SimpleFileWatcher):
     """
     A watcher for the Bear database.
     """

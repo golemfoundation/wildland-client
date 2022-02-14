@@ -136,7 +136,7 @@ class StorageWatcher(metaclass=abc.ABCMeta):
 
 class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     """
-    An implementation of storage watcher that uses the backend to enumerate all files.
+    A storage watcher that uses the backend.
 
     Default implementation polls the storage every 10s for changes. To improve, override
     get_token() with something that will change when the storage needs to be examined again
@@ -183,6 +183,28 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     def shutdown(self):
         pass
 
+    @abc.abstractmethod
+    def _get_info(self) -> Dict[PurePosixPath, Attr]:
+        raise NotImplementedError()
+
+    @staticmethod
+    def _compare_info(current_info, new_info):
+        current_paths = set(current_info)
+        new_paths = set(new_info)
+        for path in current_paths - new_paths:
+            yield FileEvent(FileEventType.DELETE, path)
+        for path in new_paths - current_paths:
+            yield FileEvent(FileEventType.CREATE, path)
+        for path in current_paths & new_paths:
+            if current_info[path] != new_info[path]:
+                yield FileEvent(FileEventType.MODIFY, path)
+
+
+class SimpleFileWatcher(SimpleStorageWatcher, metaclass=abc.ABCMeta):
+    """
+    An implementation of storage watcher that uses the backend to enumerate all files.
+    """
+
     def _get_info(self) -> Dict[PurePosixPath, Attr]:
         return dict(self._walk(PurePosixPath('.')))
 
@@ -205,75 +227,11 @@ class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
             if attr.is_dir():
                 yield from self._walk(file_path)
 
-    @staticmethod
-    def _compare_info(current_info, new_info):
-        current_paths = set(current_info)
-        new_paths = set(new_info)
-        for path in current_paths - new_paths:
-            yield FileEvent(FileEventType.DELETE, path)
-        for path in new_paths - current_paths:
-            yield FileEvent(FileEventType.CREATE, path)
-        for path in current_paths & new_paths:
-            if current_info[path] != new_info[path]:
-                yield FileEvent(FileEventType.MODIFY, path)
 
-
-@dataclass
-class SubcontainerEvent(FileEvent):
-    """
-    Subcontainer change event.
-    """
-
-
-class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
+class SimpleSubcontainerWatcher(SimpleStorageWatcher, metaclass=abc.ABCMeta):
     """
     An implementation of storage watcher that uses the backend to enumerate all subcontainers.
-
-    Default implementation polls the storage backend every 10s for changes. To improve, override
-    get_token() with something that will change when the storage needs to be examined again
-    (such as last modification time of backing storage).
     """
-
-    def __init__(self, backend: StorageBackend, interval: int = 10, params: Optional[dict] = None):
-        super().__init__()
-        self.backend = backend
-        self.token = None
-        self.info: Dict[PurePosixPath, Attr] = {}
-        self.interval = interval
-        self.counter = 0  # for naive implementation of get_token()
-        self.params: Optional[dict] = params
-
-    def get_token(self):
-        """
-        Retrieve token to be compared, such as file modification info.
-        """
-        self.counter += 1
-        return self.counter
-
-    def init(self):
-        self.token = self.get_token()
-        self.info = self._get_info()
-
-    def wait(self) -> Optional[Iterable[SubcontainerEvent]]:
-        self.stop_event.wait(self.interval)
-        new_token = self.get_token()
-        if new_token != self.token:
-            logger.debug('storage changed...')
-            self.backend.clear_cache()
-            new_info = self._get_info()
-            result = list(self._compare_info(self.info, new_info))
-
-            self.token = new_token
-            self.info = new_info
-            if result:
-                logger.debug('subcontainer changes detected')
-                return result
-            logger.debug('subcontainer no changes detected')
-            return None
-        return None
-
-    def shutdown(self):
-        pass
 
     def _get_info(self):
         to_return: Dict[PurePosixPath, Optional[float]] = {}
@@ -286,15 +244,3 @@ class SubcontainerWatcher(StorageWatcher, metaclass=abc.ABCMeta):
             else:
                 to_return[path] = None
         return to_return
-
-    @staticmethod
-    def _compare_info(current_info, new_info):
-        current_paths = set(current_info)
-        new_paths = set(new_info)
-        for path in current_paths - new_paths:
-            yield SubcontainerEvent(FileEventType.DELETE, path)
-        for path in new_paths - current_paths:
-            yield SubcontainerEvent(FileEventType.CREATE, path)
-        for path in current_paths.intersection(new_paths):
-            if current_info[path] != new_info[path]:
-                yield SubcontainerEvent(FileEventType.MODIFY, path)

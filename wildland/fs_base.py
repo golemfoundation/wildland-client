@@ -32,11 +32,12 @@ import stat
 import threading
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List, Dict, Iterable, Optional, Set, Union, Any
+from typing import List, Dict, Iterable, Optional, Union, Any
 
 from .conflict import ConflictResolver, Resolved
+from .fs_watchers import FileWatchers, ChildrenWatchers
 from .storage_backends.base import Attr, File, StorageBackend
-from .storage_backends.watch import FileEvent, StorageWatcher, FileEventType, SubcontainerEvent
+from .storage_backends.watch import FileEventType
 from .exc import WildlandError
 from .control_server import ControlServer, ControlHandler, control_command
 from .manifest.schema import Schema
@@ -47,21 +48,6 @@ logger = get_logger('fs')
 
 
 @dataclass
-class Watch:
-    """
-    A watch added by a connected user.
-    """
-
-    id: int
-    storage_id: int
-    pattern: str
-    handler: ControlHandler
-
-    def __str__(self):
-        return f'{self.storage_id}:{self.pattern}'
-
-
-@dataclass
 class Timespec:
     """
     fuse-free version of Fuse.Timespec
@@ -69,80 +55,6 @@ class Timespec:
     name: str
     tv_sec: int
     tv_nsec: int
-
-
-class LazyStorageDict:
-    """
-    A dict-like class, which lazy mount storages.
-
-    Unmounts deleted storages.
-    """
-    # pylint: disable=missing-docstring
-
-    def __init__(self):
-        self._storages = dict()
-        self._initialized = dict()
-
-    def get(self, key):
-        storage = self._storages[key]
-        if self._initialized[key]:
-            return storage
-
-        try:
-            storage.request_mount()
-        except Exception as e:
-            logger.exception('backend %s not mounted due to exception', storage.backend_id)
-            raise WildlandError from e
-
-        self._initialized[key] = True
-
-        return storage
-
-    def __getitem__(self, key):
-        return self.get(key)
-
-    def __setitem__(self, key, value):
-        self._storages[key] = value
-        self._initialized[key] = False
-
-    def __delitem__(self, key):
-        storage = self._storages[key]
-        if self._initialized[key]:
-            logger.debug('Unmounting storage %r', storage)
-            storage.request_unmount()
-        backend_id = storage.backend_id
-        del self._storages[key]
-        del self._initialized[key]
-        logger.debug('Unmounted storage (backend-id=%s)', backend_id)
-
-    def __iter__(self):
-        return iter(self._storages)
-
-    def __contains__(self, key):
-        return key in self._storages
-
-    def __len__(self):
-        return len(self._storages)
-
-    def get_type(self, key):
-        storage = self._storages[key]
-        return storage.TYPE
-
-    def get_hash(self, key):
-        storage = self._storages[key]
-        return storage.hash
-
-    def clear_cache(self, key):
-        storage = self._storages[key]
-        storage.clear_cache()
-
-    def is_read_only(self, key):
-        storage = self._storages[key]
-        return storage.read_only
-
-    def get_params(self, key):
-        storage = self._storages[key]
-        return storage.params
 
 
 class WildlandFSBase:
@@ -163,10 +75,8 @@ class WildlandFSBase:
 
         self.mount_lock = threading.Lock()
 
-        self.watches: Dict[int, Watch] = {}
-        self.storage_watches: Dict[int, Set[int]] = {}
-        self.watchers: Dict[int, StorageWatcher] = {}
-        self.watch_counter = 1
+        self.file_watchers = FileWatchers(self)
+        self.children_watchers = ChildrenWatchers(self)
 
         self.uid = None
         self.gid = None
@@ -227,9 +137,8 @@ class WildlandFSBase:
 
         assert self.mount_lock.locked()
 
-        if storage_id in self.storage_watches:
-            for watch_id in list(self.storage_watches[storage_id]):
-                self._remove_watch(watch_id)
+        self.file_watchers.remove_watches(storage_id)
+        self.children_watchers.remove_watches(storage_id)
 
         assert storage_id in self.storages
         assert storage_id in self.storage_paths
@@ -402,7 +311,7 @@ class WildlandFSBase:
         if storage_id not in self.storages:
             raise WildlandError(f'No storage: {storage_id}')
         with self.mount_lock:
-            return self._add_watch(storage_id, pattern, handler, ignore_own=ignore_own)
+            return self.file_watchers.add_watch(storage_id, pattern, handler, ignore_own=ignore_own)
 
     @control_command('add-subcontainer-watch')
     def control_add_subcontainer_watch(
@@ -418,7 +327,7 @@ class WildlandFSBase:
         else:
             raise ValueError(f"Unknown storage {backend.backend_id}")
         with self.mount_lock:
-            return self._add_subcontainer_watch(ident, handler)
+            return self.children_watchers.add_watch(ident, "*", handler)
 
     @control_command('breakpoint')
     def control_breakpoint(self, _handler):
@@ -444,178 +353,6 @@ class WildlandFSBase:
             attr.timestamp,  # mtime
             attr.timestamp  # ctime
         ))
-
-    def _notify_storage_watches(self, event_type: FileEventType, relpath, storage_id):
-        with self.mount_lock:
-            if storage_id not in self.storage_watches:
-                return
-
-            if storage_id in self.watchers:
-                return
-            watches = [self.watches[watch_id]
-                       for watch_id in self.storage_watches[storage_id]]
-
-        if not watches:
-            return
-
-        event = FileEvent(event_type, relpath)
-        for watch in watches:
-            self._notify_watch(watch, [event])
-
-    def _add_watch(self, storage_id: int, pattern: str, handler: ControlHandler,
-                   ignore_own: bool = False):
-        assert self.mount_lock.locked()
-
-        watch = Watch(
-            id=self.watch_counter,
-            storage_id=storage_id,
-            pattern=pattern,
-            handler=handler,
-        )
-        logger.debug('adding watch: %s', watch)
-        self.watches[watch.id] = watch
-        if storage_id not in self.storage_watches:
-            self.storage_watches[storage_id] = set()
-
-        self.storage_watches[storage_id].add(watch.id)
-        self.watch_counter += 1
-
-        handler.on_close(lambda: self._cleanup_watch(watch.id))
-
-        # Start a watch thread, but only if the storage provides watcher() method
-        if len(self.storage_watches[storage_id]) == 1:
-
-            def watch_handler(events):
-                return self._watch_handler(storage_id, events)
-
-            watcher = self.storages[storage_id].start_watcher(
-                watch_handler, ignore_own_events=ignore_own)
-
-            if watcher:
-                logger.debug('starting watcher for storage %d', storage_id)
-                self.watchers[storage_id] = watcher
-
-        return watch.id
-
-    def _add_subcontainer_watch(self, storage_id: int, handler: ControlHandler):
-
-        assert self.mount_lock.locked()
-
-        watch = Watch(
-            id=self.watch_counter,
-            storage_id=storage_id,
-            pattern="",
-            handler=handler,
-        )
-        logger.info('adding watch: %s', watch)
-        self.watches[watch.id] = watch
-        if storage_id not in self.storage_watches:
-            self.storage_watches[storage_id] = set()
-
-        self.storage_watches[storage_id].add(watch.id)
-        self.watch_counter += 1
-
-        handler.on_close(lambda: self._cleanup_watch(watch.id))
-
-        # Start a watch thread, but only if the storage provides watcher() method
-        if len(self.storage_watches[storage_id]) == 1:
-
-            def watch_handler(events):
-                return self._watch_subcontainer_handler(storage_id, events)
-
-            watcher = self.storages[storage_id].start_subcontainer_watcher(watch_handler)
-
-            if watcher:
-                logger.info('starting watcher for storage %d', storage_id)
-                self.watchers[storage_id] = watcher
-
-        return watch.id
-
-    def _watch_handler(self, storage_id: int, events: List[FileEvent]):
-        logger.debug('events from %d: %s', storage_id, events)
-        watches = [self.watches[watch_id]
-                   for watch_id in self.storage_watches.get(storage_id, [])]
-
-        for watch in watches:
-            self._notify_watch(watch, events)
-
-    def _notify_watch(self, watch: Watch, events: List[FileEvent]):
-        events = [event for event in events
-                  if event.path.match(watch.pattern)]
-        if not events:
-            return
-
-        logger.debug('notify watch: %s: %s', watch, events)
-        data = [{
-            'type': event.type.name,
-            'path': str(event.path),
-            'watch-id': watch.id,
-            'storage-id': watch.storage_id,
-        } for event in events]
-        watch.handler.send_event(data)
-
-    def _cleanup_watch(self, watch_id):
-        with self.mount_lock:
-            # Could be removed earlier, when unmounting storage.
-            if watch_id in self.watches:
-                self._remove_watch(watch_id)
-
-    def _remove_watch(self, watch_id):
-        assert self.mount_lock.locked()
-
-        watch = self.watches[watch_id]
-        logger.debug('removing watch: %s', watch)
-
-        if (len(self.storage_watches[watch.storage_id]) == 1 and
-                watch.storage_id in self.watchers):
-            logger.debug('stopping watcher for storage: %s', watch.storage_id)
-            self.storages[watch.storage_id].stop_watcher()
-            del self.watchers[watch.storage_id]
-
-        self.storage_watches[watch.storage_id].remove(watch_id)
-        del self.watches[watch_id]
-
-    def _watch_subcontainer_handler(self, storage_id: int, events: List[SubcontainerEvent]):
-        logger.debug('events from %d: %s', storage_id, events)
-        watches = [self.watches[watch_id]
-                   for watch_id in self.storage_watches.get(storage_id, [])]
-
-        for watch in watches:
-            self._notify_subcontainer_watch(watch, events)
-
-    def _notify_subcontainer_watch(self, watch: Watch, events: List[SubcontainerEvent]):
-        if not events:
-            return
-
-        logger.info('notify watch: %s: %s', watch, events)
-        data = [{
-            'type': event.type.name,
-            'path': str(event.path),
-            'watch-id': watch.id,
-            'storage-id': watch.storage_id,
-        } for event in events]
-        watch.handler.send_event(data)
-
-    def _cleanup_subcontainer_watch(self, watch_id):
-        with self.mount_lock:
-            # Could be removed earlier, when unmounting storage.
-            if watch_id in self.watches:
-                self._remove_subcontainer_watch(watch_id)
-
-    def _remove_subcontainer_watch(self, watch_id):
-        assert self.mount_lock.locked()
-
-        watch = self.watches[watch_id]
-        logger.info('removing watch: %s', watch)
-
-        if (len(self.storage_watches[watch.storage_id]) == 1 and
-                watch.storage_id in self.watchers):
-            logger.info('stopping watcher for storage: %s', watch.storage_id)
-            self.storages[watch.storage_id].stop_subcontainer_watcher()
-            del self.watchers[watch.storage_id]
-
-        self.storage_watches[watch.storage_id].remove(watch_id)
-        del self.watches[watch_id]
 
     def _get_storage_relative_path(self, file_name: str, resolved_path: Resolved,
                                    parent: bool) -> PurePosixPath:
@@ -690,7 +427,8 @@ class WildlandFSBase:
         # If successful, notify watches.
 
         if event_type is not None:
-            self._notify_storage_watches(event_type, relpath, resolved.ident)
+            self.file_watchers.notify_storage_watches(event_type, relpath, resolved.ident)
+            self.children_watchers.notify_storage_watches(event_type, relpath, resolved.ident)
         return result
 
     def open(self, path: str, flags: int) -> File:
@@ -857,3 +595,77 @@ class WildlandFSConflictResolver(ConflictResolver):
         with self.fs.mount_lock:
             storage = self.fs.storages[ident]
         return list(storage.readdir(relpath))
+
+
+class LazyStorageDict:
+    """
+    A dict-like class, which lazy mount storages.
+
+    Unmounts deleted storages.
+    """
+    # pylint: disable=missing-docstring
+
+    def __init__(self):
+        self._storages = dict()
+        self._initialized = dict()
+
+    def get(self, key):
+        storage = self._storages[key]
+        if self._initialized[key]:
+            return storage
+
+        try:
+            storage.request_mount()
+        except Exception as e:
+            logger.exception('backend %s not mounted due to exception', storage.backend_id)
+            raise WildlandError from e
+
+        self._initialized[key] = True
+
+        return storage
+
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def __setitem__(self, key, value):
+        self._storages[key] = value
+        self._initialized[key] = False
+
+    def __delitem__(self, key):
+        storage = self._storages[key]
+        if self._initialized[key]:
+            logger.debug('Unmounting storage %r', storage)
+            storage.request_unmount()
+        backend_id = storage.backend_id
+        del self._storages[key]
+        del self._initialized[key]
+        logger.debug('Unmounted storage (backend-id=%s)', backend_id)
+
+    def __iter__(self):
+        return iter(self._storages)
+
+    def __contains__(self, key):
+        return key in self._storages
+
+    def __len__(self):
+        return len(self._storages)
+
+    def get_type(self, key):
+        storage = self._storages[key]
+        return storage.TYPE
+
+    def get_hash(self, key):
+        storage = self._storages[key]
+        return storage.hash
+
+    def clear_cache(self, key):
+        storage = self._storages[key]
+        storage.clear_cache()
+
+    def is_read_only(self, key):
+        storage = self._storages[key]
+        return storage.read_only
+
+    def get_params(self, key):
+        storage = self._storages[key]
+        return storage.params

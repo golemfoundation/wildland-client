@@ -32,7 +32,7 @@ import uuid
 import click
 
 from wildland.storage_backends.base import StorageBackend
-from wildland.storage_backends.watch import SimpleStorageWatcher, SubcontainerWatcher
+from wildland.storage_backends.watch import SimpleFileWatcher, SimpleSubcontainerWatcher
 from wildland.storage_backends.generated import \
     GeneratedStorageMixin, StaticFileEntry, FuncDirEntry
 from wildland.container import ContainerStub
@@ -42,7 +42,7 @@ from .ImapClient import ImapClient, MessageEnvelopeData, MessagePart
 logger = get_logger('storage-imap')
 
 
-class ImapStorageWatcher(SimpleStorageWatcher):
+class ImapStorageWatcher(SimpleFileWatcher):
     """
     A watcher for IMAP server. This implementation just queries
     the server and reports an update if message list has changed.
@@ -56,7 +56,7 @@ class ImapStorageWatcher(SimpleStorageWatcher):
         return self.client.refresh_if_needed()
 
 
-class ImapSubcontainerWatcher(SubcontainerWatcher):
+class ImapSubcontainerWatcher(SimpleSubcontainerWatcher):
     """
     A watcher for IMAP server. This implementation just queries
     the server and reports an update if message list has changed.

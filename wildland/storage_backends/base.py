@@ -418,10 +418,10 @@ class StorageBackend(metaclass=abc.ABCMeta):
     def watcher(self):
         """
         Create a StorageWatcher (see watch.py) for this storage, if supported. If the storage
-        manifest contains a ``watcher-interval`` parameter, SimpleStorageWatcher (which is a naive,
+        manifest contains a ``watcher-interval`` parameter, SimpleFileWatcher (which is a naive,
         brute-force watcher that scans the entire storage every watcher-interval seconds) will be
         used. If a given StorageBackend provides a better solution, it's recommended to overwrite
-        this method to provide it. It is recommended to still use SimpleStorageWatcher if the user
+        this method to provide it. It is recommended to still use SimpleFileWatcher if the user
         explicitly specifies watcher-interval in the manifest. See local.py for a simple ``super()``
         implementation that avoids duplicating code.
 
@@ -430,24 +430,24 @@ class StorageBackend(metaclass=abc.ABCMeta):
         if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
             logger.warning("Using simple storage watcher - it can be very inefficient.")
-            from ..storage_backends.watch import SimpleStorageWatcher
-            return SimpleStorageWatcher(self, interval=int(self.params['watcher-interval']))
+            from ..storage_backends.watch import SimpleFileWatcher
+            return SimpleFileWatcher(self, interval=int(self.params['watcher-interval']))
         return None
 
     def subcontainer_watcher(self):
         """
-        Create a SubcontainerWatcher (see watch.py) for this storage, if supported. If the storage
-        manifest contains a ``watcher-interval`` parameter, SubcontainerWatcher (which is a naive,
-        brute-force watcher that scans the entire storage every watcher-interval seconds) will be
-        used. If a given StorageBackend provides a better solution, it's recommended to overwrite
-        this method to provide it. It is recommended to still use SubcontainerWatcher if the user
-        explicitly specifies watcher-interval in the manifest.
+        Create a SimpleSubcontainerWatcher (see watch.py) for this storage, if supported. If the
+        storage manifest contains a ``watcher-interval`` parameter, SimpleSubcontainerWatcher (which
+        is a naive, brute-force watcher that scans the entire storage every watcher-interval
+        seconds) will be used. If a given StorageBackend provides a better solution, it's
+        recommended to overwrite this method to provide it. It is recommended to still use
+        SimpleSubcontainerWatcher if the user explicitly specifies watcher-interval in the manifest.
         """
         if 'watcher-interval' in self.params:
             # pylint: disable=import-outside-toplevel, cyclic-import
             logger.warning("Using simple subcontainer watcher - it can be very inefficient.")
-            from ..storage_backends.watch import SubcontainerWatcher
-            return SubcontainerWatcher(
+            from ..storage_backends.watch import SimpleSubcontainerWatcher
+            return SimpleSubcontainerWatcher(
                 self, interval=int(self.params['watcher-interval']))
         return None
 
