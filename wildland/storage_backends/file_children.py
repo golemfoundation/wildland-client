@@ -44,6 +44,7 @@ from wildland.wildland_object.wildland_object import WildlandObject, Publishable
 class FileChildrenMixin(StorageBackend):
     """
     A backend storage mixin providing support for pattern-manifest types of glob and list.
+    Currently, the only backend for storing the catalogs.
 
     glob type is a UNIX-style expression for listing all manifest files that fit a given pattern.
     list type is an array that holds a list of relative paths to child objects manifests within
@@ -123,8 +124,11 @@ class FileChildrenMixin(StorageBackend):
             return driver.file_exists(wl_object_manifest)
 
     def get_relpaths(self, wl_object_uuid_path: PurePosixPath,
-                     wl_object_expanded_paths: Optional[Iterable[PurePosixPath]] = None) -> \
-            Iterator[PurePosixPath]:
+                     wl_object_expanded_paths: Optional[Iterable[PurePosixPath]] = None) \
+            -> Iterator[PurePosixPath]:
+        """
+        Build the relative path based on the manifest-pattern.
+        """
         pattern = self.params['manifest-pattern']['path']
 
         path_pattern = pattern.replace('*', wl_object_uuid_path.name) \

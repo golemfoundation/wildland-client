@@ -273,7 +273,8 @@ def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_n
 
         for storage in obj.client.all_storages(container=catalog_container):
             storage_backend = StorageBackend.from_params(storage.params)
-            assert isinstance(storage_backend, FileChildrenMixin), 'Unsupported catalog storage type.'
+            assert isinstance(storage_backend, FileChildrenMixin), \
+                'Unsupported catalog storage type.'
             rel_path = storage_backend.get_relpaths(
                 catalog_container.get_primary_publish_path(),
                 catalog_container.get_publish_paths())
