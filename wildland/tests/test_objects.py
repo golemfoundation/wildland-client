@@ -64,7 +64,10 @@ def setup(base_dir, cli):
 
     template_dir = base_dir / 'template'
     os.mkdir(template_dir)
-    cli('storage-template', 'create', 'local', '--location', template_dir, 'simple')
+    cli('storage-template', 'create',
+        'local', '--location',
+        template_dir, 'simple',
+        '--manifest-pattern', '/foo.{object-type}.yaml')
 
 
 @pytest.fixture
@@ -138,4 +141,4 @@ def test_link_repr(client, cli):
     link = client.load_link_object(
         link_dict=link_dict, expected_owner=link_dict.get("storage-owner", None) or user.owner)
 
-    assert repr(link) == 'link(file_path=/.manifests.container.yaml)'
+    assert repr(link) == 'link(file_path=/foo.container.yaml)'
