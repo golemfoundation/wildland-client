@@ -80,9 +80,9 @@ class WildlandCoreBridge(WildlandCoreApi):
                 raise ValueError('Bridge requires user URL')
 
         if not owner:
-            _, owner = self.env.get_default_owner()
-
-        assert owner
+            result, owner = self.env.get_default_owner()
+            if not owner:
+                raise FileNotFoundError(f'Default owner not found: {result}')
 
         owner_user = self.client.load_object_from_name(WildlandObject.Type.USER, owner)
 
@@ -95,7 +95,10 @@ class WildlandCoreBridge(WildlandCoreApi):
                 WildlandObject.Type.USER, user_url, owner=owner_user.owner,
                 expected_owner=target_user)
 
-        found_manifest = self.client.find_user_manifest_within_catalog(target_user_object)
+        try:
+            found_manifest = self.client.find_user_manifest_within_catalog(target_user_object)
+        except PermissionError:
+            found_manifest = None
 
         if not found_manifest:
             if user_url and not self.client.is_local_url(user_url):
@@ -120,7 +123,7 @@ class WildlandCoreBridge(WildlandCoreApi):
         if paths:
             bridge_paths = [PurePosixPath(p) for p in paths]
         else:
-            bridge_paths = Bridge.create_safe_bridge_paths(fingerprint, target_user_object.paths)
+            bridge_paths = target_user_object.paths
             logger.debug(
                 "Using user's default paths: %s", [str(p) for p in target_user_object.paths])
 
@@ -133,9 +136,9 @@ class WildlandCoreBridge(WildlandCoreApi):
             client=self.client
         )
 
-        if not name and paths:
+        if not name and bridge_paths:
             # an heuristic for nicer paths
-            for path in paths:
+            for path in bridge_paths:
                 if 'uuid' not in str(path):
                     name = str(path).lstrip('/').replace('/', '_')
                     break

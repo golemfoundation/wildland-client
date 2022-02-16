@@ -596,6 +596,10 @@ def _user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_own
             if bridge.user_id == imported_object.owner:
                 click.echo('Bridge already exists, skipping.')
                 return
+        if not paths:
+            safe_paths = Bridge.create_safe_bridge_paths(
+                imported_object.owner, [PurePosixPath(path) for path in imported_object.paths])
+            paths = [str(path) for path in safe_paths]
         result, _ = obj.wlcore.bridge_create(paths, bridge_owner, imported_object.owner,
                                              user_url=path_or_url, name=name)
     elif isinstance(imported_object, WLBridge):
