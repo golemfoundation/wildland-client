@@ -136,10 +136,12 @@ class StorageWatcher(metaclass=abc.ABCMeta):
 
 class SimpleStorageWatcher(StorageWatcher, metaclass=abc.ABCMeta):
     """
-    A storage watcher that uses the backend.
+    An abstract storage watcher that checks information every `interval` of seconds.
+
+    At least `_get_info()` must be overwritten to return the information we want to watch.
 
     Default implementation polls the storage every 10s for changes. To improve, override
-    get_token() with something that will change when the storage needs to be examined again
+    `get_token()` with something that will change when the storage needs to be examined again
     (such as last modification time of backing storage).
     """
 
