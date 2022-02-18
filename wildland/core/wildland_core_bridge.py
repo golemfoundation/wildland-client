@@ -22,6 +22,7 @@ Wildland core implementation - bridge-related functions
 """
 from typing import List, Tuple, Optional
 from pathlib import PurePosixPath, Path
+from copy import deepcopy
 
 import wildland.core.core_utils as utils
 from wildland.log import get_logger
@@ -32,6 +33,8 @@ from ..bridge import Bridge
 from ..client import Client
 from ..link import Link
 from ..wildland_object.wildland_object import WildlandObject
+from ..manifest.manifest import Manifest
+from ..wlpath import WildlandPath, WILDLAND_URL_PREFIX
 from ..wlenv import WLEnv
 
 logger = get_logger('core-bridge')
@@ -176,23 +179,47 @@ class WildlandCoreBridge(WildlandCoreApi):
                 return
         raise FileNotFoundError(f'Cannot find bridge {bridge_id}')
 
-    def bridge_import(self, path_or_url: str, paths: List[str], object_owner: Optional[str],
-                      only_first: bool = False) -> Tuple[WildlandResult, Optional[WLBridge]]:
+    def bridge_import_from_url(self, path_or_url: str, paths: List[str],
+                               object_owner: str, only_first: bool = False,
+                               name: Optional[str] = None) -> \
+            Tuple[WildlandResult, List[WLBridge]]:
         """
-        Import bridge from provided url or path.
-        :param path_or_url: WL path, local path or URL
-        :param paths: list of paths for resulting bridge manifest; if omitted, will use imported
-            user's own paths
-        :param object_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
+        Import bridge(s) from provided url or path, creating a new bridge(s) with provided owner and
+        paths.
+        :param path_or_url: WL path or URL
+        :param paths: list of paths for resulting bridge manifest; if empty, will use provided
+        bridge's paths, scrambled for uniqueness; if WL path to multiple bridges is provided, this
+        requires --only-first
+        :param object_owner: owner for the newly created bridge
         :param only_first: import only first encountered bridge (ignored in all cases except
             WL container paths)
-        :return: tuple of WildlandResult, imported WLBridge (if import was successful
+        :param name: user-friendly name for the imported bridge
+        :return: tuple of WildlandResult, list of imported WLBridge(s) (if import was successful
         """
-        raise NotImplementedError
 
-    def bridge_import_from_data(self, yaml_data: str, paths: List[str],
-                                object_owner: Optional[str]) -> \
+        return self._bridge_import_from_url(path_or_url, paths, object_owner, only_first, name)
+
+    @wildland_result([])
+    def _bridge_import_from_url(self, path_or_url: str, paths: List[str],
+                                object_owner: str, only_first: bool = False,
+                                name: Optional[str] = None):
+        bridges = list(self.client.read_bridge_from_url(path_or_url, use_aliases=True))
+
+        if WildlandPath.WLPATH_RE.match(path_or_url):
+            name = path_or_url.replace(WILDLAND_URL_PREFIX, '')
+
+        if paths and not only_first and len(bridges) > 1:
+            raise ValueError('Cannot import multiple bridges with --path specified.')
+        if only_first:
+            bridges = [bridges[0]]
+
+        for bridge in bridges:
+            assert isinstance(bridge, Bridge)
+            self._do_import_bridge(bridge, paths, object_owner, name)
+        return bridges
+
+    def bridge_import_from_yaml(self, yaml_data: bytes, paths: List[str],
+                                object_owner: str, name: Optional[str] = None) -> \
             Tuple[WildlandResult, Optional[WLBridge]]:
         """
         Import bridge from provided yaml data.
@@ -201,9 +228,43 @@ class WildlandCoreBridge(WildlandCoreApi):
             user's own paths
         :param object_owner: specify a different-from-default user to be used as the owner of
             created bridge manifests
+        :param name: user-friendly name for the imported bridge
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
-        raise NotImplementedError
+
+        return self._bridge_import_from_yaml(yaml_data, paths, object_owner, name)
+
+    @wildland_result(default_output=None)
+    def _bridge_import_from_yaml(self, yaml_data: bytes, paths: List[str],
+                                 object_owner: str, name: Optional[str] = None):
+        Manifest.verify_and_load_pubkeys(yaml_data, self.client.session.sig)
+
+        bridge: Bridge = self.client.load_object_from_bytes(
+            WildlandObject.Type.BRIDGE, data=yaml_data)
+
+        self._do_import_bridge(bridge, paths, object_owner, name)
+
+    def _do_import_bridge(self, bridge: Bridge, paths: List[str], owner: str, name: Optional[str])\
+            -> WLBridge:
+        fingerprint = self.client.session.sig.fingerprint(bridge.user_pubkey)
+        posix_paths = [PurePosixPath(p) for p in paths]
+        new_bridge = Bridge(
+            owner=owner,
+            user_location=deepcopy(bridge.user_location),
+            user_pubkey=bridge.user_pubkey,
+            user_id=fingerprint,
+            paths=(posix_paths or
+                   Bridge.create_safe_bridge_paths(fingerprint, bridge.paths)),
+            client=self.client
+        )
+        bridge_name = None
+        if name:
+            bridge_name = name.replace(':', '_').replace('/', '_')
+        bridge_path = self.client.save_new_object(
+            WildlandObject.Type.BRIDGE, new_bridge, bridge_name, None)
+        logger.info('Created: %s', bridge_path)
+        wl_bridge = utils.bridge_to_wl_bridge(new_bridge)
+        return wl_bridge
 
     def bridge_modify(self, bridge_id: str, manifest_field: str, operation: ModifyMethod,
                       modify_data: List[str]) -> WildlandResult:
