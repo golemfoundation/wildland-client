@@ -166,12 +166,19 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
+    do_bridge_import(obj.wlcore, path_or_url, paths, bridge_owner, only_first)
+
+
+def do_bridge_import(wlcore, path_or_url, paths, bridge_owner, only_first):
+    """
+    Perform bridge import. Separated into a function to avoid Click weirdness on import to cli_user.
+    """
     p = Path(path_or_url)
     name = path_or_url
     name = name.split('/')[-1]
 
     if not bridge_owner:
-        _, default_owner = obj.wlcore.env.get_default_owner()
+        _, default_owner = wlcore.env.get_default_owner()
         if default_owner:
             bridge_owner = default_owner
         else:
@@ -180,20 +187,20 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     if p.exists():
         yaml_data = p.read_bytes()
         name = p.name
-        result, imported_bridge = obj.wlcore.bridge_import_from_yaml(yaml_data, paths, bridge_owner,
-                                                                     name)
+        result, imported_bridge = wlcore.bridge_import_from_yaml(yaml_data, paths, bridge_owner,
+                                                                 name)
         if not imported_bridge:
             raise CliError(f'Failed to import bridges: {result}')
 
         users = [f'{imported_bridge.user_id}:']
     else:
-        result, imported_bridges = obj.wlcore.bridge_import_from_url(path_or_url, paths,
-                                                                     bridge_owner, only_first, name)
+        result, imported_bridges = wlcore.bridge_import_from_url(path_or_url, paths,
+                                                                 bridge_owner, only_first, name)
         users = [f'{bridge.user_id}:' for bridge in imported_bridges]
         if not result.success:
             raise CliError(f'Failed to import bridges: {result}')
 
-    result = obj.wlcore.user_refresh(users)
+    result = wlcore.user_refresh(users)
     if not result.success:
         raise CliError(f'Failed to import bridges: {result}')
 

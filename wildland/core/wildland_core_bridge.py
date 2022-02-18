@@ -242,7 +242,7 @@ class WildlandCoreBridge(WildlandCoreApi):
         bridge: Bridge = self.client.load_object_from_bytes(
             WildlandObject.Type.BRIDGE, data=yaml_data)
 
-        self._do_import_bridge(bridge, paths, object_owner, name)
+        return self._do_import_bridge(bridge, paths, object_owner, name)
 
     def _do_import_bridge(self, bridge: Bridge, paths: List[str], owner: str, name: Optional[str])\
             -> WLBridge:
