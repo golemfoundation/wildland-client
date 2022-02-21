@@ -171,15 +171,6 @@ This is a HTTP storage that relies on directory listings. Currently used for buc
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/http.rsti
 
-.. program:: wl-storage-create-imap
-.. _wl-storage-create-imap:
-
-:command:`wl storage create imap --container <container> --host <host> --login <login> --password <password> [--folder <folder>] [--no-publish] <storage>`
-----------------------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-.. include:: include/storages/imap.rsti
-
 .. program:: wl-storage-create-dropbox
 .. _wl-storage-create-dropbox:
 
@@ -263,42 +254,6 @@ Create encrypted storage for a given container. Please read details below to und
 
 .. include:: include/wl-storage-create.rsti
 .. include:: include/storages/webdav.rsti
-
-.. program:: wl-storage-create-bear-db
-.. _wl-storage-create-bear-db:
-
-:command:`wl storage create bear-db --container <container> --path <path> [--no-publish]`
------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-.. include:: include/storages/bear.rsti
-
-.. program:: wl-storage-create-gitlab
-.. _wl-storage-create-gitlab:
-
-:command:`wl storage create gitlab --container <container> [--server-url <url>] --personal-token <personal-token> --projectid <id> [--no-publish] <storage>`
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-.. include:: include/storages/gitlab.rsti
-
-.. program:: wl-storage-create-gitlab-graphql
-.. _wl-storage-create-gitlab-graphql:
-
-:command:`wl storage create gitlab-graphql --container <container> --personal-token <personal-token> --project-path <path> --category-hierarchy <hierarchy> [--no-publish] <storage>`
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-.. include:: include/storages/gitlab-graphql.rsti
-
-.. program:: wl-storage-create-jira
-.. _wl-storage-create-jira:
-
-:command:`wl storage create jira --container <container> --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] <storage>`
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-storage-create.rsti
-.. include:: include/storages/jira.rsti
 
 .. program:: wl-storage-create-git
 .. _wl-storage-create-git:

@@ -93,15 +93,6 @@ Display known storage templates.
 
 Delete a storage template from local filesystem.
 
-.. program:: wl-template-create-bear-db
-.. _wl-template-create-bear-db:
-
-:command:`wl template create bear-db --path <absolute_path_to_sqlite_db> NAME`
---------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/bear.rsti
-
 .. program:: wl-template-create-categorization
 .. _wl-template-create-categorization:
 
@@ -183,33 +174,6 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/http.rsti
 
-.. program:: wl-template-create-imap
-.. _wl-template-create-imap:
-
-:command:`wl template create imap --host <host> --login <login> --password <password> NAME`
----------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/imap.rsti
-
-.. program:: wl-template-create-gitlab
-.. _wl-template-create-gitlab:
-
-:command:`wl template create gitlab --personal-token <personal-token> NAME`
----------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/gitlab.rsti
-
-.. program:: wl-template-create-gitlab-graphql
-.. _wl-template-create-gitlab-graphql:
-
-:command:`wl template create gitlab-graphql --personal-token <personal-token> --category-hierarchy <hierarchy> NAME`
---------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/gitlab-graphql.rsti
-
 .. program:: wl-template-create-git
 .. _wl-template-create-git:
 
@@ -227,15 +191,6 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/ipfs.rsti
-
-.. program:: wl-template-create-jira
-.. _wl-template-create-jira:
-
-:command:`wl template create jira --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] NAME`
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/jira.rsti
 
 .. program:: wl-template-create-local
 .. _wl-template-create-local:
@@ -320,15 +275,6 @@ Delete a storage template from local filesystem.
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/redis.rsti
 
-.. program:: wl-template-add-bear-db
-.. _wl-template-add-bear-db:
-
-:command:`wl template add bear-db --path <absolute_path_to_sqlite_db> NAME`
------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/bear.rsti
-
 .. program:: wl-template-add-categorization
 .. _wl-template-add-categorization:
 
@@ -408,15 +354,6 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/http.rsti
-
-.. program:: wl-template-add-imap
-.. _wl-template-add-imap:
-
-:command:`wl template add imap --host <host> --login <login> --password <password> NAME`
-------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/imap.rsti
 
 .. program:: wl-template-add-ipfs
 .. _wl-template-add-ipfs:
@@ -498,33 +435,6 @@ Delete a storage template from local filesystem.
 
 .. include:: include/wl-template-create.rsti
 .. include:: include/storages/zip-archive.rsti
-
-.. program:: wl-template-add-gitlab
-.. _wl-template-add-gitlab:
-
-:command:`wl template create gitlab --personal-token <personal-token> NAME`
----------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/gitlab.rsti
-
-.. program:: wl-template-add-gitlab-graphql
-.. _wl-template-add-gitlab-graphql:
-
-:command:`wl template add gitlab-graphql --personal-token <personal-token> --category-hierarchy <hierarchy> NAME`
------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/gitlab-graphql.rsti
-
-.. program:: wl-template-add-jira
-.. _wl-template-add-jira:
-
-:command:`wl template add jira --workspace-url <url> [--username <username>] [--personal-token <personal-token>] [--project-name <project-name>] [--limit <issues-limit>] NAME`
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-.. include:: include/wl-template-create.rsti
-.. include:: include/storages/jira.rsti
 
 .. program:: wl-template-add-git
 .. _wl-template-add-git:

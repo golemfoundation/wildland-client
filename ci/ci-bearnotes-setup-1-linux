@@ -1,8 +1,0 @@
-. /home/user/env/bin/activate
-. ci/install-inplace bearnotes
-
-refresh() {
-    # TODO: this suppresses errors returned from wlfuse
-    echo '{"cmd": "clear-cache"}' | nc -UN "$WL_CTRL_SOCK" >/dev/null
-}
-

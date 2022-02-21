@@ -116,46 +116,20 @@ transpose-test:
     reports:
       cobertura: artifacts/coverage.xml
 
-bearnotes-test:
-  extends: .plugin_test
-  script:
-    - ./ci/wildland-test-runner.sh ./ci/ci-bearnotes
-
 categorization-proxy-test:
   extends: .plugin_test
   script:
     - ./ci/ci-categorization-proxy
-
-gitlab-test:
-  extends: .plugin_test
-  script:
-    - ./ci/ci-gitlab
 
 git-test:
   extends: .plugin_test
   script:
     - ./ci/ci-git
 
-gitlab-graphql-test:
-  extends: .plugin_test
-  script:
-    - ./ci/ci-gitlab-graphql
-
-imap-test:
-  extends: .plugin_test
-  script:
-    - ./ci/ci-imap
-
 ipfs-test:
   extends: .plugin_test
   script:
     - ./ci/ci-ipfs
-
-jira-test:
-  stage: test
-  image: $CONTAINER_TEST_IMAGE
-  script:
-    - ./ci/ci-jira
 
 sshfs-test:
   extends: .plugin_test
