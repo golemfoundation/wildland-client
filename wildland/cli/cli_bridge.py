@@ -25,12 +25,12 @@
 Manage bridges
 """
 
-from wildland.cleaner import get_cli_cleaner
 from typing import List, Optional
 from pathlib import Path
 
 import click
 
+from wildland.cleaner import get_cli_cleaner
 from .cli_base import aliased_group, ContextObj
 from .cli_common import sign, verify, edit, dump, publish, unpublish
 from .cli_exc import CliError
@@ -166,7 +166,12 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Optionally override bridge paths with paths provided via --path.
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
-    do_bridge_import(obj.wlcore, path_or_url, paths, bridge_owner, only_first)
+    try:
+        do_bridge_import(obj.wlcore, path_or_url, paths, bridge_owner, only_first)
+    except Exception as ex:
+        click.secho('Creation failed.', fg='red')
+        cleaner.clean_up()
+        raise ex
 
 
 def do_bridge_import(wlcore, path_or_url, paths, bridge_owner, only_first):
