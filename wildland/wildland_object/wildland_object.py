@@ -162,9 +162,7 @@ class WildlandObject(abc.ABC):
         """
         Local file path of the object.
         """
-        if self.manifest:
-            return self.manifest.local_path
-        return None
+        return self.manifest.local_path if self.manifest else None
 
 
 class PublishableWildlandObject(WildlandObject, Publishable):

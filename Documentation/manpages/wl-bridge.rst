@@ -27,15 +27,10 @@ Commands
 .. program:: wl-bridge-create
 .. _wl-bridge-create:
 
-:command:`wl bridge create [--user USER] [--target-user USER] [--target-user-location URL-OR-PATH] [--path PATH] [--file-path FILE_PATH] [BRIDGE_NAME]`
--------------------------------------------------------------------------------------------------------------------------------------------------------
+:command:`wl bridge create [--user USER] [--target-user USER] [--target-user-location URL-OR-PATH] [--path PATH] [BRIDGE_NAME]`
+-------------------------------------------------------------------------------------------------------------------------------
 
 Create a new bridge manifest. At least one of --target-user and --target-user-location must be provided.
-
-.. option:: --file-path FILE_PATH
-
-   Create under a given path. By default, the manifest will be saved to the
-   standard directory (``$HOME/.local/wildland/bridges/``).
 
 .. option:: --owner USER
 

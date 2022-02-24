@@ -22,7 +22,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # pylint: disable=missing-docstring,redefined-outer-name,too-many-lines
-
 from pathlib import PurePosixPath
 import os
 import re
@@ -315,8 +314,9 @@ def test_read_file_traverse_user(cli, base_dir, client):
     cli('bridge', 'create', '--owner', 'User',
         '--target-user', 'User2',
         '--target-user-location', 'file://localhost' + str(base_dir / 'users/User2.user.yaml'),
-        '--file-path', base_dir / 'storage1/users/User2.bridge.yaml',
         'User2')
+    shutil.move(base_dir / 'bridges/User2.bridge.yaml',
+                base_dir / 'storage1/users/User2.bridge.yaml')
 
     with open(base_dir / 'storage3/file.txt', 'w') as f:
         f.write('Hello world')
@@ -352,16 +352,16 @@ def test_read_file_traverse_user_inline_container(cli, base_dir, client):
 
     # Create bridge manifest
     cli('bridge', 'create', '--owner', 'User',
-        '--target-user', 'User2',
         '--target-user-location', 'file://localhost' + str(user_path),
-        '--file-path', base_dir / 'storage1/users/User2.bridge.yaml',
         'User2')
 
+    shutil.move(base_dir / 'bridges/User2.bridge.yaml',
+                base_dir / 'storage1/users/User2.bridge.yaml')
     # Try reading file
     with open(base_dir / 'storage3/file.txt', 'w') as f:
         f.write('Hello world')
     search = Search(client, WildlandPath.from_str(':/path:/users/User2/:/file.txt'),
-        aliases={'default': '0xaaa'})
+                    aliases={'default': '0xaaa'})
     data = search.read_file()
     assert data == b'Hello world'
 
@@ -983,22 +983,24 @@ def two_users_catalog(base_dir, cli, control_client):
         c_args=('--update-user',),
     )
     (base_dir / 'catalog-known/users').mkdir()
-    cli('bridge', 'create', '--owner', 'KnownUser',
-        '--target-user', 'Dummy2',
-        '--path', '/users/User2',
-        '--target-user-location', f'file://{base_dir}/manifests/user2.user.yaml',
-        '--file-path', f'{base_dir}/catalog-known/users/User2.bridge.yaml')
-    cli('bridge', 'create', '--owner', 'KnownUser',
-        '--target-user', 'Dummy3',
-        '--path', '/users/User3',
-        '--target-user-location', f'file://{base_dir}/manifests/user3.user.yaml',
-        '--file-path', f'{base_dir}/catalog-known/users/User3.bridge.yaml')
 
     # all manifests done; now move them out of standard WL config,
     # so Search() will really have some work to do
-
     shutil.move(base_dir / 'users/Dummy2.user.yaml', base_dir / 'manifests/user2.user.yaml')
     shutil.move(base_dir / 'users/Dummy3.user.yaml', base_dir / 'manifests/user3.user.yaml')
+
+    cli('bridge', 'create', '--owner', 'KnownUser',
+        '--path', '/users/User2',
+        '--target-user-location', f'file://{base_dir}/manifests/user2.user.yaml', 'User2')
+    shutil.move(base_dir / 'bridges/User2.bridge.yaml',
+                base_dir / 'catalog-known/users/User2.bridge.yaml')
+
+    cli('bridge', 'create', '--owner', 'KnownUser',
+        '--path', '/users/User3',
+        '--target-user-location', f'file://{base_dir}/manifests/user3.user.yaml', 'User3')
+    shutil.move(base_dir / 'bridges/User3.bridge.yaml',
+                base_dir / 'catalog-known/users/User3.bridge.yaml')
+
     # container manifests are already published to relevant catalog, remove them
     for f in (base_dir / 'containers').glob('dummy*.container.yaml'):
         f.unlink()

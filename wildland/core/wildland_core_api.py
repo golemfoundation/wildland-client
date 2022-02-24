@@ -340,23 +340,27 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def bridge_import(self, path_or_url: str, paths: List[str], object_owner: Optional[str],
-                      only_first: bool = False) -> Tuple[WildlandResult, Optional[WLBridge]]:
+    def bridge_import_from_url(self, path_or_url: str, paths: List[str],
+                               object_owner: str, only_first: bool = False,
+                               name: Optional[str] = None) -> \
+            Tuple[WildlandResult, List[WLBridge]]:
         """
-        Import bridge from provided url or path.
-        :param path_or_url: WL path, local path or URL
-        :param paths: list of paths for resulting bridge manifest; if omitted, will use imported
-            user's own paths
-        :param object_owner: specify a different-from-default user to be used as the owner of
-            created bridge manifests
+        Import bridge(s) from provided url or path, creating a new bridge(s) with provided owner and
+        paths.
+        :param path_or_url: WL path or URL
+        :param paths: list of paths for resulting bridge manifest; if empty, will use provided
+        bridge's paths, scrambled for uniqueness; if WL path to multiple bridges is provided, this
+        requires --only-first
+        :param object_owner: owner for the newly created bridge
         :param only_first: import only first encountered bridge (ignored in all cases except
             WL container paths)
-        :return: tuple of WildlandResult, imported WLBridge (if import was successful
+        :param name: user-friendly name for the imported bridge
+        :return: tuple of WildlandResult, list of imported WLBridge(s) (if import was successful
         """
 
     @abc.abstractmethod
-    def bridge_import_from_data(self, yaml_data: str, paths: List[str],
-                                object_owner: Optional[str]) -> \
+    def bridge_import_from_yaml(self, yaml_data: bytes, paths: List[str],
+                                object_owner: str, name: Optional[str] = None) -> \
             Tuple[WildlandResult, Optional[WLBridge]]:
         """
         Import bridge from provided yaml data.
@@ -365,6 +369,7 @@ class WildlandCoreApi(metaclass=abc.ABCMeta):
             user's own paths
         :param object_owner: specify a different-from-default user to be used as the owner of
             created bridge manifests
+        :param name: user-friendly name for the imported bridge
         :return: tuple of WildlandResult, imported WLUser (if import was successful
         """
 

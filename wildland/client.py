@@ -374,8 +374,8 @@ class Client:
             all_storages = self.all_storages(container=container)
 
             for storage_candidate in all_storages:
-                with StorageDriver.from_storage(storage_candidate) as driver:
-                    try:
+                try:
+                    with StorageDriver.from_storage(storage_candidate) as driver:
                         file_candidate = PurePosixPath('forest-owner.user.yaml')
                         file_content = driver.read_file(file_candidate)
 
@@ -384,10 +384,8 @@ class Client:
                             WildlandObject.Type.USER, file_content, expected_owner=user.owner)
 
                         return storage_candidate, file_candidate
-
-                    except (FileNotFoundError, WildlandError) as ex:
-                        logger.debug('Could not read user manifest. Exception: %s', ex)
-
+                except (FileNotFoundError, WildlandError) as ex:
+                    logger.debug('Could not read user manifest. Exception: %s', ex)
         return None
 
     def load_object_from_bytes(self,

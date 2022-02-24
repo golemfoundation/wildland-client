@@ -47,7 +47,7 @@ from ..storage_backends.file_children import FileChildrenMixin
 from ..utils import yaml_parser
 from ..wildland_object.wildland_object import WildlandObject
 from ..cli.cli_user import _user_create, _user_import
-from ..cli.cli_bridge import _bridge_create, _bridge_import
+from ..cli.cli_bridge import _bridge_create, do_bridge_import
 
 
 def modify_file(path, pattern, replacement):
@@ -5677,10 +5677,10 @@ def test_remove_files_when_bridge_import_fails(cli, base_dir, tmpdir):
                 "local-owners:\n- '0xddd'\n- '0xaaa'")
 
     def side_effect(*args, **kwargs):
-        _bridge_import(*args, **kwargs)
+        do_bridge_import(*args, **kwargs)
         raise Exception('My error')
 
-    with mock.patch('wildland.cli.cli_bridge._bridge_import', side_effect=side_effect):
+    with mock.patch('wildland.cli.cli_bridge.do_bridge_import', side_effect=side_effect):
         try:
             cli('bridge', 'import', 'wildland:0xddd:/ALICE:/IMPORT:')
         except:

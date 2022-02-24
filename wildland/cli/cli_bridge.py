@@ -25,21 +25,17 @@
 Manage bridges
 """
 
-from pathlib import PurePosixPath, Path
-from typing import List, Optional, Iterable
+from typing import List, Optional
+from pathlib import Path
 
 import click
 
-from wildland.wildland_object.wildland_object import WildlandObject
-from wildland.bridge import Bridge
-from wildland.link import Link
 from wildland.cleaner import get_cli_cleaner
-from ..manifest.manifest import ManifestError
 from .cli_base import aliased_group, ContextObj
 from .cli_common import sign, verify, edit, dump, publish, unpublish
 from .cli_exc import CliError
-from .cli_user import import_manifest, find_user_manifest_within_catalog
 from ..log import get_logger
+from ..core.wildland_objects_api import WLObjectType
 
 
 logger = get_logger('cli-bridge')
@@ -65,7 +61,6 @@ def bridge_():
                    'the user manifest will be located in their manifests catalog.')
 @click.option('--path', 'user_paths', multiple=True,
               help='path(s) for user in owner namespace (omit to take from user manifest)')
-@click.option('--file-path', help='file path to create under')
 @click.argument('name', metavar='BRIDGE_NAME', required=False)
 @click.pass_obj
 def create(obj: ContextObj,
@@ -73,14 +68,13 @@ def create(obj: ContextObj,
            target_user_name: str,
            target_user_location: str,
            user_paths: List[str],
-           name: Optional[str],
-           file_path: Optional[str]):
+           name: Optional[str]):
     """
     Create a new bridge manifest. Clean up created files if fails.
     """
     try:
         _bridge_create(obj, owner, target_user_name, target_user_location,
-                       user_paths, name, file_path)
+                       user_paths, name)
     except Exception as ex:
         click.secho('Creation failed.', fg='red')
         cleaner.clean_up()
@@ -92,73 +86,35 @@ def _bridge_create(obj: ContextObj,
                   target_user_name: str,
                   target_user_location: str,
                   user_paths: List[str],
-                  name: Optional[str],
-                  file_path: Optional[str]):
+                  name: Optional[str]):
     """
     Create a new bridge manifest.
     """
 
-    owner_user = obj.client.load_object_from_name(WildlandObject.Type.USER,
-                                                  owner or '@default-owner')
+    owner_id = None
 
-    if not target_user_name and not target_user_location:
-        raise CliError('At least one of --target-user and --target-user-location must be provided.')
-
-    if target_user_location and not obj.client.is_url(target_user_location):
-        raise CliError('Target user location must be an URL')
-
-    if target_user_name:
-        target_user = obj.client.load_object_from_name(WildlandObject.Type.USER, target_user_name)
-    else:
-        target_user = obj.client.load_object_from_url(
-            WildlandObject.Type.USER, target_user_location, owner=owner_user.owner)
-
-    if target_user_location:
-        location = target_user_location
-    else:
-        found_manifest = find_user_manifest_within_catalog(obj, target_user)
-        if not found_manifest:
-            if target_user.local_path:
-                logger.warning('Cannot find user manifest in manifests catalog. '
-                               'Using local file path.')
-                location = obj.client.local_url(target_user.local_path)
-            else:
-                raise CliError('User manifest not found in manifests catalog. '
-                               'Provide --target-user-location.')
+    if owner:
+        result, owner_obj = obj.wlcore.object_get(WLObjectType.USER, owner)
+        if owner_obj:
+            owner_id = owner_obj.owner
         else:
-            storage, file = found_manifest
-            file = '/' / file
-            location_link = Link(file, client=obj.client, storage=storage)
-            location = location_link.to_manifest_fields(inline=True)
+            raise CliError(f'User {owner} not found: {result}')
 
-    fingerprint = obj.client.session.sig.fingerprint(target_user.primary_pubkey)
+    target_user_id = None
+    if target_user_name:
+        result, target_user_obj = obj.wlcore.object_get(WLObjectType.USER, target_user_name)
+        if target_user_obj:
+            target_user_id = target_user_obj.owner
+        else:
+            raise CliError(f'Target user {target_user_name} not found')
 
-    if user_paths:
-        paths = [PurePosixPath(p) for p in user_paths]
-    else:
-        paths = target_user.paths
+    result, _ = obj.wlcore.bridge_create(paths=user_paths, owner=owner_id,
+                                              target_user=target_user_id,
+                                              user_url=target_user_location,
+                                              name=name)
 
-        click.echo("Using user's default paths: {}".format([str(p) for p in target_user.paths]))
-
-    bridge = Bridge(
-        owner=owner_user.owner,
-        user_location=location,
-        user_pubkey=target_user.primary_pubkey,
-        user_id=fingerprint,
-        paths=paths,
-        client=obj.client
-    )
-
-    if not name or file_path:
-        # an heuristic for nicer paths
-        for path in paths:
-            if 'uuid' not in str(path):
-                name = str(path).lstrip('/').replace('/', '_')
-                break
-
-    path = obj.client.save_new_object(WildlandObject.Type.BRIDGE,
-                                      bridge, name, Path(file_path) if file_path else None)
-    click.echo(f'Created: {path}')
+    if not result.success:
+        raise CliError(f'Failed to create bridge: {result}')
 
 
 @bridge_.command('list', short_help='list bridges', alias=['ls'])
@@ -168,17 +124,25 @@ def list_(obj: ContextObj):
     Display known bridges.
     """
 
-    for bridge in obj.client.get_local_bridges():
-        click.echo(bridge.local_path)
+    result_bridges, bridges = obj.wlcore.bridge_list()
+    if result_bridges.failure:
+        click.echo('Failed to list bridges:')
+        for e in result_bridges.errors:
+            click.echo(f'Error {e.error_code}: {e.error_description}')
 
-        try:
-            user = obj.client.load_object_from_name(WildlandObject.Type.USER, bridge.owner)
-            if user.paths:
-                user_desc = ' (' + ', '.join([str(p) for p in user.paths]) + ')'
-            else:
-                user_desc = ''
-        except ManifestError:
+    for bridge in bridges:
+        _, path = obj.wlcore.object_get_local_path(WLObjectType.BRIDGE, bridge.id)
+        click.echo(path)
+        result, user = obj.wlcore.object_get(WLObjectType.USER, bridge.owner)
+        if result.failure or not user:
+            raise CliError(f'User {bridge.owner} cannot be loaded: {result}')
+
+        user_paths = user.paths  # type: ignore[attr-defined]
+        if user_paths:
+            user_desc = ' (' + ', '.join([str(p) for p in user_paths]) + ')'
+        else:
             user_desc = ''
+
         click.echo(f'  owner: {bridge.owner}' + user_desc)
         click.echo('  paths: ' + ', '.join([str(p) for p in bridge.paths]))
         click.echo()
@@ -203,24 +167,47 @@ def bridge_import(obj: ContextObj, path_or_url, paths, bridge_owner, only_first)
     Created bridge manifests will use system @default-owner, or --bridge-owner is specified.
     """
     try:
-        _bridge_import(
-            obj,
-            path_or_url,
-            paths,
-            WildlandObject.Type.BRIDGE,
-            bridge_owner,
-            only_first
-        )
+        do_bridge_import(obj.wlcore, path_or_url, paths, bridge_owner, only_first)
     except Exception as ex:
-        click.secho('Import failed.', fg='red')
+        click.secho('Creation failed.', fg='red')
         cleaner.clean_up()
         raise ex
 
 
-def _bridge_import(obj: ContextObj, path_or_url: str, paths: Iterable[str],
-                    wl_obj_type: WildlandObject.Type, bridge_owner: Optional[str],
-                    only_first: bool):
-    import_manifest(obj, path_or_url, paths, wl_obj_type, bridge_owner, only_first)
+def do_bridge_import(wlcore, path_or_url, paths, bridge_owner, only_first):
+    """
+    Perform bridge import. Separated into a function to avoid Click weirdness on import to cli_user.
+    """
+    p = Path(path_or_url)
+    name = path_or_url
+    name = name.split('/')[-1]
+
+    if not bridge_owner:
+        _, default_owner = wlcore.env.get_default_owner()
+        if default_owner:
+            bridge_owner = default_owner
+        else:
+            raise CliError('Cannot import a bridge without @default-owner or --bridge-owner.')
+
+    if p.exists():
+        yaml_data = p.read_bytes()
+        name = p.name
+        result, imported_bridge = wlcore.bridge_import_from_yaml(yaml_data, paths, bridge_owner,
+                                                                 name)
+        if not imported_bridge:
+            raise CliError(f'Failed to import bridges: {result}')
+
+        users = [f'{imported_bridge.user_id}:']
+    else:
+        result, imported_bridges = wlcore.bridge_import_from_url(path_or_url, paths,
+                                                                 bridge_owner, only_first, name)
+        users = [f'{bridge.user_id}:' for bridge in imported_bridges]
+        if not result.success:
+            raise CliError(f'Failed to import bridges: {result}')
+
+    result = wlcore.user_refresh(users)
+    if not result.success:
+        raise CliError(f'Failed to import bridges: {result}')
 
 
 bridge_.add_command(sign)
