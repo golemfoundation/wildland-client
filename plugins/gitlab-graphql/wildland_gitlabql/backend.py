@@ -26,6 +26,7 @@ Wildland storage backend exposing GitLab issues
 
 # pylint: disable=no-member
 import stat
+import itertools
 from typing import List, Tuple, Iterable, Optional
 from functools import partial
 from pathlib import PurePosixPath
@@ -153,56 +154,27 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
         Generates the container categories in accordance with the category-hierarchy
         passed by the user.
         """
-        # Disabling the 'consider-using-enumerate' pylint warning for readibility
-        # Diabling the 'too-many-nested-blocks' warning as it is necessary
-        # pylint: disable=consider-using-enumerate
-        # pylint: disable=too-many-nested-blocks
 
         permutations=[]
         paths=[]
         to_return=[]
 
         # this gives us an array of length at most 5 which we now need to permutate through
-        to_permutate = ["" for i in range(5)]
+        to_permutate = []
         initial_split = self.category_hierarchy.split('/')
         if len(initial_split)>5:
             raise Exception('Category generation failed: wrong category hierarchy format.')
 
-        for i in range(len(initial_split)):
-            to_permutate.insert(i, initial_split[i])
-
-        # need to go through each element at least once
-        for i in range(len(initial_split)):
-            to_permutate[i] = initial_split[i]
-
-        # need to declare in order for the permutations to work
-        first = None
-        second = None
-        third = None
-        fourth = None
-        fifth = None
+        for s in initial_split:
+            to_permutate.append(s)
 
         # Create an array of all the possible permutations of different parts of the array, e.g.
         # - ['1', '234', '5'] -> ['125', '135', '145']
-        for i in range(len(to_permutate[0])):
-            first=to_permutate[i]
-            for j in range(len(to_permutate[1])):
-                second=first+to_permutate[1][j]
-                for k in range(len(to_permutate[2])):
-                    third=second+to_permutate[2][k]
-                    for l in range(len(to_permutate[3])):
-                        fourth=third+to_permutate[3][l]
-                        for m in range(len(to_permutate[4])):
-                            fifth=fourth+to_permutate[4][m]
-                            permutations.append(fifth)
-                        if not fifth:
-                            permutations.append(fourth)
-                    if not fourth:
-                        permutations.append(third)
-                if not third:
-                    permutations.append(second)
-            if not second:
-                permutations.append(first)
+        products=list(itertools.product(*to_permutate))
+
+        # merge the tuples into full strings in order to decode them
+        for product in products:
+            permutations.append(''.join(product))
 
         # decoding the permutations and assigning relevant categories based on those
         # this is in accordance with the explanation provided as the --help message
@@ -212,44 +184,38 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
             for number in combination:
                 if number=='1':
                     if issue.closed:
-                        for index in range(len(categories)):
-                            categories[index] = categories[index] / PurePosixPath('closed')
+                        for index, category in enumerate(categories):
+                            categories[index] = category / PurePosixPath('closed')
                     else:
-                        for index in range(len(categories)):
-                            categories[index] = categories[index] / PurePosixPath('open')
+                        for index, category in enumerate(categories):
+                            categories[index] = category / PurePosixPath('open')
                 elif number=='2':
-                    for index in range(len(categories)):
-                        categories[index] = (categories[index] / PurePosixPath('author') /
+                    for index, category in enumerate(categories):
+                        categories[index] = (category / PurePosixPath('author') /
                                             PurePosixPath(f'{issue.author}'))
                 elif number=='3':
-                    for index in range(len(categories)):
+                    for index, category in enumerate(categories):
                         if issue.labels:
-                            with_labels=[]
-                            for label in issue.labels:
-                                label_category = categories[index] / PurePosixPath('labels')
-                                label_parts = label.split('::')
-                                for part in label_parts:
-                                    with_labels.append(label_category / PurePosixPath(part))
-                            categories=with_labels
+                            categories=self.append_labels(issue.labels, category)
                         else:
-                            # if no categories, issue will be assigned the /undefined category
-                            categories[index] = (categories[index] / PurePosixPath('labels') /
+                            # if no labels, issue will be assigned the /undefined category
+                            categories[index] = (category / PurePosixPath('labels') /
                                                    PurePosixPath('undefined'))
                 elif number=='4':
-                    for index in range(len(categories)):
+                    for index, category in enumerate(categories):
                         if issue.milestone_title:
-                            categories[index] = (categories[index] / PurePosixPath('milestones') /
+                            categories[index] = (category / PurePosixPath('milestones') /
                                                    PurePosixPath(f'{issue.milestone_title}'))
                         else:
-                            categories[index] = (categories[index] / PurePosixPath('milestones') /
+                            categories[index] = (category / PurePosixPath('milestones') /
                                                    PurePosixPath('undefined'))
                 elif number=='5':
-                    for index in range(len(categories)):
+                    for index, category in enumerate(categories):
                         if issue.epic_title:
-                            categories[index] = (categories[index] / PurePosixPath('epics') /
+                            categories[index] = (category / PurePosixPath('epics') /
                                         PurePosixPath(f'{issue.epic_title}'))
                         else:
-                            categories[index] = (categories[index] / PurePosixPath('epics') /
+                            categories[index] = (category / PurePosixPath('epics') /
                                                    PurePosixPath('undefined'))
 
             for category in categories:
@@ -266,6 +232,21 @@ class GitlabQLStorageBackend(GeneratedStorageMixin, StorageBackend):
             to_return.append(str(path))
 
         return to_return
+
+    @staticmethod
+    def append_labels(labels: List[str], category: PurePosixPath) -> List[PurePosixPath]:
+        """
+        Appends all labels to a given category, creating a list
+        """
+        with_labels=[]
+
+        for label in labels:
+            label_category = category / PurePosixPath('labels')
+            label_parts = label.split('::')
+            for part in label_parts:
+                with_labels.append(label_category / PurePosixPath(part))
+
+        return with_labels
 
     def _id_issue(self, issue: CompactIssue) -> str:
         """

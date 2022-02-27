@@ -14,6 +14,20 @@
    (Optional) Provide an alternative category hierarchy to be followed when generating the
    categories for the microcontainers. Available options are: 1./open or /closed,
    2./author/(author\'s name), 3./labels/(issue label) 4./milestone/(issue milestone)
-   5./epics/(issue epic). Default: 1/234
+   5./epics/(issue epic). This option defaults to: ``1/2345``, which corresponds to the following tree::
+   
+       projects/
+        └── {project_name}/
+            ├── open/
+            │   ├── authors
+            │   ├── epics
+            │   ├── milestones
+            │   └── labels
+            └── closed/
+                ├── authors
+                ├── epics
+                ├── milestones
+                └── labels
+    
    
 
