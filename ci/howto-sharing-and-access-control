@@ -238,14 +238,14 @@ paths:
 - /users/caroline
 manifests-catalog:
 - object: link
-  file: /.manifests.container.yaml
+  file: /$UUID_PCRE.container.yaml
   storage:
     encrypted:
       encrypted-data: .*
       encrypted-keys:
       - .*
 - object: link
-  file: /.manifests.container.yaml
+  file: /$UUID_PCRE.container.yaml
   storage:
     object: storage
     type: webdav

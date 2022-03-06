@@ -44,6 +44,7 @@ from wildland.wildland_object.wildland_object import WildlandObject, Publishable
 class FileChildrenMixin(StorageBackend):
     """
     A backend storage mixin providing support for pattern-manifest types of glob and list.
+    Currently, each backend which is planned to be used for storing catalogs must use this mixin.
 
     glob type is a UNIX-style expression for listing all manifest files that fit a given pattern.
     list type is an array that holds a list of relative paths to child objects manifests within
@@ -83,14 +84,14 @@ class FileChildrenMixin(StorageBackend):
                 raise WildlandError('--subcontainer-manifest and --manifest-pattern '
                                     'are mutually exclusive.')
             result['manifest-pattern'] = {
-                    'type': 'list',
-                    'paths': list(data['subcontainer_manifest'])
-                }
+                'type': 'list',
+                'paths': list(data['subcontainer_manifest'])
+            }
         elif data.get('manifest_pattern'):
             result['manifest-pattern'] = {
-                    'type': 'glob',
-                    'path': data['manifest_pattern']
-                }
+                'type': 'glob',
+                'path': data['manifest_pattern']
+            }
         return result
 
     @property
@@ -117,17 +118,20 @@ class FileChildrenMixin(StorageBackend):
         """
         Check if the given container is child of this storage.
         """
-        wl_object_manifest = next(self._get_relpaths(wl_object_uuid_path))
+        wl_object_manifest = next(self.get_relpaths(wl_object_uuid_path))
 
         with StorageDriver(self) as driver:
             return driver.file_exists(wl_object_manifest)
 
-    def _get_relpaths(self, wl_object_uuid_path: PurePosixPath,
-                      wl_object_expanded_paths: Optional[Iterable[PurePosixPath]] = None) -> \
-            Iterator[PurePosixPath]:
+    def get_relpaths(self, wl_object_uuid_path: PurePosixPath,
+                     wl_object_expanded_paths: Optional[Iterable[PurePosixPath]] = None) \
+            -> Iterator[PurePosixPath]:
+        """
+        Build the relative path based on the manifest-pattern.
+        """
         pattern = self.params['manifest-pattern']['path']
 
-        path_pattern = pattern.replace('*', wl_object_uuid_path.name)\
+        path_pattern = pattern.replace('*', wl_object_uuid_path.name) \
             .replace('{object-type}', 'container')
 
         paths = wl_object_expanded_paths or (wl_object_uuid_path,)
@@ -177,7 +181,7 @@ class FileChildrenMixin(StorageBackend):
             update = set.difference_update
 
         manifest_relpaths = list(
-            self._get_relpaths(
+            self.get_relpaths(
                 wl_object.get_primary_publish_path(),
                 wl_object.get_publish_paths()
             )
@@ -207,15 +211,15 @@ class FileChildrenMixin(StorageBackend):
         storage_relpaths = {}
         for backend in container.load_storages(include_inline=False):
             # we publish only a single manifest for a storage, under `/.uuid/` path
-            container_manifest = next(self._get_relpaths(container.uuid_path))
+            container_manifest = next(self.get_relpaths(container.uuid_path))
 
             name = container_manifest.name
 
             if container_manifest.name.endswith('.container.yaml'):
-                name = name.removesuffix('.container.yaml')\
+                name = name.removesuffix('.container.yaml') \
                        + f'.{backend.backend_id}.container.yaml'
             else:
-                name = name.removesuffix('.yaml')\
+                name = name.removesuffix('.yaml') \
                        + f'.{backend.backend_id}.yaml'
 
             relpath = container_manifest.with_name(name)
@@ -248,7 +252,7 @@ class FileChildrenMixin(StorageBackend):
                     f'problems; please remove it manually')
 
             old_relpaths_to_remove.update(set(
-                self._get_relpaths(
+                self.get_relpaths(
                     old_object.get_primary_publish_path(),
                     old_object.get_publish_paths()
                 )
@@ -322,7 +326,7 @@ class FileChildrenMixin(StorageBackend):
                 else:
                     yield file_path, None
 
-    def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath)\
+    def _find_manifest_files(self, prefix: PurePosixPath, path: PurePosixPath) \
             -> Iterable[PurePosixPath]:
         assert len(path.parts) > 0, 'empty path'
 

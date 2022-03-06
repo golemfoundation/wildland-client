@@ -580,12 +580,15 @@ def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_n
                                                       predicate=lambda x: x.is_writeable)
         manifests_backend = StorageBackend.from_params(manifests_storage.params)
 
-        # Provision manifest storage with container from manifest catalog
-        _bootstrap_manifest(manifests_backend, catalog_container.local_path,
-                            Path('.manifests.container.yaml'))
-
         for storage in obj.client.all_storages(container=catalog_container):
-            link_obj: Dict[str, Any] = {'object': 'link', 'file': '/.manifests.container.yaml'}
+            storage_backend = StorageBackend.from_params(storage.params)
+            assert isinstance(storage_backend, FileChildrenMixin), \
+                'Unsupported catalog storage type.'
+            rel_path = storage_backend.get_relpaths(
+                catalog_container.get_primary_publish_path(),
+                catalog_container.get_publish_paths())
+
+            link_obj: Dict[str, Any] = {'object': 'link', 'file': f'/{list(rel_path)[0]}'}
 
             fields = storage.to_manifest_fields(inline=True)
             if not storage.access:
@@ -607,8 +610,7 @@ def _bootstrap_forest(ctx: click.Context, user: str, manifest_storage_template_n
 
         # Reload forest_owner to load the manifests-catalog info
         forest_owner = obj.client.load_object_from_name(WildlandObject.Type.USER, user)
-        Publisher(obj.client, forest_owner).publish(catalog_container)
-
+        Publisher(obj.client, forest_owner, catalog_container).publish(catalog_container)
     except Exception as ex:
         raise CliError(f'Could not create a Forest. {ex}') from ex
     finally:

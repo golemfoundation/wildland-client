@@ -60,12 +60,10 @@ class Publisher:
     >>> publisher.unpublish(wl_object)
     """
 
-    def __init__(self, client: Client, user: User, catalog_entry: Optional[Container] = None):
+    def __init__(self, client: Client, user: User, catalog_container: Optional[Container] = None):
         self.client = client
         self.user = user
-
-        if catalog_entry is not None:
-            raise NotImplementedError('choosing catalog entry is not supported')
+        self.catalog_container = catalog_container
 
     @functools.cache
     def _cache(self, obj_type: WildlandObject.Type):
@@ -79,7 +77,7 @@ class Publisher:
         Publish a Wildland Object to the user's catalog.
         """
         # get first available user catalog storage
-        catalog_storage = next(Publisher.get_catalog_storages(self.client, self.user))
+        catalog_storage = next(self.get_catalog_storages())
         catalog_storage.add_child(self.client, wl_object)
         self._cache(wl_object.type).remove(wl_object)
 
@@ -87,7 +85,7 @@ class Publisher:
         """
         Unpublish a Wildland Object to the user's catalog.
         """
-        for catalog_storage in Publisher.get_catalog_storages(self.client, self.user):
+        for catalog_storage in self.get_catalog_storages():
             catalog_storage.remove_child(self.client, wl_object)
         self._cache(wl_object.type).add(wl_object)
 
@@ -97,7 +95,7 @@ class Publisher:
         """
         published = []
         try:
-            for catalog_storage in Publisher.get_catalog_storages(self.client, self.user):
+            for catalog_storage in self.get_catalog_storages():
                 if catalog_storage.has_child(wl_object.get_primary_publish_path()):
                     published.append(catalog_storage)
         except WildlandError:
@@ -134,15 +132,14 @@ class Publisher:
         """
         user = client.load_object_from_name(WildlandObject.Type.USER, owner)
         try:
-            for storage in Publisher.get_catalog_storages(client, user, writable_only=False):
+            for storage in Publisher(client, user).get_catalog_storages(writable_only=False):
                 if storage.has_child(uuid_path):
                     return True
         except WildlandError:
             pass
         return False
 
-    @staticmethod
-    def get_catalog_storages(client: Client, owner: User, writable_only: bool = True) \
+    def get_catalog_storages(self, writable_only: bool = True) \
             -> Generator[StorageBackend, None, None]:
         """
         Iterate over all suitable storages to publish a Wildland Object manifest.
@@ -151,9 +148,12 @@ class Publisher:
         ok = False
         rejected = []
 
-        for container_candidate in owner.load_catalog():
+        container_candidates = [self.catalog_container] \
+            if self.catalog_container else self.user.load_catalog()
+
+        for container_candidate in container_candidates:
             try:
-                all_storages = list(client.all_storages(container=container_candidate))
+                all_storages = list(self.client.all_storages(container=container_candidate))
 
                 if not all_storages:
                     rejected.append(
