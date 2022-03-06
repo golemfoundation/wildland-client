@@ -210,9 +210,9 @@ class WildlandFSClient:
         self.clear_cache()
         cmd = ['umount', str(self.mount_dir)]
         try:
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError as e:
-            raise WildlandFSError(f'Failed to stop: {e}') from e
+            raise WildlandFSError(f'Failed to stop: {e.stderr}') from e
         self.wait_for_unmount()
 
     def is_running(self) -> bool:
