@@ -128,7 +128,7 @@ def list_(obj: ContextObj):
     if result_bridges.failure:
         click.echo('Failed to list bridges:')
         for e in result_bridges.errors:
-            click.echo(f'Error {e.error_code}: {e.error_description}')
+            click.echo(f'Error {e.code}: {e.description}')
 
     for bridge in bridges:
         _, path = obj.wlcore.object_get_local_path(WLObjectType.BRIDGE, bridge.id)

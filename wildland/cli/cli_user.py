@@ -148,7 +148,7 @@ def list_(obj: ContextObj, verbose, list_secret_keys):
     if not result_bridges.success or not result_users.success:
         click.echo('Failed to list users:')
         for e in result_users.errors + result_bridges.errors:
-            click.echo(f'Error {e.error_code}: {e.error_description}')
+            click.echo(f'Error {e.code}: {e.description}')
 
     # TODO: this used to use a client method called load_users_with_bridge_paths; perhaps this
     # will be obsolete soon?
@@ -308,8 +308,11 @@ def _user_import(obj: ContextObj, path_or_url: str, paths: List[str], bridge_own
         result, imported_object = obj.wlcore.object_import_from_url(path_or_url, name)
 
     if result.failure:
-        if len(result.errors) == 1 and result.errors[0].error_code == WLErrorType.FILE_EXISTS_ERROR:
-            result, imported_object = obj.wlcore.user_get_by_id(result.errors[0].error_description)
+        if len(result.errors) == 1 and result.errors[0].code == WLErrorType.FILE_EXISTS_ERROR:
+            # FILE_EXISTS_ERROR contains the already existing name in offender_id
+            existing_name = result.errors[0].offender_id
+            assert existing_name
+            result, imported_object = obj.wlcore.user_get_by_id(existing_name)
             if not imported_object:
                 raise CliError(f'Failed to import manifest: {str(result)}')
             click.echo('User already exists, skipping.')
