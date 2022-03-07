@@ -213,13 +213,15 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
     Requires you to implement read_full() and write_full().
     """
 
-    def __init__(self, attr: Attr, clear_cache_callback: Optional[Callable] = None):
+    def __init__(self, attr: Attr, clear_cache_callback: Optional[Callable] = None,
+                 update_cache_callback: Optional[Callable[[Attr], None]] = None):
         self.attr = attr
         self.buf = bytearray()
         self.loaded = self.attr.size == 0
         self.dirty = False
         self.buf_lock = threading.Lock()
         self.clear_cache = clear_cache_callback
+        self.update_cache = update_cache_callback
 
     @abc.abstractmethod
     def read_full(self) -> bytes:
@@ -269,8 +271,14 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
     def write(self, data: bytes, offset: int) -> int:
         with self.buf_lock:
             self._load()
+            old_size = len(self.buf)
             self.buf[offset:offset+len(data)] = data
             self.dirty = True
+            new_size = len(self.buf)
+            if old_size != new_size:
+                self.attr.size = new_size
+                if self.update_cache:
+                    self.update_cache(self.attr)
         return len(data)
 
     def fgetattr(self) -> Attr:
@@ -293,6 +301,9 @@ class FullBufferedFile(File, metaclass=abc.ABCMeta):
             if length < len(self.buf) or length == 0:
                 self.buf = self.buf[:length]
                 self.dirty = True
+                self.attr.size = length
+                if self.update_cache:
+                    self.update_cache(self.attr)
 
     def flush(self) -> None:
         with self.buf_lock:
