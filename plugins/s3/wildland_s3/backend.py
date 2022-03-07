@@ -129,6 +129,31 @@ class S3File(FullBufferedFile):
         self.update_cache(path, attr)
 
 
+class ReadOnlyS3BufferedFile(File):
+    """
+    A read-only view into an S3File instance opened by another process
+    """
+
+    def __init__(self, writable_file: S3File):
+        super().__init__()
+        self.writable_file = writable_file
+
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
+        return self.writable_file.read(length, offset)
+
+    def write(self, data: bytes, offset: int) -> int:
+        raise OSError(errno.EPERM)
+
+    def fgetattr(self) -> Attr:
+        return self.writable_file.fgetattr()
+
+    def ftruncate(self, length: int) -> None:
+        raise OSError(errno.EPERM)
+
+    def release(self, flags: int) -> None:
+        pass
+
+
 class PagedS3File(PagedFile):
     """
     A read-only paged S3 file.
@@ -237,6 +262,9 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
 
         self.bucket = s3_url.netloc
         self.base_path = PurePosixPath(s3_url.path)
+
+        # files open for writing
+        self.open_files: Dict[PurePosixPath, S3File] = {}
 
         mimetypes.init()
 
@@ -414,6 +442,14 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.ENOENT, str(path))
 
+        open_file = self.open_files.get(path)
+        if open_file is not None and flags & (os.O_WRONLY | os.O_RDWR):
+            # do not allow opening the same file for writting twice
+            raise IOError(errno.EBUSY, str(path))
+        if open_file is not None:
+            # return the same instance, so writes by one process are visible in others
+            return ReadOnlyS3BufferedFile(open_file)
+
         try:
             head = self.client.head_object(
                 Bucket=self.bucket,
@@ -422,9 +458,11 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
             attr = self._stat(head)
             if flags & (os.O_WRONLY | os.O_RDWR):
                 content_type = self.get_content_type(path)
-                return S3File(
+                file = S3File(
                     self.client, self.bucket, self.key(path),
                     content_type, attr, self.update_cache)
+                self.open_files[path] = file
+                return file
 
             return PagedS3File(self.client, self.bucket, self.key(path), attr)
         except botocore.exceptions.ClientError as e:
@@ -435,6 +473,10 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
     def create(self, path: PurePosixPath, _flags: int, _mode: int = 0o666) -> File:
         if self.with_index and path.name == self.INDEX_NAME:
             raise IOError(errno.EPERM, str(path))
+
+        if path in self.open_files:
+            # do not allow opening the same file for writting twice
+            raise IOError(errno.EBUSY, str(path))
 
         content_type = self.get_content_type(path)
         logger.debug('creating %s with content type %s', path, content_type)
@@ -671,6 +713,8 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
         """
         Same performance hack as in flush()
         """
+        if path in self.open_files and isinstance(obj, S3File):
+            del self.open_files[path]
         attr = obj.fgetattr()
         super().release(path, flags, obj)
 

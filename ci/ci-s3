@@ -73,6 +73,12 @@ time -p chronic /bin/bash -c '$(rm '$MNT_PATH_1'/abbott)'
 
 time -p chronic /bin/bash -c '[[ ! -f ~/wildland/s3/subdir/abbott ]]'
 
+# check if lstat() returns updated size even before closing the file
+time -p chronic /bin/bash -c 'exec 3>>'$MNT_PATH_1'/file && printf foooo >&3 && [[ $(stat -c %s '$MNT_PATH_1'/file) -eq 8 ]]'
+
+# check if data is visible before closing the file
+time -p chronic /bin/bash -c 'exec 3>>'$MNT_PATH_1'/file && printf bar >&3 && cat -v '$MNT_PATH_1'/file &&  [[ $(cat '$MNT_PATH_1'/file) == "foofoooobar" ]]'
+
 # Creating a storage by utilizing a template
 
 $WL template create s3 --access-key 'dmr' --secret-key '/.,/.,/.,'  --s3-url s3://the-bucket/ --endpoint-url 'http://127.0.0.1:9000' s3-template
