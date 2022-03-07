@@ -24,7 +24,7 @@
 """
 S3 storage backend
 """
-
+import functools
 from pathlib import PurePosixPath
 from io import BytesIO
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
@@ -91,8 +91,10 @@ class S3File(FullBufferedFile):
                  key: str,
                  content_type: str,
                  attr: Attr,
-                 update_cache: Callable[[PurePosixPath, Attr], None]):
-        super().__init__(attr, self.__clear_cache)
+                 update_cache: Callable[[Attr], None]):
+        super().__init__(attr,
+                         clear_cache_callback=self.__clear_cache,
+                         update_cache_callback=update_cache)
         self.client = client
         self.bucket = bucket
         self.key = key
@@ -124,9 +126,9 @@ class S3File(FullBufferedFile):
             Bucket=self.bucket,
             Key=self.key,
         )
-        path = PurePosixPath(self.key)
         attr = S3FileAttr.from_s3_object(response)
-        self.update_cache(path, attr)
+        if self.update_cache:
+            self.update_cache(attr)
 
 
 class ReadOnlyS3BufferedFile(File):
@@ -460,7 +462,7 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
                 content_type = self.get_content_type(path)
                 file = S3File(
                     self.client, self.bucket, self.key(path),
-                    content_type, attr, self.update_cache)
+                    content_type, attr, functools.partial(self.update_cache, path))
                 self.open_files[path] = file
                 return file
 
@@ -489,7 +491,7 @@ class S3StorageBackend(FileChildrenMixin, DirectoryCachedStorageMixin, StorageBa
         self.update_cache(path, attr)
         self._update_index(path.parent)
         return S3File(self.client, self.bucket, self.key(path),
-                      content_type, attr, self.update_cache)
+                      content_type, attr, functools.partial(self.update_cache, path))
 
     def unlink(self, path: PurePosixPath):
         if self.with_index and path.name == self.INDEX_NAME:
