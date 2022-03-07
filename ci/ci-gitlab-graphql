@@ -32,18 +32,28 @@ time -p chronic ls "$ROOT"/projects/ci\ example\ project/
 time -p test -d "$ROOT"/timeline/2021/06/16
 
 # Checking the categories permutation
-time -p test -d "$ROOT"/projects/ci\ example\ project/@labels/feature/
+time -p test -d "$ROOT"/projects/ci\ example\ project/open/labels/feature/
 
 # Labels with 2 issues
-time -p test -f "$ROOT"/labels/backends/issue\ 1/issue\ 1.md
-time -p test -f "$ROOT"/labels/backends/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/backends/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/backends/issue\ 2/issue\ 2.md
 
-# Labes with a single issue
-time -p test -f "$ROOT"/labels/feature/issue\ 1/issue\ 1.md
-time -p test -f "$ROOT"/labels/welcome/issue\ 2/issue\ 2.md
+# Labels with a single issue
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/feature/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/welcome/issue\ 2/issue\ 2.md
+
+# Author categories
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/author/maja.kostacinska/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/author/maja.kostacinska/issue\ 2/issue\ 2.md
+
+# Milestone and epic categories (undefined)
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/epics/undefined/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/epics/undefined/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/milestones/undefined/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/milestones/undefined/issue\ 2/issue\ 2.md
 
 # Read contents of files
-time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/issue\ 2/issue\ 2.md
+time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/open/epics/undefined/issue\ 2/issue\ 2.md
 
 # Unmount the container
 time -p chronic $WL container unmount GitLab
@@ -60,18 +70,18 @@ time -p chronic ls "$ROOT"/projects/ci\ example\ project/
 time -p test -d "$ROOT"/timeline/2021/06/16
 
 # Checking the categories permutation
-time -p test -d "$ROOT"/projects/ci\ example\ project/@labels/feature/
+time -p test -d "$ROOT"/projects/ci\ example\ project/open/labels/feature/
 
 # Labels with 2 issues
-time -p test -f "$ROOT"/labels/backends/issue\ 1/issue\ 1.md
-time -p test -f "$ROOT"/labels/backends/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/backends/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/backends/issue\ 2/issue\ 2.md
 
 # Labes with a single issue
-time -p test -f "$ROOT"/labels/feature/issue\ 1/issue\ 1.md
-time -p test -f "$ROOT"/labels/welcome/issue\ 2/issue\ 2.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/feature/issue\ 1/issue\ 1.md
+time -p test -f "$ROOT"/projects/ci\ example\ project/open/labels/welcome/issue\ 2/issue\ 2.md
 
 # Read contents of files
-time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/issue\ 2/issue\ 2.md
+time -p chronic grep 'issue' "$ROOT"/projects/ci\ example\ project/open/labels/welcome/issue\ 2/issue\ 2.md
 
 # Unmount the container
 time -p chronic $WL container unmount GitLab-no-path
