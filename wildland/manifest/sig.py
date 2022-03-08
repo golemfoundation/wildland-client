@@ -260,6 +260,15 @@ class SigContext:
         """
         raise NotImplementedError()
 
+    def import_key_pair(self, public_key: bytes, private_key: Optional[bytes]):
+        """
+        Import provided public and (if provided) private key. The keys must follow key format
+        appropriate for used SigContext (see documentation)
+        :param public_key: bytes with public key
+        :param private_key: bytes with private key
+        """
+        raise NotImplementedError()
+
 
 class DummySigContext(SigContext):
     """
@@ -346,6 +355,9 @@ class DummySigContext(SigContext):
             raise SigError('Cannot decrypt data')
 
         return data[4:].encode()
+
+    def import_key_pair(self, public_key: bytes, private_key: Optional[bytes]):
+        return
 
 
 class SodiumSigContext(SigContext):
@@ -591,3 +603,42 @@ class SodiumSigContext(SigContext):
             return box.decrypt(base64.b64decode(data))
         except CryptoError as ce:
             raise SigError('Failed to decrypt data')from ce
+
+    def import_key_pair(self, public_key: bytes, private_key: Optional[bytes]):
+        self.key_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+        key_id = self.fingerprint(public_key.decode())
+
+        if private_key:
+            private_file = self.key_dir / f'{key_id}.sec'
+            if private_file.exists():
+                raise FileExistsError(f'File {private_file} already exists.')
+
+            private_file.touch(mode=stat.S_IFREG | 0o600)
+            private_file.write_bytes(private_key)
+            assert os.stat(private_file).st_mode == stat.S_IFREG | 0o600
+
+        self.add_pubkey(public_key.decode(), key_id)
+
+        # check if keys work
+        failure = False
+        try:
+            test_data = b'test_data'
+            signature = self.sign(key_id, test_data, True)
+            self.verify(signature, test_data)
+        except SigError:
+            failure = True
+        try:
+            test_data = b'test_data'
+            encrypted_data, encrypted_keys = self.encrypt(test_data, [public_key.decode()])
+            decrypted_data = self.decrypt(encrypted_data, encrypted_keys)
+            if not test_data == decrypted_data:
+                raise SigError('Not a matching key pair.')
+        except SigError:
+            failure = True
+
+        if failure:
+            if private_key:
+                private_file = self.key_dir / f'{key_id}.sec'
+                private_file.unlink()
+            raise SigError('Not a matching key pair.')

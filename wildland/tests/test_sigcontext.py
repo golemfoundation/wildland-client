@@ -23,7 +23,7 @@
 
 # pylint: disable=missing-docstring,redefined-outer-name
 
-from pathlib import Path
+from pathlib import Path, PosixPath
 import tempfile
 
 import pytest
@@ -160,6 +160,36 @@ def test_copy_and_import(sig, owner, other_owner):
     assert g2.add_pubkey(pubkey2) == other_owner
     assert other_owner in g2.keys
     assert other_owner not in g1.keys
+
+
+def test_import_public_private(sig, tmpdir):
+    owner, pubkey = sig.generate()
+    sig.add_pubkey(pubkey, owner)
+
+    pubkey_bytes = pubkey.encode()
+    private_key_str = sig.private_keys[owner]
+
+    keydir_2 = PosixPath(tmpdir / 's2')
+    sig2 = SodiumSigContext(keydir_2)
+    sig2.import_key_pair(pubkey_bytes, private_key_str.encode())
+
+    assert sig2.private_keys[owner] == private_key_str
+    assert pubkey == sig2.get_primary_pubkey(owner)
+
+
+def test_import_fail(sig, tmpdir):
+    owner_1, pubkey_1 = sig.generate()
+    owner_2, pubkey_2 = sig.generate()
+    sig.add_pubkey(pubkey_1, owner_1)
+    sig.add_pubkey(pubkey_2, owner_2)
+
+    pubkey_bytes = pubkey_1.encode()
+    private_key_str = sig.private_keys[owner_2]
+
+    keydir_2 = PosixPath(tmpdir / 's2')
+    sig2 = SodiumSigContext(keydir_2)
+    with pytest.raises(SigError):
+        sig2.import_key_pair(pubkey_bytes, private_key_str.encode())
 
 
 def test_load_key(sig, owner):
