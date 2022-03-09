@@ -34,7 +34,7 @@ expected_pcre="/home/user/wildland/mydirs/
 └── ariadne:/
     ├── forests/
     │$SPACE_OR_NBSP$SPACE_OR_NBSP .── pandora:/
-    │[\s\S]+.   └── WILDLAND-FOREST.txt
+    │[\s\S]+└── WILDLAND-FOREST.txt
     .── users/
 .*
 [\s\S]+?
