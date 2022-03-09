@@ -124,7 +124,12 @@ class WildlandCoreUser(WildlandCoreApi):
         :param private_key: bytes with private key
         :return: WildlandResult
         """
-        raise NotImplementedError
+        return self.__user_import_key(public_key, private_key)
+
+    @wildland_result(default_output=None)
+    def __user_import_key(self, public_key: bytes, private_key: bytes):
+        sig_context = self.client.session.sig
+        sig_context.import_key_pair(public_key, private_key)
 
     def user_get_public_key(self, owner: str) -> Tuple[WildlandResult, Optional[str]]:
         """
