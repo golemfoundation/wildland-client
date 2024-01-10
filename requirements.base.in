@@ -29,7 +29,7 @@ pyxdg
 pybear @ https://github.com/golemfoundation/pybear/archive/7af236fef1bce0466188b00f8e96b5a269e38959.zip
 dropbox
 # FIXME https://github.com/gitpython-developers/GitPython/issues/1349
-gitpython==3.1.18
+gitpython==3.1.41
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
