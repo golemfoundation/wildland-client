@@ -168,7 +168,9 @@ coverage[toml]==6.2 \
     --hash=sha256:f614fc9956d76d8a88a88bb41ddc12709caa755666f580af3a688899721efecd \
     --hash=sha256:f9afb5b746781fc2abce26193d1c817b7eb0e11459510fba65d2bd77fe161d9e \
     --hash=sha256:fb8b8ee99b3fffe4fd86f4c81b35a6bf7e4462cba019997af2fe679365db0c49
-    # via pytest-cov
+    # via
+    #   coverage
+    #   pytest-cov
 debugpy==1.5.1 \
     --hash=sha256:01e98c594b3e66d529e40edf314f849cd1a21f7a013298df58cd8e263bf8e184 \
     --hash=sha256:16db27b4b91991442f91d73604d32080b30de655aca9ba821b1972ea8171021b \
@@ -304,9 +306,9 @@ jedi==0.18.1 \
     --hash=sha256:637c9635fcf47945ceb91cd7f320234a7be540ded6f3e99a50cb6febdfd1ba8d \
     --hash=sha256:74137626a64a99c8eb6ae5832d99b3bdd7d29a3850fe2aa80a4126b2a7d949ab
     # via ipython
-jinja2==3.0.2 \
-    --hash=sha256:827a0e32839ab1600d4eb1c4c33ec5a8edfbc5cb42dafa13b81f182f97784b45 \
-    --hash=sha256:8569982d3f0889eed11dd620c706d39b60c36d6d25843961f33f77fb6bc6b20c
+jinja2==3.1.3 \
+    --hash=sha256:7d6d50dd97d52cbc355597bd845fabfbac3f551e1f99619e39a35ce8c370b5fa \
+    --hash=sha256:ac8bd6544d4bb2c9792bf3a159e80bba8fda7f07e81bc3aed565432d5925ba90
     # via
     #   -r requirements.base.in
     #   sphinx
@@ -974,6 +976,7 @@ zipp==3.6.0 \
     # via importlib-metadata
 
 # WARNING: The following packages were not pinned, but pip requires them to be
-# pinned when the requirements file includes hashes. Consider using the --allow-unsafe flag.
+# pinned when the requirements file includes hashes and the requirement is not
+# satisfied by a package already installed. Consider using the --allow-unsafe flag.
 # pip
 # setuptools
